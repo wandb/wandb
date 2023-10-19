@@ -157,7 +157,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Raises:
             LaunchError: If the registry is not properly configured.
         """
-        credentials = self.environment.get_credentials()
+        credentials = await self.environment.get_credentials()
         parent = (
             f"projects/{self.environment.project}/locations/{self.environment.region}"
         )
@@ -233,7 +233,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
         artifact_registry_client = event_loop_thread_exec(
             google.cloud.artifactregistry.ArtifactRegistryClient
         )
-        client = artifact_registry_client(credentials=credentials)
+        client = await artifact_registry_client(credentials=credentials)
         list_images = event_loop_thread_exec(client.list_docker_images)
         try:
             for image in await list_images(request={"parent": parent}):

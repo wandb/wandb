@@ -84,8 +84,13 @@ def vertex_runner(test_settings):
     """Vertex runner initialized with no backend config."""
     registry = MagicMock()
     environment = MagicMock()
+
+    async def _mock_get_credentials(*args, **kwargs):
+        return MagicMock()
+
+    environment.get_credentials = _mock_get_credentials
     api = Api(default_settings=test_settings(), load_settings=False)
-    runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
+    runner = VertexRunner(api, {"SYNCHRONOUS": False}, environment, registry)
     return runner
 
 

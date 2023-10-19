@@ -155,7 +155,7 @@ class VertexRunner(AbstractRunner):
                 project=self.environment.project,
                 location=self.environment.region,
                 staging_bucket=spec_args.get("staging_bucket"),
-                credentials=self.environment.get_credentials(),
+                credentials=await self.environment.get_credentials(),
             )
             job = aiplatform.CustomJob(
                 display_name=launch_project.name,
