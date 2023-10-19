@@ -141,6 +141,7 @@ message StreamTableRecord {
   string                    table = 1;
   string                    entity = 2;
   string                    project = 3;
+  _RecordInfo               _info = 200;
 }
 
 message GitRepoRecord {
