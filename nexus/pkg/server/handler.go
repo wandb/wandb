@@ -248,6 +248,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleRequest(record)
 	case *service.Record_Run:
 		h.handleRun(record)
+	case *service.Record_StreamTable:
+		h.handleStreamTable(record)
 	case *service.Record_Stats:
 		h.handleSystemMetrics(record)
 	case *service.Record_Summary:
@@ -531,6 +533,14 @@ func (h *Handler) handlePreempting(record *service.Record) {
 }
 
 func (h *Handler) handleRun(record *service.Record) {
+	h.sendRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
+}
+
+func (h *Handler) handleStreamTable(record *service.Record) {
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true

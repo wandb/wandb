@@ -184,6 +184,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
+	case *service.Record_StreamTable:
+		s.sendStreamTable(record, x.StreamTable)
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
@@ -817,6 +819,16 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 			Response: &service.Response{
 				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
 			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendStreamTable(record *service.Record, run *service.StreamTableRecord) {
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{
 		},
 		Control: record.Control,
 		Uuid:    record.Uuid,
