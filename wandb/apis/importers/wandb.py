@@ -49,14 +49,6 @@ RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 class WandbRun:
     def __init__(self, run: Run) -> None:
         self.run = run
-        # very hacky way to get alt username applied at thread level (if setting env var, would require proc level)
-        from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
-
-        if _thread_local_api_settings.headers is None:
-            _thread_local_api_settings.headers = {}
-
-        _thread_local_api_settings.headers["X-WANDB-USERNAME"] = self.run.user.username
-
         self.api = wandb.Api(
             api_key=_thread_local_settings.src_api_key,
             overrides={"base_url": _thread_local_settings.src_base_url},
@@ -69,10 +61,6 @@ class WandbRun:
         _thread_local_settings.src_entity = self.entity()
         _thread_local_settings.src_project = self.project()
         _thread_local_settings.src_run_id = self.run_id()
-
-        # import os
-        # os.environ["WANDB_USERNAME"] = self.run.user.username
-        # # _thread_local_settings.username = self.run.user.username
 
         # For caching
         self._files: Optional[Iterable[Tuple[str, str]]] = None
@@ -94,108 +82,8 @@ class WandbRun:
 
     def summary(self) -> Dict[str, float]:
         s = self.run.summary
-
-        # Modify artifact paths because they are different between systems
         s = self._modify_table_artifact_paths(s)
         return s
-
-    def _merge_dfs(self, dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        # Ensure there are DataFrames in the list
-        if len(dfs) == 0:
-            return pl.DataFrame()
-
-        if len(dfs) == 1:
-            return dfs[0]
-
-        merged_df = dfs[0]
-        for df in dfs[1:]:
-            merged_df = merged_df.join(df, how="outer", on=["_step"])
-            col_pairs = [
-                (c, f"{c}_right")
-                for c in merged_df.columns
-                if f"{c}_right" in merged_df.columns
-            ]
-            for col, right in col_pairs:
-                new_col = merged_df[col].fill_null(merged_df[right])
-                merged_df = merged_df.with_columns(new_col).drop(right)
-
-        return merged_df
-
-    def _get_metrics_df_from_parquet_history_paths(self) -> None:
-        if self._parquet_history_paths is None:
-            self._parquet_history_paths = self._get_parquet_history_paths()
-
-        if not self._parquet_history_paths:
-            # unfortunately, it's not feasible to validate non-parquet history
-            return pl.DataFrame()
-
-        dfs = []
-        for path in self._parquet_history_paths:
-            for p in Path(path).glob("*.parquet"):
-                df = pl.read_parquet(p)
-                dfs.append(df)
-
-        return self._merge_dfs(dfs).sort("_step")
-
-    def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
-        df = self._get_metrics_df_from_parquet_history_paths()
-        for row in df.iter_rows(named=True):
-            row = remove_keys_with_none_values(row)
-            yield row
-
-    def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
-        wandb_logger.warn(
-            "No parquet files detected; using scan history",
-            extra={
-                "entity": self.entity(),
-                "project": self.project(),
-                "run_id": self.run_id(),
-            },
-        )
-
-        hist = list(self.run.scan_history())
-        try:
-            df = pl.DataFrame(hist).sort("_step")
-        except Exception as e:
-            print(f"problem with scan history {e=}")
-            yield from hist
-        else:
-            yield from df.iter_rows(named=True)
-
-    def _get_parquet_history_paths(self) -> List[str]:
-        paths = []
-        try:
-            self._artifacts = list(self.run.logged_artifacts())
-        except Exception as e:
-            print("exeception 1")
-            wandb_logger.error(
-                f"Error downloading metrics artifacts -- {e}",
-                extra={
-                    "entity": self.entity(),
-                    "project": self.project(),
-                    "run_id": self.run_id(),
-                },
-            )
-            return []
-
-        for art in self._artifacts:
-            if art.type != "wandb-history":
-                continue
-            with patch("click.echo"):
-                try:
-                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
-                except Exception as e:
-                    wandb_logger.error(
-                        f"Error downloading metrics artifact ({art}) -- {e}",
-                        extra={
-                            "entity": self.entity(),
-                            "project": self.project(),
-                            "run_id": self.run_id(),
-                        },
-                    )
-                    continue
-                paths.append(path)
-        return paths
 
     def metrics(self) -> Iterable[Dict[str, float]]:
         if self._parquet_history_paths:
@@ -437,7 +325,106 @@ class WandbRun:
         with open(fname) as f:
             yield from f.readlines()
 
+    def _merge_dfs(self, dfs: List[pl.DataFrame]) -> pl.DataFrame:
+        # Ensure there are DataFrames in the list
+        if len(dfs) == 0:
+            return pl.DataFrame()
+
+        if len(dfs) == 1:
+            return dfs[0]
+
+        merged_df = dfs[0]
+        for df in dfs[1:]:
+            merged_df = merged_df.join(df, how="outer", on=["_step"])
+            col_pairs = [
+                (c, f"{c}_right")
+                for c in merged_df.columns
+                if f"{c}_right" in merged_df.columns
+            ]
+            for col, right in col_pairs:
+                new_col = merged_df[col].fill_null(merged_df[right])
+                merged_df = merged_df.with_columns(new_col).drop(right)
+
+        return merged_df
+
+    def _get_metrics_df_from_parquet_history_paths(self) -> None:
+        if self._parquet_history_paths is None:
+            self._parquet_history_paths = self._get_parquet_history_paths()
+
+        if not self._parquet_history_paths:
+            # unfortunately, it's not feasible to validate non-parquet history
+            return pl.DataFrame()
+
+        dfs = []
+        for path in self._parquet_history_paths:
+            for p in Path(path).glob("*.parquet"):
+                df = pl.read_parquet(p)
+                dfs.append(df)
+
+        return self._merge_dfs(dfs).sort("_step")
+
+    def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
+        df = self._get_metrics_df_from_parquet_history_paths()
+        for row in df.iter_rows(named=True):
+            row = remove_keys_with_none_values(row)
+            yield row
+
+    def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
+        wandb_logger.warn(
+            "No parquet files detected; using scan history",
+            extra={
+                "entity": self.entity(),
+                "project": self.project(),
+                "run_id": self.run_id(),
+            },
+        )
+
+        hist = list(self.run.scan_history())
+        try:
+            df = pl.DataFrame(hist).sort("_step")
+        except Exception as e:
+            print(f"problem with scan history {e=}")
+            yield from hist
+        else:
+            yield from df.iter_rows(named=True)
+
+    def _get_parquet_history_paths(self) -> List[str]:
+        paths = []
+        try:
+            self._artifacts = list(self.run.logged_artifacts())
+        except Exception as e:
+            print("exeception 1")
+            wandb_logger.error(
+                f"Error downloading metrics artifacts -- {e}",
+                extra={
+                    "entity": self.entity(),
+                    "project": self.project(),
+                    "run_id": self.run_id(),
+                },
+            )
+            return []
+
+        for art in self._artifacts:
+            if art.type != "wandb-history":
+                continue
+            with patch("click.echo"):
+                try:
+                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
+                except Exception as e:
+                    wandb_logger.error(
+                        f"Error downloading metrics artifact ({art}) -- {e}",
+                        extra={
+                            "entity": self.entity(),
+                            "project": self.project(),
+                            "run_id": self.run_id(),
+                        },
+                    )
+                    continue
+                paths.append(path)
+        return paths
+
     def _modify_table_artifact_paths(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        # Modify artifact paths because they are different between systems
         table_keys = []
         for k, v in row.items():
             if (
@@ -597,6 +584,7 @@ class WandbImporter:
             settings_override=settings_override,
             config=sm_config,
         )
+        print(f"W&B Importer: Finished uploading history ({run_str})")
         progress.subsubtask_pbar.remove_task(t)
 
         if history:
@@ -629,6 +617,7 @@ class WandbImporter:
                         new_art.add_dir(path)
 
                     history_arts.append(new_art)
+            print(f"W&B Importer: Finished collecting history artifacts ({run_str})")
             progress.subsubtask_pbar.remove_task(t)
 
             t = progress.subsubtask_pbar.add_task(
@@ -642,6 +631,7 @@ class WandbImporter:
                 settings_override={**settings_override, "resumed": True},
                 config=internal.SendManagerConfig(log_artifacts=True),
             )
+            print(f"W&B Importer: Finished uploading history artifacts ({run_str})")
             progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(
@@ -733,9 +723,11 @@ class WandbImporter:
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
         total = len(groups_of_artifacts)
+        i = 0
         for group in progress.subtask_progress(
             groups_of_artifacts, description=base_descr, total=total
         ):
+            i += 1
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
                 run = WandbRun(placeholder_run)
@@ -778,139 +770,13 @@ class WandbImporter:
                 settings_override=settings_override,
                 config=send_manager_config,
             )
+            print(f"W&B Importer: Finished uploading partial artifact sequence ({entity}/{project}/{_type}/{name}) ({i=}/{total=})")
+            
+        print(f"W&B Importer: Finished uploading artifact sequences ({entity}/{project}/{_type}/{name})")
 
         # query it back and remove placeholders
         self._remove_placeholders(art)
-
-    def _import_artifact_sequence(
-        self,
-        artifact_sequence: ArtifactSequence,
-        namespace: Optional[Namespace] = None,
-    ) -> None:
-        """Import one artifact sequence.
-
-        Use `namespace` to specify alternate settings like where the artifact sequence should be uploaded
-        """
-        if not artifact_sequence.artifacts:
-            # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
-            # but it can also happen if the sequence represents run history and that run was deleted.
-            print("No artifacts in sequence")
-            return
-
-        if namespace is None:
-            namespace = Namespace(artifact_sequence.entity, artifact_sequence.project)
-
-        settings_override = {
-            "api_key": self.dst_api_key,
-            "base_url": self.dst_base_url,
-            "resumed": True,
-        }
-
-        send_manager_config = internal.SendManagerConfig(log_artifacts=True)
-
-        # Get a placeholder run for dummy artifacts we'll upload later
-        art = artifact_sequence.artifacts[0]
-        try:
-            placeholder_run: Optional[Run] = self._get_run_from_art(art)
-        except requests.exceptions.HTTPError as e:
-            # If we had an http error, then just skip for now.
-            print(
-                f"Import Artifact Sequence http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
-            )
-            return
-
-        # Delete any existing artifact sequence, otherwise versions will be out of order
-        # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
-        self._delete_collection_in_dst(art, namespace)
-
-        # Instead of uploading placeholders one run at a time, upload an entire batch of placeholders at once
-        # The placeholders cannot be uploaded at the same time as the actual artifact, otherwise we can run into
-        # version collisions.
-        groups_of_artifacts = list(_fill_with_dummy_arts(artifact_sequence))
-        art = groups_of_artifacts[0][0]
-        _type = art.type
-
-        # can't use get_art_name_ver -- artifact naming is inconsistent between logged and not-yet-logged arts
-        name, *_ = art.name.split(":v")
-        entity = placeholder_run.entity
-        project = placeholder_run.project
-
-        base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
-
-        total = len(groups_of_artifacts)
-        task = progress.subtask_pbar.add_task(
-            base_descr,
-            total=total,
-        )
-        for i, group in enumerate(groups_of_artifacts, 1):
-            art = group[0]
-            if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
-                run = WandbRun(placeholder_run)
-            else:
-                try:
-                    t = progress.subsubtask_pbar.add_task(
-                        f"{base_descr} (Collecting logged by)", total=None
-                    )
-                    wandb_run = art.logged_by()
-                except ValueError:
-                    # Possible that the run that created this artifact was deleted, so we'll use a placeholder
-                    print(f"{placeholder_run=}, {type(placeholder_run)=}")
-                    wandb_run = placeholder_run
-                finally:
-                    progress.subsubtask_pbar.remove_task(t)
-
-                if wandb_run is None:
-                    wandb_run = placeholder_run
-
-                try:
-                    t = progress.subsubtask_pbar.add_task(
-                        f"{base_descr} (Downloading artifact)", total=None
-                    )
-                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
-                except Exception as e:
-                    print(f"Some error {e=}")
-                    wandb_logger.error(
-                        f"Error downloading artifact {art} -- {e}",
-                        extra={
-                            "entity": wandb_run.entity,
-                            "project": wandb_run.project,
-                            "run_id": wandb_run.id,
-                        },
-                    )
-                    continue
-                finally:
-                    progress.subsubtask_pbar.remove_task(t)
-
-                t = progress.subsubtask_pbar.add_task(
-                    f"{base_descr} (Make new artifact)", total=None
-                )
-                new_art = _make_new_art(art)
-
-                if Path(path).is_dir():
-                    new_art.add_dir(path)
-
-                group = [new_art]
-                run = WandbRun(wandb_run)
-                progress.subsubtask_pbar.remove_task(t)
-
-            t = progress.subsubtask_pbar.add_task(
-                f"{base_descr} (Send new artifact)", total=None
-            )
-            internal.send_artifacts_with_send_manager(
-                group,
-                run,
-                overrides=namespace.send_manager_overrides,
-                settings_override=settings_override,
-                config=send_manager_config,
-            )
-            progress.subsubtask_pbar.remove_task(t)
-            print(f"Finished sending {base_descr} ({i}/{total})")
-
-            progress.subtask_pbar.update(task, advance=1)
-
-        # query it back and remove placeholders
-        self._remove_placeholders(art)
-        progress.subtask_pbar.remove_task(task)
+        
 
     def _remove_placeholders(self, art: Artifact) -> None:
         try:
@@ -943,6 +809,8 @@ class WandbImporter:
                     raise e
             finally:
                 progress.subtask_pbar.advance(task)
+                
+        print(f"W&B Importer: Finished removing placeholders ({art.entity}/{art.project})")
         progress.subtask_pbar.remove_task(task)
 
     def _compare_artifact_dirs(self, src_dir, dst_dir):
@@ -1408,27 +1276,6 @@ class WandbImporter:
             description="Use artifact sequences",
         )
 
-    def _collect_reports_from_namespaces(
-        self,
-        namespaces: Iterable[Namespace],
-    ) -> Iterable[Report]:
-        for ns in namespaces:
-            yield from self._collect_reports(ns.entity, ns.project)
-
-    def _collect_runs_from_namespaces(
-        self,
-        namespaces: Iterable[Namespace],
-    ) -> Iterable[WandbRun]:
-        c = 0
-        task = progress.task_pbar.add_task(
-            description="Collecting runs", total=len(namespaces)
-        )
-        for ns in namespaces:
-            for run in self._collect_runs_old(ns):
-                yield run
-                c += 1
-        progress.task_pbar.update(task, total=c, completed=c)
-
     @progress.with_progress
     def true_import_runs(
         self,
@@ -1583,6 +1430,7 @@ class WandbImporter:
                         f.write(json.dumps(d) + "\n")
                     else:
                         f2.write(json.dumps(d) + "\n")
+        print(f"W&B Importer: Finished validating run ({run_str})")
 
     def _validate_run(self, src_run: Run) -> Tuple[Run, List[str]]:
         entity = src_run.entity
@@ -1750,6 +1598,8 @@ class WandbImporter:
             print(
                 f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}"
             )
+            
+        print(f"W&B Importer: Finished validating artifact ({src_art.entity=}, {src_art.project=}, {src_art.name=})")
 
         return (src_art, problems)
 
@@ -1773,6 +1623,7 @@ class WandbImporter:
             base_runs,
             description="Validate runs",
         )
+        print("W&B Importer: Finished validating runs")
 
     def _cleanup_runs_in_dst_but_not_in_src(self, entity, project):
         src_runs = [r for r in self.src_api.runs(f"{entity}/{project}")]
@@ -1963,6 +1814,8 @@ class WandbImporter:
                         f.write(json.dumps(d) + "\n")
                     else:
                         f2.write(json.dumps(d) + "\n")
+        print(f"W&B Importer: Finished validating artifact sequences")
+
 
     def _collect_runs(
         self,
@@ -2107,7 +1960,6 @@ class WandbImporter:
                 types = []
                 try:
                     types = [t for t in api.artifact_types(namespace_str)]
-                    # types = api.artifact_types(namespace_str)
                 except Exception as e:
                     print(f"problem getting types {e=}")
 
@@ -2121,7 +1973,6 @@ class WandbImporter:
                         continue
 
                     try:
-                        # collections = [c for c in t.collections()]
                         collections = t.collections()
                     except Exception as e:
                         print(f"problem getting collections {e=}")
@@ -2135,28 +1986,14 @@ class WandbImporter:
                             if seq:
                                 yield seq
 
-        # unique_sequences_map = {}
         seqs = itertools.islice(artifact_sequences(), limit)
-        # for seq in progress.task_progress(
-        #     seqs, description="Collect artifact sequences"
-        # ):
-        #     unique_sequences_map[seq.identifier] = seq
-
         unique_sequences = {
             seq.identifier: seq
             for seq in progress.task_progress(
                 seqs, description="Collect artifact sequences"
             )
         }
-
         yield from unique_sequences.values()
-
-        # # unique_sequences = unique_sequences_map.values()
-        # for seq in unique_sequences.values():
-        #     arts = seq.versions()
-        #     # Reverse sort to simplify uploading placeholders
-        #     arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        #     yield ArtifactSequence(arts, seq.entity, seq.project)
 
     def _import_artifact_sequences_new(
         self,
@@ -2178,42 +2015,6 @@ class WandbImporter:
             namespace=namespace,
             max_workers=max_workers,
             description="Import artifact sequences",
-        )
-
-    def _import_artifact_sequences(
-        self,
-        sequences: Iterable[ArtifactSequence],
-        *,
-        namespace: Optional[Namespace] = None,
-        max_workers: Optional[int] = None,
-    ) -> None:
-        """Import a collection of artifact sequences.
-
-        Use `namespace` to specify alternate settings like where the report should be uploaded
-
-        Optional:
-        - `max_workers` -- set number of worker threads
-        """
-        parallelize(
-            self._import_artifact_sequence,
-            sequences,
-            namespace=namespace,
-            max_workers=max_workers,
-            description="Artifact Sequences",
-        )
-
-    def use_artifact_sequences(
-        self,
-        sequences: Iterable[ArtifactSequence],
-        namespace: Optional[Namespace] = None,
-        max_workers: Optional[int] = None,
-    ) -> None:
-        parallelize(
-            self._use_artifact_sequence,
-            sequences,
-            namespace=namespace,
-            max_workers=max_workers,
-            description="Use Artifacts",
         )
 
     def import_reports(
