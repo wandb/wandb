@@ -2564,7 +2564,7 @@ def disabled(service):
         )
 
 
-@cli.command("enabled", help="Enable W&B.")
+@cli.command("enabled", help="Enable Weights & Biases.")
 @click.option(
     "--service",
     is_flag=True,
