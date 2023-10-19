@@ -1,4 +1,4 @@
-use crate::session::generate_run_id;
+use crate::session::generate_id;
 use crate::wandb_internal;
 use byteorder::{LittleEndian, WriteBytesExt};
 use prost::Message;
@@ -59,7 +59,7 @@ impl Connection {
         handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
     ) -> wandb_internal::Result {
         // TODO: generate unique id for this message
-        let uuid = generate_run_id(None);
+        let uuid = generate_id(16);
         // message.server_request_type.RecordCommunicate.control.mailbox_slot = uuid.clone();
         // update the message with the uuid
         // let
@@ -88,6 +88,7 @@ impl Connection {
         tracing::debug!(">>> Handles: {:?}", handles);
         self.send_message(&message).unwrap();
         tracing::debug!(">>> Waiting for result...");
+        // TODO: this should be recv_timeout(timeout)
         return receiver.recv().unwrap();
     }
 

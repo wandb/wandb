@@ -38,35 +38,52 @@ impl Run {
             .send_message(&server_inform_init_request)
             .unwrap();
 
-        let server_publish_run_request = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
-                    wandb_internal::Record {
-                        record_type: Some(wandb_internal::record::RecordType::Run(
-                            wandb_internal::RunRecord {
-                                run_id: self.id.clone(),
-                                // display_name: "gooba-gaba".to_string(),
-                                info: Some(wandb_internal::RecordInfo {
-                                    stream_id: self.id.clone(),
-                                    ..Default::default()
-                                }),
-                                ..Default::default()
-                            },
-                        )),
-                        info: Some(wandb_internal::RecordInfo {
-                            stream_id: self.id.clone(),
-                            ..Default::default()
-                        }),
+        let mut server_publish_run_request = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Run(
+                wandb_internal::RunRecord {
+                    run_id: self.id.clone(),
+                    // display_name: "gooba-gaba".to_string(),
+                    info: Some(wandb_internal::RecordInfo {
+                        stream_id: self.id.clone(),
                         ..Default::default()
-                    },
-                ),
-            ),
+                    }),
+                    ..Default::default()
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id.clone(),
+                ..Default::default()
+            }),
+            ..Default::default()
         };
 
-        self.interface
+        // update settings with backend's response
+        let result = self
+            .interface
             .conn
-            .send_message(&server_publish_run_request)
-            .unwrap();
+            .send_and_recv_message(&mut server_publish_run_request, &mut self.interface.handles);
+
+        match result.result_type {
+            Some(wandb_internal::result::ResultType::RunResult(run_result)) => {
+                // TODO: this should be properly done in the settings module, like in python
+                let run = run_result.run.unwrap();
+                let entity = run.entity;
+                let display_name = run.display_name;
+                let project = run.project;
+                self.settings.proto.entity = Some(entity.clone());
+                self.settings.proto.project = Some(project.clone());
+                self.settings.proto.run_name = Some(display_name.clone());
+
+                let url = format!("https://wandb.ai/{}/{}/runs/{}", entity, project, &self.id);
+                self.settings.proto.run_url = Some(url.clone());
+            }
+            Some(_) => {
+                tracing::warn!("Unexpected result type");
+            }
+            None => {
+                tracing::warn!("No result type, me is puzzled");
+            }
+        }
 
         let mut server_publish_run_start = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(

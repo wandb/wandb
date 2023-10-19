@@ -15,23 +15,24 @@ fn main() {
 
     let settings = session::Settings::new(None, Some(1.0), Some(1));
 
-    let session = session::Session::new(settings);
+    let mut session = session::Session::new(settings);
 
     let mut run = session.init_run(None);
 
     let name = "glorious-capybara-23";
     let url = "https://wandb.ai/dimaduev/uncategorized/runs/KEHHBT";
 
-    printer::print_header(name, url);
+    // printer::print_header(name, url);
 
-    let mut data: HashMap<String, f64> = HashMap::new();
-    data.insert("loss".to_string(), 13.37);
-
-    run.log(data.clone());
-    run.log(data.clone());
-    run.log(data.clone());
-    println!("\nLogging to run {}...\n", run.id);
-    thread::sleep(Duration::from_secs(2));
+    println!();
+    for i in 0..5 {
+        println!("Epoch {}", i);
+        let mut data = HashMap::new();
+        data.insert("loss".to_string(), 1.0 / (i + 1) as f64);
+        run.log(data);
+        thread::sleep(Duration::from_millis(250));
+    }
+    println!();
 
     run.finish();
 

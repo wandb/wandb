@@ -4,12 +4,13 @@ use core::panic;
 use std::io;
 use std::net::TcpStream;
 
-use rand::distributions::Alphanumeric;
-use rand::Rng;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use sentry;
 use std::env;
 use tracing;
 
+use crate::printer;
 use crate::wandb_internal::Settings as SettingsProto;
 
 use crate::connection::{Connection, Interface};
@@ -46,9 +47,20 @@ impl Settings {
         Settings { proto }
     }
 
+    // TODO: auto-generate all getters and setters
     #[getter]
     fn base_url(&self) -> String {
         self.proto.base_url.clone().unwrap()
+    }
+
+    #[getter]
+    fn run_name(&self) -> String {
+        self.proto.run_name.clone().unwrap()
+    }
+
+    #[getter]
+    fn run_url(&self) -> String {
+        self.proto.run_url.clone().unwrap()
     }
 }
 
@@ -65,19 +77,15 @@ pub struct Session {
     addr: String,
 }
 
-#[pyfunction]
-pub fn generate_run_id(run_id: Option<String>) -> String {
-    match run_id {
-        Some(id) => id,
-        None => {
-            let rand_string: String = rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(6)
-                .map(char::from)
-                .collect();
-            rand_string
-        }
-    }
+// #[pyfunction]
+pub fn generate_id(length: usize) -> String {
+    // Using ASCII lowercase and digits to create a base-36 alphabet
+    let alphabet: Vec<char> = "abcdefghijklmnopqrstuvwxyz0123456789".chars().collect();
+    let mut rng = thread_rng();
+
+    (0..length)
+        .map(|_| *alphabet.as_slice().choose(&mut rng).unwrap_or(&'a'))
+        .collect()
 }
 
 pub fn get_nexus_address() -> String {
@@ -106,9 +114,13 @@ impl Session {
         session
     }
 
-    pub fn init_run(&self, run_id: Option<String>) -> Run {
-        // generate a random alphnumeric string of length 6 if run_id is None:
-        let run_id = generate_run_id(run_id);
+    pub fn init_run(&mut self, run_id: Option<String>) -> Run {
+        // generate a random string of length 8 if run_id is None:
+        let run_id = match run_id {
+            Some(id) => id,
+            None => generate_id(8),
+        };
+        self.settings.proto.run_id = Some(run_id.clone());
         tracing::debug!("Creating new run {}", run_id);
 
         let conn = Connection::new(self.connect());
@@ -121,6 +133,9 @@ impl Session {
         };
 
         run.init();
+
+        printer::print_header(&run.settings.run_name(), &run.settings.run_url());
+
         return run;
     }
 }

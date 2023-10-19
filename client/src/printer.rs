@@ -75,7 +75,8 @@ pub fn print_header(name: &str, url: &str) {
             .tick_strings(&["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"]),
     );
     pb.set_message("Creating run...");
-    thread::sleep(Duration::from_secs(3));
+    // TODO: this is for the demo LOL LOL LOL
+    thread::sleep(Duration::from_millis(500));
 
     // pb.finish_with_message("Done");
     pb.finish_and_clear();
