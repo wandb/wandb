@@ -540,3 +540,31 @@ impl Run {
         );
     }
 }
+
+impl Run {
+    fn save_files(&self, path: String) {
+        let record = wandb_internal::Record {
+            record_type: Some(wandb_internal::record::RecordType::Files(
+                wandb_internal::FilesRecord {
+                    files: vec![wandb_internal::FilesItem {
+                        path: path,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+            )),
+            info: Some(wandb_internal::RecordInfo {
+                stream_id: self.id(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let message = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::RecordPublish(record),
+            ),
+        };
+
+        self.interface.conn.send_message(&message).unwrap();
+    }
+}
