@@ -881,20 +881,20 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecord) {
 	// TODO: convert to proper json struct
 	weaveObjectData := map[string]interface{}{
-		"_type": "stream_table",
-		"table_name": streamTable.Table,
+		"_type":        "stream_table",
+		"table_name":   streamTable.Table,
 		"project_name": streamTable.Project,
-		"entity_name": streamTable.Entity, 
+		"entity_name":  streamTable.Entity,
 	}
 	weaveTypeData := map[string]interface{}{
 		"type": "stream_table",
 		"_base_type": map[string]interface{}{
 			"type": "Object",
 		},
-		"_is_object": true,
-		"table_name": "string",
+		"_is_object":   true,
+		"table_name":   "string",
 		"project_name": "string",
-		"entity_name": "string",
+		"entity_name":  "string",
 	}
 
 	clientId := shared.ShortID(32)
@@ -907,11 +907,11 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 				ValueJson: "\"V2\"",
 			}},
 		},
-		Entity:   streamTable.Entity,
-		Project:  streamTable.Project,
-		RunId:    streamTable.Table,
-		Name:     streamTable.Table,
-		Type:     "stream_table",
+		Entity:  streamTable.Entity,
+		Project: streamTable.Project,
+		RunId:   streamTable.Table,
+		Name:    streamTable.Table,
+		Type:    "stream_table",
 		// Digest:   digest,
 		Aliases:  []string{"latest"},
 		Finalize: true,
