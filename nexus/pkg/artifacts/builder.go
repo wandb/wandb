@@ -43,7 +43,7 @@ func (b *ArtifactBuilder) updateManifestDigest() error {
 }
 
 func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
-	b.updateManifestDigest()
+	_ = b.updateManifestDigest()
 	return b.artifactRecord
 }
 

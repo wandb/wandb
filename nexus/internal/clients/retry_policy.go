@@ -2,8 +2,8 @@ package clients
 
 import (
 	"context"
-	"io"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -58,8 +58,8 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 	}
 }
 
-func CheckRetryWrapper(checkRetry func (context.Context, *http.Response, error) (bool, error)) func (context.Context, *http.Response, error) (bool, error) {
-	return func (ctx context.Context, resp *http.Response, err error) (bool, error) {
+func CheckRetryWrapper(checkRetry func(context.Context, *http.Response, error) (bool, error)) func(context.Context, *http.Response, error) (bool, error) {
+	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 		shouldRetry, checkErr := checkRetry(ctx, resp, err)
 		if (checkErr != nil || err != nil) && resp.Body != nil {
 			b, readErr := io.ReadAll(resp.Body)
