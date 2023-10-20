@@ -6,19 +6,32 @@ use std::{cmp::min, fmt::Write};
 use colored::*;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
+fn truncate(s: &str, max_chars: usize) -> &str {
+    match s.char_indices().nth(max_chars) {
+        None => s,
+        Some((idx, _)) => &s[..idx],
+    }
+}
+
 struct Printer;
 impl Printer {
     const SUCCESS_ICON: &'static str = "✓";
+    #[allow(dead_code)]
     const FAIL_ICON: &'static str = "✗";
     const RUN_ICON: &'static str = "🚀";
+    #[allow(dead_code)]
     const PREFIX_1_8: &'static str = "▏";
+    #[allow(dead_code)]
     const PREFIX_1_4: &'static str = "▎";
     const PREFIX_3_8: &'static str = "▍";
+    #[allow(dead_code)]
     const PREFIX_1_2: &'static str = "▌";
     const BARS: [&'static str; 8] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
     const SUCCESS_COLOR: [&'static u8; 3] = [&122, &166, &56];
+    #[allow(dead_code)]
     const FAIL_COLOR: [&'static u8; 3] = [&227, &50, &79];
-    const PREFIX_COLOR: [&'static u8; 3] = [&250, &193, &60];
+    const MOON_500: [&'static u8; 3] = [&121, &128, &138];
+    const GOLD_COLOR: [&'static u8; 3] = [&250, &193, &60];
     const HEADER_COLOR: [&'static u8; 3] = [&255, &255, &255];
     const PROGRESS_COLOR: &'static str = "magenta";
     const PROGRESS_BLANK_COLOR: &'static str = "white.dim";
@@ -47,6 +60,12 @@ impl Printer {
 
     fn hyperlink(text: &str, url: &str) -> String {
         format!("\x1B]8;;{}\x07{}\x1B]8;;\x07", url, text)
+            .truecolor(
+                *Printer::GOLD_COLOR[0],
+                *Printer::GOLD_COLOR[1],
+                *Printer::GOLD_COLOR[2],
+            )
+            .to_string()
     }
 
     fn start_spinner(active_msg: String) -> ProgressBar {
@@ -98,9 +117,9 @@ impl Printer {
         format!(
             "{} {}",
             Printer::PREFIX_3_8.truecolor(
-                *Printer::PREFIX_COLOR[0],
-                *Printer::PREFIX_COLOR[1],
-                *Printer::PREFIX_COLOR[2]
+                *Printer::GOLD_COLOR[0],
+                *Printer::GOLD_COLOR[1],
+                *Printer::GOLD_COLOR[2]
             ),
             text
         )
@@ -119,20 +138,20 @@ impl Printer {
     }
 
     fn header() -> String {
-        Printer::with_prefix(
-            &String::from("wandb")
-                .truecolor(
-                    *Printer::HEADER_COLOR[0],
-                    *Printer::HEADER_COLOR[1],
-                    *Printer::HEADER_COLOR[2],
-                )
-                .bold(),
-        )
+        let header = format!("wandb");
+        let colored_header = header
+            .truecolor(
+                *Printer::HEADER_COLOR[0],
+                *Printer::HEADER_COLOR[1],
+                *Printer::HEADER_COLOR[2],
+            )
+            .bold();
+        Printer::with_prefix(&colored_header.to_string())
     }
 }
 
 pub fn print_header(name: &str, url: &str) {
-    println!("{}", Printer::header());
+    println!("{}", &Printer::header());
 
     let active_msg = format!("Creating run...");
     let pb = Printer::start_spinner(active_msg);
@@ -155,7 +174,7 @@ pub fn print_footer(
     run_dir: &str,
     sparklines: HashMap<String, (Vec<f32>, Option<String>)>,
 ) {
-    println!("{}", Printer::header());
+    println!("{}", &Printer::header());
 
     // run stats
     let mut sorted_keys: Vec<_> = sparklines.keys().cloned().collect();
@@ -173,8 +192,13 @@ pub fn print_footer(
                     let formatted = format!(
                         "{} {:<20} {}",
                         Printer::with_prefix(""),
-                        format!("{} ({:<7})", key, summary),
-                        sparkline.dimmed(),
+                        // todo: fix printing, don't need more than 5 decimal places
+                        format!("{} ({})", key, truncate(summary, 7)),
+                        sparkline.truecolor(
+                            *Printer::MOON_500[0],
+                            *Printer::MOON_500[1],
+                            *Printer::MOON_500[2],
+                        ),
                     );
                     println!("{}", formatted);
                 }
@@ -204,8 +228,11 @@ pub fn print_footer(
         Printer::hyperlink(name, url).as_str()
     )));
     Printer::finish_progress_bar(&pb, final_msg.to_string());
-    let local_dir = String::from(format!("Run dir - {}", run_dir))
-        .white()
-        .dimmed();
-    println!("{}", Printer::with_prefix(&local_dir));
+    let local_dir = format!("Run dir - {}", run_dir);
+    let colored_local_dir = local_dir.truecolor(
+        *Printer::MOON_500[0],
+        *Printer::MOON_500[1],
+        *Printer::MOON_500[2],
+    );
+    println!("{}", Printer::with_prefix(&colored_local_dir.to_string()));
 }

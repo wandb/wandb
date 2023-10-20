@@ -29,14 +29,14 @@ fn main() {
     for i in 0..num_points {
         for j in 0..num_functions {
             let phase = 2.0 * PI * j as f64 / num_functions as f64;
-            println!("Epoch {} Batch {}", i, j);
+            // println!("Epoch {} Batch {}", i, j);
             let v = amplitude * (2.0 * PI * i as f64 / num_points as f64 + phase).sin();
             let k = format!("loss_{}", j);
             data.insert(k, run::Value::Float((v * 1e5).round() / 1e5));
         }
         data.insert("lol".to_string(), run::Value::Str("hi".to_string()));
         run.log(data.clone());
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(5));
     }
     println!();
 
