@@ -1473,11 +1473,11 @@ class Artifact:
     def _add_local_file(
         self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
     ) -> ArtifactManifestEntry:
-        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
-            shutil.copyfile(path, staging_path)
-            os.chmod(staging_path, 0o400)
-
+        # with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+        #     staging_path = f.name
+        #     shutil.copyfile(path, staging_path)
+        #     os.chmod(staging_path, 0o400)
+        staging_path = path
         entry = ArtifactManifestEntry(
             path=name,
             digest=digest or md5_file_b64(staging_path),
