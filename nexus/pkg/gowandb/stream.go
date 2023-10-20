@@ -84,8 +84,10 @@ func (r *Stream) init() {
 		}
 	*/
 	parts := strings.SplitN(*r.params.Path, "/", 3)
+	// runId := r.settings.GetRunId().GetValue(),
+	runId := parts[2]
 	runRecord := service.Record_StreamTable{StreamTable: &service.StreamTableRecord{
-		RunId:   r.settings.GetRunId().GetValue(),
+		RunId:   runId,
 		Entity:  parts[0],
 		Project: parts[1],
 		Table:   parts[2],

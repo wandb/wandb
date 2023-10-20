@@ -82,6 +82,9 @@ type Sender struct {
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
+
+	// TODO: move this somewhere else
+	streamTableClientId string
 }
 
 // NewSender creates a new Sender with the given settings
@@ -256,6 +259,7 @@ func (s *Sender) startFileStream(fsPath string, useAsync bool) {
 		fs.WithHttpClient(fileStreamRetryClient),
 		fs.WithPath(fsPath),
 		fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
+		fs.WithClientId(s.streamTableClientId),
 	)
 
 	s.fileStream.Start()
@@ -909,7 +913,6 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave meta", err)
 	}
 
-	clientId := shared.ShortID(32)
 	sequenceClientId := shared.ShortID(32)
 	baseArtifact := &service.ArtifactRecord{
 		Manifest: &service.ArtifactManifest{
@@ -928,7 +931,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		Type:             "stream_table",
 		Aliases:          []string{"latest"},
 		Finalize:         true,
-		ClientId:         clientId,
+		ClientId:         s.streamTableClientId,
 		SequenceClientId: sequenceClientId,
 	}
 	builder := artifacts.NewArtifactBuilder(baseArtifact)
@@ -949,6 +952,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
+	s.streamTableClientId = shared.ShortID(32)
 	s.startFileStream(fsPath, true)
 	s.uploadManager.Start()
 }

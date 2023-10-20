@@ -141,6 +141,9 @@ func (fs *FileStream) streamStreamData(msg *service.StreamDataRecord) {
 			row[k] = x.StringValue
 		}
 	}
+	if fs.streamTableClientId != "" {
+		row["_client_id"] = fs.streamTableClientId
+	}
 	// fmt.Printf("SEND %+v\n", row)
 	jsonBytes, err := json.Marshal(row)
 	if err != nil {
