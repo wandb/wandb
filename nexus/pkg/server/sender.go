@@ -899,9 +899,9 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 	}
 	metadata := map[string]interface{}{
 		"_weave_meta": map[string]interface{}{
-			"is_panel": false,
+			"is_panel":     false,
 			"is_weave_obj": true,
-			"type_name": "stream_table",
+			"type_name":    "stream_table",
 		},
 	}
 	metadataJson, err := json.Marshal(metadata)
