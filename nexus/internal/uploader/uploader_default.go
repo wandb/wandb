@@ -28,6 +28,18 @@ func NewDefaultUploader(logger *observability.NexusLogger, client *retryablehttp
 	return uploader
 }
 
+type FileWithLen struct {
+	*os.File
+}
+
+func (f *FileWithLen) Len() int {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		return 0
+	}
+	return int(fileInfo.Size())
+}
+
 // Upload uploads a file to the server
 func (u *DefaultUploader) Upload(task *UploadTask) error {
 	u.logger.Debug("default uploader: uploading file", "path", task.Path, "url", task.Url)
@@ -43,11 +55,13 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		}
 	}(file)
 
-	// req, err := retryablehttp.NewRequest(
-	req, err := http.NewRequest(
+	fileInfo := FileWithLen{
+		file,
+	}
+	req, err := retryablehttp.NewRequest(
 		http.MethodPut,
 		task.Url,
-		file,
+		&fileInfo,
 	)
 
 	for _, header := range task.Headers {
@@ -59,11 +73,11 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		return err
 	}
 
-	var resp *http.Response
-	// if resp, err = u.client.Do(req); err != nil {
-	if resp, err = http.DefaultClient.Do(req); err != nil {
+	resp, err := u.client.Do(req)
+	if err != nil {
 		return err
+	} else if resp.StatusCode != 200 {
+		return fmt.Errorf(resp.Status)
 	}
-	fmt.Println(*resp)
 	return nil
 }

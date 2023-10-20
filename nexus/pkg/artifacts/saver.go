@@ -110,7 +110,7 @@ func (as *ArtifactSaver) createManifest(
 }
 
 func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string) error {
-	const batchSize int = 10000
+	const batchSize int = 1000
 	const maxBacklog int = 10000
 
 	type TaskResult struct {
@@ -154,6 +154,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 		}
 		if len(fileSpecsBatch) > 0 {
 			// Fetch upload URLs.
+			// start := time.Now()
 			response, err := gql.CreateArtifactFiles(
 				as.Ctx,
 				as.GraphqlClient,
@@ -163,6 +164,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 			if err != nil {
 				return err
 			}
+			// fmt.Println("Signing urls took, ", time.Now().Sub(start).Milliseconds())
 			if len(fileSpecsBatch) != len(response.CreateArtifactFiles.Files.Edges) {
 				return fmt.Errorf(
 					"expected %v upload URLs, got %v",
