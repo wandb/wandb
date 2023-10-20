@@ -5,6 +5,7 @@ use crate::wandb_internal;
 use chrono;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use tracing;
@@ -23,13 +24,14 @@ pub fn generate_id(length: usize) -> String {
         .collect()
 }
 
-#[derive(FromPyObject, Clone)]
+#[derive(FromPyObject, Deserialize, Serialize, Clone)]
 pub enum Value {
     Float(f64),
     Int(i32),
     Str(String),
 }
 
+// TODO: switch to just using the serde Serializer
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -190,6 +192,10 @@ impl Run {
         tracing::debug!("Result: {:?}", result);
 
         printer::print_header(&self.settings.run_name(), &self.settings.run_url());
+    }
+
+    pub fn log_json(&self, data: String) {
+        self.log(serde_json::from_str(&data).unwrap_or(HashMap::new()));
     }
 
     pub fn log(&self, data: HashMap<String, Value>) {

@@ -4,6 +4,7 @@ use std::path::Path;
 use tempfile::tempdir;
 
 fn main() -> Result<()> {
+    pyo3_build_config::add_extension_module_link_args();
     let protos = [
         "../wandb/proto/wandb_base.proto",
         "../wandb/proto/wandb_settings.proto",
