@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -140,6 +141,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	var errorGroup errgroup.Group
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
+	var mutex sync.RWMutex
 	for int(numDone.Load()) < len(fileSpecs) {
 		// Prepare a batch.
 		now := time.Now()
@@ -179,9 +181,11 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				// Save birth artifact ids, schedule uploads.
 				for i, edge := range response.CreateArtifactFiles.Files.Edges {
 					name := fileSpecsBatch[i].Name
+					mutex.Lock()
 					entry := manifest.Contents[name]
 					entry.BirthArtifactID = &edge.Node.Artifact.Id
 					manifest.Contents[name] = entry
+					mutex.Unlock()
 					if edge.Node.UploadUrl == nil {
 						numInProgress.Add(-1)
 						numDone.Add(1)
