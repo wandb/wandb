@@ -21,8 +21,8 @@ fn main() {
 
     println!();
     let mut data = HashMap::new();
-    let num_functions = 10;
-    let num_points = 50;
+    let num_functions = 3;
+    let num_points = 10;
     let amplitude = 1.0;
     use std::f64::consts::PI;
 
