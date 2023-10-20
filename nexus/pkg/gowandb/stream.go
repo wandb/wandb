@@ -2,10 +2,10 @@ package gowandb
 
 import (
 	"context"
-	"strings"
 	"encoding/json"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
