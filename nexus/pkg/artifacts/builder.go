@@ -25,8 +25,8 @@ func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) e
 	}
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
 		&service.ArtifactManifestEntry{
-			Path: name,
-			Digest: digest,
+			Path:      name,
+			Digest:    digest,
 			LocalPath: filename,
 		})
 	return nil
