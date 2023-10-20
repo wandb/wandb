@@ -155,7 +155,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
 
-    permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
+    permissions_plus_write = os.stat(source_path).st_mode
     if need_copy:
         dir_name, file_name = os.path.split(target_path)
         target_path = os.path.join(mkdir_allow_fallback(dir_name), file_name)
