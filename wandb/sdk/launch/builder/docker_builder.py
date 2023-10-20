@@ -91,7 +91,6 @@ class DockerBuilder(AbstractBuilder):
     async def verify(self) -> None:
         """Verify the builder."""
         await validate_docker_installation()
-        await self.login()
 
     async def login(self) -> None:
         """Login to the registry."""
@@ -114,6 +113,8 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
+        await self.login()
+
         dockerfile_str = generate_dockerfile(
             launch_project=launch_project,
             entry_point=entrypoint,

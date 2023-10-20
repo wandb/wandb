@@ -62,9 +62,9 @@ async def test_loop_capture_stack_trace(mocker, clean_agent):
         "project": "test-project",
     }
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    agent.run_job = MagicMock()
+    agent.run_job = AsyncMock()
     agent.run_job.side_effect = [None, None, Exception("test exception")]
-    agent.pop_from_queue = MagicMock(return_value=MagicMock())
+    agent.pop_from_queue = AsyncMock(return_value=MagicMock())
 
     await agent.loop()
 
@@ -582,7 +582,8 @@ async def test_inner_thread_run_job(mocker, clean_agent):
     mocker.run.cancel.assert_called_once()
 
 
-def test_get_job_and_queue(mocker):
+@pytest.mark.asyncio
+async def test_get_job_and_queue(mocker):
     _setup(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -591,9 +592,9 @@ def test_get_job_and_queue(mocker):
     }
     mock_job = {"test-key": "test-value"}
     agent = LaunchAgent(api=mocker.api, config=mock_config)
-    agent.pop_from_queue = MagicMock(return_value=mock_job)
+    agent.pop_from_queue = AsyncMock(return_value=mock_job)
 
-    job_and_queue = agent.get_job_and_queue()
+    job_and_queue = await agent.get_job_and_queue()
 
     assert job_and_queue is not None
     assert job_and_queue.job == mock_job
