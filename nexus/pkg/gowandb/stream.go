@@ -122,32 +122,6 @@ func (r *Stream) start() {
 	if err != nil {
 		return
 	}
-
-	/*
-	   	request := service.Request{RequestType: &service.Request_RunStart{
-	   		RunStart: &service.RunStartRequest{Run: &service.RunRecord{
-	   			RunId: r.settings.GetRunId().GetValue(),
-	   		}}}}
-
-	   	record := service.Record{
-	   		RecordType: &service.Record_Request{Request: &request},
-	   		Control:    &service.Control{Local: true},
-	   		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	   	}
-
-	   	serverRecord = service.ServerRequest{
-	   		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	   	}
-
-	   handle := r.conn.Mbox.Deliver(&record)
-	   err = r.conn.Send(&serverRecord)
-
-	   	if err != nil {
-	   		return
-	   	}
-
-	   handle.wait()
-	*/
 }
 
 func (r *Stream) Log(data map[string]interface{}) {

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/gowandb"
+	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
 )
@@ -21,6 +22,7 @@ type BenchOpts struct {
 	numCPUs            *int
 	numWorkers         *int
 	useStreamTable     *bool
+	streamTablePath    *string
 }
 
 type Bench struct {
@@ -86,7 +88,7 @@ func (b *Bench) RunWorker() {
 }
 
 func (b *Bench) StreamWorker() {
-	stream, err := b.wandb.NewStream()
+	stream, err := b.wandb.NewStream(runopts.WithPath(*b.opts.streamTablePath))
 	if err != nil {
 		panic(err)
 	}
@@ -119,6 +121,7 @@ func main() {
 		numCPUs:            flag.Int("numCPUs", 0, "number of cpus"),
 		numWorkers:         flag.Int("numWorkers", 1, "number of parallel workers"),
 		useStreamTable:     flag.Bool("useStreamTable", true, "create stream table runs"),
+		streamTablePath:    flag.String("streamTablePath", "user/proj/table", "table to use"),
 	}
 	flag.Parse()
 
