@@ -897,6 +897,17 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		"project_name": "string",
 		"entity_name":  "string",
 	}
+	metadata := map[string]interface{}{
+		"_weave_meta": map[string]interface{}{
+			"is_panel": false,
+			"is_weave_obj": true,
+			"type_name": "stream_table",
+		},
+	}
+	metadataJson, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave meta", err)
+	}
 
 	clientId := shared.ShortID(32)
 	sequenceClientId := shared.ShortID(32)
@@ -913,6 +924,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		Project:          streamTable.Project,
 		RunId:            streamTable.RunId,
 		Name:             streamTable.Table,
+		Metadata:         string(metadataJson),
 		Type:             "stream_table",
 		Aliases:          []string{"latest"},
 		Finalize:         true,
@@ -928,7 +940,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 	}
 
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, builder.GetArtifact(), 0)
-	_, err := saver.Save()
+	_, err = saver.Save()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
 	}
