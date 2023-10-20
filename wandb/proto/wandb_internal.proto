@@ -162,7 +162,7 @@ message ErrorInfo {
  * StreamTableRecord
  */
 message StreamTableRecord {
-  string                    path = 1;
+  string                    run_id = 1;
   string                    table = 2;
   string                    entity = 3;
   string                    project = 4;
