@@ -717,7 +717,7 @@ class SendManager:
 
         result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
         for message in self._server_messages:
-            # guard agains the case the message level returns malformed from server
+            # guard against the case the message level returns malformed from server
             message_level = str(message.get("messageLevel"))
             message_level_sanitized = int(
                 printer.INFO if not message_level.isdigit() else message_level
