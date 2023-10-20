@@ -1248,11 +1248,8 @@ class Artifact:
             logical_path, physical_path = log_phy_path
             self._add_local_file(logical_path, physical_path)
 
-        num_threads = 8
-        pool = multiprocessing.dummy.Pool(num_threads)
-        pool.map(add_manifest_file, paths)
-        pool.close()
-        pool.join()
+        with concurrent.futures.ThreadPoolExecutor(64) as executor:
+            executor.map(add_manifest_file, paths)
 
         termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
 

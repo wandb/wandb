@@ -6,9 +6,11 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/uploader"
@@ -134,14 +136,15 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	}
 
 	// Upload in batches.
-	numInProgress, numDone := 0, 0
+	var numInProgress atomic.Int64
+	var errorGroup errgroup.Group
+	numDone := 0
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
-	fileSpecsBatch := make([]gql.CreateArtifactFileSpecInput, 0, batchSize)
 	for numDone < len(fileSpecs) {
 		// Prepare a batch.
 		now := time.Now()
-		fileSpecsBatch = fileSpecsBatch[:0]
+		fileSpecsBatch := make([]gql.CreateArtifactFileSpecInput, 0, batchSize)
 		for _, fileSpec := range fileSpecs {
 			if _, ok := nameToScheduledTime[fileSpec.Name]; ok {
 				continue
@@ -154,50 +157,53 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 		}
 		if len(fileSpecsBatch) > 0 {
 			// Fetch upload URLs.
-			// start := time.Now()
-			response, err := gql.CreateArtifactFiles(
-				as.Ctx,
-				as.GraphqlClient,
-				fileSpecsBatch,
-				gql.ArtifactStorageLayoutV2,
-			)
-			if err != nil {
-				return err
-			}
-			// fmt.Println("Signing urls took, ", time.Now().Sub(start).Milliseconds())
-			if len(fileSpecsBatch) != len(response.CreateArtifactFiles.Files.Edges) {
-				return fmt.Errorf(
-					"expected %v upload URLs, got %v",
-					len(fileSpecsBatch),
-					len(response.CreateArtifactFiles.Files.Edges),
+			errorGroup.Go(func() error {
+				// start := time.Now()
+				response, err := gql.CreateArtifactFiles(
+					as.Ctx,
+					as.GraphqlClient,
+					fileSpecsBatch,
+					gql.ArtifactStorageLayoutV2,
 				)
-			}
-			// Save birth artifact ids, schedule uploads.
-			for i, edge := range response.CreateArtifactFiles.Files.Edges {
-				name := fileSpecsBatch[i].Name
-				entry := manifest.Contents[name]
-				entry.BirthArtifactID = &edge.Node.Artifact.Id
-				manifest.Contents[name] = entry
-				if edge.Node.UploadUrl == nil {
-					numDone++
-					continue
+				if err != nil {
+					return err
 				}
-				numInProgress++
-				task := &uploader.UploadTask{
-					Path:    *entry.LocalPath,
-					Url:     *edge.Node.UploadUrl,
-					Headers: edge.Node.UploadHeaders,
-					CompletionCallback: func(task *uploader.UploadTask) {
-						taskResultsChan <- TaskResult{task, name}
-					},
-					FileType: uploader.ArtifactFile,
+				// fmt.Println("Signing urls took, ", time.Since(start).Milliseconds())
+				if len(fileSpecsBatch) != len(response.CreateArtifactFiles.Files.Edges) {
+					return fmt.Errorf(
+						"expected %v upload URLs, got %v",
+						len(fileSpecsBatch),
+						len(response.CreateArtifactFiles.Files.Edges),
+					)
 				}
-				as.UploadManager.AddTask(task)
-			}
+				// Save birth artifact ids, schedule uploads.
+				for i, edge := range response.CreateArtifactFiles.Files.Edges {
+					name := fileSpecsBatch[i].Name
+					entry := manifest.Contents[name]
+					entry.BirthArtifactID = &edge.Node.Artifact.Id
+					manifest.Contents[name] = entry
+					if edge.Node.UploadUrl == nil {
+						numDone++
+						continue
+					}
+					numInProgress.Add(1)
+					task := &uploader.UploadTask{
+						Path:    *entry.LocalPath,
+						Url:     *edge.Node.UploadUrl,
+						Headers: edge.Node.UploadHeaders,
+						CompletionCallback: func(task *uploader.UploadTask) {
+							taskResultsChan <- TaskResult{task, name}
+						},
+						FileType: uploader.ArtifactFile,
+					}
+					as.UploadManager.AddTask(task)
+				}
+				return nil
+			})
 		}
 		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
-		for numInProgress > maxBacklog || (len(fileSpecsBatch) == 0 && numInProgress > 0) {
-			numInProgress--
+		for int(numInProgress.Load()) > maxBacklog || (len(fileSpecsBatch) == 0 && int(numInProgress.Load()) > 0) {
+			numInProgress.Add(-1)
 			result := <-taskResultsChan
 			if result.Task.Err != nil {
 				// We want to retry when the signed URL expires. However, distinguishing that error from others is not
@@ -208,9 +214,11 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				delete(nameToScheduledTime, result.Name) // retry
 				continue
 			}
-			// fmt.Println("Num done: ", numDone)
 			numDone++
 		}
+	}
+	if err := errorGroup.Wait(); err != nil {
+		return err
 	}
 	return nil
 }
