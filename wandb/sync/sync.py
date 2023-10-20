@@ -226,9 +226,7 @@ class SyncThread(threading.Thread):
         except AssertionError as e:
             if ds.in_last_block():
                 wandb.termwarn(
-                    ".wandb file is incomplete ({}), be sure to sync this run again once it's finished".format(
-                        e
-                    )
+                    f".wandb file is incomplete ({e}), be sure to sync this run again once it's finished"
                 )
                 return None
             else:
