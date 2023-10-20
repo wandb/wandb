@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -137,12 +136,12 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	}
 
 	// Upload in batches.
-	var numInProgress, numDone atomic.Int64
+	numInProgress, numDone := 0, 0
 	var errorGroup errgroup.Group
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
 	var mutex sync.RWMutex
-	for int(numDone.Load()) < len(fileSpecs) {
+	for numDone < len(fileSpecs) {
 		// Prepare a batch.
 		now := time.Now()
 		fileSpecsBatch := make([]gql.CreateArtifactFileSpecInput, 0, batchSize)
@@ -158,7 +157,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 		}
 		if len(fileSpecsBatch) > 0 {
 			// Fetch upload URLs.
-			numInProgress.Add(int64(len(fileSpecsBatch)))
+			numInProgress += len(fileSpecsBatch)
 			errorGroup.Go(func() error {
 				start := time.Now()
 				response, err := gql.CreateArtifactFiles(
@@ -187,8 +186,10 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					manifest.Contents[name] = entry
 					mutex.Unlock()
 					if edge.Node.UploadUrl == nil {
-						numInProgress.Add(-1)
-						numDone.Add(1)
+						mutex.Lock()
+						numInProgress--
+						numDone++
+						mutex.Unlock()
 						continue
 					}
 					task := &uploader.UploadTask{
@@ -206,8 +207,8 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 			})
 		}
 		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
-		for int(numInProgress.Load()) >= maxBacklog || (len(fileSpecsBatch) == 0 && int(numInProgress.Load()) > 0) {
-			numInProgress.Add(-1)
+		for numInProgress >= maxBacklog || (len(fileSpecsBatch) == 0 && numInProgress > 0) {
+			numInProgress--
 			result := <-taskResultsChan
 			if result.Task.Err != nil {
 				// We want to retry when the signed URL expires. However, distinguishing that error from others is not
@@ -218,7 +219,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				delete(nameToScheduledTime, result.Name) // retry
 				continue
 			}
-			numDone.Add(1)
+			numDone++
 		}
 	}
 	if err := errorGroup.Wait(); err != nil {
