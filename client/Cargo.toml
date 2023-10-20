@@ -6,8 +6,6 @@ edition = "2021"
 [lib]
 path = "src/lib.rs"
 crate-type = ["lib", "cdylib"]
-# crate-type = ["cdylib"]
-# crate-type = ["lib"]
 
 [[bin]]
 name = "binder"

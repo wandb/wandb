@@ -26,7 +26,7 @@ impl Printer {
     const PREFIX_3_8: &'static str = "▍";
     #[allow(dead_code)]
     const PREFIX_1_2: &'static str = "▌";
-    const BARS: [&'static str; 8] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+    const BARS: [&'static str; 7] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇"];
     const SUCCESS_COLOR: [&'static u8; 3] = [&122, &166, &56];
     #[allow(dead_code)]
     const FAIL_COLOR: [&'static u8; 3] = [&227, &50, &79];
