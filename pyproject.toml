@@ -89,6 +89,7 @@ launch = [
     "botocore",
     "chardet",
     "google-auth",
+    "google-cloud-aiplatform",
     "google-cloud-artifact-registry",
     "google-cloud-compute",
     "google-cloud-storage",
@@ -104,7 +105,7 @@ models = ["cloudpickle"]
 async = ["httpx>=0.22.0"] # 0.23.0 dropped Python 3.6; we can upgrade once we drop it too
 perf = ["orjson"]
 nexus = [
-    "wandb-core>=0.16.0b2"
+    "wandb-core>=0.16.0b3"
 ]
 
 [tool.setuptools]

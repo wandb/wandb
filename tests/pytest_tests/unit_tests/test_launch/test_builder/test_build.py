@@ -17,6 +17,9 @@ def test_get_env_vars_dict(mocker):
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
         "WANDB_LAUNCH": "True",
+        "WANDB_LAUNCH_QUEUE_NAME": "test-queue-name",
+        "WANDB_LAUNCH_QUEUE_ENTITY": "test-queue-entity",
+        "WANDB_LAUNCH_TRACE_ID": "test-run-queue-item-id",
         "WANDB_NAME": "test-name",
         "WANDB_PROJECT": "test-project",
         "WANDB_RUN_ID": "test-run-id",
@@ -40,6 +43,9 @@ def test_get_env_vars_dict_api_key_override(mocker):
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
         "WANDB_LAUNCH": "True",
+        "WANDB_LAUNCH_QUEUE_NAME": "test-queue-name",
+        "WANDB_LAUNCH_QUEUE_ENTITY": "test-queue-entity",
+        "WANDB_LAUNCH_TRACE_ID": "test-run-queue-item-id",
         "WANDB_NAME": "test-name",
         "WANDB_PROJECT": "test-project",
         "WANDB_RUN_ID": "test-run-id",
@@ -67,6 +73,9 @@ def _setup(mocker):
     launch_project.docker_image = "test-docker-image"
     launch_project.name = "test-name"
     launch_project.launch_spec = {"author": "test-author"}
+    launch_project.queue_name = "test-queue-name"
+    launch_project.queue_entity = "test-queue-entity"
+    launch_project.run_queue_item_id = "test-run-queue-item-id"
     launch_project.override_config = {}
     launch_project.override_args = []
     launch_project.override_artifacts = {}
