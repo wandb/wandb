@@ -846,7 +846,7 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 		ctx,                          // ctx
 		s.graphqlClient,              // client
 		nil,                          // id
-		&run.Table,                   // name
+		&run.RunId,                   // name
 		utils.NilIfZero(run.Project), // project
 		utils.NilIfZero(run.Entity),  // entity
 		utils.NilIfZero(zero),        // groupName
@@ -899,6 +899,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 	}
 
 	clientId := shared.ShortID(32)
+	sequenceClientId := shared.ShortID(32)
 	baseArtifact := &service.ArtifactRecord{
 		Manifest: &service.ArtifactManifest{
 			Version:       1,
@@ -910,13 +911,13 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		},
 		Entity:   streamTable.Entity,
 		Project:  streamTable.Project,
-		RunId:    streamTable.Table,
+		RunId:    streamTable.RunId,
 		Name:     streamTable.Table,
 		Type:     "stream_table",
 		Aliases:  []string{"latest"},
 		Finalize: true,
 		ClientId: clientId,
-		// SequenceClientId: "44fdjfdsfdsfskflsjfklsdjjfsdlkfjdsklfs",
+		SequenceClientId: sequenceClientId,
 	}
 	builder := artifacts.NewArtifactBuilder(baseArtifact)
 	if err := builder.AddData("obj.object.json", weaveObjectData); err != nil {
