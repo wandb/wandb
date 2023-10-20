@@ -94,6 +94,9 @@ def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
         project.launch_spec = {}
         environment = loader.environment_from_config({})
         api = Api()
