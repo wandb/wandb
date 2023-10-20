@@ -6,6 +6,7 @@ use chrono;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::collections::HashMap;
+use std::fmt;
 use tracing;
 
 use crate::printer;
@@ -20,6 +21,23 @@ pub fn generate_id(length: usize) -> String {
     (0..length)
         .map(|_| *alphabet.as_slice().choose(&mut rng).unwrap_or(&'a'))
         .collect()
+}
+
+#[derive(FromPyObject, Clone)]
+pub enum Value {
+    Float(f64),
+    Int(i32),
+    Str(String),
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Float(val) => write!(f, "{}", val),
+            Value::Int(val) => write!(f, "{}", val),
+            Value::Str(val) => write!(f, "\"{}\"", val),
+        }
+    }
 }
 
 #[pyclass]
@@ -174,7 +192,7 @@ impl Run {
         printer::print_header(&self.settings.run_name(), &self.settings.run_url());
     }
 
-    pub fn log(&self, data: HashMap<String, f64>) {
+    pub fn log(&self, data: HashMap<String, Value>) {
         tracing::debug!("Logging to run {}", self.id());
 
         // TODO: make it work with steps
@@ -369,7 +387,8 @@ impl Run {
         };
 
         for item in summary {
-            if item.key != "_wandb" {
+            // check if value is not a string
+            if item.key != "_wandb" && history.contains_key(&item.key) {
                 let value = &history[&item.key];
                 let updated_tuple = (value.0.clone(), Some(item.value_json));
                 history.insert(item.key, updated_tuple);

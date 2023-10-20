@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use std::thread;
 
-use wandbinder::{session, settings};
+use wandbinder::{run, session, settings};
 
 fn main() {
     // let _guard = sentry::init(
@@ -15,7 +15,7 @@ fn main() {
 
     let settings = settings::Settings::new(None, None, Some(1.0), Some(1));
 
-    let mut session = session::Session::new(settings);
+    let session = session::Session::new(settings);
 
     let mut run = session.init_run(None);
 
@@ -32,10 +32,11 @@ fn main() {
             println!("Epoch {} Batch {}", i, j);
             let v = amplitude * (2.0 * PI * i as f64 / num_points as f64 + phase).sin();
             let k = format!("loss_{}", j);
-            data.insert(k, (v * 1e5).round() / 1e5);
+            data.insert(k, run::Value::Float((v * 1e5).round() / 1e5));
         }
+        data.insert("lol".to_string(), run::Value::Str("hi".to_string()));
         run.log(data.clone());
-        thread::sleep(Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(50));
     }
     println!();
 

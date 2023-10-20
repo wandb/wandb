@@ -48,7 +48,7 @@ impl Session {
         session
     }
 
-    pub fn init_run(&mut self, run_id: Option<String>) -> Run {
+    pub fn init_run(&self, run_id: Option<String>) -> Run {
         let conn = Connection::new(self.connect());
         let interface = Interface::new(conn);
 
