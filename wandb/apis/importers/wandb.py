@@ -25,7 +25,7 @@ from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import internal, progress, protocols
 from .config import Namespace
-from .logs import _thread_local_settings, wandb_logger
+from .logs import _thread_local_settings, wandb_logger, import_logger
 from .protocols import ArtifactSequence, parallelize
 
 with patch("click.echo"):
@@ -383,7 +383,7 @@ class WandbRun:
         try:
             df = pl.DataFrame(hist).sort("_step")
         except Exception as e:
-            print(f"problem with scan history {e=}")
+            import_logger.error(f"problem with scan history {e=}")
             yield from hist
         else:
             yield from df.iter_rows(named=True)
@@ -393,7 +393,7 @@ class WandbRun:
         try:
             self._artifacts = list(self.run.logged_artifacts())
         except Exception as e:
-            print("exeception 1")
+            import_logger.error(f"exeception downloading metrics artifacts {e=}")
             wandb_logger.error(
                 f"Error downloading metrics artifacts -- {e}",
                 extra={
@@ -455,7 +455,7 @@ class WandbRun:
                             "run_id": self.run_id(),
                         },
                     )
-                    print("BUSTED TABLE ART")
+                    import_logger.error(f"Error getting table artifact {e=}")
                 else:
                     break
 
@@ -584,7 +584,7 @@ class WandbImporter:
             settings_override=settings_override,
             config=sm_config,
         )
-        print(f"W&B Importer: Finished uploading history ({run_str})")
+        import_logger.info(f"W&B Importer: Finished uploading history ({run_str})")
         progress.subsubtask_pbar.remove_task(t)
 
         if history:
@@ -617,7 +617,9 @@ class WandbImporter:
                         new_art.add_dir(path)
 
                     history_arts.append(new_art)
-            print(f"W&B Importer: Finished collecting history artifacts ({run_str})")
+            import_logger.info(
+                f"W&B Importer: Finished collecting history artifacts ({run_str})"
+            )
             progress.subsubtask_pbar.remove_task(t)
 
             t = progress.subsubtask_pbar.add_task(
@@ -631,7 +633,9 @@ class WandbImporter:
                 settings_override={**settings_override, "resumed": True},
                 config=internal.SendManagerConfig(log_artifacts=True),
             )
-            print(f"W&B Importer: Finished uploading history artifacts ({run_str})")
+            import_logger.info(
+                f"W&B Importer: Finished uploading history artifacts ({run_str})"
+            )
             progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(
@@ -659,7 +663,9 @@ class WandbImporter:
         try:
             run = art.logged_by()
         except ValueError as e:
-            print(f"Trying to log {art=}, but {run=} doesn't exist! {e=}")
+            import_logger.warning(
+                f"Trying to log {art=}, but {run=} doesn't exist! {e=}"
+            )
 
         if run is None:
             run = special_logged_by(self.src_api.client, art)
@@ -679,7 +685,6 @@ class WandbImporter:
         if not artifact_sequence.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
-            print("No artifacts in sequence")
             return
 
         if namespace is None:
@@ -699,7 +704,7 @@ class WandbImporter:
             placeholder_run: Optional[Run] = self._get_run_from_art(art)
         except requests.exceptions.HTTPError as e:
             # If we had an http error, then just skip for now.
-            print(
+            import_logger.warning(
                 f"Import Artifact Sequence http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
             )
             return
@@ -736,7 +741,7 @@ class WandbImporter:
                     wandb_run = art.logged_by()
                 except ValueError:
                     # Possible that the run that created this artifact was deleted, so we'll use a placeholder
-                    print(f"{placeholder_run=}, {type(placeholder_run)=}")
+                    import_logger.error(f"{placeholder_run=}, {type(placeholder_run)=}")
                     wandb_run = placeholder_run
 
                 if wandb_run is None:
@@ -745,7 +750,7 @@ class WandbImporter:
                 try:
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
-                    print(f"Some error {e=}")
+                    import_logger.error(f"Error downloading artifact {art=} {e=}")
                     wandb_logger.error(
                         f"Error downloading artifact {art} -- {e}",
                         extra={
@@ -770,11 +775,11 @@ class WandbImporter:
                 settings_override=settings_override,
                 config=send_manager_config,
             )
-            print(
+            import_logger.info(
                 f"W&B Importer: Finished uploading partial artifact sequence ({entity}/{project}/{_type}/{name}) ({i=}/{total=})"
             )
 
-        print(
+        import_logger.info(
             f"W&B Importer: Finished uploading artifact sequences ({entity}/{project}/{_type}/{name})"
         )
 
@@ -790,7 +795,7 @@ class WandbImporter:
             )
         except wandb.CommError:
             # the artifact did not upload for some reason
-            print(f"This artifact doesn't seem to exist in dst, {art=}")
+            import_logger.warning(f"This artifact doesn't seem to exist in dst, {art=}")
             return
 
         task = progress.subtask_pbar.add_task(
@@ -802,7 +807,6 @@ class WandbImporter:
                 continue
 
             if version.type in ("wandb-history", "job"):
-                print("Cannot delete system managed artifact.  Skipping.")
                 continue
 
             try:
@@ -813,7 +817,7 @@ class WandbImporter:
             finally:
                 progress.subtask_pbar.advance(task)
 
-        print(
+        import_logger.info(
             f"W&B Importer: Finished removing placeholders ({art.entity}/{art.project})"
         )
         progress.subtask_pbar.remove_task(task)
@@ -1156,12 +1160,12 @@ class WandbImporter:
                         run.delete(delete_artifacts=False)
             except ValueError as e:
                 if "Could not find project" in str(e):
-                    print(
+                    import_logger.warning(
                         f"Could not get runs for {ns.entity}/{ns.project} (is it empty?) {e=}"
                     )
                     continue
             except Exception as e:
-                print(f"problem cleanup {e=}")
+                import_logger.error(f"problem cleanup {e=}")
                 continue
 
     def collect_reports(
@@ -1297,23 +1301,25 @@ class WandbImporter:
         summary: bool = True,
         terminal_output: bool = True,
     ):
-        print(f"Starting to import runs for {namespaces=}")
+        import_logger.debug(f"Starting to import runs for {namespaces=}")
         self._clear_run_errors()
 
         # Collect runs from source and validate against destination
-        print(f"Starting to collect runs for {namespaces=}")
+        import_logger.debug(f"Starting to collect runs for {namespaces=}")
         runs = self._collect_runs(namespaces=namespaces, limit=limit)
         runs = list(runs)
-        print(f"Starting to validate runs for {namespaces=}, {len(runs)=}")
+        import_logger.debug(
+            f"Starting to validate runs for {namespaces=}, {len(runs)=}"
+        )
         self._validate_runs(
             runs,
             skip_previously_validated=incremental,
         )
 
         # (Re)-upload differences
-        print(f"Starting to filter runs for {namespaces=}")
+        import_logger.debug(f"Starting to filter runs for {namespaces=}")
         incremental_runs = self._filter_for_failed_runs_only(runs)
-        print(f"Starting to import runs for {namespaces=}")
+        import_logger.debug(f"Starting to import runs for {namespaces=}")
         self._import_runs(
             incremental_runs,
             max_workers=max_workers,
@@ -1325,7 +1331,7 @@ class WandbImporter:
             summary=summary,
             terminal_output=terminal_output,
         )
-        print(f"Finished runs {namespaces=}")
+        import_logger.debug(f"Finished runs {namespaces=}")
 
     @progress.with_progress
     def true_import_reports(
@@ -1334,10 +1340,10 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
     ):
-        print(f"Starting to import reports for {namespaces=}")
+        import_logger.debug(f"Starting to import reports for {namespaces=}")
         reports = self._true_collect_reports(namespaces=namespaces, limit=limit)
         self.import_reports(reports)
-        print(f"Finished reports {namespaces=}")
+        import_logger.debug(f"Finished reports {namespaces=}")
 
     @progress.with_progress
     def true_import_artifact_sequences(
@@ -1347,14 +1353,16 @@ class WandbImporter:
         incremental: bool = True,
         max_workers: Optional[int] = None,
     ):
-        print(f"Starting to import artifact sequences for {namespaces=}")
+        import_logger.debug(f"Starting to import artifact sequences for {namespaces=}")
         self._clear_artifact_errors()
 
         # Collect artifacts from source and validate against destination
-        print(f"Starting to collect artifact sequences for {namespaces=}")
+        import_logger.debug(f"Starting to collect artifact sequences for {namespaces=}")
         seqs = self._true_collect_artifact_sequences(namespaces=namespaces)
         seqs = list(seqs)
-        print(f"Starting to validate artifact sequences for {namespaces=} {len(seqs)=}")
+        import_logger.debug(
+            f"Starting to validate artifact sequences for {namespaces=} {len(seqs)=}"
+        )
         self._validate_artifact_sequences_new(
             seqs,
             skip_previously_checked=incremental,
@@ -1362,24 +1370,26 @@ class WandbImporter:
 
         # (Re)-upload differences
         # incremental_seqs = self._collect_failed_artifact_sequences()
-        print(f"Starting to filter artifact sequences for {namespaces=}")
+        import_logger.debug(f"Starting to filter artifact sequences for {namespaces=}")
         incremental_seqs = self._filter_for_failed_sequences_only(seqs)
         incremental_seqs = list(incremental_seqs)
-        print(
+        import_logger.debug(
             f"Starting to import artifact sequences for {namespaces=} {len(incremental_seqs)=}"
         )
         self._import_artifact_sequences_new(incremental_seqs, max_workers=max_workers)
 
         # it's safer to just use artifact on all seqs to make sure we don't miss anything
         # For seqs that have already been used, this is a no-op.
-        print(f"Starting to use artifact sequences for {namespaces=}")
+        import_logger.debug(f"Starting to use artifact sequences for {namespaces=}")
         self._use_artifact_sequences(seqs)
 
         # Artifacts whose parent runs have been deleted should have that run deleted in the
         # destination as well
-        print(f"Starting to use cleanup placeholder runs for {namespaces=}")
+        import_logger.debug(
+            f"Starting to use cleanup placeholder runs for {namespaces=}"
+        )
         self._cleanup_placeholder_runs_new(namespaces=namespaces)
-        print(f"Finished artifact sequences{namespaces=}")
+        import_logger.debug(f"Finished artifact sequences{namespaces=}")
 
     @progress.with_progress
     def import_all(
@@ -1433,7 +1443,7 @@ class WandbImporter:
         except wandb.CommError:
             problems = ["run does not exist"]
         except Exception as e:
-            print(f"Problem collecting run {src_run=}, {e=}")
+            import_logger.error(f"Problem collecting run {src_run=}, {e=}")
         else:
             problems = self._get_run_problems(src_run, dst_run)
         finally:
@@ -1452,7 +1462,7 @@ class WandbImporter:
                         f.write(json.dumps(d) + "\n")
                     else:
                         f2.write(json.dumps(d) + "\n")
-        print(f"W&B Importer: Finished validating run ({run_str})")
+        import_logger.info(f"W&B Importer: Finished validating run ({run_str})")
 
     def _validate_run(self, src_run: Run) -> Tuple[Run, List[str]]:
         entity = src_run.entity
@@ -1473,7 +1483,7 @@ class WandbImporter:
             problems = self._get_run_problems(src_run, dst_run)
 
         if problems:
-            print(f"Problem validating run: {run_str=}, {problems=}")
+            import_logger.error(f"Problem validating run: {run_str=}, {problems=}")
 
         progress.subtask_pbar.remove_task(task)
         return (src_run, problems)
@@ -1616,12 +1626,7 @@ class WandbImporter:
                     f"Invalid download link for dst {dst_art.entity=}, {dst_art.project=}, {dst_art.name=}, {e}"
                 )
 
-        if problems:
-            print(
-                f"Problem validating artifact: {src_art.entity=}, {src_art.project=}, {src_art.name=} {problems=}"
-            )
-
-        print(
+        import_logger.info(
             f"W&B Importer: Finished validating artifact ({src_art.entity=}, {src_art.project=}, {src_art.name=})"
         )
 
@@ -1647,7 +1652,7 @@ class WandbImporter:
             base_runs,
             description="Validate runs",
         )
-        print("W&B Importer: Finished validating runs")
+        import_logger.info("W&B Importer: Finished validating runs")
 
     def _cleanup_runs_in_dst_but_not_in_src(self, entity, project):
         src_runs = [r for r in self.src_api.runs(f"{entity}/{project}")]
@@ -1740,7 +1745,7 @@ class WandbImporter:
                 try:
                     logged_by = self._get_run_from_art(art)
                 except requests.HTTPError as e:
-                    print(
+                    import_logger.error(
                         f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
                     )
                     continue
@@ -1791,7 +1796,7 @@ class WandbImporter:
                 try:
                     logged_by = self._get_run_from_art(art)
                 except requests.HTTPError as e:
-                    print(
+                    import_logger.error(
                         f"Validate Artifact http error: {art.entity=}, {art.project=}, {art.name=}, {e=}"
                     )
                     continue
@@ -1838,7 +1843,7 @@ class WandbImporter:
                         f.write(json.dumps(d) + "\n")
                     else:
                         f2.write(json.dumps(d) + "\n")
-        print("W&B Importer: Finished validating artifact sequences")
+        import_logger.info("W&B Importer: Finished validating artifact sequences")
 
     def _collect_runs(
         self,
@@ -1864,7 +1869,7 @@ class WandbImporter:
                     for run in api.runs(f"{ns.entity}/{ns.project}", filters=filters):
                         yield WandbRun(run)
                 except Exception as e:
-                    print(f"Error collecting runs {e=}")
+                    import_logger.error(f"Error collecting runs {e=}")
 
         runs = itertools.islice(_runs(), limit)
         yield from progress.task_progress(runs, description="Collect runs")
@@ -1984,7 +1989,7 @@ class WandbImporter:
                 try:
                     types = [t for t in api.artifact_types(namespace_str)]
                 except Exception as e:
-                    print(f"problem getting types {e=}")
+                    import_logger.error(f"problem getting types {e=}")
 
                 for t in progress.subsubtask_progress(
                     types, description=f"iterate types ({namespace_str})"
@@ -1998,7 +2003,7 @@ class WandbImporter:
                     try:
                         collections = t.collections()
                     except Exception as e:
-                        print(f"problem getting collections {e=}")
+                        import_logger.error(f"problem getting collections {e=}")
 
                     for c in progress.subsubtask_progress(
                         collections,
@@ -2262,7 +2267,7 @@ def _check_entry_is_downloable(entry):
     try:
         resp = requests.head(url, allow_redirects=True)
     except Exception:
-        print(f"Problem validating {entry=}")
+        import_logger.error(f"Problem validating {entry=}")
 
     if resp.status_code != 200:
         return False
@@ -2289,7 +2294,7 @@ def sequence_from_collection(collection):
         arts = collection.versions()
         arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
     except Exception as e:
-        print(f"problem at sequence from collection {e=}")
+        import_logger.error(f"problem at sequence from collection {e=}")
         return
 
     if arts:

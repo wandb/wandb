@@ -51,6 +51,9 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
 wandb_logger = logging.getLogger("wandb.apis.importers.wandb")
 
+import_logger = logging.getLogger("my_logger")
+import_logger.setLevel(logging.DEBUG)  # Capture all log levels
+
 
 def get_failed_imports():
     df = pl.read_csv(
