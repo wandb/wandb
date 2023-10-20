@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
+	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
@@ -878,27 +879,58 @@ func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.St
 }
 
 func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecord) {
-	artifact := &service.ArtifactRecord{
+	// TODO: convert to proper json struct
+	weaveObjectData := map[string]interface{}{
+		"_type": "stream_table",
+		"table_name": streamTable.Table,
+		"project_name": streamTable.Project,
+		"entity_name": streamTable.Entity, 
+	}
+	weaveTypeData := map[string]interface{}{
+		"type": "stream_table",
+		"_base_type": map[string]interface{}{
+			"type": "Object",
+		},
+		"_is_object": true,
+		"table_name": "string",
+		"project_name": "string",
+		"entity_name": "string",
+	}
+
+	clientId := shared.ShortID(32)
+	baseArtifact := &service.ArtifactRecord{
 		Manifest: &service.ArtifactManifest{
 			Version:       1,
 			StoragePolicy: "wandb-storage-policy-v1",
 			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
-				Key: "storageLayout",
+				Key:       "storageLayout",
 				ValueJson: "\"V2\"",
 			}},
 		},
-		Entity:  streamTable.Entity,
-		Project: streamTable.Project,
-		RunId:   streamTable.Table,
-		Name:    streamTable.Table,
-		Type:    "stream_table",
-		Digest:  "cfb52bcc7b4e93bf34ce206745250202",
-		Aliases: []string{"latest"},
+		Entity:   streamTable.Entity,
+		Project:  streamTable.Project,
+		RunId:    streamTable.Table,
+		Name:     streamTable.Table,
+		Type:     "stream_table",
+		// Digest:   digest,
+		Aliases:  []string{"latest"},
 		Finalize: true,
-		ClientId: "fdjskflsjfklsdjjfsdlkfjdsklfs",
+		ClientId: clientId,
 		// SequenceClientId: "44fdjfdsfdsfskflsjfklsdjjfsdlkfjdsklfs",
 	}
-	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, artifact, 0)
+	builder := artifacts.NewArtifactBuilder(baseArtifact)
+	if err := builder.AddData("obj.object.json", weaveObjectData); err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave object", err)
+	}
+	if err := builder.AddData("obj.type.json", weaveTypeData); err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave type", err)
+	}
+
+	// TODO: convert to uuid1
+	// digest := "cfb52bcc7b4e93bf34ce206745250202"
+	fmt.Printf("NEW ART %+v\n", builder.GetArtifact())
+
+	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, builder.GetArtifact(), 0)
 	_, err := saver.Save()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
