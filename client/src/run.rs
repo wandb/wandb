@@ -129,6 +129,12 @@ impl Run {
         let timespec = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
         self.settings.proto.timespec = Some(timespec.clone());
 
+        self.settings.proto.offline = if self.settings.proto.mode == Some("offline".to_string()) {
+            Some(true)
+        } else {
+            Some(false)
+        };
+
         // if offline, "offline-run", else "run"
         let run_mode = if self.settings.proto.offline.is_some() {
             "offline-run".to_string()

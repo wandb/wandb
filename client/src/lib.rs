@@ -10,6 +10,7 @@ pub mod printer;
 pub mod run;
 pub mod session;
 pub mod settings;
+pub mod wandb;
 pub mod wandb_internal;
 
 /// Communication layer between user code and nexus
@@ -28,7 +29,7 @@ fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // let log_level = tracing::Level::DEBUG;
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
-    // m.add_function(wrap_pyfunction!(session::generate_id, m)?)?;
+    m.add_function(wrap_pyfunction!(wandb::init, m)?)?;
     m.add_class::<settings::Settings>()?;
     m.add_class::<session::Session>()?;
     m.add_class::<run::Run>()?;
