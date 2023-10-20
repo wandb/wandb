@@ -889,7 +889,7 @@ async def test_launch_metadata(
     assert str(run.get_status()) == "finished"
 
 
-def patched_pop_from_queue(self, queue):
+async def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )

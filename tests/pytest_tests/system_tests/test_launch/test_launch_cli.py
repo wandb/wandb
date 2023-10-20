@@ -356,7 +356,7 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
 
 def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_settings):
-    def pop_from_run_queue(self, queue):
+    async def pop_from_run_queue(self, queue):
         return {
             "runSpec": {"job": "fake-job:latest"},
             "runQueueItemId": "fakerqi",
