@@ -12,6 +12,8 @@ import psutil
 import wandb
 from wandb import env, trigger
 from wandb.errors import Error
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.lib import redirect
 from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 
@@ -105,6 +107,8 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
     _settings: "Settings"
+    _out_redir: Optional[redirect.RedirectRaw]
+    _err_redir: Optional[redirect.RedirectRaw]
     _service: "service._Service"
 
     def _service_connect(self) -> None:
@@ -131,6 +135,8 @@ class _Manager:
         self._settings = settings
         self._atexit_lambda = None
         self._hooks = None
+        self._out_redir = None
+        self._err_redir = None
 
         self._service = service._Service(settings=self._settings)
         token = _ManagerToken.from_environment()
@@ -142,7 +148,7 @@ class _Manager:
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
             token.set_environment()
-            self._atexit_setup()
+            self._setup()
 
         self._token = token
 
@@ -150,6 +156,77 @@ class _Manager:
             self._service_connect()
         except ManagerConnectionError as e:
             wandb._sentry.reraise(e)
+
+    def _setup(self) -> None:
+        self._atexit_setup()
+        self._console_setup()
+
+    def _make_output_record(self, name: str, data: str) -> "pb.Record":
+        if name == "stdout":
+            otype = pb.OutputRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRecord.OutputType.STDERR
+        else:
+            raise Exception(f"Invalid console name: {name}")
+
+        output = pb.OutputRecord(output_type=otype, line=data)
+        output.timestamp.GetCurrentTime()
+        record = pb.Record()
+        record.output.CopyFrom(output)
+        return record
+
+    def _redirect_cb(self, name: str, data: str) -> None:
+        try:
+            record = self._make_output_record(name, data)
+            self._inform_broadcast(record=record, subscription_key="console")
+        except Exception:
+            # console data is opportunistically saved, it should be safe
+            # but we dont want to crash if there is an issue
+            pass
+
+    def _redirect_install(self) -> None:
+        out_redir = redirect.RedirectRaw(
+            src="stdout",
+            cbs=[
+                lambda data: self._redirect_cb("stdout", data),  # type: ignore
+                # self._output_writer.write,  # type: ignore
+            ],
+        )
+        err_redir = redirect.RedirectRaw(
+            src="stderr",
+            cbs=[
+                lambda data: self._redirect_cb("stderr", data),  # type: ignore
+                # self._output_writer.write,  # type: ignore
+            ],
+        )
+        self._out_redir = out_redir
+        self._err_redir = err_redir
+        if self._out_redir:
+            self._out_redir.install()  # type: ignore
+        if self._err_redir:
+            self._err_redir.install()  # type: ignore
+
+    def _redirect_uninstall(self) -> None:
+        if self._out_redir:
+            self._out_redir.uninstall()  # type: ignore
+        if self._err_redir:
+            self._err_redir.uninstall()  # type: ignore
+        self._out_redir = None
+        self._err_redir = None
+
+    def _console_setup(self) -> None:
+        if self._settings.console != "redirect":
+            return
+        self._redirect_install()
+
+    def _console_teardown(self) -> None:
+        self._redirect_uninstall()
+
+    def _flush_console(self) -> None:
+        if self._out_redir:
+            self._out_redir.emulator_flush()
+        if self._err_redir:
+            self._err_redir.emulator_flush()
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
@@ -164,7 +241,10 @@ class _Manager:
         self._teardown(exit_code)
 
     def _teardown(self, exit_code: int) -> None:
+        self._console_teardown()
         unregister_all_post_import_hooks()
+
+        # redirect flush?
 
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
@@ -215,3 +295,23 @@ class _Manager:
     def _inform_teardown(self, exit_code: int) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_teardown(exit_code)
+
+    def _inform_broadcast(self, record: pb.Record, subscription_key: str) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_broadcast(
+            record=record, subscription_key=subscription_key
+        )
+
+    def _inform_subscribe(self, run_id: str, subscription_key: str) -> None:
+        self._flush_console()
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_subscribe(
+            run_id=run_id, subscription_key=subscription_key
+        )
+
+    def _inform_unsubscribe(self, run_id: str, subscription_key: str) -> None:
+        self._flush_console()
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_unsubscribe(
+            run_id=run_id, subscription_key=subscription_key
+        )

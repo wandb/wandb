@@ -67,6 +67,33 @@ message ServerInformTeardownRequest {
 message ServerInformTeardownResponse {
 }
 
+message ServerInformBroadcastRequest {
+  string subscription_key = 1;
+  Record record = 2;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformBroadcastResponse {
+}
+
+message ServerInformSubscribeRequest {
+  string subscription_key = 1;
+  string run_id = 2;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformSubscribeResponse {
+}
+
+message ServerInformUnsubscribeRequest {
+  string subscription_key = 1;
+  string run_id = 2;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformUnsubscribeResponse {
+}
+
 /*
  * ServerRequest, ServerResponse: used in sock server
  */
@@ -81,6 +108,9 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
+    ServerInformBroadcastRequest inform_broadcast = 9;
+    ServerInformSubscribeRequest inform_subscribe = 10;
+    ServerInformUnsubscribeRequest inform_unsubscribe = 11;
 
   }
 }
@@ -94,6 +124,9 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
+    ServerInformBroadcastResponse inform_broadcast_response = 9;
+    ServerInformSubscribeResponse inform_subscribe_response = 10;
+    ServerInformUnsubscribeResponse inform_unsubscribe_response = 11;
 
   }
 }

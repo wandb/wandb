@@ -704,6 +704,107 @@ class _WindowSizeChangeHandler:
 _WSCH = _WindowSizeChangeHandler()
 
 
+class RedirectRaw(RedirectBase):
+    """Redirects low level file descriptors without an emulator."""
+
+    def __init__(self, src, cbs=()):
+        super().__init__(src=src, cbs=cbs)
+        self._installed = False
+
+    def _pipe(self):
+        if pty:
+            r, w = pty.openpty()
+        else:
+            r, w = os.pipe()
+        return r, w
+
+    def install(self):
+        super().install()
+        if self._installed:
+            return
+
+        self._pipe_read_fd, self._pipe_write_fd = self._pipe()
+        if os.isatty(self._pipe_read_fd):
+            _WSCH.add_fd(self._pipe_read_fd)
+
+        self._orig_src_fd = os.dup(self.src_fd)
+        self._orig_src = os.fdopen(self._orig_src_fd, "wb", 0)
+        os.dup2(self._pipe_write_fd, self.src_fd)
+        self._installed = True
+
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+
+        self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
+        self._pipe_relay_thread.daemon = True
+        self._pipe_relay_thread.start()
+
+    def uninstall(self):
+        if not self._installed:
+            return
+        self._installed = False
+
+        self._stopped.set()
+        os.dup2(self._orig_src_fd, self.src_fd)
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+        self._pipe_relay_thread.join()
+        os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
+
+        # t = threading.Thread(
+        #     target=self.src_wrapped_stream.flush
+        # )  # Calling flush() from the current thread does not flush the buffer instantly.
+        # t.start()
+        # t.join(timeout=10)
+        self.flush()
+
+        _WSCH.remove_fd(self._pipe_read_fd)
+        super().uninstall()
+
+    def flush(self, data=None):
+        pass
+
+    def _pipe_relay(self):
+        while True:
+            try:
+                brk = False
+                data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set():
+                    if _LAST_WRITE_TOKEN not in data:
+                        # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
+                        n = len(_LAST_WRITE_TOKEN)
+                        while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
+                            n -= 1
+                        if n:
+                            data += os.read(
+                                self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n
+                            )
+                    if _LAST_WRITE_TOKEN in data:
+                        data = data.replace(_LAST_WRITE_TOKEN, b"")
+                        brk = True
+                i = self._orig_src.write(data)
+                if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
+                    while i < len(data):
+                        i += self._orig_src.write(data[i:])
+                # self._queue.put(data)
+                self._sendit(data)
+                if brk:
+                    return
+            except OSError:
+                return
+
+    def _sendit(self, data):
+        if data:
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception:
+                    pass  # TODO(frz)
+
+    def emulator_flush(self) -> bool:
+        return True
+
+
 class Redirect(RedirectBase):
     """Redirect low level file descriptors."""
 
@@ -711,6 +812,8 @@ class Redirect(RedirectBase):
         super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
+        self._emulator_flush_request = None
+        self._emulator_flush_done = None
 
     def _pipe(self):
         if pty:
@@ -738,6 +841,8 @@ class Redirect(RedirectBase):
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
         self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
+        self._emulator_flush_request = threading.Event()
+        self._emulator_flush_done = threading.Event()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
@@ -819,9 +924,18 @@ class Redirect(RedirectBase):
             except OSError:
                 return
 
+    def _emulator_mark_flushed(self):
+        if not self._emulator_flush_request:
+            return
+        if not self._emulator_flush_request.is_set():
+            return
+        self._emulator_flush_request.clear()
+        self._emulator_flush_done.set()
+
     def _emulator_write(self):
         while True:
             if self._queue.empty():
+                self._emulator_mark_flushed()
                 if self._stopped.is_set():
                     return
                 time.sleep(0.5)
@@ -833,8 +947,16 @@ class Redirect(RedirectBase):
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
                 [self.flush(line) for line in data]
+                self._emulator_mark_flushed()
                 return
             try:
                 self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
                 pass
+            self._emulator_mark_flushed()
+
+    def emulator_flush(self) -> bool:
+        self._emulator_flush_request.set()
+        success = self._emulator_flush_done.wait(30)
+        self.flush()
+        return success

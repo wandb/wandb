@@ -4,6 +4,7 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -139,6 +140,34 @@ class SockServerReadThread(threading.Thread):
         settings = SettingsStatic(request.settings)
         self._mux.update_stream(stream_id, settings=settings)
         self._mux.start_stream(stream_id)
+
+    def server_inform_broadcast(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_broadcast
+        console_stream_ids = self._mux.get_subscribed_stream_ids(
+            request.subscription_key
+        )
+        if not console_stream_ids:
+            return
+        for stream_id in console_stream_ids:
+            try:
+                iface = self._mux.get_stream(stream_id).interface
+            except Exception:
+                # TODO this might happen at shutdown, handle this better
+                continue
+            assert iface.record_q
+            record = pb.Record()
+            record.CopyFrom(request.record)
+            iface.record_q.put(record)
+
+    def server_inform_subscribe(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_subscribe
+        stream_id = request.run_id
+        self._mux.subscribe_stream(stream_id, "console")
+
+    def server_inform_unsubscribe(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_unsubscribe
+        stream_id = request.run_id
+        self._mux.unsubscribe_stream(stream_id, "console")
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
