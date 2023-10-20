@@ -3,11 +3,13 @@ use pyo3::prelude::*;
 use crate::connection::Interface;
 use crate::wandb_internal;
 use chrono;
+use image;
+use numpy::PyReadonlyArrayDyn;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Serializer};
+use sha2::{Digest};
 use std::collections::HashMap;
-use std::fmt;
 use tracing;
 
 use crate::printer;
@@ -24,22 +26,79 @@ pub fn generate_id(length: usize) -> String {
         .collect()
 }
 
-#[derive(FromPyObject, Deserialize, Serialize, Clone)]
-pub enum Value {
+fn normalize(data: &Vec<f64>) -> Vec<f64> {
+    let min = data
+        .iter()
+        .cloned()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    let max = data
+        .iter()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+
+    data.iter()
+        .map(|&value| (value - min) / (max - min))
+        .collect()
+}
+
+// #[derive(FromPyObject, Deserialize, Serialize, Clone)]
+#[derive(FromPyObject, Clone)]
+pub enum Value<'py> {
     Float(f64),
     Int(i32),
     Str(String),
+    Ndarray(PyReadonlyArrayDyn<'py, f64>),
 }
 
-// TODO: switch to just using the serde Serializer
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'py> Serialize for Value<'py> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         match self {
-            Value::Float(val) => write!(f, "{}", val),
-            Value::Int(val) => write!(f, "{}", val),
-            Value::Str(val) => write!(f, "\"{}\"", val),
+            Value::Float(f) => serializer.serialize_f64(*f),
+            Value::Int(i) => serializer.serialize_i32(*i),
+            Value::Str(s) => serializer.serialize_str(s),
+            Value::Ndarray(arr) => {
+                // TODO: keep the shape intact
+                let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
+                vec_data.serialize(serializer)
+            }
         }
     }
+}
+
+fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> String {
+    let shape = arr.shape();
+    // Convert the ndarray to a Vec<f64> for serialization
+    let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
+    // convert to Vec<u8> for image serialization
+    let normalized = normalize(&vec_data);
+    let byte_values: Vec<u8> = normalized.iter().map(|&v| (v * 255.0) as u8).collect();
+
+    // compute sha256 of the image
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(&byte_values);
+    let image_sha256 = hasher.finalize();
+    let image_sha256_str = format!("{:x}", image_sha256);
+
+    let img: image::ImageBuffer<image::Rgb<u8>, Vec<u8>> =
+        image::ImageBuffer::from_vec(shape[0] as u32, shape[1] as u32, byte_values).unwrap();
+
+    std::fs::create_dir_all(format!("{}/media/images", path)).unwrap();
+    // You can now save or manipulate the ImageBuffer
+    // use sha256 as the filename.png
+    let image_path = format!("{}/media/images/{}.png", path, &image_sha256_str[..20]);
+    img.save(&image_path).unwrap();
+
+    let mut json = HashMap::new();
+    json.insert("_type", "image-file");
+    json.insert("path", &image_path);
+    json.insert("sha256", &image_sha256_str);
+
+    serde_json::to_string(&json).unwrap()
 }
 
 #[pyclass]
@@ -194,9 +253,9 @@ impl Run {
         printer::print_header(&self.settings.run_name(), &self.settings.run_url());
     }
 
-    pub fn log_json(&self, data: String) {
-        self.log(serde_json::from_str(&data).unwrap_or(HashMap::new()));
-    }
+    // pub fn log_json(&self, data: String) {
+    //     self.log(serde_json::from_str(&data).unwrap_or(HashMap::new()));
+    // }
 
     pub fn log(&self, data: HashMap<String, Value>) {
         tracing::debug!("Logging to run {}", self.id());
@@ -231,17 +290,44 @@ impl Run {
 
         // self.interface.conn.send_message(&message).unwrap();
 
-        let partial_history_request = wandb_internal::PartialHistoryRequest {
-            item: data
-                .iter()
-                .map(|(k, v)| wandb_internal::HistoryItem {
-                    key: k.clone(),
-                    value_json: v.to_string(),
-                    ..Default::default()
-                })
-                .collect(),
+        let mut partial_history_request = wandb_internal::PartialHistoryRequest {
             ..Default::default()
         };
+
+        for (k, v) in data {
+            let mut item = wandb_internal::HistoryItem {
+                key: k.clone(),
+                ..Default::default()
+            };
+            match v {
+                Value::Ndarray(arr) => {
+                    // TODO: convert to image if shape is valid, otherwise just serialize
+                    let shape = arr.shape();
+                    if shape.len() == 3 {
+                        item.value_json = ndarray_to_image(arr, &self.settings.sync_dir());
+                        // TODO: tell nexus to upload the image
+                    } else {
+                        item.value_json = serde_json::to_string(&Value::Ndarray(arr)).unwrap();
+                    }
+                }
+                _ => {
+                    item.value_json = serde_json::to_string(&v).unwrap();
+                }
+            }
+            partial_history_request.item.push(item);
+        }
+
+        // let partial_history_request = wandb_internal::PartialHistoryRequest {
+        //     item: data
+        //         .iter()
+        //         .map(|(k, v)| wandb_internal::HistoryItem {
+        //             key: k.clone(),
+        //             value_json: serde_json::to_string(&v).unwrap(),
+        //             ..Default::default()
+        //         })
+        //         .collect(),
+        //     ..Default::default()
+        // };
 
         let record = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Request(
