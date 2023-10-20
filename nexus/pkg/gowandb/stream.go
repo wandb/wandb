@@ -2,6 +2,7 @@ package gowandb
 
 import (
 	"context"
+	"strings"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -82,10 +83,11 @@ func (r *Stream) init() {
 			DisplayName = *r.params.Name
 		}
 	*/
+	parts := strings.SplitN(*r.params.Path, "/", 3)
 	runRecord := service.Record_StreamTable{StreamTable: &service.StreamTableRecord{
-		Entity:  "jeffr",
-		Project: "hack23",
-		Table:   "table5",
+		Entity:  parts[0],
+		Project: parts[1],
+		Table:   parts[2],
 		XInfo:   &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
 	/*
