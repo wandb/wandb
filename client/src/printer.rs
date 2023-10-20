@@ -156,6 +156,7 @@ pub fn print_header(name: &str, url: &str) {
     let active_msg = format!("Creating run...");
     let pb = Printer::start_spinner(active_msg);
 
+    // TODO: this is for the demo and should be implemented properly
     thread::sleep(Duration::from_millis(800));
 
     let final_msg = Printer::with_prefix(&Printer::with_success(&format!(
@@ -177,6 +178,7 @@ pub fn print_footer(
     println!("{}", &Printer::header());
 
     // run stats
+    // TODO: add a nice table formatter
     let mut sorted_keys: Vec<_> = sparklines.keys().cloned().collect();
     sorted_keys.sort();
 
@@ -212,6 +214,7 @@ pub fn print_footer(
     }
     println!("{}", Printer::with_prefix(""));
 
+    // TODO: this is for the demo and should be implemented properly
     let total_size = 23123123;
 
     let pb = Printer::start_progress_bar(total_size, "Syncing run".to_string());
