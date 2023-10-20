@@ -184,7 +184,7 @@ class ArtifactsCache:
                 temp_file.close()
                 # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
                 # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
-                umask_cmd = ("python", "-c", "import os; print(os.umask(22))")
+                umask_cmd = ("sys.executable", "-c", "import os; print(os.umask(22))")
                 umask = int(subprocess.check_output(umask_cmd))
                 os.chmod(temp_file.name, 0o666 & ~umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
