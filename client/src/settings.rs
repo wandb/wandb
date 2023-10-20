@@ -60,6 +60,11 @@ impl Settings {
     pub fn files_dir(&self) -> String {
         self.proto.files_dir.clone().unwrap()
     }
+
+    #[getter]
+    pub fn offline(&self) -> bool {
+        self.proto.offline.clone().unwrap()
+    }
 }
 
 impl Settings {

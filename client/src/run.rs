@@ -259,7 +259,13 @@ impl Run {
 
         tracing::debug!("Result: {:?}", result);
 
-        printer::print_header(&self.settings.run_name(), &self.settings.run_url());
+        if self.settings.offline() {
+            printer::print_offline_header();
+        } else {
+            printer::print_header(&self.settings.run_name(), &self.settings.run_url());
+        }
+
+        // printer::print_header(&self.settings.run_name(), &self.settings.run_url());
     }
 
     // pub fn log_json(&self, data: String) {
@@ -543,12 +549,16 @@ impl Run {
             .send_message(&inform_finish_request)
             .unwrap();
 
-        printer::print_footer(
-            &self.settings.run_name(),
-            &self.settings.run_url(),
-            &self.settings.sync_dir(),
-            history,
-        );
+        if self.settings.offline() {
+            printer::print_offline_footer(&self.settings.sync_dir(), history);
+        } else {
+            printer::print_footer(
+                &self.settings.run_name(),
+                &self.settings.run_url(),
+                &self.settings.sync_dir(),
+                history,
+            );
+        }
     }
 }
 
