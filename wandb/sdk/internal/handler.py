@@ -135,9 +135,7 @@ class HandleManager:
         handler_str = "handle_" + record_type
         handler: Callable[[Record], None] = getattr(self, handler_str, None)  # type: ignore
         assert handler, f"unknown handle: {handler_str}"  # type: ignore
-        logger.error(f"Handling {handler_str}")
         handler(record)
-        logger.error(f"Done {handler_str}")
 
     def handle_request(self, record: Record) -> None:
         request_type = record.request.WhichOneof("request_type")
@@ -147,9 +145,7 @@ class HandleManager:
         if request_type != "network_status":
             logger.debug(f"handle_request: {request_type}")
         assert handler, f"unknown handle: {handler_str}"  # type: ignore
-        logger.error(f"Handling request {handler_str}")
         handler(record)
-        logger.error(f"Done request {handler_str}")
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if always_send:

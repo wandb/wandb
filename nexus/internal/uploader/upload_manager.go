@@ -181,3 +181,11 @@ func (um *UploadManager) GetFileCounts() *service.FileCounts {
 	}
 	return um.fileCounts
 }
+
+// GetFileCounts returns the file counts for the uploader
+func (um *UploadManager) GetBacklog() int {
+	if um == nil {
+		return 0
+	}
+	return len(um.semaphore)
+}

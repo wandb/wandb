@@ -379,7 +379,6 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
-        logger.error(f"Sending {handler_str}")
         context_id = context.context_id_from_record(record)
         api_context = self._context_keeper.get(context_id)
         try:
@@ -390,7 +389,6 @@ class SendManager:
             self._context_keeper.release(context_id)
         finally:
             self._api.clear_local_context()
-        logger.error(f"Done sending {handler_str}")
 
     def send_preempting(self, _: "Record") -> None:
         if self._fs:
