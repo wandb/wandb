@@ -136,12 +136,11 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	}
 
 	// Upload in batches.
-	var numInProgress atomic.Int64
+	var numInProgress, numDone atomic.Int64
 	var errorGroup errgroup.Group
-	numDone := 0
 	nameToScheduledTime := map[string]time.Time{}
 	taskResultsChan := make(chan TaskResult)
-	for numDone < len(fileSpecs) {
+	for int(numDone.Load()) < len(fileSpecs) {
 		// Prepare a batch.
 		now := time.Now()
 		fileSpecsBatch := make([]gql.CreateArtifactFileSpecInput, 0, batchSize)
@@ -157,8 +156,9 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 		}
 		if len(fileSpecsBatch) > 0 {
 			// Fetch upload URLs.
+			numInProgress.Add(int64(len(fileSpecsBatch)))
 			errorGroup.Go(func() error {
-				// start := time.Now()
+				start := time.Now()
 				response, err := gql.CreateArtifactFiles(
 					as.Ctx,
 					as.GraphqlClient,
@@ -168,7 +168,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				if err != nil {
 					return err
 				}
-				// fmt.Println("Signing urls took, ", time.Since(start).Milliseconds())
+				fmt.Println("Signing urls took, ", time.Since(start).Milliseconds())
 				if len(fileSpecsBatch) != len(response.CreateArtifactFiles.Files.Edges) {
 					return fmt.Errorf(
 						"expected %v upload URLs, got %v",
@@ -183,10 +183,10 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					entry.BirthArtifactID = &edge.Node.Artifact.Id
 					manifest.Contents[name] = entry
 					if edge.Node.UploadUrl == nil {
-						numDone++
+						numInProgress.Add(-1)
+						numDone.Add(1)
 						continue
 					}
-					numInProgress.Add(1)
 					task := &uploader.UploadTask{
 						Path:    *entry.LocalPath,
 						Url:     *edge.Node.UploadUrl,
@@ -202,7 +202,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 			})
 		}
 		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
-		for int(numInProgress.Load()) > maxBacklog || (len(fileSpecsBatch) == 0 && int(numInProgress.Load()) > 0) {
+		for int(numInProgress.Load()) >= maxBacklog || (len(fileSpecsBatch) == 0 && int(numInProgress.Load()) > 0) {
 			numInProgress.Add(-1)
 			result := <-taskResultsChan
 			if result.Task.Err != nil {
@@ -214,7 +214,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				delete(nameToScheduledTime, result.Name) // retry
 				continue
 			}
-			numDone++
+			numDone.Add(1)
 		}
 	}
 	if err := errorGroup.Wait(); err != nil {
