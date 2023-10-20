@@ -109,7 +109,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			// clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetryWrapper(clients.CheckRetry)),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -912,7 +913,6 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		RunId:   streamTable.Table,
 		Name:    streamTable.Table,
 		Type:    "stream_table",
-		// Digest:   digest,
 		Aliases:  []string{"latest"},
 		Finalize: true,
 		ClientId: clientId,
@@ -925,10 +925,6 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 	if err := builder.AddData("obj.type.json", weaveTypeData); err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave type", err)
 	}
-
-	// TODO: convert to uuid1
-	// digest := "cfb52bcc7b4e93bf34ce206745250202"
-	fmt.Printf("NEW ART %+v\n", builder.GetArtifact())
 
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, builder.GetArtifact(), 0)
 	_, err := saver.Save()

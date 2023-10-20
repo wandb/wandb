@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"io"
 	"fmt"
 	"net/http"
 
@@ -54,5 +55,19 @@ func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return DefaultRetryPolicy(ctx, resp, err)
 	default:
 		return retryPolicy(ctx, resp, err)
+	}
+}
+
+func CheckRetryWrapper(checkRetry func (context.Context, *http.Response, error) (bool, error)) func (context.Context, *http.Response, error) (bool, error) {
+	return func (ctx context.Context, resp *http.Response, err error) (bool, error) {
+		shouldRetry, checkErr := checkRetry(ctx, resp, err)
+		if (checkErr != nil || err != nil) && resp.Body != nil {
+			b, readErr := io.ReadAll(resp.Body)
+			if readErr == nil {
+				// TODO: log this somewhere other than the screen
+				fmt.Printf("ERROR %+v\n", string(b))
+			}
+		}
+		return shouldRetry, checkErr
 	}
 }

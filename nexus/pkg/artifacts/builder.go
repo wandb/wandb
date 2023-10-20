@@ -32,7 +32,18 @@ func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) e
 	return nil
 }
 
+func (b *ArtifactBuilder) updateManifestDigest() error {
+	manifest, err := NewManifestFromProto(b.artifactRecord.Manifest)
+	if err != nil {
+		return err
+	}
+	manifestDigest := manifest.ComputeDigest()
+	b.artifactRecord.Digest = manifestDigest
+	return nil
+}
+
 func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
+	b.updateManifestDigest()
 	return b.artifactRecord
 }
 

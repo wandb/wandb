@@ -141,13 +141,13 @@ func (fs *FileStream) streamStreamData(msg *service.StreamDataRecord) {
 			row[k] = x.StringValue
 		}
 	}
-	fmt.Printf("SEND %+v\n", row)
+	// fmt.Printf("SEND %+v\n", row)
 	jsonBytes, err := json.Marshal(row)
 	if err != nil {
 		panic("badness")
 	}
 	line := string(jsonBytes)
-	fmt.Printf("LINE %+v\n", line)
+	// fmt.Printf("LINE %+v\n", line)
 
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
