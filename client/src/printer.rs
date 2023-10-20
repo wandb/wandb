@@ -173,7 +173,7 @@ pub fn print_footer(
                     let formatted = format!(
                         "{} {:<20} {}",
                         Printer::with_prefix(""),
-                        format!("{} ({})", key, summary),
+                        format!("{} ({:<7})", key, summary),
                         sparkline.dimmed(),
                     );
                     println!("{}", formatted);
