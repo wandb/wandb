@@ -157,7 +157,7 @@ pub fn print_header(name: &str, url: &str) {
     let pb = Printer::start_spinner(active_msg);
 
     // TODO: this is for the demo and should be implemented properly
-    thread::sleep(Duration::from_millis(800));
+    // thread::sleep(Duration::from_millis(800));
 
     let final_msg = Printer::with_prefix(&Printer::with_success(&format!(
         "Run created - {} {}",
@@ -215,22 +215,22 @@ pub fn print_footer(
     println!("{}", Printer::with_prefix(""));
 
     // TODO: this is for the demo and should be implemented properly
-    let total_size = 23123123;
+    // let total_size = 23123123;
+    // let pb = Printer::start_progress_bar(total_size, "Syncing run".to_string());
+    // let mut downloaded = 0;
+    // while downloaded < total_size {
+    //     let new = min(downloaded + 223211, total_size);
+    //     downloaded = new;
+    //     pb.set_position(new);
+    //     thread::sleep(Duration::from_millis(12));
+    // }
+    // let final_msg = Printer::with_prefix(&Printer::with_success(&format!(
+    //     "Run synced - {} {}",
+    //     Printer::RUN_ICON,
+    //     Printer::hyperlink(name, url).as_str()
+    // )));
+    // Printer::finish_progress_bar(&pb, final_msg.to_string());
 
-    let pb = Printer::start_progress_bar(total_size, "Syncing run".to_string());
-    let mut downloaded = 0;
-    while downloaded < total_size {
-        let new = min(downloaded + 223211, total_size);
-        downloaded = new;
-        pb.set_position(new);
-        thread::sleep(Duration::from_millis(12));
-    }
-    let final_msg = Printer::with_prefix(&Printer::with_success(&format!(
-        "Run synced - {} {}",
-        Printer::RUN_ICON,
-        Printer::hyperlink(name, url).as_str()
-    )));
-    Printer::finish_progress_bar(&pb, final_msg.to_string());
     let local_dir = format!("Run dir - {}", run_dir);
     let colored_local_dir = local_dir.truecolor(
         *Printer::MOON_500[0],

@@ -13,7 +13,8 @@ fn main() {
     // );
     // sentry::capture_error(&io::Error::new(io::ErrorKind::Other, "LOL HAI I AM ERROR"));
 
-    let settings = settings::Settings::new(None, None, Some(1.0), Some(1));
+    let settings =
+        settings::Settings::new(None, Some("offline".to_string()), None, Some(1.0), Some(1));
 
     let session = session::Session::new(settings);
 
