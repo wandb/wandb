@@ -53,6 +53,11 @@ impl Settings {
     pub fn sync_dir(&self) -> String {
         self.proto.sync_dir.clone().unwrap()
     }
+
+    #[getter]
+    pub fn files_dir(&self) -> String {
+        self.proto.files_dir.clone().unwrap()
+    }
 }
 
 impl Settings {

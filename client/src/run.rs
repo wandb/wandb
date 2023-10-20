@@ -8,7 +8,7 @@ use numpy::PyReadonlyArrayDyn;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Serialize, Serializer};
-use sha2::{Digest};
+use sha2::Digest;
 use std::collections::HashMap;
 use tracing;
 
@@ -70,7 +70,7 @@ impl<'py> Serialize for Value<'py> {
     }
 }
 
-fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> String {
+fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> HashMap<String, String> {
     let shape = arr.shape();
     // Convert the ndarray to a Vec<f64> for serialization
     let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
@@ -90,15 +90,16 @@ fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> String {
     std::fs::create_dir_all(format!("{}/media/images", path)).unwrap();
     // You can now save or manipulate the ImageBuffer
     // use sha256 as the filename.png
-    let image_path = format!("{}/media/images/{}.png", path, &image_sha256_str[..20]);
-    img.save(&image_path).unwrap();
+    let image_path = format!("media/images/{}.png", &image_sha256_str[..20]);
+    let full_path = format!("{}/{}", path, image_path);
+    img.save(&full_path).unwrap();
 
     let mut json = HashMap::new();
-    json.insert("_type", "image-file");
-    json.insert("path", &image_path);
-    json.insert("sha256", &image_sha256_str);
+    json.insert("_type".to_string(), "image-file".to_string());
+    json.insert("path".to_string(), image_path.to_string());
+    json.insert("sha256".to_string(), image_sha256_str.to_string());
 
-    serde_json::to_string(&json).unwrap()
+    json
 }
 
 #[pyclass]
@@ -140,10 +141,12 @@ impl Run {
         let wandb_dir = format!("{}/.wandb", std::env::current_dir().unwrap().display());
         self.settings.proto.wandb_dir = Some(wandb_dir.clone());
 
-        self.settings.proto.sync_dir = Some(format!(
-            "{}/{}-{}-{}",
-            wandb_dir, run_mode, timespec, run_id
-        ));
+        let sync_dir = format!("{}/{}-{}-{}", wandb_dir, run_mode, timespec, run_id);
+        std::fs::create_dir_all(&sync_dir).unwrap();
+        self.settings.proto.sync_dir = Some(sync_dir.clone());
+
+        self.settings.proto.sync_file = Some(format!("{}/run-{}.wandb", sync_dir, run_id));
+        self.settings.proto.files_dir = Some(format!("{}/files", sync_dir));
 
         let server_inform_init_request = wandb_internal::ServerRequest {
             server_request_type: Some(
@@ -304,8 +307,10 @@ impl Run {
                     // TODO: convert to image if shape is valid, otherwise just serialize
                     let shape = arr.shape();
                     if shape.len() == 3 {
-                        item.value_json = ndarray_to_image(arr, &self.settings.sync_dir());
+                        let value_json = ndarray_to_image(arr, &self.settings.files_dir());
+                        item.value_json = serde_json::to_string(&value_json).unwrap();
                         // TODO: tell nexus to upload the image
+                        self.save_files(&value_json.get("path").unwrap().to_string());
                     } else {
                         item.value_json = serde_json::to_string(&Value::Ndarray(arr)).unwrap();
                     }
@@ -542,12 +547,13 @@ impl Run {
 }
 
 impl Run {
-    fn save_files(&self, path: String) {
+    fn save_files(&self, path: &String) {
         let record = wandb_internal::Record {
             record_type: Some(wandb_internal::record::RecordType::Files(
                 wandb_internal::FilesRecord {
                     files: vec![wandb_internal::FilesItem {
-                        path: path,
+                        path: path.clone(),
+                        policy: 0,
                         ..Default::default()
                     }],
                     ..Default::default()
