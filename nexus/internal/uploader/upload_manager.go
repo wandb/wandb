@@ -12,7 +12,7 @@ type Storage int
 
 const (
 	bufferSize              = 32
-	defaultConcurrencyLimit = 128
+	defaultConcurrencyLimit = 512
 )
 
 type Uploader interface {
