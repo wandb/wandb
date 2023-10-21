@@ -11,7 +11,7 @@ from .base_callback import BaseDiffusersCallback
 from ..utils import chunkify
 
 
-class BaseImage2ImageCallback(BaseDiffusersCallback):
+class BaseDiffusersImage2ImageCallback(BaseDiffusersCallback):
     """Base callback for logging the results of a
     [`DiffusionPipeline`](https://github.com/huggingface/diffusers/blob/v0.21.0/src/diffusers/pipelines/pipeline_utils.py#L480)
     from [🧨 Diffusers](https://huggingface.co/docs/diffusers/index)
