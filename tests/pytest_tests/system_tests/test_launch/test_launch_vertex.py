@@ -5,28 +5,21 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
-from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
+from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 
 
 @pytest.fixture
-def mock_sagemaker_environment():
-    """Mock an instance of the AwsEnvironment class."""
+def mock_vertex_environment():
+    """Mock an instance of the GcpEnvironment class."""
     environment = MagicMock()
-    client = MagicMock()
-    session = MagicMock()
-    session.client.return_value = client
-    environment.get_session.return_value = session
-    environment.get_region.return_value = "us-east-1"
+    environment.region.return_value = "europe-west-4"
 
 
-def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
-    def mock_launch_sagemaker_job(*args, **kwargs):
-        # return second arg, which is constructed sagemaker create_training_job request
+def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
+    def mock_launch_vertex_job(*args, **kwargs):
         return args[1]
 
-    mock_env = MagicMock(spec=AwsEnvironment)
-    session = MagicMock()
-    mock_env.get_session.return_value = session
+    mock_env = MagicMock(spec=GcpEnvironment)
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "environment_from_config",
@@ -44,11 +37,6 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
     )
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.sagemaker_runner.launch_sagemaker_job",
-        mock_launch_sagemaker_job,
-    )
-
-    monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container.docker_image_exists",
         lambda x: None,
     )
@@ -61,6 +49,11 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
         lambda *args, **kwargs: "testimage",
     )
 
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.vertex_runner.launch_vertex_job",
+        mock_launch_vertex_job,
+    )
+
     with relay_server():
         entity_name = "test_entity"
         project_name = "test_project"
@@ -70,13 +63,25 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
         project = MagicMock()
         entrypoint = EntryPoint("blah", entry_command)
         project.resource_args = {
-            "sagemaker": {
-                "RoleArn": "my-fake-RoleArn",
-                "OutputDataConfig": {"S3OutputPath": "s3://blah/blah"},
-                "ResourceConfig": {"blah": 2},
-                "StoppingCondition": {"test": 1},
+            "vertex": {
+                "run": {"restart_job_on_worker_restart": False},
+                "spec": {
+                    "staging_bucket": "gs://test_bucket",
+                    "worker_pool_specs": [
+                        {
+                            "machine_spec": {
+                                "machine_type": "n1-highmem-4",
+                                "accelerator_type": "NVIDIA_TESLA_T4",
+                                "accelerator_count": 1,
+                            },
+                            "replica_count": 1,
+                            "container_spec": {"image_uri": "${image_uri}"},
+                        }
+                    ],
+                },
             }
         }
+        project.fill_macros.return_value = project.resource_args
         project.target_entity = entity_name
         project.target_project = project_name
         project.name = None
@@ -89,41 +94,34 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
-        project.launch_spec = {}
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.launch_spec = {}
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
-            "sagemaker",
+            "vertex",
             api,
-            {"type": "sagemaker", "SYNCHRONOUS": False},
+            {"type": "vertex", "SYNCHRONOUS": False},
             environment,
             MagicMock(),
         )
         req = runner.run(project, project.docker_image)
-
-        assert "my-fake-RoleArn" in req["RoleArn"]
-        assert req["AlgorithmSpecification"] == {
-            "TrainingImage": "testimage",
-            "TrainingInputMode": "File",
-            "ContainerEntrypoint": ["python", "test.py"],
-            "ContainerArguments": ["--a1", "20", "--a2", "10"],
-        }
-        assert req["ResourceConfig"] == {"blah": 2}
-        assert req["StoppingCondition"] == {"test": 1}
-        assert req["TrainingJobName"] == project.run_id
-        env = req["Environment"]
-        env.pop("WANDB_BASE_URL")
-        assert env == {
-            "WANDB_API_KEY": user,
-            "WANDB_PROJECT": "test_project",
-            "WANDB_ENTITY": "test_entity",
-            "WANDB_LAUNCH": "True",
-            "WANDB_RUN_ID": "asdasd",
-            "WANDB_DOCKER": "testimage",
-            "WANDB_SWEEP_ID": "sweeeeep",
-            "WANDB_CONFIG": "{}",
-            "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
-        }
+        assert (
+            req["worker_pool_specs"][0]["machine_spec"]["accelerator_type"]
+            == "NVIDIA_TESLA_T4"
+        )
+        env = req["worker_pool_specs"][0]["container_spec"]["env"]
+        env.pop(0)
+        assert env == [
+            {"name": "WANDB_API_KEY", "value": None},
+            {"name": "WANDB_PROJECT", "value": "test_project"},
+            {"name": "WANDB_ENTITY", "value": "test_entity"},
+            {"name": "WANDB_LAUNCH", "value": "True"},
+            {"name": "WANDB_RUN_ID", "value": "asdasd"},
+            {"name": "WANDB_DOCKER", "value": "testimage"},
+            {"name": "WANDB_SWEEP_ID", "value": "sweeeeep"},
+            {"name": "WANDB_CONFIG", "value": "{}"},
+            {"name": "WANDB_ARTIFACTS", "value": '{"_wandb_job": "testjob"}'},
+        ]
