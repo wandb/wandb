@@ -4,7 +4,7 @@ use crate::run;
 use crate::session::Session;
 use crate::settings;
 
-#[pyfunction]
+#[cfg_attr(feature = "py", pyfunction)]
 pub fn init(settings: settings::Settings) -> run::Run {
     let session = Session::new(settings);
     session.init_run(None)

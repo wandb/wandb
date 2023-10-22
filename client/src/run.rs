@@ -7,7 +7,8 @@ use image;
 use numpy::PyReadonlyArrayDyn;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
+use serde_json::Value as JsonValue;
 use sha2::Digest;
 use std::collections::HashMap;
 use tracing;
@@ -44,32 +45,29 @@ fn normalize(data: &Vec<f64>) -> Vec<f64> {
 }
 
 // #[derive(FromPyObject, Deserialize, Serialize, Clone)]
-#[derive(FromPyObject, Clone)]
-pub enum Value<'py> {
-    Float(f64),
-    Int(i32),
-    Str(String),
+// #[derive(Clone, Serialize, Deserialize)]
+// pub enum LogDataValue {
+//    Json(JsonValue),
+// }
+
+/*
+#[cfg_attr(feature = "py", derive(FromPyObject))]
+...
+    #[serde(skip_deserializing)]
+    #[serde(serialize_with = "py_serializer")]
     Ndarray(PyReadonlyArrayDyn<'py, f64>),
+*/
+
+fn py_serializer<S>(ndarray: &PyReadonlyArrayDyn<'_, f64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // TODO: keep the shape intact
+    let vec_data: Vec<f64> = ndarray.as_slice().unwrap().to_vec();
+    vec_data.serialize(serializer)
 }
 
-impl<'py> Serialize for Value<'py> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Value::Float(f) => serializer.serialize_f64(*f),
-            Value::Int(i) => serializer.serialize_i32(*i),
-            Value::Str(s) => serializer.serialize_str(s),
-            Value::Ndarray(arr) => {
-                // TODO: keep the shape intact
-                let vec_data: Vec<f64> = arr.as_slice().unwrap().to_vec();
-                vec_data.serialize(serializer)
-            }
-        }
-    }
-}
-
+#[cfg(feature = "py")]
 fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> HashMap<String, String> {
     let shape = arr.shape();
     // Convert the ndarray to a Vec<f64> for serialization
@@ -102,7 +100,7 @@ fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> HashMap<
     json
 }
 
-#[pyclass]
+#[cfg_attr(feature = "py", pyclass)]
 pub struct Run {
     pub settings: Settings,
     pub interface: Interface,
@@ -114,7 +112,7 @@ impl Run {
     }
 }
 
-#[pymethods]
+#[cfg_attr(feature = "py", pymethods)]
 impl Run {
     pub fn init(&mut self, id: Option<String>) {
         // generate a random string of length 8 if run_id is None:
@@ -266,7 +264,7 @@ impl Run {
     //     self.log(serde_json::from_str(&data).unwrap_or(HashMap::new()));
     // }
 
-    pub fn log(&self, data: HashMap<String, Value>) {
+    pub fn log(&self, data: HashMap<String, JsonValue>) {
         tracing::debug!("Logging to run {}", self.id());
 
         // TODO: make it work with steps
@@ -309,7 +307,8 @@ impl Run {
                 ..Default::default()
             };
             match v {
-                Value::Ndarray(arr) => {
+                #[cfg(feature = "py")]
+                LogDataValue::Ndarray(arr) => {
                     // TODO: convert to image if shape is valid, otherwise just serialize
                     let shape = arr.shape();
                     if shape.len() == 3 {
@@ -318,7 +317,8 @@ impl Run {
                         // TODO: tell nexus to upload the image
                         self.save_files(&value_json.get("path").unwrap().to_string());
                     } else {
-                        item.value_json = serde_json::to_string(&Value::Ndarray(arr)).unwrap();
+                        item.value_json =
+                            serde_json::to_string(&LogDataValue::Ndarray(arr)).unwrap();
                     }
                 }
                 _ => {
