@@ -15,6 +15,7 @@ from wandb.errors import term
 from wandb.sdk.lib.filesystem import files_in
 from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+import sys
 
 if TYPE_CHECKING:
     import sys
