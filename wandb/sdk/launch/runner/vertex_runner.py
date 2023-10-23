@@ -192,5 +192,5 @@ class VertexRunner(AbstractRunner):
         while not getattr(job._gca_resource, "name", None):
             # give time for the gcp job object to be created and named, this should only loop a couple times max
             await asyncio.sleep(interval)
-            interval *= 2
+            interval = min(30, interval * 2)
         return submitted_run

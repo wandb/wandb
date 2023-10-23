@@ -64,7 +64,7 @@ class AwsEnvironment(AbstractEnvironment):
         Returns:
             AwsEnvironment: The AWS environment.
         """
-        _logger.info("Creating AWS environment from defsault credentials.")
+        _logger.info("Creating AWS environment from default credentials.")
         try:
             session = boto3.Session()
             if hasattr(session, "region"):
