@@ -18,8 +18,6 @@ from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
-    import sys
-
     if sys.version_info >= (3, 8):
         from typing import Protocol
     else:
