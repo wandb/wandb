@@ -25,7 +25,7 @@ from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import internal, progress, protocols
 from .config import Namespace
-from .logs import _thread_local_settings, wandb_logger, import_logger
+from .logs import _thread_local_settings, import_logger, wandb_logger
 from .protocols import ArtifactSequence, parallelize
 
 with patch("click.echo"):
@@ -86,17 +86,13 @@ class WandbRun:
         return s
 
     def metrics(self) -> Iterable[Dict[str, float]]:
-        if self._parquet_history_paths:
-            yield from self._get_metrics_from_parquet_history_paths()
-            return
-
-        self._parquet_history_paths = self._get_parquet_history_paths()
-
         if not self._parquet_history_paths:
-            yield from self._get_metrics_from_scan_history_fallback()
-            return
+            self._parquet_history_paths = self._get_metrics_from_parquet_history_paths()
 
-        yield from self._get_metrics_from_parquet_history_paths()
+        if self._parquet_history_paths:
+            yield from self._get_metrics_df_from_parquet_history_paths()
+        else:
+            yield from self._get_metrics_from_scan_history_fallback()
 
     def run_group(self) -> Optional[str]:
         return self.run.group
@@ -128,40 +124,15 @@ class WandbRun:
         try:
             self._artifacts = list(self.run.logged_artifacts())
         except Exception as e:
-            wandb_logger.error(
-                f"Error downloading artifacts -- {e}",
-                extra={
-                    "entity": self.entity(),
-                    "project": self.project(),
-                    "run_id": self.run_id(),
-                },
-            )
+            self._log_error(f"Error downloading artifacts -- {e}")
             return []
 
         new_arts = []
         for art in self._artifacts:
-            with patch("click.echo"):
-                try:
-                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
-                except Exception as e:
-                    wandb_logger.error(
-                        f"Error downloading artifact ({art}) -- {e}",
-                        extra={
-                            "entity": self.entity(),
-                            "project": self.project(),
-                            "run_id": self.run_id(),
-                        },
-                    )
-                    continue
-
-                new_art = _make_new_art(art)
-
-                # empty artifact paths are not dirs
-                if Path(path).is_dir():
-                    new_art.add_dir(path)
-
-            new_arts.append(new_art)
-            yield new_art
+            new_art = self._download_and_process_artifact(art)
+            if new_art:
+                new_arts.append(new_art)
+                yield new_art
 
         self._artifacts = new_arts
 
@@ -173,39 +144,15 @@ class WandbRun:
         try:
             self._used_artifacts = list(self.run.used_artifacts())
         except Exception as e:
-            wandb_logger.error(
-                f"Error downloading used artifacts -- {e}",
-                extra={
-                    "entity": self.entity(),
-                    "project": self.project(),
-                    "run_id": self.run_id(),
-                },
-            )
+            self._log_error(f"Error downloading used artifacts -- {e}")
             return []
 
         new_arts = []
         for art in self._used_artifacts:
-            with patch("click.echo"):
-                try:
-                    path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
-                except Exception as e:
-                    wandb_logger.error(
-                        f"Error downloading used artifact ({art}) -- {e}",
-                        extra={
-                            "entity": self.entity(),
-                            "project": self.project(),
-                            "run_id": self.run_id(),
-                        },
-                    )
-                    continue
-
-                new_art = _make_new_art(art)
-
-                # empty artifact paths are not dirs
-                new_art.add_dir(path)
-
-            new_arts.append(new_art)
-            yield new_art
+            new_art = self._download_and_process_artifact(art)
+            if new_art:
+                new_arts.append(new_art)
+                yield new_art
 
         self._used_artifacts = new_arts
 
@@ -286,36 +233,32 @@ class WandbRun:
             return result.get("_wandb", {}).get("value", {}).get("cli_version")
 
     def files(self) -> Optional[Iterable[Tuple[str, str]]]:
-        files_dir = f"./wandb-importer/{self.run_id()}/files"
         if self._files is not None:
             yield from self._files
             return
 
+        files_dir = f"./wandb-importer/{self.run_id()}/files"
         self._files = []
+
         for f in self.run.files():
-            # Don't carry over empty files
-            if f.size == 0:
-                continue
-            # Skip deadlist to avoid overloading S3
-            if "wandb_manifest.json.deadlist" in f.name:
+            if self._should_skip_file(f):
                 continue
 
-            try:
-                result = f.download(files_dir, exist_ok=True, timeout=60)
-            except Exception as e:
-                wandb_logger.error(
-                    f"Error downloading file ({f}) -- {e}",
-                    extra={
-                        "entity": self.entity(),
-                        "project": self.project(),
-                        "run_id": self.run_id(),
-                    },
-                )
-                continue
-            else:
-                file_and_policy = (result.name, "now")
+            file_and_policy = self._download_and_log_file(f, files_dir)
+            if file_and_policy:
                 self._files.append(file_and_policy)
                 yield file_and_policy
+
+    def _should_skip_file(self, f) -> bool:
+        # Don't carry over empty files
+        if f.size == 0:
+            return True
+
+        # Skip deadlist to avoid overloading S3
+        if "wandb_manifest.json.deadlist" in f.name:
+            return True
+
+        return False
 
     def logs(self) -> Optional[Iterable[str]]:
         fname = self._find_in_files("output.log")
@@ -370,39 +313,37 @@ class WandbRun:
             yield row
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
-        wandb_logger.warn(
-            "No parquet files detected; using scan history",
-            extra={
-                "entity": self.entity(),
-                "project": self.project(),
-                "run_id": self.run_id(),
-            },
-        )
+        self._log_warning("No parquet files detected; using scan history")
 
         hist = list(self.run.scan_history())
         try:
             df = pl.DataFrame(hist).sort("_step")
         except Exception as e:
             import_logger.error(f"problem with scan history {e=}")
-            yield from hist
+            for row in hist:
+                row = remove_keys_with_none_values(row)
+                yield row
         else:
-            yield from df.iter_rows(named=True)
+            for row in df.iter_rows(named=True):
+                row = remove_keys_with_none_values(row)
+                yield row
 
     def _get_parquet_history_paths(self) -> List[str]:
         paths = []
-        try:
-            self._artifacts = list(self.run.logged_artifacts())
-        except Exception as e:
-            import_logger.error(f"exeception downloading metrics artifacts {e=}")
-            wandb_logger.error(
-                f"Error downloading metrics artifacts -- {e}",
-                extra={
-                    "entity": self.entity(),
-                    "project": self.project(),
-                    "run_id": self.run_id(),
-                },
-            )
-            return []
+        if not self._artifacts:
+            try:
+                self._artifacts = list(self.run.logged_artifacts())
+            except Exception as e:
+                import_logger.error(f"exeception downloading metrics artifacts {e=}")
+                wandb_logger.error(
+                    f"Error downloading metrics artifacts -- {e}",
+                    extra={
+                        "entity": self.entity(),
+                        "project": self.project(),
+                        "run_id": self.run_id(),
+                    },
+                )
+                return []
 
         for art in self._artifacts:
             if art.type != "wandb-history":
@@ -411,6 +352,7 @@ class WandbRun:
                 try:
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
+                    import_logger.error(f"exeception downloading metrics artifacts {e=}")
                     wandb_logger.error(
                         f"Error downloading metrics artifact ({art}) -- {e}",
                         extra={
@@ -492,6 +434,49 @@ class WandbRun:
                 return path
 
         return None
+
+    def _log_error(self, msg: str):
+        wandb_logger.error(
+            msg,
+            extra={
+                "entity": self.entity(),
+                "project": self.project(),
+                "run_id": self.run_id(),
+            },
+        )
+
+    def _log_warning(self, msg: str):
+        wandb_logger.warn(
+            msg,
+            extra={
+                "entity": self.entity(),
+                "project": self.project(),
+                "run_id": self.run_id(),
+            },
+        )
+
+    def _download_and_process_artifact(self, art: Artifact) -> Optional[Artifact]:
+        with patch("click.echo"):
+            try:
+                path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
+            except Exception as e:
+                self._log_error(f"Error downloading artifact ({art}) -- {e}")
+                return None
+
+            new_art = _make_new_art(art)
+            if Path(path).is_dir():
+                new_art.add_dir(path)
+
+        return new_art
+
+    def _download_and_log_file(self, f, files_dir) -> Optional[Tuple[str, str]]:
+        try:
+            result = f.download(files_dir, exist_ok=True, timeout=60)
+        except Exception as e:
+            self.log_error(f"Error downloading file ({f}) -- {e}")
+            return None
+
+        return (result.name, "now")
 
 
 class WandbImporter:
@@ -1119,22 +1104,22 @@ class WandbImporter:
                 raise e
 
         unique_runs = df[["entity", "project", "run_id"]].unique()
+        for run in runs:
+            if self._is_failed_run(run, unique_runs):
+                yield run
 
-        def filtered():
-            for run in runs:
-                entity = run.entity()
-                project = run.project()
-                run_id = run.run_id()
+    def _is_failed_run(self, run, unique_runs: pl.DataFrame) -> bool:
+        entity = run.entity()
+        project = run.project()
+        run_id = run.run_id()
 
-                filtered_df = unique_runs.filter(
-                    (pl.col("entity") == entity)
-                    & (pl.col("project") == project)
-                    & (pl.col("run_id") == run_id)
-                )
-                if len(filtered_df) > 0:
-                    yield run
+        filtered_df = unique_runs.filter(
+            (pl.col("entity") == entity)
+            & (pl.col("project") == project)
+            & (pl.col("run_id") == run_id)
+        )
 
-        yield from filtered()
+        return len(filtered_df) > 0
 
     def _cleanup_placeholder_runs_new(
         self,
@@ -1596,8 +1581,8 @@ class WandbImporter:
             ]
 
         if check_entries_are_downloadable:
-            # _check_entries_are_downloadable(src_art)
-            _check_entries_are_downloadable(dst_art)
+            # self._check_entries_are_downloadable(src_art)
+            self._check_entries_are_downloadable(dst_art)
 
         if download_files_and_compare:
             with progress.track_subsubtask(
@@ -2010,7 +1995,7 @@ class WandbImporter:
                         description=f"iterate collections ({namespace_str}/{t.name})",
                     ):
                         if c.is_sequence():
-                            seq = sequence_from_collection(c)
+                            seq = self._sequence_from_collection(c)
                             if seq:
                                 yield seq
 
@@ -2022,6 +2007,23 @@ class WandbImporter:
             )
         }
         yield from unique_sequences.values()
+
+    def _sequence_from_collection(self, collection):
+        try:
+            arts = collection.versions()
+            arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
+        except Exception as e:
+            import_logger.error(f"problem at sequence from collection {e=}")
+            return
+
+        if arts:
+            art = arts[0]
+            entity = art.entity
+            project = art.project
+            name, _ = _get_art_name_ver(art)
+            _type = art.type
+
+            return ArtifactSequence(arts, entity, project, _type, name)
 
     def _import_artifact_sequences_new(
         self,
@@ -2093,6 +2095,47 @@ class WandbImporter:
                 finally:
                     progress.subtask_pbar.advance(task, 1)
             progress.subtask_pbar.remove_task(task)
+
+    def _check_entries_are_downloadable(self, art):
+        def _collect_entries(art):
+            has_next_page = True
+            cursor = None
+            entries = []
+            while has_next_page:
+                attrs = art._fetch_file_urls(cursor)
+                has_next_page = attrs["pageInfo"]["hasNextPage"]
+                cursor = attrs["pageInfo"]["endCursor"]
+                for edge in attrs["edges"]:
+                    entry = art.get_path(edge["node"]["name"])
+                    entry._download_url = edge["node"]["directUrl"]
+                    entries.append(entry)
+            return entries
+
+        def _check_entry_is_downloable(entry):
+            url = entry._download_url
+            expected_size = entry.size
+
+            try:
+                resp = requests.head(url, allow_redirects=True)
+            except Exception:
+                import_logger.error(f"Problem validating {entry=}")
+
+            if resp.status_code != 200:
+                return False
+
+            actual_size = resp.headers.get("content-length", -1)
+            actual_size = int(actual_size)
+
+            if expected_size == actual_size:
+                return True
+
+            return False
+
+        entries = _collect_entries(art)
+        for entry in entries:
+            if not _check_entry_is_downloable(entry):
+                return False
+        return True
 
 
 def _get_art_name_ver(art: Artifact) -> Tuple[str, int]:
@@ -2237,71 +2280,3 @@ class _PlaceholderRun:
 
     def files(self):
         return []
-
-
-@dataclass
-class WandbRunValidator:
-    # TODO: move all validation logic here
-    pass
-
-
-def _collect_entries(artifact):
-    has_next_page = True
-    cursor = None
-    entries = []
-    while has_next_page:
-        attrs = artifact._fetch_file_urls(cursor)
-        has_next_page = attrs["pageInfo"]["hasNextPage"]
-        cursor = attrs["pageInfo"]["endCursor"]
-        for edge in attrs["edges"]:
-            entry = artifact.get_path(edge["node"]["name"])
-            entry._download_url = edge["node"]["directUrl"]
-            entries.append(entry)
-    return entries
-
-
-def _check_entry_is_downloable(entry):
-    url = entry._download_url
-    expected_size = entry.size
-
-    try:
-        resp = requests.head(url, allow_redirects=True)
-    except Exception:
-        import_logger.error(f"Problem validating {entry=}")
-
-    if resp.status_code != 200:
-        return False
-
-    actual_size = resp.headers.get("content-length", -1)
-    actual_size = int(actual_size)
-
-    if expected_size == actual_size:
-        return True
-
-    return False
-
-
-def _check_entries_are_downloadable(art):
-    entries = _collect_entries(art)
-    for entry in entries:
-        if not _check_entry_is_downloable(entry):
-            return False
-    return True
-
-
-def sequence_from_collection(collection):
-    try:
-        arts = collection.versions()
-        arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-    except Exception as e:
-        import_logger.error(f"problem at sequence from collection {e=}")
-        return
-
-    if arts:
-        art = arts[0]
-        entity = art.entity
-        project = art.project
-        name, _ = _get_art_name_ver(art)
-        _type = art.type
-
-        return ArtifactSequence(arts, entity, project, _type, name)
