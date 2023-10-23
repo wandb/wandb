@@ -13,6 +13,7 @@ impl Settings {
     #[new]
     pub fn new(
         base_url: Option<String>,
+        // project: Option<String>,
         mode: Option<String>,
         stats_pid: Option<i32>,
         stats_sample_rate_seconds: Option<f64>,
