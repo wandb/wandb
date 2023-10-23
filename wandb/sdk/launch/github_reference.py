@@ -115,17 +115,19 @@ class GitHubReference:
         ref = GitHubReference()
         if uri.startswith(PREFIX_SSH):
             index = uri.find(":", len(PREFIX_SSH))
-            if index > 0:
-                ref.host = uri[len(PREFIX_SSH) : index]
-                parts = uri[index + 1 :].split("/", 1)
-                if len(parts) < 2 or not parts[1].endswith(SUFFIX_GIT):
-                    return None
-                ref.organization = parts[0]
-                ref.repo = parts[1][: -len(SUFFIX_GIT)]
-                return ref
-            else:
+            if index < 0:
                 # Could not parse host name
                 return None
+            
+            ref.host = uri[len(PREFIX_SSH) : index]
+            parts = uri[index + 1 :].split("/", 1)
+            if len(parts) < 2 or not parts[1].endswith(SUFFIX_GIT):
+                # try special parse for uri like git@ssh.uri.com:version/org/repo ???
+                return None
+
+            ref.organization = parts[0]
+            ref.repo = parts[1][: -len(SUFFIX_GIT)]
+            return ref
 
         parsed = urlparse(uri)
         if parsed.scheme != "https":
@@ -243,3 +245,9 @@ class GitHubReference:
         elif path.is_dir():
             self.directory = self.path
             self.path = None
+
+
+if __name__ == "__main__":
+    r = GitHubReference()
+    r.parse("git@github.com:wandb/examples.git")
+    r.parse("git@ssh.dev.azure.com:v3/gentex/Cabin-Monitoring/Gentex_DMS_EyeRegressor")
