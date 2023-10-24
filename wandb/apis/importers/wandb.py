@@ -11,7 +11,7 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
-
+import numpy as np
 import filelock
 import polars as pl
 import requests
@@ -86,11 +86,12 @@ class WandbRun:
         return s
 
     def metrics(self) -> Iterable[Dict[str, float]]:
-        if not self._parquet_history_paths:
-            self._parquet_history_paths = self._get_metrics_from_parquet_history_paths()
-
+        if self._parquet_history_paths is None:
+            self._parquet_history_paths = list(self._get_parquet_history_paths())
+        
         if self._parquet_history_paths:
-            yield from self._get_metrics_df_from_parquet_history_paths()
+            print('yielding from metrics df')
+            yield from self._get_metrics_from_parquet_history_paths()
         else:
             yield from self._get_metrics_from_scan_history_fallback()
 
@@ -292,7 +293,7 @@ class WandbRun:
 
     def _get_metrics_df_from_parquet_history_paths(self) -> None:
         if self._parquet_history_paths is None:
-            self._parquet_history_paths = self._get_parquet_history_paths()
+            self._parquet_history_paths = list(self._get_parquet_history_paths())
 
         if not self._parquet_history_paths:
             # unfortunately, it's not feasible to validate non-parquet history
@@ -310,6 +311,7 @@ class WandbRun:
         df = self._get_metrics_df_from_parquet_history_paths()
         for row in df.iter_rows(named=True):
             row = remove_keys_with_none_values(row)
+            row = self._modify_table_artifact_paths(row)
             yield row
 
     def _get_metrics_from_scan_history_fallback(self) -> Iterable[Dict[str, Any]]:
@@ -322,10 +324,12 @@ class WandbRun:
             import_logger.error(f"problem with scan history {e=}")
             for row in hist:
                 row = remove_keys_with_none_values(row)
+                row = self._modify_table_artifact_paths(row)
                 yield row
         else:
             for row in df.iter_rows(named=True):
                 row = remove_keys_with_none_values(row)
+                row = self._modify_table_artifact_paths(row)
                 yield row
 
     def _get_parquet_history_paths(self) -> List[str]:
@@ -370,20 +374,33 @@ class WandbRun:
         table_keys = []
         for k, v in row.items():
             if (
-                isinstance(v, (dict, wandb.old.summary.SummarySubDict))
+                isinstance(v, (dict))
                 and v.get("_type") == "table-file"
             ):
                 table_keys.append(k)
 
+        if table_keys:                
+            print(f"{table_keys=}")
+
         for table_key in table_keys:
             obj = row[table_key]["artifact_path"]
             obj_name = obj.split("/")[-1]
-            art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{table_key}:latest"
+            
+            new_table_key = table_key.replace('/', '')
+            art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{new_table_key}:latest"
             art = None
+
+            print(f"{table_key=}")
+            print(f"{new_table_key=}")
+            print(f"{obj=}")
+            print(f"{obj_name=}")
+            print(f"{art_path=}")
+            print(f"{art=}")
 
             # Try to pick up the artifact within 6 seconds
             for _ in range(3):
                 try:
+                    print(f'trying to get artifact {art_path=}')
                     art = self.dst_api.artifact(art_path, type="run_table")
                 except wandb.errors.CommError:
                     wandb.termwarn(f"Waiting for artifact {art_path}...")
@@ -400,6 +417,9 @@ class WandbRun:
                     import_logger.error(f"Error getting table artifact {e=}")
                 else:
                     break
+                
+            print(f'got it {art_path=}')
+
 
             # If we can't find after timeout, just skip it.
             if art is None:
@@ -412,6 +432,9 @@ class WandbRun:
                     },
                 )
                 continue
+
+            print(f"{obj_name=}")
+            print(f"{art.manifest.entries=}")
 
             url = art.get_path(obj_name).ref_url()
             base, name = url.rsplit("/", 1)
@@ -1016,6 +1039,10 @@ class WandbImporter:
             except pl.ColumnNotFoundError:
                 non_matching.append(f"{col} does not exist in dst")
                 continue
+            
+            # handle case where NaN is a string
+            src = standardize_series(src)
+            dst = standardize_series(dst)
 
             if not src.series_equal(dst):
                 non_matching.append(col)
@@ -2280,3 +2307,11 @@ class _PlaceholderRun:
 
     def files(self):
         return []
+
+
+def standardize_series(series: pl.Series) -> pl.Series:
+    # Check for "nan" string and fix it
+    if series.dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]:
+        series = series.cast(pl.Float64)
+    series = series.when(series.str.lower().eq("nan")).then(np.nan).otherwise(series)
+    return series
