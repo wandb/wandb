@@ -11,8 +11,9 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
-import numpy as np
+
 import filelock
+import numpy as np
 import polars as pl
 import requests
 import urllib3
@@ -88,9 +89,9 @@ class WandbRun:
     def metrics(self) -> Iterable[Dict[str, float]]:
         if self._parquet_history_paths is None:
             self._parquet_history_paths = list(self._get_parquet_history_paths())
-        
+
         if self._parquet_history_paths:
-            print('yielding from metrics df')
+            print("yielding from metrics df")
             yield from self._get_metrics_from_parquet_history_paths()
         else:
             yield from self._get_metrics_from_scan_history_fallback()
@@ -356,7 +357,9 @@ class WandbRun:
                 try:
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
-                    import_logger.error(f"exeception downloading metrics artifacts {e=}")
+                    import_logger.error(
+                        f"exeception downloading metrics artifacts {e=}"
+                    )
                     wandb_logger.error(
                         f"Error downloading metrics artifact ({art}) -- {e}",
                         extra={
@@ -373,20 +376,17 @@ class WandbRun:
         # Modify artifact paths because they are different between systems
         table_keys = []
         for k, v in row.items():
-            if (
-                isinstance(v, (dict))
-                and v.get("_type") == "table-file"
-            ):
+            if isinstance(v, (dict)) and v.get("_type") == "table-file":
                 table_keys.append(k)
 
-        if table_keys:                
+        if table_keys:
             print(f"{table_keys=}")
 
         for table_key in table_keys:
             obj = row[table_key]["artifact_path"]
             obj_name = obj.split("/")[-1]
-            
-            new_table_key = table_key.replace('/', '')
+
+            new_table_key = table_key.replace("/", "")
             art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{new_table_key}:latest"
             art = None
 
@@ -400,7 +400,7 @@ class WandbRun:
             # Try to pick up the artifact within 6 seconds
             for _ in range(3):
                 try:
-                    print(f'trying to get artifact {art_path=}')
+                    print(f"trying to get artifact {art_path=}")
                     art = self.dst_api.artifact(art_path, type="run_table")
                 except wandb.errors.CommError:
                     wandb.termwarn(f"Waiting for artifact {art_path}...")
@@ -417,9 +417,8 @@ class WandbRun:
                     import_logger.error(f"Error getting table artifact {e=}")
                 else:
                     break
-                
-            print(f'got it {art_path=}')
 
+            print(f"got it {art_path=}")
 
             # If we can't find after timeout, just skip it.
             if art is None:
@@ -1039,7 +1038,7 @@ class WandbImporter:
             except pl.ColumnNotFoundError:
                 non_matching.append(f"{col} does not exist in dst")
                 continue
-            
+
             # handle case where NaN is a string
             src = standardize_series(src)
             dst = standardize_series(dst)
@@ -2311,7 +2310,16 @@ class _PlaceholderRun:
 
 def standardize_series(series: pl.Series) -> pl.Series:
     # Check for "nan" string and fix it
-    if series.dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]:
+    if series.dtype in [
+        pl.Int8,
+        pl.Int16,
+        pl.Int32,
+        pl.Int64,
+        pl.UInt8,
+        pl.UInt16,
+        pl.UInt32,
+        pl.UInt64,
+    ]:
         series = series.cast(pl.Float64)
     series = series.when(series.str.lower().eq("nan")).then(np.nan).otherwise(series)
     return series
