@@ -1,5 +1,6 @@
 import json
 import os
+from unittest.mock import Mock
 
 import pytest
 import wandb
@@ -14,7 +15,15 @@ def raise_(ex):
 
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
-    return cmd  # noop
+    mock_run = Mock()
+    rv = Mock()
+    rv.state = "finished"
+
+    async def _mock_get_status():
+        return rv
+
+    mock_run.get_status = _mock_get_status
+    return mock_run
 
 
 @pytest.fixture
@@ -83,7 +92,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
 
 def test_agent_queues_config(runner, test_settings, live_mock_server, monkeypatch):
     monkeypatch.setattr(
-        wandb.sdk.launch.launch,
+        wandb.sdk.launch._launch,
         "LAUNCH_CONFIG_FILE",
         os.path.join("./config/wandb/launch-config.yaml"),
     )
@@ -131,10 +140,13 @@ def test_launch_cli_with_config_file_and_params(
         "overrides": {"args": ["--epochs", "5"]},
     }
 
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.docker_builder.DockerBuilder,
         "build_image",
-        lambda s, lp, e, jt: "testimage:12345",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
 
     monkeypatch.setattr(
@@ -173,10 +185,14 @@ def test_launch_cli_with_config_and_params(
         "resource": "local-container",
         "overrides": {"args": ["--epochs", "5"]},
     }
+
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.docker_builder.DockerBuilder,
         "build_image",
-        lambda s, lp, e, jt: "testimage:12345",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
 
     monkeypatch.setattr(
@@ -250,10 +266,13 @@ def test_sweep_launch_scheduler(runner, test_settings, live_mock_server):
 def test_launch_github_url(
     runner, mocked_fetchable_git_repo, live_mock_server, monkeypatch
 ):
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.docker_builder.DockerBuilder,
         "build_image",
-        lambda s, lp, e, jt: "testimage:12345",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
     with runner.isolated_filesystem():
         result = runner.invoke(
@@ -266,16 +285,19 @@ def test_launch_github_url(
             ],
         )
     print(result)
-    assert result.exit_code == 0
-
     assert "Launching run in docker with command: docker run" in result.output
+    assert "Unable to find image 'testimage:12345' locally" in result.output
+    assert result.exit_code == 1
 
 
 def test_launch_local_dir(runner, live_mock_server, monkeypatch):
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.docker_builder.DockerBuilder,
         "build_image",
-        lambda s, lp, e, jt: "testimage:12345",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
     with runner.isolated_filesystem():
         os.mkdir("repo")
@@ -288,8 +310,10 @@ def test_launch_local_dir(runner, live_mock_server, monkeypatch):
             ["-u", "repo"],
         )
 
-    assert result.exit_code == 0
+    print(result)
     assert "Launching run in docker with command: docker run" in result.output
+    assert "Unable to find image 'testimage:12345' locally" in result.output
+    assert result.exit_code == 1
 
 
 def test_launch_queue_error(runner):
@@ -338,10 +362,14 @@ def test_launch_name_run_id_environment_variable(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.docker_builder.DockerBuilder,
         "build_image",
-        lambda s, lp, e, jt: "testimage:12345",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
 
     run_id = "test_run_id"

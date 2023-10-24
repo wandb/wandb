@@ -14,7 +14,7 @@ import traceback
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
 from typing import (
@@ -35,6 +35,7 @@ from typing import (
 import requests
 
 import wandb
+import wandb.env
 from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -59,7 +60,7 @@ from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_path,
+    _is_py_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
@@ -99,11 +100,11 @@ if TYPE_CHECKING:
 
     import wandb.apis.public
     import wandb.sdk.backend.backend
-    import wandb.sdk.interface.interface_grpc
     import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
         GetSummaryResponse,
+        InternalMessagesResponse,
         SampledHistoryResponse,
     )
 
@@ -162,6 +163,8 @@ class RunStatusChecker:
     _stop_status_handle: Optional[MailboxHandle]
     _network_status_lock: threading.Lock
     _network_status_handle: Optional[MailboxHandle]
+    _internal_messages_lock: threading.Lock
+    _internal_messages_handle: Optional[MailboxHandle]
 
     def __init__(
         self,
@@ -191,9 +194,18 @@ class RunStatusChecker:
             daemon=True,
         )
 
+        self._internal_messages_lock = threading.Lock()
+        self._internal_messages_handle = None
+        self._internal_messages_thread = threading.Thread(
+            target=self.check_internal_messages,
+            name="IntMsgThr",
+            daemon=True,
+        )
+
     def start(self) -> None:
         self._stop_thread.start()
         self._network_status_thread.start()
+        self._internal_messages_thread.start()
 
     def _loop_check_status(
         self,
@@ -279,6 +291,20 @@ class RunStatusChecker:
             process=_process_stop_status,
         )
 
+    def check_internal_messages(self) -> None:
+        def _process_internal_messages(result: Result) -> None:
+            internal_messages = result.response.internal_messages_response
+            for msg in internal_messages.messages.warning:
+                wandb.termwarn(msg)
+
+        self._loop_check_status(
+            lock=self._internal_messages_lock,
+            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+            timeout=1,
+            request=self._interface.deliver_internal_messages,
+            process=_process_internal_messages,
+        )
+
     def stop(self) -> None:
         self._join_event.set()
         with self._stop_status_lock:
@@ -287,11 +313,15 @@ class RunStatusChecker:
         with self._network_status_lock:
             if self._network_status_handle:
                 self._network_status_handle.abandon()
+        with self._internal_messages_lock:
+            if self._internal_messages_handle:
+                self._internal_messages_handle.abandon()
 
     def join(self) -> None:
         self.stop()
         self._stop_thread.join()
         self._network_status_thread.join()
+        self._internal_messages_thread.join()
 
 
 class _run_decorator:  # noqa: N801
@@ -475,15 +505,13 @@ class Run:
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
+    _sweep_id: Optional[str]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
-        Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ]
+        "wandb.sdk.interface.interface_queue.InterfaceQueue"
     ]
     _wl: Optional[_WandbSetup]
 
@@ -507,6 +535,7 @@ class Run:
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
+    _internal_messages_response: Optional["InternalMessagesResponse"]
 
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
@@ -555,6 +584,7 @@ class Run:
         self._config._set_settings(self._settings)
         self._backend = None
         self._internal_run_interface = None
+        # todo: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
@@ -584,6 +614,7 @@ class Run:
         self._tags = None
         self._remote_url = None
         self._commit = None
+        self._sweep_id = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -609,6 +640,7 @@ class Run:
         self._final_summary = None
         self._poll_exit_response = None
         self._server_info_response = None
+        self._internal_messages_response = None
         self._poll_exit_handle = None
         self._job_info = None
 
@@ -649,6 +681,19 @@ class Run:
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
+
+        # if run is from a launch queue, add queue id to _wandb config
+        launch_queue_name = wandb.env.get_launch_queue_name()
+        if launch_queue_name:
+            config[wandb_key]["launch_queue_name"] = launch_queue_name
+
+        launch_queue_entity = wandb.env.get_launch_queue_entity()
+        if launch_queue_entity:
+            config[wandb_key]["launch_queue_entity"] = launch_queue_entity
+
+        launch_trace_id = wandb.env.get_launch_trace_id()
+        if launch_trace_id:
+            config[wandb_key]["launch_trace_id"] = launch_trace_id
 
         self._config._update(config, ignore_locked=True)
 
@@ -752,6 +797,8 @@ class Run:
             self._notes = settings.run_notes
         if settings.run_tags is not None:
             self._tags = settings.run_tags
+        if settings.sweep_id is not None:
+            self._sweep_id = settings.sweep_id
 
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
@@ -778,6 +825,8 @@ class Run:
             run.git.remote_url = self._remote_url
         if self._commit is not None:
             run.git.commit = self._commit
+        if self._sweep_id is not None:
+            run.sweep_id = self._sweep_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -1050,8 +1099,12 @@ class Run:
         self,
         root: Optional[str] = ".",
         name: Optional[str] = None,
-        include_fn: Callable[[str], bool] = _is_py_path,
-        exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
+        include_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = _is_py_or_dockerfile,
+        exclude_fn: Union[
+            Callable[[str, str], bool], Callable[[str], bool]
+        ] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """Save the current state of your code to a W&B Artifact.
 
@@ -1062,11 +1115,13 @@ class Run:
             name: (str, optional) The name of our code artifact. By default, we'll name
                 the artifact `source-$PROJECT_ID-$ENTRYPOINT_RELPATH`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn: A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and (optionally) root path and
                 returns True when it should be included and False otherwise. This
-                defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn: A callable that accepts a file path and returns `True` when it should be
-                excluded and `False` otherwise. This defaults to: `lambda path: False`
+                defaults to: `lambda path, root: path.endswith(".py")`
+            exclude_fn: A callable that accepts a file path and (optionally) root path and
+                returns `True` when it should be excluded and `False` otherwise. This
+                defaults to a function that excludes all files within `<root>/.wandb/`
+                and `<root>/wandb/` directories.
 
         Examples:
             Basic usage
@@ -1077,7 +1132,9 @@ class Run:
             Advanced usage
             ```python
             run.log_code(
-                "../", include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb")
+                "../",
+                include_fn=lambda path: path.endswith(".py") or path.endswith(".ipynb"),
+                exclude_fn=lambda path, root: os.path.relpath(path, root).startswith("cache/"),
             )
             ```
 
@@ -1106,7 +1163,7 @@ class Run:
                 files_added = True
                 save_name = os.path.relpath(file_path, root)
                 art.add_file(file_path, name=save_name)
-        # Add any manually staged files such is ipynb notebooks
+        # Add any manually staged files such as ipynb notebooks
         for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
@@ -1156,7 +1213,7 @@ class Run:
     def entity(self) -> str:
         """The name of the W&B entity associated with the run.
 
-        Entity can be a user name or the name of a team or organization.
+        Entity can be a username or the name of a team or organization.
         """
         return self._entity or ""
 
@@ -1437,10 +1494,7 @@ class Run:
 
     def _set_internal_run_interface(
         self,
-        interface: Union[
-            "wandb.sdk.interface.interface_queue.InterfaceQueue",
-            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
-        ],
+        interface: "wandb.sdk.interface.interface_queue.InterfaceQueue",
     ) -> None:
         self._internal_run_interface = interface
 
@@ -1471,7 +1525,8 @@ class Run:
             summary_dict = {}
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
-            self.summary.update(summary_dict)
+            if summary_dict:
+                self.summary.update(summary_dict)
         self._step = self._get_starting_step()
 
         # update settings from run_obj
@@ -1765,7 +1820,7 @@ class Run:
             glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
             base_path: (string) the base path to run the glob relative to
-            policy: (string) on of `live`, `now`, or `end`
+            policy: (string) one of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
                 - end: only upload file when the run ends
@@ -2148,7 +2203,7 @@ class Run:
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exception(*sys.exc_info())
+            traceback.print_exc()
         else:
             self._on_final()
         finally:
@@ -2375,6 +2430,11 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        internal_messages_handle = self._backend.interface.deliver_internal_messages()
+        result = internal_messages_handle.wait(timeout=-1)
+        assert result
+        self._internal_messages_response = result.response.internal_messages_response
+
         # dispatch all our final requests
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
         server_info_handle = self._backend.interface.deliver_request_server_info()
@@ -2421,14 +2481,15 @@ class Run:
 
     def _on_final(self) -> None:
         self._footer(
-            self._sampled_history,
-            self._final_summary,
-            self._poll_exit_response,
-            self._server_info_response,
-            self._check_version,
-            self._job_info,
-            self._reporter,
-            self._quiet,
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            job_info=self._job_info,
+            reporter=self._reporter,
+            quiet=self._quiet,
             settings=self._settings,
             printer=self._printer,
         )
@@ -2632,6 +2693,10 @@ class Run:
                     entity,
                     project,
                 )
+                if artifact._ttl_duration_seconds is not None:
+                    wandb.termwarn(
+                        "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
+                    )
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
@@ -2958,25 +3023,35 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        if not self._settings._offline:
-            try:
-                public_api = self._public_api()
-                expected_type = Artifact._expected_type(
-                    public_api.settings["entity"],
-                    public_api.settings["project"],
-                    artifact.name,
-                    public_api.client,
-                )
-            except requests.exceptions.RequestException:
-                # Just return early if there is a network error. This is
-                # ok, as this function is intended to help catch an invalid
-                # type early, but not a hard requirement for valid operation.
-                return
-            if expected_type is not None and artifact.type != expected_type:
-                raise ValueError(
-                    f"Artifact {artifact.name} already exists with type {expected_type}; "
-                    f"cannot create another with type {artifact.type}"
-                )
+        if self._settings._offline:
+            return
+        try:
+            public_api = self._public_api()
+            entity = public_api.settings["entity"]
+            project = public_api.settings["project"]
+            expected_type = Artifact._expected_type(
+                entity, project, artifact.name, public_api.client
+            )
+        except requests.exceptions.RequestException:
+            # Just return early if there is a network error. This is
+            # ok, as this function is intended to help catch an invalid
+            # type early, but not a hard requirement for valid operation.
+            return
+        if expected_type is not None and artifact.type != expected_type:
+            raise ValueError(
+                f"Artifact {artifact.name} already exists with type '{expected_type}'; "
+                f"cannot create another with type '{artifact.type}'"
+            )
+        if entity and artifact._source_entity and entity != artifact._source_entity:
+            raise ValueError(
+                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
+                f"moved to '{artifact._source_entity}'"
+            )
+        if project and artifact._source_project and project != artifact._source_project:
+            raise ValueError(
+                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
+                f"moved to '{artifact._source_project}'"
+            )
 
     def _prepare_artifact(
         self,
@@ -3053,9 +3128,12 @@ class Run:
         exc_val: BaseException,
         exc_tb: TracebackType,
     ) -> bool:
-        exit_code = 0 if exc_type is None else 1
-        self._finish(exit_code)
-        return exc_type is None
+        exception_raised = exc_type is not None
+        if exception_raised:
+            traceback.print_exception(exc_type, exc_val, exc_tb)
+        exit_code = 1 if exception_raised else 0
+        self._finish(exit_code=exit_code)
+        return not exception_raised
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -3066,6 +3144,51 @@ class Run:
         """
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
+
+    @property
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def _system_metrics(self) -> Dict[str, List[Tuple[datetime, float]]]:
+        """Returns a dictionary of system metrics.
+
+        Returns:
+            A dictionary of system metrics.
+        """
+
+        def pb_to_dict(
+            system_metrics_pb: wandb.proto.wandb_internal_pb2.GetSystemMetricsResponse,
+        ) -> Dict[str, List[Tuple[datetime, float]]]:
+            res = {}
+
+            for metric, records in system_metrics_pb.system_metrics.items():
+                measurements = []
+                for record in records.record:
+                    # Convert timestamp to datetime
+                    dt = datetime.fromtimestamp(
+                        record.timestamp.seconds, tz=timezone.utc
+                    )
+                    dt = dt.replace(microsecond=record.timestamp.nanos // 1000)
+
+                    measurements.append((dt, record.value))
+
+                res[metric] = measurements
+
+            return res
+
+        if not self._backend or not self._backend.interface:
+            return {}
+
+        handle = self._backend.interface.deliver_get_system_metrics()
+        result = handle.wait(timeout=1)
+
+        if result:
+            try:
+                response = result.response.get_system_metrics_response
+                if response:
+                    return pb_to_dict(response)
+            except Exception as e:
+                logger.error("Error getting system metrics: %s", e)
+        return {}
 
     # ------------------------------------------------------------------------------
     # HEADER
@@ -3215,7 +3338,8 @@ class Run:
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
         server_info_response: Optional[ServerInfoResponse] = None,
-        check_version: Optional["CheckVersionResponse"] = None,
+        check_version_response: Optional["CheckVersionResponse"] = None,
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
         job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3240,10 +3364,19 @@ class Run:
         )
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
         Run._footer_version_check_info(
-            check_version=check_version, quiet=quiet, settings=settings, printer=printer
+            check_version=check_version_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
         )
         Run._footer_local_warn(
             server_info_response=server_info_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_internal_messages(
+            internal_messages_response=internal_messages_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3393,7 +3526,7 @@ class Run:
             f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
         )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
-        printer.progress_update(line)  # type: ignore [call-arg]
+        printer.progress_update(line)  # type:ignore[call-arg]
 
         done = all(
             [
@@ -3559,6 +3692,23 @@ class Run:
                     f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
                     level="warn",
                 )
+
+    @staticmethod
+    def _footer_internal_messages(
+        internal_messages_response: Optional["InternalMessagesResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if not internal_messages_response:
+            return
+
+        for message in internal_messages_response.messages.warning:
+            printer.display(message, level="warn")
 
     @staticmethod
     def _footer_server_messages(

@@ -1,11 +1,13 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+import asyncio
 import logging
 import os
 import platform
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import click
 
@@ -59,6 +61,34 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 _logger = logging.getLogger(__name__)
 LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
+
+MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
+MAX_ENV_LENGTHS["SageMakerRunner"] = 512
+
+
+def event_loop_thread_exec(func: Any) -> Any:
+    """Wrapper for running any function in an awaitable thread on an event loop.
+
+    Example usage:
+    ```
+    def my_func(arg1, arg2):
+        return arg1 + arg2
+
+    future = event_loop_thread_exec(my_func)(2, 2)
+    assert await future == 4
+    ```
+
+    The returned function must be called within an active event loop.
+    """
+
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        loop = asyncio.get_event_loop()
+        result = cast(
+            Any, await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        )
+        return result
+
+    return wrapper
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -123,7 +153,9 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(f"{LOG_PREFIX}{prefix}Launching run into {entity}/{project}")
+    wandb.termlog(
+        f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
+    )
     return project, entity
 
 
@@ -535,7 +567,7 @@ def validate_build_and_registry_configs(
         raise LaunchError("registry and build config credential mismatch")
 
 
-def get_kube_context_and_api_client(
+async def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
@@ -543,10 +575,10 @@ def get_kube_context_and_api_client(
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
-
-        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
-            config_file
-        )
+        (
+            all_contexts,
+            active_context,
+        ) = kubernetes.config.list_kube_config_contexts(config_file)
         context = None
         if resource_args.get("context"):
             context_name = resource_args["context"]
@@ -565,8 +597,8 @@ def get_kube_context_and_api_client(
             "awscli is required to load a kubernetes context "
             "from eks. Please run `pip install wandb[launch]` to install it.",
         )
-        kubernetes.config.load_kube_config(config_file, context["name"])
-        api_client = kubernetes.config.new_client_from_config(
+        await kubernetes.config.load_kube_config(config_file, context["name"])
+        api_client = await kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
         return context, api_client

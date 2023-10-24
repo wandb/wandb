@@ -1,18 +1,27 @@
 """Implementation of KubernetesRunner class for wandb launch."""
-
+import asyncio
 import base64
 import json
 import logging
-import time
+import tempfile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+
+import yaml
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
-from wandb.sdk.launch.runner.abstract import State, Status
+from wandb.sdk.launch.runner.abstract import Status
+from wandb.sdk.launch.runner.kubernetes_monitor import (
+    WANDB_K8S_LABEL_AGENT,
+    WANDB_K8S_LABEL_MONITOR,
+    CustomResource,
+    LaunchKubernetesMonitor,
+)
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -20,6 +29,7 @@ from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
     make_name_dns_safe,
@@ -27,40 +37,29 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner
 
 get_module(
-    "kubernetes",
+    "kubernetes_asyncio",
     required="Kubernetes runner requires the kubernetes package. Please install it with `pip install wandb[launch]`.",
 )
 
-from kubernetes import client  # type: ignore # noqa: E402
-from kubernetes.client.api.batch_v1_api import BatchV1Api  # type: ignore # noqa: E402
-from kubernetes.client.api.core_v1_api import CoreV1Api  # type: ignore # noqa: E402
-from kubernetes.client.api.custom_objects_api import (  # type: ignore # noqa: E402
+import kubernetes_asyncio  # type: ignore # noqa: E402
+from kubernetes_asyncio import client  # noqa: E402
+from kubernetes_asyncio.client.api.batch_v1_api import (  # type: ignore # noqa: E402
+    BatchV1Api,
+)
+from kubernetes_asyncio.client.api.core_v1_api import (  # type: ignore # noqa: E402
+    CoreV1Api,
+)
+from kubernetes_asyncio.client.api.custom_objects_api import (  # type: ignore # noqa: E402
     CustomObjectsApi,
 )
-from kubernetes.client.models.v1_job import V1Job  # type: ignore # noqa: E402
-from kubernetes.client.models.v1_secret import V1Secret  # type: ignore # noqa: E402
-from kubernetes.client.rest import ApiException  # type: ignore # noqa: E402
+from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa: E402
+    V1Secret,
+)
+from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
-MAX_KUBERNETES_RETRIES = (
-    60  # default 10 second loop time on the agent, this is 10 minutes
-)
-FAIL_MESSAGE_INTERVAL = 60
 
 _logger = logging.getLogger(__name__)
-
-
-# Dict for mapping possible states of custom objects to the states we want to report
-# to the agent.
-CRD_STATE_DICT: Dict[str, State] = {
-    "pending": "starting",
-    "running": "running",
-    "completed": "finished",
-    "failed": "failed",
-    "aborted": "failed",
-    "terminating": "stopping",
-    "terminated": "stopped",
-}
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -71,17 +70,23 @@ class KubernetesSubmittedRun(AbstractRun):
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
         name: str,
-        pod_names: List[str],
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
     ) -> None:
         """Initialize a KubernetesSubmittedRun.
 
+        Other implementations of the AbstractRun interface poll on the run
+        when `get_status` is called, but KubernetesSubmittedRun uses
+        Kubernetes watch streams to update the run status. One thread handles
+        events from the job object and another thread handles events from the
+        rank 0 pod. These threads updated the `_status` attributed of the
+        KubernetesSubmittedRun object. When `get_status` is called, the
+        `_status` attribute is returned.
+
         Arguments:
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
             name: Name of the job.
-            pod_names: List of pod names.
             namespace: Kubernetes namespace.
             secret: Kubernetes secret.
 
@@ -92,11 +97,7 @@ class KubernetesSubmittedRun(AbstractRun):
         self.core_api = core_api
         self.name = name
         self.namespace = namespace
-        self.job = self.batch_api.read_namespaced_job(
-            name=self.name, namespace=self.namespace
-        )
         self._fail_count = 0
-        self.pod_names = pod_names
         self.secret = secret
 
     @property
@@ -104,130 +105,57 @@ class KubernetesSubmittedRun(AbstractRun):
         """Return the run id."""
         return self.name
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         try:
-            logs = self.core_api.read_namespaced_pod_log(
-                name=self.pod_names[0], namespace=self.namespace
+            pods = await self.core_api.list_namespaced_pod(
+                label_selector=f"job-name={self.name}", namespace=self.namespace
+            )
+            pod_names = [pi.metadata.name for pi in pods.items]
+            if not pod_names:
+                wandb.termwarn(f"Found no pods for kubernetes job: {self.name}")
+                return None
+            logs = await self.core_api.read_namespaced_pod_log(
+                name=pod_names[0], namespace=self.namespace
             )
             if logs:
                 return str(logs)
             else:
-                wandb.termwarn(
-                    f"Retrieved no logs for kubernetes pod(s): {self.pod_names}"
-                )
+                wandb.termwarn(f"No logs for kubernetes pod(s): {pod_names}")
             return None
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
             return None
 
-    def get_job(self) -> "V1Job":
-        """Return the job object."""
-        return self.batch_api.read_namespaced_job(
-            name=self.name, namespace=self.namespace
-        )
-
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for the run to finish.
 
         Returns:
             True if the run finished successfully, False otherwise.
         """
         while True:
-            status = self.get_status()
-            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
+            status = await self.get_status()
+            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
+            if status.state in ["finished", "failed", "preempted"]:
                 break
-            time.sleep(5)
+            await asyncio.sleep(5)
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
-    def get_status(self) -> Status:
-        """Return the run status."""
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        status = job_response.status
+    async def get_status(self) -> Status:
+        return LaunchKubernetesMonitor.get_status(self.name)
 
-        pod = self.core_api.read_namespaced_pod(
-            name=self.pod_names[0], namespace=self.namespace
-        )
-
-        if hasattr(pod.status, "conditions") and pod.status.conditions is not None:
-            for condition in pod.status.conditions:
-                if condition.type == "DisruptionTarget" and condition.reason in [
-                    "EvictionByEvictionAPI",
-                    "PreemptionByScheduler",
-                    "TerminationByKubelet",
-                ]:
-                    return Status("preempted")
-        if pod.status.phase in ["Pending", "Unknown"]:
-            now = time.time()
-            if self._fail_count == 0:
-                self._fail_first_msg_time = now
-                self._fail_last_msg_time = 0.0
-            self._fail_count += 1
-            if now - self._fail_last_msg_time > FAIL_MESSAGE_INTERVAL:
-                wandb.termlog(
-                    f"{LOG_PREFIX}Pod has not started yet for job: {self.name}. Will wait up to {round(10 - (now - self._fail_first_msg_time)/60)} minutes."
-                )
-                self._fail_last_msg_time = now
-            if self._fail_count > MAX_KUBERNETES_RETRIES:
-                raise LaunchError(f"Failed to start job {self.name}")
-        # todo: we only handle the 1 pod case. see https://kubernetes.io/docs/concepts/workloads/controllers/job/#parallel-jobs for multipod handling
-        return_status = None
-        if status.succeeded == 1:
-            return_status = Status("finished")
-        elif status.failed is not None and status.failed >= 1:
-            return_status = Status("failed")
-        elif status.active == 1:
-            return Status("running")
-        elif status.conditions is not None and status.conditions[0].type == "Suspended":
-            return_status = Status("stopped")
-        else:
-            return_status = Status("unknown")
-        if (
-            return_status.state in ["stopped", "failed", "finished"]
-            and self.secret is not None
-        ):
-            try:
-                self.core_api.delete_namespaced_secret(
-                    self.secret.metadata.name, self.namespace
-                )
-            except Exception as e:
-                wandb.termerror(
-                    f"Error deleting secret {self.secret.metadata.name}: {str(e)}"
-                )
-        return return_status
-
-    def suspend(self) -> None:
-        """Suspend the run."""
-        self.job.spec.suspend = True
-        self.batch_api.patch_namespaced_job(
-            name=self.name, namespace=self.namespace, body=self.job
-        )
-        timeout = TIMEOUT
-        job_response = self.batch_api.read_namespaced_job_status(
-            name=self.name, namespace=self.namespace
-        )
-        while job_response.status.conditions is None and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            job_response = self.batch_api.read_namespaced_job_status(
-                name=self.name, namespace=self.namespace
-            )
-
-        if timeout == 0 or job_response.status.conditions[0].type != "Suspended":
-            raise LaunchError(
-                "Failed to suspend job {}. Check Kubernetes dashboard for more info.".format(
-                    self.name
-                )
-            )
-
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the run."""
-        self.suspend()
-        self.batch_api.delete_namespaced_job(name=self.name, namespace=self.namespace)
+        try:
+            await self.batch_api.delete_namespaced_job(
+                namespace=self.namespace,
+                name=self.name,
+            )
+        except ApiException as e:
+            raise LaunchError(
+                f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
+            ) from e
 
 
 class CrdSubmittedRun(AbstractRun):
@@ -242,7 +170,6 @@ class CrdSubmittedRun(AbstractRun):
         namespace: str,
         core_api: CoreV1Api,
         custom_api: CustomObjectsApi,
-        pod_names: List[str],
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -254,7 +181,6 @@ class CrdSubmittedRun(AbstractRun):
             namespace: The namespace of the CRD instance.
             core_api: The Kubernetes core API client.
             custom_api: The Kubernetes custom object API client.
-            pod_names: The names of the pods associated with the CRD instance.
 
         Raises:
             LaunchError: If the CRD instance does not exist.
@@ -266,33 +192,24 @@ class CrdSubmittedRun(AbstractRun):
         self.namespace = namespace
         self.core_api = core_api
         self.custom_api = custom_api
-        self.pod_names = pod_names
         self._fail_count = 0
-        try:
-            self.job = self.custom_api.get_namespaced_custom_object(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
 
     @property
     def id(self) -> str:
         """Get the name of the custom object."""
         return self.name
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         """Get logs for custom object."""
         # TODO: test more carefully once we release multi-node support
         logs: Dict[str, Optional[str]] = {}
         try:
-            for pod_name in self.pod_names:
-                logs[pod_name] = self.core_api.read_namespaced_pod_log(
+            pods = await self.core_api.list_namespaced_pod(
+                label_selector=f"wandb/run-id={self.name}", namespace=self.namespace
+            )
+            pod_names = [pi.metadata.name for pi in pods.items]
+            for pod_name in pod_names:
+                logs[pod_name] = await self.core_api.read_namespaced_pod_log(
                     name=pod_name, namespace=self.namespace
                 )
         except ApiException as e:
@@ -303,37 +220,14 @@ class CrdSubmittedRun(AbstractRun):
         logs_as_array = [f"Pod {pod_name}:\n{log}" for pod_name, log in logs.items()]
         return "\n".join(logs_as_array)
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         """Get status of custom object."""
-        try:
-            job_response = self.custom_api.get_namespaced_custom_object_status(
-                group=self.group,
-                version=self.version,
-                namespace=self.namespace,
-                plural=self.plural,
-                name=self.name,
-            )
-        except ApiException as e:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: {str(e)}"
-            ) from e
-        # Custom objects can technically define whater states and format the
-        # response to the status request however they want. This checks for
-        # the most common cases.
-        status = job_response["status"]
-        state = status.get("state")
-        if isinstance(state, dict):
-            state = state.get("phase")
-        if state is None:
-            raise LaunchError(
-                f"Failed to get CRD {self.name} in namespace {self.namespace}: no state found"
-            )
-        return Status(CRD_STATE_DICT.get(state.lower(), "unknown"))
+        return LaunchKubernetesMonitor.get_status(self.name)
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the custom object."""
         try:
-            self.custom_api.delete_namespaced_custom_object(
+            await self.custom_api.delete_namespaced_custom_object(
                 group=self.group,
                 version=self.version,
                 namespace=self.namespace,
@@ -345,15 +239,14 @@ class CrdSubmittedRun(AbstractRun):
                 f"Failed to delete CRD {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for this custom object to finish running."""
         while True:
-            status = self.get_status()
+            status = await self.get_status()
             wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
-            if status.state != "running":
-                break
-            time.sleep(5)
-        return status.state == "finished"
+            if status.state in ["finished", "failed", "preempted"]:
+                return status.state == "finished"
+            await asyncio.sleep(5)
 
 
 class KubernetesRunner(AbstractRunner):
@@ -380,48 +273,6 @@ class KubernetesRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def wait_job_launch(
-        self,
-        job_name: str,
-        namespace: str,
-        core_api: "CoreV1Api",
-        label: str = "job-name",
-    ) -> List[str]:
-        """Wait for a job to be launched and return the pod names.
-
-        Arguments:
-            job_name: The name of the job.
-            namespace: The namespace of the job.
-            core_api: The Kubernetes core API client.
-            label: The label key to match against job_name.
-
-        Returns:
-            The names of the pods associated with the job.
-        """
-        pods = core_api.list_namespaced_pod(
-            label_selector=f"{label}={job_name}", namespace=namespace
-        )
-        timeout = TIMEOUT
-        while len(pods.items) == 0 and timeout > 0:
-            time.sleep(1)
-            timeout -= 1
-            pods = core_api.list_namespaced_pod(
-                label_selector=f"{label}={job_name}", namespace=namespace
-            )
-
-        if timeout == 0:
-            raise LaunchError(
-                "No pods found for job {}. Check dashboard to see if job was launched successfully.".format(
-                    job_name
-                )
-            )
-
-        pod_names = [pi.metadata.name for pi in pods.items]
-        wandb.termlog(
-            f"{LOG_PREFIX}Job {job_name} created on pod(s) {', '.join(pod_names)}. See logs with e.g. `kubectl logs {pod_names[0]} -n {namespace}`."
-        )
-        return pod_names
-
     def get_namespace(
         self, resource_args: Dict[str, Any], context: Dict[str, Any]
     ) -> str:
@@ -446,7 +297,7 @@ class KubernetesRunner(AbstractRunner):
             or default_namespace
         )
 
-    def _inject_defaults(
+    async def _inject_defaults(
         self,
         resource_args: Dict[str, Any],
         launch_project: LaunchProject,
@@ -480,6 +331,12 @@ class KubernetesRunner(AbstractRunner):
         pod_spec.update(pod_template.get("spec", {}))
         containers: List[Dict[str, Any]] = pod_spec.get("containers", [{}])
 
+        # Add labels to job metadata
+        job_metadata.setdefault("labels", {})
+        job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
+        if LaunchAgent.initialized():
+            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
+
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
             job_metadata["generateName"] = make_name_dns_safe(
@@ -497,27 +354,20 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         secret = None
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
         if launch_project.docker_image:
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Invalid specification of multiple containers. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             # dont specify run id if user provided image, could have multiple runs
             containers[0]["image"] = image_uri
             # TODO: handle secret pulling image from registry
         elif not any(["image" in cont for cont in containers]):
-            if len(containers) > 1:
-                raise LaunchError(
-                    "Launch only builds one container at a time. See https://docs.wandb.ai/guides/launch for guidance on submitting jobs."
-                )
             assert entry_point is not None
-            launch_project.fill_macros(image_uri)
             # in the non instance case we need to make an imagePullSecret
             # so the new job can pull the image
             containers[0]["image"] = image_uri
-            launch_project.fill_macros(image_uri)
-        secret = maybe_create_imagepull_secret(
+        secret = await maybe_create_imagepull_secret(
             core_api, self.registry, launch_project.run_id, namespace
         )
         if secret is not None:
@@ -532,7 +382,9 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env", [])
@@ -547,9 +399,23 @@ class KubernetesRunner(AbstractRunner):
         job["spec"] = job_spec
         job["metadata"] = job_metadata
 
+        add_label_to_pods(
+            job,
+            WANDB_K8S_LABEL_MONITOR,
+            "true",
+        )
+
+        # Add wandb.ai/agent: current agent label on all pods
+        if LaunchAgent.initialized():
+            add_label_to_pods(
+                job,
+                WANDB_K8S_LABEL_AGENT,
+                LaunchAgent.name(),
+            )
+
         return job, secret
 
-    def run(
+    async def run(
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
@@ -561,12 +427,8 @@ class KubernetesRunner(AbstractRunner):
         Returns:
             The run object if the run was successful, otherwise None.
         """
-        kubernetes = get_module(  # noqa: F811
-            "kubernetes",
-            required="Kubernetes runner requires the kubernetes package. Please"
-            " install it with `pip install wandb[launch]`.",
-        )
-        resource_args = launch_project.resource_args.get("kubernetes", {})
+        await LaunchKubernetesMonitor.ensure_initialized()
+        resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             wandb.termlog(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
@@ -575,57 +437,92 @@ class KubernetesRunner(AbstractRunner):
             )
         _logger.info(f"Running Kubernetes job with resource args: {resource_args}")
 
-        context, api_client = get_kube_context_and_api_client(kubernetes, resource_args)
+        context, api_client = await get_kube_context_and_api_client(
+            kubernetes_asyncio, resource_args
+        )
 
         # If the user specified an alternate api, we need will execute this
         # run by creating a custom object.
         api_version = resource_args.get("apiVersion", "batch/v1")
+
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            launch_project.fill_macros(image_uri)
-            env_vars = get_env_vars_dict(launch_project, self._api)
+            env_vars = get_env_vars_dict(
+                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            )
             # Crawl the resource args and add our env vars to the containers.
-            add_wandb_env(launch_project.resource_args, env_vars)
+            add_wandb_env(resource_args, env_vars)
+
+            # Add our labels to the resource args. This is necessary for the
+            # agent to find the custom object later on.
+            resource_args["metadata"] = resource_args.get("metadata", {})
+            resource_args["metadata"]["labels"] = resource_args["metadata"].get(
+                "labels", {}
+            )
+            resource_args["metadata"]["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
+
             # Crawl the resource arsg and add our labels to the pods. This is
             # necessary for the agent to find the pods later on.
             add_label_to_pods(
-                launch_project.resource_args, "wandb/run-id", launch_project.run_id
+                resource_args,
+                WANDB_K8S_LABEL_MONITOR,
+                "true",
             )
+
+            # Add wandb.ai/agent: current agent label on all pods
+            if LaunchAgent.initialized():
+                add_label_to_pods(
+                    resource_args,
+                    WANDB_K8S_LABEL_MONITOR,
+                    LaunchAgent.name(),
+                )
+                resource_args["metadata"]["labels"][
+                    WANDB_K8S_LABEL_AGENT
+                ] = LaunchAgent.name()
+
             overrides = {}
             if launch_project.override_args:
                 overrides["args"] = launch_project.override_args
             if launch_project.override_entrypoint:
                 overrides["command"] = launch_project.override_entrypoint.command
             add_entrypoint_args_overrides(
-                launch_project.resource_args,
+                resource_args,
                 overrides,
             )
             api = client.CustomObjectsApi(api_client)
             # Infer the attributes of a custom object from the apiVersion and/or
             # a kind: attribute in the resource args.
             namespace = self.get_namespace(resource_args, context)
-            group = resource_args.get("group", api_version.split("/")[0])
-            version = api_version.split("/")[1]
+            group, version, *_ = api_version.split("/")
+            group = resource_args.get("group", group)
+            version = resource_args.get("version", version)
             kind = resource_args.get("kind", version)
             plural = f"{kind.lower()}s"
+            custom_resource = CustomResource(
+                group=group,
+                version=version,
+                plural=plural,
+            )
+            LaunchKubernetesMonitor.monitor_namespace(
+                namespace, custom_resource=custom_resource
+            )
+
             try:
-                response = api.create_namespaced_custom_object(
+                response = await api.create_namespaced_custom_object(
                     group=group,
                     version=version,
                     namespace=namespace,
                     plural=plural,
-                    body=launch_project.resource_args.get("kubernetes"),
+                    body=resource_args,
                 )
             except ApiException as e:
+                body = json.loads(e.body)
+                body_yaml = yaml.dump(body)
                 raise LaunchError(
-                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}"
+                    f"Error creating CRD of kind {kind}: {e.status} {e.reason}\n{body_yaml}"
                 ) from e
             name = response.get("metadata", {}).get("name")
             _logger.info(f"Created {kind} {response['metadata']['name']}")
-            core = client.CoreV1Api(api_client)
-            pod_names = self.wait_job_launch(
-                launch_project.run_id, namespace, core, label="wandb/run-id"
-            )
-            return CrdSubmittedRun(
+            submitted_run = CrdSubmittedRun(
                 name=name,
                 group=group,
                 version=version,
@@ -633,31 +530,38 @@ class KubernetesRunner(AbstractRunner):
                 plural=plural,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                pod_names=pod_names,
             )
+            if self.backend_config[PROJECT_SYNCHRONOUS]:
+                await submitted_run.wait()
+            return submitted_run
 
-        batch_api = kubernetes.client.BatchV1Api(api_client)
-        core_api = kubernetes.client.CoreV1Api(api_client)
+        batch_api = kubernetes_asyncio.client.BatchV1Api(api_client)
+        core_api = kubernetes_asyncio.client.CoreV1Api(api_client)
         namespace = self.get_namespace(resource_args, context)
-        job, secret = self._inject_defaults(
+        job, secret = await self._inject_defaults(
             resource_args, launch_project, image_uri, namespace, core_api
         )
         msg = "Creating Kubernetes job"
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
         _logger.info(msg)
-        job_response = kubernetes.utils.create_from_yaml(
-            api_client, yaml_objects=[job], namespace=namespace
-        )[0][
-            0
-        ]  # create_from_yaml returns a nested list of k8s objects
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
+            f.write(yaml.dump(job))
+            job_yaml_path = f.name
+
+        job_response = (
+            await kubernetes_asyncio.utils.create_from_yaml(
+                api_client, job_yaml_path, namespace=namespace
+            )
+        )[0][0]
         job_name = job_response.metadata.name
-        pod_names = self.wait_job_launch(job_name, namespace, core_api)
+        LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
-            batch_api, core_api, job_name, pod_names, namespace, secret
+            batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
-            submitted_job.wait()
+            await submitted_job.wait()
+
         return submitted_job
 
 
@@ -687,7 +591,7 @@ def inject_entrypoint_and_args(
             containers[i]["command"] = entry_point.command
 
 
-def maybe_create_imagepull_secret(
+async def maybe_create_imagepull_secret(
     core_api: "CoreV1Api",
     registry: AbstractRegistry,
     run_id: str,
@@ -710,7 +614,7 @@ def maybe_create_imagepull_secret(
     ):
         # Secret not required
         return None
-    uname, token = registry.get_username_password()
+    uname, token = await registry.get_username_password()
     creds_info = {
         "auths": {
             registry.uri: {
@@ -731,16 +635,34 @@ def maybe_create_imagepull_secret(
     )
     try:
         try:
-            return core_api.create_namespaced_secret(namespace, secret)
+            return await core_api.create_namespaced_secret(namespace, secret)
         except ApiException as e:
             # 409 = conflict = secret already exists
             if e.status == 409:
-                return core_api.read_namespaced_secret(
+                return await core_api.read_namespaced_secret(
                     name=f"regcred-{run_id}", namespace=namespace
                 )
             raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
+
+
+def yield_containers(root: Any) -> Iterator[dict]:
+    """Yield all container specs in a manifest.
+
+    Recursively traverses the manifest and yields all container specs. Container
+    specs are identified by the presence of a "containers" key in the value.
+    """
+    if isinstance(root, dict):
+        for k, v in root.items():
+            if k == "containers":
+                if isinstance(v, list):
+                    yield from v
+            elif isinstance(v, (dict, list)):
+                yield from yield_containers(v)
+    elif isinstance(root, list):
+        for item in root:
+            yield from yield_containers(item)
 
 
 def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
@@ -760,19 +682,6 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
 
     Returns: None.
     """
-
-    def yield_containers(root: Any) -> Iterator[dict]:
-        if isinstance(root, dict):
-            for k, v in root.items():
-                if k == "containers":
-                    if isinstance(v, list):
-                        yield from v
-                elif isinstance(v, (dict, list)):
-                    yield from yield_containers(v)
-        elif isinstance(root, list):
-            for item in root:
-                yield from yield_containers(item)
-
     for cont in yield_containers(root):
         env = cont.setdefault("env", [])
         env.extend([{"name": key, "value": value} for key, value in env_vars.items()])
@@ -780,6 +689,24 @@ def add_wandb_env(root: Union[dict, list], env_vars: Dict[str, str]) -> None:
         # After we have set WANDB_RUN_ID once, we don't want to set it again
         if "WANDB_RUN_ID" in env_vars:
             env_vars.pop("WANDB_RUN_ID")
+
+
+def yield_pods(manifest: Any) -> Iterator[dict]:
+    """Yield all pod specs in a manifest.
+
+    Recursively traverses the manifest and yields all pod specs. Pod specs are
+    identified by the presence of a "spec" key with a "containers" key in the
+    value.
+    """
+    if isinstance(manifest, list):
+        for item in manifest:
+            yield from yield_pods(item)
+    elif isinstance(manifest, dict):
+        if "spec" in manifest and "containers" in manifest["spec"]:
+            yield manifest
+        for value in manifest.values():
+            if isinstance(value, (dict, list)):
+                yield from yield_pods(value)
 
 
 def add_label_to_pods(
@@ -798,18 +725,6 @@ def add_label_to_pods(
 
     Returns: None.
     """
-
-    def yield_pods(manifest: Any) -> Iterator[dict]:
-        if isinstance(manifest, list):
-            for item in manifest:
-                yield from yield_pods(item)
-        elif isinstance(manifest, dict):
-            if "spec" in manifest and "containers" in manifest["spec"]:
-                yield manifest
-            for value in manifest.values():
-                if isinstance(value, (dict, list)):
-                    yield from yield_pods(value)
-
     for pod in yield_pods(manifest):
         metadata = pod.setdefault("metadata", {})
         labels = metadata.setdefault("labels", {})

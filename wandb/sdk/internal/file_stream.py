@@ -335,11 +335,13 @@ class FileStreamApi:
         self._run_id = run_id
         self._start_time = start_time
         self._client = requests.Session()
+        timeout = timeout or 0
         if timeout > 0:
             self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.client.transport.session.auth
         self._client.headers.update(api.client.transport.headers or {})
         self._client.cookies.update(api.client.transport.cookies or {})  # type: ignore[no-untyped-call]
+        self._client.proxies.update(api.client.transport.session.proxies or {})
         self._file_policies: Dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
         self._queue: queue.Queue = queue.Queue()
@@ -499,7 +501,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logging.exception("dropped chunk %s" % response)
+            logger.exception("dropped chunk %s" % response)
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None

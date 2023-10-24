@@ -314,7 +314,7 @@ def check_artifacts() -> bool:
     # test checksum
     sing_art_dir = "./verify_sing_art"
     alias = "sing_art1"
-    name = "sing-artys"
+    name = nice_id("sing-artys")
     singular_art = artifact_with_path_or_paths(name, singular=True)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         singular_art, alias, name, sing_art_dir, failed_test_strings, False
@@ -332,7 +332,7 @@ def check_artifacts() -> bool:
     # test manifest and digest
     multi_art_dir = "./verify_art"
     alias = "art1"
-    name = "my-artys"
+    name = nice_id("my-artys")
     art1 = artifact_with_path_or_paths(name, "./verify_art_dir", singular=False)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
@@ -444,7 +444,11 @@ def check_large_post() -> bool:
             timeout=60,
         )
     except Exception as e:
-        if isinstance(e, requests.HTTPError) and e.response.status_code == 413:
+        if (
+            isinstance(e, requests.HTTPError)
+            and e.response is not None
+            and e.response.status_code == 413
+        ):
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )

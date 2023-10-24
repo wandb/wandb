@@ -1039,6 +1039,25 @@ def test_setup_offline(test_settings):
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
 
 
+def test_disable_machine_info(test_settings):
+    settings = test_settings()
+    attrs = (
+        "_disable_stats",
+        "_disable_meta",
+        "disable_code",
+        "disable_git",
+        "disable_job_creation",
+    )
+    for attr in attrs:
+        assert not getattr(settings, attr)
+    settings.update({"_disable_machine_info": True}, source=Source.BASE)
+    for attr in attrs:
+        assert getattr(settings, attr) is True
+    settings.update({"_disable_machine_info": False}, source=Source.BASE)
+    for attr in attrs:
+        assert getattr(settings, attr) is False
+
+
 @pytest.mark.skip(reason="causes other tests that depend on capsys to fail")
 def test_silent_env_run(mock_run, test_settings):
     settings = test_settings()

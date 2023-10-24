@@ -33,7 +33,7 @@ from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.sdk.artifacts import artifact_saver
+from wandb.sdk.artifacts.artifact_saver import ArtifactSaver
 from wandb.sdk.interface import interface
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import (
@@ -268,6 +268,7 @@ class SendManager:
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
+        self._consolidated_summary: Dict[str, Any] = dict()
 
         self._cached_server_info = dict()
         self._cached_viewer = dict()
@@ -414,9 +415,9 @@ class SendManager:
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:
-        if type(dictionary) == dict:
+        if isinstance(dictionary, dict):
             for k, v in list(dictionary.items()):
-                if type(v) == dict:
+                if isinstance(v, dict):
                     self._flatten(v)
                     dictionary.pop(k)
                     for k2, v2 in v.items():
@@ -716,7 +717,7 @@ class SendManager:
 
         result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
         for message in self._server_messages:
-            # guard agains the case the message level returns malformed from server
+            # guard against the case the message level returns malformed from server
             message_level = str(message.get("messageLevel"))
             message_level_sanitized = int(
                 printer.INFO if not message_level.isdigit() else message_level
@@ -1149,7 +1150,9 @@ class SendManager:
         summary_dict.pop("_wandb", None)
         if self._metadata_summary:
             summary_dict["_wandb"] = self._metadata_summary
-        json_summary = json.dumps(summary_dict)
+        # merge with consolidated summary
+        self._consolidated_summary.update(summary_dict)
+        json_summary = json.dumps(self._consolidated_summary)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
         # TODO(jhr): we should only write this at the end of the script
@@ -1446,28 +1449,6 @@ class SendManager:
 
         self._respond_result(result)
 
-    def send_request_artifact_send(self, record: "Record") -> None:
-        # TODO: combine and eventually remove send_request_log_artifact()
-
-        # for now, we are using req/resp uuid for transaction id
-        # in the future this should be part of the message to handle idempotency
-        xid = record.uuid
-
-        done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
-        artifact = record.request.artifact_send.artifact
-        try:
-            res = self._send_artifact(artifact)
-            assert res, "Unable to send artifact"
-            done_msg.artifact_id = res["id"]
-            logger.info(f"logged artifact {artifact.name} - {res}")
-        except Exception as e:
-            done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
-            )
-
-        logger.info("send artifact done")
-        self._interface._publish_artifact_done(done_msg)
-
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
@@ -1486,7 +1467,7 @@ class SendManager:
         from pkg_resources import parse_version
 
         assert self._pusher
-        saver = artifact_saver.ArtifactSaver(
+        saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
             manifest_json=_manifest_json_from_proto(artifact.manifest),
@@ -1512,6 +1493,7 @@ class SendManager:
             client_id=artifact.client_id,
             sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
+            ttl_duration_seconds=artifact.ttl_duration_seconds or None,
             description=artifact.description or None,
             aliases=artifact.aliases,
             use_after_commit=artifact.use_after_commit,

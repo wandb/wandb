@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Mapping, Optional
 
@@ -12,9 +12,10 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
+import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
 from wandb import util
-from wandb.sdk.artifacts import artifacts_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
@@ -26,12 +27,13 @@ from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandle
 from wandb.sdk.lib.hashutil import md5_string
 
 
-def mock_boto(artifact, path=False, content_type=None):
+def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     class S3Object:
-        def __init__(self, name="my_object.pb", metadata=None, version_id=None):
+        def __init__(self, name="my_object.pb", metadata=None, version_id=version_id):
             self.metadata = metadata or {"md5": "1234567890abcde"}
             self.e_tag = '"1234567890abcde"'
-            self.version_id = version_id or "1"
+            self.bucket_name = "my-bucket"
+            self.version_id = version_id
             self.name = name
             self.key = name
             self.content_length = 10
@@ -50,13 +52,23 @@ def mock_boto(artifact, path=False, content_type=None):
                     "HeadObject",
                 )
 
+    class S3ObjectSummary:
+        def __init__(self, name=None, size=10):
+            self.e_tag = '"1234567890abcde"'
+            self.bucket_name = "my-bucket"
+            self.key = name or "my_object.pb"
+            self.size = size
+
     class Filtered:
         def limit(self, *args, **kwargs):
-            return [S3Object(), S3Object(name="my_other_object.pb")]
+            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
 
     class S3Objects:
         def filter(self, **kwargs):
             return Filtered()
+
+        def limit(self, *args, **kwargs):
+            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
 
     class S3Bucket:
         def __init__(self, *args, **kwargs):
@@ -64,7 +76,7 @@ def mock_boto(artifact, path=False, content_type=None):
 
     class S3Resource:
         def Object(self, bucket, key):  # noqa: N802
-            return S3Object()
+            return S3Object(name=key)
 
         def ObjectVersion(self, bucket, key, version):  # noqa: N802
             class Version:
@@ -532,6 +544,37 @@ def test_add_s3_reference_object():
     }
 
 
+def test_add_s3_reference_object_directory():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact, path=True)
+    artifact.add_reference("s3://my-bucket/my_dir/")
+
+    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
+    manifest = artifact.manifest.to_manifest_json()
+    print(manifest)
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_dir",
+        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "size": 10,
+    }
+
+
+def test_add_s3_reference_object_no_version():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_boto(artifact, version_id=None)
+    artifact.add_reference("s3://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "s3://my-bucket/my_object.pb",
+        "extra": {"etag": "1234567890abcde"},
+        "size": 10,
+    }
+
+
 def test_add_s3_reference_object_with_version():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     mock_boto(artifact)
@@ -584,13 +627,13 @@ def test_add_s3_reference_path_with_content_type(runner, capsys):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
         mock_boto(artifact, path=False, content_type="application/x-directory")
-        artifact.add_reference("s3://my-bucket/")
+        artifact.add_reference("s3://my-bucket/my_dir")
 
         assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
+            "ref": "s3://my-bucket/my_dir",
             "extra": {"etag": "1234567890abcde", "versionID": "1"},
             "size": 10,
         }
@@ -1475,3 +1518,39 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     # Even though this works in production, the test often fails. I don't know why :(.
     assert found
     assert cache.cleanup(0) == 2**20
+
+
+def test_artifact_ttl_setter_getter():
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed is False
+    assert art._ttl_is_inherited
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = None
+    assert art.ttl is None
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ArtifactTTL.INHERIT
+    with pytest.raises(ArtifactNotLoggedError):
+        print(art.ttl)
+    assert art._ttl_duration_seconds is None
+    assert art._ttl_changed
+    assert art._ttl_is_inherited
+
+    ttl_timedelta = timedelta(days=100)
+    art = wandb.Artifact("test", type="test")
+    art.ttl = ttl_timedelta
+    assert art.ttl == ttl_timedelta
+    assert art._ttl_duration_seconds == int(ttl_timedelta.total_seconds())
+    assert art._ttl_changed
+    assert art._ttl_is_inherited is False
+
+    art = wandb.Artifact("test", type="test")
+    with pytest.raises(ValueError):
+        art.ttl = timedelta(days=-1)

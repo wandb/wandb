@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional, Union
 from dockerpycreds.utils import find_executable  # type: ignore
 
 import wandb
-from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.sdk.lib import runid
 
@@ -47,6 +46,18 @@ class Status:
     def __repr__(self) -> "State":
         return self.state
 
+    def __str__(self) -> str:
+        return self.state
+
+    def __eq__(self, __value: object) -> bool:
+        if isinstance(__value, Status):
+            return self.state == __value.state
+        else:
+            return self.state == __value
+
+    def __hash__(self) -> int:
+        return hash(self.state)
+
 
 class AbstractRun(ABC):
     """Wrapper around a W&B launch run.
@@ -68,7 +79,7 @@ class AbstractRun(ABC):
         return self._status
 
     @abstractmethod
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         """Return the logs associated with the run."""
         pass
 
@@ -94,7 +105,7 @@ class AbstractRun(ABC):
             return None
 
     @abstractmethod
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for the run to finish, returning True if the run succeeded and false otherwise.
 
         Note that in some cases, we may wait until the remote job completes rather than until the W&B run completes.
@@ -102,12 +113,12 @@ class AbstractRun(ABC):
         pass
 
     @abstractmethod
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         """Get status of the run."""
         pass
 
     @abstractmethod
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the run (interrupts the command subprocess, cancels the run, etc).
 
         Cancels the run and waits for it to terminate. The W&B run status may not be
@@ -129,12 +140,13 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
+    _type: str
+
     def __init__(
         self,
         api: Api,
         backend_config: Dict[str, Any],
     ) -> None:
-        self._settings = Settings()
         self._api = api
         self.backend_config = backend_config
         self._cwd = os.getcwd()
@@ -163,7 +175,7 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(
+    async def run(
         self,
         launch_project: LaunchProject,
         image_uri: str,

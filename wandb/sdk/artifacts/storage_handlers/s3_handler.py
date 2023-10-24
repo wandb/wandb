@@ -1,5 +1,4 @@
 """S3 storage handler."""
-import base64
 import os
 import time
 from pathlib import PurePosixPath
@@ -154,7 +153,8 @@ class S3Handler(StorageHandler):
 
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         if not checksum:
-            return [ArtifactManifestEntry(path=name or key, ref=path, digest=path)]
+            entry_path = name or (key if key != "" else bucket)
+            return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
 
         # If an explicit version is specified, use that. Otherwise, use the head version.
         objs = (
@@ -164,30 +164,41 @@ class S3Handler(StorageHandler):
         )
         start_time = None
         multi = False
-        try:
-            objs[0].load()
-            # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
-            # trigger a recursive upload.
-            # we should check the object's metadata says it is a directory and do a multi file upload if it is
-            if "x-directory" in objs[0].content_type:
-                multi = True
-        except self._botocore.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "404":
-                multi = True
-            else:
-                raise CommError(
-                    "Unable to connect to S3 ({}): {}".format(
-                        e.response["Error"]["Code"], e.response["Error"]["Message"]
+        if key != "":
+            try:
+                objs[0].load()
+                # S3 doesn't have real folders, however there are cases where the folder key has a valid file which will not
+                # trigger a recursive upload.
+                # we should check the object's metadata says it is a directory and do a multi file upload if it is
+                if "x-directory" in objs[0].content_type:
+                    multi = True
+            except self._botocore.exceptions.ClientError as e:
+                if e.response["Error"]["Code"] == "404":
+                    multi = True
+                else:
+                    raise CommError(
+                        "Unable to connect to S3 ({}): {}".format(
+                            e.response["Error"]["Code"], e.response["Error"]["Message"]
+                        )
                     )
-                )
+        else:
+            multi = True
+
         if multi:
             start_time = time.time()
             termlog(
-                'Generating checksum for up to %i objects with prefix "%s"... '
-                % (max_objects, key),
+                'Generating checksum for up to %i objects in "%s/%s"... '
+                % (max_objects, bucket, key),
                 newline=False,
             )
-            objs = self._s3.Bucket(bucket).objects.filter(Prefix=key).limit(max_objects)
+            if key != "":
+                objs = (
+                    self._s3.Bucket(bucket)
+                    .objects.filter(Prefix=key)
+                    .limit(max_objects)
+                )
+            else:
+                objs = self._s3.Bucket(bucket).objects.limit(max_objects)
         # Weird iterator scoping makes us assign this to a local function
         size = self._size_from_obj
         entries = [
@@ -204,7 +215,9 @@ class S3Handler(StorageHandler):
             )
         return entries
 
-    def _size_from_obj(self, obj: "boto3.s3.Object") -> int:
+    def _size_from_obj(
+        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
+    ) -> int:
         # ObjectSummary has size, Object has content_length
         size: int
         if hasattr(obj, "size"):
@@ -215,7 +228,7 @@ class S3Handler(StorageHandler):
 
     def _entry_from_obj(
         self,
-        obj: "boto3.s3.Object",
+        obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"],
         path: str,
         name: Optional[StrPath] = None,
         prefix: str = "",
@@ -261,26 +274,20 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj: "boto3.s3.Object") -> ETag:
+    def _etag_from_obj(obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]) -> ETag:
         etag: ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
-    @staticmethod
-    def _extra_from_obj(obj: "boto3.s3.Object") -> Dict[str, str]:
+    def _extra_from_obj(
+        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
+    ) -> Dict[str, str]:
         extra = {
             "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
         }
-        # ObjectSummary will never have version_id
-        if hasattr(obj, "version_id") and obj.version_id != "null":
+        if not hasattr(obj, "version_id"):
+            # Convert ObjectSummary to Object to get the version_id.
+            obj = self._s3.Object(obj.bucket_name, obj.key)  # type: ignore[union-attr]
+        if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
-
-    @staticmethod
-    def _content_addressed_path(md5: str) -> FilePathStr:
-        # TODO: is this the structure we want? not at all human
-        # readable, but that's probably OK. don't want people
-        # poking around in the bucket
-        return FilePathStr(
-            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
-        )

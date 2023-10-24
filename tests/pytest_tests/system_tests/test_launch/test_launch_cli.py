@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock
 
 import pytest
 import wandb
@@ -60,7 +61,7 @@ def test_launch_build_succeeds(
         lambda: None,
     )
 
-    def patched_launch_add(*args, **kwargs):
+    async def patched_launch_add(*args, **kwargs):
         if not kwargs.get("build"):
             raise Exception(kwargs)
 
@@ -73,7 +74,7 @@ def test_launch_build_succeeds(
 
     monkeypatch.setattr(
         "wandb.cli.cli._launch_add",
-        lambda *args, **kwargs: patched_launch_add(*args, **kwargs),
+        patched_launch_add,
     )
 
     with runner.isolated_filesystem(), relay_server():
@@ -164,7 +165,7 @@ def test_launch_repository_arg(
         user,
     ]
 
-    def patched_run(
+    async def patched_launch(
         uri,
         job,
         api,
@@ -183,19 +184,27 @@ def test_launch_repository_arg(
     ):
         assert repository or "--repository=" in args or "--repository" in args
 
-        return "run"
+        mock_run = Mock()
+        rv = Mock()
+        rv.state = "finished"
+
+        async def _mock_get_status():
+            return rv
+
+        mock_run.get_status = _mock_get_status
+        return mock_run
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch._run",
-        lambda *args, **kwargs: patched_run(*args, **kwargs),
+        "wandb.sdk.launch._launch._launch",
+        patched_launch,
     )
 
     def patched_fetch_and_val(launch_project, _):
         return launch_project
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.launch.fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        "wandb.sdk.launch._launch.fetch_and_validate_project",
+        patched_fetch_and_val,
     )
 
     monkeypatch.setattr(
@@ -291,7 +300,7 @@ def _setup_agent(monkeypatch, pop_func):
 
     monkeypatch.setattr(
         "wandb.sdk.internal.internal_api.Api.create_launch_agent",
-        lambda c, e, p, q, a, g: {"launchAgentId": "mock_agent_id"},
+        lambda c, e, p, q, a, v, g: {"launchAgentId": "mock_agent_id"},
     )
 
 
@@ -347,7 +356,7 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
 
 def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_settings):
-    def pop_from_run_queue(self, queue):
+    async def pop_from_run_queue(self, queue):
         return {
             "runSpec": {"job": "fake-job:latest"},
             "runQueueItemId": "fakerqi",
@@ -443,7 +452,15 @@ def test_create_job_bad_type(path, job_type, runner, user):
 
 def patched_run_run_entry(cmd, dir):
     print(f"running command: {cmd}")
-    return cmd  # noop
+    mock_run = Mock()
+    rv = Mock()
+    rv.state = "finished"
+
+    async def _mock_get_status():
+        return rv
+
+    mock_run.get_status = _mock_get_status
+    return mock_run
 
 
 def test_launch_supplied_docker_image(
@@ -462,10 +479,14 @@ def test_launch_supplied_docker_image(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+
+    async def _mock_validate_docker_installation():
+        pass
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
-        lambda: None,
+        _mock_validate_docker_installation,
     )
 
     with runner.isolated_filesystem():

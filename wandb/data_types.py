@@ -300,13 +300,13 @@ class Table(Media):
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
-        assert type(columns) is list, "columns argument expects a `list` object"
+        assert isinstance(columns, list), "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
     def _init_from_list(self, data, columns, optional=True, dtype=None):
-        assert type(data) is list, "data argument expects a `list` object"
+        assert isinstance(data, list), "data argument expects a `list` object"
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -656,7 +656,7 @@ class Table(Media):
                 is_1d_array = (
                     ndarray_type is not None
                     and "shape" in ndarray_type._params
-                    and type(ndarray_type._params["shape"]) == list
+                    and isinstance(ndarray_type._params["shape"], list)
                     and len(ndarray_type._params["shape"]) == 1
                     and ndarray_type._params["shape"][0]
                     <= self._MAX_EMBEDDING_DIMENSIONS
@@ -1254,7 +1254,7 @@ class JoinedTable(Media):
     def _validate_table_input(table):
         """Helper method to validate that the table input is one of the 3 supported types."""
         return (
-            (type(table) == str and table.endswith(".table.json"))
+            (isinstance(table, str) and table.endswith(".table.json"))
             or isinstance(table, Table)
             or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
@@ -1399,14 +1399,14 @@ def _nest(thing):
 class Graph(Media):
     """Wandb class for graphs.
 
-    This class is typically used for saving and diplaying neural net models.  It
+    This class is typically used for saving and displaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
 
     Examples:
         Import a keras model:
         ```
-            Graph.from_keras(keras_model)
+        Graph.from_keras(keras_model)
         ```
 
     Attributes:
@@ -1474,9 +1474,7 @@ class Graph(Media):
             node = Node(**node_kwargs)
         elif node_kwargs:
             raise ValueError(
-                "Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})".format(
-                    node=node, node_kwargs=node_kwargs
-                )
+                f"Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})"
             )
         self.nodes.append(node)
         self.nodes_by_id[node.id] = node

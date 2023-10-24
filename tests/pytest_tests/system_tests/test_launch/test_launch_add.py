@@ -6,7 +6,7 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.launch.launch_add import launch_add
+from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
@@ -165,40 +165,19 @@ def test_launch_build_push_job(
     internal_api = InternalApi()
     public_api = PublicApi()
 
-    def patched_validate_docker_installation():
+    async def patched_validate_docker_installation():
         return None
-
-    def patched_build_image_with_builder(
-        builder,
-        launch_project,
-        repository,
-        entry_point,
-        docker_args,
-    ):
-        assert builder
-        assert uri == launch_project.uri
-        assert entry_point
-        if override_config and override_config.get("docker"):
-            assert docker_args == override_config.get("docker").get("args")
-
-        return release_image
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
-        lambda: patched_validate_docker_installation(),
+        patched_validate_docker_installation,
     )
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
-    )
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "build_image_with_builder",
-        lambda *args, **kwargs: patched_build_image_with_builder(*args, **kwargs),
     )
 
     with relay_server(), runner.isolated_filesystem():
@@ -514,7 +493,7 @@ def test_display_updated_runspec(
         return res
 
     monkeypatch.setattr(
-        wandb.sdk.launch.launch_add,
+        wandb.sdk.launch._launch_add,
         "push_to_queue",
         lambda *args, **kwargs: push_with_drc(*args, **kwargs),
     )

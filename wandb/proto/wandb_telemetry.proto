@@ -19,6 +19,8 @@ message TelemetryRecord {
   Labels  label = 9;
   Deprecated deprecated = 10;
   Issues issues = 11;
+  string core_version = 12;
+  string platform = 13;
   _RecordInfo _info = 200;
 }
 
@@ -189,6 +191,8 @@ message Feature {
   bool cohere_autolog = 53; // Cohere autolog used
   bool hf_pipeline_autolog = 54; // HuggingFace Autologging
   bool nexus = 55; // Using wandb nexus internal process
+  bool lib_c = 56; // Using c wandb library
+  bool lib_cpp = 57; // Using cpp wandb library
 }
 
 message Env {

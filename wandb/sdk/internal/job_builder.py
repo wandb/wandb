@@ -2,9 +2,11 @@
 import json
 import logging
 import os
+import re
 import sys
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
+import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
@@ -86,6 +88,7 @@ class JobBuilder:
     _aliases: List[str]
     _job_seq_id: Optional[str]
     _job_version_alias: Optional[str]
+    _is_notebook_run: bool
 
     def __init__(self, settings: SettingsStatic):
         self._settings = settings
@@ -102,6 +105,7 @@ class JobBuilder:
         self._source_type: Optional[
             Literal["repo", "artifact", "image"]
         ] = settings.job_source  # type: ignore[assignment]
+        self._is_notebook_run = self._get_is_notebook_run()
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -143,16 +147,16 @@ class JobBuilder:
 
     def _build_repo_job_source(
         self,
-        metadata: Dict[str, Any],
         program_relpath: str,
-        root: Optional[str],
+        metadata: Dict[str, Any],
     ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
         remote = git_info.get("remote")
         commit = git_info.get("commit")
+        root = metadata.get("root")
         assert remote is not None
         assert commit is not None
-        if self._is_notebook_run():
+        if self._is_notebook_run:
             if not os.path.exists(
                 os.path.join(os.getcwd(), os.path.basename(program_relpath))
             ):
@@ -179,74 +183,51 @@ class JobBuilder:
                     if p == "..":
                         count_dots += 1
                 full_program_path = "/".join(split_path[2 * count_dots :])
-
         else:
             full_program_path = program_relpath
 
+        entrypoint = self._get_entrypoint(full_program_path, metadata)
         # TODO: update executable to a method that supports pex
         source: GitSourceDict = {
-            "git": {
-                "remote": remote,
-                "commit": commit,
-            },
-            "entrypoint": [
-                os.path.basename(sys.executable),
-                full_program_path,
-            ],
-            "notebook": self._is_notebook_run(),
+            "git": {"remote": remote, "commit": commit},
+            "entrypoint": entrypoint,
+            "notebook": self._is_notebook_run,
         }
+        name = self._make_job_name(f"{remote}_{program_relpath}")
 
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{remote}_{program_relpath}")
-        # if building a partial job from CLI, don't construct local entrypoint
-        # or notebook flag entrypoint should already be in metadata from create_job
-        if metadata.get("_partial"):
-            assert "entrypoint" in metadata
-            assert "notebook" in metadata
-            source.update(
-                {
-                    "entrypoint": metadata["entrypoint"],
-                    "notebook": metadata["notebook"],
-                }
-            )
         return source, name
 
     def _build_artifact_job_source(
-        self, program_relpath: str
+        self,
+        program_relpath: str,
+        metadata: Dict[str, Any],
     ) -> Tuple[Optional[ArtifactSourceDict], Optional[str]]:
         assert isinstance(self._logged_code_artifact, dict)
         # TODO: should we just always exit early if the path doesn't exist?
-        if self._is_notebook_run() and not self._is_colab_run():
+        if self._is_notebook_run and not self._is_colab_run():
             full_program_relpath = os.path.relpath(program_relpath, os.getcwd())
             # if the resolved path doesn't exist, then we shouldn't make a job because it will fail
             if not os.path.exists(full_program_relpath):
                 # when users call log code in a notebook the code artifact starts
-                # at the directory the notebook is in instead of the jupyter
-                # core
-                if os.path.exists(os.path.basename(program_relpath)):
-                    full_program_relpath = os.path.basename(program_relpath)
-                else:
+                # at the directory the notebook is in instead of the jupyter core
+                if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
+                    wandb.termwarn(
+                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
+                    )
                     return None, None
+                full_program_relpath = os.path.basename(program_relpath)
         else:
             full_program_relpath = program_relpath
-        entrypoint = [
-            os.path.basename(sys.executable),
-            full_program_relpath,
-        ]
+
+        entrypoint = self._get_entrypoint(full_program_relpath, metadata)
         # TODO: update executable to a method that supports pex
         source: ArtifactSourceDict = {
             "entrypoint": entrypoint,
-            "notebook": self._is_notebook_run(),
+            "notebook": self._is_notebook_run,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
         }
-
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{self._logged_code_artifact['name']}")
+        name = self._make_job_name(self._logged_code_artifact["name"])
 
         return source, name
 
@@ -258,19 +239,56 @@ class JobBuilder:
 
         raw_image_name = image_name
         if ":" in image_name:
-            raw_image_name, tag = image_name.split(":")
-            self._aliases += [tag]
+            tag = image_name.split(":")[-1]
 
-        if self._settings.job_name:
-            name = self._settings.job_name
-        else:
-            name = make_artifact_name_safe(f"job-{raw_image_name}")
+            # if tag looks properly formatted, assume its a tag
+            # regex: alphanumeric and "_" "-" "."
+            if re.fullmatch(r"([a-zA-Z0-9_\-\.]+)", tag):
+                raw_image_name = raw_image_name.replace(f":{tag}", "")
+                self._aliases += [tag]
+
         source: ImageSourceDict = {
             "image": image_name,
         }
+        name = self._make_job_name(raw_image_name)
+
         return source, name
 
-    def _is_notebook_run(self) -> bool:
+    def _make_job_name(self, input_str: str) -> str:
+        """Use job name from settings if provided, else use programatic name."""
+        if self._settings.job_name:
+            return self._settings.job_name
+
+        return make_artifact_name_safe(f"job-{input_str}")
+
+    def _get_entrypoint(
+        self,
+        program_relpath: str,
+        metadata: Dict[str, Any],
+    ) -> List[str]:
+        # if building a partial job from CLI, overwrite entrypoint and notebook
+        # should already be in metadata from create_job
+        if metadata.get("_partial"):
+            if metadata.get("entrypoint"):
+                entrypoint: List[str] = metadata["entrypoint"]
+                return entrypoint
+
+            # if entrypoint is not in metadata, then construct from python
+            assert metadata.get("python")
+
+            python = metadata["python"]
+            if python.count(".") > 1:
+                python = ".".join(python.split(".")[:2])
+
+            entrypoint = [f"python{python}", program_relpath]
+            return entrypoint
+
+        # job is being built from a run
+        entrypoint = [os.path.basename(sys.executable), program_relpath]
+
+        return entrypoint
+
+    def _get_is_notebook_run(self) -> bool:
         return hasattr(self._settings, "_jupyter") and bool(self._settings._jupyter)
 
     def _is_colab_run(self) -> bool:
@@ -281,20 +299,24 @@ class JobBuilder:
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
+            wandb.termwarn(
+                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            )
             return None
         metadata = self._handle_metadata_file()
         if metadata is None:
+            wandb.termwarn(
+                f"Ensure read and write access to run files dir: {self._settings.files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables"
+            )
             return None
 
         runtime: Optional[str] = metadata.get("python")
-        program_relpath: Optional[str] = metadata.get("codePath")
         # can't build a job without a python version
         if runtime is None:
+            wandb.termwarn(
+                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            )
             return None
-
-        if self._is_notebook_run():
-            _logger.info("run is notebook based run")
-            program_relpath = metadata.get("program")
 
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
@@ -314,8 +336,16 @@ class JobBuilder:
             source_type = source_info.get("source_type")
         else:
             # configure job from environment
-            source_type = self._get_source_type(metadata, program_relpath)
+            source_type = self._get_source_type(metadata)
             if not source_type:
+                wandb.termwarn("No source type found, not creating job artifact")
+                return None
+
+            program_relpath = self._get_program_relpath(source_type, metadata)
+            if source_type != "image" and not program_relpath:
+                wandb.termwarn(
+                    "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+                )
                 return None
 
             source: Union[
@@ -326,21 +356,25 @@ class JobBuilder:
 
             # make source dict
             if source_type == "repo":
-                assert program_relpath is not None
-                source, name = self._build_repo_job_source(
-                    metadata,
-                    program_relpath,
-                    metadata.get("root"),
-                )
+                assert program_relpath
+                source, name = self._build_repo_job_source(program_relpath, metadata)
             elif source_type == "artifact":
-                assert program_relpath is not None
-                source, name = self._build_artifact_job_source(program_relpath)
-            elif source_type == "image":
+                assert program_relpath
+                source, name = self._build_artifact_job_source(
+                    program_relpath, metadata
+                )
+            elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
             else:
                 source = None
 
             if source is None:
+                if source_type:
+                    wandb.termwarn(
+                        f"Source type is set to '{source_type}' but some required information is missing "
+                        "from the environment. A job will not be created from this run. See "
+                        "https://docs.wandb.ai/guides/launch/create-job"
+                    )
                 return None
 
             source_info = {
@@ -379,17 +413,15 @@ class JobBuilder:
 
         return artifact
 
-    def _get_source_type(
-        self, metadata: Dict[str, Any], relpath: Optional[str]
-    ) -> Optional[str]:
+    def _get_source_type(self, metadata: Dict[str, Any]) -> Optional[str]:
         if self._source_type:
             return self._source_type
 
-        if self._has_git_job_ingredients(metadata, relpath):
+        if self._has_git_job_ingredients(metadata):
             _logger.info("is repo sourced job")
             return "repo"
 
-        if self._has_artifact_job_ingredients(relpath):
+        if self._has_artifact_job_ingredients():
             _logger.info("is artifact sourced job")
             return "artifact"
 
@@ -399,6 +431,28 @@ class JobBuilder:
 
         _logger.info("no source found")
         return None
+
+    def _get_program_relpath(
+        self, source_type: str, metadata: Dict[str, Any]
+    ) -> Optional[str]:
+        if self._is_notebook_run:
+            _logger.info("run is notebook based run")
+            program = metadata.get("program")
+
+            if not program:
+                wandb.termwarn(
+                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job"
+                )
+
+            return program
+
+        if source_type == "artifact" or self._settings.job_source == "artifact":
+            # if the job is set to be an artifact, use relpath guaranteed
+            # to be correct. 'codePath' uses the root path when in git repo
+            # fallback to codePath if strictly local relpath not present
+            return metadata.get("codePathLocal") or metadata.get("codePath")
+
+        return metadata.get("codePath")
 
     def _handle_metadata_file(
         self,
@@ -410,18 +464,14 @@ class JobBuilder:
 
         return None
 
-    def _has_git_job_ingredients(
-        self, metadata: Dict[str, Any], program_relpath: Optional[str]
-    ) -> bool:
+    def _has_git_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         git_info: Dict[str, str] = metadata.get("git", {})
-        if program_relpath is None:
-            return False
-        if self._is_notebook_run() and metadata.get("root") is None:
+        if self._is_notebook_run and metadata.get("root") is None:
             return False
         return git_info.get("remote") is not None and git_info.get("commit") is not None
 
-    def _has_artifact_job_ingredients(self, program_relpath: Optional[str]) -> bool:
-        return self._logged_code_artifact is not None and program_relpath is not None
+    def _has_artifact_job_ingredients(self) -> bool:
+        return self._logged_code_artifact is not None
 
     def _has_image_job_ingredients(self, metadata: Dict[str, Any]) -> bool:
         return metadata.get("docker") is not None

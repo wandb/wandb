@@ -1,15 +1,10 @@
-import datetime
+import asyncio
 import logging
-import shlex
-import time
 from typing import Any, Dict, Optional
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
-import yaml
-
-import wandb
 from wandb.apis.internal import Api
 from wandb.util import get_module
 
@@ -18,7 +13,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, run_shell
+from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -35,7 +30,7 @@ class VertexSubmittedRun(AbstractRun):
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         # TODO: implement
         return None
 
@@ -59,11 +54,12 @@ class VertexSubmittedRun(AbstractRun):
             project=self.gcp_project,
         )
 
-    def wait(self) -> bool:
-        self._job.wait()
-        return self.get_status().state == "finished"
+    async def wait(self) -> bool:
+        # TODO: run this in a separate thread.
+        await self._job.wait()
+        return (await self.get_status()).state == "finished"
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
         if job_state == "JobState.JOB_STATE_SUCCEEDED":
             return Status("finished")
@@ -75,7 +71,7 @@ class VertexSubmittedRun(AbstractRun):
             return Status("starting")
         return Status("unknown")
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         self._job.cancel()
 
 
@@ -94,117 +90,134 @@ class VertexRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def run(
+    async def run(
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
-        aiplatform = get_module(  # noqa: F811
-            "google.cloud.aiplatform",
-            "VertexRunner requires google.cloud.aiplatform to be installed",
-        )
-        resource_args = launch_project.resource_args.get("vertex")
+        full_resource_args = launch_project.fill_macros(image_uri)
+        resource_args = full_resource_args.get("vertex")
+        # We support setting under gcp-vertex for historical reasons.
         if not resource_args:
-            resource_args = launch_project.resource_args.get("gcp-vertex")
+            resource_args = full_resource_args.get("gcp-vertex")
         if not resource_args:
             raise LaunchError(
                 "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
             )
-        gcp_staging_bucket = resource_args.get("staging_bucket")
-        if not gcp_staging_bucket:
-            raise LaunchError(
-                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. Specify a bucket under key staging_bucket."
-            )
-        gcp_machine_type = resource_args.get("machine_type") or "n1-standard-4"
-        gcp_accelerator_type = (
-            resource_args.get("accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
-        )
-        gcp_accelerator_count = int(resource_args.get("accelerator_count") or 0)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = (
-            resource_args.get("job_name")
-            or f"{launch_project.target_project}_{timestamp}"
-        )
-        service_account = resource_args.get("service_account")
-        tensorboard = resource_args.get("tensorboard")
-        aiplatform.init(
-            project=self.environment.project,
-            location=self.environment.region,
-            staging_bucket=gcp_staging_bucket,
-        )
+
+        spec_args = resource_args.get("spec", {})
+        run_args = resource_args.get("run", {})
+
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
-        launch_project.fill_macros(image_uri)
-        # TODO: how to handle this?
+        # TODO: Set entrypoint in each container
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-
-        worker_pool_specs = [
-            {
-                "machine_spec": {
-                    "machine_type": gcp_machine_type,
-                    "accelerator_type": gcp_accelerator_type,
-                    "accelerator_count": gcp_accelerator_count,
-                },
-                "replica_count": 1,
-                "container_spec": {
-                    "image_uri": image_uri,
-                    "command": entry_cmd,
-                    "env": [
-                        {"name": k, "value": v}
-                        for k, v in get_env_vars_dict(launch_project, self._api).items()
-                    ],
-                },
-            }
-        ]
-
-        job = aiplatform.CustomJob(
-            display_name=gcp_training_job_name, worker_pool_specs=worker_pool_specs
+        env_vars = get_env_vars_dict(
+            launch_project=launch_project,
+            api=self._api,
+            max_env_length=MAX_ENV_LENGTHS[self.__class__.__name__],
         )
 
-        wandb.termlog(
-            f"{LOG_PREFIX}Running training job {gcp_training_job_name} on {gcp_machine_type}."
-        )
-
-        if synchronous:
-            job.run(service_account=service_account, tensorboard=tensorboard, sync=True)
-        else:
-            job.submit(
-                service_account=service_account,
-                tensorboard=tensorboard,
+        worker_specs = spec_args.get("worker_pool_specs", [])
+        if not worker_specs:
+            raise LaunchError(
+                "Vertex requires at least one worker pool spec. Please specify "
+                "a worker pool spec in resource arguments under the key "
+                "`vertex.spec.worker_pool_specs`."
             )
 
-        submitted_run = VertexSubmittedRun(job)
+        # TODO: Add entrypoint + args to each worker pool spec
+        for spec in worker_specs:
+            if not spec.get("container_spec"):
+                raise LaunchError(
+                    "Vertex requires a container spec for each worker pool spec. "
+                    "Please specify a container spec in resource arguments under "
+                    "the key `vertex.spec.worker_pool_specs[].container_spec`."
+                )
+            spec["container_spec"]["command"] = entry_cmd
 
-        while not getattr(job._gca_resource, "name", None):
-            # give time for the gcp job object to be created and named, this should only loop a couple times max
-            time.sleep(1)
+            # Add our env vars to user supplied env vars
+            env = spec["container_spec"].get("env", [])
+            env.extend(
+                [{"name": key, "value": value} for key, value in env_vars.items()]
+            )
+            spec["container_spec"]["env"] = env
 
-        wandb.termlog(
-            f"{LOG_PREFIX}View your job status and logs at {submitted_run.get_page_link()}."
+        if not spec_args.get("staging_bucket"):
+            raise LaunchError(
+                "Vertex requires a staging bucket. Please specify a staging bucket "
+                "in resource arguments under the key `vertex.spec.staging_bucket`."
+            )
+
+        _logger.info("Launching Vertex job...")
+        submitted_run = await launch_vertex_job(
+            launch_project,
+            spec_args,
+            run_args,
+            self.environment,
+            synchronous,
         )
         return submitted_run
 
 
-def get_gcp_config(config: str = "default") -> Any:
-    return yaml.safe_load(
-        run_shell(
-            ["gcloud", "config", "configurations", "describe", shlex.quote(config)]
-        )[0]
-    )
+async def launch_vertex_job(
+    launch_project: LaunchProject,
+    spec_args: Dict[str, Any],
+    run_args: Dict[str, Any],
+    environment: GcpEnvironment,
+    synchronous: bool = False,
+) -> VertexSubmittedRun:
+    try:
+        aiplatform = get_module(  # noqa: F811
+            "google.cloud.aiplatform",
+            "VertexRunner requires google.cloud.aiplatform to be installed",
+        )
+        init = event_loop_thread_exec(aiplatform.init)
+        await init(
+            project=environment.project,
+            location=environment.region,
+            staging_bucket=spec_args.get("staging_bucket"),
+            credentials=await environment.get_credentials(),
+        )
+        job = aiplatform.CustomJob(
+            display_name=launch_project.name,
+            worker_pool_specs=spec_args.get("worker_pool_specs"),
+            base_output_dir=spec_args.get("base_output_dir"),
+            encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
+            labels=spec_args.get("labels", {}),
+        )
+        execution_kwargs = dict(
+            timeout=run_args.get("timeout"),
+            service_account=run_args.get("service_account"),
+            network=run_args.get("network"),
+            enable_web_access=run_args.get("enable_web_access", False),
+            experiment=run_args.get("experiment"),
+            experiment_run=run_args.get("experiment_run"),
+            tensorboard=run_args.get("tensorboard"),
+            restart_job_on_worker_restart=run_args.get(
+                "restart_job_on_worker_restart", False
+            ),
+        )
+        # Unclear if there are exceptions that can be thrown where we should
+        # retry instead of erroring. For now, just catch all exceptions and they
+        # go to the UI for the user to interpret.
+    except Exception as e:
+        raise LaunchError(f"Failed to create Vertex job: {e}")
 
-
-def exists_on_gcp(image: str, tag: str) -> bool:
-    out, err = run_shell(
-        [
-            "gcloud",
-            "artifacts",
-            "docker",
-            "images",
-            "list",
-            shlex.quote(image),
-            "--include-tags",
-            f"--filter=tags:{shlex.quote(tag)}",
-        ]
-    )
-    return tag in out and "sha256:" in out
+    if synchronous:
+        run = event_loop_thread_exec(job.run)
+        await run(**execution_kwargs, sync=True)
+    else:
+        submit = event_loop_thread_exec(job.submit)
+        await submit(**execution_kwargs)
+    submitted_run = VertexSubmittedRun(job)
+    interval = 1
+    while not getattr(job._gca_resource, "name", None):
+        # give time for the gcp job object to be created and named, this should only loop a couple times max
+        await asyncio.sleep(interval)
+        interval = min(30, interval * 2)
+    return submitted_run

@@ -290,6 +290,15 @@ def mocked_run(runner, test_settings):
 
 
 @pytest.fixture
+def mocked_run_disable_job_creation(runner, test_settings):
+    """A managed run object for tests with a mock backend"""
+    test_settings.update({"disable_job_creation": True})
+    run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
+    run._set_backend(MagicMock())
+    yield run
+
+
+@pytest.fixture
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
@@ -787,9 +796,12 @@ def _start_backend(
         wt = start_write_thread(internal_wm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            run = _internal_sender.communicate_run(mocked_run)
+            handle = _internal_sender.deliver_run(mocked_run)
+            result = handle.wait(timeout=10)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=10)
         return (ht, wt, st)
 
     yield start_backend_func
