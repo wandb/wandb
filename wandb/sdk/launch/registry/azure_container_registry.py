@@ -32,19 +32,18 @@ class AzureContainerRegistry(AbstractRegistry):
         self,
         environment: AzureEnvironment,
         uri: str,
-        verify: bool = True,
     ):
         """Initialize an AzureContainerRegistry."""
         self.environment = environment
         self.uri = uri
         if self.uri.startswith("https://"):
             self.uri = self.uri[len("https://") :]
-        if verify:
-            self.verify()
 
     @classmethod
     def from_config(
-        cls, config: dict, environment: AbstractEnvironment, verify: bool = True
+        cls,
+        config: dict,
+        environment: AbstractEnvironment,
     ) -> "AzureContainerRegistry":
         """Create an AzureContainerRegistry from a config dict.
 
@@ -71,14 +70,13 @@ class AzureContainerRegistry(AbstractRegistry):
         return cls(
             uri=uri,
             environment=environment,
-            verify=verify,
         )
 
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get username and password for container registry."""
         raise NotImplementedError
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if image exists in container registry.
 
         Args:
@@ -100,10 +98,10 @@ class AzureContainerRegistry(AbstractRegistry):
                 f"Unable to check if image exists in Azure Container Registry: {e}"
             ) from e
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         return self.uri
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         try:
             _ = self.registry_name
         except Exception as e:

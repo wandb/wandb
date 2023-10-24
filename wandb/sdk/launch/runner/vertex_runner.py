@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import time
 from typing import Any, Dict, Optional
 
 if False:
@@ -13,7 +13,7 @@ from ..builder.build import get_env_vars_dict
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
-from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
+from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
@@ -30,7 +30,7 @@ class VertexSubmittedRun(AbstractRun):
         # numeric ID of the custom training job
         return self._job.name  # type: ignore
 
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         # TODO: implement
         return None
 
@@ -54,11 +54,12 @@ class VertexSubmittedRun(AbstractRun):
             project=self.gcp_project,
         )
 
-    def wait(self) -> bool:
-        self._job.wait()
-        return self.get_status().state == "finished"
+    async def wait(self) -> bool:
+        # TODO: run this in a separate thread.
+        await self._job.wait()
+        return (await self.get_status()).state == "finished"
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
         if job_state == "JobState.JOB_STATE_SUCCEEDED":
             return Status("finished")
@@ -70,7 +71,7 @@ class VertexSubmittedRun(AbstractRun):
             return Status("starting")
         return Status("unknown")
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         self._job.cancel()
 
 
@@ -89,7 +90,7 @@ class VertexRunner(AbstractRunner):
         self.environment = environment
         self.registry = registry
 
-    def run(
+    async def run(
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
@@ -153,7 +154,7 @@ class VertexRunner(AbstractRunner):
             )
 
         _logger.info("Launching Vertex job...")
-        submitted_run = launch_vertex_job(
+        submitted_run = await launch_vertex_job(
             launch_project,
             spec_args,
             run_args,
@@ -163,7 +164,7 @@ class VertexRunner(AbstractRunner):
         return submitted_run
 
 
-def launch_vertex_job(
+async def launch_vertex_job(
     launch_project: LaunchProject,
     spec_args: Dict[str, Any],
     run_args: Dict[str, Any],
@@ -175,11 +176,12 @@ def launch_vertex_job(
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
-        aiplatform.init(
+        init = event_loop_thread_exec(aiplatform.init)
+        await init(
             project=environment.project,
             location=environment.region,
             staging_bucket=spec_args.get("staging_bucket"),
-            credentials=environment.get_credentials(),
+            credentials=await environment.get_credentials(),
         )
         job = aiplatform.CustomJob(
             display_name=launch_project.name,
@@ -200,17 +202,22 @@ def launch_vertex_job(
                 "restart_job_on_worker_restart", False
             ),
         )
-    # Unclear if there are exceptions that can be thrown where we should
-    # retry instead of erroring. For now, just catch all exceptions and they
-    # go to the UI for the user to interpret.
+        # Unclear if there are exceptions that can be thrown where we should
+        # retry instead of erroring. For now, just catch all exceptions and they
+        # go to the UI for the user to interpret.
     except Exception as e:
         raise LaunchError(f"Failed to create Vertex job: {e}")
+
     if synchronous:
-        job.run(**execution_kwargs, sync=True)
+        run = event_loop_thread_exec(job.run)
+        await run(**execution_kwargs, sync=True)
     else:
-        job.submit(**execution_kwargs)
+        submit = event_loop_thread_exec(job.submit)
+        await submit(**execution_kwargs)
     submitted_run = VertexSubmittedRun(job)
+    interval = 1
     while not getattr(job._gca_resource, "name", None):
         # give time for the gcp job object to be created and named, this should only loop a couple times max
-        time.sleep(1)
+        await asyncio.sleep(interval)
+        interval = min(30, interval * 2)
     return submitted_run
