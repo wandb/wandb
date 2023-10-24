@@ -1039,9 +1039,9 @@ class WandbImporter:
                 non_matching.append(f"{col} does not exist in dst")
                 continue
 
-            # handle case where NaN is a string
-            src = standardize_series(src)
-            dst = standardize_series(dst)
+            # # handle case where NaN is a string
+            # src = standardize_series(src)
+            # dst = standardize_series(dst)
 
             if not src.series_equal(dst):
                 non_matching.append(col)
