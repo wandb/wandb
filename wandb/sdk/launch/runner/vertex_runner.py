@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any, Dict, Optional
 
@@ -16,6 +17,8 @@ from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS
 from .abstract import AbstractRun, AbstractRunner, Status
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
+
+_logger = logging.getLogger(__name__)
 
 
 class VertexSubmittedRun(AbstractRun):
@@ -90,10 +93,6 @@ class VertexRunner(AbstractRunner):
         self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
-        aiplatform = get_module(  # noqa: F811
-            "google.cloud.aiplatform",
-            "VertexRunner requires google.cloud.aiplatform to be installed",
-        )
         full_resource_args = launch_project.fill_macros(image_uri)
         resource_args = full_resource_args.get("vertex")
         # We support setting under gcp-vertex for historical reasons.
@@ -139,52 +138,79 @@ class VertexRunner(AbstractRunner):
                     "the key `vertex.spec.worker_pool_specs[].container_spec`."
                 )
             spec["container_spec"]["command"] = entry_cmd
-            spec["container_spec"]["env"] = [
-                {"name": k, "value": v} for k, v in env_vars.items()
-            ]
+
+            # Add our env vars to user supplied env vars
+            env = spec["container_spec"].get("env", [])
+            env.extend(
+                [{"name": key, "value": value} for key, value in env_vars.items()]
+            )
+            spec["container_spec"]["env"] = env
 
         if not spec_args.get("staging_bucket"):
             raise LaunchError(
                 "Vertex requires a staging bucket. Please specify a staging bucket "
                 "in resource arguments under the key `vertex.spec.staging_bucket`."
             )
-        try:
-            aiplatform.init(
-                project=self.environment.project,
-                location=self.environment.region,
-                staging_bucket=spec_args.get("staging_bucket"),
-                credentials=self.environment.get_credentials(),
-            )
-            job = aiplatform.CustomJob(
-                display_name=launch_project.name,
-                worker_pool_specs=spec_args.get("worker_pool_specs"),
-                base_output_dir=spec_args.get("base_output_dir"),
-                encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
-                labels=spec_args.get("labels", {}),
-            )
-            execution_kwargs = dict(
-                timeout=run_args.get("timeout"),
-                service_account=run_args.get("service_account"),
-                network=run_args.get("network"),
-                enable_web_access=run_args.get("enable_web_access", False),
-                experiment=run_args.get("experiment"),
-                experiment_run=run_args.get("experiment_run"),
-                tensorboard=run_args.get("tensorboard"),
-                restart_job_on_worker_restart=run_args.get(
-                    "restart_job_on_worker_restart", False
-                ),
-            )
-        # Unclear if there are exceptions that can be thrown where we should
-        # retry instead of erroring. For now, just catch all exceptions and they
-        # go to the UI for the user to interpret.
-        except Exception as e:
-            raise LaunchError(f"Failed to create Vertex job: {e}")
-        if synchronous:
-            job.run(**execution_kwargs, sync=True)
-        else:
-            job.submit(**execution_kwargs)
-        submitted_run = VertexSubmittedRun(job)
-        while not getattr(job._gca_resource, "name", None):
-            # give time for the gcp job object to be created and named, this should only loop a couple times max
-            time.sleep(1)
+
+        _logger.info("Launching Vertex job...")
+        submitted_run = launch_vertex_job(
+            launch_project,
+            spec_args,
+            run_args,
+            self.environment,
+            synchronous,
+        )
         return submitted_run
+
+
+def launch_vertex_job(
+    launch_project: LaunchProject,
+    spec_args: Dict[str, Any],
+    run_args: Dict[str, Any],
+    environment: GcpEnvironment,
+    synchronous: bool = False,
+) -> VertexSubmittedRun:
+    try:
+        aiplatform = get_module(  # noqa: F811
+            "google.cloud.aiplatform",
+            "VertexRunner requires google.cloud.aiplatform to be installed",
+        )
+        aiplatform.init(
+            project=environment.project,
+            location=environment.region,
+            staging_bucket=spec_args.get("staging_bucket"),
+            credentials=environment.get_credentials(),
+        )
+        job = aiplatform.CustomJob(
+            display_name=launch_project.name,
+            worker_pool_specs=spec_args.get("worker_pool_specs"),
+            base_output_dir=spec_args.get("base_output_dir"),
+            encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
+            labels=spec_args.get("labels", {}),
+        )
+        execution_kwargs = dict(
+            timeout=run_args.get("timeout"),
+            service_account=run_args.get("service_account"),
+            network=run_args.get("network"),
+            enable_web_access=run_args.get("enable_web_access", False),
+            experiment=run_args.get("experiment"),
+            experiment_run=run_args.get("experiment_run"),
+            tensorboard=run_args.get("tensorboard"),
+            restart_job_on_worker_restart=run_args.get(
+                "restart_job_on_worker_restart", False
+            ),
+        )
+    # Unclear if there are exceptions that can be thrown where we should
+    # retry instead of erroring. For now, just catch all exceptions and they
+    # go to the UI for the user to interpret.
+    except Exception as e:
+        raise LaunchError(f"Failed to create Vertex job: {e}")
+    if synchronous:
+        job.run(**execution_kwargs, sync=True)
+    else:
+        job.submit(**execution_kwargs)
+    submitted_run = VertexSubmittedRun(job)
+    while not getattr(job._gca_resource, "name", None):
+        # give time for the gcp job object to be created and named, this should only loop a couple times max
+        time.sleep(1)
+    return submitted_run
