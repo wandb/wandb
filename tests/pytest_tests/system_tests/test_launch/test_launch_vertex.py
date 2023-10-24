@@ -15,8 +15,9 @@ def mock_vertex_environment():
     environment.region.return_value = "europe-west-4"
 
 
-def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
-    def mock_launch_vertex_job(*args, **kwargs):
+@pytest.mark.asyncio
+async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
+    async def mock_launch_vertex_job(*args, **kwargs):
         return args[1]
 
     mock_env = MagicMock(spec=GcpEnvironment)
@@ -107,7 +108,7 @@ def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
             environment,
             MagicMock(),
         )
-        req = runner.run(project, project.docker_image)
+        req = await runner.run(project, project.docker_image)
         assert (
             req["worker_pool_specs"][0]["machine_spec"]["accelerator_type"]
             == "NVIDIA_TESLA_T4"

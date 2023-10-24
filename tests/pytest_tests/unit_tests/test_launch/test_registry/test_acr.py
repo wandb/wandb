@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.azure_container_registry import (
     AzureContainerRegistry,
@@ -22,7 +23,8 @@ def test_acr_from_config(mocker):
     assert acr.uri == "test"
 
 
-def test_acr_get_repo_uri(mocker):
+@pytest.mark.asyncio
+async def test_acr_get_repo_uri(mocker):
     """Test AzureContainerRegistry class."""
     mocker.patch(
         "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
@@ -36,10 +38,11 @@ def test_acr_get_repo_uri(mocker):
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert registry.get_repo_uri() == "test"
+    assert await registry.get_repo_uri() == "test"
 
 
-def test_acr_check_image_exists(mocker):
+@pytest.mark.asyncio
+async def test_acr_check_image_exists(mocker):
     """Test AzureContainerRegistry class."""
     mocker.patch(
         "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
@@ -62,7 +65,7 @@ def test_acr_check_image_exists(mocker):
     registry = AzureContainerRegistry.from_config(
         config, AzureEnvironment.from_config({})
     )
-    assert registry.check_image_exists("test.azurecr.io/launch-images:tag")
+    assert await registry.check_image_exists("test.azurecr.io/launch-images:tag")
 
     # Make the mock client raise an error when get_manifest_properties is called and
     # check that the method returns False.
@@ -71,7 +74,9 @@ def test_acr_check_image_exists(mocker):
         "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
         MagicMock(return_value=mock_client),
     )
-    assert not registry.check_image_exists("https://test.azurecr.io/launch-images:tag")
+    assert not await registry.check_image_exists(
+        "https://test.azurecr.io/launch-images:tag"
+    )
 
 
 def test_acr_registry_name(mocker):
