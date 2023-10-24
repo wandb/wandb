@@ -1,7 +1,6 @@
-from typing import Any
+from typing import Any, Optional
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from typing import Optional
 
 
 class Api:

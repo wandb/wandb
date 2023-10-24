@@ -1,6 +1,6 @@
+import hashlib
 import os
 from typing import Optional
-import hashlib
 
 from authlib.integrations.requests_client import OAuth2Auth, OAuth2Session
 from authlib.jose.util import extract_header
@@ -25,7 +25,7 @@ class OIDCAuth(OAuth2Auth):
             client_id="wandb-federated",
             token_endpoint=self._token_endpoint,
         )
-        super(OIDCAuth, self).__init__(
+        super().__init__(
             {"access_token": access_token, "expires_at": self._expires_at},
             client=self._client,
         )
@@ -33,7 +33,7 @@ class OIDCAuth(OAuth2Auth):
     def load_federation_token(self) -> Optional[str]:
         if os.getenv(env.OIDC_TOKEN_PATH):
             try:
-                with open(os.environ[env.OIDC_TOKEN_PATH], "r") as f:
+                with open(os.environ[env.OIDC_TOKEN_PATH]) as f:
                     token = f.read()
                 self.exchange_token(token)
                 return token
@@ -48,7 +48,7 @@ class OIDCAuth(OAuth2Auth):
         sub = payload.get("sub")
         if iss is None or sub is None:
             raise ValueError("Invalid token")
-        return "ft." + hashlib.md5(f"{iss}|{sub}".encode("utf-8")).hexdigest()
+        return "ft." + hashlib.md5(f"{iss}|{sub}".encode()).hexdigest()
 
     def introspect_token(self, token: str) -> dict:
         return self._client.introspect_token(self._introspect_endpoint, token=token)

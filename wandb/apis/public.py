@@ -403,9 +403,8 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
         if not _thread_local_api_settings.cookies:
-            auth = ("api", self.api_key)
+            pass
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
