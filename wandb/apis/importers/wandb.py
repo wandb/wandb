@@ -2310,10 +2310,24 @@ class _PlaceholderRun:
 
 def standardize_series(series: pl.Series) -> pl.Series:
     df = pl.DataFrame({"col": series})
-    
-    if series.dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]:
+
+    if series.dtype in [
+        pl.Int8,
+        pl.Int16,
+        pl.Int32,
+        pl.Int64,
+        pl.UInt8,
+        pl.UInt16,
+        pl.UInt32,
+        pl.UInt64,
+    ]:
         series = series.cast(pl.Float64)
 
-    df = df.select(pl.when(pl.col("col").str.lower().eq("nan")).then(np.nan).otherwise(pl.col("col")).alias("col"))
+    df = df.select(
+        pl.when(pl.col("col").str.lower().eq("nan"))
+        .then(np.nan)
+        .otherwise(pl.col("col"))
+        .alias("col")
+    )
 
     return df["col"]
