@@ -31,7 +31,6 @@ def assert_history(publish_util, dropped=None):
 
 
 def test_fstream_status_404(publish_util, mock_server, inject_requests, capsys):
-
     match = inject_requests.Match(path_suffix="/file_stream", count=2)
     inject_requests.add(match=match, http_status=404)
     assert_history(publish_util, dropped=1)

@@ -92,6 +92,14 @@ class RequestsMock:
         return {}
 
     @property
+    def cookies(self):
+        return {}
+
+    @property
+    def proxies(self):
+        return {}
+
+    @property
     def __version__(self):
         return requests.__version__
 
@@ -139,7 +147,7 @@ class RequestsMock:
             del kwargs["location_mode"]
         if "headers" in kwargs:
             # We convert our headers to a dict to avoid requests mocking madness
-            kwargs["headers"] = dict(kwargs["headers"])
+            kwargs["headers"] = dict(kwargs["headers"] or {})
         return kwargs
 
     def _store_request(self, url, body):

@@ -1,7 +1,9 @@
+import datetime
 import logging
 import queue
 import threading
-from typing import TYPE_CHECKING, List, Optional
+from collections import defaultdict, deque
+from typing import TYPE_CHECKING, Deque, Dict, List, Optional, Tuple
 
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
@@ -19,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 class AssetInterface:
     def __init__(self) -> None:
-        self.metrics_queue: "queue.Queue[dict]" = queue.Queue()
-        self.telemetry_queue: "queue.Queue[TelemetryRecord]" = queue.Queue()
+        self.metrics_queue: queue.Queue[dict] = queue.Queue()
+        self.telemetry_queue: queue.Queue[TelemetryRecord] = queue.Queue()
 
     def publish_stats(self, stats: dict) -> None:
         self.metrics_queue.put(stats)
@@ -77,7 +79,7 @@ class SystemMonitor:
         )
 
         # hardware assets
-        self.assets: List["Asset"] = self._get_assets()
+        self.assets: List[Asset] = self._get_assets()
 
         # OpenMetrics/Prometheus-compatible endpoints
         self.assets.extend(self._get_open_metrics_assets())
@@ -85,6 +87,10 @@ class SystemMonitor:
         # static system info, both hardware and software
         self.system_info: SystemInfo = SystemInfo(
             settings=self.settings, interface=interface
+        )
+
+        self.buffer: Dict[str, Deque[Tuple[float, float]]] = defaultdict(
+            lambda: deque([], maxlen=self.settings._stats_buffer_size)
         )
 
     def _get_assets(self) -> List["Asset"]:
@@ -130,6 +136,13 @@ class SystemMonitor:
             aggregated_metrics.update(item)
 
         if aggregated_metrics:
+            # update buffer:
+            # todo: get t from publish_stats instead?
+            #  either is not too accurate, just use nexus!
+            t = datetime.datetime.now().timestamp()
+            for k, v in aggregated_metrics.items():
+                self.buffer[k].append((t, v))
+            # publish aggregated metrics
             self.backend_interface.publish_stats(aggregated_metrics)
 
     def publish_telemetry(self) -> None:

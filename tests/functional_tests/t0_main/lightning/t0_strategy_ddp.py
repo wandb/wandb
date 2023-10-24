@@ -30,6 +30,7 @@ def main():
     trainer = pl.Trainer(
         max_epochs=1,
         devices=2,
+        num_nodes=1,
         accelerator="cpu",
         strategy="ddp",
         logger=wandb_logger,

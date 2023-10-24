@@ -6,6 +6,7 @@ depend:
     - "metaflow>=2.3.5"
     - pandas
     - scikit-learn
+    - fastcore
 tag:
   shard: metaflow
   skips:

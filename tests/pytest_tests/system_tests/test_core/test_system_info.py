@@ -53,13 +53,14 @@ def send_manager(
             interface=interface,
             context_keeper=context_keeper,
         )
-        meta.backend_interface.publish_run(meta.backend_interface._make_run(run))
+        meta.backend_interface.publish_run(run)
         sm.send(record_q.get())
         return sm
 
     yield send_manager_helper
 
 
+@pytest.mark.nexus_failure(feature="file_uploader")
 def test_meta_probe(
     relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
 ):

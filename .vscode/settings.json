@@ -5,33 +5,26 @@
     "build": true
   },
   "git.ignoreLimitWarning": true,
-
   "editor.formatOnSave": true,
-
+  "editor.lineHeight": 1.4,
+  "editor.scrollBeyondLastLine": false,
   "python.analysis.extraPaths": [
     "./wandb/vendor/gql-0.2.0",
     "./wandb/vendor/graphql-core-1.1"
   ],
-  "[python]": {
-    "editor.codeActionsOnSave": {
-        "source.fixAll": true,
-        "source.organizeImports": true
-    }
-  },
-  "ruff.organizeImports": false,
-
   "python.linting.enabled": true,
-  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Enabled": false,
   "python.linting.mypyEnabled": false,
-
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "python.testing.nosetestsEnabled": false,
-
   "python.formatting.provider": "black",
   "python.formatting.autopep8Args": ["--max-line-length", "120"],
   "python.testing.pytestArgs": ["."],
   "python.linting.pylintEnabled": false,
   "jupyter.jupyterServerType": "local",
-  "python.analysis.typeCheckingMode": "basic"
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  }
 }

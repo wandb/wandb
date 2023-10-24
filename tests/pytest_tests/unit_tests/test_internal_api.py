@@ -122,13 +122,7 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
     with patch.dict("os.environ", WANDB_CONFIG_DIR=str(tmp_path)):
         os.chmod(tmp_path, 0o444)
         internal.InternalApi()
-
-
-@pytest.fixture
-def some_file(tmp_path: Path):
-    p = tmp_path / "some_file.txt"
-    p.write_text("some text")
-    return p
+        os.chmod(tmp_path, 0o777)  # Allow the test runner to clean up.
 
 
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
@@ -145,7 +139,7 @@ class TestUploadFile:
 
     class TestSimple:
         def test_adds_headers_to_request(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_responses: responses.RequestsMock, example_file: Path
         ):
             response_callback = Mock(return_value=(200, {}, "success!"))
             mock_responses.add_callback(
@@ -153,33 +147,33 @@ class TestUploadFile:
             )
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 extra_headers={"X-Test": "test"},
             )
             assert response_callback.call_args[0][0].headers["X-Test"] == "test"
 
         def test_async_adds_headers_to_request(
-            self, mock_respx: respx.MockRouter, some_file: Path
+            self, mock_respx: respx.MockRouter, example_file: Path
         ):
             route = mock_respx.put("http://example.com/upload-dst")
             route.mock(return_value=httpx.Response(200))
             asyncio_run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     extra_headers={"X-Test": "test"},
                 )
             )
             assert "X-Test" in route.calls[0].request.headers
 
         def test_returns_response_on_success(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_responses: responses.RequestsMock, example_file: Path
         ):
             mock_responses.add(
                 "PUT", "http://example.com/upload-dst", status=200, body="success!"
             )
             resp = internal.InternalApi().upload_file(
-                "http://example.com/upload-dst", some_file.open("rb")
+                "http://example.com/upload-dst", example_file.open("rb")
             )
             assert resp.content == b"success!"
 
@@ -200,7 +194,7 @@ class TestUploadFile:
         def test_returns_transienterror_on_transient_issues(
             self,
             mock_responses: responses.RequestsMock,
-            some_file: Path,
+            example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
         ):
@@ -211,7 +205,7 @@ class TestUploadFile:
             )
             with pytest.raises(expected_errtype):
                 internal.InternalApi().upload_file(
-                    "http://example.com/upload-dst", some_file.open("rb")
+                    "http://example.com/upload-dst", example_file.open("rb")
                 )
 
         # test_async_returns_transienterror_on_transient_issues: doesn't exist,
@@ -223,7 +217,7 @@ class TestUploadFile:
         def test_async_raises_from_status_code(
             self,
             mock_respx: respx.MockRouter,
-            some_file: Path,
+            example_file: Path,
             errcode: int,
         ):
             mock_respx.put("http://example.com/upload-dst").mock(
@@ -232,7 +226,7 @@ class TestUploadFile:
             with pytest.raises(httpx.HTTPStatusError):
                 asyncio_run(
                     internal.InternalApi().upload_file_async(
-                        "http://example.com/upload-dst", some_file.open("rb")
+                        "http://example.com/upload-dst", example_file.open("rb")
                     )
                 )
 
@@ -247,21 +241,23 @@ class TestUploadFile:
         def test_async_raises_on_err(
             self,
             mock_respx: respx.MockRouter,
-            some_file: Path,
+            example_file: Path,
             err: Exception,
         ):
             mock_respx.put("http://example.com/upload-dst").mock(side_effect=err)
             with pytest.raises(type(err)):
                 asyncio_run(
                     internal.InternalApi().upload_file_async(
-                        "http://example.com/upload-dst", some_file.open("rb")
+                        "http://example.com/upload-dst", example_file.open("rb")
                     )
                 )
 
     class TestProgressCallback:
-        def test_smoke(self, mock_responses: responses.RequestsMock, some_file: Path):
+        def test_smoke(
+            self, mock_responses: responses.RequestsMock, example_file: Path
+        ):
             file_contents = "some text"
-            some_file.write_text(file_contents)
+            example_file.write_text(file_contents)
 
             def response_callback(request: requests.models.PreparedRequest):
                 assert request.body.read() == file_contents.encode()
@@ -274,7 +270,7 @@ class TestUploadFile:
             progress_callback = Mock()
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 callback=progress_callback,
             )
 
@@ -282,9 +278,9 @@ class TestUploadFile:
                 call(len(file_contents), len(file_contents))
             ]
 
-        def test_async_smoke(self, mock_respx: respx.MockRouter, some_file: Path):
+        def test_async_smoke(self, mock_respx: respx.MockRouter, example_file: Path):
             file_contents = "some text"
-            some_file.write_text(file_contents)
+            example_file.write_text(file_contents)
 
             def response_callback(request: httpx.Request):
                 assert request.read() == file_contents.encode()
@@ -298,7 +294,7 @@ class TestUploadFile:
             asyncio_run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     callback=progress_callback,
                 )
             )
@@ -309,9 +305,9 @@ class TestUploadFile:
             ]
 
         def test_handles_multiple_calls(
-            self, mock_responses: responses.RequestsMock, some_file: Path
+            self, mock_responses: responses.RequestsMock, example_file: Path
         ):
-            some_file.write_text("12345")
+            example_file.write_text("12345")
 
             def response_callback(request: requests.models.PreparedRequest):
                 assert request.body.read(2) == b"12"
@@ -327,7 +323,7 @@ class TestUploadFile:
             progress_callback = Mock()
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 callback=progress_callback,
             )
 
@@ -339,7 +335,7 @@ class TestUploadFile:
             ]
 
         def test_async_handles_multiple_calls(
-            self, mock_respx: respx.MockRouter, some_file: Path
+            self, mock_respx: respx.MockRouter, example_file: Path
         ):
             # Difference from the equivalent sync test: with httpx/respx,
             # we can't read the request body in small chunks:
@@ -347,7 +343,7 @@ class TestUploadFile:
             # Progress object, and read in chunks of ITER_BYTES.
             chunk_size = wandb.sdk.internal.progress.Progress.ITER_BYTES
 
-            some_file.write_text("a" * (chunk_size + 5))
+            example_file.write_text("a" * (chunk_size + 5))
 
             def response_callback(request: httpx.Request):
                 assert request.read() == b"a" * (chunk_size + 5)
@@ -361,7 +357,7 @@ class TestUploadFile:
             asyncio_run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     callback=progress_callback,
                 )
             )
@@ -384,10 +380,10 @@ class TestUploadFile:
         def test_rewinds_on_failure(
             self,
             mock_responses: responses.RequestsMock,
-            some_file: Path,
+            example_file: Path,
             failure: MockResponseOrException,
         ):
-            some_file.write_text("1234567")
+            example_file.write_text("1234567")
 
             def response_callback(request: requests.models.PreparedRequest):
                 assert request.body.read(2) == b"12"
@@ -402,7 +398,7 @@ class TestUploadFile:
             with pytest.raises((retry.TransientError, requests.RequestException)):
                 internal.InternalApi().upload_file(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     callback=progress_callback,
                 )
 
@@ -424,10 +420,10 @@ class TestUploadFile:
         def test_async_rewinds_on_failure(
             self,
             mock_respx: respx.MockRouter,
-            some_file: Path,
+            example_file: Path,
             failure: Union[httpx.Response, httpx.HTTPError],
         ):
-            some_file.write_text("1234567")
+            example_file.write_text("1234567")
 
             route = mock_respx.put("http://example.com/upload-dst")
             if isinstance(failure, httpx.Response):
@@ -440,7 +436,7 @@ class TestUploadFile:
                 asyncio_run(
                     internal.InternalApi().upload_file_async(
                         "http://example.com/upload-dst",
-                        some_file.open("rb"),
+                        example_file.open("rb"),
                         callback=progress_callback,
                     )
                 )
@@ -475,7 +471,7 @@ class TestUploadFile:
     def test_transient_failure_on_special_aws_request_timeout(
         self,
         mock_responses: responses.RequestsMock,
-        some_file: Path,
+        example_file: Path,
         request_headers: Mapping[str, str],
         response,
         expected_errtype: Type[Exception],
@@ -486,7 +482,7 @@ class TestUploadFile:
         with pytest.raises(expected_errtype):
             internal.InternalApi().upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 extra_headers=request_headers,
             )
 
@@ -511,7 +507,7 @@ class TestUploadFile:
         def test_uses_azure_lib_if_available(
             self,
             mock_responses: responses.RequestsMock,
-            some_file: Path,
+            example_file: Path,
             request_headers: Mapping[str, str],
             uses_azure_lib: bool,
         ):
@@ -524,7 +520,7 @@ class TestUploadFile:
 
             api.upload_file(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 extra_headers=request_headers,
             )
 
@@ -559,7 +555,7 @@ class TestUploadFile:
         def test_translates_azure_err_to_normal_err(
             self,
             mock_responses: responses.RequestsMock,
-            some_file: Path,
+            example_file: Path,
             response: MockResponseOrException,
             expected_errtype: Type[Exception],
             check_err: Callable[[Exception], bool],
@@ -570,7 +566,7 @@ class TestUploadFile:
             with pytest.raises(expected_errtype) as e:
                 internal.InternalApi().upload_file(
                     "https://example.com/foo/bar/baz",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     extra_headers=self.MAGIC_HEADERS,
                 )
 
@@ -585,7 +581,7 @@ class TestUploadFile:
     )
     def test_async_delegates_to_sync_upload_if_azure(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_respx: respx.MockRouter,
         headers: Mapping[str, str],
         expect_delegate: bool,
@@ -606,7 +602,7 @@ class TestUploadFile:
         loop.run_until_complete(
             api.upload_file_async(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 extra_headers=headers,
             )
         )
@@ -621,7 +617,7 @@ class TestUploadFile:
     @pytest.mark.parametrize("hide_httpx", [True, False])
     def test_async_delegates_to_sync_upload_if_no_httpx(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_respx: respx.MockRouter,
         hide_httpx: bool,
         monkeypatch,
@@ -645,7 +641,7 @@ class TestUploadFile:
         loop.run_until_complete(
             api.upload_file_async(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
             )
         )
 
@@ -674,7 +670,7 @@ class TestUploadFileRetry:
     )
     def test_stops_after_success(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_responses: responses.RequestsMock,
         schedule: Sequence[int],
         num_requests: int,
@@ -684,7 +680,7 @@ class TestUploadFileRetry:
 
         internal.InternalApi().upload_file_retry(
             "http://example.com/upload-dst",
-            some_file.open("rb"),
+            example_file.open("rb"),
         )
 
         assert handler.call_count == num_requests
@@ -698,7 +694,7 @@ class TestUploadFileRetry:
     )
     def test_async_stops_after_success(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_respx: respx.MockRouter,
         schedule: Sequence[int],
         num_requests: int,
@@ -709,7 +705,7 @@ class TestUploadFileRetry:
         asyncio_run(
             internal.InternalApi().upload_file_retry_async(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
             )
         )
 
@@ -717,7 +713,7 @@ class TestUploadFileRetry:
 
     def test_stops_after_bad_status(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_responses: responses.RequestsMock,
     ):
         handler = Mock(side_effect=[(400, {}, "")])
@@ -726,13 +722,13 @@ class TestUploadFileRetry:
         with pytest.raises(wandb.errors.CommError):
             internal.InternalApi().upload_file_retry(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
             )
         assert handler.call_count == 1
 
     def test_async_stops_after_bad_status(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_respx: respx.MockRouter,
     ):
         route = mock_respx.put("http://example.com/upload-dst")
@@ -742,14 +738,14 @@ class TestUploadFileRetry:
             asyncio_run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                 )
             )
         assert route.call_count == 1
 
     def test_stops_after_retry_limit_exceeded(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_responses: responses.RequestsMock,
     ):
         num_retries = 8
@@ -759,7 +755,7 @@ class TestUploadFileRetry:
         with pytest.raises(wandb.errors.CommError):
             internal.InternalApi().upload_file_retry(
                 "http://example.com/upload-dst",
-                some_file.open("rb"),
+                example_file.open("rb"),
                 num_retries=num_retries,
             )
 
@@ -767,7 +763,7 @@ class TestUploadFileRetry:
 
     def test_async_stops_after_retry_limit_exceeded(
         self,
-        some_file: Path,
+        example_file: Path,
         mock_respx: respx.MockRouter,
     ):
         num_retries = 8
@@ -778,7 +774,7 @@ class TestUploadFileRetry:
             asyncio_run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     num_retries=num_retries,
                 )
             )
@@ -813,7 +809,7 @@ class TestUploadFileRetry:
     def test_async_retries_on_special_aws_request_timeout(
         self,
         mock_respx: respx.MockRouter,
-        some_file: Path,
+        example_file: Path,
         response: int,
         request_headers: Mapping[str, str],
         expect_retry: bool,
@@ -824,7 +820,7 @@ class TestUploadFileRetry:
             asyncio_run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
-                    some_file.open("rb"),
+                    example_file.open("rb"),
                     extra_headers=request_headers,
                 )
             )

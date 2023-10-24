@@ -4,7 +4,7 @@ from typing import Callable, Dict, Optional, Union
 import wandb
 from wandb import env
 from wandb.apis import InternalApi
-from wandb.util import handle_sweep_config_violations
+from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
 

@@ -1,11 +1,14 @@
 """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
 class AbstractBuilder(ABC):
@@ -42,7 +45,6 @@ class AbstractBuilder(ABC):
         config: dict,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        verify: bool = True,
     ) -> "AbstractBuilder":
         """Create a builder from a config dictionary.
 
@@ -59,10 +61,11 @@ class AbstractBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
+        job_tracker: Optional["JobAndRunStatusTracker"] = None,
     ) -> str:
         """Build the image for the given project.
 
@@ -76,7 +79,7 @@ class AbstractBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the builder can be used to build images.
 
         Raises:

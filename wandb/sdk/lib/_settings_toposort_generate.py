@@ -1,21 +1,15 @@
 import inspect
 import sys
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from wandb.errors import UsageError
 from wandb.sdk.wandb_settings import Settings
 
 if sys.version_info >= (3, 8):
-    from typing import get_args, get_origin, get_type_hints
+    from typing import get_type_hints
 elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, get_origin, get_type_hints
+    from typing_extensions import get_type_hints
 else:
-
-    def get_args(obj: Any) -> Optional[Any]:
-        return obj.__args__ if hasattr(obj, "__args__") else None
-
-    def get_origin(obj: Any) -> Optional[Any]:
-        return obj.__origin__ if hasattr(obj, "__origin__") else None
 
     def get_type_hints(obj: Any) -> Dict[str, Any]:
         return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
@@ -155,7 +149,10 @@ def generate(settings: Settings) -> None:
     )
 
     print(
-        template.replace("$settings_literal_list", settings_literal_list,).replace(
+        template.replace(
+            "$settings_literal_list",
+            settings_literal_list,
+        ).replace(
             "$settings_topologically_sorted",
             settings_topologically_sorted,
         )

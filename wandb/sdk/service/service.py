@@ -1,9 +1,10 @@
 """Reliably launch and connect to backend server process (wandb service).
 
-Backend server process can be connected to using tcp sockets or grpc transport.
+Backend server process can be connected to using tcp sockets transport.
 """
-
+import datetime
 import os
+import pathlib
 import platform
 import shutil
 import subprocess
@@ -12,8 +13,10 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _sentry
+from wandb import _minimum_nexus_version, _sentry, termlog
+from wandb.env import error_reporting_enabled
 from wandb.errors import Error
+from wandb.util import get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -41,13 +44,22 @@ class ServiceStartPortError(Error):
     pass
 
 
+def _check_nexus_version_compatibility(nexus_version: str) -> None:
+    """Checks if the installed nexus version is compatible with the wandb version."""
+    from pkg_resources import parse_version
+
+    if parse_version(nexus_version) < parse_version(_minimum_nexus_version):
+        raise ImportError(
+            f"Requires wandb-core version {_minimum_nexus_version} or later, "
+            f"but you have {nexus_version}. Run `pip install --upgrade wandb[nexus]` to upgrade."
+        )
+
+
 class _Service:
     _settings: "Settings"
-    _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
-    _use_grpc: bool
     _startup_debug_enabled: bool
 
     def __init__(
@@ -56,25 +68,15 @@ class _Service:
     ) -> None:
         self._settings = settings
         self._stub = None
-        self._grpc_port = None
         self._sock_port = None
         self._internal_proc = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
-        _sentry.configure_scope(process_context="service")
+        _sentry.configure_scope(tags=dict(settings), process_context="service")
 
-        # Temporary setting to allow use of grpc so that we can keep
-        # that code from rotting during the transition
-        self._use_grpc = self._settings._service_transport == "grpc"
-
-        # current code only supports grpc or socket server implementation, in the
+        # current code only supports socket server implementation, in the
         # future we might be able to support both
-        if self._use_grpc:
-            from .service_grpc import ServiceGrpcInterface
-
-            self._service_interface = ServiceGrpcInterface()
-        else:
-            self._service_interface = ServiceSockInterface()
+        self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
@@ -129,7 +131,6 @@ class _Service:
                 if not pf.is_valid:
                     time.sleep(0.2)
                     continue
-                self._grpc_port = pf.grpc_port
                 self._sock_port = pf.sock_port
             except Exception as e:
                 # todo: point at the docs. this could be due to a number of reasons,
@@ -168,24 +169,82 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
-            service_args = [
-                "wandb",
-                "service",
+
+            service_args = []
+            if self._settings._require_nexus:
+                # NOTE: The wandb_core module will be distributed at first as an alpha
+                #       package as "wandb-core-alpha" to avoid polluting the pypi namespace.
+                #
+                #       When the package reaches compatibility milestones, it will be released
+                #       as "wandb-core".
+                #
+                #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
+                #       to assist in running the nexus service from a live development directory.
+                nexus_path: str = os.environ.get("_WANDB_NEXUS_PATH") or ""
+                if not nexus_path:
+                    wandb_nexus = get_module(
+                        "wandb_core",
+                        required="The nexus experiment requires the wandb_core module.",
+                    )
+                    _check_nexus_version_compatibility(wandb_nexus.__version__)
+                    nexus_path = wandb_nexus.get_nexus_path()
+                service_args.extend([nexus_path])
+                if not error_reporting_enabled():
+                    service_args.append("--no-observability")
+                exec_cmd_list = []
+            else:
+                service_args.extend(["wandb", "service"])
+
+            service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
                 pid,
                 "--debug",
             ]
-            if self._use_grpc:
-                service_args.append("--serve-grpc")
-            else:
-                service_args.append("--serve-sock")
-            internal_proc = subprocess.Popen(
-                exec_cmd_list + service_args,
-                env=os.environ,
-                **kwargs,
-            )
+            service_args.append("--serve-sock")
+
+            if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
+                _ = get_module(
+                    "memray",
+                    required=(
+                        "wandb service memory profiling requires memray, "
+                        "install with `pip install memray`"
+                    ),
+                )
+
+                time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                output_file = f"wandb_service.memray.{time_tag}.bin"
+                cli_executable = (
+                    pathlib.Path(__file__).parent.parent.parent.parent
+                    / "tools"
+                    / "cli.py"
+                )
+                exec_cmd_list = [
+                    executable,
+                    "-m",
+                    "memray",
+                    "run",
+                    "-o",
+                    output_file,
+                ]
+                service_args[0] = str(cli_executable)
+                termlog(
+                    f"wandb service memory profiling enabled, output file: {output_file}"
+                )
+                termlog(
+                    f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
+                )
+
+            try:
+                internal_proc = subprocess.Popen(
+                    exec_cmd_list + service_args,
+                    env=os.environ,
+                    **kwargs,
+                )
+            except Exception as e:
+                _sentry.reraise(e)
+
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
@@ -197,10 +256,6 @@ class _Service:
 
     def start(self) -> None:
         self._launch_server()
-
-    @property
-    def grpc_port(self) -> Optional[int]:
-        return self._grpc_port
 
     @property
     def sock_port(self) -> Optional[int]:

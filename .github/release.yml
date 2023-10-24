@@ -8,6 +8,7 @@ changelog:
       - cc-ci
       - cc-test
       - cc-chore
+      - cc-refactor
     authors:
       - octocat
   categories:

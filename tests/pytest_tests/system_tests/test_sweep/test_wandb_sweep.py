@@ -37,6 +37,7 @@ SWEEP_CONFIG_GRID_NESTED: Dict[str, Any] = {
 }
 SWEEP_CONFIG_BAYES: Dict[str, Any] = {
     "name": "mock-sweep-bayes",
+    "command": ["echo", "hello world"],
     "method": "bayes",
     "metric": {"name": "metric1", "goal": "maximize"},
     "parameters": {"param1": {"values": [1, 2, 3]}},
@@ -84,6 +85,12 @@ SWEEP_CONFIG_RANDOM: Dict[str, Any] = {
     "method": "random",
     "parameters": {"param1": {"values": [1, 2, 3]}},
 }
+SWEEP_CONFIG_BAYES_NONES: Dict[str, Any] = {
+    "name": "mock-sweep-bayes-with-none",
+    "method": "bayes",
+    "metric": {"name": "metric1", "goal": "maximize"},
+    "parameters": {"param1": {"values": [None, 1, 2, 3]}, "param2": {"value": None}},
+}
 
 # Minimal list of valid sweep configs
 VALID_SWEEP_CONFIGS_MINIMAL: List[Dict[str, Any]] = [
@@ -127,6 +134,17 @@ def test_sweep_entity_project_callable(user, relay_server, sweep_config):
     assert sweep_response["name"] == sweep_id
 
 
+@pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_ALL)
+def test_object_dict_config(user, relay_server, sweep_config):
+    class DictLikeObject(dict):
+        def __init__(self, d: dict):
+            super().__init__(d)
+
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(DictLikeObject(sweep_config), entity=user)
+    assert sweep_id in relay.context.entries
+
+
 def test_minmax_validation():
     api = wandb.apis.InternalApi()
     sweep_config = {
@@ -157,3 +175,25 @@ def test_minmax_validation():
 
     with pytest.raises(ValueError):
         api.api._validate_config_and_fill_distribution(sweep_config)
+
+
+def test_add_run_to_existing_sweep(user, wandb_init, relay_server):
+    # Test that updating settings with sweep_id includes it in upsertBucket mutation
+
+    with relay_server() as relay:
+        sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user)
+        settings = wandb.Settings()
+        settings.update({"sweep_id": sweep_id})
+        run = wandb_init(entity=user, settings=settings)
+        run.log({"x": 1})
+        run.finish()
+
+    run_attrs = relay.context.get_run_attrs(run.id)
+    assert sweep_id == run_attrs.sweep_name
+
+
+def test_nones_validation():
+    api = wandb.apis.InternalApi()
+    filled = api.api._validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
+    assert filled["parameters"]["param1"]["values"] == [None, 1, 2, 3]
+    assert filled["parameters"]["param2"]["value"] is None

@@ -4,25 +4,28 @@ import functools
 import gzip
 import importlib
 import importlib.util
+import itertools
 import json
 import logging
 import math
 import numbers
 import os
-import pathlib
 import platform
 import queue
 import random
 import re
+import secrets
 import shlex
 import socket
+import string
 import sys
 import tarfile
 import tempfile
 import threading
 import time
-import traceback
+import types
 import urllib
+from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta
 from importlib import import_module
 from sys import getsizeof
@@ -37,12 +40,12 @@ from typing import (
     Iterable,
     List,
     Mapping,
-    NewType,
     Optional,
     Sequence,
     Set,
     TextIO,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -51,32 +54,21 @@ import yaml
 from requests.auth import AuthBase
 
 import wandb
-from wandb.env import get_app_url
+import wandb.env
 from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
+from wandb.sdk.lib.json_util import dump, dumps
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import wandb.apis.public
     import wandb.sdk.internal.settings_static
-    import wandb.sdk.wandb_artifacts
     import wandb.sdk.wandb_settings
+    from wandb.sdk.artifacts.artifact import Artifact
 
 CheckRetryFnType = Callable[[Exception], Union[bool, timedelta]]
+T = TypeVar("T")
 
-# `LogicalFilePathStr` is a somewhat-fuzzy "conceptual" path to a file.
-# It is NOT necessarily a path on the local filesystem; e.g. it is slash-separated
-# even on Windows. It's used to refer to e.g. the locations of runs' or artifacts' files.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.PurePosixPath
-LogicalFilePathStr = NewType("LogicalFilePathStr", str)
-
-# `FilePathStr` represents a path to a file on the local filesystem.
-#
-# TODO(spencerpearson): this should probably be replaced with pathlib.Path
-FilePathStr = NewType("FilePathStr", str)
-
-# TODO(spencerpearson): this should probably be replaced with urllib.parse.ParseResult
-URIStr = NewType("URIStr", str)
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -195,25 +187,59 @@ def vendor_import(name: str) -> Any:
     return module
 
 
-def import_module_lazy(name: str) -> Any:
+class LazyModuleState:
+    def __init__(self, module: types.ModuleType) -> None:
+        self.module = module
+        self.load_started = False
+        self.lock = threading.RLock()
+
+    def load(self) -> None:
+        with self.lock:
+            if self.load_started:
+                return
+            self.load_started = True
+            assert self.module.__spec__ is not None
+            assert self.module.__spec__.loader is not None
+            self.module.__spec__.loader.exec_module(self.module)
+            self.module.__class__ = types.ModuleType
+
+
+class LazyModule(types.ModuleType):
+    def __getattribute__(self, name: str) -> Any:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        state = object.__getattribute__(self, "__lazy_module_state__")
+        state.load()
+        object.__delattr__(self, name)
+
+
+def import_module_lazy(name: str) -> types.ModuleType:
     """Import a module lazily, only when it is used.
+
+    Inspired by importlib.util.LazyLoader, but improved so that the module loading is
+    thread-safe. Circular dependency between modules can lead to a deadlock if the two
+    modules are loaded from different threads.
 
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
     """
     try:
         return sys.modules[name]
     except KeyError:
-        module_spec = importlib.util.find_spec(name)
-        if not module_spec:
+        spec = importlib.util.find_spec(name)
+        if spec is None:
             raise ModuleNotFoundError
-
-        module = importlib.util.module_from_spec(module_spec)
+        module = importlib.util.module_from_spec(spec)
+        module.__lazy_module_state__ = LazyModuleState(module)  # type: ignore
+        module.__class__ = LazyModule
         sys.modules[name] = module
-
-        assert module_spec.loader is not None
-        lazy_loader = importlib.util.LazyLoader(module_spec.loader)
-        lazy_loader.exec_module(module)
-
         return module
 
 
@@ -250,6 +276,11 @@ def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:  # type:
 
 np = get_module("numpy")
 
+pd_available = False
+pandas_spec = importlib.util.find_spec("pandas")
+if pandas_spec is not None:
+    pd_available = True
+
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
@@ -257,7 +288,7 @@ VALUE_BYTES_LIMIT = 100000
 def app_url(api_url: str) -> str:
     """Return the frontend app url without a trailing slash."""
     # TODO: move me to settings
-    app_url = get_app_url()
+    app_url = wandb.env.get_app_url()
     if app_url is not None:
         return str(app_url.strip("/"))
     if "://api.wandb.test" in api_url:
@@ -352,36 +383,6 @@ def make_tarfile(
         os.remove(unzipped_filename)
 
 
-def _user_args_to_dict(arguments: List[str]) -> Dict[str, Union[str, bool]]:
-    user_dict = dict()
-    value: Union[str, bool]
-    name: str
-    i = 0
-    while i < len(arguments):
-        arg = arguments[i]
-        split = arg.split("=", maxsplit=1)
-        # flag arguments don't require a value -> set to True if specified
-        if len(split) == 1 and (
-            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
-        ):
-            name = split[0].lstrip("-")
-            value = True
-            i += 1
-        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
-            name = split[0].lstrip("-")
-            value = arguments[i + 1]
-            i += 2
-        elif len(split) == 2:
-            name = split[0].lstrip("-")
-            value = split[1]
-            i += 1
-        if name in user_dict:
-            wandb.termerror(f"Repeated parameter: {name!r}")
-            sys.exit(1)
-        user_dict[name] = value
-    return user_dict
-
-
 def is_tf_tensor(obj: Any) -> bool:
     import tensorflow  # type: ignore
 
@@ -445,7 +446,12 @@ def is_numpy_array(obj: Any) -> bool:
 
 
 def is_pandas_data_frame(obj: Any) -> bool:
-    return is_pandas_data_frame_typename(get_full_typename(obj))
+    if pd_available:
+        import pandas as pd
+
+        return isinstance(obj, pd.DataFrame)
+    else:
+        return is_pandas_data_frame_typename(get_full_typename(obj))
 
 
 def ensure_matplotlib_figure(obj: Any) -> Any:
@@ -629,6 +635,9 @@ def json_friendly(  # noqa: C901
         obj = None
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
+    elif isinstance(obj, set):
+        # set is not json serializable, so we convert it to tuple
+        obj = tuple(obj)
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -641,7 +650,7 @@ def json_friendly(  # noqa: C901
 
 
 def json_friendly_val(val: Any) -> Any:
-    """Make any value (including dict, slice, sequence, etc) JSON friendly."""
+    """Make any value (including dict, slice, sequence, dataclass) JSON friendly."""
     converted: Union[dict, list]
     if isinstance(val, dict):
         converted = {}
@@ -658,6 +667,9 @@ def json_friendly_val(val: Any) -> Any:
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
+        return converted
+    if is_dataclass(val) and not isinstance(val, type):
+        converted = asdict(val)
         return converted
     else:
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
@@ -809,23 +821,23 @@ class JSONEncoderUncompressed(json.JSONEncoder):
 
 def json_dump_safer(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
+    return dump(obj, fp, cls=WandBJSONEncoder, **kwargs)
 
 
 def json_dumps_safer(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types."""
-    return json.dumps(obj, cls=WandBJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBJSONEncoder, **kwargs)
 
 
 # This is used for dumping raw json into files
 def json_dump_uncompressed(obj: Any, fp: IO[str], **kwargs: Any) -> None:
     """Convert obj to json, with some extra encodable types."""
-    return json.dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
+    return dump(obj, fp, cls=JSONEncoderUncompressed, **kwargs)
 
 
 def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
     """Convert obj to json, with some extra encodable types, including histograms."""
-    return json.dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
+    return dumps(obj, cls=WandBHistoryJSONEncoder, **kwargs)
 
 
 def make_json_if_not_number(
@@ -860,6 +872,7 @@ def make_safe_for_json(obj: Any) -> Any:
 def no_retry_4xx(e: Exception) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
+    assert e.response is not None
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
         return True
     try:
@@ -885,9 +898,11 @@ def no_retry_auth(e: Any) -> bool:
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise AuthenticationError(
-            "The API key is either invalid or missing, or the host is incorrect. "
-            "To resolve this issue, you may try running the 'wandb login --host [hostname]' command. "
-            "The host defaults to 'https://api.wandb.ai' if not specified. "
+            "The API key you provided is either invalid or missing.  "
+            f"If the `{wandb.env.API_KEY}` environment variable is set, make sure it is correct. "
+            "Otherwise, to resolve this issue, you may try running the 'wandb login --relogin' command. "
+            "If you are using a local server, make sure that you're using the correct hostname. "
+            "If you're not sure, you can try logging in again using the 'wandb login --relogin --host [hostname]' command."
             f"(Error {e.response.status_code}: {e.response.reason})"
         )
     elif wandb.run:
@@ -1097,31 +1112,53 @@ def image_id_from_k8s() -> Optional[str]:
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-    if os.path.exists(token_path):
-        k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
-            os.getenv("KUBERNETES_SERVICE_HOST"),
-            os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
-            os.getenv("KUBERNETES_NAMESPACE", "default"),
-            os.getenv("HOSTNAME"),
+
+    if not os.path.exists(token_path):
+        return None
+
+    try:
+        with open(token_path) as token_file:
+            token = token_file.read()
+    except FileNotFoundError:
+        logger.warning(f"Token file not found at {token_path}.")
+        return None
+    except PermissionError as e:
+        current_uid = os.getuid()
+        warning = (
+            f"Unable to read the token file at {token_path} due to permission error ({e})."
+            f"The current user id is {current_uid}. "
+            "Consider changing the securityContext to run the container as the current user."
         )
-        try:
-            res = requests.get(
-                k8s_server,
-                verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-                timeout=3,
-                headers={"Authorization": f"Bearer {open(token_path).read()}"},
-            )
-            res.raise_for_status()
-        except requests.RequestException:
-            return None
-        try:
-            return str(  # noqa: B005
-                res.json()["status"]["containerStatuses"][0]["imageID"]
-            ).strip("docker-pullable://")
-        except (ValueError, KeyError, IndexError):
-            logger.exception("Error checking kubernetes for image id")
-            return None
-    return None
+        logger.warning(warning)
+        wandb.termwarn(warning)
+        return None
+
+    if not token:
+        return None
+
+    k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
+        os.getenv("KUBERNETES_SERVICE_HOST"),
+        os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
+        os.getenv("KUBERNETES_NAMESPACE", "default"),
+        os.getenv("HOSTNAME"),
+    )
+    try:
+        res = requests.get(
+            k8s_server,
+            verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            timeout=3,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        res.raise_for_status()
+    except requests.RequestException:
+        return None
+    try:
+        return str(  # noqa: B005
+            res.json()["status"]["containerStatuses"][0]["imageID"]
+        ).strip("docker-pullable://")
+    except (ValueError, KeyError, IndexError):
+        logger.exception("Error checking kubernetes for image id")
+        return None
 
 
 def async_call(
@@ -1135,7 +1172,7 @@ def async_call(
     to determine if a timeout was reached. If an exception is thrown in the thread, we
     reraise it.
     """
-    q: "queue.Queue" = queue.Queue()
+    q: queue.Queue = queue.Queue()
 
     def wrapped_target(q: "queue.Queue", *args: Any, **kwargs: Any) -> Any:
         try:
@@ -1196,7 +1233,7 @@ def class_colors(class_count: int) -> List[List[int]]:
 
 
 def _prompt_choice(
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     input_fn: Callable = input
@@ -1206,7 +1243,7 @@ def _prompt_choice(
         from wandb.sdk.lib import timed_input
 
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-        # timed_input doesnt handle enhanced prompts
+        # timed_input doesn't handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
 
@@ -1220,7 +1257,7 @@ def _prompt_choice(
 
 def prompt_choices(
     choices: Sequence[str],
-    input_timeout: Optional[int] = None,
+    input_timeout: Union[int, float, None] = None,
     jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options."""
@@ -1281,6 +1318,23 @@ def download_file_from_url(
             file.write(data)
 
 
+def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
+    # TODO: fix auth here
+    auth = None
+    if not _thread_local_api_settings.cookies:
+        auth = ("api", api_key or "")
+    response = requests.get(
+        source_url,
+        auth=auth,
+        headers=_thread_local_api_settings.headers,
+        cookies=_thread_local_api_settings.cookies,
+        stream=True,
+        timeout=5,
+    )
+    response.raise_for_status()
+    return response.content
+
+
 def isatty(ob: IO) -> bool:
     return hasattr(ob, "isatty") and ob.isatty()
 
@@ -1314,7 +1368,9 @@ def from_human_size(size: str, units: Optional[List[Tuple[str, Any]]] = None) ->
 
 def auto_project_name(program: Optional[str]) -> str:
     # if we're in git, set project name to git repo name + relative path within repo
-    root_dir = wandb.wandb_sdk.lib.git.GitRepo().root_dir
+    from wandb.sdk.lib.gitlib import GitRepo
+
+    root_dir = GitRepo().root_dir
     if root_dir is None:
         return "uncategorized"
     # On windows, GitRepo returns paths in unix style, but os.path is windows
@@ -1335,45 +1391,14 @@ def auto_project_name(program: Optional[str]) -> str:
     return str(project.replace(os.sep, "_"))
 
 
-def parse_sweep_id(parts_dict: dict) -> Optional[str]:
-    """In place parse sweep path from parts dict.
-
-    Arguments:
-        parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-
-    Returns:
-        None or str if there is an error
-    """
-    entity = None
-    project = None
-    sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, str):
-        return "Expected string sweep_id"
-
-    sweep_split = sweep_id.split("/")
-    if len(sweep_split) == 1:
-        pass
-    elif len(sweep_split) == 2:
-        split_project, sweep_id = sweep_split
-        project = split_project or project
-    elif len(sweep_split) == 3:
-        split_entity, split_project, sweep_id = sweep_split
-        project = split_project or project
-        entity = split_entity or entity
-    else:
-        return (
-            "Expected sweep_id in form of sweep, project/sweep, or entity/project/sweep"
-        )
-    parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
-    return None
-
-
-def to_forward_slash_path(path: str) -> LogicalFilePathStr:
+# TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
+def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
-    return LogicalFilePathStr(path)
+    return path
 
 
+# TODO(hugh): Deprecate version here and use wandb/sdk/lib/paths.py
 def to_native_slash_path(path: str) -> FilePathStr:
     return FilePathStr(path.replace("/", os.sep))
 
@@ -1477,9 +1502,9 @@ def rand_alphanumeric(
 
 @contextlib.contextmanager
 def fsync_open(
-    path: Union[pathlib.Path, str], mode: str = "w", encoding: Optional[str] = None
+    path: StrPath, mode: str = "w", encoding: Optional[str] = None
 ) -> Generator[IO[Any], None, None]:
-    """Open a path for I/O and guarante that the file is flushed and synced."""
+    """Open a path for I/O and guarantee that the file is flushed and synced."""
     with open(path, mode, encoding=encoding) as f:
         yield f
 
@@ -1521,84 +1546,23 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_path(path: str) -> bool:
-    return path.endswith(".py")
-
-
-def sweep_config_err_text_from_jsonschema_violations(violations: List[str]) -> str:
-    """Consolidate schema violation strings from wandb/sweeps into a single string.
-
-    Parameters
-    ----------
-    violations: list of str
-        The warnings to render.
-
-    Returns:
-    -------
-    violation: str
-        The consolidated violation text.
-
-    """
-    violation_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(violations):
-        violations[i] = f"  Violation {i + 1}. {warning}"
-    violation = "\n".join([violation_base] + violations)
-
-    return violation
-
-
-def handle_sweep_config_violations(warnings: List[str]) -> None:
-    """Echo sweep config schema violation warnings from Gorilla to the terminal.
-
-    Parameters
-    ----------
-    warnings: list of str
-        The warnings to render.
-    """
-    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
-    if len(warnings) > 0:
-        term.termwarn(warning)
-
-
-def _log_thread_stacks() -> None:
-    """Log all threads, useful for debugging."""
-    thread_map = {t.ident: t.name for t in threading.enumerate()}
-
-    for thread_id, frame in sys._current_frames().items():
-        logger.info(
-            f"\n--- Stack for thread {thread_id} {thread_map.get(thread_id, 'unknown')} ---"
-        )
-        for filename, lineno, name, line in traceback.extract_stack(frame):
-            logger.info(f"  File: {filename!r}, line {lineno}, in {name}")
-            if line:
-                logger.info(f"  Line: {line}")
+def _is_py_or_dockerfile(path: str) -> bool:
+    file = os.path.basename(path)
+    return file.endswith(".py") or file.startswith("Dockerfile")
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
     return not bool(re.search(RE_WINFNAMES, path))  # type: ignore
 
 
-def artifact_to_json(
-    artifact: Union["wandb.sdk.wandb_artifacts.Artifact", "wandb.apis.public.Artifact"]
-) -> Dict[str, Any]:
-    # public.Artifact has the _sequence name, instances of wandb.Artifact
-    # just have the name
-    if hasattr(artifact, "_sequence_name"):
-        sequence_name = artifact._sequence_name
-    else:
-        sequence_name = artifact.name.split(":")[0]
-
+def artifact_to_json(artifact: "Artifact") -> Dict[str, Any]:
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.source_version,
-        "sequenceName": sequence_name,
-        "usedAs": artifact._use_as,
+        "sequenceName": artifact.source_name.split(":")[0],
+        "usedAs": artifact.use_as,
     }
 
 
@@ -1608,11 +1572,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:
                 return True
-        elif (
-            isinstance(item, wandb.Artifact)
-            or isinstance(item, wandb.apis.public.Artifact)
-            or _is_artifact_string(item)
-        ) and nested:
+        elif (isinstance(item, wandb.Artifact) or _is_artifact_string(item)) and nested:
             return True
     return False
 
@@ -1692,7 +1652,7 @@ def _resolve_aliases(aliases: Optional[Union[str, Iterable[str]]]) -> List[str]:
 
 
 def _is_artifact_object(v: Any) -> bool:
-    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+    return isinstance(v, wandb.Artifact)
 
 
 def _is_artifact_string(v: Any) -> bool:
@@ -1796,3 +1756,79 @@ def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str
             else:
                 destination[key] = value
     return destination
+
+
+def coalesce(*arg: Any) -> Any:
+    """Return the first non-none value in the list of arguments.
+
+    Similar to ?? in C#.
+    """
+    return next((a for a in arg if a is not None), None)
+
+
+def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    for k, v in d.items():
+        if isinstance(v, dict):
+            cast_dictlike_to_dict(v)
+        elif hasattr(v, "keys"):
+            d[k] = dict(v)
+            cast_dictlike_to_dict(d[k])
+    return d
+
+
+def remove_keys_with_none_values(
+    d: Union[Dict[str, Any], Any]
+) -> Union[Dict[str, Any], Any]:
+    # otherwise iterrows will create a bunch of ugly charts
+    if not isinstance(d, dict):
+        return d
+
+    if isinstance(d, dict):
+        new_dict = {}
+        for k, v in d.items():
+            new_v = remove_keys_with_none_values(v)
+            if new_v is not None and not (isinstance(new_v, dict) and len(new_v) == 0):
+                new_dict[k] = new_v
+        return new_dict if new_dict else None
+
+
+def batched(n: int, iterable: Iterable[T]) -> Generator[List[T], None, None]:
+    i = iter(iterable)
+    batch = list(itertools.islice(i, n))
+    while batch:
+        yield batch
+        batch = list(itertools.islice(i, n))
+
+
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )
+
+
+def sample_with_exponential_decay_weights(
+    xs: Union[Iterable, Iterable[Iterable]],
+    ys: Iterable[Iterable],
+    keys: Optional[Iterable] = None,
+    sample_size: int = 1500,
+) -> Tuple[List, List, Optional[List]]:
+    """Sample from a list of lists with weights that decay exponentially.
+
+    May be used with the wandb.plot.line_series function.
+    """
+    xs_array = np.array(xs)
+    ys_array = np.array(ys)
+    keys_array = np.array(keys) if keys else None
+    weights = np.exp(-np.arange(len(xs_array)) / len(xs_array))
+    weights /= np.sum(weights)
+    sampled_indices = np.random.choice(len(xs_array), size=sample_size, p=weights)
+    sampled_xs = xs_array[sampled_indices].tolist()
+    sampled_ys = ys_array[sampled_indices].tolist()
+    sampled_keys = keys_array[sampled_indices].tolist() if keys else None
+
+    return sampled_xs, sampled_ys, sampled_keys

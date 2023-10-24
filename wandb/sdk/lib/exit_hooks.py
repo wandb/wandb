@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 
 class ExitHooks:
-
     exception: Optional[BaseException] = None
 
     def __init__(self) -> None:

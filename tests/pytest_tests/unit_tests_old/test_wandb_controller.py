@@ -15,7 +15,6 @@ import wandb
     reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
 )
 def test_run_from_dict():
-
     run = sweeps.SweepRun(
         **{
             "name": "test",

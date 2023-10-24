@@ -1,23 +1,23 @@
 import json
-import multiprocessing
+import multiprocessing.pool
 import os
-import platform
 import sys
 from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
 import wandb
+import wandb.sdk.launch._launch as _launch
 import wandb.sdk.launch._project_spec as _project_spec
-import wandb.sdk.launch.launch as launch
 import yaml
 from wandb.apis import PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.builder.build import _inject_wandb_config_env_vars
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
-    LaunchError,
     pull_docker_image,
 )
 from wandb.sdk.lib import runid
@@ -29,15 +29,25 @@ EMPTY_BACKEND_CONFIG = {
 }
 
 
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
+class MockBranch:
+    def __init__(self, name):
+        self.name = name
+
+
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "master"
+        reference = MockBranch("master")
         repo.references = [reference]
+        repo.refs = {"master": mock.Mock()}
 
         def create_remote(o, r):
             origin = mock.Mock()
@@ -64,13 +74,25 @@ def mocked_fetchable_git_repo_conda():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
             f.write(fixture_open("environment.yml").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -82,13 +104,25 @@ def mocked_fetchable_git_repo_ipython():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
             f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -100,11 +134,23 @@ def mocked_fetchable_git_repo_nodeps():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -116,6 +162,18 @@ def mocked_fetchable_git_repo_shell():
     m = mock.Mock()
 
     def populate_dst_dir(dst_dir):
+        repo = mock.Mock()
+        reference = MockBranch("master")
+        repo.references = [reference]
+
+        def create_remote(o, r):
+            origin = mock.Mock()
+            origin.refs = {"master": mock.Mock()}
+            return origin
+
+        repo.create_remote = create_remote
+        repo.heads = {"master": mock.Mock()}
+
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
@@ -126,7 +184,7 @@ def mocked_fetchable_git_repo_shell():
             f.write("python train.py")
         with open(os.path.join(dst_dir, "unknown.unk"), "w") as f:
             f.write("test")
-        return mock.Mock()
+        return repo
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
     with mock.patch.dict("sys.modules", git=m):
@@ -143,7 +201,7 @@ def mock_load_backend():
 
     with mock.patch("wandb.sdk.launch.loader.runner_from_config") as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
-        m.run = mock.Mock(side_effect=side_effect)
+        m.run = AsyncMock(side_effect=side_effect, return_value=mock.Mock())
         mock_load_backend.return_value = m
         yield mock_load_backend
 
@@ -213,7 +271,7 @@ def check_project_spec(
     job=None,
     project=None,
     entity=None,
-    config=None,
+    launch_config=None,
     resource="local-container",
     resource_args=None,
     docker_image=None,
@@ -225,13 +283,14 @@ def check_project_spec(
     expected_target_entity = entity or api.default_entity
     assert project_spec.target_entity == expected_target_entity
     if (
-        config
-        and config.get("config")
-        and config["config"].get("overrides")
-        and config["config"]["overrides"].get("run_config")
+        launch_config
+        and launch_config.get("config")
+        and launch_config["config"].get("overrides")
+        and launch_config["config"]["overrides"].get("run_config")
     ):
         assert (
-            project_spec.override_config == config["config"]["overrides"]["run_config"]
+            project_spec.override_config
+            == launch_config["config"]["overrides"]["run_config"]
         )
     assert project_spec.resource == resource
     if resource_args:
@@ -267,7 +326,8 @@ def check_mock_run_info(mock_with_run_info, expected_backend_config, kwargs):
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",
 )
-def test_launch_base_case(
+@pytest.mark.asyncio
+async def test_launch_base_case(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -299,7 +359,7 @@ def test_launch_base_case(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -307,7 +367,8 @@ def test_launch_base_case(
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",
 )
-def test_launch_resource_args(
+@pytest.mark.asyncio
+async def test_launch_resource_args(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -322,7 +383,7 @@ def test_launch_resource_args(
         "resource": "local-container",
         "resource_args": {"a": "b", "c": "d"},
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -330,7 +391,8 @@ def test_launch_resource_args(
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions <3.5",
 )
-def test_launch_specified_project(
+@pytest.mark.asyncio
+async def test_launch_specified_project(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -345,11 +407,12 @@ def test_launch_specified_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_launch_unowned_project(
+@pytest.mark.asyncio
+async def test_launch_unowned_project(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -361,11 +424,12 @@ def test_launch_unowned_project(
         "project": "new_test_project",
         "entity": "mock_server_entity",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_launch_run_config_in_spec(
+@pytest.mark.asyncio
+async def test_launch_run_config_in_spec(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -376,42 +440,12 @@ def test_launch_run_config_in_spec(
         "api": api,
         "project": "new_test_project",
         "entity": "mock_server_entity",
-        "config": {"overrides": {"run_config": {"epochs": 3}}},
+        "launch_config": {"overrides": {"run_config": {"epochs": 3}}},
     }
 
     expected_runner_config = {}
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
-
-
-def test_launch_args_supersede_config_vals(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    kwargs = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "api": api,
-        "project": "new_test_project",
-        "entity": "mock_server_entity",
-        "config": {
-            "project": "not-this-project",
-            "overrides": {
-                "run_config": {"epochs": 3},
-                "args": ["--epochs=2", "--heavy"],
-            },
-        },
-        "parameters": {"epochs": 5},
-    }
-    input_kwargs = kwargs.copy()
-    input_kwargs["parameters"] = ["epochs", 5]
-    mock_with_run_info = launch.run(**kwargs)
-    for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.LaunchProject):
-            assert arg.override_args["epochs"] == 5
-            assert arg.override_config.get("epochs") is None
-            assert arg.target_project == "new_test_project"
 
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
@@ -534,7 +568,8 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         assert arti_info["used_name"] == "test/test/old_name:v0"
 
 
-def test_launch_code_artifact(
+@pytest.mark.asyncio
+async def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
 ):
     run_with_artifacts = mock.MagicMock()
@@ -558,7 +593,7 @@ def test_launch_code_artifact(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
@@ -634,7 +669,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts is not supported when using an instance of `public.Artifact`."
+            "Swapping artifacts is not supported when using a non-draft artifact."
             in err
         )
 
@@ -703,7 +738,7 @@ def test_launch_agent_runs(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    launch.create_and_run_agent(api, config)
+    _launch.create_and_run_agent(api, config)
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
@@ -738,7 +773,7 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
         "queues": ["nonexistent_queue"],
     }
     try:
-        launch.create_and_run_agent(api, config)
+        _launch.create_and_run_agent(api, config)
     except Exception as e:
         assert (
             "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
@@ -790,15 +825,18 @@ def test_agent_inf_jobs(test_settings, live_mock_server):
 
 
 @pytest.mark.timeout(320)
-def test_launch_notebook(
+@pytest.mark.skip(reason="The nb tests are now run against the unmock server.")
+@pytest.mark.asyncio
+async def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython, monkeypatch
 ):
+    # TODO: make this test work with the unmock server
     live_mock_server.set_ctx({"run_script_type": "notebook"})
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    run = launch.run(
+    run = await _launch._launch(
         api=api,
         uri="https://wandb.ai/mock_server_entity/test/runs/jupyter1",
         project="new-test",
@@ -806,26 +844,9 @@ def test_launch_notebook(
     assert str(run.get_status()) == "finished"
 
 
-# this test includes building a docker container which can take some time.
-# hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
-def test_launch_full_build_new_image(
-    live_mock_server, test_settings, mocked_fetchable_git_repo
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    random_id = runid.generate_id()
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/1",
-        project=f"new-test-{random_id}",
-    )
-    assert str(run.get_status()) == "finished"
-
-
-@pytest.mark.timeout(320)
-def test_launch_no_server_info(
+@pytest.mark.asyncio
+async def test_launch_no_server_info(
     live_mock_server, test_settings, mocked_fetchable_git_repo
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -836,7 +857,7 @@ def test_launch_no_server_info(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     try:
-        launch.run(
+        await _launch._launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             project="new-test",
@@ -848,7 +869,8 @@ def test_launch_no_server_info(
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
-def test_launch_metadata(
+@pytest.mark.asyncio
+async def test_launch_metadata(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -859,7 +881,7 @@ def test_launch_metadata(
     api.download_url = mock_download_url
     api.download_file = mock_file_download_request
 
-    run = launch.run(
+    run = await _launch._launch(
         api=api,
         uri="https://wandb.ai/mock_server_entity/test/runs/1",
         project="test-another-new-project",
@@ -867,7 +889,7 @@ def test_launch_metadata(
     assert str(run.get_status()) == "finished"
 
 
-def patched_pop_from_queue(self, queue):
+async def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )
@@ -887,7 +909,8 @@ def test_fail_pull_docker_image():
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",
 )
-def test_bare_wandb_uri(
+@pytest.mark.asyncio
+async def test_bare_wandb_uri(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -901,12 +924,13 @@ def test_bare_wandb_uri(
         "project": "test",
     }
 
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
     kwargs["uri"] = live_mock_server.base_url + uri
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_launch_project_spec_docker_image(
+@pytest.mark.asyncio
+async def test_launch_project_spec_docker_image(
     live_mock_server, test_settings, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -920,13 +944,17 @@ def test_launch_project_spec_docker_image(
         "docker_image": "my-image:v0",
     }
 
-    mock_with_run_info = launch.run(**kwargs)
+    mock_with_run_info = await _launch._launch(**kwargs)
 
     check_mock_run_info(mock_with_run_info, {}, kwargs)
 
 
-def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
+@pytest.mark.asyncio
+async def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch):
     monkeypatch.setattr("wandb.sdk.launch.utils.docker_image_exists", lambda x: True)
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container.pull_docker_image", lambda x: True
+    )
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         lambda cmd, project_dir: (cmd, project_dir),
@@ -992,7 +1020,7 @@ def test_launch_local_docker_image(live_mock_server, test_settings, monkeypatch)
         expected_command += ["--add-host", "host.docker.internal:host-gateway"]
     expected_command += [image_name]
 
-    returned_command, project_dir = launch.run(**kwargs)
+    returned_command, project_dir = await _launch._launch(**kwargs)
     assert project_dir is None
 
     list_command = returned_command.split(" ")
@@ -1009,6 +1037,21 @@ def test_run_in_launch_context_with_config_env_var(
     with runner.isolated_filesystem():
         config_env_var = json.dumps({"epochs": 10})
         monkeypatch.setenv("WANDB_CONFIG", config_env_var)
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        run.finish()
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+
+
+def test_run_in_launch_context_with_multi_config_env_var(
+    runner, live_mock_server, test_settings, monkeypatch
+):
+    with runner.isolated_filesystem():
+        config_env_vars = {}
+        _inject_wandb_config_env_vars({"epochs": 10}, config_env_vars, 5)
+        for k in config_env_vars.keys():
+            monkeypatch.setenv(k, config_env_vars[k])
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         run.finish()
@@ -1099,29 +1142,13 @@ def test_launch_entrypoint(test_settings):
         {},
         None,  # run_id
     )
-    launch_project.add_entry_point(entry_point)
-    calced_ep = launch_project.get_single_entry_point().compute_command({"blah": 2})
+    launch_project.set_entry_point(entry_point)
+    calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
-@pytest.mark.timeout(320)
-def test_launch_shell_script(
-    live_mock_server, test_settings, mocked_fetchable_git_repo_shell, monkeypatch
-):
-    live_mock_server.set_ctx({"run_script_type": "shell"})
-
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    run = launch.run(
-        api=api,
-        uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
-        project="new-test",
-    )
-    assert str(run.get_status()) == "finished"
-
-
-def test_launch_unknown_entrypoint(
+@pytest.mark.asyncio
+async def test_launch_unknown_entrypoint(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo_shell,
@@ -1132,7 +1159,7 @@ def test_launch_unknown_entrypoint(
         default_settings=test_settings, load_settings=False
     )
     with pytest.raises(LaunchError) as e_info:
-        launch.run(
+        await _launch._launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/shell1",
             project="new-test",
@@ -1140,47 +1167,9 @@ def test_launch_unknown_entrypoint(
     assert "Unsupported entrypoint:" in str(e_info.value)
 
 
-def test_launch_build_config_file(
-    runner, mocked_fetchable_git_repo, test_settings, monkeypatch
-):
+def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.local_container.LocalContainerRunner,
-        "run",
-        lambda *args, **kwargs: (args, kwargs),
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "LAUNCH_CONFIG_FILE",
-        "./config/wandb/launch-config.yaml",
-    )
-    launch_config = {"build": {"type": "docker"}, "registry": {}}
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-
-    with runner.isolated_filesystem():
-        os.makedirs("./config/wandb")
-        with open("./config/wandb/launch-config.yaml", "w") as f:
-            json.dump(launch_config, f)
-
-        kwargs = {
-            "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-            "api": api,
-            "entity": "mock_server_entity",
-            "project": "test",
-            "synchronous": False,
-        }
-        args, _ = launch.run(**kwargs)
-        _, _, builder = args
-        assert isinstance(builder, DockerBuilder)
-
-
-def test_resolve_agent_config(test_settings, monkeypatch, runner):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.launch.LAUNCH_CONFIG_FILE",
+        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",
     )
     monkeypatch.setenv("WANDB_ENTITY", "diffentity")
@@ -1195,8 +1184,8 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
                 },
                 f,
             )
-        config, returned_api = launch.resolve_agent_config(
-            api, None, None, -1, ["diff-queue"], None
+        config, returned_api = _launch.resolve_agent_config(
+            None, None, -1, ["diff-queue"], None
         )
 
         assert config["registry"] == {"url": "test"}
@@ -1205,7 +1194,8 @@ def test_resolve_agent_config(test_settings, monkeypatch, runner):
         assert config.get("project") == LAUNCH_DEFAULT_PROJECT
 
 
-def test_launch_url_and_job(
+@pytest.mark.asyncio
+async def test_launch_url_and_job(
     live_mock_server,
     test_settings,
 ):
@@ -1217,16 +1207,17 @@ def test_launch_url_and_job(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     with pytest.raises(LaunchError) as e_info:
-        launch.run(
+        await _launch._launch(
             api=api,
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
-            job="test-job:v0",
+            job="test/test/test-job:v0",
             project="new-test",
         )
     assert "Must specify exactly one of uri, job or image" in str(e_info)
 
 
-def test_launch_no_url_job_or_docker_image(
+@pytest.mark.asyncio
+async def test_launch_no_url_job_or_docker_image(
     live_mock_server,
     test_settings,
 ):
@@ -1238,7 +1229,7 @@ def test_launch_no_url_job_or_docker_image(
         return_value=None, side_effect=wandb.CommError("test comm error")
     )
     try:
-        launch.run(
+        await _launch._launch(
             api=api,
             uri=None,
             job=None,
@@ -1255,8 +1246,7 @@ def mocked_fetchable_git_repo_main():
 
     def populate_dst_dir(dst_dir):
         repo = mock.Mock()
-        reference = mock.Mock()
-        reference.name = "main"
+        reference = MockBranch("main")
         repo.references = [reference]
 
         def create_remote(o, r):
@@ -1280,26 +1270,28 @@ def mocked_fetchable_git_repo_main():
         yield m
 
 
-def test_launch_git_version_branch_set(
+@pytest.mark.asyncio
+async def test_launch_git_version_branch_set(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.run(
+    mock_with_run_info = await _launch._launch(
         api=api, uri="https://foo:bar@github.com/FooTest/Foo.git", version="foobar"
     )
 
     assert "foobar" in str(mock_with_run_info.args[0].git_version)
 
 
-def test_launch_git_version_default_master(
+@pytest.mark.asyncio
+async def test_launch_git_version_default_master(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.run(
+    mock_with_run_info = await _launch._launch(
         api=api,
         uri="https://foo:bar@github.com/FooTest/Foo.git",
     )
@@ -1307,7 +1299,8 @@ def test_launch_git_version_default_master(
     assert "master" in str(mock_with_run_info.args[0].git_version)
 
 
-def test_launch_git_version_default_main(
+@pytest.mark.asyncio
+async def test_launch_git_version_default_main(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo_main,
@@ -1316,7 +1309,7 @@ def test_launch_git_version_default_main(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    mock_with_run_info = launch.run(
+    mock_with_run_info = await _launch._launch(
         api=api,
         uri="https://foo:bar@github.com/FooTest/Foo.git",
     )
@@ -1324,7 +1317,8 @@ def test_launch_git_version_default_main(
     assert "main" in str(mock_with_run_info.args[0].git_version)
 
 
-def test_noop_builder(
+@pytest.mark.asyncio
+async def test_noop_builder(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo_main,
@@ -1353,10 +1347,10 @@ def test_noop_builder(
             "project": "test",
             "synchronous": False,
         }
-        with pytest.raises(LaunchError) as e:
-            launch.run(**kwargs)
-
-        assert (
-            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml"
-            in str(e)
+        expected = (
+            "Attempted build with noop builder. Specify a builder in your launch config at ~/.config/wandb/launch-config.yaml.\n"
+            "Note: Jobs sourced from git repos and code artifacts require a builder, while jobs sourced from Docker images do not.\n"
+            "See https://docs.wandb.ai/guides/launch/create-job."
         )
+        with pytest.raises(LaunchError, match=expected):
+            await _launch._launch(**kwargs)
