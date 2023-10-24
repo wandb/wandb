@@ -25,6 +25,7 @@
   "jupyter.jupyterServerType": "local",
   "rust-analyzer.linkedProjects": [
     "./client/Cargo.toml",
-    "./client/lang/js/Cargo.toml"
+    "./client/lang/js/Cargo.toml",
+    "./client/lang/py/Cargo.toml"
   ]
 }

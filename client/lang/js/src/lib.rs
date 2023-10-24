@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
-use napi::bindgen_prelude::Env;
+use napi::bindgen_prelude::{Env, FromNapiValue};
+use napi::sys;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use tracing_subscriber;
@@ -56,6 +57,24 @@ impl JsSession {
 pub struct JsRun {
   inner: run::Run,
 }
+
+/*
+impl FromNapiValue for JsMedia {
+  unsafe fn from_napi_value(
+    env: sys::napi_env,
+    napi_val: sys::napi_value,
+  ) -> Result<Self, napi::Error> {
+    // Attempt to convert the NAPI value to a serde_json::Value
+    if let Ok(json_val) = <JsonValue as FromNapiValue>::from_napi_value(env, napi_val) {
+      return Ok(JsMedia(json_val));
+    }
+
+    // For simplicity, we're ignoring the Ndarray case
+    Err(napi::Error::from_reason(
+      "Unable to convert NAPI value to LogValue".to_string(),
+    ))
+  }
+}*/
 
 #[napi]
 impl JsRun {

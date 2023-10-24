@@ -37,6 +37,7 @@ repos:
         exclude: ^(wandb/|tests/)
       - id: check-added-large-files
         name: check-added-large-files
+        exclude: ^(client/lang/js/.yarn)
       - id: check-shebang-scripts-are-executable
         name: check-shebang-scripts-are-executable
         exclude: ^(wandb/|tests/|.*\.rs)

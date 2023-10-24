@@ -63,7 +63,7 @@ impl Settings {
         self.proto.files_dir.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn offline(&self) -> bool {
         self.proto.offline.clone().unwrap()
     }
