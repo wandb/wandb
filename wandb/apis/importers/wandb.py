@@ -2309,17 +2309,11 @@ class _PlaceholderRun:
 
 
 def standardize_series(series: pl.Series) -> pl.Series:
-    # Check for "nan" string and fix it
-    if series.dtype in [
-        pl.Int8,
-        pl.Int16,
-        pl.Int32,
-        pl.Int64,
-        pl.UInt8,
-        pl.UInt16,
-        pl.UInt32,
-        pl.UInt64,
-    ]:
+    df = pl.DataFrame({"col": series})
+    
+    if series.dtype in [pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64]:
         series = series.cast(pl.Float64)
-    series = series.when(series.str.lower().eq("nan")).then(np.nan).otherwise(series)
-    return series
+
+    df = df.select(pl.when(pl.col("col").str.lower().eq("nan")).then(np.nan).otherwise(pl.col("col")).alias("col"))
+
+    return df["col"]
