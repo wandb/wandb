@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::thread;
 use std::time::Duration;
 use std::{cmp::min, fmt::Write};
 
@@ -52,13 +51,16 @@ pub mod styled_string {
     mod custom_colors {
         use colored::*;
         pub const DEFAULT_GREEN: Color = Color::TrueColor { r: 0, g: 128, b: 0 };
+        #[allow(dead_code)]
         pub const DEFAUTL_RED: Color = Color::TrueColor { r: 255, g: 0, b: 0 };
         pub const DEFAULT_WHITE: Color = Color::TrueColor {
             r: 255,
             g: 255,
             b: 255,
         };
+        #[allow(dead_code)]
         pub const DEFAULT_BLACK: Color = Color::TrueColor { r: 0, g: 0, b: 0 };
+        #[allow(dead_code)]
         pub const BASE_PINK: Color = Color::TrueColor {
             r: 226,
             g: 192,
@@ -223,7 +225,7 @@ pub fn print_header(name: &str, url: &str) {
     let pb = Printer::start_spinner(active_msg);
 
     // // TODO: this is for the demo and should be implemented properly
-    thread::sleep(Duration::from_millis(50));
+    std::thread::sleep(Duration::from_millis(800));
     pb.finish_and_clear();
 
     let mut run = styled_string::new(&format!(
@@ -339,7 +341,7 @@ pub fn print_footer(
         let new = min(downloaded + 223211, total_size);
         downloaded = new;
         pb.set_position(new);
-        thread::sleep(Duration::from_millis(12));
+        std::thread::sleep(Duration::from_millis(12));
     }
     pb.finish_and_clear();
 
