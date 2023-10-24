@@ -18,7 +18,8 @@ def test_azure_environment_from_config(mocker):
     AzureEnvironment.from_config(config)
 
 
-def test_azure_upload_file(mocker, runner):
+@pytest.mark.asyncio
+async def test_azure_upload_file(mocker, runner):
     """Test AzureEnvironment class."""
     credentials = MagicMock()
     mocker.patch(
@@ -42,7 +43,7 @@ def test_azure_upload_file(mocker, runner):
         destination = (
             "https://storage_account.blob.core.windows.net/storage_container/path"
         )
-        azure.upload_file("source", destination)
+        await azure.upload_file("source", destination)
         blob_client.upload_blob.assert_called_once()
 
 
@@ -73,7 +74,8 @@ def test_parse_uri(uri, expected):
     assert azure.parse_uri(uri) == expected
 
 
-def test_azure_verify_storage_uri(mocker):
+@pytest.mark.asyncio
+async def test_azure_verify_storage_uri(mocker):
     """Check that we properly verify storage URIs."""
     mocker.patch(
         "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
@@ -91,7 +93,7 @@ def test_azure_verify_storage_uri(mocker):
         return_value=blob_service_client,
     )
     azure = AzureEnvironment.from_config(config)
-    azure.verify_storage_uri(
+    await azure.verify_storage_uri(
         "https://storage_account.blob.core.windows.net/storage_container/path"
     )
     blob_service_client.get_container_client.assert_called_once()

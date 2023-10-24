@@ -1399,14 +1399,14 @@ def _nest(thing):
 class Graph(Media):
     """Wandb class for graphs.
 
-    This class is typically used for saving and diplaying neural net models.  It
+    This class is typically used for saving and displaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
 
     Examples:
         Import a keras model:
         ```
-            Graph.from_keras(keras_model)
+        Graph.from_keras(keras_model)
         ```
 
     Attributes:
@@ -1474,9 +1474,7 @@ class Graph(Media):
             node = Node(**node_kwargs)
         elif node_kwargs:
             raise ValueError(
-                "Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})".format(
-                    node=node, node_kwargs=node_kwargs
-                )
+                f"Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})"
             )
         self.nodes.append(node)
         self.nodes_by_id[node.id] = node
