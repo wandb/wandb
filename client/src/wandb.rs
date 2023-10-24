@@ -1,3 +1,4 @@
+#[cfg(feature = "py")]
 use pyo3::prelude::*;
 
 use crate::run;

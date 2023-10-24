@@ -96,12 +96,7 @@ fn convert_map<'py>(
     Ok(output)
 }
 
-#[pyclass]
-struct PySession {
-    inner: session::Session,
-}
-
-#[pyclass]
+#[pyclass(name = "Run")]
 struct PyRun {
     inner: run::Run,
 }
@@ -109,9 +104,9 @@ struct PyRun {
 #[pymethods]
 impl PyRun {
     #[new]
-    pub fn new(session: &PySession, run_id: Option<String>) -> Self {
+    pub fn new(session: &session::Session, run_id: Option<String>) -> Self {
         PyRun {
-            inner: session.inner.init_run(run_id),
+            inner: session.init_run(run_id),
         }
     }
 
@@ -119,7 +114,7 @@ impl PyRun {
         self.inner.finish();
     }
 
-    pub fn log(&self, py: Python, data: HashMap<String, PyValue>) {
+    pub fn log(&self, data: HashMap<String, PyValue>) {
         // TODO: handle errors
         let data: HashMap<String, JsonValue> =
             convert_map(&self.inner.settings.files_dir(), data).unwrap();
@@ -136,6 +131,6 @@ fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(wandb::init, m)?)?;
     m.add_class::<settings::Settings>()?;
     m.add_class::<session::Session>()?;
-    m.add_class::<run::Run>()?;
+    m.add_class::<PyRun>()?;
     Ok(())
 }

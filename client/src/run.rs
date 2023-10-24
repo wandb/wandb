@@ -1,14 +1,13 @@
+#[cfg(feature = "py")]
 use pyo3::prelude::*;
 
 use crate::connection::Interface;
 use crate::wandb_internal;
 use chrono;
-use image;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use serde_json::{Error, Value as JsonValue};
-use sha2::Digest;
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use tracing;
 
@@ -357,13 +356,19 @@ impl Run {
                         sampled_history_response,
                     )) => sampled_history_response.item,
                     _ => {
-                        tracing::warn!("Unexpected response type");
+                        tracing::warn!(
+                            "Unexpected history response type {:?}",
+                            response.response_type
+                        );
                         return;
                     }
                 }
             }
             Some(_) => {
-                tracing::warn!("Unexpected result type");
+                tracing::warn!(
+                    "Unexpected history result type {:?}",
+                    sampled_history.result_type
+                );
                 return;
             }
             None => {
@@ -411,7 +416,10 @@ impl Run {
                         summary_response,
                     )) => summary_response.item,
                     _ => {
-                        tracing::warn!("Unexpected response type");
+                        tracing::warn!(
+                            "Unexpected summary response type {:?}",
+                            response.response_type
+                        );
                         return;
                     }
                 }
