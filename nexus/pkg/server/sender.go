@@ -96,7 +96,6 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		outChan:      make(chan *service.Result, BufferSize),
 		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
 	}
-
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
@@ -118,18 +117,13 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
-		// TODO: review this?
-		useAsyncFileStreamHeader := map[string]string{
-			"X-WANDB-USE-ASYNC-FILESTREAM": "true",
-		}
-
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), useAsyncFileStreamHeader),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
 			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
 			// retryClient.BackOff = fs.GetBackoffFunc()
 			// TODO(nexus:beta): add custom retry function
