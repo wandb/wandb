@@ -1,3 +1,4 @@
+#[cfg(feature = "py")]
 use pyo3::prelude::*;
 
 use core::panic;
@@ -16,7 +17,7 @@ use crate::settings::Settings;
 // constants
 const ENV_NEXUS_PATH: &str = "_WANDB_NEXUS_PATH";
 
-#[pyclass]
+#[cfg_attr(feature = "py", pyclass)]
 pub struct Session {
     settings: Settings,
     addr: String,
@@ -37,9 +38,10 @@ pub fn get_nexus_address() -> String {
     format!("127.0.0.1:{}", port)
 }
 
-#[pymethods]
+#[cfg_eval]
+#[cfg_attr(feature = "py", pymethods)]
 impl Session {
-    #[new]
+    #[cfg_attr(feature = "py", new)]
     pub fn new(settings: Settings) -> Session {
         let addr = get_nexus_address();
         let session = Session { settings, addr };

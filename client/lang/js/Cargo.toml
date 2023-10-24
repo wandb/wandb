@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+name = "wandb_node"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wandbinder = { path = "../../", default-faatures = false, features = ["js"] }
+napi = { version = "2.12.2", default-features = false, features = [
+    "napi4",
+    "serde-json",
+] }
+napi-derive = "2.12.2"
+serde_json = "1.0"
+serde = "1.0"
+tracing = "0.1.39"
+tracing-subscriber = "0.3.17"
+
+[build-dependencies]
+napi-build = "2.0.1"
+
+[profile.release]
+lto = true

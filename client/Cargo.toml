@@ -7,10 +7,6 @@ edition = "2021"
 path = "src/lib.rs"
 crate-type = ["lib", "cdylib"]
 
-[[bin]]
-name = "binder"
-path = "src/binder.rs"
-
 [dependencies]
 bytes = "1.0.1"
 byteorder = "1.5.0"
@@ -30,6 +26,7 @@ serde_json = "1.0"
 colored = "2.0.4"
 indicatif = "0.17.7"
 chrono = "0.4.31"
+# This maybe goes away
 numpy = "0.20.0"
 image = "0.24.7"
 sha2 = "0.10.8"
@@ -38,3 +35,7 @@ sha2 = "0.10.8"
 pyo3-build-config = "0.20.0"
 prost-build = "0.12.0"
 tempfile = "3.8.0"
+
+[features]
+js = []
+py = []

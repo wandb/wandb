@@ -1,16 +1,18 @@
+#[cfg(feature = "py")]
 use pyo3::prelude::*;
 
 use crate::wandb_internal::Settings as SettingsProto;
 
-#[pyclass]
+#[cfg_attr(feature = "py", pyclass)]
 #[derive(Clone)]
 pub struct Settings {
     pub proto: SettingsProto,
 }
 
-#[pymethods]
+#[cfg_eval]
+#[cfg_attr(feature = "py", pymethods)]
 impl Settings {
-    #[new]
+    #[cfg_attr(feature = "py", new)]
     pub fn new(
         base_url: Option<String>,
         // project: Option<String>,
@@ -37,32 +39,32 @@ impl Settings {
     }
 
     // TODO: auto-generate all getters and setters? tried a bunch of stuff, but no luck so far
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn base_url(&self) -> String {
         self.proto.base_url.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn run_name(&self) -> String {
         self.proto.run_name.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn run_url(&self) -> String {
         self.proto.run_url.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn sync_dir(&self) -> String {
         self.proto.sync_dir.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn files_dir(&self) -> String {
         self.proto.files_dir.clone().unwrap()
     }
 
-    #[getter]
+    #[cfg_attr(feature = "py", getter)]
     pub fn offline(&self) -> bool {
         self.proto.offline.clone().unwrap()
     }
