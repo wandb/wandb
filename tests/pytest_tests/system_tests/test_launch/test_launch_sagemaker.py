@@ -19,8 +19,9 @@ def mock_sagemaker_environment():
     environment.get_region.return_value = "us-east-1"
 
 
-def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
-    def mock_launch_sagemaker_job(*args, **kwargs):
+@pytest.mark.asyncio
+async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
+    async def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]
 
@@ -102,7 +103,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
             environment,
             MagicMock(),
         )
-        req = runner.run(project, project.docker_image)
+        req = await runner.run(project, project.docker_image)
 
         assert "my-fake-RoleArn" in req["RoleArn"]
         assert req["AlgorithmSpecification"] == {
