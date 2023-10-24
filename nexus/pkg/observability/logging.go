@@ -118,6 +118,15 @@ func (nl *NexusLogger) CaptureWarn(msg string, args ...interface{}) {
 	CaptureMessage(msg, tags)
 }
 
+// CaptureInfo logs an info message and sends it to sentry.
+func (nl *NexusLogger) CaptureInfo(msg string, args ...interface{}) {
+	nl.Logger.Info(msg, args...)
+
+	tags := nl.tagsFromArgs(args...)
+	// send message to sentry:
+	CaptureMessage(msg, tags)
+}
+
 // Reraise is used to capture unexpected panics with sentry and reraise them.
 func (nl *NexusLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
