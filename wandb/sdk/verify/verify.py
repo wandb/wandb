@@ -444,7 +444,11 @@ def check_large_post() -> bool:
             timeout=60,
         )
     except Exception as e:
-        if isinstance(e, requests.HTTPError) and e.response.status_code == 413:
+        if (
+            isinstance(e, requests.HTTPError)
+            and e.response is not None
+            and e.response.status_code == 413
+        ):
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )

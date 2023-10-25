@@ -2,7 +2,7 @@ import os
 
 import nox
 
-NEXUS_VERSION = "0.16.0b1"
+NEXUS_VERSION = "0.16.0b3"
 
 
 @nox.session(python=False, name="build-nexus")

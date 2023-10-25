@@ -61,7 +61,7 @@ def test_launch_build_succeeds(
         lambda: None,
     )
 
-    def patched_launch_add(*args, **kwargs):
+    async def patched_launch_add(*args, **kwargs):
         if not kwargs.get("build"):
             raise Exception(kwargs)
 
@@ -74,7 +74,7 @@ def test_launch_build_succeeds(
 
     monkeypatch.setattr(
         "wandb.cli.cli._launch_add",
-        lambda *args, **kwargs: patched_launch_add(*args, **kwargs),
+        patched_launch_add,
     )
 
     with runner.isolated_filesystem(), relay_server():
@@ -165,7 +165,7 @@ def test_launch_repository_arg(
         user,
     ]
 
-    def patched_launch(
+    async def patched_launch(
         uri,
         job,
         api,
@@ -187,12 +187,16 @@ def test_launch_repository_arg(
         mock_run = Mock()
         rv = Mock()
         rv.state = "finished"
-        mock_run.get_status.return_value = rv
+
+        async def _mock_get_status():
+            return rv
+
+        mock_run.get_status = _mock_get_status
         return mock_run
 
     monkeypatch.setattr(
         "wandb.sdk.launch._launch._launch",
-        lambda *args, **kwargs: patched_launch(*args, **kwargs),
+        patched_launch,
     )
 
     def patched_fetch_and_val(launch_project, _):
@@ -200,7 +204,7 @@ def test_launch_repository_arg(
 
     monkeypatch.setattr(
         "wandb.sdk.launch._launch.fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        patched_fetch_and_val,
     )
 
     monkeypatch.setattr(
@@ -352,7 +356,7 @@ def test_agent_update_failed(runner, monkeypatch, user, test_settings):
 
 
 def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_settings):
-    def pop_from_run_queue(self, queue):
+    async def pop_from_run_queue(self, queue):
         return {
             "runSpec": {"job": "fake-job:latest"},
             "runQueueItemId": "fakerqi",
@@ -451,7 +455,11 @@ def patched_run_run_entry(cmd, dir):
     mock_run = Mock()
     rv = Mock()
     rv.state = "finished"
-    mock_run.get_status.return_value = rv
+
+    async def _mock_get_status():
+        return rv
+
+    mock_run.get_status = _mock_get_status
     return mock_run
 
 
@@ -471,10 +479,14 @@ def test_launch_supplied_docker_image(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+
+    async def _mock_validate_docker_installation():
+        pass
+
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
         "validate_docker_installation",
-        lambda: None,
+        _mock_validate_docker_installation,
     )
 
     with runner.isolated_filesystem():

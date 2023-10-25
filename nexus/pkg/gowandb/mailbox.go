@@ -47,6 +47,8 @@ func (mb *Mailbox) Respond(result *service.Result) bool {
 	handle, ok := mb.handles[slot]
 	if ok {
 		handle.responseChan <- result
+		// clean up after thyself?
+		delete(mb.handles, slot)
 	}
 	return ok
 }
