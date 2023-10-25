@@ -346,7 +346,7 @@ and [`mypy`](http://mypy-lang.org/) for code formatting and checks (including st
 To reformat the code, run:
 
 ```shell
-tox -e format
+tox -e black
 ```
 
 To run checks, execute:
