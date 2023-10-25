@@ -10,16 +10,21 @@ pub mod printer;
 pub mod run;
 pub mod session;
 pub mod settings;
-pub mod wandb;
 pub mod wandb_internal;
 
 /// Communication layer between user code and nexus
+
+#[pyfunction]
+pub fn init(settings: settings::Settings) -> run::Run {
+    let session = session::Session::new(settings);
+    session.init_run(None)
+}
 
 /// A Python module implemented in Rust. The name of this function must match
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
 #[pymodule]
-fn wandbinder(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn wandb(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // TODO: this doesn't work
     let _guard = sentry::init(
         "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.sentry.io/4506068829470720",

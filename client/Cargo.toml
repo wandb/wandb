@@ -1,5 +1,5 @@
 [package]
-name = "wandbinder"
+name = "wandb"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,9 @@ edition = "2021"
 path = "src/lib.rs"
 crate-type = ["lib", "cdylib"]
 
-[[bin]]
-name = "binder"
-path = "src/binder.rs"
+# [[bin]]
+# name = "binder"
+# path = "src/binder.rs"
 
 [dependencies]
 bytes = "1.0.1"

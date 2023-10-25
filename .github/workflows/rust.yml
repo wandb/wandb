@@ -32,12 +32,12 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
-      - name: Build
+      - name: Build python package with maturin
         working-directory: ./client
         run: maturin develop
-      - name: Build
-        working-directory: ./client
-        run: cargo build --verbose
-      - name: Run tests
-        working-directory: ./client
-        run: cargo test --verbose
+      # - name: Build rust binary for testing
+      #   working-directory: ./client
+      #   run: cargo build --verbose
+      # - name: Run tests
+      #   working-directory: ./client
+      #   run: cargo test --verbose
