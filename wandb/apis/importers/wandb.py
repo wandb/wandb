@@ -19,9 +19,10 @@ import requests
 import urllib3
 import yaml
 from wandb_gql import gql
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+
 import wandb
 from wandb.apis.public import Run
+from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import internal, progress, protocols
@@ -46,7 +47,8 @@ RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME = "import_run_validation_success.jsonl"
 ART_SEQUENCE_DUMMY_PLACEHOLDER = "__ART_SEQUENCE_DUMMY_PLACEHOLDER__"
 RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 
-target_size = 80 * 1024 ** 3  # 80GB
+target_size = 80 * 1024**3  # 80GB
+
 
 class WandbRun:
     def __init__(self, run: Run) -> None:
