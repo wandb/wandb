@@ -32,7 +32,7 @@ class LocalProcessRunner(AbstractRunner):
 
     """
 
-    def run(  # type: ignore
+    async def run(  # type: ignore
         self,
         launch_project: LaunchProject,
         *args,
@@ -95,5 +95,5 @@ class LocalProcessRunner(AbstractRunner):
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            run.wait()
+            await run.wait()
         return run

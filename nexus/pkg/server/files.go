@@ -62,17 +62,18 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 	for _, item := range record.GetFiles().GetFiles() {
 		matches, err := filepath.Glob(item.Path)
 
-		if err != nil {
-			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
+		// if no matches, just add the item assuming it's not a glob
+		if len(matches) == 0 {
+			// TODO: fix this. if item.Path is a relative path, it will be relative to the current working directory
+			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
+			// 	continue
+			// }
+			items = append(items, item)
 			continue
 		}
 
-		// if no matches, just add the item assuming it's not a glob
-		if len(matches) == 0 {
-			if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
-				continue
-			}
-			items = append(items, item)
+		if err != nil {
+			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
 			continue
 		}
 

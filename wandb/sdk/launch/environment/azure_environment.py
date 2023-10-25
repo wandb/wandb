@@ -33,16 +33,13 @@ class AzureEnvironment(AbstractEnvironment):
 
     def __init__(
         self,
-        verify: bool = True,
-    ):
+    ) -> None:
         """Initialize an AzureEnvironment."""
-        if verify:
-            self.verify()
 
     @classmethod
     def from_config(cls, config: dict, verify: bool = True) -> "AzureEnvironment":
         """Create an AzureEnvironment from a config dict."""
-        return cls(verify=verify)
+        return cls()
 
     @classmethod
     def get_credentials(cls) -> DefaultAzureCredential:
@@ -55,7 +52,7 @@ class AzureEnvironment(AbstractEnvironment):
                 "configured your Azure CLI correctly."
             ) from e
 
-    def upload_file(self, source: str, destination: str) -> None:
+    async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to Azure blob storage.
 
         Arguments:
@@ -81,11 +78,11 @@ class AzureEnvironment(AbstractEnvironment):
                 f"Could not upload file {source} to Azure blob {destination}."
             ) from e
 
-    def upload_dir(self, source: str, destination: str) -> None:
+    async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to Azure blob storage."""
         raise NotImplementedError()
 
-    def verify_storage_uri(self, uri: str) -> None:
+    async def verify_storage_uri(self, uri: str) -> None:
         """Verify that the given blob storage prefix exists.
 
         Args:
@@ -104,7 +101,7 @@ class AzureEnvironment(AbstractEnvironment):
                 f"Could not verify storage URI {uri} in container {storage_container}."
             ) from e
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the AzureEnvironment is valid."""
         self.get_credentials()
 
