@@ -75,6 +75,7 @@ class WandbLogger:
             if fine_tune.status == "succeeded":
                 break
             time.sleep(10)
+            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
         wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
 
         cls._log_fine_tune(
@@ -333,6 +334,7 @@ class WandbLogger:
                     f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
                 )
                 return
+
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
             with artifact.new_file(file_id, mode="w", encoding="utf-8") as f:
                 f.write(file_content)
