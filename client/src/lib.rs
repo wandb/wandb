@@ -34,7 +34,7 @@ fn wandb(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // let log_level = tracing::Level::DEBUG;
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
-    m.add_function(wrap_pyfunction!(wandb::init, m)?)?;
+    m.add_function(wrap_pyfunction!(init, m)?)?;
     m.add_class::<settings::Settings>()?;
     m.add_class::<session::Session>()?;
     m.add_class::<run::Run>()?;
