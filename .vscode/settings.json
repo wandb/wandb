@@ -28,6 +28,10 @@
   ],
   "python.linting.pylintEnabled": false,
   "jupyter.jupyterServerType": "local",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
   "rust-analyzer.linkedProjects": [
     "./client/Cargo.toml"
   ]
