@@ -298,12 +298,14 @@ class WandbLogger:
         artifact = wandb.Artifact(
             "fine_tune_details",
             type="fine_tune_details",
-            metadata=fine_tune,
+            metadata=dict(fine_tune),
         )
         with artifact.new_file(
             "fine_tune_details.json", mode="w", encoding="utf-8"
         ) as f:
-            json.dump(fine_tune, f, indent=2)
+            dict_fine_tune = dict(fine_tune)
+            dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
+            json.dump(dict_fine_tune, f, indent=2)
         wandb.run.log_artifact(
             artifact,
             aliases=["latest", fine_tune_id],
@@ -325,7 +327,7 @@ class WandbLogger:
         if artifact is None:
             # get file content
             try:
-                file_content = cls.openai_client.files.retrieve_content(id=file_id)
+                file_content = cls.openai_client.files.retrieve_content(file_id=file_id)
             except:
                 print(
                     f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
