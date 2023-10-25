@@ -1042,9 +1042,20 @@ class WandbImporter:
             # # handle case where NaN is a string
             # src = standardize_series(src)
             # dst = standardize_series(dst)
-
-            if not src.series_equal(dst):
-                non_matching.append(col)
+            
+            try:
+                if not src.series_equal(dst):
+                    non_matching.append(col)
+            except Exception as e:
+                print("-----------------PROBLEM-----------------")
+                print("-----------------PROBLEM-----------------")
+                print("-----------------PROBLEM-----------------")
+                print(f"{e=}")
+                print(f"{src=}")
+                print(f"{dst=}")
+                print("-----------------PROBLEM-----------------")
+                print("-----------------PROBLEM-----------------")
+                print("-----------------PROBLEM-----------------")
 
         if non_matching:
             return f"Non-matching metrics {non_matching=}"
