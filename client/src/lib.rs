@@ -14,10 +14,14 @@ pub mod wandb_internal;
 
 /// Communication layer between user code and nexus
 
+pub static VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 #[pyfunction]
-pub fn init(settings: settings::Settings) -> run::Run {
-    let session = session::Session::new(settings);
-    session.init_run(None)
+pub fn init(settings: Option<settings::Settings>) -> run::Run {
+    let actual_settings =
+        settings.unwrap_or_else(|| settings::Settings::new(None, None, None, None, None));
+    let sess = session::Session::new(actual_settings);
+    sess.init_run(None)
 }
 
 /// A Python module implemented in Rust. The name of this function must match
@@ -34,6 +38,7 @@ fn wandb(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // let log_level = tracing::Level::DEBUG;
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
+    m.add("__version__", VERSION)?;
     m.add_function(wrap_pyfunction!(init, m)?)?;
     m.add_class::<settings::Settings>()?;
     m.add_class::<session::Session>()?;
