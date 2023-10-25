@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import os
 import platform
 import secrets
@@ -877,20 +878,26 @@ def inject_graphql_response(base_url, user):
     def helper(
         body: Union[str, Exception] = "{}",
         status: int = 200,
-        custom_match_fn=None,
+        query_match_fn=None,
         application_pattern: str = "1",
     ) -> InjectedResponse:
+        def match(self, request):
+            body = json.loads(request.body)
+            return query_match_fn(body["query"], body["variables"])
+
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)
 
         return InjectedResponse(
+            # request
             method="POST",
             url=urllib.parse.urljoin(base_url, "/graphql"),
+            custom_match_fn=match if query_match_fn else None,
+            application_pattern=TokenizedCircularPattern(application_pattern),
+            # response
             body=body,
             status=status,
-            custom_match_fn=custom_match_fn,
-            application_pattern=TokenizedCircularPattern(application_pattern),
         )
 
     yield helper

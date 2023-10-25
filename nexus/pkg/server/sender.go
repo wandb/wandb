@@ -9,9 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/debounce"
+	"github.com/Khan/genqlient/graphql"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/internal/uploader"
@@ -19,11 +22,8 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/observability"
-
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/nexus/pkg/service"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
+	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 const (
@@ -81,16 +81,6 @@ type Sender struct {
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
-}
-
-func emptyAsNil(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	if *s == "" {
-		return nil
-	}
-	return s
 }
 
 // NewSender creates a new Sender with the given settings
@@ -183,6 +173,11 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
 
+func (s *Sender) Close() {
+	// sender is done processing data, close our dispatch channel
+	close(s.outChan)
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
@@ -215,6 +210,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendRequest(record, x.Request)
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
+	case *service.Record_UseArtifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -238,6 +234,10 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
+	case *service.Request_PollExit:
+		s.sendPollExit(record, x.PollExit)
+	case *service.Request_ServerInfo:
+		s.sendServerInfo(record, x.ServerInfo)
 	default:
 		// TODO: handle errors
 	}
@@ -265,7 +265,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename)
+	s.sendFile(MetaFilename, uploader.WandbFile)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -318,8 +318,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.respondExit(s.exitRecord)
-		// sender is done processing data, close our dispatch channel
-		close(s.outChan)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -375,7 +373,20 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 			s.logger.CaptureError("unmarshal problem", err)
 			continue
 		}
-		s.configMap[d.GetKey()] = value
+		keyList := d.GetNestedKey()
+		if keyList == nil {
+			keyList = []string{d.GetKey()}
+		}
+		target := s.configMap
+		for _, k := range keyList[:len(keyList)-1] {
+			val, ok := target[k].(map[string]interface{})
+			if !ok {
+				val = make(map[string]interface{})
+				target[k] = val
+			}
+			target = val
+		}
+		target[keyList[len(keyList)-1]] = value
 	}
 	for _, d := range configRecord.GetRemove() {
 		delete(s.configMap, d.GetKey())
@@ -461,27 +472,27 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		// this is used to pass the retry function to the graphql client
 		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 		data, err := gql.UpsertBucket(
-			ctx,                          // ctx
-			s.graphqlClient,              // client
-			nil,                          // id
-			&run.RunId,                   // name
-			emptyAsNil(&run.Project),     // project
-			emptyAsNil(&run.Entity),      // entity
-			emptyAsNil(&run.RunGroup),    // groupName
-			nil,                          // description
-			emptyAsNil(&run.DisplayName), // displayName
-			emptyAsNil(&run.Notes),       // notes
-			emptyAsNil(&commit),          // commit
-			&config,                      // config
-			emptyAsNil(&run.Host),        // host
-			nil,                          // debug
-			emptyAsNil(&program),         // program
-			emptyAsNil(&repo),            // repo
-			emptyAsNil(&run.JobType),     // jobType
-			nil,                          // state
-			nil,                          // sweep
-			tags,                         // tags []string,
-			nil,                          // summaryMetrics
+			ctx,                              // ctx
+			s.graphqlClient,                  // client
+			nil,                              // id
+			&run.RunId,                       // name
+			utils.NilIfZero(run.Project),     // project
+			utils.NilIfZero(run.Entity),      // entity
+			utils.NilIfZero(run.RunGroup),    // groupName
+			nil,                              // description
+			utils.NilIfZero(run.DisplayName), // displayName
+			utils.NilIfZero(run.Notes),       // notes
+			utils.NilIfZero(commit),          // commit
+			&config,                          // config
+			utils.NilIfZero(run.Host),        // host
+			nil,                              // debug
+			utils.NilIfZero(program),         // program
+			utils.NilIfZero(repo),            // repo
+			utils.NilIfZero(run.JobType),     // jobType
+			nil,                              // state
+			nil,                              // sweep
+			tags,                             // tags []string,
+			nil,                              // summaryMetrics
 		)
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
@@ -568,27 +579,27 @@ func (s *Sender) upsertConfig() {
 	config := s.serializeConfig()
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&s.RunRecord.RunId,               // name
-		emptyAsNil(&s.RunRecord.Project), // project
-		emptyAsNil(&s.RunRecord.Entity),  // entity
-		nil,                              // groupName
-		nil,                              // description
-		nil,                              // displayName
-		nil,                              // notes
-		nil,                              // commit
-		&config,                          // config
-		nil,                              // host
-		nil,                              // debug
-		nil,                              // program
-		nil,                              // repo
-		nil,                              // jobType
-		nil,                              // state
-		nil,                              // sweep
-		nil,                              // tags []string,
-		nil,                              // summaryMetrics
+		ctx,                                  // ctx
+		s.graphqlClient,                      // client
+		nil,                                  // id
+		&s.RunRecord.RunId,                   // name
+		utils.NilIfZero(s.RunRecord.Project), // project
+		utils.NilIfZero(s.RunRecord.Entity),  // entity
+		nil,                                  // groupName
+		nil,                                  // description
+		nil,                                  // displayName
+		nil,                                  // notes
+		nil,                                  // commit
+		&config,                              // config
+		nil,                                  // host
+		nil,                                  // debug
+		nil,                                  // program
+		nil,                                  // repo
+		nil,                                  // jobType
+		nil,                                  // state
+		nil,                                  // sweep
+		nil,                                  // tags []string,
+		nil,                                  // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
@@ -721,12 +732,16 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
 	for _, file := range files {
-		s.sendFile(file.GetPath())
+		if strings.HasPrefix(file.GetPath(), "media") {
+			s.sendFile(file.GetPath(), uploader.MediaFile)
+		} else {
+			s.sendFile(file.GetPath(), uploader.OtherFile)
+		}
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string) {
+func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 	if s.graphqlClient == nil || s.uploadManager == nil {
 		return
 	}
@@ -744,32 +759,63 @@ func (s *Sender) sendFile(name string) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl}
+		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
 		s.uploadManager.AddTask(task)
 	}
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
-	saver := artifacts.ArtifactSaver{
-		Ctx:           s.ctx,
-		Logger:        s.logger,
-		Artifact:      msg.Artifact,
-		GraphqlClient: s.graphqlClient,
-		UploadManager: s.uploadManager,
-	}
-	saverResult, err := saver.Save()
+	var response service.LogArtifactResponse
+	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, msg.Artifact, msg.HistoryStep)
+	artifactID, err := saver.Save()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLogArtifact: save failure", err)
+		response.ErrorMessage = err.Error()
+	} else {
+		response.ArtifactId = artifactID
 	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_LogArtifactResponse{
-					LogArtifactResponse: &service.LogArtifactResponse{
-						ArtifactId: saverResult.ArtifactId,
+					LogArtifactResponse: &response,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
+	fileCounts := s.uploadManager.GetFileCounts()
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_PollExitResponse{
+					PollExitResponse: &service.PollExitResponse{
+						FileCounts: fileCounts,
 					},
 				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+	if s.graphqlClient == nil {
+		return
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
 			},
 		},
 		Control: record.Control,

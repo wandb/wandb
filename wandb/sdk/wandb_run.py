@@ -35,6 +35,7 @@ from typing import (
 import requests
 
 import wandb
+import wandb.env
 from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -583,6 +584,7 @@ class Run:
         self._config._set_settings(self._settings)
         self._backend = None
         self._internal_run_interface = None
+        # todo: perhaps this should be a property that is a noop on a finished run
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
@@ -679,6 +681,19 @@ class Run:
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
+
+        # if run is from a launch queue, add queue id to _wandb config
+        launch_queue_name = wandb.env.get_launch_queue_name()
+        if launch_queue_name:
+            config[wandb_key]["launch_queue_name"] = launch_queue_name
+
+        launch_queue_entity = wandb.env.get_launch_queue_entity()
+        if launch_queue_entity:
+            config[wandb_key]["launch_queue_entity"] = launch_queue_entity
+
+        launch_trace_id = wandb.env.get_launch_trace_id()
+        if launch_trace_id:
+            config[wandb_key]["launch_trace_id"] = launch_trace_id
 
         self._config._update(config, ignore_locked=True)
 
@@ -1805,7 +1820,7 @@ class Run:
             glob_str: (string) a relative or absolute path to a unix glob or regular
                 path.  If this isn't specified the method is a noop.
             base_path: (string) the base path to run the glob relative to
-            policy: (string) on of `live`, `now`, or `end`
+            policy: (string) one of `live`, `now`, or `end`
                 - live: upload the file as it changes, overwriting the previous version
                 - now: upload the file once now
                 - end: only upload file when the run ends
