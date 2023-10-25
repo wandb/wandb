@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence, Any, Tuple
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence, Tuple
 
 import wandb
 import wandb.filesync.step_prepare
@@ -243,7 +243,7 @@ class ArtifactSaver:
             result_future=commit_result,
         )
 
-        def done_callback(future):
+        def done_callback(_: concurrent.futures.Future) -> None:
             step_prepare.shutdown()
             if finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)

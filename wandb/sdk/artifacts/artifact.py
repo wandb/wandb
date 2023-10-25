@@ -60,8 +60,8 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
-from wandb.sdk.lib.mailbox import MailboxHandle, MailboxProbe, MailboxProgress
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.mailbox import MailboxHandle
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 reset_path = util.vendor_setup()
@@ -71,7 +71,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.message_future import MessageFuture
+    pass
 
 
 class Artifact:

@@ -1,5 +1,6 @@
 """sender."""
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -8,7 +9,6 @@ import sys
 import threading
 import time
 import traceback
-import concurrent.futures
 from collections import defaultdict
 from datetime import datetime
 from queue import Queue
@@ -1442,7 +1442,7 @@ class SendManager:
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info(f"logged artifact {artifact.name} - {res}")
-            if future:
+            if future is not None:
                 # respond to the request only after the artifact is fully committed
                 future.add_done_callback(lambda _: self._respond_result(result))
             else:
@@ -1452,17 +1452,14 @@ class SendManager:
                 f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
-
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
             res, future = self._send_artifact(artifact)
+            # wait for future to complete in send artifact
+            if future is not None:
+                future.done()
             logger.info(f"sent artifact {artifact.name} - {res}")
-            if future:
-                # respond to the request only after the artifact is fully committed
-                future.add_done_callback(lambda _: self._respond_result(res))
-            else:
-                self._respond_result(result)
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
@@ -1493,7 +1490,7 @@ class SendManager:
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return None
+                return None, None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         res, future = saver.save(

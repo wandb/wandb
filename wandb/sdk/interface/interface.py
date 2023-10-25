@@ -33,7 +33,6 @@ from wandb.util import (
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
 
@@ -469,9 +468,7 @@ class InterfaceBase:
         return resp
 
     @abstractmethod
-    def _deliver_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MailboxHandle:
+    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(
