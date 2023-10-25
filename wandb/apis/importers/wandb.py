@@ -19,7 +19,7 @@ import requests
 import urllib3
 import yaml
 from wandb_gql import gql
-
+from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 import wandb
 from wandb.apis.public import Run
 from wandb.util import coalesce, remove_keys_with_none_values
@@ -46,6 +46,7 @@ RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME = "import_run_validation_success.jsonl"
 ART_SEQUENCE_DUMMY_PLACEHOLDER = "__ART_SEQUENCE_DUMMY_PLACEHOLDER__"
 RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 
+target_size = 80 * 1024 ** 3  # 80GB
 
 class WandbRun:
     def __init__(self, run: Run) -> None:
@@ -355,6 +356,8 @@ class WandbRun:
                 continue
             with patch("click.echo"):
                 try:
+                    cache = get_artifacts_cache()
+                    cache.cleanup(target_size=target_size)
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     import_logger.error(
@@ -480,6 +483,8 @@ class WandbRun:
     def _download_and_process_artifact(self, art: Artifact) -> Optional[Artifact]:
         with patch("click.echo"):
             try:
+                cache = get_artifacts_cache()
+                cache.cleanup(target_size=target_size)
                 path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
             except Exception as e:
                 self._log_error(f"Error downloading artifact ({art}) -- {e}")
@@ -603,6 +608,8 @@ class WandbImporter:
                 if a.type == "wandb-history":
                     with patch("click.echo"):
                         try:
+                            cache = get_artifacts_cache()
+                            cache.cleanup(target_size=target_size)
                             path = a.download(
                                 root=f"./artifacts/src/{a.name}", cache=False
                             )
@@ -755,6 +762,8 @@ class WandbImporter:
                     wandb_run = placeholder_run
 
                 try:
+                    cache = get_artifacts_cache()
+                    cache.cleanup(target_size=target_size)
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     import_logger.error(f"Error downloading artifact {art=} {e=}")
@@ -1626,6 +1635,8 @@ class WandbImporter:
             with progress.track_subsubtask(
                 f"Validate artifact: Downloading src {src_art=}"
             ):
+                cache = get_artifacts_cache()
+                cache.cleanup(target_size=target_size)
                 src_dir = src_art.download(
                     root=f"./artifacts/src/{src_art.name}", cache=False
                 )
@@ -1634,6 +1645,8 @@ class WandbImporter:
                 with progress.track_subsubtask(
                     f"Validate artifact: Downloading dst {dst_art=}"
                 ):
+                    cache = get_artifacts_cache()
+                    cache.cleanup(target_size=target_size)
                     dst_dir = dst_art.download(
                         root=f"./artifacts/dst/{dst_art.name}", cache=False
                     )
