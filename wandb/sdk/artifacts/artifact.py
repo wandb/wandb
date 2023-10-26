@@ -1664,10 +1664,20 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        return wandb.run._download_artifact(
+        if wandb.run is None:
+            with wandb.init(
+                entity=self._source_entity,
+                project=self._source_project,
+                job_type="auto",
+                settings=wandb.Settings(silent="true"),
+            ) as run:
+                return run._download_artifact(
             self.qualified_name, root, recursive, allow_missing_references
         )
-        # return self._download(root, recursive, allow_missing_references)
+        else:
+            return wandb.run._download_artifact(
+            self.qualified_name, root, recursive, allow_missing_references
+        )
 
     def _download(
         self,
