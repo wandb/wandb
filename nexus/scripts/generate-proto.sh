@@ -30,7 +30,6 @@ protoc \
     --go_opt=Mwandb/proto/wandb_internal.proto=$MOD \
     --go_opt=Mwandb/proto/wandb_base.proto=$MOD \
     --go_opt=Mwandb/proto/wandb_telemetry.proto=$MOD \
-    --go_opt=Mandb/proto/wandb_internal.proto=$MOD \
     --go_out=. --proto_path=. wandb/proto/wandb_internal.proto
 
 protoc \
