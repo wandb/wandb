@@ -136,6 +136,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 		uploaderRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
