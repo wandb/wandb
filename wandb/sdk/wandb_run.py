@@ -2965,7 +2965,7 @@ class Run:
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         return self._backend.interface.download_artifact(
-            artifact,
+            artifact.qualified_name,
             root,
             recursive,
             allow_missing_references,
