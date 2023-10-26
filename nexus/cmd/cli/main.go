@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/cli"
+	"github.com/wandb/wandb/nexus/pkg/gowandb"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
@@ -59,9 +59,9 @@ func (b *Bench) Run() {
 	cli.ReadFromInput(stream)
 
 	/*
-	for i := 0; i < *b.opts.numHistory; i++ {
-		stream.Log(data)
-	}
+		for i := 0; i < *b.opts.numHistory; i++ {
+			stream.Log(data)
+		}
 	*/
 	stream.Finish()
 	paths := strings.SplitN(*b.opts.streamTablePath, "/", 3)
