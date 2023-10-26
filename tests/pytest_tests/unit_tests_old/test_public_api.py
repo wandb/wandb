@@ -348,7 +348,16 @@ def test_artifact_files(runner, mock_server, api):
 def test_artifact_download(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
+        with pytest.raises(wandb.CommError):
         path = art.download()
+        path = art.download()
+        if platform.system() == "Windows":
+            part = "mnist-v0"
+        else:
+            part = "mnist:v0"
+        assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
+            path = art.download()
         if platform.system() == "Windows":
             part = "mnist-v0"
         else:
@@ -377,9 +386,8 @@ def test_artifact_checkout(runner, mock_server, api):
             f.write("delete me, i'm a bogus file")
 
         art = api.artifact("entity/project/mnist:v0", type="dataset")
-        path = art.checkout()
-        assert path == os.path.join(".", "artifacts", "mnist")
-        assert os.listdir(path) == ["digits.h5"]
+        with pytest.raises(wandb.CommError):
+            art.checkout()
 
 
 def test_artifact_run_used(runner, mock_server, api):
