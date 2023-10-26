@@ -1672,11 +1672,11 @@ class Artifact:
                 settings=wandb.Settings(silent="true"),
             ) as run:
                 return run._download_artifact(
-                    self.qualified_name, root, recursive, allow_missing_references
+                    self, root, recursive, allow_missing_references
                 )
         else:
             return wandb.run._download_artifact(
-                self.qualified_name, root, recursive, allow_missing_references
+                self, root, recursive, allow_missing_references
             )
 
     def _download(
