@@ -472,10 +472,12 @@ class Image(BatchableMedia):
 
         # some images have range -1...1 or 0-1
         dmin = np.min(data)
+        dmax = np.max(data)
         if dmin < 0:
             data = (data - np.min(data)) / np.ptp(data)
-        if np.max(data) <= 1.0:
-            data = (data * 255).astype(np.int32)
+        if dmax <= 1.0 or dmax >= 255.0:
+            data = data / np.max(data)  # normalize the data to 0 - 1
+        data = 255 * data  # scale by 255
 
         # assert issubclass(data.dtype.type, np.integer), 'Illegal image format.'
         return data.clip(0, 255).astype(np.uint8)
