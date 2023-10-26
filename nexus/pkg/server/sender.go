@@ -108,7 +108,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetryWrapper(clients.CheckRetry)),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
