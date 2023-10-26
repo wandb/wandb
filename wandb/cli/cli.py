@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import asyncio
 import configparser
 import datetime
 import getpass
@@ -1334,24 +1335,30 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            run = _launch(
-                api,
-                uri,
-                job,
-                project=project,
-                entity=entity,
-                docker_image=docker_image,
-                name=name,
-                entry_point=entry_point,
-                version=git_version,
-                resource=resource,
-                resource_args=resource_args,
-                launch_config=config,
-                synchronous=(not run_async),
-                run_id=run_id,
-                repository=repository,
+            run = asyncio.run(
+                _launch(
+                    api,
+                    uri,
+                    job,
+                    project=project,
+                    entity=entity,
+                    docker_image=docker_image,
+                    name=name,
+                    entry_point=entry_point,
+                    version=git_version,
+                    resource=resource,
+                    resource_args=resource_args,
+                    launch_config=config,
+                    synchronous=(not run_async),
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
-            if run.get_status().state in ["failed", "stopped", "preempted"]:
+            if asyncio.run(run.get_status()).state in [
+                "failed",
+                "stopped",
+                "preempted",
+            ]:
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
@@ -1362,26 +1369,30 @@ def launch(
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
             sys.exit(e)
+        except asyncio.CancelledError:
+            sys.exit(0)
     else:
         try:
-            _launch_add(
-                api,
-                uri,
-                job,
-                config,
-                project,
-                entity,
-                queue,
-                resource,
-                entry_point,
-                name,
-                git_version,
-                docker_image,
-                project_queue,
-                resource_args,
-                build=build,
-                run_id=run_id,
-                repository=repository,
+            asyncio.run(
+                _launch_add(
+                    api,
+                    uri,
+                    job,
+                    config,
+                    project,
+                    entity,
+                    queue,
+                    resource,
+                    entry_point,
+                    name,
+                    git_version,
+                    docker_image,
+                    project_queue,
+                    resource_args,
+                    build=build,
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
         except Exception as e:
             wandb._sentry.exception(e)

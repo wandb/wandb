@@ -8,15 +8,10 @@ def test_upsert_bucket_409(
     inject_graphql_response,
 ):
     """Test that we retry upsert bucket mutations on 409s."""
-
-    def custom_match_fn(self, other):  # noqa
-        request_body = other.__dict__.get("body") or b"{}"
-        return b"mutation UpsertBucket" in request_body
-
     inject_response = inject_graphql_response(
         body="GOT ME A 409",
         status=409,
-        custom_match_fn=custom_match_fn,
+        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
         application_pattern="12",  # apply once and stop
     )
     # we'll retry once and succeed
@@ -32,15 +27,10 @@ def test_upsert_bucket_410(
     inject_graphql_response,
 ):
     """Test that we do not retry upsert bucket mutations on 410s."""
-
-    def custom_match_fn(self, other):  # noqa
-        request_body = other.__dict__.get("body") or b"{}"
-        return b"mutation UpsertBucket" in request_body
-
     inject_response = inject_graphql_response(
         body="GOT ME A 410",
         status=410,
-        custom_match_fn=custom_match_fn,
+        query_match_fn=lambda query, variables: "mutation UpsertBucket" in query,
         application_pattern="12",  # apply once and stop
     )
     # we do not retry 410s on upsert bucket mutations, so this should fail
@@ -57,15 +47,10 @@ def test_gql_409(
     inject_graphql_response,
 ):
     """Test that we retry upsert bucket mutations on 409s."""
-
-    def custom_match_fn(self, other):  # noqa
-        request_body = other.__dict__.get("body") or b"{}"
-        return b"mutation CreateRunFiles" in request_body
-
     inject_response = inject_graphql_response(
         body="GOT ME A 409",
         status=409,
-        custom_match_fn=custom_match_fn,
+        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
         application_pattern="12",  # apply once and stop
     )
     # we do not retry 409s on queries, so this should fail
@@ -81,15 +66,10 @@ def test_gql_410(
     inject_graphql_response,
 ):
     """Test that we do not retry upsert bucket mutations on 410s."""
-
-    def custom_match_fn(self, other):  # noqa
-        request_body = other.__dict__.get("body") or b"{}"
-        return b"mutation CreateRunFiles" in request_body
-
     inject_response = inject_graphql_response(
         body="GOT ME A 410",
         status=410,
-        custom_match_fn=custom_match_fn,
+        query_match_fn=lambda query, variables: "mutation CreateRunFiles" in query,
         application_pattern="1112",  # apply thrice and stop
     )
     # we'll retry once and succeed

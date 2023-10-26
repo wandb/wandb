@@ -10,6 +10,7 @@ from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
+from ..utils import event_loop_thread_exec
 from .abstract import AbstractRegistry
 
 botocore = get_module(
@@ -50,14 +51,12 @@ class ElasticContainerRegistry(AbstractRegistry):
         )
         self.repo_name = repo_name
         self.environment = environment
-        self.verify()
 
     @classmethod
     def from_config(  # type: ignore[override]
         cls,
         config: Dict[str, str],
         environment: AwsEnvironment,
-        verify: bool = True,
     ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
@@ -111,7 +110,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             )
         return cls(repository, environment)
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the registry is accessible and the configured repo exists.
 
         Raises:
@@ -119,9 +118,11 @@ class ElasticContainerRegistry(AbstractRegistry):
         """
         _logger.debug("Verifying Elastic Container Registry.")
         try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.describe_repositories(repositoryNames=[self.repo_name])
+            session = await self.environment.get_session()
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.describe_repositories)(
+                repositoryNames=[self.repo_name]
+            )
             self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
 
         except botocore.exceptions.ClientError as e:
@@ -132,7 +133,7 @@ class ElasticContainerRegistry(AbstractRegistry):
                 f"Error verifying Elastic Container Registry: {code} {msg}"
             )
 
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
@@ -143,9 +144,9 @@ class ElasticContainerRegistry(AbstractRegistry):
         """
         _logger.debug("Getting username and password for Elastic Container Registry.")
         try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.get_authorization_token()
+            session = await self.environment.get_session()
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.get_authorization_token)()
             username, password = base64.standard_b64decode(
                 response["authorizationData"][0]["authorizationToken"]
             ).split(b":")
@@ -157,7 +158,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             # TODO: Log the code and the message here?
             raise LaunchError(f"Error getting username and password: {code} {msg}")
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the uri of the repository.
 
         Returns:
@@ -165,7 +166,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         """
         return self.uri + "/" + self.repo_name
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image tag exists.
 
         Arguments:
@@ -175,16 +176,17 @@ class ElasticContainerRegistry(AbstractRegistry):
             bool: True if the image tag exists.
         """
         uri, tag = image_uri.split(":")
-        if uri != self.get_repo_uri():
+        repo_uri = await self.get_repo_uri()
+        if uri != repo_uri:
             raise LaunchError(
-                f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
+                f"Image uri {image_uri} does not match Elastic Container Registry uri {repo_uri}."
             )
 
         _logger.debug("Checking if image tag exists.")
         try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.describe_images(
+            session = await self.environment.get_session()
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.describe_images)(
                 repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
             )
             return len(response["imageDetails"]) > 0
