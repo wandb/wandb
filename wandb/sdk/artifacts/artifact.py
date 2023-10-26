@@ -1664,6 +1664,7 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        self._ensure_logged("download")
         if wandb.run is None:
             with wandb.init(
                 entity=self._source_entity,
