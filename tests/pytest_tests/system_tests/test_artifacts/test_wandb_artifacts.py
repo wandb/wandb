@@ -1369,6 +1369,10 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
+@pytest.mark.nexus_failure(
+    feature="artifact_downloads",
+    reason="test relies on internal implementation for downloading artifact references",
+)
 def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
