@@ -1,17 +1,18 @@
 package clients
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	badPath = "/bad/"
+	badPath  = "/bad/"
 	goodPath = "/good/"
 )
 
