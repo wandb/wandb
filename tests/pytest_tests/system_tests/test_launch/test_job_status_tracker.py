@@ -2,11 +2,13 @@ import base64
 from unittest import mock
 from unittest.mock import MagicMock
 
+import pytest
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
-def test_check_stop_run_not_exist(wandb_init):
+@pytest.mark.asyncio
+async def test_check_stop_run_not_exist(wandb_init):
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
@@ -18,12 +20,13 @@ def test_check_stop_run_not_exist(wandb_init):
     mock_launch_project.run_id = run._run_id + "a"
     job_tracker.update_run_info(mock_launch_project)
 
-    res = job_tracker.check_wandb_run_stopped(api)
+    res = await job_tracker.check_wandb_run_stopped(api)
     assert not res
     run.finish()
 
 
-def test_check_stop_run_exist_stopped(user, wandb_init):
+@pytest.mark.asyncio
+async def test_check_stop_run_exist_stopped(user, wandb_init):
     mock.patch("wandb.sdk.wandb_run.thread.interrupt_main", lambda x: None)
     job_tracker = JobAndRunStatusTracker(
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
@@ -40,5 +43,5 @@ def test_check_stop_run_exist_stopped(user, wandb_init):
     mock_launch_project.run_id = run._run_id
     job_tracker.update_run_info(mock_launch_project)
     assert api.stop_run(encoded_run_id)
-    assert job_tracker.check_wandb_run_stopped(api)
+    assert await job_tracker.check_wandb_run_stopped(api)
     run.finish()

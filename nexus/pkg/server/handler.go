@@ -103,6 +103,10 @@ type Handler struct {
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
 
+	// sampledHistory is the sampled history for the stream
+	// TODO fix this to be generic type
+	sampledHistory map[string]*ReservoirSampling[float32]
+
 	// mh is the metric handler for the stream
 	mh *MetricHandler
 
@@ -235,6 +239,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Footer:
 	case *service.Record_Header:
 	case *service.Record_History:
+		h.handleHistory(x.History)
 	case *service.Record_LinkArtifact:
 		h.handleLinkArtifact(record)
 	case *service.Record_Metric:
@@ -255,6 +260,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
+	case *service.Record_UseArtifact:
+		h.handleUseArtifact(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -287,6 +294,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
+		h.handleSampledHistory(record, response)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 	case *service.Request_Shutdown:
@@ -630,6 +638,10 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
