@@ -2,6 +2,7 @@ package clients
 
 import (
 	"encoding/base64"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -31,6 +32,18 @@ type authedTransport struct {
 	key     string
 	headers map[string]string
 	wrapped http.RoundTripper
+}
+
+func getResponseLogHook(logResponse func(resp *http.Response) bool) func(logger retryablehttp.Logger, resp *http.Response) {
+	return func(logger retryablehttp.Logger, resp *http.Response) {
+		if logResponse != nil && !logResponse(resp) {
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err == nil {
+			logger.Printf("HTTP Error %d: %+v\n", resp.StatusCode, string(body))
+		}
+	}
 }
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -102,5 +115,11 @@ func WithRetryClientHttpTimeout(timeout time.Duration) RetryClientOption {
 func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
 		rc.CheckRetry = retryPolicy
+	}
+}
+
+func WithRetryClientBodyLogger(logResponse func(resp *http.Response) bool) RetryClientOption {
+	return func(rc *retryablehttp.Client) {
+		rc.ResponseLogHook = getResponseLogHook(logResponse)
 	}
 }
