@@ -2973,10 +2973,16 @@ class Run:
                     allow_missing_references,
                 )
                 if hasattr(future, 'response'): 
-                    download_path = future.response.download_artifact_response.file_download_path
+                    download_path = (
+                        future.response.download_artifact_response.file_download_path
+                    )
                     return FilePathStr(download_path)
-                return FilePathStr('')
-        return artifact._download(root=root, recursive=recursive, allow_missing_references=allow_missing_references)
+                return FilePathStr("")
+        return artifact._download(
+            root=root,
+            recursive=recursive,
+            allow_missing_references=allow_missing_references
+        )
 
     def _log_artifact(
         self,
