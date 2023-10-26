@@ -44,52 +44,6 @@ class WandbLogger:
     openai_client = None
 
     @classmethod
-    def sync_job_id(
-        cls,
-        id,
-        project="OpenAI-Fine-Tune",
-        entity=None,
-        force=False,
-        **kwargs_wandb_init,
-    ):
-        """
-        Sync fine-tunes to Weights & Biases.
-        :param id: The id of the fine-tune (optional)
-        :param project: Name of the project where you're sending runs. By default, it is "GPT-3".
-        :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
-        :param force: Forces logging and overwrite existing wandb run of the same fine-tune.
-        """
-        openai_client = OpenAI(
-            api_key=os.environ['OPENAI_API_KEY'],
-        )
-        cls.openai_client = openai_client
-
-        try:
-            print("Retrieving fine-tune job...")
-            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
-        except:
-            raise Exception("Failed to retrieve fine-tune job with id: {}".format(id))
-
-        wandb.termwarn("Waiting for the Fine-tuning job to be finished...")
-        while True:
-            if fine_tune.status == "succeeded":
-                break
-            time.sleep(10)
-            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
-        wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
-
-        cls._log_fine_tune(
-            fine_tune,
-            project,
-            entity,
-            force,
-            None,
-            **kwargs_wandb_init,
-        )
-
-        return "🎉 wandb sync completed successfully"
-
-    @classmethod
     def sync(
         cls,
         id=None,
@@ -97,6 +51,7 @@ class WandbLogger:
         project="OpenAI-Fine-Tune",
         entity=None,
         force=False,
+        blocking=True,
         **kwargs_wandb_init,
     ):
         """
@@ -106,11 +61,13 @@ class WandbLogger:
         :param project: Name of the project where you're sending runs. By default, it is "GPT-3".
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
         :param force: Forces logging and overwrite existing wandb run of the same fine-tune.
+        :param blocking: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
         """
 
         openai_client = OpenAI(
             api_key=os.environ['OPENAI_API_KEY'],
         )
+        cls.openai_client = openai_client
 
         if id:
             print("Retrieving fine-tune job...")
@@ -118,10 +75,10 @@ class WandbLogger:
         else:
             # get list of fine_tune to log
             fine_tunes = openai_client.fine_tuning.jobs.list()
-            if not fine_tunes or fine_tunes.get("data") is None:
+            if not fine_tunes or fine_tunes.data is None:
                 print("No fine-tune has been retrieved")
                 return
-            fine_tunes = fine_tunes["data"][
+            fine_tunes = fine_tunes.data[
                 -n_fine_tunes if n_fine_tunes is not None else None :
             ]
 
@@ -129,7 +86,11 @@ class WandbLogger:
         show_individual_warnings = (
             False if id is None and n_fine_tunes is None else True
         )
-        fine_tune_logged = [
+        fine_tune_logged = []
+        for fine_tune in fine_tunes:
+            if blocking:
+                cls._wait_for_job_success()
+
             cls._log_fine_tune(
                 fine_tune,
                 project,
@@ -138,13 +99,31 @@ class WandbLogger:
                 show_individual_warnings,
                 **kwargs_wandb_init,
             )
-            for fine_tune in fine_tunes
-        ]
 
         if not show_individual_warnings and not any(fine_tune_logged):
             print("No new successful fine-tunes were found")
 
         return "🎉 wandb sync completed successfully"
+
+    @classmethod
+    def _wait_for_job_success(cls, fine_tune):
+        wandb.termwarn("Waiting for the Fine-tuning job to be finished...")
+        while True:
+            if fine_tune.status == "succeeded":
+                break
+            if fine_tune.status == "failed":
+                wandb.termwarn(
+                    "Fine-tune {fine_tune_id} has has failed and will not be logged"
+                )
+                break
+            if fine_tune.status == "cancelled":
+                wandb.termwarn(
+                    "Fine-tune {fine_tune_id} has was cancelled and will not be logged"
+                )
+                break
+            time.sleep(60)
+            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
+        wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
 
     @classmethod
     def _log_fine_tune(
