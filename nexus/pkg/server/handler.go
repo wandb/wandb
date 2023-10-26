@@ -305,6 +305,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		response = nil
 	case *service.Request_DownloadArtifact:
 		h.handleDownloadArtifact(record)
+		response = nil
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
