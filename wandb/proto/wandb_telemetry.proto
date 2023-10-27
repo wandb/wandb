@@ -153,8 +153,7 @@ message Feature {
   bool set_init_config = 16;      // users set run config in wandb.init
   bool set_run_name = 17;         // user sets run name via wandb.run.name = ...
   bool set_run_tags = 18;         // user sets run name via wandb.run.tags = ...
-  bool set_config_item =
-      19; // users set key in run config via run.config.key or run.config["key"]
+  bool set_config_item = 19; // users set key in run config via run.config.key or run.config["key"]
   bool launch = 20;               // run is created through wandb launch
   bool torch_profiler_trace = 21; // wandb.profiler.torch_trace_handler() called
   bool sb3 = 22;                  // Using stable_baselines3 integration
