@@ -1,17 +1,17 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
-	"encoding/json"
 
-	// "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 const (
-	clientId = "clientID-1"
+	clientId         = "clientID-1"
 	sequenceClientId = "sequenceClientID-1"
 )
 
@@ -40,6 +40,7 @@ func TestArtifactBuilder(t *testing.T) {
 		},
 	}
 	metadataJson, err := json.Marshal(metadata)
+	assert.Nil(t, err)
 	if err != nil {
 		// s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave meta", err)
 	}
@@ -64,12 +65,10 @@ func TestArtifactBuilder(t *testing.T) {
 		SequenceClientId: sequenceClientId,
 	}
 	builder := NewArtifactBuilder(baseArtifact)
-	if err := builder.AddData("obj.object.json", weaveObjectData); err != nil {
-		// s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave object", err)
-	}
-	if err := builder.AddData("obj.type.json", weaveTypeData); err != nil {
-		// s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave type", err)
-	}
+	err = builder.AddData("obj.object.json", weaveObjectData);
+	assert.Nil(t, err)
+	err = builder.AddData("obj.type.json", weaveTypeData);
+	assert.Nil(t, err)
 	art := builder.GetArtifact()
 	fmt.Printf("ART %+v\n", art)
 }
