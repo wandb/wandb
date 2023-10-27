@@ -135,6 +135,15 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+log_model = _preinit.PreInitCallable(
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+)
+use_model = _preinit.PreInitCallable(
+    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model
+)
+link_model = _preinit.PreInitCallable(
+    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model
+)
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
@@ -241,4 +250,7 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_model",
+    "use_model",
+    "link_model",
 )

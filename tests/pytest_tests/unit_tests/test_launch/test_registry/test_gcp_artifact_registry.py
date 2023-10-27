@@ -11,7 +11,6 @@ def test_init():
         repository="test-repository",
         image_name="test-image",
         environment=MagicMock(),
-        verify=False,
     )
     assert registry.repository == "test-repository"
     assert registry.image_name == "test-image"
@@ -31,7 +30,6 @@ def test_bad_image_name():
                 repository="test-repository",
                 image_name=bad_name,
                 environment=MagicMock(),
-                verify=False,
             )
         assert f"The image name {bad_name} is invalid." in str(e.value)
 
@@ -46,7 +44,7 @@ def test_from_config():
         "repository": "test-repository",
         "image-name": "test-image",
     }
-    registry = GoogleArtifactRegistry.from_config(config, environment, verify=False)
+    registry = GoogleArtifactRegistry.from_config(config, environment)
     assert registry.repository == "test-repository"
     assert registry.image_name == "test-image"
     assert registry.environment
@@ -55,7 +53,7 @@ def test_from_config():
         "type": "gcr",
         "uri": "region-docker.pkg.dev/myproject-12345/test-repository/test-image",
     }
-    registry = GoogleArtifactRegistry.from_config(config, environment, verify=False)
+
     assert registry.repository == "test-repository"
     assert registry.image_name == "test-image"
 
@@ -69,4 +67,4 @@ def test_from_config_bad_uri():
         "uri": "region-docker.pkg.dev/myproject-12345/test-repository",
     }  # missing image name
     with pytest.raises(LaunchError):
-        GoogleArtifactRegistry.from_config(config, environment, verify=False)
+        GoogleArtifactRegistry.from_config(config, environment)

@@ -1,3 +1,4 @@
+import asyncio
 import pprint
 from typing import Any, Dict, List, Optional
 
@@ -97,30 +98,32 @@ def launch_add(
     """
     api = Api()
 
-    return _launch_add(
-        api,
-        uri,
-        job,
-        config,
-        project,
-        entity,
-        queue_name,
-        resource,
-        entry_point,
-        name,
-        version,
-        docker_image,
-        project_queue,
-        resource_args,
-        run_id=run_id,
-        build=build,
-        repository=repository,
-        sweep_id=sweep_id,
-        author=author,
+    return asyncio.run(
+        _launch_add(
+            api,
+            uri,
+            job,
+            config,
+            project,
+            entity,
+            queue_name,
+            resource,
+            entry_point,
+            name,
+            version,
+            docker_image,
+            project_queue,
+            resource_args,
+            run_id=run_id,
+            build=build,
+            repository=repository,
+            sweep_id=sweep_id,
+            author=author,
+        )
     )
 
 
-def _launch_add(
+async def _launch_add(
     api: Api,
     uri: Optional[str],
     job: Optional[str],
@@ -171,7 +174,9 @@ def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, config or {})
+        docker_image_uri = await build_image_from_project(
+            launch_project, api, config or {}
+        )
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],

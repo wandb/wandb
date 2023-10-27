@@ -1,7 +1,12 @@
 package server
 
 import (
+	"container/heap"
+	"encoding/json"
 	"fmt"
+	"math"
+	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -9,11 +14,101 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
+type Item[T comparable] struct {
+	value     T
+	priority  float64
+	timestamp int
+}
+
+func (item Item[T]) String() string {
+	return fmt.Sprintf("%v", item.value)
+}
+
+type PriorityQueue[T comparable] []*Item[T]
+
+func (pq PriorityQueue[T]) Len() int           { return len(pq) }
+func (pq PriorityQueue[T]) Less(i, j int) bool { return pq[i].priority < pq[j].priority }
+func (pq PriorityQueue[T]) Swap(i, j int)      { pq[i], pq[j] = pq[j], pq[i] }
+
+func (pq *PriorityQueue[T]) Push(x interface{}) {
+	item := x.(*Item[T])
+	*pq = append(*pq, item)
+}
+
+func (pq *PriorityQueue[T]) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	*pq = old[0 : n-1]
+	return item
+}
+
+type ReservoirSampling[T comparable] struct {
+	waitingList PriorityQueue[T]
+	k           int
+	delta       float64
+	j           int
+}
+
+func (r *ReservoirSampling[T]) computeQ(j int) float64 {
+	gamma := -math.Log(r.delta) / float64(j)
+	ratio := float64(r.k) / float64(j)
+	return math.Min(1, ratio+gamma+math.Sqrt(math.Pow(gamma, 2)+2*gamma*ratio))
+}
+
+func (r *ReservoirSampling[T]) Add(value T) {
+	x := rand.Float64()
+	if x < r.computeQ(r.j+1) {
+		item := &Item[T]{value: value, priority: x, timestamp: r.j}
+		heap.Push(&r.waitingList, item)
+	}
+	r.j += 1
+}
+
+func (r *ReservoirSampling[T]) GetSample() []T {
+	k := min(r.k, r.waitingList.Len())
+	result := make([]*Item[T], k)
+
+	for i := 0; i < k; i++ {
+		item := heap.Pop(&r.waitingList).(*Item[T])
+		result[i] = item
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].timestamp < result[j].timestamp
+	})
+
+	values := make([]T, k)
+	for i := 0; i < k; i++ {
+		values[i] = result[i].value
+	}
+
+	return values
+}
+
+func (h *Handler) sampleHistory(history *service.HistoryRecord) {
+	var value float32
+	if h.sampledHistory == nil {
+		h.sampledHistory = make(map[string]*ReservoirSampling[float32])
+	}
+	for _, item := range history.GetItem() {
+		err := json.Unmarshal([]byte(item.ValueJson), &value)
+		if err != nil {
+			continue
+		}
+		if _, ok := h.sampledHistory[item.Key]; !ok {
+			h.sampledHistory[item.Key] = &ReservoirSampling[float32]{
+				k:     48,
+				delta: 0.0005,
+			}
+		}
+		h.sampledHistory[item.Key].Add(value)
+	}
+}
+
 // handleHistory handles a history record. This is the main entry point for history records.
 // It is responsible for handling the history record internally, processing it,
 // and forwarding it to the Writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
-
 	if history.GetItem() == nil {
 		return
 	}
@@ -26,6 +121,8 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 
 	h.handleHistoryInternal(history, &historyMap)
 	h.handleAllHistoryMetric(history, &historyMap)
+
+	h.sampleHistory(history)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
@@ -199,5 +296,27 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 				Num: h.historyRecord.Step.Num + 1,
 			},
 		}
+	}
+}
+
+func (h *Handler) handleSampledHistory(record *service.Record, response *service.Response) {
+	if h.sampledHistory == nil {
+		return
+	}
+	var items []*service.SampledHistoryItem
+
+	for key, sampler := range h.sampledHistory {
+		values := sampler.GetSample()
+		item := &service.SampledHistoryItem{
+			Key:         key,
+			ValuesFloat: values,
+		}
+		items = append(items, item)
+	}
+
+	response.ResponseType = &service.Response_SampledHistoryResponse{
+		SampledHistoryResponse: &service.SampledHistoryResponse{
+			Item: items,
+		},
 	}
 }
