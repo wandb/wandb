@@ -122,6 +122,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientBodyLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
