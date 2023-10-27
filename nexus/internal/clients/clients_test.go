@@ -36,7 +36,7 @@ func TestClientBodyLogger(t *testing.T) {
 
 	client := NewRetryClient(
 		WithRetryClientRetryMax(0),
-		WithRetryClientBodyLogger(func(resp *http.Response) bool {
+		WithRetryClientBodyLogger(slogger, func(resp *http.Response) bool {
 			return resp.StatusCode >= 400
 		}),
 	)

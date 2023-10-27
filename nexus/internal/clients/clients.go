@@ -34,14 +34,14 @@ type authedTransport struct {
 	wrapped http.RoundTripper
 }
 
-func getResponseLogHook(logResponse func(resp *http.Response) bool) func(logger retryablehttp.Logger, resp *http.Response) {
-	return func(logger retryablehttp.Logger, resp *http.Response) {
+func getResponseLogHook(logger *slog.Logger, logResponse func(resp *http.Response) bool) func(logger retryablehttp.Logger, resp *http.Response) {
+	return func(_ retryablehttp.Logger, resp *http.Response) {
 		if logResponse != nil && !logResponse(resp) {
 			return
 		}
 		body, err := io.ReadAll(resp.Body)
 		if err == nil {
-			logger.Printf("HTTP Error %d: %+v\n", resp.StatusCode, string(body))
+			logger.Info("HTTP Error", "status", resp.StatusCode, "body", string(body))
 		}
 	}
 }
@@ -118,8 +118,8 @@ func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClien
 	}
 }
 
-func WithRetryClientBodyLogger(logResponse func(resp *http.Response) bool) RetryClientOption {
+func WithRetryClientBodyLogger(logger *slog.Logger, logResponse func(resp *http.Response) bool) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
-		rc.ResponseLogHook = getResponseLogHook(logResponse)
+		rc.ResponseLogHook = getResponseLogHook(logger, logResponse)
 	}
 }
