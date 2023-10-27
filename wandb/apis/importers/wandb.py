@@ -1084,17 +1084,10 @@ class WandbImporter:
         return None
 
     def _filter_for_failed_sequences_only(self, seqs):
-        try:
-            df = pl.read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
-        except FileNotFoundError:
-            # no errors; filter to nothing
+        df = _read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
+        
+        if df is None:
             return
-        except RuntimeError as e:
-            # No errors found, good to go!
-            if "empty string is not a valid JSON value" in str(e):
-                return
-            else:
-                raise e
 
         unique_failed_sequences = df[["entity", "project", "name", "type"]].unique()
 
@@ -1118,14 +1111,10 @@ class WandbImporter:
         yield from filtered()
 
     def _collect_failed_artifact_sequences(self):
-        try:
-            df = pl.read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
-        except RuntimeError as e:
-            # No errors found, good to go!
-            if "empty string is not a valid JSON value" in str(e):
-                return
-            else:
-                raise e
+        df = _read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
+        
+        if df is None:
+            return
 
         unique_failed_sequences = df[["entity", "project", "name", "type"]].unique()
 
@@ -1142,17 +1131,10 @@ class WandbImporter:
             yield ArtifactSequence(arts, entity, project, _type, name)
 
     def _filter_for_failed_runs_only(self, runs):
-        try:
-            df = pl.read_ndjson(RUNS_ERRORS_JSONL_FNAME)
-        except FileNotFoundError:
-            # no errors; filter to nothing
+        df = _read_ndjson(RUNS_ERRORS_JSONL_FNAME)
+        
+        if df is None:
             return
-        except RuntimeError as e:
-            # No errors found, good to go!
-            if "empty string is not a valid JSON value" in str(e):
-                return
-            else:
-                raise e
 
         unique_runs = df[["entity", "project", "run_id"]].unique()
         for run in runs:
@@ -1525,20 +1507,11 @@ class WandbImporter:
         return (src_run, problems)
 
     def _filter_previously_checked_runs(self, runs: Iterable[Run]) -> Iterable[Run]:
-        try:
-            df = pl.read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        except FileNotFoundError:
-            # No runs previously checked
+        df = _read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
+        
+        if df is None:
             yield from runs
             return
-
-        except RuntimeError as e:
-            # No runs previously checked (file exists but is empty)
-            if "empty string is not a valid JSON value" in str(e):
-                yield from runs
-                return
-            else:
-                raise e
 
         data = [
             {"entity": r.entity, "project": r.project, "run_id": r.id, "data": r}
@@ -1556,18 +1529,11 @@ class WandbImporter:
 
     @progress.subsubtask_progress_deco("Filter previously checked artifacts")
     def _filter_previously_checked_artifacts(self, arts: Iterable[Artifact]):
-        try:
-            df = pl.read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        except FileNotFoundError:
+        df = _read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
+        
+        if df is None:
             yield from arts
             return
-        except RuntimeError as e:
-            # No runs previously checked
-            if "empty string is not a valid JSON value" in str(e):
-                yield from arts
-                return
-            else:
-                raise e
 
         tracker = {}  # hack to get around polars converting the artifact to bytes
         data = []
@@ -1762,23 +1728,12 @@ class WandbImporter:
     def _filter_previously_checked_artifacts_new(
         self, seqs: Iterable[ArtifactSequence]
     ):
-        try:
-            df = pl.read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        except FileNotFoundError:
-            # yield from seqs
+        df = _read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
+        
+        if df is None:
             for seq in seqs:
                 yield from seq.artifacts
             return
-            # pass
-        except RuntimeError as e:
-            # No runs previously checked
-            if "empty string is not a valid JSON value" in str(e):
-                # pass
-                for seq in seqs:
-                    yield from seq.artifacts
-                return
-            else:
-                raise e
 
         for seq in seqs:
             for art in seq:
@@ -2360,3 +2315,20 @@ def standardize_series(series: pl.Series) -> pl.Series:
     )
 
     return df["col"]
+
+
+def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
+    try:
+        df = pl.read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
+    except FileNotFoundError:
+        return None
+    except RuntimeError as e:
+        # No runs previously checked
+        if "empty string is not a valid JSON value" in str(e):
+            return None
+        elif "error parsing ndjson" in str(e):
+            return None
+        else:
+            raise e
+    
+    return df
