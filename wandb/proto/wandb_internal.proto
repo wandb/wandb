@@ -55,14 +55,14 @@ message Record {
 }
 
 message Control {
-  bool req_resp = 1;   // record is expecting a result
-  bool local = 2;      // should not be persisted or synchronized
-  string relay_id = 3; // used by service transport to identify correct stream
-  string mailbox_slot = 4;  // mailbox slot
-  bool always_send = 5;     // message to sender
-  bool flow_control = 6;    // message should be passed to flow control
-  int64 end_offset = 7;     // end of message offset of this written message
-  string connection_id = 8; // connection id
+  bool req_resp = 1;    // record is expecting a result
+  bool local = 2;       // should not be persisted or synchronized
+  string relay_id = 3;  // used by service transport to identify correct stream
+  string mailbox_slot = 4;   // mailbox slot
+  bool always_send = 5;      // message to sender
+  bool flow_control = 6;     // message should be passed to flow control
+  int64 end_offset = 7;      // end of message offset of this written message
+  string connection_id = 8;  // connection id
 }
 
 /*
@@ -87,17 +87,23 @@ message Result {
 /*
  * FinalRecord
  */
-message FinalRecord { _RecordInfo _info = 200; }
+message FinalRecord {
+  _RecordInfo _info = 200;
+}
 
 /*
  * HeaderRecord
  */
-message HeaderRecord { _RecordInfo _info = 200; }
+message HeaderRecord {
+  _RecordInfo _info = 200;
+}
 
 /*
  * FooterRecord
  */
-message FooterRecord { _RecordInfo _info = 200; }
+message FooterRecord {
+  _RecordInfo _info = 200;
+}
 
 /*
  * RunRecord: wandb/sdk/wandb_run/Run
@@ -128,7 +134,7 @@ message RunRecord {
 }
 
 message GitRepoRecord {
-  string remote_url = 1 [ json_name = "remote" ];
+  string remote_url = 1 [json_name = "remote"];
   string commit = 2;
 }
 
@@ -163,7 +169,9 @@ message RunExitResult {}
 /*
  * RunPreemptingRecord: run being preempted
  */
-message RunPreemptingRecord { _RecordInfo _info = 200; }
+message RunPreemptingRecord {
+  _RecordInfo _info = 200;
+}
 
 message RunPreemptingResult {}
 
@@ -183,7 +191,9 @@ message SettingsItem {
 /*
  * HistoryRecord: wandb/sdk/wandb_history/History
  */
-message HistoryStep { int64 num = 1; }
+message HistoryStep {
+  int64 num = 1;
+}
 
 message HistoryRecord {
   repeated HistoryItem item = 1;
@@ -242,7 +252,7 @@ message MetricRecord {
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string step_metric = 4;
-  int32 step_metric_index = 5; // one-based array index
+  int32 step_metric_index = 5;  // one-based array index
 
   MetricOptions options = 6;
   MetricSummary summary = 7;
@@ -263,10 +273,12 @@ message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
   bool defined =
-      3; // metric explicitly defined (not from glob match or step metric)
+      3;  // metric explicitly defined (not from glob match or step metric)
 }
 
-message MetricControl { bool overwrite = 1; }
+message MetricControl {
+  bool overwrite = 1;
+}
 
 message MetricSummary {
   bool min = 1;
@@ -545,14 +557,18 @@ message DeferRequest {
 /*
  * PauseRequest: internal message to pause the heartbeat
  */
-message PauseRequest { _RequestInfo _info = 200; }
+message PauseRequest {
+  _RequestInfo _info = 200;
+}
 
 message PauseResponse {}
 
 /*
  * ResumeRequest: internal message to resume the heartbeat
  */
-message ResumeRequest { _RequestInfo _info = 200; }
+message ResumeRequest {
+  _RequestInfo _info = 200;
+}
 
 message ResumeResponse {}
 
@@ -564,26 +580,36 @@ message LoginRequest {
   _RequestInfo _info = 200;
 }
 
-message LoginResponse { string active_entity = 1; }
+message LoginResponse {
+  string active_entity = 1;
+}
 
 /*
  * GetSummaryRequest: request consolidated summary
  */
-message GetSummaryRequest {_RequestInfo _info = 200; }
+message GetSummaryRequest {
+  _RequestInfo _info = 200;
+}
 
-message GetSummaryResponse { repeated SummaryItem item = 1; }
+message GetSummaryResponse {
+  repeated SummaryItem item = 1;
+}
 
 /*
  * GetSystemMetrics: request system metrics
  */
-message GetSystemMetricsRequest { _RequestInfo _info = 200; }
+message GetSystemMetricsRequest {
+  _RequestInfo _info = 200;
+}
 
 message SystemMetricSample {
   google.protobuf.Timestamp timestamp = 1;
   float value = 2;
 }
 
-message SystemMetricsBuffer { repeated SystemMetricSample record = 1; }
+message SystemMetricsBuffer {
+  repeated SystemMetricSample record = 1;
+}
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
@@ -592,17 +618,29 @@ message GetSystemMetricsResponse {
 /*
  * StatusRequest:
  */
-message StatusRequest { _RequestInfo _info = 200; }
+message StatusRequest {
+  _RequestInfo _info = 200;
+}
 
-message StatusResponse { bool run_should_stop = 1; }
+message StatusResponse {
+  bool run_should_stop = 1;
+}
 
-message StopStatusRequest { _RequestInfo _info = 200; }
+message StopStatusRequest {
+  _RequestInfo _info = 200;
+}
 
-message StopStatusResponse { bool run_should_stop = 1; }
+message StopStatusResponse {
+  bool run_should_stop = 1;
+}
 
-message NetworkStatusRequest { _RequestInfo _info = 200; }
+message NetworkStatusRequest {
+  _RequestInfo _info = 200;
+}
 
-message NetworkStatusResponse { repeated HttpResponse network_responses = 1; }
+message NetworkStatusResponse {
+  repeated HttpResponse network_responses = 1;
+}
 
 message HttpResponse {
   int32 http_status_code = 1;
@@ -612,16 +650,24 @@ message HttpResponse {
 /*
  * InternalMessagesRequest:
  */
-message InternalMessagesRequest { _RequestInfo _info = 200; }
+message InternalMessagesRequest {
+  _RequestInfo _info = 200;
+}
 
-message InternalMessagesResponse { InternalMessages messages = 1; }
+message InternalMessagesResponse {
+  InternalMessages messages = 1;
+}
 
-message InternalMessages { repeated string warning = 1; }
+message InternalMessages {
+  repeated string warning = 1;
+}
 
 /*
  * PollExitRequest:
  */
-message PollExitRequest { _RequestInfo _info = 200; }
+message PollExitRequest {
+  _RequestInfo _info = 200;
+}
 
 message PollExitResponse {
   bool done = 1;
@@ -651,21 +697,29 @@ message StatusReportRequest {
 /*
  * Requests wrapping Records
  */
-message SummaryRecordRequest { SummaryRecord summary = 1; }
+message SummaryRecordRequest {
+  SummaryRecord summary = 1;
+}
 
-message TelemetryRecordRequest { TelemetryRecord telemetry = 1; }
+message TelemetryRecordRequest {
+  TelemetryRecord telemetry = 1;
+}
 
 /*
  * ServerInfoRequest:
  */
-message ServerInfoRequest { _RequestInfo _info = 200; }
+message ServerInfoRequest {
+  _RequestInfo _info = 200;
+}
 
 message ServerInfoResponse {
   LocalInfo local_info = 1;
   ServerMessages server_messages = 2;
 }
 
-message ServerMessages { repeated ServerMessage item = 1; }
+message ServerMessages {
+  repeated ServerMessage item = 1;
+}
 
 message ServerMessage {
   string plain_text = 1;
@@ -696,7 +750,9 @@ message LocalInfo {
 /*
  * ShutdownRequest:
  */
-message ShutdownRequest { _RequestInfo _info = 200; }
+message ShutdownRequest {
+  _RequestInfo _info = 200;
+}
 
 message ShutdownResponse {}
 
@@ -739,7 +795,9 @@ message TestInjectResponse {}
 /*
  * PartialHistoryRequest:
  */
-message HistoryAction { bool flush = 1; }
+message HistoryAction {
+  bool flush = 1;
+}
 message PartialHistoryRequest {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
@@ -752,7 +810,9 @@ message PartialHistoryResponse {}
 /*
  * SampledHistoryRequest:
  */
-message SampledHistoryRequest { _RequestInfo _info = 200; }
+message SampledHistoryRequest {
+  _RequestInfo _info = 200;
+}
 
 message SampledHistoryItem {
   string key = 1;
@@ -761,12 +821,16 @@ message SampledHistoryItem {
   repeated int64 values_int = 4;
 }
 
-message SampledHistoryResponse { repeated SampledHistoryItem item = 1; }
+message SampledHistoryResponse {
+  repeated SampledHistoryItem item = 1;
+}
 
 /*
  * RunStatusRequest:
  */
-message RunStatusRequest { _RequestInfo _info = 200; }
+message RunStatusRequest {
+  _RequestInfo _info = 200;
+}
 
 message RunStatusResponse {
   int64 sync_items_total = 1;
@@ -804,7 +868,9 @@ message CheckVersionResponse {
 /*
  * JobInfo:
  */
-message JobInfoRequest { _RequestInfo _info = 200; }
+message JobInfoRequest {
+  _RequestInfo _info = 200;
+}
 
 message JobInfoResponse {
   string sequenceId = 1;
@@ -828,7 +894,9 @@ message LogArtifactResponse {
 /*
  * Keepalive:
  */
-message KeepaliveRequest { _RequestInfo _info = 200; }
+message KeepaliveRequest {
+  _RequestInfo _info = 200;
+}
 
 message KeepaliveResponse {}
 
@@ -852,7 +920,9 @@ message GitSource {
   bool notebook = 3;
 }
 
-message ImageSource { string image = 1; }
+message ImageSource {
+  string image = 1;
+}
 
 message Source {
   GitSource git = 1;
@@ -894,7 +964,7 @@ message UseArtifactResult {}
  * Cancel:
  */
 message CancelRequest {
-  string cancel_slot = 1; // mailbox slot
+  string cancel_slot = 1;  // mailbox slot
   _RequestInfo _info = 200;
 }
 
@@ -908,7 +978,9 @@ message DiskInfo {
   uint64 used = 2;
 }
 
-message MemoryInfo { uint64 total = 1; }
+message MemoryInfo {
+  uint64 total = 1;
+}
 
 message CpuInfo {
   uint32 count = 1;
@@ -935,22 +1007,22 @@ message MetadataRequest {
   repeated string args = 7;
   string state = 8;
   string program = 9;
-  string code_path = 10 [ json_name = "codePath" ];
+  string code_path = 10 [json_name = "codePath"];
   GitRepoRecord git = 11;
   string email = 12;
   string root = 13;
   string host = 14;
   string username = 15;
   string executable = 16;
-  string code_path_local = 17 [ json_name = "codePathLocal" ];
+  string code_path_local = 17 [json_name = "codePathLocal"];
   string colab = 18;
-  uint32 cpu_count = 19 [ json_name = "cpu_count" ];
-  uint32 cpu_count_logical = 20 [ json_name = "cpu_count_logical" ];
-  string gpu_type = 21 [ json_name = "gpu" ];
-  uint32 gpu_count = 22 [ json_name = "gpu_count" ];
+  uint32 cpu_count = 19 [json_name = "cpu_count"];
+  uint32 cpu_count_logical = 20 [json_name = "cpu_count_logical"];
+  string gpu_type = 21 [json_name = "gpu"];
+  uint32 gpu_count = 22 [json_name = "gpu_count"];
   map<string, DiskInfo> disk = 23;
   MemoryInfo memory = 24;
   CpuInfo cpu = 25;
-  GpuAppleInfo gpu_apple = 26 [ json_name = "gpuapple" ];
-  repeated GpuNvidiaInfo gpu_nvidia = 27 [ json_name = "gpu_nvidia" ];
+  GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
+  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
 }
