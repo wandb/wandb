@@ -58,9 +58,12 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		req.Header.Set(parts[0], parts[1])
 	}
 
-	if _, err = u.client.Do(req); err != nil {
-		return err
-	}
+	// if _, err = u.client.Do(req); err != nil {
+	// 	return err
+	// }
+
+	res, err := u.client.Do(req)
+	fmt.Println(res)
 
 	return nil
 }

@@ -16,6 +16,7 @@ type processedChunk struct {
 	Complete   *bool
 	Exitcode   *int32
 	Preempting bool
+	Uploaded   []string
 }
 
 func (fs *FileStream) addProcess(rec *service.Record) {
@@ -40,6 +41,8 @@ func (fs *FileStream) loopProcess(inChan <-chan *service.Record) {
 			fs.streamFinish(x.Exit)
 		case *service.Record_Preempting:
 			fs.streamPreempting(x.Preempting)
+		case *service.Record_FilesUploaded:
+			fs.streamFilesUploaded(x.FilesUploaded)
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -117,6 +120,12 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
+	})
+}
+
+func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploadedRecord) {
+	fs.addTransmit(processedChunk{
+		Uploaded: msg.Files,
 	})
 }
 

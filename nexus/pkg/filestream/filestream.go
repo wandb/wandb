@@ -202,6 +202,10 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	fs.addProcess(rec)
 }
 
+func (fs *FileStream) GetInputChan() chan *service.Record {
+	return fs.processChan
+}
+
 // Close gracefully shuts down the goroutines created by Start
 func (fs *FileStream) Close() {
 	if fs == nil {

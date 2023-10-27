@@ -24,6 +24,9 @@ type UploadManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *UploadTask
 
+	// fsChan is the channel for messages outgoing to the filestream
+	fsChan chan *service.Record
+
 	// uploader is the uploader
 	// todo: make this a map of uploaders for different destination storage types
 	uploader Uploader
@@ -67,6 +70,12 @@ func WithSettings(settings *service.Settings) UploadManagerOption {
 func WithUploader(uploader Uploader) UploadManagerOption {
 	return func(um *UploadManager) {
 		um.uploader = uploader
+	}
+}
+
+func WithFSCChan(fsChan chan *service.Record) UploadManagerOption {
+	return func(um *UploadManager) {
+		um.fsChan = fsChan
 	}
 }
 
@@ -150,6 +159,27 @@ func (um *UploadManager) Start() {
 func (um *UploadManager) AddTask(task *UploadTask) {
 	um.logger.Debug("uploader: adding task", "path", task.Path, "url", task.Url)
 	um.inChan <- task
+}
+
+// FileStreamCallback returns a callback for filestream updates
+func (um *UploadManager) FileStreamCallback() func(task *UploadTask) {
+	return func(task *UploadTask) {
+		um.logger.Debug("uploader: filestream callback", "task", task)
+		if task.Err != nil {
+			return
+		}
+		if task.FileType == ArtifactFile {
+			return
+		}
+		record := &service.Record{
+			RecordType: &service.Record_FilesUploaded{
+				FilesUploaded: &service.FilesUploadedRecord{
+					Files: []string{task.Name},
+				},
+			},
+		}
+		um.fsChan <- record
+	}
 }
 
 // Close closes the uploader

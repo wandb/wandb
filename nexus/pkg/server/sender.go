@@ -150,6 +150,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			uploader.WithLogger(logger),
 			uploader.WithSettings(settings),
 			uploader.WithUploader(defaultUploader),
+			uploader.WithFSCChan(sender.fileStream.GetInputChan()),
 		)
 
 	}
@@ -760,7 +761,8 @@ func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
+		task := &uploader.UploadTask{Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+		task.CompletionCallback = s.uploadManager.FileStreamCallback()
 		s.uploadManager.AddTask(task)
 	}
 }

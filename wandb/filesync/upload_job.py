@@ -60,6 +60,7 @@ class UploadJob:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             if success:
+                print("push_success", self.artifact_id, self.save_name)
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
