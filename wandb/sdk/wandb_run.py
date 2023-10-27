@@ -2959,17 +2959,30 @@ class Run:
 
     def _download_artifact(
         self,
-        qualified_name: str,
+        artifact: Artifact,
         root: Optional[str] = None,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        return self._backend.interface.download_artifact(
-            qualified_name,
-            root,
-            recursive,
-            allow_missing_references,
-        ).response.download_artifact_response.file_download_path
+        if self._backend and self._backend.interface:
+            if not self._settings._offline:
+                future = self._backend.interface.download_artifact(
+                    artifact.qualified_name,
+                    root,
+                    recursive,
+                    allow_missing_references,
+                )
+                if hasattr(future, "response"):
+                    download_path = (
+                        future.response.download_artifact_response.file_download_path
+                    )
+                    return FilePathStr(download_path)
+                return FilePathStr("")
+        return artifact._download(
+            root=root,
+            recursive=recursive,
+            allow_missing_references=allow_missing_references,
+        )
 
     def _log_artifact(
         self,

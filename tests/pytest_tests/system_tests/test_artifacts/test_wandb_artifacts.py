@@ -1388,8 +1388,9 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with pytest.raises(FileNotFoundError, match="Unable to find"):
-        artifact.download()
+    with wandb_init(project="test") as run:
+        with pytest.raises(FileNotFoundError, match="Unable to find"):
+            run._download_artifact(artifact)
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
