@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -67,7 +68,7 @@ const (
 type FileStream struct {
 	path string
 
-	processChan  chan *service.Record
+	processChan  chan protoreflect.ProtoMessage
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -156,7 +157,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan *service.Record, BufferSize),
+		processChan:     make(chan protoreflect.ProtoMessage, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
@@ -202,7 +203,7 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	fs.addProcess(rec)
 }
 
-func (fs *FileStream) GetInputChan() chan *service.Record {
+func (fs *FileStream) GetInputChan() chan protoreflect.ProtoMessage {
 	return fs.processChan
 }
 
