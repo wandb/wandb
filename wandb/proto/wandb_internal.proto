@@ -63,6 +63,7 @@ message Control {
   bool flow_control = 6;  // message should be passed to flow control
   int64 end_offset = 7;  // end of message offset of this written message
   string connection_id = 8;  // connection id
+  int64 start_offset = 9;  // start of message offset of this written message
 }
 
 /*

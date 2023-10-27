@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
-	"sync"
+	"fmt"
 
+	"github.com/wandb/wandb/nexus/internal/flowcontrol"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -25,13 +26,17 @@ type Writer struct {
 	// fwdChan is the channel for forwarding messages to the sender
 	fwdChan chan *service.Record
 
-	// storeChan is the channel for messages to be stored
-	storeChan chan *service.Record
-
 	// store is the store for the writer
 	store *Store
 
-	wg sync.WaitGroup
+	// record number count
+	recordNum int64
+
+	// flow control logic
+	flowControl *flowcontrol.FlowControl
+
+	// keep track of if we have hit overflow condition
+	overflowTelemetrySent bool
 }
 
 // NewWriter returns a new Writer
@@ -43,6 +48,7 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 		logger:   logger,
 		fwdChan:  make(chan *service.Record, BufferSize),
 	}
+	w.flowControl = flowcontrol.NewFlowControl(settings, w.sendRecord, w.sendPause, w.recoverRecords)
 	return w
 }
 
@@ -51,40 +57,24 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 
-	w.storeChan = make(chan *service.Record, BufferSize*8)
-
 	var err error
 	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
 
-	w.wg = sync.WaitGroup{}
-	w.wg.Add(1)
-	go func() {
-		for record := range w.storeChan {
-			if err = w.store.storeRecord(record); err != nil {
-				w.logger.Error("writer: error storing record", "error", err)
-			}
-		}
-
-		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError("writer: error closing store", err)
-		}
-		w.wg.Done()
-	}()
-
 	for record := range inChan {
 		w.handleRecord(record)
 	}
-	w.wg.Wait()
 }
 
 // Close closes the writer and all its resources
 // which includes the store
 func (w *Writer) Close() {
 	close(w.fwdChan)
-	close(w.storeChan)
+	if err := w.store.Close(); err != nil {
+		w.logger.CaptureError("writer: error closing store", err)
+	}
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 }
 
@@ -100,8 +90,8 @@ func (w *Writer) handleRecord(record *service.Record) {
 	case nil:
 		w.logger.Error("nil record type")
 	default:
-		w.sendRecord(record)
 		w.storeRecord(record)
+		w.flowControl.Flow(record)
 	}
 }
 
@@ -110,13 +100,82 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
-	w.storeChan <- record
+
+	// annotate record with a record number before writing
+	w.recordNum += 1
+	record.Num = w.recordNum
+
+	offset, err := w.store.storeRecord(record)
+	if err != nil {
+		w.logger.Error("writer: error storing record", "error", err)
+	}
+
+	// annotate record with a file offset after writing
+	if record.Control == nil {
+		record.Control = &service.Control{}
+	}
+	record.Control.StartOffset = offset
+}
+
+func (w *Writer) sendMark() {
+	record := &service.Record{
+		RecordType: &service.Record_Request{Request: &service.Request{
+			RequestType: &service.Request_SenderMark{},
+		}},
+	}
+	w.sendRecord(record)
+}
+
+func (w *Writer) maybeSendTelemetry() {
+	if w.overflowTelemetrySent {
+		return
+	}
+	w.overflowTelemetrySent = true
+	fmt.Printf("telem XXXXXXXXXXXXXx\n")
+	record := &service.Record{
+		RecordType: &service.Record_Telemetry{Telemetry: &service.TelemetryRecord{
+			Feature: &service.Feature{FlowControlOverflow: true},
+		}},
+	}
+	w.sendRecord(record)
+}
+
+func (w *Writer) sendPause() {
+	fmt.Printf("sendPause XXXXXXXXXXXXXx\n")
+	w.maybeSendTelemetry()
+	w.sendMark()
+}
+
+func (w *Writer) ensureFlushed(offset int64) {
+	fmt.Printf("ensureFlushed XXXXXXXXXXXXXx\n")
+	err := w.store.Flush()
+	if err != nil {
+		w.logger.Error("writer: error flushing store", "error", err)
+	}
+}
+
+func (w *Writer) recoverRecords(startOffset int64, endOffset int64) {
+	fmt.Printf("recover XXXXXXXXXXXXXx\n")
+	w.ensureFlushed(endOffset)
+	record := &service.Record{
+		RecordType: &service.Record_Request{Request: &service.Request{
+			RequestType: &service.Request_SenderRead{
+				SenderRead: &service.SenderReadRequest{
+					StartOffset: startOffset,
+					FinalOffset: endOffset,
+				},
+			},
+		}},
+	}
+	w.sendRecord(record)
 }
 
 func (w *Writer) sendRecord(record *service.Record) {
+	fmt.Printf("SEND %+v\n", record)
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
 	}
+	fmt.Printf("SEND2 %+v\n", record)
 	w.fwdChan <- record
 }

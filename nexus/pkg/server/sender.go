@@ -188,6 +188,7 @@ func (s *Sender) Close() {
 
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
+	fmt.Printf("FFFFFFFFFFFFFFFFFFFFFF %+v\n", record)
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
@@ -246,8 +247,16 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendPollExit(record, x.PollExit)
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
+	case *service.Request_SenderMark:
+		s.sendSenderMark(record, x.SenderMark)
+	case *service.Request_StatusReport:
+		s.sendStatusReport(record, x.StatusReport)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 
@@ -830,4 +839,28 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) maybeReportStatus(always bool) {
+	if !always {
+		return
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_StatusReport{
+					StatusReport: &service.StatusReportRequest{},
+				},
+			},
+		},
+	}
+	s.loopbackChan <- record
+}
+
+func (s *Sender) sendSenderMark(record *service.Record, _ *service.SenderMarkRequest) {
+	s.maybeReportStatus( /* always */ true)
+}
+
+func (s *Sender) sendStatusReport(record *service.Record, _ *service.StatusReportRequest) {
+	// note: this record is not really needed in the sender (it was used in the flow control path)
 }
