@@ -2964,6 +2964,12 @@ class Run:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        if self._settings._require_nexus:
+            # For nexus downloads, handle reference file downloads in the user process
+            for entry in artifact.manifest.entries.values():
+                if entry.ref:
+                    entry._parent_artifact = artifact
+                    entry.download()
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.download_artifact(
