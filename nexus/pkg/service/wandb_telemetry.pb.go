@@ -1031,25 +1031,26 @@ type Feature struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Watch                   bool `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                                         // wandb.watch() called
-	Finish                  bool `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                                       // wandb.finish() called
-	Save                    bool `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                                           // wandb.save() called
-	Offline                 bool `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                                     // offline run was synced
-	Resumed                 bool `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                                     // run was resumed
-	Grpc                    bool `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                                           // grpc-server (java integration)
-	Metric                  bool `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                                       // define_metric() called
-	Keras                   bool `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                                         // Keras WandbCallback used
-	Sagemaker               bool `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                                 // User is using sagemaker
-	ArtifactIncremental     bool `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"`                 // Artifact(incremental=True) used
-	Metaflow                bool `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                                  // Using metaflow integration
-	Prodigy                 bool `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                                    // Using prodigy integration
-	SetInitName             bool `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                                       // users set run name from wandb.init
-	SetInitId               bool `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                                             // users set run id from wandb.init
-	SetInitTags             bool `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                                       // users set tags within wandb.init
-	SetInitConfig           bool `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                                 // users set run config in wandb.init
-	SetRunName              bool `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                                          // user sets run name via wandb.run.name = ...
-	SetRunTags              bool `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                                          // user sets run name via wandb.run.tags = ...
-	SetConfigItem           bool `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                                 // users set key in run config via run.config.key or run.config["key"]
+	Watch               bool `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                         // wandb.watch() called
+	Finish              bool `protobuf:"varint,2,opt,name=finish,proto3" json:"finish,omitempty"`                                                       // wandb.finish() called
+	Save                bool `protobuf:"varint,3,opt,name=save,proto3" json:"save,omitempty"`                                                           // wandb.save() called
+	Offline             bool `protobuf:"varint,4,opt,name=offline,proto3" json:"offline,omitempty"`                                                     // offline run was synced
+	Resumed             bool `protobuf:"varint,5,opt,name=resumed,proto3" json:"resumed,omitempty"`                                                     // run was resumed
+	Grpc                bool `protobuf:"varint,6,opt,name=grpc,proto3" json:"grpc,omitempty"`                                                           // grpc-server (java integration)
+	Metric              bool `protobuf:"varint,7,opt,name=metric,proto3" json:"metric,omitempty"`                                                       // define_metric() called
+	Keras               bool `protobuf:"varint,8,opt,name=keras,proto3" json:"keras,omitempty"`                                                         // Keras WandbCallback used
+	Sagemaker           bool `protobuf:"varint,9,opt,name=sagemaker,proto3" json:"sagemaker,omitempty"`                                                 // User is using sagemaker
+	ArtifactIncremental bool `protobuf:"varint,10,opt,name=artifact_incremental,json=artifactIncremental,proto3" json:"artifact_incremental,omitempty"` // Artifact(incremental=True) used
+	Metaflow            bool `protobuf:"varint,11,opt,name=metaflow,proto3" json:"metaflow,omitempty"`                                                  // Using metaflow integration
+	Prodigy             bool `protobuf:"varint,12,opt,name=prodigy,proto3" json:"prodigy,omitempty"`                                                    // Using prodigy integration
+	SetInitName         bool `protobuf:"varint,13,opt,name=set_init_name,json=setInitName,proto3" json:"set_init_name,omitempty"`                       // users set run name from wandb.init
+	SetInitId           bool `protobuf:"varint,14,opt,name=set_init_id,json=setInitId,proto3" json:"set_init_id,omitempty"`                             // users set run id from wandb.init
+	SetInitTags         bool `protobuf:"varint,15,opt,name=set_init_tags,json=setInitTags,proto3" json:"set_init_tags,omitempty"`                       // users set tags within wandb.init
+	SetInitConfig       bool `protobuf:"varint,16,opt,name=set_init_config,json=setInitConfig,proto3" json:"set_init_config,omitempty"`                 // users set run config in wandb.init
+	SetRunName          bool `protobuf:"varint,17,opt,name=set_run_name,json=setRunName,proto3" json:"set_run_name,omitempty"`                          // user sets run name via wandb.run.name = ...
+	SetRunTags          bool `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                          // user sets run name via wandb.run.tags = ...
+	SetConfigItem       bool `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                 // users set key in run config via run.config.key
+	// or run.config["key"]
 	Launch                  bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                      // run is created through wandb launch
 	TorchProfilerTrace      bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                  // wandb.profiler.torch_trace_handler() called
 	Sb3                     bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                            // Using stable_baselines3 integration

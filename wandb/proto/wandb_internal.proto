@@ -569,7 +569,7 @@ message LoginResponse { string active_entity = 1; }
 /*
  * GetSummaryRequest: request consolidated summary
  */
-message GetSummaryRequest { _RequestInfo _info = 200; }
+message GetSummaryRequest {_RequestInfo _info = 200; }
 
 message GetSummaryResponse { repeated SummaryItem item = 1; }
 
