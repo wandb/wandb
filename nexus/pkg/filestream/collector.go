@@ -83,7 +83,8 @@ func (cr *chunkCollector) readMore() {
 func (cr *chunkCollector) update(chunk processedChunk) {
 	// Complete and Exitcode are saved to finalTransmitData because
 	// they need to be sent last
-	if chunk.Complete != nil || chunk.Exitcode != nil {
+	switch {
+	case chunk.Complete != nil || chunk.Exitcode != nil:
 		if cr.finalTransmitData == nil {
 			cr.finalTransmitData = &FsTransmitData{}
 		}
@@ -93,9 +94,11 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 		if chunk.Exitcode != nil {
 			cr.finalTransmitData.Exitcode = chunk.Exitcode
 		}
-	} else if chunk.Preempting {
+
+	case chunk.Preempting:
 		cr.transmitData.Preempting = chunk.Preempting
-	} else if chunk.Uploaded != nil {
+
+	case chunk.Uploaded != nil:
 		cr.transmitData.Uploaded = chunk.Uploaded
 	}
 }
