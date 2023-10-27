@@ -10,13 +10,9 @@ message _RecordInfo {
   string _tracelog_id = 100;
 }
 
-message _RequestInfo {
-  string stream_id = 1;
-}
+message _RequestInfo { string stream_id = 1; }
 
 /*
  * _ResultInfo: extra info for all results
  */
-message _ResultInfo {
-  string _tracelog_id = 100;
-}
+message _ResultInfo { string _tracelog_id = 100; }
