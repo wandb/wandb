@@ -9,7 +9,7 @@ import (
 )
 
 type ArtifactBuilder struct {
-	artifactRecord *service.ArtifactRecord
+	artifactRecord   *service.ArtifactRecord
 	isDigestUpToDate bool
 }
 
