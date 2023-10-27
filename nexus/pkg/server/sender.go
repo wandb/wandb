@@ -791,7 +791,6 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 }
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	fmt.Printf("\n\n INSIDE NEXUS SENDER\n\n")
 	var response service.DownloadArtifactResponse
 	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.Recursive, &msg.AllowMissingReferences)
 	fileDownloadPath, err := downloader.Download(nil)

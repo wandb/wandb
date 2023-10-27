@@ -2972,7 +2972,6 @@ class Run:
                 recursive=recursive,
                 allow_missing_references=allow_missing_references,
             )
-            wandb.termwarn(f"\n\npython download path: {python_download_path}")
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.download_artifact(

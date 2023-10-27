@@ -1705,6 +1705,7 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
+        require_nexus = wandb.run._settings._require_nexus if wandb.run is not None else False
         self._ensure_logged("download")
 
         root = root or self._default_root()
@@ -1760,7 +1761,7 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_path(edge["node"]["name"])
-                    if os.environ.get("WANDB_REQUIRE_NEXUS") and entry.ref is None:
+                    if require_nexus and entry.ref is None:
                         # Handled by nexus
                         continue
                     entry._download_url = edge["node"]["directUrl"]
