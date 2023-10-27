@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
@@ -23,6 +24,9 @@ type Uploader interface {
 type UploadManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *UploadTask
+
+	// fsChan is the channel for messages outgoing to the filestream
+	fsChan chan protoreflect.ProtoMessage
 
 	// uploader is the uploader
 	// todo: make this a map of uploaders for different destination storage types
@@ -67,6 +71,12 @@ func WithSettings(settings *service.Settings) UploadManagerOption {
 func WithUploader(uploader Uploader) UploadManagerOption {
 	return func(um *UploadManager) {
 		um.uploader = uploader
+	}
+}
+
+func WithFSCChan(fsChan chan protoreflect.ProtoMessage) UploadManagerOption {
+	return func(um *UploadManager) {
+		um.fsChan = fsChan
 	}
 }
 
@@ -150,6 +160,23 @@ func (um *UploadManager) Start() {
 func (um *UploadManager) AddTask(task *UploadTask) {
 	um.logger.Debug("uploader: adding task", "path", task.Path, "url", task.Url)
 	um.inChan <- task
+}
+
+// FileStreamCallback returns a callback for filestream updates
+func (um *UploadManager) FileStreamCallback() func(task *UploadTask) {
+	return func(task *UploadTask) {
+		um.logger.Debug("uploader: filestream callback", "task", task)
+		if task.Err != nil {
+			return
+		}
+		if task.FileType == ArtifactFile {
+			return
+		}
+		record := &service.FilesUploaded{
+			Files: []string{task.Name},
+		}
+		um.fsChan <- record
+	}
 }
 
 // Close closes the uploader

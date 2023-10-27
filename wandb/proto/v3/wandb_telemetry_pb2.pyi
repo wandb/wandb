@@ -502,9 +502,11 @@ class Feature(google.protobuf.message.Message):
     set_run_tags: builtins.bool
     """user sets run name via wandb.run.tags = ..."""
     set_config_item: builtins.bool
-    """users set key in run config via run.config.key or run.config["key"]"""
+    """users set key in run config via run.config.key"""
     launch: builtins.bool
-    """run is created through wandb launch"""
+    """or run.config["key"]
+    run is created through wandb launch
+    """
     torch_profiler_trace: builtins.bool
     """wandb.profiler.torch_trace_handler() called"""
     sb3: builtins.bool
@@ -796,11 +798,11 @@ class Issues(google.protobuf.message.Message):
     SETTINGS__UNEXPECTED_ARGS_FIELD_NUMBER: builtins.int
     SETTINGS__PREPROCESSING_WARNINGS_FIELD_NUMBER: builtins.int
     settings__validation_warnings: builtins.bool
-    """validation warnings for settings?"""
+    """validation warnings for settings"""
     settings__unexpected_args: builtins.bool
-    """unexpected settings init args?"""
+    """unexpected settings init args"""
     settings__preprocessing_warnings: builtins.bool
-    """preprocessing warnings for settings?"""
+    """settings preprocessing warnings"""
     def __init__(
         self,
         *,
