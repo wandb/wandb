@@ -95,6 +95,8 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 		}
 	} else if chunk.Preempting {
 		cr.transmitData.Preempting = chunk.Preempting
+	} else if chunk.Uploaded != nil {
+		cr.transmitData.Uploaded = chunk.Uploaded
 	}
 }
 
@@ -112,11 +114,8 @@ func (cr *chunkCollector) dumpFinalTransmit() {
 		return
 	}
 	cr.isTransmitReady = true
-	var uploaded []string
 	if cr.finalTransmitData.Complete != nil {
 		cr.transmitData.Complete = cr.finalTransmitData.Complete
-		uploaded = append(uploaded, "wandb-metadata.json")
-		cr.transmitData.Uploaded = uploaded
 	}
 	if cr.finalTransmitData.Exitcode != nil {
 		cr.transmitData.Exitcode = cr.finalTransmitData.Exitcode
