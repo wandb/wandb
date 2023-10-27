@@ -3,7 +3,6 @@ package clients
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
