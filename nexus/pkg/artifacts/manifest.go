@@ -1,9 +1,11 @@
 package artifacts
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
@@ -58,6 +60,33 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		}
 	}
 	return manifest, nil
+}
+
+func (m *Manifest) ComputeDigest() string {
+	type hashedEntry struct {
+		name   string
+		digest string
+	}
+
+	var entries []hashedEntry
+	for name, entry := range m.Contents {
+		entries = append(entries, hashedEntry{
+			name:   name,
+			digest: entry.Digest,
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].name < entries[j].name
+	})
+
+	hasher := md5.New()
+	hasher.Write([]byte("wandb-artifact-manifest-v1\n"))
+	for _, entry := range entries {
+		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
+	}
+
+	return utils.EncodeBytesAsHex(hasher.Sum(nil))
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
