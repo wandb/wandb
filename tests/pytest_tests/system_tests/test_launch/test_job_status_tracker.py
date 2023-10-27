@@ -32,6 +32,7 @@ async def test_check_stop_run_exist_stopped(user, wandb_init):
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
     run = wandb_init(id="testrun", entity=user)
+    print(run._entity)
     api = wandb.InternalApi()
     encoded_run_id = base64.standard_b64encode(
         f"Run:v1:testrun:{run._project}:{run._entity}".encode()
