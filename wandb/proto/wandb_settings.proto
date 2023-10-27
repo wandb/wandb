@@ -4,22 +4,26 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
-message ListStringValue { repeated string value = 1;}
+message ListStringValue { repeated string value = 1; }
 
 message MapStringKeyStringValue { map<string, string> value = 1; }
 
-message MapStringKeyMapStringKeyStringValue {
+message MapStringKeyMapStringKeyStringValue
+{
   map<string, MapStringKeyStringValue> value = 1;
 }
 
-message OpenMetricsFilters {
-  oneof value {
+message OpenMetricsFilters
+{
+  oneof value
+  {
     ListStringValue sequence = 1;
     MapStringKeyMapStringKeyStringValue mapping = 2;
   }
 }
 
-message Settings {
+message Settings
+{
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
