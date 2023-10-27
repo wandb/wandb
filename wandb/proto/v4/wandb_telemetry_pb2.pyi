@@ -506,9 +506,11 @@ class Feature(google.protobuf.message.Message):
     set_run_tags: builtins.bool
     """user sets run name via wandb.run.tags = ..."""
     set_config_item: builtins.bool
-    """users set key in run config via run.config.key or run.config["key"]"""
+    """users set key in run config via run.config.key"""
     launch: builtins.bool
-    """run is created through wandb launch"""
+    """or run.config["key"]
+    run is created through wandb launch
+    """
     torch_profiler_trace: builtins.bool
     """wandb.profiler.torch_trace_handler() called"""
     sb3: builtins.bool
