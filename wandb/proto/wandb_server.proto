@@ -6,11 +6,15 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
 
-message ServerShutdownRequest { _RecordInfo _info = 200; }
+message ServerShutdownRequest {
+  _RecordInfo _info = 200;
+}
 
 message ServerShutdownResponse {}
 
-message ServerStatusRequest { _RecordInfo _info = 200;}
+message ServerStatusRequest {
+  _RecordInfo _info = 200;
+}
 
 message ServerStatusResponse {}
 
@@ -28,18 +32,24 @@ message ServerInformStartRequest {
 
 message ServerInformStartResponse {}
 
-message ServerInformFinishRequest { _RecordInfo _info = 200; }
+message ServerInformFinishRequest {
+  _RecordInfo _info = 200;
+}
 
 message ServerInformFinishResponse {}
 
-message ServerInformAttachRequest { _RecordInfo _info = 200; }
+message ServerInformAttachRequest {
+  _RecordInfo _info = 200;
+}
 
 message ServerInformAttachResponse {
   Settings settings = 1;
   _RecordInfo _info = 200;
 }
 
-message ServerInformDetachRequest { _RecordInfo _info = 200; }
+message ServerInformDetachRequest {
+  _RecordInfo _info = 200;
+}
 
 message ServerInformDetachResponse {}
 
