@@ -307,14 +307,16 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					}
 				}
 				if entry.Ref != nil {
-					referencedID, err := getReferencedID(entry.Ref)
-					if err != nil {
-						return err
-					}
-					if referencedID != nil {
-						ad.downloadReferencedArtifact(filePath, entry)
-					}
-					// skip reference downloads for non-wandb refs for now
+					/*
+						Uncomment code to handle references to wandb artifacts in nexus
+						referencedID, err := getReferencedID(entry.Ref)
+						if err != nil {
+							return err
+						}
+						if referencedID != nil {
+							ad.downloadReferencedArtifact(filePath, entry)
+						}
+					*/
 					numDone++
 					continue
 				}

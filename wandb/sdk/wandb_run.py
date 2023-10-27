@@ -2964,12 +2964,15 @@ class Run:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        python_download_path = FilePathStr("")
         if self._settings._require_nexus:
-            # For nexus downloads, handle reference file downloads in the user process
-            for entry in artifact.manifest.entries.values():
-                if entry.ref:
-                    entry._parent_artifact = artifact
-                    entry.download()
+            # Start the download process in the user process too, to handle reference downloads
+            python_download_path = artifact._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
+            wandb.termwarn(f"\n\npython download path: {python_download_path}")
         if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.download_artifact(
@@ -2983,12 +2986,7 @@ class Run:
                         future.response.download_artifact_response.file_download_path
                     )
                     return FilePathStr(download_path)
-                return FilePathStr("")
-        return artifact._download(
-            root=root,
-            recursive=recursive,
-            allow_missing_references=allow_missing_references,
-        )
+        return FilePathStr(python_download_path)
 
     def _log_artifact(
         self,
