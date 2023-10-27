@@ -41,9 +41,6 @@ func TestArtifactBuilder(t *testing.T) {
 	}
 	metadataJson, err := json.Marshal(metadata)
 	assert.Nil(t, err)
-	if err != nil {
-		// s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave meta", err)
-	}
 	baseArtifact := &service.ArtifactRecord{
 		Manifest: &service.ArtifactManifest{
 			Version:       1,
@@ -65,9 +62,9 @@ func TestArtifactBuilder(t *testing.T) {
 		SequenceClientId: sequenceClientId,
 	}
 	builder := NewArtifactBuilder(baseArtifact)
-	err = builder.AddData("obj.object.json", weaveObjectData);
+	err = builder.AddData("obj.object.json", weaveObjectData)
 	assert.Nil(t, err)
-	err = builder.AddData("obj.type.json", weaveTypeData);
+	err = builder.AddData("obj.type.json", weaveTypeData)
 	assert.Nil(t, err)
 	art := builder.GetArtifact()
 	fmt.Printf("ART %+v\n", art)
