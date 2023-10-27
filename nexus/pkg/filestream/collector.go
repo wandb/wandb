@@ -137,6 +137,8 @@ func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
 		}
 		cr.transmitData.Files = files
 		cr.isTransmitReady = true
+	} else if cr.transmitData != nil {
+		cr.isTransmitReady = true
 	}
 	if cr.isDone {
 		cr.dumpFinalTransmit()
