@@ -101,7 +101,9 @@ def is_docker_installed() -> bool:
 def build(
     tags: List[str], file: str, context_path: str, platform: Optional[str] = None
 ) -> str:
-    command = ["buildx", "build", "--load"] if is_buildx_installed() else ["build"]
+    command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+    if platform is None or (platform and "," not in platform):
+        command += ["--load"]
     if platform:
         command += ["--platform", platform]
     build_tags = []
