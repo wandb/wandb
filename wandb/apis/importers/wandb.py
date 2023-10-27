@@ -1085,7 +1085,7 @@ class WandbImporter:
 
     def _filter_for_failed_sequences_only(self, seqs):
         df = _read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
-        
+
         if df is None:
             return
 
@@ -1112,7 +1112,7 @@ class WandbImporter:
 
     def _collect_failed_artifact_sequences(self):
         df = _read_ndjson(ARTIFACTS_ERRORS_JSONL_FNAME)
-        
+
         if df is None:
             return
 
@@ -1132,7 +1132,7 @@ class WandbImporter:
 
     def _filter_for_failed_runs_only(self, runs):
         df = _read_ndjson(RUNS_ERRORS_JSONL_FNAME)
-        
+
         if df is None:
             return
 
@@ -1508,7 +1508,7 @@ class WandbImporter:
 
     def _filter_previously_checked_runs(self, runs: Iterable[Run]) -> Iterable[Run]:
         df = _read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        
+
         if df is None:
             yield from runs
             return
@@ -1530,7 +1530,7 @@ class WandbImporter:
     @progress.subsubtask_progress_deco("Filter previously checked artifacts")
     def _filter_previously_checked_artifacts(self, arts: Iterable[Artifact]):
         df = _read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        
+
         if df is None:
             yield from arts
             return
@@ -1729,7 +1729,7 @@ class WandbImporter:
         self, seqs: Iterable[ArtifactSequence]
     ):
         df = _read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
-        
+
         if df is None:
             for seq in seqs:
                 yield from seq.artifacts
@@ -2330,5 +2330,5 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
             return None
         else:
             raise e
-    
+
     return df
