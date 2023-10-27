@@ -109,6 +109,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
 			}),
