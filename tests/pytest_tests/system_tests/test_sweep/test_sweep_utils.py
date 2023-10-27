@@ -64,8 +64,6 @@ def test_sweep_construct_scheduler_args():
         "'queue'",
         "--project",
         "'project'",
-        "--sweep_type",
-        "wandb",
         "--job",
         "'job:12315'",
     ]
@@ -81,8 +79,6 @@ def test_sweep_construct_scheduler_args():
         "'queue'",
         "--project",
         "'project'",
-        "--sweep_type",
-        "wandb",
         "--job",
         "'job:12315'",
     ]
@@ -100,8 +96,6 @@ def test_sweep_construct_scheduler_args():
         "'queue'",
         "--project",
         "'project'",
-        "--sweep_type",
-        "wandb",
         "--author",
         "'author'",
         "--job",
@@ -119,8 +113,6 @@ def test_sweep_construct_scheduler_args():
         "'queue'",
         "--project",
         "'project'",
-        "--sweep_type",
-        "wandb",
         "--image_uri",
         "image_uri",
     ]
