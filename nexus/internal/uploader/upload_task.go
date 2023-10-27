@@ -14,6 +14,9 @@ type UploadTask struct {
 	// Path is the path to the file
 	Path string
 
+	// Name is the name of the file
+	Name string
+
 	// Url is the endpoint to upload to
 	Url string
 
