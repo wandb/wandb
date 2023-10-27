@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,8 +113,10 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
-			// clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetryWrapper(clients.CheckRetry)),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -122,8 +125,29 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
+		fileStreamRetryClient := clients.NewRetryClient(
+			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// retryClient.BackOff = fs.GetBackoffFunc()
+			// TODO(nexus:beta): add custom retry function
+			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+		)
+		sender.fileStream = fs.NewFileStream(
+			fs.WithSettings(settings),
+			fs.WithLogger(logger),
+			fs.WithHttpClient(fileStreamRetryClient),
+		)
 		uploaderRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
