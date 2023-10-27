@@ -88,7 +88,6 @@ def test_sweep_construct_scheduler_args():
         "queue",
         "project",
         author="author",
-        sweep_type="wandb",
         return_job=False,
     )
     assert args == [
