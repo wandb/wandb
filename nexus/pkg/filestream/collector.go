@@ -23,6 +23,7 @@ type chunkCollector struct {
 	itemsCollected    int
 	isOverflow        bool
 	isTransmitReady   bool
+	isDirty           bool
 	transmitData      *FsTransmitData
 	finalTransmitData *FsTransmitData
 }
@@ -32,6 +33,7 @@ func (cr *chunkCollector) reset() {
 	cr.itemsCollected = 0
 	cr.transmitData = &FsTransmitData{}
 	cr.isTransmitReady = false
+	cr.isDirty = false
 }
 
 func (cr *chunkCollector) read() bool {
@@ -97,15 +99,18 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 
 	case chunk.Preempting:
 		cr.transmitData.Preempting = chunk.Preempting
+		cr.isDirty = true
 
 	case chunk.Uploaded != nil:
 		cr.transmitData.Uploaded = chunk.Uploaded
+		cr.isDirty = true
 	}
 }
 
 func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
 	if chunk.fileType != NoneChunk {
 		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
+		cr.isDirty = true
 	} else {
 		cr.update(chunk)
 	}
@@ -126,7 +131,7 @@ func (cr *chunkCollector) dumpFinalTransmit() {
 }
 
 func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
-	if len(cr.fileChunks) != 0 {
+	if cr.isDirty {
 		files := make(map[string]fsTransmitFileData)
 		for fileType, lines := range cr.fileChunks {
 			fname := chunkFilename[fileType]
@@ -137,8 +142,7 @@ func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
 		}
 		cr.transmitData.Files = files
 		cr.isTransmitReady = true
-	} else if cr.transmitData != nil {
-		cr.isTransmitReady = true
+		cr.isDirty = false
 	}
 	if cr.isDone {
 		cr.dumpFinalTransmit()
