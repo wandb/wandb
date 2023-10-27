@@ -60,7 +60,6 @@ class UploadJob:
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             if success:
-                print("push_success", self.artifact_id, self.save_name)
                 self._file_stream.push_success(self.artifact_id, self.save_name)  # type: ignore
 
     def push(self) -> None:
@@ -198,7 +197,9 @@ class UploadJobAsync:
 
             await loop.run_in_executor(None, sync_job.run)
         else:
-            self._file_stream.push_success(self._request.artifact_id, self._request.save_name)  # type: ignore
+            self._file_stream.push_success(
+                self._request.artifact_id, self._request.save_name
+            )  # type: ignore
 
             if deduped:
                 logger.info("Skipped uploading %s", self._request.path)

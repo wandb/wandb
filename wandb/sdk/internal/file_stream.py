@@ -432,7 +432,6 @@ class FileStreamApi:
                     uploaded = set()
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
-                    print("push success", item, uploaded)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
