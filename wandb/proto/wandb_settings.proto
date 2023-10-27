@@ -6,7 +6,7 @@ import "google/protobuf/wrappers.proto";
 
 message ListStringValue { repeated string value = 1; }
 
-message MapStringKeyStringValue { map<string, string> value = 1; }
+message MapStringKeyStringValue { map<string, string> value = 1;}
 
 message MapStringKeyMapStringKeyStringValue {
   map<string, MapStringKeyStringValue> value = 1;

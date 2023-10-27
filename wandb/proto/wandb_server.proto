@@ -10,7 +10,7 @@ message ServerShutdownRequest { _RecordInfo _info = 200; }
 
 message ServerShutdownResponse {}
 
-message ServerStatusRequest { _RecordInfo _info = 200; }
+message ServerStatusRequest { _RecordInfo _info = 200;}
 
 message ServerStatusResponse {}
 
