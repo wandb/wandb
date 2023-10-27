@@ -741,6 +741,10 @@ message FilePusherStats {
   int64 deduped_bytes = 3;
 }
 
+message FilesUploaded {
+  repeated string files = 1;
+}
+
 message LocalInfo {
   string version = 1;
   bool out_of_date = 2;
