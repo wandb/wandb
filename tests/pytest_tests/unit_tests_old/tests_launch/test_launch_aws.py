@@ -15,6 +15,17 @@ from tests.pytest_tests.unit_tests_old.utils import fixture_open
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
 
 
+class MockBuilder:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def build_image(self, *args, **kwargs):
+        return "testimage:12345"
+
+    async def verify(*args, **kwargs):
+        pass
+
+
 @pytest.fixture
 def mock_sagemaker_environment():
     """Mock an instance of the AwsEnvironment class."""
@@ -60,7 +71,8 @@ def mock_sagemaker_client():
     return mock_sagemaker_client
 
 
-def test_launch_aws_sagemaker_no_instance(
+@pytest.mark.asyncio
+async def test_launch_aws_sagemaker_no_instance(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -94,7 +106,7 @@ def test_launch_aws_sagemaker_no_instance(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -109,7 +121,7 @@ def test_launch_aws_sagemaker_no_instance(
     kwargs["uri"] = uri
     kwargs["api"] = api
 
-    run = _launch._launch(**kwargs)
+    run = await _launch._launch(**kwargs)
     out, _ = capsys.readouterr()
     assert run.training_job_name == "test-job-1"
     assert "Project: test" in out
@@ -118,7 +130,8 @@ def test_launch_aws_sagemaker_no_instance(
     assert "Artifacts: {}" in out
 
 
-def test_launch_aws_sagemaker(
+@pytest.mark.asyncio
+async def test_launch_aws_sagemaker(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     def mock_create_metadata_file(*args, **kwargs):
@@ -139,7 +152,7 @@ def test_launch_aws_sagemaker(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -162,7 +175,7 @@ def test_launch_aws_sagemaker(
     kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
-    run = _launch._launch(**kwargs)
+    run = await _launch._launch(**kwargs)
     out, _ = capsys.readouterr()
     assert run.training_job_name == "test-job-1"
     assert "Project: test" in out
@@ -172,7 +185,8 @@ def test_launch_aws_sagemaker(
 
 
 @pytest.mark.timeout(320)
-def test_launch_aws_sagemaker_launch_fail(
+@pytest.mark.asyncio
+async def test_launch_aws_sagemaker_launch_fail(
     live_mock_server,
     test_settings,
     mocked_fetchable_git_repo,
@@ -218,9 +232,9 @@ def test_launch_aws_sagemaker_launch_fail(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
-        "build_image",
-        lambda *args: "testimage:12345",
+        wandb.sdk.launch.loader,
+        "builder_from_config",
+        lambda *args: MockBuilder(),
     )
 
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
@@ -239,7 +253,7 @@ def test_launch_aws_sagemaker_launch_fail(
     kwargs["api"] = api
 
     with pytest.raises(LaunchError) as e_info:
-        _launch._launch(**kwargs)
+        await _launch._launch(**kwargs)
     assert "Failed to create training job when submitting to SageMaker" in str(
         e_info.value
     )
@@ -249,7 +263,8 @@ def test_launch_aws_sagemaker_launch_fail(
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",
 )
-def test_sagemaker_specified_image(
+@pytest.mark.asyncio
+async def test_sagemaker_specified_image(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
     mock_env = MagicMock(spec=AwsEnvironment)
@@ -264,7 +279,7 @@ def test_sagemaker_specified_image(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -284,7 +299,7 @@ def test_sagemaker_specified_image(
     kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
         "TrainingInputMode"
     ] = "File"
-    _launch._launch(**kwargs)
+    await _launch._launch(**kwargs)
     out, _ = capsys.readouterr()
     assert "Project: test" in out
     assert "Entity: mock_server_entity" in out
@@ -292,40 +307,42 @@ def test_sagemaker_specified_image(
     assert "Artifacts: {}" in out
 
 
-def test_aws_submitted_run_status():
+@pytest.mark.asyncio
+async def test_aws_submitted_run_status():
     mock_sagemaker_client = MagicMock()
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "InProgress",
     }
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    assert run.get_status().state == "running"
+    assert (await run.get_status()).state == "running"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Completed",
     }
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    assert run.get_status().state == "finished"
+    assert (await run.get_status()).state == "finished"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Failed",
     }
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    assert run.get_status().state == "failed"
+    assert (await run.get_status()).state == "failed"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopped",
     }
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    assert run.get_status().state == "finished"
+    assert (await run.get_status()).state == "finished"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopping",
     }
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    assert run.get_status().state == "stopping"
+    assert (await run.get_status()).state == "stopping"
 
 
-def test_aws_submitted_run_cancel():
+@pytest.mark.asyncio
+async def test_aws_submitted_run_cancel():
     mock_sagemaker_client = MagicMock()
     mock_sagemaker_client.stopping = 0
 
@@ -353,7 +370,7 @@ def test_aws_submitted_run_cancel():
     mock_sagemaker_client.describe_training_job = mock_describe_training_job
     mock_sagemaker_client.stop_training_job = mock_stop_training_job
     run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
-    run.cancel()
+    await run.cancel()
     assert run._status.state == "finished"
 
 
@@ -362,7 +379,8 @@ def test_aws_submitted_run_id():
     assert run.id == "sagemaker-test-job-1"
 
 
-def test_no_sagemaker_resource_args(
+@pytest.mark.asyncio
+async def test_no_sagemaker_resource_args(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
@@ -389,14 +407,15 @@ def test_no_sagemaker_resource_args(
         kwargs["api"] = api
         kwargs["resource_args"].pop("sagemaker", None)
         with pytest.raises(LaunchError) as e_info:
-            _launch._launch(**kwargs)
+            await _launch._launch(**kwargs)
         assert (
             str(e_info.value)
             == "No sagemaker args specified. Specify sagemaker args in resource_args"
         )
 
 
-def test_no_OuputDataConfig(
+@pytest.mark.asyncio
+async def test_no_OuputDataConfig(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     mock_env = MagicMock(spec=AwsEnvironment)
@@ -411,7 +430,7 @@ def test_no_OuputDataConfig(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -434,14 +453,15 @@ def test_no_OuputDataConfig(
         kwargs["api"] = api
         kwargs["resource_args"]["sagemaker"].pop("OutputDataConfig", None)
         with pytest.raises(LaunchError) as e_info:
-            _launch._launch(**kwargs)
+            await _launch._launch(**kwargs)
         assert (
             str(e_info.value)
             == "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
         )
 
 
-def test_no_StoppingCondition(
+@pytest.mark.asyncio
+async def test_no_StoppingCondition(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     mock_env = MagicMock(spec=AwsEnvironment)
@@ -456,7 +476,7 @@ def test_no_StoppingCondition(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -477,14 +497,15 @@ def test_no_StoppingCondition(
         kwargs["resource_args"]["sagemaker"].pop("StoppingCondition", None)
 
         with pytest.raises(LaunchError) as e_info:
-            _launch._launch(**kwargs)
+            await _launch._launch(**kwargs)
         assert (
             str(e_info.value)
             == "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
 
 
-def test_no_ResourceConfig(
+@pytest.mark.asyncio
+async def test_no_ResourceConfig(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
@@ -500,7 +521,7 @@ def test_no_ResourceConfig(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -517,14 +538,15 @@ def test_no_ResourceConfig(
         kwargs["resource_args"]["sagemaker"].pop("ResourceConfig", None)
 
         with pytest.raises(LaunchError) as e_info:
-            _launch._launch(**kwargs)
+            await _launch._launch(**kwargs)
         assert (
             str(e_info.value)
             == "Sagemaker launcher requires a ResourceConfig Sagemaker resource argument"
         )
 
 
-def test_no_RoleARN(
+@pytest.mark.asyncio
+async def test_no_RoleARN(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
@@ -540,7 +562,7 @@ def test_no_RoleARN(
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
         "builder_from_config",
-        lambda *args: MagicMock(),
+        lambda *args: MockBuilder(),
     )
     monkeypatch.setattr(
         wandb.sdk.launch.loader,
@@ -557,7 +579,7 @@ def test_no_RoleARN(
         kwargs["resource_args"]["sagemaker"].pop("RoleArn", None)
 
         with pytest.raises(LaunchError) as e_info:
-            _launch._launch(**kwargs)
+            await _launch._launch(**kwargs)
         assert (
             str(e_info.value)
             == "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"

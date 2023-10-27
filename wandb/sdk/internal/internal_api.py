@@ -366,6 +366,7 @@ class Api:
             return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
             response = err.response
+            assert response is not None
             logger.error(f"{response.status_code} response executing GraphQL.")
             logger.error(response.text)
             for error in parse_backend_error_messages(response):
