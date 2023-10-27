@@ -182,14 +182,14 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				}
 				numInProgress++
 				task := &uploader.UploadTask{
-					Path:    *entry.LocalPath,
-					Url:     *edge.Node.UploadUrl,
-					Headers: edge.Node.UploadHeaders,
-					CompletionCallback: func(task *uploader.UploadTask) {
-						taskResultsChan <- TaskResult{task, name}
-					},
+					Path:     *entry.LocalPath,
+					Url:      *edge.Node.UploadUrl,
+					Headers:  edge.Node.UploadHeaders,
 					FileType: uploader.ArtifactFile,
 				}
+				task.AddCallback(func(task *uploader.UploadTask) {
+					taskResultsChan <- TaskResult{task, name}
+				})
 				as.UploadManager.AddTask(task)
 			}
 		}
@@ -251,11 +251,14 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		Path:    manifestFile,
 		Url:     *uploadUrl,
 		Headers: uploadHeaders,
-		CompletionCallback: func(task *uploader.UploadTask) {
-			resultChan <- task
-		},
+		// CompletionCallback: func(task *uploader.UploadTask) {
+		// 	resultChan <- task
+		// },
 		FileType: uploader.ArtifactFile,
 	}
+	task.AddCallback(func(task *uploader.UploadTask) {
+		resultChan <- task
+	})
 	as.UploadManager.AddTask(task)
 	<-resultChan
 	return task.Err

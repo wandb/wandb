@@ -130,12 +130,16 @@ func (um *UploadManager) Start() {
 					)
 				}
 				// Execute the callback.
-				if task.CompletionCallback != nil {
-					task.CompletionCallback(task)
-				}
-
-				if task.Err == nil {
-					um.fileCountsChan <- task.FileType
+				// if task.CompletionCallback != nil {
+				// 	task.CompletionCallback(task)
+				// }
+				task.AddCallback(func(task *UploadTask) {
+					if task.Err == nil {
+						um.fileCountsChan <- task.FileType
+					}
+				})
+				for _, callback := range task.CompletionCallback {
+					callback(task)
 				}
 
 				// mark the task as done

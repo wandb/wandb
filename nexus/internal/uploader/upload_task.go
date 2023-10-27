@@ -27,5 +27,9 @@ type UploadTask struct {
 	Err error
 
 	// Callback to execute after completion (success or failure).
-	CompletionCallback func(*UploadTask)
+	CompletionCallback []func(*UploadTask)
+}
+
+func (ut *UploadTask) AddCallback(callback func(*UploadTask)) {
+	ut.CompletionCallback = append(ut.CompletionCallback, callback)
 }
