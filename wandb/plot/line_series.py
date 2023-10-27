@@ -20,6 +20,7 @@ def line_series(
         keys (array): Array of labels for the line plots
         title (string): Plot title.
         xname: Title of x-axis
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         A plot object, to be passed to wandb.log()

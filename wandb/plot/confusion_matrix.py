@@ -21,6 +21,7 @@ def confusion_matrix(
         y_true (arr): Array of label indices.
         preds (arr): Array of predicted label indices.
         class_names (arr): Array of class names.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab

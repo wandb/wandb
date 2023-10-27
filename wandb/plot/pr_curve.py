@@ -33,6 +33,7 @@ def pr_curve(
         interp_size (int): the recall values will be fixed to `interp_size` points
             uniform on [0, 1] and the precision will be interpolated for these recall
             values.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab under

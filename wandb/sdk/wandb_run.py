@@ -2037,7 +2037,9 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return custom_chart(vega_spec_name, data_table, fields, string_fields or {}, split_table)
+        return custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}, split_table
+        )
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
