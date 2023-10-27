@@ -46,7 +46,6 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
-    FilesUploadedRecord files_uploaded = 26;
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -689,7 +688,7 @@ message FilePusherStats {
   int64 deduped_bytes = 3;
 }
 
-message FilesUploadedRecord { repeated string files = 1; }
+message FilesUploaded { repeated string files = 1; }
 
 message LocalInfo {
   string version = 1;

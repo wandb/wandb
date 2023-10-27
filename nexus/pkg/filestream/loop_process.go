@@ -55,7 +55,7 @@ func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 		switch x := message.(type) {
 		case *service.Record:
 			fs.processRecord(x)
-		case *service.FilesUploadedRecord:
+		case *service.FilesUploaded:
 			fs.streamFilesUploaded(x)
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
@@ -137,7 +137,7 @@ func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) 
 	})
 }
 
-func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploadedRecord) {
+func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploaded) {
 	fs.addTransmit(processedChunk{
 		Uploaded: msg.Files,
 	})

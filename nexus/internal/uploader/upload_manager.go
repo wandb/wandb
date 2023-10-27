@@ -172,7 +172,7 @@ func (um *UploadManager) FileStreamCallback() func(task *UploadTask) {
 		if task.FileType == ArtifactFile {
 			return
 		}
-		record := &service.FilesUploadedRecord{
+		record := &service.FilesUploaded{
 			Files: []string{task.Name},
 		}
 		um.fsChan <- record
