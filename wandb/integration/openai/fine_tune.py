@@ -72,6 +72,7 @@ class WandbLogger:
         if id:
             print("Retrieving fine-tune job...")
             fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
+            fine_tunes = [fine_tune]
         else:
             # get list of fine_tune to log
             fine_tunes = openai_client.fine_tuning.jobs.list()
@@ -89,7 +90,7 @@ class WandbLogger:
         fine_tune_logged = []
         for fine_tune in fine_tunes:
             if blocking:
-                cls._wait_for_job_success()
+                fine_tune = cls._wait_for_job_success(fine_tune)
 
             cls._log_fine_tune(
                 fine_tune,
@@ -110,20 +111,20 @@ class WandbLogger:
         wandb.termwarn("Waiting for the Fine-tuning job to be finished...")
         while True:
             if fine_tune.status == "succeeded":
-                break
+                wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
+                return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
                     "Fine-tune {fine_tune_id} has has failed and will not be logged"
                 )
-                break
+                return fine_tune
             if fine_tune.status == "cancelled":
                 wandb.termwarn(
                     "Fine-tune {fine_tune_id} has was cancelled and will not be logged"
                 )
-                break
+                return fine_tune
             time.sleep(60)
-            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
-        wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
+            fine_tune = cls.openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=fine_tune.id)
 
     @classmethod
     def _log_fine_tune(
@@ -319,13 +320,13 @@ class WandbLogger:
                 f.write(file_content)
 
             # create a Table
-            try:
-                table, n_items = cls._make_table(file_content)
-                artifact.add(table, file_id)
-                wandb.config.update({f"n_{prefix}": n_items})
-                artifact.metadata["items"] = n_items
-            except:
-                print(f"File {file_id} could not be read as a valid JSON file")
+            # try:
+            table, n_items = cls._make_table(file_content)
+            artifact.add(table, file_id)
+            wandb.config.update({f"n_{prefix}": n_items})
+            artifact.metadata["items"] = n_items
+            # except:
+            #     print(f"File {file_id} could not be read as a valid JSON file")
         else:
             # log number of items
             wandb.config.update({f"n_{prefix}": artifact.metadata.get("items")})
@@ -334,5 +335,16 @@ class WandbLogger:
 
     @classmethod
     def _make_table(cls, file_content):
+        table = wandb.Table(columns=["role: system", "role: user", "role: assistant"])
+
         df = pd.read_json(io.StringIO(file_content), orient="records", lines=True)
-        return wandb.Table(dataframe=df), len(df)
+        for idx, message in df.iterrows():
+            messages = message.messages
+            assert len(messages) == 3
+            table.add_data(
+                messages[0]["content"],
+                messages[1]["content"],
+                messages[2]["content"],
+            )
+            
+        return table, len(df)
