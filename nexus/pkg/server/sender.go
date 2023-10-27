@@ -109,7 +109,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				baseHeaders,
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
-			clients.WithRetryClientBodyLogger(logger.Logger, func(resp *http.Response) bool {
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
 			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
@@ -122,7 +122,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientBodyLogger(logger.Logger, func(resp *http.Response) bool {
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
 			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),

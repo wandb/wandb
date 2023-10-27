@@ -16,7 +16,7 @@ const (
 	goodPath = "/good/"
 )
 
-func TestClientBodyLogger(t *testing.T) {
+func TestClientResponseLogger(t *testing.T) {
 	var buf bytes.Buffer
 	bufWriter := bufio.NewWriter(&buf)
 	slogger := slog.New(slog.NewTextHandler(bufWriter, nil))
@@ -36,7 +36,7 @@ func TestClientBodyLogger(t *testing.T) {
 
 	client := NewRetryClient(
 		WithRetryClientRetryMax(0),
-		WithRetryClientBodyLogger(slogger, func(resp *http.Response) bool {
+		WithRetryClientResponseLogger(slogger, func(resp *http.Response) bool {
 			return resp.StatusCode >= 400
 		}),
 	)
