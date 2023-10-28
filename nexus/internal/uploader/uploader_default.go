@@ -45,42 +45,74 @@ func (u *DefaultUploader) Upload(task *UploadTask) error {
 		}
 	}(file)
 
-	fileWithLen, err := NewFileWithLen(file)
+	progressReader, err := NewProgressReader(file)
 	if err != nil {
 		return err
 	}
-	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, fileWithLen)
+	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, progressReader)
 	if err != nil {
 		return err
 	}
+
 	for _, header := range task.Headers {
 		parts := strings.Split(header, ":")
 		req.Header.Set(parts[0], parts[1])
 	}
-
+	fmt.Printf("Uploading file... %s\n", task.Name)
 	if _, err = u.client.Do(req); err != nil {
+		fmt.Println(err)
 		return err
 	}
 
 	return nil
 }
 
-type FileWithLen struct {
+type ProgressReader struct {
 	*os.File
-	len int
+	len  int
+	read int
 }
 
-func NewFileWithLen(file *os.File) (FileWithLen, error) {
+func NewProgressReader(file *os.File) (*ProgressReader, error) {
 	stat, err := file.Stat()
 	if err != nil {
-		return FileWithLen{}, err
+		return &ProgressReader{}, err
 	}
 	if stat.Size() > math.MaxInt {
-		return FileWithLen{}, fmt.Errorf("file larger than %v", math.MaxInt)
+		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
-	return FileWithLen{file, int(stat.Size())}, nil
+	return &ProgressReader{
+		File: file,
+		len:  int(stat.Size()),
+	}, nil
 }
 
-func (f FileWithLen) Len() int {
-	return f.len
+func (pr *ProgressReader) Read(p []byte) (int, error) {
+	n, err := pr.File.Read(p)
+	if err != nil {
+		return n, err // Return early if there's an error
+	}
+
+	newRead := pr.read + int(n)
+	newPercentage := (newRead * 100) / pr.len
+	oldPercentage := (pr.read * 100) / pr.len
+
+	pr.read = newRead
+	if newPercentage != oldPercentage {
+		pr.reportProgress()
+	}
+
+	return n, err
+}
+
+func (pr *ProgressReader) reportProgress() {
+	if pr.len == 0 {
+		return
+	}
+	percentage := (pr.read * 100) / pr.len
+	fmt.Printf("\rUploaded %d%% (%d of %d bytes)", percentage, pr.read, pr.len)
+}
+
+func (pr *ProgressReader) Len() int {
+	return pr.len
 }
