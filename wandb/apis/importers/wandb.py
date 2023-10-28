@@ -1056,20 +1056,9 @@ class WandbImporter:
             # src = standardize_series(src)
             # dst = standardize_series(dst)
 
-            try:
-                if not src.series_equal(dst):
-                    non_matching.append(col)
-            except Exception as e:
-                print("-----------------PROBLEM-----------------")
-                print("-----------------PROBLEM-----------------")
-                print("-----------------PROBLEM-----------------")
-                print(f"{e=}")
-                print(f"{src=}")
-                print(f"{dst=}")
-                print("-----------------PROBLEM-----------------")
-                print("-----------------PROBLEM-----------------")
-                print("-----------------PROBLEM-----------------")
-                raise e
+            if not src.series_equal(dst):
+                non_matching.append(col)
+
 
         if non_matching:
             return f"Non-matching metrics {non_matching=}"
@@ -1482,29 +1471,6 @@ class WandbImporter:
                         f2.write(json.dumps(d) + "\n")
         import_logger.info(f"W&B Importer: Finished validating run ({run_str})")
 
-    def _validate_run(self, src_run: Run) -> Tuple[Run, List[str]]:
-        entity = src_run.entity
-        project = src_run.project
-        run_id = src_run.id
-
-        run_str = f"{entity}/{project}/{run_id}"
-
-        task = progress.subtask_pbar.add_task(f"Validating {run_str}", total=None)
-        problems = []
-        try:
-            dst_run = self._get_dst_run(src_run)
-        except wandb.CommError:
-            problems = ["run does not exist"]
-        except Exception as e:
-            problems = [f"unexpected problem {e=}"]
-        else:
-            problems = self._get_run_problems(src_run, dst_run)
-
-        if problems:
-            import_logger.error(f"Problem validating run: {run_str=}, {problems=}")
-
-        progress.subtask_pbar.remove_task(task)
-        return (src_run, problems)
 
     def _filter_previously_checked_runs(self, runs: Iterable[Run]) -> Iterable[Run]:
         df = _read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
@@ -1518,7 +1484,10 @@ class WandbImporter:
             for r in runs
         ]
 
+
         df2 = pl.DataFrame(data)
+        print(df2.columns)
+        print(df.columns)
         results = df2.join(df, how="anti", on=["entity", "project", "run_id"])
         if not results.is_empty():
             results = results.filter(~results["run_id"].is_null())
@@ -1699,25 +1668,6 @@ class WandbImporter:
             )
 
         desc = "Import runs"
-        # settings = []
-        # if metadata:
-        #     settings.append("metadata")
-        # if files:
-        #     settings.append("files")
-        # if media:
-        #     settings.append("media")
-        # if code:
-        #     settings.append("code")
-        # if history:
-        #     settings.append("history")
-        # if summary:
-        #     settings.append("summary")
-        # if terminal_output:
-        #     settings.append("logs")
-
-        # if settings:
-        #     desc = desc + " (" + "/".join(settings) + ")"
-
         parallelize(
             _import_run_wrapped,
             runs,
