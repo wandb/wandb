@@ -363,7 +363,7 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
     with wandb_init() as run:
         artifact_path = Path(run.use_artifact("art:latest").download())
         file2 = artifact_path / "test.txt"
-        assert file1 != file2  # Same path, but the content should have changed.
+        assert file1 == file2  # Same path, but the content should have changed.
         assert file2.is_file()
         assert file2.read_text() == "hello"
 
