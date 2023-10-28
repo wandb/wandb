@@ -2974,7 +2974,9 @@ class Run:
                 )
                 if hasattr(future, "response"):
                     if future.response.download_artifact_response.error_message:
-                        raise ValueError(f"Error downloading artifact: {future.response.download_artifact_response.error_message}")
+                        raise ValueError(
+                            f"Error downloading artifact: {future.response.download_artifact_response.error_message}"
+                        )
                     download_path = (
                         future.response.download_artifact_response.file_download_path
                     )
