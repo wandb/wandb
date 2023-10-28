@@ -1665,6 +1665,7 @@ class Artifact:
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         self._ensure_logged("download")
+
         root = root or self._default_root()
         self._add_download_root(root)
         if wandb.run is None:
