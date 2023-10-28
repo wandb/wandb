@@ -1059,7 +1059,6 @@ class WandbImporter:
             if not src.series_equal(dst):
                 non_matching.append(col)
 
-
         if non_matching:
             return f"Non-matching metrics {non_matching=}"
         else:
@@ -1471,7 +1470,6 @@ class WandbImporter:
                         f2.write(json.dumps(d) + "\n")
         import_logger.info(f"W&B Importer: Finished validating run ({run_str})")
 
-
     def _filter_previously_checked_runs(self, runs: Iterable[Run]) -> Iterable[Run]:
         df = _read_ndjson(RUNS_PREVIOUSLY_CHECKED_JSONL_FNAME)
 
@@ -1483,7 +1481,6 @@ class WandbImporter:
             {"entity": r.entity, "project": r.project, "run_id": r.id, "data": r}
             for r in runs
         ]
-
 
         df2 = pl.DataFrame(data)
         print(df2.columns)
