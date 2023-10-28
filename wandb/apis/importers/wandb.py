@@ -2266,7 +2266,7 @@ def standardize_series(series: pl.Series) -> pl.Series:
 
 def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     try:
-        df = pl.read_ndjson(ARTIFACTS_PREVIOUSLY_CHECKED_JSONL_FNAME)
+        df = pl.read_ndjson(fname)
     except FileNotFoundError:
         return None
     except RuntimeError as e:
