@@ -2974,22 +2974,30 @@ class Run:
             )
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                future = self._backend.interface.download_artifact(
+                result = self._backend.interface.communicate_download_artifact(
                     artifact.qualified_name,
                     root,
                     recursive,
                     allow_missing_references,
                 )
-                if hasattr(future, "response"):
-                    if future.response.download_artifact_response.error_message:
-                        raise ValueError(
-                            f"Error downloading artifact: {future.response.download_artifact_response.error_message}"
-                        )
-                    download_path = (
-                        future.response.download_artifact_response.file_download_path
+                if result.response.download_artifact_response.error_message:
+                    raise ValueError(
+                        f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
                     )
+<<<<<<< HEAD
                     return FilePathStr(download_path)
         return FilePathStr(python_download_path)
+=======
+                download_path = (
+                    result.response.download_artifact_response.file_download_path
+                )
+                return FilePathStr(download_path)
+        return artifact._download(
+            root=root,
+            recursive=recursive,
+            allow_missing_references=allow_missing_references,
+        )
+>>>>>>> download-background
 
     def _log_artifact(
         self,

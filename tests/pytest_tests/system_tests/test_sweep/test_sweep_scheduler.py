@@ -1,4 +1,5 @@
 """Sweep tests."""
+import asyncio
 from typing import Dict
 from unittest.mock import Mock, patch
 
@@ -774,6 +775,6 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     scheduler = SweepScheduler(
         api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1
     )
-    scheduler._register_agents()
+    asyncio.run(scheduler._register_agents())
     srun2 = scheduler._get_next_sweep_run(0)
     scheduler._add_to_launch_queue(srun2)

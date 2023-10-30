@@ -348,8 +348,13 @@ def test_artifact_files(runner, mock_server, api):
 def test_artifact_download(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
-        with pytest.raises(wandb.CommError):
-            path = art.download()
+        path = art._download()
+        if platform.system() == "Windows":
+            part = "mnist-v0"
+        else:
+            part = "mnist:v0"
+        assert path == os.path.join(".", "artifacts", part)
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_delete(runner, mock_server, api):
@@ -440,9 +445,8 @@ def test_artifact_manual_error(runner, mock_server, api):
 )
 def test_artifact_verify(runner, mock_server, api):
     art = api.artifact("entity/project/mnist:v0", type="dataset")
-    with pytest.raises(wandb.CommError):
-        art.download()
-    with pytest.raises(FileNotFoundError):
+    art._download()
+    with pytest.raises(ValueError):
         art.verify()
 
 

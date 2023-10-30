@@ -145,7 +145,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			logger,
 			fileTransferRetryClient,
 		)
-		sender.fileTransferManager = filetransfer.NewUploadManager(
+		sender.fileTransferManager = filetransfer.NewFileTransferManager(
 			filetransfer.WithLogger(logger),
 			filetransfer.WithSettings(settings),
 			filetransfer.WithFileTransfer(defaultFileTransfer),

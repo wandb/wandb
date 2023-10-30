@@ -1,6 +1,8 @@
 package filetransfer
 
 import (
+	"os"
+	"path"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -71,23 +73,7 @@ func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 	}
 }
 
-func (fm *FileTransferManager) fileCount() {
-	for fileType := range fm.fileCountsChan {
-		switch fileType {
-		case WandbFile:
-			fm.fileCounts.WandbCount++
-		case MediaFile:
-			fm.fileCounts.MediaCount++
-		case ArtifactFile:
-			fm.fileCounts.ArtifactCount++
-		default:
-			fm.fileCounts.OtherCount++
-		}
-	}
-	fm.wgfc.Done()
-}
-
-func NewUploadManager(opts ...FileTransferManagerOption) *FileTransferManager {
+func NewFileTransferManager(opts ...FileTransferManagerOption) *FileTransferManager {
 
 	fm := FileTransferManager{
 		inChan:         make(chan interface{}, bufferSize),
@@ -106,6 +92,22 @@ func NewUploadManager(opts ...FileTransferManagerOption) *FileTransferManager {
 	go fm.fileCount()
 
 	return &fm
+}
+
+func (fm *FileTransferManager) fileCount() {
+	for fileType := range fm.fileCountsChan {
+		switch fileType {
+		case WandbFile:
+			fm.fileCounts.WandbCount++
+		case MediaFile:
+			fm.fileCounts.MediaCount++
+		case ArtifactFile:
+			fm.fileCounts.ArtifactCount++
+		default:
+			fm.fileCounts.OtherCount++
+		}
+	}
+	fm.wgfc.Done()
 }
 
 // Start is the main loop for the fileTransfer
@@ -207,14 +209,30 @@ func (fm *FileTransferManager) transfer(task interface{}) error {
 	case *UploadTask:
 		err = fm.fileTransfer.Upload(t)
 	case *DownloadTask:
+		// Skip downloading the file if it already exists
+		if _, err := os.Stat(t.Path); err == nil {
+			return nil
+		}
+		if err := fm.ensureDownloadRootDir(t.Path); err != nil {
+			return err
+		}
 		err = fm.fileTransfer.Download(t)
 	default:
-		fm.logger.Debug("fileTransfer: transfer task: invalid task type", "type", t)
+		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
 	}
 	return err
 }
 
-// GetFileCounts returns the file counts for the uploader
+func (fm *FileTransferManager) ensureDownloadRootDir(filePath string) error {
+	baseDir := path.Dir(filePath)
+	info, err := os.Stat(baseDir)
+	if err == nil && info.IsDir() {
+		return nil
+	}
+	return os.MkdirAll(baseDir, 0777)
+}
+
+// GetFileCounts returns the file counts for the fileTransfer
 func (fm *FileTransferManager) GetFileCounts() *service.FileCounts {
 	if fm == nil {
 		return &service.FileCounts{}
