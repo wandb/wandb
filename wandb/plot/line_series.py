@@ -10,7 +10,6 @@ def line_series(
     keys: t.Optional[t.Iterable] = None,
     title: t.Optional[str] = None,
     xname: t.Optional[str] = None,
-    split_table: t.Optional[bool] = False,
 ):
     """Construct a line series plot.
 
@@ -20,7 +19,6 @@ def line_series(
         keys (array): Array of labels for the line plots
         title (string): Plot title.
         xname: Title of x-axis
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         A plot object, to be passed to wandb.log()
@@ -84,5 +82,4 @@ def line_series(
         table,
         {"step": "step", "lineKey": "lineKey", "lineVal": "lineVal"},
         {"title": title, "xname": xname or "x"},
-        split_table=split_table,
     )

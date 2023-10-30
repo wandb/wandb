@@ -9,7 +9,6 @@ def line(
     y: str,
     stroke: Optional[str] = None,
     title: Optional[str] = None,
-    split_table: Optional[bool] = False,
 ):
     """Construct a line plot.
 
@@ -19,7 +18,6 @@ def line(
         y (string): Name of column to as for y-axis values.
         stroke (string): Name of column to map to the line stroke scale.
         title (string): Plot title.
-        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         A plot object, to be passed to wandb.log()
@@ -32,9 +30,5 @@ def line(
         ```
     """
     return wandb.plot_table(
-        "wandb/line/v0",
-        table,
-        {"x": x, "y": y, "stroke": stroke},
-        {"title": title},
-        split_table=split_table,
+        "wandb/line/v0", table, {"x": x, "y": y, "stroke": stroke}, {"title": title}
     )
