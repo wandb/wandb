@@ -152,6 +152,7 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	return nil
 }
 
+/*
 func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	for _, entry := range manifest.Contents {
 		referencedID, err := getReferencedID(entry.Ref)
@@ -177,6 +178,7 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	}
 	return nil
 }
+*/
 
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	var downloadRoot string
