@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -119,15 +118,11 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 		return Manifest{}, err
 	}
 
-	/**
-	/* For now, reference artifact downloads will be handled by the python core
-	/* so no need to accumulate upstream artifacts
-		// Set upstream artifacts, if any
-		err = ad.setUpstreamArtifacts(manifest)
-		if err != nil {
-			return Manifest{}, err
-		}
-	*/
+	// Set upstream artifacts, if any
+	err = ad.setUpstreamArtifacts(manifest)
+	if err != nil {
+		return Manifest{}, err
+	}
 	return manifest, nil
 }
 
@@ -152,7 +147,6 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	return nil
 }
 
-/*
 func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	for _, entry := range manifest.Contents {
 		referencedID, err := getReferencedID(entry.Ref)
@@ -178,7 +172,6 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	}
 	return nil
 }
-*/
 
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	var downloadRoot string
@@ -279,6 +272,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			}
 		}
 	}
+	/**
+	/* For now, reference artifact downloads will be handled by the python core
+	/* so no need to accumulate upstream artifacts
 	if ad.Recursive != nil {
 		if *ad.Recursive {
 			for _, referencedArtifact := range ad.UpstreamArtifacts {
@@ -302,6 +298,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			}
 		}
 	}
+	*/
 	return nil
 }
 
