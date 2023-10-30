@@ -1,3 +1,11 @@
+import pytest
+
+# todo: skip all file
+pytest.skip(
+    "KFP integration does not work with the latest version of KFP",
+    allow_module_level=True,
+)
+
 import inspect
 from importlib import reload
 from unittest.mock import patch
@@ -8,12 +16,6 @@ import wandb
 from kfp.components import InputPath, OutputPath, create_component_from_func
 from kfp.components._structures import InputSpec, OutputSpec
 from wandb.integration.kfp import unpatch_kfp, wandb_log
-
-# todo: skip all file
-pytest.skip(
-    "KFP integration does not work with the latest version of KFP",
-    allow_module_level=True,
-)
 
 
 def test_get_noop_decorator_if_patching_fails():

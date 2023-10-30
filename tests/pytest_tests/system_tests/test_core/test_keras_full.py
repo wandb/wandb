@@ -3,6 +3,9 @@ import json
 import os
 
 import pytest
+
+pytest.importorskip("tensorflow")
+
 import tensorflow as tf
 from tensorflow.keras import backend as K  # noqa: N812
 from tensorflow.keras.layers import Dense, Flatten, Reshape

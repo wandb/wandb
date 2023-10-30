@@ -2,6 +2,9 @@ import os
 import platform
 
 import pytest
+
+pytest.importorskip("tensorflow")
+
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 import wandb
