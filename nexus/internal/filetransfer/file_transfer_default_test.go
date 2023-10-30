@@ -43,9 +43,8 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 			args: args{
 				task: &DownloadTask{
 					Path:     "./test-download-file.txt",
-					Url:      "https://api.wandb.ai/artifactsV2/gcp-us/ibindlish/QXJ0aWZhY3Q6NjAxOTMzOTU2/28809b6d6e4dfce8a6ecc1805be6d30e/tmpm2jpzlpq?_gl=1*70n0ok*_ga*MTU0NDk4NzEyMC4xNjk0ODA4MjU0*_ga_JH1SJHJQXJ*MTY5NzA1NjQxNC43MS4xLjE2OTcwNTg2MTcuNTQuMC4w",
+					Url:      "https://wandb.ai",
 					FileType: ArtifactFile,
-					Err:      nil,
 				},
 			},
 			wantErr: false,
