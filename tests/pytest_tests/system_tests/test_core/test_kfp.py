@@ -6,16 +6,16 @@ pytest.skip(
     allow_module_level=True,
 )
 
-import inspect
-from importlib import reload
-from unittest.mock import patch
+import inspect  # noqa: E402
+from importlib import reload  # noqa: E402
+from unittest.mock import patch  # noqa: E402
 
-import kfp
-import pytest
-import wandb
-from kfp.components import InputPath, OutputPath, create_component_from_func
-from kfp.components._structures import InputSpec, OutputSpec
-from wandb.integration.kfp import unpatch_kfp, wandb_log
+import kfp  # noqa: E402
+import pytest  # noqa: E402
+import wandb  # noqa: E402
+from kfp.components import InputPath, OutputPath, create_component_from_func  # noqa: E402
+from kfp.components._structures import InputSpec, OutputSpec  # noqa: E402
+from wandb.integration.kfp import unpatch_kfp, wandb_log  # noqa: E402
 
 
 def test_get_noop_decorator_if_patching_fails():
