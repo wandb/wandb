@@ -1,7 +1,9 @@
 package filetransfer
 
 import (
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -31,6 +33,7 @@ func NewDefaultFileTransfer(logger *observability.NexusLogger, client *retryable
 // Upload uploads a file to the server
 func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
+
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
 	if err != nil {
@@ -43,19 +46,17 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 		}
 	}(file)
 
-	req, err := retryablehttp.NewRequest(
-		http.MethodPut,
-		task.Url,
-		file,
-	)
-
+	fileWithLen, err := NewFileWithLen(file)
+	if err != nil {
+		return err
+	}
+	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, fileWithLen)
+	if err != nil {
+		return err
+	}
 	for _, header := range task.Headers {
 		parts := strings.Split(header, ":")
 		req.Header.Set(parts[0], parts[1])
-	}
-
-	if err != nil {
-		return err
 	}
 
 	if _, err = ft.client.Do(req); err != nil {
@@ -95,4 +96,24 @@ func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
 		return err
 	}
 	return nil
+}
+
+type FileWithLen struct {
+	*os.File
+	len int
+}
+
+func NewFileWithLen(file *os.File) (FileWithLen, error) {
+	stat, err := file.Stat()
+	if err != nil {
+		return FileWithLen{}, err
+	}
+	if stat.Size() > math.MaxInt {
+		return FileWithLen{}, fmt.Errorf("file larger than %v", math.MaxInt)
+	}
+	return FileWithLen{file, int(stat.Size())}, nil
+}
+
+func (f FileWithLen) Len() int {
+	return f.len
 }
