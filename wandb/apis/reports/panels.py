@@ -1,8 +1,8 @@
 # flake8: noqa
-
-from .reports import (  # ConfusionMatrix,; DataFrames,; MultiRunTable,; Vega,; Vega2,; Vega3,; WeavePanel,
+from ._panels import (
     BarPlot,
     CodeComparer,
+    CustomChart,
     LinePlot,
     MarkdownPanel,
     MediaBrowser,
@@ -11,4 +11,7 @@ from .reports import (  # ConfusionMatrix,; DataFrames,; MultiRunTable,; Vega,; 
     RunComparer,
     ScalarChart,
     ScatterPlot,
+    WeavePanelArtifact,
+    WeavePanelArtifactVersionedFile,
+    WeavePanelSummaryTable,
 )

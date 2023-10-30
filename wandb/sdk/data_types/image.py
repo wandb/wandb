@@ -3,9 +3,12 @@ import logging
 import os
 from io import BytesIO
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
+from urllib import parse
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import hashutil, runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -15,30 +18,32 @@ from .helper_types.image_mask import ImageMask
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import numpy as np  # type: ignore
-    import PIL  # type: ignore
+    import numpy as np
     import torch  # type: ignore
+    from PIL.Image import Image as PILImage
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
-        "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+        "matplotlib.artist.Artist", "PILImage", "TorchTensorType", "np.ndarray"
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 
 def _server_accepts_image_filenames() -> bool:
-    from pkg_resources import parse_version
+    if util._is_offline():
+        return True
 
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
+    from pkg_resources import parse_version
+
     accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
         max_cli_version
     )
@@ -64,7 +69,7 @@ class Image(BatchableMedia):
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
+            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes.
         caption: (string) Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
@@ -115,7 +120,7 @@ class Image(BatchableMedia):
     _caption: Optional[str]
     _width: Optional[int]
     _height: Optional[int]
-    _image: Optional["PIL.Image"]
+    _image: Optional["PILImage"]
     _classes: Optional["Classes"]
     _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
     _masks: Optional[Dict[str, "ImageMask"]]
@@ -148,7 +153,10 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, str):
-            self._initialize_from_path(data_or_path)
+            if self.path_is_reference(data_or_path):
+                self._initialize_from_reference(data_or_path)
+            else:
+                self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode)
 
@@ -214,7 +222,8 @@ class Image(BatchableMedia):
                     for key in total_classes.keys()
                 ]
             )
-        self._width, self._height = self.image.size  # type: ignore
+        if self.image is not None:
+            self._width, self._height = self.image.size
         self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
@@ -244,14 +253,23 @@ class Image(BatchableMedia):
         )
         self._set_file(path, is_tmp=False)
         self._image = pil_image.open(path)
+        assert self._image is not None
         self._image.load()
         ext = os.path.splitext(path)[1][1:]
+        self.format = ext
+
+    def _initialize_from_reference(self, path: str) -> None:
+        self._path = path
+        self._is_tmp = False
+        self._sha256 = hashlib.sha256(path.encode("utf-8")).hexdigest()
+        path = parse.urlparse(path).path
+        ext = path.split("/")[-1].split(".")[-1]
         self.format = ext
 
     def _initialize_from_data(
         self,
         data: "ImageDataType",
-        mode: str = None,
+        mode: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -259,8 +277,8 @@ class Image(BatchableMedia):
         )
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
-            util.ensure_matplotlib_figure(data).savefig(buf)
-            self._image = pil_image.open(buf)
+            util.ensure_matplotlib_figure(data).savefig(buf, format="png")
+            self._image = pil_image.open(buf, formats=["PNG"])
         elif isinstance(data, pil_image.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
@@ -268,7 +286,9 @@ class Image(BatchableMedia):
                 "torchvision.utils", "torchvision is required to render images"
             )
             if hasattr(data, "requires_grad") and data.requires_grad:
-                data = data.detach()
+                data = data.detach()  # type: ignore
+            if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
+                data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
@@ -282,18 +302,21 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, str(util.generate_id()) + ".png")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
         self.format = "png"
+        assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
     def from_json(
-        cls: Type["Image"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["Image"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Image":
-        classes = None
+        classes: Optional[Classes] = None
         if json_obj.get("classes") is not None:
-            classes = source_artifact.get(json_obj["classes"]["path"])
+            value = source_artifact.get(json_obj["classes"]["path"])
+            assert isinstance(value, (type(None), Classes))
+            classes = value
 
         masks = json_obj.get("masks")
         _masks: Optional[Dict[str, ImageMask]] = None
@@ -342,6 +365,11 @@ class Image(BatchableMedia):
         # space, but there are also custom charts, and maybe others. Let's
         # commit to getting all that fixed up before moving this to  the top
         # level Media class.
+        if self.path_is_reference(self._path):
+            raise ValueError(
+                "Image media created by a reference to external storage cannot currently be added to a run"
+            )
+
         if (
             not _server_accepts_artifact_path()
             or self._get_artifact_entry_ref_url() is None
@@ -361,7 +389,7 @@ class Image(BatchableMedia):
                     run, key, step, id_, ignore_copy_err=ignore_copy_err
                 )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
@@ -375,7 +403,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -385,7 +413,7 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                class_id = hashlib.md5(
+                class_id = hashutil._md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
                 class_name = os.path.join(
@@ -414,9 +442,7 @@ class Image(BatchableMedia):
         return json_dict
 
     def guess_mode(self, data: "np.ndarray") -> str:
-        """
-        Guess what type of image the np.array is representing
-        """
+        """Guess what type of image the np.array is representing."""
         # TODO: do we want to support dimensions being at the beginning of the array?
         if data.ndim == 2:
             return "L"
@@ -431,9 +457,10 @@ class Image(BatchableMedia):
 
     @classmethod
     def to_uint8(cls, data: "np.ndarray") -> "np.ndarray":
-        """
-        Converts floating point image on the range [0,1] and integer images
-        on the range [0,255] to uint8, clipping if necessary.
+        """Convert image data to uint8.
+
+        Convert floating point image on the range [0,1] and integer images on the range
+        [0,255] to uint8, clipping if necessary.
         """
         np = util.get_module(
             "numpy",
@@ -461,9 +488,7 @@ class Image(BatchableMedia):
         key: str,
         step: Union[int, str],
     ) -> dict:
-        """
-        Combines a list of images into a meta dictionary object describing the child images.
-        """
+        """Combine a list of images into a meta dictionary object describing the child images."""
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
@@ -472,7 +497,7 @@ class Image(BatchableMedia):
         media_dir = cls.get_media_subdir()
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(media_dir)
+            expected = LogicalPath(media_dir)
             if "path" in obj and not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Image's must be in the {} directory, not {}".format(
@@ -486,7 +511,7 @@ class Image(BatchableMedia):
 
         def size_equals_image(image: "Image") -> bool:
             img_width, img_height = image.image.size  # type: ignore
-            return img_width == width and img_height == height  # type: ignore
+            return img_width == width and img_height == height
 
         sizes_match = all(size_equals_image(img) for img in seq)
         if not sizes_match:
@@ -507,7 +532,7 @@ class Image(BatchableMedia):
             ]
         else:
             wandb.termwarn(
-                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "Unable to log image array filenames. In some cases, this can prevent images from being "
                 "viewed in the UI. Please upgrade your wandb server",
                 repeat=False,
             )
@@ -588,12 +613,16 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            if self.path_is_reference(self._path) and self.path_is_reference(
+                other._path
+            ):
+                return self._path == other._path
             self_image = self.image
             other_image = other.image
             if self_image is not None:
-                self_image = list(self_image.getdata())
+                self_image = list(self_image.getdata())  # type: ignore
             if other_image is not None:
-                other_image = list(other_image.getdata())
+                other_image = list(other_image.getdata())  # type: ignore
 
             return (
                 self._grouping == other._grouping
@@ -618,9 +647,9 @@ class Image(BatchableMedia):
             self._image = None
 
     @property
-    def image(self) -> Optional["PIL.Image"]:
+    def image(self) -> Optional["PILImage"]:
         if self._image is None:
-            if self._path is not None:
+            if self._path is not None and not self.path_is_reference(self._path):
                 pil_image = util.get_module(
                     "PIL.Image",
                     required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',

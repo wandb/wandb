@@ -2,13 +2,27 @@ changelog:
   exclude:
     labels:
       - changelog-ignore
+      - ignore-for-release
+      - cc-revert
+      - cc-build
+      - cc-ci
+      - cc-test
+      - cc-chore
+      - cc-refactor
+    authors:
+      - octocat
   categories:
-    - title: ":nail_care: Enhancement"
+    - title: ":magic_wand: Enhancements"
       labels:
-        - changelog-enhancement
-    - title: ":broom: Cleanup"
+        - cc-feat
+        - cc-perf
+    - title: ":hammer: Fixes"
       labels:
-        - changelog-cleanup
-    - title: ":bug: Bug Fix"
+        - cc-fix
+        - cc-security
+    - title: ":books: Docs"
+      labels:
+        - cc-docs
+    - title: ":nail_care: Cleanup"
       labels:
         - "*"

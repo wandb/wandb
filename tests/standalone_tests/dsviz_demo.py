@@ -262,7 +262,6 @@ def main():
                 "scale_factor": 2,  # The scaling factor for the images
             },
         ) as run:
-
             # Setup a WandB Classes object. This will give additional metadata for visuals
             class_set = wandb.Classes(
                 [{"name": name, "id": id} for name, id in zip(BDD_CLASSES, BDD_IDS)]
@@ -281,7 +280,6 @@ def main():
 
             # Fill up the table
             for ndx in range(run.config["num_examples"]):
-
                 # First, we will build a wandb.Image to act as our raw example object
                 #    classes: the classes which map to masks and/or box metadata
                 #    masks: the mask metadata. In this case, we use a 2d array where each cell corresponds to the label (this comes directlyfrom the dataset)
@@ -349,7 +347,6 @@ def main():
                 "train_pct": 0.7,
             },
         ) as run:
-
             # Get the latest version of the artifact. Notice the name alias follows this convention: "<ARTIFACT_NAME>:<VERSION>"
             # when version is set to "latest", then the latest version will always be used. However, you can pin to a version by
             # using an alias such as "raw_data:v0"
@@ -386,7 +383,6 @@ def main():
 
         # Again, create a run.
         with wandb.init(project=WANDB_PROJECT, job_type="model_train") as run:
-
             # Similar to before, we will load in the artifact and asset we need. In this case, the training data
             train_artifact = run.use_artifact("train_data:latest")
             train_table = train_artifact.get("train_table")
@@ -439,7 +435,6 @@ def main():
         print("Step 3/5 Complete")
 
         with wandb.init(project=WANDB_PROJECT, job_type="model_eval") as run:
-
             # Retrieve the test data
             test_artifact = run.use_artifact("test_data:latest")
             test_table = test_artifact.get("test_table")
@@ -487,7 +482,6 @@ def main():
         print("Step 4/5 Complete")
 
         with wandb.init(project=WANDB_PROJECT, job_type="model_result_analysis") as run:
-
             # Retrieve the original raw dataset
             dataset_artifact = run.use_artifact("raw_data:latest")
             data_table = dataset_artifact.get("raw_examples")

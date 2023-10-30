@@ -5,13 +5,14 @@ The most commonly used functions/objects are:
   - wandb.config — track hyperparameters and metadata
   - wandb.log — log metrics and media over time within your training loop
 
-For guides and examples, see https://docs.wandb.com/guides.
+For guides and examples, see https://docs.wandb.ai.
 
 For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.13.3.dev1"
+__version__ = "0.15.13.dev1"
+_minimum_nexus_version = "0.16.0b3"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -33,7 +34,6 @@ init = wandb_sdk.init
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
-save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
@@ -54,7 +54,7 @@ from wandb.errors import CommError, UsageError
 _preinit = wandb.wandb_lib.preinit
 _lazyloader = wandb.wandb_lib.lazyloader
 
-# Call import module hook to setup any needed require hooks
+# Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
 from wandb import wandb_torch
@@ -84,6 +84,8 @@ from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
+# Artifact import types
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
@@ -121,7 +123,7 @@ def _assert_is_user_process():
 # globals
 Api = PublicApi
 api = InternalApi()
-run: Optional["wandb.sdk.wandb_run.Run"] = None
+run: Optional["wandb_sdk.wandb_run.Run"] = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
@@ -132,6 +134,15 @@ use_artifact = _preinit.PreInitCallable(
 )
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
+)
+log_model = _preinit.PreInitCallable(
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+)
+use_model = _preinit.PreInitCallable(
+    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model
+)
+link_model = _preinit.PreInitCallable(
+    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model
 )
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
@@ -188,14 +199,34 @@ def load_ipython_extension(ipython):
     ipython.register_magics(wandb.jupyter.WandBMagics)
 
 
-if wandb_sdk.lib.ipython.in_jupyter():
+if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython
 
     load_ipython_extension(get_ipython())
 
-wandb.require("service")
 
-__all__ = [
+from .analytics import Sentry as _Sentry
+
+_sentry = _Sentry()
+_sentry.setup()
+
+
+# print a warning if running py 3.6 saying that it will be deprecated in the 0.16.0 release
+try:
+    import sys
+
+    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+        termwarn(
+            "Support for Python 3.6 will be discontinued "
+            "in the upcoming 0.16.0 release of wandb. "
+            "We recommend upgrading to Python 3.7 or a later version.",
+            repeat=False,
+        )
+except Exception:
+    pass
+
+
+__all__ = (
     "__version__",
     "init",
     "setup",
@@ -218,4 +249,8 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-]
+    "ArtifactTTL",
+    "log_model",
+    "use_model",
+    "link_model",
+)

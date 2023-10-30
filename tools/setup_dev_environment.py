@@ -8,13 +8,12 @@ import sys
 
 from pkg_resources import parse_version
 
-PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
-TOX_VERSION = "3.24.0"
+PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10", "3.11"]
 
 
 # Python 3.6 is not installable on Macs with Apple silicon
 if platform.system() == "Darwin" and platform.processor() == "arm":
-    PYTHON_VERSIONS.pop(0)
+    PYTHON_VERSIONS = [v for v in PYTHON_VERSIONS if v != "3.6"]
 
 
 class Console:
@@ -129,21 +128,13 @@ def main():
         check=True,
     )
 
-    print("Installing dependencies: tox...")
-    subprocess.run(
-        ["python", "-m", "pip", "install", "-qq", f"tox=={TOX_VERSION}"],
-        stdout=sys.stdout,
-        stderr=subprocess.STDOUT,
-        check=True,
-    )
-
     print(f"{Console.GREEN}Development environment setup!{Console.END}")
     print()
     print("Run all tests in all python environments:")
     print(f"{Console.CODE}  tox{Console.END}")
     print("Run a specific test in a specific environment:")
     print(
-        f"{Console.CODE}  tox -e py37 -- tests/test_public_api.py -k test_run_config{Console.END}"
+        f"{Console.CODE}  tox -e py37 -- tests/pytest_tests/unit_tests/test_public_api.py -k proj{Console.END}"
     )
     print("Lint code:")
     print(f"{Console.CODE}  tox -e format,flake8,mypy{Console.END}")

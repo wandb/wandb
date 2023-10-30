@@ -7,6 +7,7 @@ command:
     program: test_keras.py
 depend:
     requirements:
+        - protobuf==3.20.2
         - pillow
         - tensorflow==2.1.0
 assert:

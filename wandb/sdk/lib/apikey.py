@@ -1,16 +1,21 @@
-"""
-apikey util.
-"""
+"""apikey util."""
 
 import os
 import stat
 import sys
 import textwrap
 from functools import partial
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
 from urllib.parse import urlparse
 
+# import Literal
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
 import click
-import requests
+import requests.utils
 
 import wandb
 from wandb.apis import InternalApi
@@ -31,27 +36,32 @@ LOGIN_CHOICES = [
     LOGIN_CHOICE_DRYRUN,
 ]
 
+Mode = Literal["allow", "must", "never", "false", "true"]
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_settings import Settings
+
 
 getpass = partial(click.prompt, hide_input=True, err=True)
 
 
-def _fixup_anon_mode(default):
+def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
     # Convert weird anonymode values from legacy settings files
     # into one of our expected values.
     anon_mode = default or "never"
-    mapping = {"true": "allow", "false": "never"}
+    mapping: Dict[Mode, Mode] = {"true": "allow", "false": "never"}
     return mapping.get(anon_mode, anon_mode)
 
 
 def prompt_api_key(  # noqa: C901
-    settings,
-    api=None,
-    input_callback=None,
-    browser_callback=None,
-    no_offline=False,
-    no_create=False,
-    local=False,
-):
+    settings: "Settings",
+    api: Optional[InternalApi] = None,
+    input_callback: Optional[Callable] = None,
+    browser_callback: Optional[Callable] = None,
+    no_offline: bool = False,
+    no_create: bool = False,
+    local: bool = False,
+) -> Union[str, bool, None]:
     """Prompt for api key.
 
     Returns:
@@ -62,7 +72,7 @@ def prompt_api_key(  # noqa: C901
     input_callback = input_callback or getpass
     log_string = term.LOG_STRING
     api = api or InternalApi(settings)
-    anon_mode = _fixup_anon_mode(settings.anonymous)
+    anon_mode = _fixup_anon_mode(settings.anonymous)  # type: ignore
     jupyter = settings._jupyter or False
     app_url = api.app_url
 
@@ -80,7 +90,7 @@ def prompt_api_key(  # noqa: C901
         key = wandb.jupyter.attempt_colab_login(app_url)
         if key is not None:
             write_key(settings, key, api=api)
-            return key
+            return key  # type: ignore
 
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
@@ -106,7 +116,7 @@ def prompt_api_key(  # noqa: C901
         key = api.create_anonymous_api_key()
 
         write_key(settings, key, api=api, anonymous=True)
-        return key
+        return key  # type: ignore
     elif result == LOGIN_CHOICE_NEW:
         key = browser_callback(signup=True) if browser_callback else None
 
@@ -115,14 +125,14 @@ def prompt_api_key(  # noqa: C901
             key = input_callback(api_ask).strip()
 
         write_key(settings, key, api=api)
-        return key
+        return key  # type: ignore
     elif result == LOGIN_CHOICE_EXISTS:
         key = browser_callback() if browser_callback else None
 
         if not key:
             if not (settings.is_local or local):
                 host = app_url
-                for prefix in "http://", "https://":
+                for prefix in ("http://", "https://"):
                     if app_url.startswith(prefix):
                         host = app_url[len(prefix) :]
                 wandb.termlog(
@@ -133,7 +143,7 @@ def prompt_api_key(  # noqa: C901
             )
             key = input_callback(api_ask).strip()
         write_key(settings, key, api=api)
-        return key
+        return key  # type: ignore
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
@@ -147,11 +157,11 @@ def prompt_api_key(  # noqa: C901
         )
 
         write_key(settings, key, api=api)
-        return key
+        return key  # type: ignore
 
 
-def write_netrc(host, entity, key):
-    """Add our host and key to .netrc"""
+def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
+    """Add our host and key to .netrc."""
     key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
         wandb.termerror(
@@ -209,7 +219,12 @@ def write_netrc(host, entity, key):
         return None
 
 
-def write_key(settings, key, api=None, anonymous=False):
+def write_key(
+    settings: "Settings",
+    key: Optional[str],
+    api: Optional["InternalApi"] = None,
+    anonymous: bool = False,
+) -> None:
     if not key:
         raise ValueError("No API key specified.")
 
@@ -231,9 +246,10 @@ def write_key(settings, key, api=None, anonymous=False):
     write_netrc(settings.base_url, "user", key)
 
 
-def api_key(settings=None):
-    if not settings:
+def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
+    if settings is None:
         settings = wandb.setup().settings
+        assert settings is not None
     if settings.api_key:
         return settings.api_key
     auth = requests.utils.get_netrc_auth(settings.base_url)

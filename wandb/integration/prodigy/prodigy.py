@@ -1,4 +1,4 @@
-"""Prodigy integration for W&B
+"""Prodigy integration for W&B.
 
 User can upload Prodigy annotated datasets directly
 from the local database to W&B in Tables format.
@@ -31,10 +31,10 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def named_entity(docs):
-    """Creates a named entity visualization.
-    Taken from https://github.com/wandb/wandb/blob/master/wandb/plots/named_entity.py
-    """
+    """Create a named entity visualization.
 
+    Taken from https://github.com/wandb/wandb/blob/main/wandb/plots/named_entity.py.
+    """
     spacy = util.get_module(
         "spacy",
         required="part_of_speech requires the spacy library, install with `pip install spacy`",
@@ -68,7 +68,7 @@ def merge(dict1, dict2):
 
 
 def get_schema(list_data_dict, struct, array_dict_types):
-    """Get a schema of the dataset's structure and data types"""
+    """Get a schema of the dataset's structure and data types."""
     # Get the structure of the JSON objects in the database
     # This is similar to getting a JSON schema but with slightly different format
     for _i, item in enumerate(list_data_dict):
@@ -203,7 +203,6 @@ def create_table(data):
 
     # Go through each individual row
     for _i, document in enumerate(matrix):
-
         # Text NER span visualizations
         if ("spans_visual" in columns) and ("text" in columns):
             # Add visuals for spans
@@ -270,7 +269,7 @@ def create_table(data):
 
 
 def upload_dataset(dataset_name):
-    """Uploads dataset from local database to Weights & Biases.
+    """Upload dataset from local database to Weights & Biases.
 
     Args:
         dataset_name: The name of the dataset in the Prodigy database.

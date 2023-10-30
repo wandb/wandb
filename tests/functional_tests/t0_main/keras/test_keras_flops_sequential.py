@@ -24,4 +24,4 @@ def get_sequential_model():
 
 
 model = get_sequential_model()
-_ = model.fit(x, y, epochs=2, callbacks=[WandbCallback()])
+_ = model.fit(x, y, epochs=2, callbacks=[WandbCallback(compute_flops=True)])

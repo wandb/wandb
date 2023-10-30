@@ -2,9 +2,9 @@ FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG PYTHON_VERSION=3.8
+ARG PYTHON_VERSION=3.9
 ARG GIT_BRANCH=master
-ARG TOX_VERSION=3.24.0
+ARG TOX_VERSION=4.5.1
 ARG UTC_DATE
 
 # todo: enable docker image layer caching on circleci
@@ -46,4 +46,4 @@ RUN PATH=/home/sdk/.local/bin:$PATH
 WORKDIR /wandb/wandb
 ENV DATE=$UTC_DATE
 #CMD ["tail", "-f", "/dev/null"]
-CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py38,pod-store"]
+CMD ["python", "-m", "tox", "-v", "-e", "standalone-cpu-py39,pod-store"]

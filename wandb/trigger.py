@@ -1,4 +1,4 @@
-"""Module to facilitate adding hooks to wandb actions
+"""Module to facilitate adding hooks to wandb actions.
 
 Usage:
     import trigger

@@ -4,6 +4,10 @@ plugin:
 tag:
   skips:
     - platform: win
+depend:
+  requirements:
+    - --pre stable-baselines3
+    - tensorboard
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][policy_type]: MlpPolicy

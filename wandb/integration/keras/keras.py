@@ -1,6 +1,4 @@
-"""
-keras init
-"""
+"""keras init."""
 
 import logging
 import operator
@@ -11,7 +9,7 @@ from itertools import chain
 
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras.backend as K
+import tensorflow.keras.backend as K  # noqa: N812
 
 import wandb
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
@@ -30,9 +28,7 @@ def _check_keras_version():
 
 
 def _can_compute_flops() -> bool:
-    """
-    FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1
-    """
+    """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
     from pkg_resources import parse_version
 
     if parse_version(tf.__version__) >= parse_version("2.0.0"):
@@ -76,11 +72,15 @@ def is_generator_like(data):
     return hasattr(data, "next") or hasattr(data, "__next__") or isinstance(data, types)
 
 
-def patch_tf_keras():
+def patch_tf_keras():  # noqa: C901
     from pkg_resources import parse_version
     from tensorflow.python.eager import context
 
-    if parse_version(tf.__version__) >= parse_version("2.6.0"):
+    if (
+        parse_version("2.6.0")
+        <= parse_version(tf.__version__)
+        < parse_version("2.13.0")
+    ):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -234,7 +234,21 @@ patch_tf_keras()
 ### For gradient logging ###
 
 
-class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+def _get_custom_optimizer_parent_class():
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+        custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+    else:
+        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
+
+    return custom_optimizer_parent_class
+
+
+_custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
+
+
+class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
         super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
@@ -253,10 +267,7 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
 
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
-    """
-    Accumulates gradients during a fit() call when used in conjunction with
-    the CustomOptimizer above.
-    """
+    """Accumulates gradients during a fit() call when used in conjunction with the CustomOptimizer above."""
 
     def set_model(self, model):
         super().set_model(model)
@@ -369,6 +380,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
+        compute_flops: (bool) Compute the FLOPs of your Keras Sequential or Functional model in GigaFLOPs unit.
     """
 
     def __init__(
@@ -382,7 +394,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         save_model=True,
         training_data=None,
         validation_data=None,
-        labels=[],
+        labels=None,
         predictions=36,
         generator=None,
         input_type=None,
@@ -398,6 +410,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        compute_flops=False,
         **kwargs,
     ):
         if wandb.run is None:
@@ -411,7 +424,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 generator = validation_data
             else:
                 self.validation_data = validation_data
-
+        if labels is None:
+            labels = []
         self.labels = labels
         self.predictions = min(predictions, 100)
 
@@ -459,6 +473,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
+        self.compute_flops = compute_flops
 
         self._prediction_batch_size = None
 
@@ -561,7 +576,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
             except Exception as e:
                 wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            logs = {}
         if self.log_weights:
             wandb.log(self._log_weights(), commit=False)
 
@@ -667,7 +684,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     else:
                         x = None
                         y_true = None
-                        for i in range(self.validation_steps):
+                        for _ in range(self.validation_steps):
                             bx, by_true = next(self.generator)
                             if x is None:
                                 x, y_true = bx, by_true
@@ -699,27 +716,16 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     f"Skipping logging validation data. Error: {str(e)}"
                 )
 
-        if _can_compute_flops():
+        if self.compute_flops and _can_compute_flops():
             try:
                 wandb.summary["GFLOPs"] = self.get_flops()
             except Exception as e:
                 wandb.termwarn("Unable to compute FLOPs for this model.")
+                logger.exception(e)
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
             self._attempt_evaluation_log()
-
-    def on_test_begin(self, logs=None):
-        pass
-
-    def on_test_end(self, logs=None):
-        pass
-
-    def on_test_batch_begin(self, batch, logs=None):
-        pass
-
-    def on_test_batch_end(self, batch, logs=None):
-        pass
 
     def on_predict_begin(self, logs=None):
         pass
@@ -780,7 +786,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         return imgs
 
     def _log_images(self, num_images=36):
-        validation_X = self.validation_data[0]
+        validation_X = self.validation_data[0]  # noqa: N806
         validation_y = self.validation_data[1]
 
         validation_length = len(validation_X)
@@ -928,7 +934,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
-        for (weight, grad) in zip(weights, grads):
+        for weight, grad in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
@@ -948,7 +954,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 )
                 return None
 
-            for i in range(self.validation_steps):
+            for _ in range(self.validation_steps):
                 bx, by_true = next(self.generator)
                 by_pred = self.model.predict(bx)
                 if x is None:
@@ -977,8 +983,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             )
         else:
             wandb.termwarn(
-                "unknown dataframe type for input_type=%s and output_type=%s"
-                % (self.input_type, self.output_type)
+                f"unknown dataframe type for input_type={self.input_type} and output_type={self.output_type}"
             )
             return None
 
@@ -999,11 +1004,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError) as e:
+        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
             wandb.termerror(
                 "Can't save model in the h5py format. The model will be saved as "
                 "as an W&B Artifact in the 'tf' format."
             )
+            logger.exception(e)
 
     def _save_model_as_artifact(self, epoch):
         if wandb.run.disabled:
@@ -1024,9 +1030,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         shutil.rmtree(self.filepath[:-3])
 
     def get_flops(self) -> float:
-        """
-        Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model
-        in inference mode. It uses tf.compat.v1.profiler under the hood.
+        """Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model in inference mode.
+
+        It uses tf.compat.v1.profiler under the hood.
         """
         if not hasattr(self, "model"):
             raise wandb.Error("self.model must be set before using this method.")
@@ -1067,8 +1073,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         flops = tf.compat.v1.profiler.profile(
             graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
         )
-
-        tf.compat.v1.reset_default_graph()
 
         # convert to GFLOPs
         return (flops.total_float_ops / 1e9) / 2

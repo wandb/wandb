@@ -9,6 +9,7 @@ depend:
     - "metaflow>=2.3.5"
     - "torch"
     - "torchvision"
+    - fastcore
 tag:
   shard: metaflow
   skips:

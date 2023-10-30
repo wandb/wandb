@@ -1,4 +1,4 @@
-"""Router - handle message router (sock)
+"""Router - handle message router (sock).
 
 Router to manage responses from a socket client.
 
@@ -16,12 +16,13 @@ if TYPE_CHECKING:
 
 class MessageSockRouter(MessageRouter):
     _sock_client: SockClient
+    _mailbox: Mailbox
 
     def __init__(self, sock_client: SockClient, mailbox: Mailbox) -> None:
         self._sock_client = sock_client
         super().__init__(mailbox=mailbox)
 
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> Optional["pb.Result"]:
         try:
             resp = self._sock_client.read_server_response(timeout=1)
         except SockClientClosedError:

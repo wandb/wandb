@@ -21,9 +21,9 @@ def deprecate(
     warning_message: str,
     run: Optional["wandb_run.Run"] = None,
 ) -> None:
-    """
-    Warn the user that a feature has been deprecated
-    and store the information about the event in telemetry.
+    """Warn the user that a feature has been deprecated.
+
+    Also stores the information about the event in telemetry.
 
     Args:
         field_name: The name of the feature that has been deprecated.

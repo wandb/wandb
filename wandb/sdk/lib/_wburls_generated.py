@@ -12,8 +12,10 @@ URLS = Literal[
     "doc_run",
     "doc_require",
     "doc_start_err",
+    "doc_artifacts_guide",
     "upgrade_server",
     "multiprocess",
     "wandb_init",
     "wandb_server",
+    "wandb_define_metric",
 ]

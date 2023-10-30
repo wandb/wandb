@@ -12,15 +12,16 @@ def confusion_matrix(
     preds: Optional[Sequence] = None,
     class_names: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
+    split_table: Optional[bool] = False,
 ):
-    """
-    Computes a multi-run confusion matrix.
+    """Compute a multi-run confusion matrix.
 
     Arguments:
         probs (2-d arr): Shape [n_examples, n_classes]
         y_true (arr): Array of label indices.
         preds (arr): Array of predicted label indices.
         class_names (arr): Array of class names.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -35,7 +36,6 @@ def confusion_matrix(
         wandb.log({'confusion_matrix': wandb.plot.confusion_matrix(probs, y_true=y_true, class_names=labels)})
         ```
     """
-
     np = util.get_module(
         "numpy",
         required="confusion matrix requires the numpy library, install with `pip install numpy`",
@@ -95,4 +95,5 @@ def confusion_matrix(
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
         {"title": title},
+        split_table=split_table,
     )

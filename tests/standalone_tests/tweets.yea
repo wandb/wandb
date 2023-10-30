@@ -8,6 +8,9 @@ tag:
     - win
 plugin:
   - wandb
+depend:
+  requirements:
+    - scikit-learn
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

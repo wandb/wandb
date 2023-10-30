@@ -7,6 +7,10 @@ tag:
     - win
 plugin:
   - wandb
+depend:
+  requirements:
+    # todo: remove the pin once https://github.com/tensorflow/tensorflow/issues/58681 is fixed
+    - tensorflow<2.11
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

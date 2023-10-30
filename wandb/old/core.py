@@ -96,8 +96,9 @@ def termlog(string="", newline=True, repeat=True):
         PRINTED_MESSAGES.add(line)
     if os.getenv(env.SILENT):
         from wandb import util
+        from wandb.sdk.lib import filesystem
 
-        util.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
+        filesystem.mkdir_exists_ok(os.path.dirname(util.get_log_file_path()))
         with open(util.get_log_file_path(), "w") as log:
             click.echo(line, file=log, nl=newline)
     else:

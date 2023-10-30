@@ -1,9 +1,12 @@
 import configparser
+import getpass
 import os
+import tempfile
 from typing import Any, Optional
 
-from wandb import env, util
+from wandb import env
 from wandb.old import core
+from wandb.sdk.lib import filesystem
 
 
 class Settings:
@@ -41,16 +44,30 @@ class Settings:
                 else:
                     raise
 
+    def _persist_settings(self, settings, settings_path) -> None:
+        # write a temp file and then move it to the settings path
+        target_dir = os.path.dirname(settings_path)
+        with tempfile.NamedTemporaryFile(
+            "w+", suffix=".tmp", delete=False, dir=target_dir
+        ) as fp:
+            path = os.path.abspath(fp.name)
+            with open(path, "w+") as f:
+                settings.write(f)
+        try:
+            os.replace(path, settings_path)
+        except AttributeError:
+            os.rename(path, settings_path)
+
     def set(self, section, key, value, globally=False, persist=False) -> None:
-        """Persists settings to disk if persist = True"""
+        """Persist settings to disk if persist = True"""
 
         def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
             settings.set(section, key, str(value))
+
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             write_setting(self._global_settings, Settings._global_path(), persist)
@@ -63,8 +80,7 @@ class Settings:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
             clear_setting(self._global_settings, Settings._global_path(), persist)
@@ -105,13 +121,22 @@ class Settings:
 
     @staticmethod
     def _global_path():
-        config_dir = os.environ.get(
-            env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
-        )
-        util.mkdir_exists_ok(config_dir)
+        default_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
+        # if not writable, fall back to a temp directory
+        if not os.access(default_config_dir, os.W_OK):
+            default_config_dir = os.path.join(tempfile.gettempdir(), ".config", "wandb")
+        # if not writable (if tempdir is shared, for example), try creating a subdir
+        if not os.access(default_config_dir, os.W_OK):
+            username = getpass.getuser()
+            default_config_dir = os.path.join(
+                tempfile.gettempdir(), username, ".config", "wandb"
+            )
+
+        config_dir = os.environ.get(env.CONFIG_DIR, default_config_dir)
+        os.makedirs(config_dir, exist_ok=True)
         return os.path.join(config_dir, "settings")
 
     @staticmethod
     def _local_path(root_dir=None):
-        util.mkdir_exists_ok(core.wandb_dir(root_dir))
+        filesystem.mkdir_exists_ok(core.wandb_dir(root_dir))
         return os.path.join(core.wandb_dir(root_dir), "settings")

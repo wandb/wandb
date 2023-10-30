@@ -64,7 +64,6 @@ def main():
     for _epoch in range(100):
         total_loss = 0
         for context, target in trigrams:
-
             # Step 1. Prepare the inputs to be passed to the model (i.e, turn the words
             # into integer indices and wrap them in tensors)
             context_idxs = torch.tensor(
