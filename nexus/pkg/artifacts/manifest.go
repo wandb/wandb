@@ -88,7 +88,7 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 	if !ok {
 		// implement _get_obj_entry
 		// For now just return error
-		return ManifestEntry{}, fmt.Errorf("Path not contained in artifact: %s", path)
+		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
 	return manifestEntry, nil
 }

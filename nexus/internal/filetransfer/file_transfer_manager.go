@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
@@ -18,14 +19,17 @@ const (
 )
 
 type FileTransfer interface {
-	Upload(task *UploadTask) error
-	Download(task *DownloadTask) error
+	Upload(task *Task) error
+	Download(task *Task) error
 }
 
 // FileTransferManager handles the upload/download of files
 type FileTransferManager struct {
 	// inChan is the channel for incoming messages
-	inChan chan interface{}
+	inChan chan *Task
+
+	// fsChan is the channel for messages outgoing to the filestream
+	fsChan chan protoreflect.ProtoMessage
 
 	// fileTransfer is the uploader/downloader
 	// todo: make this a map of uploaders for different destination storage types
@@ -73,10 +77,16 @@ func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 	}
 }
 
+func WithFSCChan(fsChan chan protoreflect.ProtoMessage) FileTransferManagerOption {
+	return func(fm *FileTransferManager) {
+		fm.fsChan = fsChan
+	}
+}
+
 func NewFileTransferManager(opts ...FileTransferManagerOption) *FileTransferManager {
 
 	fm := FileTransferManager{
-		inChan:         make(chan interface{}, bufferSize),
+		inChan:         make(chan *Task, bufferSize),
 		fileCounts:     &service.FileCounts{},
 		fileCountsChan: make(chan FileType, bufferSize),
 		wgfc:           &sync.WaitGroup{},
@@ -119,50 +129,26 @@ func (fm *FileTransferManager) Start() {
 			fm.wg.Add(1)
 			fm.logger.Debug("fileTransfer: got task", "task", task)
 			// spin up a goroutine per task
-			go func(task interface{}) {
+			go func(task *Task) {
 				// Acquire the semaphore
 				fm.semaphore <- struct{}{}
-				switch t := task.(type) {
-				case *UploadTask:
-					t.Err = fm.transfer(t)
-					// Release the semaphore
-					<-fm.semaphore
-					if t.Err != nil {
-						fm.logger.CaptureError(
-							"filetransfer: uploader: error uploading",
-							t.Err,
-							"path", t.Path, "url", t.Url,
-						)
-					}
-					// Execute the callback.
-					if t.CompletionCallback != nil {
-						t.CompletionCallback(t)
-					}
+				task.Err = fm.transfer(task)
+				// Release the semaphore
+				<-fm.semaphore
+				if task.Err != nil {
+					fm.logger.CaptureError(
+						"filetransfer: uploader: error uploading",
+						task.Err,
+						"path", task.Path, "url", task.Url,
+					)
+				}
+				// Execute the callback.
+				if task.CompletionCallback != nil {
+					task.CompletionCallback(task)
+				}
 
-					if t.Err == nil {
-						fm.fileCountsChan <- t.FileType
-					}
-				case *DownloadTask:
-					t.Err = fm.transfer(t)
-					// Release the semaphore
-					<-fm.semaphore
-					if t.Err != nil {
-						fm.logger.CaptureError(
-							"filetransfer: downloader: error downloading",
-							t.Err,
-							"path", t.Path, "url", t.Url,
-						)
-					}
-					// Execute the callback.
-					if t.CompletionCallback != nil {
-						t.CompletionCallback(t)
-					}
-
-					if t.Err == nil {
-						fm.fileCountsChan <- t.FileType
-					}
-				default:
-					fm.logger.Debug("fileTransfer: go routine for transfer task: invalid task type", "type", t)
+				if task.Err == nil {
+					fm.fileCountsChan <- task.FileType
 				}
 				// mark the task as done
 				fm.wg.Done()
@@ -173,16 +159,25 @@ func (fm *FileTransferManager) Start() {
 }
 
 // AddTask adds a task to the fileTransfer
-func (fm *FileTransferManager) AddTask(task interface{}) {
-	switch t := task.(type) {
-	case *UploadTask:
-		fm.logger.Debug("fileTransfer: adding upload task", "path", t.Path, "url", t.Url)
-		fm.inChan <- t
-	case *DownloadTask:
-		fm.logger.Debug("fileTransfer: adding download task", "path", t.Path, "url", t.Url)
-		fm.inChan <- t
-	default:
-		fm.logger.Debug("fileTransfer: adding task: invalid task type", "type", t)
+func (fm *FileTransferManager) AddTask(task *Task) {
+	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
+	fm.inChan <- task
+}
+
+// FileStreamCallback returns a callback for filestream updates
+func (fm *FileTransferManager) FileStreamCallback() func(task *Task) {
+	return func(task *Task) {
+		fm.logger.Debug("uploader: filestream callback", "task", task)
+		if task.Err != nil {
+			return
+		}
+		if task.FileType == ArtifactFile {
+			return
+		}
+		record := &service.FilesUploaded{
+			Files: []string{task.Name},
+		}
+		fm.fsChan <- record
 	}
 }
 
@@ -203,20 +198,20 @@ func (fm *FileTransferManager) Close() {
 }
 
 // transfer uploads/downloads a file to/from the server
-func (fm *FileTransferManager) transfer(task interface{}) error {
+func (fm *FileTransferManager) transfer(task *Task) error {
 	var err error
-	switch t := task.(type) {
-	case *UploadTask:
-		err = fm.fileTransfer.Upload(t)
-	case *DownloadTask:
+	switch task.TaskType {
+	case UploadTask:
+		err = fm.fileTransfer.Upload(task)
+	case DownloadTask:
 		// Skip downloading the file if it already exists
-		if _, err := os.Stat(t.Path); err == nil {
+		if _, err := os.Stat(task.Path); err == nil {
 			return nil
 		}
-		if err := fm.ensureDownloadRootDir(t.Path); err != nil {
+		if err := fm.ensureDownloadRootDir(task.Path); err != nil {
 			return err
 		}
-		err = fm.fileTransfer.Download(t)
+		err = fm.fileTransfer.Download(task)
 	default:
 		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
 	}

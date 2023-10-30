@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,6 +110,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -119,6 +123,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -136,6 +143,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		)
 		fileTransferRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -149,6 +157,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			filetransfer.WithLogger(logger),
 			filetransfer.WithSettings(settings),
 			filetransfer.WithFileTransfer(defaultFileTransfer),
+			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
 		)
 
 	}
@@ -761,7 +770,8 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
+		task := &filetransfer.Task{TaskType: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+		task.CompletionCallback = s.fileTransferManager.FileStreamCallback()
 		s.fileTransferManager.AddTask(task)
 	}
 }

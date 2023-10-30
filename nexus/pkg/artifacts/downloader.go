@@ -187,7 +187,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	batchSize := BATCH_SIZE
 
 	type TaskResult struct {
-		Task *filetransfer.DownloadTask
+		Task *filetransfer.Task
 		Name string
 	}
 
@@ -244,10 +244,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					numInProgress++
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(downloadRoot, *entry.LocalPath)
-					task := &filetransfer.DownloadTask{
-						Path: downloadLocalPath,
-						Url:  *entry.DownloadURL,
-						CompletionCallback: func(task *filetransfer.DownloadTask) {
+					task := &filetransfer.Task{
+						TaskType: filetransfer.DownloadTask,
+						Path:     downloadLocalPath,
+						Url:      *entry.DownloadURL,
+						CompletionCallback: func(task *filetransfer.Task) {
 							taskResultsChan <- TaskResult{task, *entry.LocalPath}
 						},
 						FileType: filetransfer.ArtifactFile,
