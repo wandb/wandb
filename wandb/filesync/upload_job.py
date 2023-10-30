@@ -197,7 +197,10 @@ class UploadJobAsync:
 
             await loop.run_in_executor(None, sync_job.run)
         else:
-            self._file_stream.push_success(self._request.artifact_id, self._request.save_name)  # type: ignore
+            self._file_stream.push_success(
+                self._request.artifact_id,  # type: ignore
+                self._request.save_name,
+            )
 
             if deduped:
                 logger.info("Skipped uploading %s", self._request.path)
