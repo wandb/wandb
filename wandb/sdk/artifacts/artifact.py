@@ -1664,33 +1664,6 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        self._ensure_logged("download")
-
-        root = root or self._default_root()
-        self._add_download_root(root)
-        if wandb.run is None:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ) as run:
-                return FilePathStr(
-                    run._download_artifact(
-                        self, root, recursive, allow_missing_references
-                    )
-                )
-        else:
-            return wandb.run._download_artifact(
-                self, root, recursive, allow_missing_references
-            )
-
-    def _download(
-        self,
-        root: Optional[str] = None,
-        recursive: bool = False,
-        allow_missing_references: bool = False,
-    ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
         NOTE: Any existing files at `root` are left untouched. Explicitly delete
@@ -1708,6 +1681,31 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
+        self._ensure_logged("download")
+
+        root = root or self._default_root()
+        self._add_download_root(root)
+        if wandb.run is None:
+            with wandb.init(
+                entity=self._source_entity,
+                project=self._source_project,
+                job_type="auto",
+                settings=wandb.Settings(silent="true"),
+            ) as run:
+                return run._download_artifact(
+                    self, root, recursive, allow_missing_references
+                )
+        else:
+            return wandb.run._download_artifact(
+                self, root, recursive, allow_missing_references
+            )
+
+    def _download(
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
+    ) -> FilePathStr:
         self._ensure_logged("download")
 
         root = root or self._default_root()
