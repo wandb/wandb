@@ -768,7 +768,7 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.UploadTask{Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+		task := &filetransfer.Task{TaskType: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
 		task.CompletionCallback = s.fileTransferManager.FileStreamCallback()
 		s.fileTransferManager.AddTask(task)
 	}

@@ -16,7 +16,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 		logger *observability.NexusLogger
 	}
 	type args struct {
-		task *DownloadTask
+		task *Task
 	}
 	logger := observability.NewNoOpLogger()
 	settings := service.Settings{}
@@ -41,7 +41,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 				logger: observability.NewNoOpLogger(),
 			},
 			args: args{
-				task: &DownloadTask{
+				task: &Task{
 					Path:     "./test-download-file.txt",
 					Url:      "https://wandb.ai",
 					FileType: ArtifactFile,
