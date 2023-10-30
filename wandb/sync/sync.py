@@ -44,6 +44,7 @@ class SyncThread(threading.Thread):
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         view=None,
         verbose=None,
         mark_synced=None,
@@ -59,6 +60,7 @@ class SyncThread(threading.Thread):
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._view = view
         self._verbose = verbose
         self._mark_synced = mark_synced
@@ -84,6 +86,8 @@ class SyncThread(threading.Thread):
                 pb.run.project = self._project
             if self._entity:
                 pb.run.entity = self._entity
+            if self._job_type:
+                pb.run.job_type = self._job_type
             pb.control.req_resp = True
         elif record_type == "exit":
             exit_pb = pb
@@ -318,6 +322,7 @@ class SyncManager:
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         mark_synced=None,
         app_url=None,
         view=None,
@@ -331,6 +336,7 @@ class SyncManager:
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._mark_synced = mark_synced
         self._app_url = app_url
         self._view = view
@@ -352,6 +358,7 @@ class SyncManager:
             project=self._project,
             entity=self._entity,
             run_id=self._run_id,
+            job_type=self._job_type,
             view=self._view,
             verbose=self._verbose,
             mark_synced=self._mark_synced,
