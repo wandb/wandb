@@ -13,7 +13,11 @@ from unittest.mock import patch  # noqa: E402
 import kfp  # noqa: E402
 import pytest  # noqa: E402
 import wandb  # noqa: E402
-from kfp.components import InputPath, OutputPath, create_component_from_func  # noqa: E402
+from kfp.components import (  # noqa: E402
+    InputPath,
+    OutputPath,
+    create_component_from_func,
+)
 from kfp.components._structures import InputSpec, OutputSpec  # noqa: E402
 from wandb.integration.kfp import unpatch_kfp, wandb_log  # noqa: E402
 
