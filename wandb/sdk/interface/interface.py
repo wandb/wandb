@@ -478,8 +478,8 @@ class InterfaceBase:
         self,
         qualified_name: str,
         download_root: Optional[str],
-        recursive: Optional[bool],
-        allow_missing_references: Optional[bool],
+        recursive: bool,
+        allow_missing_references: bool,
     ) -> Optional[pb.Result]:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.qualified_name = qualified_name

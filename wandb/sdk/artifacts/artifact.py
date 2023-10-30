@@ -1695,9 +1695,9 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ) as run:
-                return run._download_artifact(
+                return FilePathStr(run._download_artifact(
                     self, root, recursive, allow_missing_references
-                )
+                ))
         else:
             return wandb.run._download_artifact(
                 self, root, recursive, allow_missing_references
