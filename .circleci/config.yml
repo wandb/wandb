@@ -1210,7 +1210,9 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-kfp-py37"
-          execute: << pipeline.parameters.nightly_execute_kfp >>
+          # execute: << pipeline.parameters.nightly_execute_kfp >>
+          # TODO: re-enable kfp tests once we support kfp>=2.0.0
+          execute: false
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           requires:
