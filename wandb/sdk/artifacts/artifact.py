@@ -1693,25 +1693,27 @@ class Artifact:
             job_type="auto",
             settings=wandb.Settings(silent="true"),
         )
-        assert run is not None
-        if run._backend and run._backend.interface:
-            if not run._settings._offline:
-                result = run._backend.interface.communicate_download_artifact(
-                    self.qualified_name,
-                    root,
-                    recursive,
-                    allow_missing_references,
-                )
-                if result is not None:
-                    if result.response.download_artifact_response.error_message:
-                        raise ValueError(
-                            f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
-                        )
-                    download_path = (
-                        result.response.download_artifact_response.file_download_path
+        assert run is not None, "Unable to initialize run"
+
+        if run._settings._require_nexus:
+            if run._backend and run._backend.interface:
+                if not run._settings._offline:
+                    result = run._backend.interface.communicate_download_artifact(
+                        self.qualified_name,
+                        root,
+                        recursive,
+                        allow_missing_references,
                     )
-                    return FilePathStr(download_path)
-                return FilePathStr("")
+                    if result is not None:
+                        if result.response.download_artifact_response.error_message:
+                            raise ValueError(
+                                f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
+                            )
+                        download_path = (
+                            result.response.download_artifact_response.file_download_path
+                        )
+                        return FilePathStr(download_path)
+                    return FilePathStr("")
         return self._download(
             root=root,
             recursive=recursive,
