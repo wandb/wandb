@@ -1686,14 +1686,14 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        run = wandb.run
-        if run is None:
-            run = wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            )
+      
+        run = wandb.run or wandb.init(
+            entity=self._source_entity,
+            project=self._source_project,
+            job_type="auto",
+            settings=wandb.Settings(silent="true"),
+        )
+        assert run is not None
         if run._backend and run._backend.interface:
             if not run._settings._offline:
                 result = run._backend.interface.communicate_download_artifact(
