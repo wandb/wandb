@@ -899,7 +899,7 @@ message LogArtifactResponse {
 /*
  * DownloadArtifact:
  */
- message DownloadArtifactRequest {
+message DownloadArtifactRequest {
   string qualified_name = 1;
   string download_root = 2;
   bool recursive = 3;
