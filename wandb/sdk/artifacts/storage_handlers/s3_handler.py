@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
-import wandb
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -102,7 +101,6 @@ class S3Handler(StorageHandler):
         try:
             etag = self._etag_from_obj(obj)
         except self._botocore.exceptions.ClientError as e:
-            wandb.termwarn(f"\n\n{str(e.response)}\n\n")
             if e.response["Error"]["Code"] == "404":
                 raise FileNotFoundError(
                     f"Unable to find {manifest_entry.path} at s3://{bucket}/{key}"
