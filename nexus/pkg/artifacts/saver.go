@@ -186,9 +186,6 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					Path:     *entry.LocalPath,
 					Url:      *edge.Node.UploadUrl,
 					Headers:  edge.Node.UploadHeaders,
-					CompletionCallback: func(task *filetransfer.Task) {
-						taskResultsChan <- TaskResult{task, name}
-					},
 					FileType: filetransfer.ArtifactFile,
 				}
 				task.AddCallback(func(task *filetransfer.Task) {
@@ -198,7 +195,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				as.FileTransferManager.AddTask(task)
 			}
 		}
-		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
+		// Wait for filetransfer to catch up. If there's nothing more to schedule, wait for all in progress tasks.
 		for numInProgress > maxBacklog || (len(fileSpecsBatch) == 0 && numInProgress > 0) {
 			numInProgress--
 			result := <-taskResultsChan
@@ -260,7 +257,7 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		FileType: filetransfer.ArtifactFile,
 	}
 	task.AddCallback(func(task *filetransfer.Task) {
-		resultChan <- TaskResult{task, name}
+		resultChan <- task
 	})
 	task.AddCallback(as.FileTransferManager.ProgressCallback())
 	as.FileTransferManager.AddTask(task)

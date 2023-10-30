@@ -173,12 +173,12 @@ func (fm *FileTransferManager) FileStreamCallback() func(task *Task) {
 	}
 }
 
-func (um *FileTransferManager) ProgressCallback() func(task *Task) {
+func (fm *FileTransferManager) ProgressCallback() func(task *Task) {
 	return func(task *Task) {
 		if task.Err == nil {
-			um.fileCountsChan <- task.FileType
+			fm.fileCountsChan <- task.FileType
 		}
-		um.logger.Debug("uploader: progress callback")
+		fm.logger.Debug("uploader: progress callback")
 	}
 }
 
@@ -207,7 +207,7 @@ func (fm *FileTransferManager) transfer(task *Task) error {
 	case DownloadTask:
 		err = fm.fileTransfer.Download(task)
 	default:
-		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
+		fm.logger.CaptureFatalAndPanic("transfer: unknown task type", err)
 	}
 	return err
 }

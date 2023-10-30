@@ -12,8 +12,7 @@ const (
 type TaskType int
 
 const (
-	OtherTask TaskType = iota
-	UploadTask
+	UploadTask TaskType = iota
 	DownloadTask
 )
 
