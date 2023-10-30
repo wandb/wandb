@@ -16,12 +16,12 @@ func parseArtifactQualifiedName(name string) (entityName string, projectName str
 	projectName = "uncategorized"
 	entityName = ""
 	if name == "" {
-		return "", "", "", fmt.Errorf("Invalid artifact path - empty string: %s", name)
+		return "", "", "", fmt.Errorf("invalid artifact path - empty string: %s", name)
 	}
 
 	parts := strings.Split(name, "/")
 	if len(parts) > 3 {
-		return "", "", "", fmt.Errorf("Invalid artifact path: %s", name)
+		return "", "", "", fmt.Errorf("invalid artifact path: %s", name)
 	} else if len(parts) == 1 {
 		return entityName, projectName, parts[0], nil
 	} else if len(parts) == 2 {
@@ -49,7 +49,7 @@ func GetPathFallbacks(path string) (pathFallbacks []string) {
 	pathFallbacks = append(pathFallbacks, filepath.Join(root, tail))
 	for _, char := range PROBLEMATIC_PATH_CHARS {
 		if strings.Contains(tail, string(char)) {
-			tail = strings.Replace(tail, string(char), "-", -1)
+			tail = strings.ReplaceAll(tail, string(char), "-")
 			pathFallbacks = append(pathFallbacks, filepath.Join(root, tail))
 		}
 	}
@@ -76,7 +76,7 @@ func SystemPreferredPath(path string, warn bool) string {
 	if warn && strings.Contains(tail, ":") {
 		fmt.Printf("\nReplacing ':' in %s with '-'", tail)
 	}
-	new_path := filepath.Join(head, strings.Replace(tail, ":", "-", -1))
+	new_path := filepath.Join(head, strings.ReplaceAll(tail, ":", "-"))
 	return new_path
 }
 

@@ -24,7 +24,7 @@ type ArtifactDownloader struct {
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
 	DownloadManager *filetransfer.FileTransferManager
-	//Input
+	// Input
 	QualifiedName          string
 	DownloadRoot           *string
 	Recursive              *bool
@@ -262,8 +262,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 		downloadRoot = *ad.DownloadRoot
 	} else if ad.DefaultDownloadRoot != nil {
 		downloadRoot = *ad.DefaultDownloadRoot
-	} else {
-		return fmt.Errorf("\n Download root was not set")
+	}
+	if downloadRoot == "" {
+		return fmt.Errorf("download root was not set")
 	}
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
