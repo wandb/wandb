@@ -2985,14 +2985,16 @@ class Run:
                     recursive,
                     allow_missing_references,
                 )
-                if result.response.download_artifact_response.error_message:
-                    raise ValueError(
-                        f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
+                if result is not None: 
+                    if result.response.download_artifact_response.error_message:
+                        raise ValueError(
+                            f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
+                        )
+                    download_path = (
+                        result.response.download_artifact_response.file_download_path
                     )
-                download_path = (
-                    result.response.download_artifact_response.file_download_path
-                )
-                return FilePathStr(download_path)
+                    return FilePathStr(download_path)
+                return FilePathStr("")
         return artifact._download(
             root=root,
             recursive=recursive,
