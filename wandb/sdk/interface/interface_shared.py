@@ -390,9 +390,8 @@ class InterfaceShared(InterfaceBase):
         return self._communicate_async(rec)
 
     def _communicate_download_artifact(
-            self, 
-            download_artifact: pb.DownloadArtifactRequest
-        ) -> Optional[pb.Result]:
+        self, download_artifact: pb.DownloadArtifactRequest
+    ) -> Optional[pb.Result]:
         rec = self._make_request(download_artifact=download_artifact)
         return self._communicate(rec, timeout=None)
 

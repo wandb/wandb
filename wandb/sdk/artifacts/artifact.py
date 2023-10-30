@@ -1688,20 +1688,41 @@ class Artifact:
 
         root = root or self._default_root()
         self._add_download_root(root)
-        if wandb.run is None:
-            with wandb.init(
+
+        run = wandb.run
+        if run is None:
+            run = wandb.init(
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
-            ) as run:
-                return FilePathStr(run._download_artifact(
-                    self, root, recursive, allow_missing_references
-                ))
-        else:
-            return wandb.run._download_artifact(
-                self, root, recursive, allow_missing_references
             )
+        python_download_path = FilePathStr("")
+        if run._settings._require_nexus:
+            # Start the download process in the user process too, to handle reference downloads
+            python_download_path = self._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
+        if run._backend and run._backend.interface:
+            if not run._settings._offline:
+                result = run._backend.interface.communicate_download_artifact(
+                    artifact.qualified_name,
+                    root,
+                    recursive,
+                    allow_missing_references,
+                )
+                if result is not None: 
+                    if result.response.download_artifact_response.error_message:
+                        raise ValueError(
+                            f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
+                        )
+                    download_path = (
+                        result.response.download_artifact_response.file_download_path
+                    )
+                    return FilePathStr(download_path)
+        return FilePathStr(python_download_path)
 
     def _download(
         self,
