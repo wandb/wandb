@@ -1783,7 +1783,7 @@ class Artifact:
 
         if recursive:
             for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact.download()
+                dependent_artifact._download()
 
         if log:
             now = datetime.now()
