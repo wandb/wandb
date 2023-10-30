@@ -96,6 +96,9 @@ func loadManifestFromURL(url string) (Manifest, error) {
 	return manifest, nil
 }
 
+/*
+/*
+// Uncommment for wandb reference artifacts
 func (ad *ArtifactDownloader) getManifestByArtifactID(artifactID string) (Manifest, error) {
 	response, err := gql.ArtifactByID(
 		ad.Ctx,
@@ -119,6 +122,7 @@ func (ad *ArtifactDownloader) getManifestByArtifactID(artifactID string) (Manife
 	}
 	return manifest, nil
 }
+*/
 
 func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, rerr error) {
 	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
@@ -198,6 +202,8 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	return nil
 }
 
+/*
+// Uncommment for wandb reference artifacts
 func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry ManifestEntry) error {
 	referencedID, err := getReferencedID(entry.Ref)
 	if err != nil {
@@ -248,6 +254,7 @@ func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry 
 	}
 	return nil
 }
+*/
 
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest, manifestSubset *Manifest) error {
 	var downloadRoot string
