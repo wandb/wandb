@@ -1391,7 +1391,6 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
     with wandb_init(project="test") as run:
         with pytest.raises(ValueError, match="HeadObject"):
             artifact.download()
-        
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
@@ -1416,7 +1415,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
     with wandb_init(project="test") as run:
-       artifact.download(allow_missing_references=True)
+        artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
     assert "Unable to find my_object.pb" in capsys.readouterr().err
