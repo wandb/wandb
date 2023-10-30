@@ -770,6 +770,7 @@ func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &uploader.UploadTask{Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
 		task.AddCallback(s.uploadManager.FileStreamCallback())
+		task.AddCallback(s.uploadManager.ProgressCallback())
 		s.uploadManager.AddTask(task)
 	}
 }

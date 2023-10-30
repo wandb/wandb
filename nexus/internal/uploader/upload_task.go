@@ -31,6 +31,9 @@ type UploadTask struct {
 
 	// Callback to execute after completion (success or failure).
 	CompletionCallback []func(*UploadTask)
+
+	// ProgressCallback is a callback to execute on progress updates
+	ProgressCallback []func()
 }
 
 func (ut *UploadTask) AddCallback(callback func(*UploadTask)) {

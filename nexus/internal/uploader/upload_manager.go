@@ -139,15 +139,6 @@ func (um *UploadManager) Start() {
 						"path", task.Path, "url", task.Url,
 					)
 				}
-				// Execute the callback.
-				// if task.CompletionCallback != nil {
-				// 	task.CompletionCallback(task)
-				// }
-				task.AddCallback(func(task *UploadTask) {
-					if task.Err == nil {
-						um.fileCountsChan <- task.FileType
-					}
-				})
 				for _, callback := range task.CompletionCallback {
 					callback(task)
 				}
@@ -173,13 +164,19 @@ func (um *UploadManager) FileStreamCallback() func(task *UploadTask) {
 		if task.Err != nil {
 			return
 		}
-		if task.FileType == ArtifactFile {
-			return
-		}
 		record := &service.FilesUploaded{
 			Files: []string{task.Name},
 		}
 		um.fsChan <- record
+	}
+}
+
+func (um *UploadManager) ProgressCallback() func(task *UploadTask) {
+	return func(task *UploadTask) {
+		if task.Err == nil {
+			um.fileCountsChan <- task.FileType
+		}
+		um.logger.Debug("uploader: progress callback")
 	}
 }
 

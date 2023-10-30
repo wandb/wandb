@@ -93,14 +93,8 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 		return n, err // Return early if there's an error
 	}
 
-	newRead := pr.read + int(n)
-	newPercentage := (newRead * 100) / pr.len
-	oldPercentage := (pr.read * 100) / pr.len
-
-	pr.read = newRead
-	if newPercentage != oldPercentage {
-		pr.reportProgress()
-	}
+	pr.read += n
+	pr.reportProgress()
 
 	return n, err
 }
