@@ -31,7 +31,7 @@ func NewDefaultFileTransfer(logger *observability.NexusLogger, client *retryable
 }
 
 // Upload uploads a file to the server
-func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
+func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
 	// open the file for reading and defer closing it
@@ -67,7 +67,7 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 }
 
 // Download downloads a file from the server
-func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
+func (ft *DefaultFileTransfer) Download(task *Task) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
