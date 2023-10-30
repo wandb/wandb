@@ -1709,6 +1709,10 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        require_nexus = False
+        if wandb.run is not None:
+            require_nexus = wandb.run._settings._require_nexus
+
         self._ensure_logged("download")
 
         root = root or self._default_root()
