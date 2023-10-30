@@ -17,6 +17,11 @@ repos:
     hooks:
       - id: blacken-docs
         exclude: ^(wandb/vendor/)
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.3
+    hooks:
+      - id: clang-format
+        types_or: [proto]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
