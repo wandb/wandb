@@ -98,7 +98,7 @@ func getReferencedID(ref *string) (*string, error) {
 	isRef, err := isArtifactReference(ref)
 	if err != nil {
 		return nil, err
-	} else if isRef == false {
+	} else if !isRef {
 		return nil, nil
 	}
 	u, err := url.Parse(*ref)

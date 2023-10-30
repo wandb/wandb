@@ -84,14 +84,14 @@ func loadManifestFromURL(url string) (Manifest, error) {
 	if resp.StatusCode == http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return Manifest{}, fmt.Errorf("Error reading response body: %v\n", err)
+			return Manifest{}, fmt.Errorf("error reading response body: %v", err)
 		}
 		err = json.Unmarshal(body, &manifest)
 		if err != nil {
 			return Manifest{}, nil
 		}
 	} else {
-		return Manifest{}, fmt.Errorf("Request to get manifest from url failed with status code: %d\n", resp.StatusCode)
+		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
 	}
 	return manifest, nil
 }
@@ -105,7 +105,7 @@ func (ad *ArtifactDownloader) getManifestByArtifactID(artifactID string) (Manife
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("Could not get artifact by id")
+		return Manifest{}, fmt.Errorf("could not get artifact by id")
 	}
 	directURL := response.GetArtifact().GetCurrentManifest().GetFile().DirectUrl
 	manifest, err := loadManifestFromURL(directURL)
@@ -135,7 +135,7 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("Could not get manifest for artifact %s", ad.QualifiedName)
+		return Manifest{}, fmt.Errorf("could not get manifest for artifact %s", ad.QualifiedName)
 	}
 	directURL := response.GetProject().GetArtifact().GetCurrentManifest().GetFile().DirectUrl
 	manifest, err := loadManifestFromURL(directURL)
@@ -156,7 +156,7 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 	sourceArtifactName := artifactAttrs.GetArtifactSequence().Name
 	versionIndex := artifactAttrs.GetVersionIndex()
 	if versionIndex == nil {
-		return fmt.Errorf("Invalid artifact download, missing version index")
+		return fmt.Errorf("invalid artifact download, missing version index")
 	}
 	artifactDir, err := env.GetArtifactDir()
 	if err != nil {
@@ -187,7 +187,7 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 			if err != nil {
 				return err
 			} else if response == nil {
-				return fmt.Errorf("Could not get artifact by id for reference %s", *entry.Ref)
+				return fmt.Errorf("could not get artifact by id for reference %s", *entry.Ref)
 			}
 			depArtifact := response.GetArtifact()
 			if depArtifact != nil {
@@ -212,7 +212,7 @@ func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry 
 		if err != nil {
 			return err
 		} else if response == nil {
-			return fmt.Errorf("Could not get artifact by id for reference %s", *entry.Ref)
+			return fmt.Errorf("could not get artifact by id for reference %s", *entry.Ref)
 		}
 		referencedArtifact := response.GetArtifact()
 		referencedArtifactSeq := referencedArtifact.GetArtifactSequence()
@@ -235,13 +235,16 @@ func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry 
 		}
 		manifestEntry, ok := artifactManifest.Contents[filepath]
 		if !ok {
-			return fmt.Errorf("Could not find entry in manifest for file %s in artifact %s", filepath, refArtifactQualifiedName)
+			return fmt.Errorf("could not find entry in manifest for file %s in artifact %s", filepath, refArtifactQualifiedName)
 		}
 
 		artifactManifest.Contents = map[string]ManifestEntry{
 			filepath: manifestEntry,
 		}
-		newDownloader.Download(&artifactManifest)
+		_, err = newDownloader.Download(&artifactManifest)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -287,7 +290,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			if err != nil {
 				return err
 			} else if response == nil {
-				return fmt.Errorf("Could not fetch artifact file urls for %s", ad.QualifiedName)
+				return fmt.Errorf("could not fetch artifact file urls for %s", ad.QualifiedName)
 			}
 			hasNextPage = response.GetArtifact().GetFiles().PageInfo.HasNextPage
 			cursor = *response.GetArtifact().GetFiles().PageInfo.EndCursor
