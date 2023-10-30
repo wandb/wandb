@@ -1686,7 +1686,6 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-      
         run = wandb.run or wandb.init(
             entity=self._source_entity,
             project=self._source_project,
