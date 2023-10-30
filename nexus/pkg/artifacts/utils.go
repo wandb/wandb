@@ -20,14 +20,16 @@ func parseArtifactQualifiedName(name string) (entityName string, projectName str
 	}
 
 	parts := strings.Split(name, "/")
-	if len(parts) > 3 {
-		return "", "", "", fmt.Errorf("invalid artifact path: %s", name)
-	} else if len(parts) == 1 {
+	switch len(parts) {
+	case 1:
 		return entityName, projectName, parts[0], nil
-	} else if len(parts) == 2 {
+	case 2:
 		return entityName, parts[0], parts[1], nil
+	case 3:
+		return parts[0], parts[1], parts[2], nil
+	default:
+		return "", "", "", fmt.Errorf("invalid artifact path: %s", name)
 	}
-	return parts[0], parts[1], parts[2], nil
 }
 
 func getArtifactQualifiedName(entityName string, projectName string, artifactName string, versionIndex string) (name string) {
