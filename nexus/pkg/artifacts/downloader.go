@@ -96,34 +96,6 @@ func loadManifestFromURL(url string) (Manifest, error) {
 	return manifest, nil
 }
 
-/*
-/*
-// Uncommment for wandb reference artifacts
-func (ad *ArtifactDownloader) getManifestByArtifactID(artifactID string) (Manifest, error) {
-	response, err := gql.ArtifactByID(
-		ad.Ctx,
-		ad.GraphqlClient,
-		artifactID,
-	)
-	if err != nil {
-		return Manifest{}, err
-	} else if response == nil {
-		return Manifest{}, fmt.Errorf("could not get artifact by id")
-	}
-	directURL := response.GetArtifact().GetCurrentManifest().GetFile().DirectUrl
-	manifest, err := loadManifestFromURL(directURL)
-	if err != nil {
-		return Manifest{}, err
-	}
-	// Set upstream artifacts, if any
-	err = ad.setUpstreamArtifacts(manifest)
-	if err != nil {
-		return Manifest{}, err
-	}
-	return manifest, nil
-}
-*/
-
 func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, rerr error) {
 	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
 	if err != nil {
@@ -147,11 +119,15 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 		return Manifest{}, err
 	}
 
-	// Set upstream artifacts, if any
-	err = ad.setUpstreamArtifacts(manifest)
-	if err != nil {
-		return Manifest{}, err
-	}
+	/**
+	/* For now, reference artifact downloads will be handled by the python core
+	/* so no need to accumulate upstream artifacts
+		// Set upstream artifacts, if any
+		err = ad.setUpstreamArtifacts(manifest)
+		if err != nil {
+			return Manifest{}, err
+		}
+	*/
 	return manifest, nil
 }
 
@@ -202,61 +178,7 @@ func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
 	return nil
 }
 
-/*
-// Uncommment for wandb reference artifacts
-func (ad *ArtifactDownloader) downloadReferencedArtifact(filepath string, entry ManifestEntry) error {
-	referencedID, err := getReferencedID(entry.Ref)
-	if err != nil {
-		return err
-	}
-	if referencedID != nil {
-		response, err := gql.ArtifactByID(
-			ad.Ctx,
-			ad.GraphqlClient,
-			*referencedID,
-		)
-		if err != nil {
-			return err
-		} else if response == nil {
-			return fmt.Errorf("could not get artifact by id for reference %s", *entry.Ref)
-		}
-		referencedArtifact := response.GetArtifact()
-		referencedArtifactSeq := referencedArtifact.GetArtifactSequence()
-		refArtifactProject := referencedArtifactSeq.Project
-		versionIndex := strconv.Itoa(*referencedArtifact.GetVersionIndex())
-		refArtifactQualifiedName := getArtifactQualifiedName(refArtifactProject.EntityName, refArtifactProject.Name, referencedArtifactSeq.Name, versionIndex)
-		downloadRoot, recursive, allowMissingReferences := ad.DownloadRoot, ad.Recursive, ad.AllowMissingReferences
-		newDownloader := NewArtifactDownloader(
-			ad.Ctx,
-			ad.GraphqlClient,
-			ad.DownloadManager,
-			refArtifactQualifiedName,
-			downloadRoot,
-			recursive,
-			allowMissingReferences,
-		)
-		artifactManifest, err := newDownloader.getArtifactManifest()
-		if err != nil {
-			return err
-		}
-		manifestEntry, ok := artifactManifest.Contents[filepath]
-		if !ok {
-			return fmt.Errorf("could not find entry in manifest for file %s in artifact %s", filepath, refArtifactQualifiedName)
-		}
-
-		artifactManifest.Contents = map[string]ManifestEntry{
-			filepath: manifestEntry,
-		}
-		_, err = newDownloader.Download(&artifactManifest)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-*/
-
-func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest, manifestSubset *Manifest) error {
+func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
 	var downloadRoot string
 	if ad.DownloadRoot != nil {
 		downloadRoot = *ad.DownloadRoot
@@ -308,26 +230,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				if err != nil {
 					return err
 				}
-				if manifestSubset != nil {
-					// Downloading a subset of the artifact's contents
-					// Relevant while downloading referenced artifacts
-					_, err = manifestSubset.GetManifestEntryFromArtifactFilePath(filePath)
-					if err != nil {
-						numDone++
-						continue
-					}
-				}
 				if entry.Ref != nil {
-					/*
-						Uncomment code to handle references to wandb artifacts in nexus
-						referencedID, err := getReferencedID(entry.Ref)
-						if err != nil {
-							return err
-						}
-						if referencedID != nil {
-							ad.downloadReferencedArtifact(filePath, entry)
-						}
-					*/
 					numDone++
 					continue
 				}
@@ -390,7 +293,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					ad.Recursive,
 					ad.AllowMissingReferences,
 				)
-				_, err := newDownloader.Download(nil)
+				_, err := newDownloader.Download()
 				if err != nil {
 					return err
 				}
@@ -400,7 +303,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	return nil
 }
 
-func (ad *ArtifactDownloader) Download(manifest *Manifest) (downloadRoot string, rerr error) {
+func (ad *ArtifactDownloader) Download() (downloadRoot string, rerr error) {
 	artifactAttrs, err := ad.getArtifact()
 	if err != nil {
 		return "", err
@@ -433,7 +336,7 @@ func (ad *ArtifactDownloader) Download(manifest *Manifest) (downloadRoot string,
 		}
 	*/
 
-	if err := ad.downloadFiles(artifactAttrs.Id, artifactManifest, manifest); err != nil {
+	if err := ad.downloadFiles(artifactAttrs.Id, artifactManifest); err != nil {
 		return "", err
 	}
 	return downloadRoot, nil
