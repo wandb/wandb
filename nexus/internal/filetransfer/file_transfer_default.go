@@ -68,7 +68,7 @@ func (ft *DefaultFileTransfer) Upload(task *UploadTask) error {
 // Download downloads a file from the server
 func (ft *DefaultFileTransfer) Download(task *DownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
-	// open the file for reading and defer closing it
+	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {
 		return err

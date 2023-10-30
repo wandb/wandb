@@ -18,9 +18,9 @@ import (
 
 type ArtifactSaver struct {
 	// Resources.
-	Ctx           context.Context
-	GraphqlClient graphql.Client
-	UploadManager *filetransfer.FileTransferManager
+	Ctx                 context.Context
+	GraphqlClient       graphql.Client
+	FileTransferManager *filetransfer.FileTransferManager
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
@@ -34,11 +34,11 @@ func NewArtifactSaver(
 	historyStep int64,
 ) ArtifactSaver {
 	return ArtifactSaver{
-		Ctx:           ctx,
-		GraphqlClient: graphQLClient,
-		UploadManager: uploadManager,
-		Artifact:      artifact,
-		HistoryStep:   historyStep,
+		Ctx:                 ctx,
+		GraphqlClient:       graphQLClient,
+		FileTransferManager: uploadManager,
+		Artifact:            artifact,
+		HistoryStep:         historyStep,
 	}
 }
 
@@ -190,7 +190,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					},
 					FileType: filetransfer.ArtifactFile,
 				}
-				as.UploadManager.AddTask(task)
+				as.FileTransferManager.AddTask(task)
 			}
 		}
 		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
@@ -256,7 +256,7 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		},
 		FileType: filetransfer.ArtifactFile,
 	}
-	as.UploadManager.AddTask(task)
+	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
 }

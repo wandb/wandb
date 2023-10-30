@@ -71,23 +71,7 @@ func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 	}
 }
 
-func (fm *FileTransferManager) fileCount() {
-	for fileType := range fm.fileCountsChan {
-		switch fileType {
-		case WandbFile:
-			fm.fileCounts.WandbCount++
-		case MediaFile:
-			fm.fileCounts.MediaCount++
-		case ArtifactFile:
-			fm.fileCounts.ArtifactCount++
-		default:
-			fm.fileCounts.OtherCount++
-		}
-	}
-	fm.wgfc.Done()
-}
-
-func NewUploadManager(opts ...FileTransferManagerOption) *FileTransferManager {
+func NewFileTransferManager(opts ...FileTransferManagerOption) *FileTransferManager {
 
 	fm := FileTransferManager{
 		inChan:         make(chan interface{}, bufferSize),
@@ -106,6 +90,22 @@ func NewUploadManager(opts ...FileTransferManagerOption) *FileTransferManager {
 	go fm.fileCount()
 
 	return &fm
+}
+
+func (fm *FileTransferManager) fileCount() {
+	for fileType := range fm.fileCountsChan {
+		switch fileType {
+		case WandbFile:
+			fm.fileCounts.WandbCount++
+		case MediaFile:
+			fm.fileCounts.MediaCount++
+		case ArtifactFile:
+			fm.fileCounts.ArtifactCount++
+		default:
+			fm.fileCounts.OtherCount++
+		}
+	}
+	fm.wgfc.Done()
 }
 
 // Start is the main loop for the fileTransfer
@@ -209,12 +209,12 @@ func (fm *FileTransferManager) transfer(task interface{}) error {
 	case *DownloadTask:
 		err = fm.fileTransfer.Download(t)
 	default:
-		fm.logger.Debug("fileTransfer: transfer task: invalid task type", "type", t)
+		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
 	}
 	return err
 }
 
-// GetFileCounts returns the file counts for the uploader
+// GetFileCounts returns the file counts for the fileTransfer
 func (fm *FileTransferManager) GetFileCounts() *service.FileCounts {
 	if fm == nil {
 		return &service.FileCounts{}
