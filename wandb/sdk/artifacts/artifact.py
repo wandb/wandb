@@ -1708,7 +1708,7 @@ class Artifact:
         if run._backend and run._backend.interface:
             if not run._settings._offline:
                 result = run._backend.interface.communicate_download_artifact(
-                    artifact.qualified_name,
+                    self.qualified_name,
                     root,
                     recursive,
                     allow_missing_references,
