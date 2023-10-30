@@ -1,7 +1,8 @@
-package uploader
+package filetransfer
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"os"
@@ -11,27 +12,27 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/observability"
 )
 
-// DefaultUploader uploads files to the server
-type DefaultUploader struct {
-	// client is the HTTP client for the uploader
+// DefaultFileTransfer uploads or downloads files to/from the server
+type DefaultFileTransfer struct {
+	// client is the HTTP client for the file transfer
 	client *retryablehttp.Client
 
-	// logger is the logger for the uploader
+	// logger is the logger for the file transfer
 	logger *observability.NexusLogger
 }
 
-// NewDefaultUploader creates a new uploader
-func NewDefaultUploader(logger *observability.NexusLogger, client *retryablehttp.Client) *DefaultUploader {
-	uploader := &DefaultUploader{
+// NewDefaultFileTransfer creates a new fileTransfer
+func NewDefaultFileTransfer(logger *observability.NexusLogger, client *retryablehttp.Client) *DefaultFileTransfer {
+	fileTransfer := &DefaultFileTransfer{
 		logger: logger,
 		client: client,
 	}
-	return uploader
+	return fileTransfer
 }
 
 // Upload uploads a file to the server
-func (u *DefaultUploader) Upload(task *Task) error {
-	u.logger.Debug("default uploader: uploading file", "path", task.Path, "url", task.Url)
+func (ft *DefaultFileTransfer) Upload(task *Task) error {
+	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
 	// open the file for reading and defer closing it
 	file, err := os.Open(task.Path)
@@ -41,7 +42,7 @@ func (u *DefaultUploader) Upload(task *Task) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			u.logger.CaptureError("uploader: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError("file transfer: upload: error closing file", err, "path", task.Path)
 		}
 	}(file)
 
@@ -53,17 +54,49 @@ func (u *DefaultUploader) Upload(task *Task) error {
 	if err != nil {
 		return err
 	}
-
 	for _, header := range task.Headers {
 		parts := strings.Split(header, ":")
 		req.Header.Set(parts[0], parts[1])
 	}
+
 	fmt.Printf("Uploading file... %s\n", task.Name)
-	if _, err = u.client.Do(req); err != nil {
+	if _, err = ft.client.Do(req); err != nil {
 		fmt.Println(err)
 		return err
 	}
 
+	return nil
+}
+
+// Download downloads a file from the server
+func (ft *DefaultFileTransfer) Download(task *Task) error {
+	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	// open the file for writing and defer closing it
+	file, err := os.Create(task.Path)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+		}
+	}(file)
+
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+	defer func(file io.ReadCloser) {
+		err := file.Close()
+		if err != nil {
+			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
+		}
+	}(resp.Body)
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
