@@ -2985,7 +2985,7 @@ class Run:
                     recursive,
                     allow_missing_references,
                 )
-                if result is not None: 
+                if result is not None:
                     if result.response.download_artifact_response.error_message:
                         raise ValueError(
                             f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
