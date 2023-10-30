@@ -2970,37 +2970,6 @@ class Run:
             finalize=True,
         )
 
-    def _download_artifact(
-        self,
-        artifact: Artifact,
-        root: Optional[str] = None,
-        recursive: bool = False,
-        allow_missing_references: bool = False,
-    ) -> FilePathStr:
-        if self._backend and self._backend.interface:
-            if not self._settings._offline:
-                result = self._backend.interface.communicate_download_artifact(
-                    artifact.qualified_name,
-                    root,
-                    recursive,
-                    allow_missing_references,
-                )
-                if result is not None:
-                    if result.response.download_artifact_response.error_message:
-                        raise ValueError(
-                            f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
-                        )
-                    download_path = (
-                        result.response.download_artifact_response.file_download_path
-                    )
-                    return FilePathStr(download_path)
-                return FilePathStr("")
-        return artifact._download(
-            root=root,
-            recursive=recursive,
-            allow_missing_references=allow_missing_references,
-        )
-
     def _log_artifact(
         self,
         artifact_or_path: Union[Artifact, StrPath],
