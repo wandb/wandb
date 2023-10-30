@@ -44,10 +44,10 @@ message Settings {
   google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
   google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;
   google.protobuf.Int32Value _file_stream_timeout_seconds = 15;
-  google.protobuf.Int32Value _file_uploader_retry_max = 150;
-  google.protobuf.Int32Value _file_uploader_retry_wait_min_seconds = 151;
-  google.protobuf.Int32Value _file_uploader_retry_wait_max_seconds = 152;
-  google.protobuf.Int32Value _file_uploader_timeout_seconds = 153;
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  google.protobuf.Int32Value _file_transfer_retry_wait_min_seconds = 151;
+  google.protobuf.Int32Value _file_transfer_retry_wait_max_seconds = 152;
+  google.protobuf.Int32Value _file_transfer_timeout_seconds = 153;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
   google.protobuf.Int32Value _graphql_retry_max = 154;

@@ -1,4 +1,4 @@
-package uploader
+package filetransfer
 
 type FileType int
 
@@ -9,15 +9,26 @@ const (
 	ArtifactFile
 )
 
-// UploadTask is a task to upload a file
-type UploadTask struct {
-	// Path is the path to the file
+type TaskType int
+
+const (
+	OtherTask TaskType = iota
+	UploadTask
+	DownloadTask
+)
+
+// Task is a task to upload/download a file
+type Task struct {
+	// TaskType is the type of task (upload or download)
+	TaskType TaskType
+
+	// Path is the local path to the file
 	Path string
 
 	// Name is the name of the file
 	Name string
 
-	// Url is the endpoint to upload to
+	// Url is the endpoint to upload to/download from
 	Url string
 
 	// Headers to send on the upload
@@ -30,5 +41,5 @@ type UploadTask struct {
 	Err error
 
 	// Callback to execute after completion (success or failure).
-	CompletionCallback func(*UploadTask)
+	CompletionCallback func(*Task)
 }
