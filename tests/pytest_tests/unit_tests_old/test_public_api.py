@@ -446,9 +446,10 @@ def test_artifact_manual_error(runner, mock_server, api):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="Verify is broken on Windows"
 )
-def test_artifact_verify(runner, mock_server, api):
+def test_artifact_verify(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     art = api.artifact("entity/project/mnist:v0", type="dataset")
-    art._download()
+    art.download()
     with pytest.raises(ValueError):
         art.verify()
 
