@@ -2,9 +2,10 @@ import inspect
 from importlib import reload
 from unittest.mock import patch
 
+import pytest
+
 try:
     import kfp
-    import pytest
     import wandb
     from kfp.components import InputPath, OutputPath, create_component_from_func
     from kfp.components._structures import InputSpec, OutputSpec
