@@ -1731,7 +1731,7 @@ class Artifact:
                             result.response.download_artifact_response.file_download_path
                         )
                         return FilePathStr(download_path)
-                    return FilePathStr("")
+                    raise RuntimeError("download failed")
                 raise NotImplementedError("cannot download in offline mode")
         else:
             return self._download(
