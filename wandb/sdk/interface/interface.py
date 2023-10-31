@@ -19,6 +19,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
@@ -465,6 +466,7 @@ class InterfaceBase:
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
+        log_artifact.staging_dir = get_staging_dir()
         resp = self._communicate_artifact(log_artifact)
         return resp
 
