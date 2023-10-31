@@ -1716,9 +1716,8 @@ class Artifact:
         if run._settings._require_nexus:
             if run._backend and run._backend.interface:
                 if not run._settings._offline:
-                    python_download_path = FilePathStr("")
                     # Start the download process in the user process too, to handle reference downloads
-                    python_download_path = self._download(
+                    self._download(
                         root=root,
                         recursive=recursive,
                         allow_missing_references=allow_missing_references,
