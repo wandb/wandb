@@ -1722,18 +1722,16 @@ class Artifact:
                         recursive,
                         allow_missing_references,
                     )
-                    if result is not None:
-                        if result.response.download_artifact_response.error_message:
-                            raise ValueError(
-                                f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
-                            )
-                        download_path = (
-                            result.response.download_artifact_response.file_download_path
+                    assert result is not None
+                    response = result.response.download_artifact_response
+                    if response.error_message:
+                        raise ValueError(
+                            f"Error downloading artifact: {response.error_message}"
                         )
-                        return FilePathStr(download_path)
-                    raise RuntimeError("download failed")
+                    download_path = response.file_download_path
+                    return FilePathStr(download_path)
                 raise NotImplementedError("cannot download in offline mode")
-            raise wandb.CommError("unable to communicate with W&B")
+            raise NotImplementedError
         return self._download(
             root=root,
             recursive=recursive,
