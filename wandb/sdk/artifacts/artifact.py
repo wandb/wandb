@@ -1729,7 +1729,6 @@ class Artifact:
                         allow_missing_references,
                     )
                     result = handle.wait(timeout=-1)
-                    result = None
                     if result is None:
                         handle.abandon()
                     assert result is not None
