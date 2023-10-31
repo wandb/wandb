@@ -183,6 +183,7 @@ def test_numpy(cls, capfd):
 @pytest.mark.timeout(5)
 def test_print_torch_model(cls, capfd):
     # https://github.com/wandb/wandb/issues/2097
+    pytest.importorskip("torch")
     import torch
 
     with capfd.disabled():
