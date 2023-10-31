@@ -369,7 +369,9 @@ def test_artifact_delete(runner, mock_server, api):
         art.delete(delete_aliases=True)
 
 
-def test_artifact_checkout(runner, mock_server, api):
+def test_artifact_checkout(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
+    assert wandb.run is not None
     with runner.isolated_filesystem():
         # Create a file that should be removed as part of checkout
         os.makedirs(os.path.join(".", "artifacts", "mnist"))
@@ -377,8 +379,9 @@ def test_artifact_checkout(runner, mock_server, api):
             f.write("delete me, i'm a bogus file")
 
         art = api.artifact("entity/project/mnist:v0", type="dataset")
-        with pytest.raises(wandb.CommError):
-            art.checkout()
+        path = art.checkout()
+        assert path == os.path.join(".", "artifacts", "mnist")
+        assert os.listdir(path) == ["digits.h5"]
 
 
 def test_artifact_run_used(runner, mock_server, api):

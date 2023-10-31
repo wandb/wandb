@@ -1452,27 +1452,9 @@ class SendManager:
         self._respond_result(result)
 
     def send_request_download_artifact(self, record: "Record") -> None:
-        # assert record.control.req_resp
+        # Invalid path
         result = proto_util._result_from_record(record)
-        qualified_name = record.request.download_artifact.qualified_name
-        download_root = record.request.download_artifact.download_root
-        recursive = record.request.download_artifact.recursive
-        allow_missing_references = (
-            record.request.download_artifact.allow_missing_references
-        )
-
-        try:
-            artifact = wandb.Api().artifact(qualified_name)
-            path = artifact._download(
-                download_root, recursive, allow_missing_references
-            )
-            result.response.download_artifact_response.file_download_path = path
-            logger.info(f"downloaded artifact {artifact.name} to {path}")
-        except Exception as e:
-            result.response.download_artifact_response.error_message = (
-                f'error downloading artifact "{artifact.type}/{artifact.name}": {e}'
-            )
-
+        result.response.download_artifact_response.file_download_path = ""
         self._respond_result(result)
 
     def send_artifact(self, record: "Record") -> None:
