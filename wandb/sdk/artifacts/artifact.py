@@ -1695,7 +1695,6 @@ class Artifact:
             ) as run:
                 return FilePathStr(
                     self._run_artifact_download(
-                        run,
                         root=root,
                         recursive=recursive,
                         allow_missing_references=allow_missing_references,
@@ -1705,7 +1704,6 @@ class Artifact:
         else:
             return FilePathStr(
                 self._run_artifact_download(
-                    wandb.run,
                     root=root,
                     recursive=recursive,
                     allow_missing_references=allow_missing_references,
@@ -1715,11 +1713,12 @@ class Artifact:
 
     def _run_artifact_download(
         self,
-        run: Union[wandb.apis.public.Run, wandb.sdk.wandb_run.Run],
         root: Optional[str] = None,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> Optional[FilePathStr]:
+        assert wandb.run is not None, "failed to initialize run"
+        run = wandb.run
         if run._settings._require_nexus:
             if run._backend and run._backend.interface:
                 if not run._settings._offline:
