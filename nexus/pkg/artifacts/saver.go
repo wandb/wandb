@@ -10,17 +10,17 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/nexus/internal/filetransfer"
 	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 type ArtifactSaver struct {
 	// Resources.
-	Ctx           context.Context
-	GraphqlClient graphql.Client
-	UploadManager *uploader.UploadManager
+	Ctx                 context.Context
+	GraphqlClient       graphql.Client
+	FileTransferManager *filetransfer.FileTransferManager
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
@@ -29,16 +29,16 @@ type ArtifactSaver struct {
 func NewArtifactSaver(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	uploadManager *uploader.UploadManager,
+	uploadManager *filetransfer.FileTransferManager,
 	artifact *service.ArtifactRecord,
 	historyStep int64,
 ) ArtifactSaver {
 	return ArtifactSaver{
-		Ctx:           ctx,
-		GraphqlClient: graphQLClient,
-		UploadManager: uploadManager,
-		Artifact:      artifact,
-		HistoryStep:   historyStep,
+		Ctx:                 ctx,
+		GraphqlClient:       graphQLClient,
+		FileTransferManager: uploadManager,
+		Artifact:            artifact,
+		HistoryStep:         historyStep,
 	}
 }
 
@@ -114,7 +114,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	const maxBacklog int = 10000
 
 	type TaskResult struct {
-		Task *uploader.UploadTask
+		Task *filetransfer.Task
 		Name string
 	}
 
@@ -181,16 +181,17 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					continue
 				}
 				numInProgress++
-				task := &uploader.UploadTask{
-					Path:    *entry.LocalPath,
-					Url:     *edge.Node.UploadUrl,
-					Headers: edge.Node.UploadHeaders,
-					CompletionCallback: func(task *uploader.UploadTask) {
+				task := &filetransfer.Task{
+					TaskType: filetransfer.UploadTask,
+					Path:     *entry.LocalPath,
+					Url:      *edge.Node.UploadUrl,
+					Headers:  edge.Node.UploadHeaders,
+					CompletionCallback: func(task *filetransfer.Task) {
 						taskResultsChan <- TaskResult{task, name}
 					},
-					FileType: uploader.ArtifactFile,
+					FileType: filetransfer.ArtifactFile,
 				}
-				as.UploadManager.AddTask(task)
+				as.FileTransferManager.AddTask(task)
 			}
 		}
 		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
@@ -246,17 +247,18 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 }
 
 func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
-	resultChan := make(chan *uploader.UploadTask)
-	task := &uploader.UploadTask{
-		Path:    manifestFile,
-		Url:     *uploadUrl,
-		Headers: uploadHeaders,
-		CompletionCallback: func(task *uploader.UploadTask) {
+	resultChan := make(chan *filetransfer.Task)
+	task := &filetransfer.Task{
+		TaskType: filetransfer.UploadTask,
+		Path:     manifestFile,
+		Url:      *uploadUrl,
+		Headers:  uploadHeaders,
+		CompletionCallback: func(task *filetransfer.Task) {
 			resultChan <- task
 		},
-		FileType: uploader.ArtifactFile,
+		FileType: filetransfer.ArtifactFile,
 	}
-	as.UploadManager.AddTask(task)
+	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
 }
