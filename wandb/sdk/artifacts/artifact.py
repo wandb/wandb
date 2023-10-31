@@ -1681,9 +1681,6 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
-        require_nexus = (
-            wandb.run._settings._require_nexus if wandb.run is not None else False
-        )
         self._ensure_logged("download")
 
         root = root or self._default_root()
