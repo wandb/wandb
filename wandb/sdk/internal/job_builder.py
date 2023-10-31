@@ -340,7 +340,11 @@ class JobBuilder:
             if not source_type:
                 # if source_type is None, then we don't have enough information to build a job
                 # if the user intended to create a job, warn.
-                if self._settings.job_name or self._settings.job_source or self._source_type:
+                if (
+                    self._settings.job_name
+                    or self._settings.job_source
+                    or self._source_type
+                ):
                     wandb.termwarn("No source type found, not creating job artifact")
                 return None
 
