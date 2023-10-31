@@ -31,7 +31,12 @@ class SummarySubDict:
             self._root = root
             json_dict = root._json_dict
             for k in path:
-                json_dict = json_dict[k]
+                if k in json_dict:
+                    json_dict = json_dict[k]
+                else:
+                    json_dict[k] = {}
+                    json_dict = json_dict[k]
+
             self._json_dict = json_dict
         self._dict = {}
 
@@ -175,9 +180,7 @@ class SummarySubDict:
     def _update(self, key_vals, overwrite):
         if not key_vals:
             return
-
         key_vals = {k.strip(): v for k, v in key_vals.items()}
-
         if overwrite:
             write_items = list(key_vals.items())
             self._locked_keys.update(key_vals.keys())
