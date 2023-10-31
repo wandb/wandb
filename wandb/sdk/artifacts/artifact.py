@@ -1693,21 +1693,17 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ):
-                return FilePathStr(
-                    self._run_artifact_download(
+                return self._run_artifact_download(
                         root=root,
                         recursive=recursive,
                         allow_missing_references=allow_missing_references,
                     )
-                )
         else:
-            return FilePathStr(
-                self._run_artifact_download(
+            return self._run_artifact_download(
                     root=root,
                     recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
-            )
 
     def _run_artifact_download(
         self,
