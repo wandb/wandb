@@ -1692,7 +1692,7 @@ class Artifact:
                 project=self._source_project,
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
-            ) as run:
+            ):
                 return FilePathStr(
                     self._run_artifact_download(
                         root=root,
