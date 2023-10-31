@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -241,7 +242,6 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			// Schedule downloads
 			if len(manifestEntriesBatch) > 0 {
 				for _, entry := range manifestEntriesBatch {
-					numInProgress++
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(downloadRoot, *entry.LocalPath)
 					task := &filetransfer.Task{
@@ -253,6 +253,12 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						},
 						FileType: filetransfer.ArtifactFile,
 					}
+					// Skip downloading the file if it already exists
+					if _, err := os.Stat(task.Path); err == nil {
+						numDone++
+						continue
+					}
+					numInProgress++
 					ad.DownloadManager.AddTask(task)
 				}
 			}
