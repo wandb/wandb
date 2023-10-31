@@ -166,6 +166,8 @@ def test_track_sklearn_model():
 
 
 def test_track_pytorch_model():
+    pytest.importorskip("torch")
+
     class Net(nn.Module):
         def __init__(self):
             super().__init__()
@@ -242,6 +244,8 @@ def test_use_datasets():
 
 
 def test_use_models():
+    pytest.importorskip("torch")
+
     rf_clf = RandomForestClassifier()
     assert wandb_use("rf_clf", rf_clf, testing=True, models=True) == "models"
     assert wandb_use("rf_clf", rf_clf, testing=True, models=False) is None
