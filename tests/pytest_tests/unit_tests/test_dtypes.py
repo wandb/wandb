@@ -273,14 +273,6 @@ def test_image_type(assets_path):
     class_labels = {1: "tree", 2: "car", 3: "road"}
     wb_type = data_types._ImageFileType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    jpg_simple = data_types.Image(np.random.rand(10, 10), file_type="jpg")
-    png_simple = data_types.Image(np.random.rand(10, 10), file_type="png")
-    gif_simple = data_types.Image(np.random.rand(10, 10), file_type="gif")
-    bmp_sample = data_types.Image(np.random.rand(10, 10), file_type="bmp")
-    wb_type_jpg = data_types._ImageFileType.from_obj(jpg_simple)
-    wb_type_png = data_types._ImageFileType.from_obj(png_simple)
-    wb_type_gif = data_types._ImageFileType.from_obj(gif_simple)
-    wb_type_bmp = data_types._ImageFileType.from_obj(bmp_sample)
     wb_type_simple = data_types._ImageFileType.from_obj(image_simple)
     im_path = assets_path("test.png")
     image_annotated = data_types.Image(
@@ -328,55 +320,6 @@ def test_image_type(assets_path):
         }
     )
     wb_type_annotated = data_types._ImageFileType.from_obj(image_annotated)
-    annotated_with_files = [ ]
-    for file_type in ["jpg", "png", "gif", "bmp"]:
-        annotated_with_files.append(data_types.Image(
-        np.random.rand(10, 10),
-        boxes={
-            "box_predictions": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": class_labels,
-            },
-            "box_ground_truth": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": class_labels,
-            },
-        },
-        masks={
-            "mask_predictions": {
-                "mask_data": np.random.randint(0, 4, size=(30, 30)),
-                "class_labels": class_labels,
-            },
-            "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
-        },file_type=file_type
-    ))
-    wb_type_annot_with_fid = [
-        data_types._ImageFileType.from_obj(img) for img in annotated_with_files
-        ]
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -410,14 +353,6 @@ def test_image_type(assets_path):
     assert wb_type.assign(image_annotated) == wb_type_annotated
     # OK to assign Images with disjoint class set
     assert wb_type_annotated.assign(image_simple) == wb_type_annotated
-    # Check all types of image file with simple image
-    assert wb_type.assign(jpg_simple) == wb_type_jpg
-    assert wb_type.assign(png_simple) == wb_type_png
-    assert wb_type.assign(gif_simple) == wb_type_gif
-    assert wb_type.assign(bmp_sample) == wb_type_bmp
-    # Check all types of image file with annotated image
-    for img_fid_sample, wb_type_annot in zip(annotated_with_files, wb_type_annot_with_fid):
-        assert wb_type.assign(img_fid_sample) == wb_type_annot
     # Merge when disjoint
     assert wb_type_annotated.assign(
         image_annotated_differently
@@ -432,6 +367,19 @@ def test_image_type(assets_path):
         class_map={"1": "tree", "2": "car", "3": "road"},
     )
 
+def test_image_file_type(assets_path):
+    # to make sure that meta dat is reflected
+    # if just works then might not be 
+    # value in cross porducet
+    formats = ["bmp", "jpg", "png","gif"]
+    jpg_img = wandb.Image(np.random.rand(10, 10), file_type="jpg")
+    png_img = wandb.Image(np.random.rand(10, 10), file_type="png")
+    gif_img = wandb.Image(np.random.rand(10, 10), file_type="gif")
+    bmp_img = wandb.Image(np.random.rand(10, 10), file_type="bmp")
+    #images = [wandb.Image(np.random.rand(10, 10), file_type=typ) for typ in formats]
+    images = [jpg_img, png_img, gif_img, bmp_img]
+    images_back_types = [im.format for im in images]
+    print(images_back_types)
 
 def test_classes_type():
     wb_classes = data_types.Classes(

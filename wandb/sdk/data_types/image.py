@@ -69,7 +69,7 @@ class Image(BatchableMedia):
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes.
+            "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
@@ -228,8 +228,10 @@ class Image(BatchableMedia):
         if self.image is not None:
             self._width, self._height = self.image.size
         self._free_ram()
-        if self.format is not None and self.format not in ['png', 'jpg', 'bmp', 'gif']:
-            raise ValueError(f"file_type: {file_type} is not supported. Please use png, jpg, bmp or gif.")
+        if file_type is None:
+            self.format = 'png'
+        accepted_formats = ['png', 'jpg', 'jpeg', 'gif', 'bmp']
+        assert self.format is not None and self.format in accepted_formats
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -244,9 +246,9 @@ class Image(BatchableMedia):
         self._sha256 = wbimage._sha256
         self._size = wbimage._size
         self.format = wbimage.format
+        self._file_type = wbimage._file_type
         self._artifact_source = wbimage._artifact_source
         self._artifact_target = wbimage._artifact_target
-        self._file_type = wbimage._file_type
 
         # We do not want to implicitly copy boxes or masks, just the image-related data.
         # self._boxes = wbimage._boxes
@@ -308,17 +310,14 @@ class Image(BatchableMedia):
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
-        assert self._image is not None
+
         if file_type is None:
             self.format = 'png'
         else:
             self.format = file_type
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
-        if self.format == 'gif':
-            #self._image = self._image.convert('P')
-            self._image.save(tmp_path,format='GIF', save_all=True, append_images=[self._image])
-        else:
-            self._image.save(tmp_path, transparency=None)
+        assert self._image is not None
+        self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
