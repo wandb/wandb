@@ -1686,34 +1686,57 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        run = wandb.run
-        if run is None:
-            run = wandb.init(
+        if wandb.run is None:
+            with wandb.init(
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
+            ):
+                return FilePathStr(
+                    self._run_artifact_download(
+                        root=root,
+                        recursive=recursive,
+                        allow_missing_references=allow_missing_references,
+                    )
+                    or ""
+                )
+        else:
+            return FilePathStr(
+                self._run_artifact_download(
+                    root=root,
+                    recursive=recursive,
+                    allow_missing_references=allow_missing_references,
+                )
+                or ""
             )
-        assert run is not None, "Unable to initialize run"
 
-        python_download_path = FilePathStr("")
-        if run._settings._require_nexus:
-            # Start the download process in the user process too, to handle reference downloads
-            python_download_path = self._download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
+    def _run_artifact_download(
+        self,
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
+    ) -> Optional[FilePathStr]:
+        assert wandb.run is not None, "failed to initialize run"
+        run = wandb.run
         if run._settings._require_nexus:
             if run._backend and run._backend.interface:
                 if not run._settings._offline:
+                    python_download_path = FilePathStr("")
+                    if run._settings._require_nexus:
+                        # Start the download process in the user process too, to handle reference downloads
+                        python_download_path = self._download(
+                            root=root,
+                            recursive=recursive,
+                            allow_missing_references=allow_missing_references,
+                        )
                     result = run._backend.interface.communicate_download_artifact(
                         self.qualified_name,
                         root,
                         recursive,
                         allow_missing_references,
                     )
-                    if result is not None: 
+                    if result is not None:
                         if result.response.download_artifact_response.error_message:
                             raise ValueError(
                                 f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
@@ -1722,8 +1745,15 @@ class Artifact:
                             result.response.download_artifact_response.file_download_path
                         )
                         return FilePathStr(download_path)
+                    return FilePathStr(python_download_path)
+                raise NotImplementedError("cannot download in offline mode")
         else:
-            return FilePathStr(python_download_path)
+            return self._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
+        return FilePathStr("")
 
     def _download(
         self,

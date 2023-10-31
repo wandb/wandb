@@ -371,7 +371,6 @@ def test_artifact_delete(runner, mock_server, api):
 
 def test_artifact_checkout(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
-    assert wandb.run is not None
     with runner.isolated_filesystem():
         # Create a file that should be removed as part of checkout
         os.makedirs(os.path.join(".", "artifacts", "mnist"))
