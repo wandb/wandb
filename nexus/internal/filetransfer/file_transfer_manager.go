@@ -201,7 +201,7 @@ func (fm *FileTransferManager) Close() {
 // transfer uploads/downloads a file to/from the server
 func (fm *FileTransferManager) transfer(task *Task) error {
 	var err error
-	switch task.TaskType {
+	switch task.Type {
 	case UploadTask:
 		err = fm.fileTransfer.Upload(task)
 	case DownloadTask:

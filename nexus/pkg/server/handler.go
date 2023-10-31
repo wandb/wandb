@@ -115,6 +115,9 @@ type Handler struct {
 
 	// fh is the file handler for the stream
 	fh *FileHandler
+
+	// ft is the file transfer info for the stream
+	ft map[string]*service.FileTransferInfoRequest
 }
 
 // NewHandler creates a new handler
@@ -130,6 +133,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
+		ft:                  make(map[string]*service.FileTransferInfoRequest),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
 		loopbackChan:        loopbackChan,
@@ -314,6 +318,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleCancel(record)
 	case *service.Request_GetSystemMetrics:
 		h.handleGetSystemMetrics(record, response)
+	case *service.Request_FileTransferInfo:
+		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
@@ -380,11 +386,39 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
-	h.sendRecordWithControl(record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
+	// fmt.Println("handlePollExit")
+	// fmt.Println(h.ft)
+	// h.sendRecordWithControl(record,
+	// 	func(control *service.Control) {
+	// 		control.AlwaysSend = true
+	// 	},
+	// )
+
+	totalBytes := 0
+	uploadedBytes := 0
+	for _, info := range h.ft {
+		totalBytes += int(info.GetSize())
+		uploadedBytes += int(info.GetProcessed())
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_PollExitResponse{
+					PollExitResponse: &service.PollExitResponse{
+						PusherStats: &service.FilePusherStats{
+							UploadedBytes: int64(uploadedBytes),
+							TotalBytes:    int64(totalBytes),
+							DedupedBytes:  0,
+						},
+					},
+				},
+			},
 		},
-	)
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	h.outChan <- result
 }
 
 func (h *Handler) handleFinal(record *service.Record) {
@@ -629,6 +663,11 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 			Record: buffer,
 		}
 	}
+}
+
+func (h *Handler) handleFileTransferInfo(record *service.Record) {
+	info := record.GetRequest().GetFileTransferInfo()
+	h.ft[info.GetPath()] = info
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

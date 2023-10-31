@@ -768,9 +768,32 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.Task{TaskType: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
-		task.AddCallback(s.fileTransferManager.FileStreamCallback())
-		task.AddCallback(s.fileTransferManager.ProgressCallback())
+		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
+		task.SetProgressCallback(
+			func(processed, total int) {
+				// percentage := (processed * 100) / total
+				// fmt.Printf("\rUploaded %d%% (%d of %d bytes)", percentage, processed, total)
+
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type: service.FileTransferInfoRequest_Upload,
+							Path: fullPath,
+							// Url:       *file.UploadUrl,
+							Size:      int64(total),
+							Processed: int64(processed),
+						},
+					},
+				}
+				// fmt.Println(request)
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
 		s.fileTransferManager.AddTask(task)
 	}
 }

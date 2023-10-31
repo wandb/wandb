@@ -496,6 +496,7 @@ message Request {
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
+    FileTransferInfoRequest file_transfer_info = 75;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -743,6 +744,18 @@ message FilePusherStats {
 
 message FilesUploaded {
   repeated string files = 1;
+}
+
+message FileTransferInfoRequest {
+  enum TransferType {
+    Upload = 0;
+    Download = 1;
+  }
+  TransferType type = 1;
+  string path = 2;
+  string url = 3;
+  int64 size = 4;
+  int64 processed = 5;
 }
 
 message LocalInfo {

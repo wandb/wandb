@@ -46,7 +46,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 	}(file)
 
-	progressReader, err := NewProgressReader(file)
+	progressReader, err := NewProgressReader(file, task.ProgressCallback)
 	if err != nil {
 		return err
 	}
@@ -102,11 +102,12 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 
 type ProgressReader struct {
 	*os.File
-	len  int
-	read int
+	len              int
+	read             int
+	progressCallback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File) (*ProgressReader, error) {
+func NewProgressReader(file *os.File, progressCallback func(processed, total int)) (*ProgressReader, error) {
 	stat, err := file.Stat()
 	if err != nil {
 		return &ProgressReader{}, err
@@ -115,8 +116,9 @@ func NewProgressReader(file *os.File) (*ProgressReader, error) {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
-		File: file,
-		len:  int(stat.Size()),
+		File:             file,
+		len:              int(stat.Size()),
+		progressCallback: progressCallback,
 	}, nil
 }
 
@@ -136,8 +138,7 @@ func (pr *ProgressReader) reportProgress() {
 	if pr.len == 0 {
 		return
 	}
-	percentage := (pr.read * 100) / pr.len
-	fmt.Printf("\rUploaded %d%% (%d of %d bytes)", percentage, pr.read, pr.len)
+	pr.progressCallback(pr.read, pr.len)
 }
 
 func (pr *ProgressReader) Len() int {

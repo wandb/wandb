@@ -18,8 +18,8 @@ const (
 
 // Task is a task to upload/download a file
 type Task struct {
-	// TaskType is the type of task (upload or download)
-	TaskType TaskType
+	// Type is the type of task (upload or download)
+	Type TaskType
 
 	// Path is the local path to the file
 	Path string
@@ -43,9 +43,13 @@ type Task struct {
 	CompletionCallback []func(*Task)
 
 	// ProgressCallback is a callback to execute on progress updates
-	ProgressCallback []func()
+	ProgressCallback func(int, int)
 }
 
-func (ut *Task) AddCallback(callback func(*Task)) {
+func (ut *Task) SetProgressCallback(callback func(int, int)) {
+	ut.ProgressCallback = callback
+}
+
+func (ut *Task) AddCompletionCallback(callback func(*Task)) {
 	ut.CompletionCallback = append(ut.CompletionCallback, callback)
 }

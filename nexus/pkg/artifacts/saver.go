@@ -182,16 +182,16 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				}
 				numInProgress++
 				task := &filetransfer.Task{
-					TaskType: filetransfer.UploadTask,
+					Type:     filetransfer.UploadTask,
 					Path:     *entry.LocalPath,
 					Url:      *edge.Node.UploadUrl,
 					Headers:  edge.Node.UploadHeaders,
 					FileType: filetransfer.ArtifactFile,
 				}
-				task.AddCallback(func(task *filetransfer.Task) {
+				task.AddCompletionCallback(func(task *filetransfer.Task) {
 					taskResultsChan <- TaskResult{task, name}
 				})
-				task.AddCallback(as.FileTransferManager.ProgressCallback())
+				task.AddCompletionCallback(as.FileTransferManager.ProgressCallback())
 				as.FileTransferManager.AddTask(task)
 			}
 		}
@@ -250,16 +250,16 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
-		TaskType: filetransfer.UploadTask,
+		Type:     filetransfer.UploadTask,
 		Path:     manifestFile,
 		Url:      *uploadUrl,
 		Headers:  uploadHeaders,
 		FileType: filetransfer.ArtifactFile,
 	}
-	task.AddCallback(func(task *filetransfer.Task) {
+	task.AddCompletionCallback(func(task *filetransfer.Task) {
 		resultChan <- task
 	})
-	task.AddCallback(as.FileTransferManager.ProgressCallback())
+	task.AddCompletionCallback(as.FileTransferManager.ProgressCallback())
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
