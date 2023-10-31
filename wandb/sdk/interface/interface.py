@@ -474,25 +474,25 @@ class InterfaceBase:
     ) -> MessageFuture:
         raise NotImplementedError
 
-    def communicate_download_artifact(
+    def deliver_download_artifact(
         self,
         qualified_name: str,
         download_root: str,
         recursive: bool,
         allow_missing_references: bool,
-    ) -> Optional[pb.Result]:
+    ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.qualified_name = qualified_name
         download_artifact.download_root = download_root
         download_artifact.recursive = recursive
         download_artifact.allow_missing_references = allow_missing_references
-        resp = self._communicate_download_artifact(download_artifact)
+        resp = self._deliver_download_artifact(download_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_download_artifact(
+    def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
-    ) -> Optional[pb.Result]:
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(

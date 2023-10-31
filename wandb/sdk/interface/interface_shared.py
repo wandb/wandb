@@ -389,11 +389,11 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_request(log_artifact=log_artifact)
         return self._communicate_async(rec)
 
-    def _communicate_download_artifact(
+    def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
-    ) -> Optional[pb.Result]:
+    ) -> MailboxHandle:
         rec = self._make_request(download_artifact=download_artifact)
-        return self._communicate(rec, timeout=None)
+        return self._deliver_record(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)
