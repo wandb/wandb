@@ -1686,14 +1686,40 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        run = wandb.run or wandb.init(
-            entity=self._source_entity,
-            project=self._source_project,
-            job_type="auto",
-            settings=wandb.Settings(silent="true"),
-        )
-        assert run is not None, "Unable to initialize run"
+        if wandb.run is None:
+            with wandb.init(
+                entity=self._source_entity,
+                project=self._source_project,
+                job_type="auto",
+                settings=wandb.Settings(silent="true"),
+            ) as run:
+                return FilePathStr(
+                    self._run_artifact_download(
+                        run,
+                        root=root,
+                        recursive=recursive,
+                        allow_missing_references=allow_missing_references,
+                    )
+                    or ""
+                )
+        else:
+            return FilePathStr(
+                self._run_artifact_download(
+                    wandb.run,
+                    root=root,
+                    recursive=recursive,
+                    allow_missing_references=allow_missing_references,
+                )
+                or ""
+            )
 
+    def _run_artifact_download(
+        self,
+        run: Union[wandb.apis.public.Run, wandb.sdk.wandb_run.Run],
+        root: Optional[str] = None,
+        recursive: bool = False,
+        allow_missing_references: bool = False,
+    ) -> Optional[FilePathStr]:
         if run._settings._require_nexus:
             if run._backend and run._backend.interface:
                 if not run._settings._offline:
@@ -1713,11 +1739,13 @@ class Artifact:
                         )
                         return FilePathStr(download_path)
                     return FilePathStr("")
-        return self._download(
-            root=root,
-            recursive=recursive,
-            allow_missing_references=allow_missing_references,
-        )
+                raise NotImplementedError("cannot download in offline mode")
+        else:
+            return self._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
 
     def _download(
         self,
