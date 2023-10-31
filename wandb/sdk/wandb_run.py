@@ -1173,8 +1173,7 @@ class Run:
         if not files_added:
             warnings.warn(
                 "No .py files or Dockerfiles detected in current directory. No code will be logged to your wandb run.",
-                UserWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
             return None
 
