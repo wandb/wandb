@@ -1416,6 +1416,7 @@ class Run:
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
+        split_table_set = set()
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
@@ -1425,9 +1426,15 @@ class Run:
             elif isinstance(row[k], CustomChart):
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
-                value = row[k].get_config_value(
-                    "Vega2", row[k].user_query(f"{k}_table")
-                )
+                if row[k]._split_table:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+                    )
+                    split_table_set.add(k)
+                else:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"{k}_table")
+                    )
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
 
@@ -1435,7 +1442,10 @@ class Run:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row[f"{k}_table"] = row.pop(k)
+            if k in split_table_set:
+                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+            else:
+                row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -2014,6 +2024,7 @@ class Run:
         data_table: "wandb.Table",
         fields: Dict[str, Any],
         string_fields: Optional[Dict[str, Any]] = None,
+        split_table: Optional[bool] = False,
     ) -> CustomChart:
         """Create a custom plot on a table.
 
@@ -2026,7 +2037,9 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
+        return custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}, split_table
+        )
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -2050,6 +2063,9 @@ class Run:
             plot_table=self.plot_table,
             alert=self.alert,
             mark_preempting=self.mark_preempting,
+            log_model=self.log_model,
+            use_model=self.use_model,
+            link_model=self.link_model,
         )
 
     def _redirect(
@@ -3083,6 +3099,128 @@ class Run:
             )
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def log_model(
+        self,
+        path: StrPath,
+        model_name: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> None:
+        """Declare a model artifact as an output of a run.
+
+        Arguments:
+            path: (str) A path to the contents of this model,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+            model_name: (str, optional) An artifact name. String containing only the following alphanumeric characters: dashes, underscores, and dots.
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            aliases: (list, optional) Aliases to apply to this artifact,
+                    defaults to `["latest"]`
+
+        Returns:
+            None
+        """
+        self._log_artifact(
+            artifact_or_path=path, name=model_name, type="model", aliases=aliases
+        )
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def use_model(self, model_name: str) -> FilePathStr:
+        """Download a logged model artifact.
+
+        Arguments:
+            model_name: (str) A model artifact name.
+                May be prefixed with entity/project/. Valid names
+                can be in the following forms:
+                    - name:version
+                    - name:alias
+                    - digest.
+
+        Raises:
+            AssertionError: if type of artifact 'model_name' does not contain 'model'
+        Returns:
+            path: (StrPath) path to downloaded artifact file(s).
+        """
+        artifact = self.use_artifact(artifact_or_name=model_name)
+        assert "model" in str(
+            artifact.type.lower()
+        ), "You can only use this method for 'model' artifacts. Please make sure the artifact type of the model you're trying to use contains the word 'model'."
+        path = artifact.download()
+
+        # If returned directory contains only one file, return path to that file
+        dir_list = os.listdir(path)
+        if len(dir_list) == 1:
+            return FilePathStr(os.path.join(path, dir_list[0]))
+        return path
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def link_model(
+        self,
+        path: StrPath,
+        linked_model_name: str,
+        model_name: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> None:
+        """Link a model version to a model portfolio (a promoted collection of model artifacts).
+
+        The linked model will be visible in the UI for the specified portfolio.
+
+        Arguments:
+            path: (str) A path to the contents of this model,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+            registered_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
+            model_name: (str) - the name of the model artifact that files in 'path' will be logged to.
+            aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
+                inside the registered model.
+                The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+        Examples:
+            ```python
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_reg_model",
+                model_name="my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_entity/my_project/my_reg_model",
+                model_name="my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+        Raises:
+            AssertionError: if registered_model_name is a path
+
+        Returns:
+            None
+        """
+        name_parts = linked_model_name.split("/")
+        assert (
+            len(name_parts) == 1
+        ), "Please provide only the name of the registered model. Do not append the entity or project name."
+        project = "model-registry"
+        target_path = self.entity + "/" + project + "/" + linked_model_name
+
+        artifact = self._log_artifact(
+            artifact_or_path=path, name=model_name, type="model"
+        )
+        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
