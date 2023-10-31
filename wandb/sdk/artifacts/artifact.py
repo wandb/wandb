@@ -1713,7 +1713,7 @@ class Artifact:
 
     def _run_artifact_download(
         self,
-        root: Optional[str] = None,
+        root: str,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> Optional[FilePathStr]:
@@ -1749,7 +1749,7 @@ class Artifact:
 
     def _download(
         self,
-        root: Optional[str] = None,
+        root: str,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:

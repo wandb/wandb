@@ -477,7 +477,7 @@ class InterfaceBase:
     def communicate_download_artifact(
         self,
         qualified_name: str,
-        download_root: Optional[str],
+        download_root: str,
         recursive: bool,
         allow_missing_references: bool,
     ) -> Optional[pb.Result]:
