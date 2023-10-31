@@ -231,3 +231,4 @@ def test_launch_agent_scheduler(
         assert launch_agent._max_schedulers == float("inf")
     else:
         assert launch_agent._max_schedulers == int(max_schedulers)
+    run.finish()
