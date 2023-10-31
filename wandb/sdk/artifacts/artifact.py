@@ -1745,6 +1745,7 @@ class Artifact:
                 recursive=recursive,
                 allow_missing_references=allow_missing_references,
             )
+        return FilePathStr("")
 
     def _download(
         self,
