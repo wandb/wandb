@@ -11,7 +11,8 @@ try:
     from wandb.integration.kfp import unpatch_kfp, wandb_log
 except ImportError:
     pytest.skip(
-        "KFP integration tests require kfp and wandb to be installed", allow_module_level=True
+        "KFP integration tests require kfp and wandb to be installed",
+        allow_module_level=True,
     )
 
 # todo: skip all file
