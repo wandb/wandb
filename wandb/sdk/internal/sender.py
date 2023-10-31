@@ -1451,12 +1451,6 @@ class SendManager:
 
         self._respond_result(result)
 
-    def send_request_download_artifact(self, record: "Record") -> None:
-        # Invalid path
-        result = proto_util._result_from_record(record)
-        result.response.download_artifact_response.file_download_path = ""
-        self._respond_result(result)
-
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
