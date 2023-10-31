@@ -3,6 +3,9 @@ import sys
 import pytest
 import wandb
 
+if sys.version_info == (3, 12):
+    pytest.skip("skipping while tf is unavailable", allow_module_level=True)
+
 tensorflow = pytest.importorskip("tensorflow")
 keras = tensorflow.keras
 from keras import backend as K  # noqa: N812, E402
