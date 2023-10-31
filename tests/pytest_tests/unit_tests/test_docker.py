@@ -24,15 +24,15 @@ def test_buildx_not_installed(runner):
 
 
 @pytest.mark.parametrize(
-    "platform,injnects_load",
+    "platform,adds_load_arg",
     [(None, True), ("linux/amd64", True), ("linux/amd64,linux/arm664", False)],
 )
-def test_buildx_load_platform(platform, injects_load, runner, mocker):
+def test_buildx_load_platform(platform, adds_load_arg, runner, mocker):
     mocker.patch(wandb.docker.is_buildx_installed, lambda: True)
     mocker.patch(wandb.docker.run_command_live_output, lambda x: x)
     with runner.isolated_filesystem():
-        args = wandb.docker.build()
-        if injects_load:
+        args = wandb.docker.build(["test"], "./Dockerfile", ".", platform)
+        if adds_load_arg:
             assert "--load" in args
         else:
             assert "--load" not in args
