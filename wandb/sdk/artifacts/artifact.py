@@ -1753,11 +1753,6 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        self._ensure_logged("download")
-
-        root = root or self._default_root()
-        self._add_download_root(root)
-
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         log = False
