@@ -3148,8 +3148,8 @@ class Run:
             path: (StrPath) path to downloaded artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=model_name)
-        assert (
-            "model" in str(artifact.type.lower())
+        assert "model" in str(
+            artifact.type.lower()
         ), "You can only use this method for 'model' artifacts. Please make sure the artifact type of the model you're trying to use contains the word 'model'."
         path = artifact.download()
 
