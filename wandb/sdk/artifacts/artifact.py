@@ -1723,13 +1723,12 @@ class Artifact:
             if run._backend and run._backend.interface:
                 if not run._settings._offline:
                     python_download_path = FilePathStr("")
-                    if run._settings._require_nexus:
-                        # Start the download process in the user process too, to handle reference downloads
-                        python_download_path = self._download(
-                            root=root,
-                            recursive=recursive,
-                            allow_missing_references=allow_missing_references,
-                        )
+                    # Start the download process in the user process too, to handle reference downloads
+                    python_download_path = self._download(
+                        root=root,
+                        recursive=recursive,
+                        allow_missing_references=allow_missing_references,
+                    )
                     result = run._backend.interface.communicate_download_artifact(
                         self.qualified_name,
                         root,
