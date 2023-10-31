@@ -61,8 +61,7 @@ servers = ServerMap()
 
 
 def get_temp_dir_kwargs(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    return dict(temp_dir=tmp_path)
 
 
 def test_cleanup(*args, **kwargs):
