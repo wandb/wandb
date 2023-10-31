@@ -1699,7 +1699,6 @@ class Artifact:
                         recursive=recursive,
                         allow_missing_references=allow_missing_references,
                     )
-                    or ""
                 )
         else:
             return FilePathStr(
@@ -1708,7 +1707,6 @@ class Artifact:
                     recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
-                or ""
             )
 
     def _run_artifact_download(
@@ -1716,7 +1714,7 @@ class Artifact:
         root: str,
         recursive: bool = False,
         allow_missing_references: bool = False,
-    ) -> Optional[FilePathStr]:
+    ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
         if run._settings._require_nexus:
@@ -1819,7 +1817,7 @@ class Artifact:
 
         if recursive:
             for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact._download()
+                dependent_artifact.download()
 
         if log:
             now = datetime.now()
