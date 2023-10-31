@@ -1714,24 +1714,24 @@ class Artifact:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
         if run._settings._require_nexus:
-            if run._backend and run._backend.interface:
-                if not run._settings._offline:
-                    result = run._backend.interface.communicate_download_artifact(
-                        self.qualified_name,
-                        root,
-                        recursive,
-                        allow_missing_references,
-                    )
-                    assert result is not None
-                    response = result.response.download_artifact_response
-                    if response.error_message:
-                        raise ValueError(
-                            f"Error downloading artifact: {response.error_message}"
-                        )
-                    download_path = response.file_download_path
-                    return FilePathStr(download_path)
+            if not run._backend or not run._backend.interface:
+                raise NotImplementedError
+            if run._settings._offline:
                 raise NotImplementedError("cannot download in offline mode")
-            raise NotImplementedError
+            result = run._backend.interface.communicate_download_artifact(
+                self.qualified_name,
+                root,
+                recursive,
+                allow_missing_references,
+            )
+            assert result is not None
+            response = result.response.download_artifact_response
+            if response.error_message:
+                raise ValueError(
+                    f"Error downloading artifact: {response.error_message}"
+                )
+            download_path = response.file_download_path
+            return FilePathStr(download_path)
         return self._download(
             root=root,
             recursive=recursive,
