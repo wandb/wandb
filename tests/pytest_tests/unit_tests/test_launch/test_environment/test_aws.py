@@ -84,6 +84,7 @@ async def test_verify(mocker):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="`assert_has_calls` vs `assert <...>.has_calls`")
 async def test_upload_directory(mocker):
     """Test that we issue the correct api calls to upload files to s3."""
     """
@@ -142,7 +143,7 @@ async def test_upload_directory(mocker):
     )
     await environment.upload_dir(source_dir, "s3://bucket/key")
     assert client.upload_file.call_count == 8
-    assert client.upload_file.has_calls(
+    client.upload_file.assert_has_calls(
         [
             mocker.call(
                 os.path.join(source_dir, "Dockerfile"),

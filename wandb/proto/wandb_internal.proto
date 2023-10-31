@@ -888,6 +888,7 @@ message JobInfoResponse {
 message LogArtifactRequest {
   ArtifactRecord artifact = 1;
   int64 history_step = 2;
+  string staging_dir = 3;
   _RequestInfo _info = 200;
 }
 
