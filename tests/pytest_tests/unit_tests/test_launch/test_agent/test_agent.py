@@ -300,8 +300,8 @@ async def test_thread_finish_sweep_fail(mocker, clean_agent):
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -321,8 +321,8 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -341,8 +341,8 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
     agent._jobs_lock = MagicMock()
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
