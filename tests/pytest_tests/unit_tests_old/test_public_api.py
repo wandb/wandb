@@ -369,7 +369,7 @@ def test_artifact_delete(runner, mock_server, api):
         art.delete(delete_aliases=True)
 
 
-def test_artifact_checkout(runner, mock_server, api, test_settings, mocked_run):
+def test_artifact_checkout(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
     assert wandb.run is not None
     with runner.isolated_filesystem():
