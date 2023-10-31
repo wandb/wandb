@@ -806,10 +806,10 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 				request := &service.Request{
 					RequestType: &service.Request_FileTransferInfo{
 						FileTransferInfo: &service.FileTransferInfoRequest{
-							Type: service.FileTransferInfoRequest_Upload,
-							Path: fullPath,
-							Size:      task.Size,
-							Processed: task.Size,
+							Type:       service.FileTransferInfoRequest_Upload,
+							Path:       fullPath,
+							Size:       task.Size,
+							Processed:  task.Size,
 							FileCounts: fileCounts,
 						},
 					},
