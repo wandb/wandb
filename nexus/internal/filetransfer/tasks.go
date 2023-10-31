@@ -36,6 +36,9 @@ type Task struct {
 	// FileType is the type of file
 	FileType FileType
 
+	// Size is the size of the file
+	Size int64
+
 	// Error, if any.
 	Err error
 

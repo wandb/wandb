@@ -769,12 +769,9 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
 		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
-		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
+
 		task.SetProgressCallback(
 			func(processed, total int) {
-				// percentage := (processed * 100) / total
-				// fmt.Printf("\rUploaded %d%% (%d of %d bytes)", percentage, processed, total)
-
 				request := &service.Request{
 					RequestType: &service.Request_FileTransferInfo{
 						FileTransferInfo: &service.FileTransferInfoRequest{
@@ -786,7 +783,6 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 						},
 					},
 				}
-				// fmt.Println(request)
 
 				rec := &service.Record{
 					RecordType: &service.Record_Request{Request: request},
@@ -794,6 +790,38 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 				s.loopbackChan <- rec
 			},
 		)
+		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
+		task.AddCompletionCallback(
+			func(*filetransfer.Task) {
+				fileCounts := &service.FileCounts{}
+				switch fileType {
+				case filetransfer.MediaFile:
+					fileCounts.MediaCount = 1
+				case filetransfer.OtherFile:
+					fileCounts.OtherCount = 1
+				case filetransfer.WandbFile:
+					fileCounts.WandbCount = 1
+				}
+
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type: service.FileTransferInfoRequest_Upload,
+							Path: fullPath,
+							Size:      task.Size,
+							Processed: task.Size,
+							FileCounts: fileCounts,
+						},
+					},
+				}
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
+
 		s.fileTransferManager.AddTask(task)
 	}
 }

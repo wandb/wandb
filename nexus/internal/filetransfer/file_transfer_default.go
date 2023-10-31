@@ -46,7 +46,15 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 	}(file)
 
-	progressReader, err := NewProgressReader(file, task.ProgressCallback)
+	stat, err := file.Stat()
+	if err == nil {
+		task.Size = stat.Size()
+	} else {
+		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
+		return err
+	}
+
+	progressReader, err := NewProgressReader(file, task.Size, task.ProgressCallback)
 	if err != nil {
 		return err
 	}
@@ -107,17 +115,13 @@ type ProgressReader struct {
 	progressCallback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File, progressCallback func(processed, total int)) (*ProgressReader, error) {
-	stat, err := file.Stat()
-	if err != nil {
-		return &ProgressReader{}, err
-	}
-	if stat.Size() > math.MaxInt {
+func NewProgressReader(file *os.File, size int64, progressCallback func(processed, total int)) (*ProgressReader, error) {
+	if size > math.MaxInt {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
 		File:             file,
-		len:              int(stat.Size()),
+		len:              int(size),
 		progressCallback: progressCallback,
 	}, nil
 }

@@ -2417,11 +2417,14 @@ class FileTransferInfoRequest(google.protobuf.message.Message):
     URL_FIELD_NUMBER: builtins.int
     SIZE_FIELD_NUMBER: builtins.int
     PROCESSED_FIELD_NUMBER: builtins.int
+    FILE_COUNTS_FIELD_NUMBER: builtins.int
     type: global___FileTransferInfoRequest.TransferType.ValueType
     path: builtins.str
     url: builtins.str
     size: builtins.int
     processed: builtins.int
+    @property
+    def file_counts(self) -> global___FileCounts: ...
     def __init__(
         self,
         *,
@@ -2430,8 +2433,10 @@ class FileTransferInfoRequest(google.protobuf.message.Message):
         url: builtins.str = ...,
         size: builtins.int = ...,
         processed: builtins.int = ...,
+        file_counts: global___FileCounts | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["path", b"path", "processed", b"processed", "size", b"size", "type", b"type", "url", b"url"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["file_counts", b"file_counts"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["file_counts", b"file_counts", "path", b"path", "processed", b"processed", "size", b"size", "type", b"type", "url", b"url"]) -> None: ...
 
 global___FileTransferInfoRequest = FileTransferInfoRequest
 

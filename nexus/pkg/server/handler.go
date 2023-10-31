@@ -396,9 +396,14 @@ func (h *Handler) handlePollExit(record *service.Record) {
 
 	totalBytes := 0
 	uploadedBytes := 0
+	fileCounts := service.FileCounts{}
 	for _, info := range h.ft {
 		totalBytes += int(info.GetSize())
 		uploadedBytes += int(info.GetProcessed())
+		fileCounts.OtherCount += int32(info.FileCounts.GetOtherCount())
+		fileCounts.WandbCount += int32(info.FileCounts.GetWandbCount())
+		fileCounts.MediaCount += int32(info.FileCounts.GetMediaCount())
+		fileCounts.ArtifactCount += int32(info.FileCounts.GetArtifactCount())
 	}
 
 	result := &service.Result{
@@ -410,6 +415,7 @@ func (h *Handler) handlePollExit(record *service.Record) {
 							UploadedBytes: int64(uploadedBytes),
 							TotalBytes:    int64(totalBytes),
 							DedupedBytes:  0,
+							// FileCounts:    &fileCounts,
 						},
 					},
 				},

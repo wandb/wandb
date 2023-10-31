@@ -756,6 +756,7 @@ message FileTransferInfoRequest {
   string url = 3;
   int64 size = 4;
   int64 processed = 5;
+  FileCounts file_counts = 6;
 }
 
 message LocalInfo {
