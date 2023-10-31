@@ -1693,30 +1693,24 @@ class Artifact:
                 job_type="auto",
                 settings=wandb.Settings(silent="true"),
             ):
-                return FilePathStr(
-                    self._run_artifact_download(
-                        root=root,
-                        recursive=recursive,
-                        allow_missing_references=allow_missing_references,
-                    )
-                    or ""
-                )
-        else:
-            return FilePathStr(
-                self._run_artifact_download(
+                return self._run_artifact_download(
                     root=root,
                     recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
-                or ""
+        else:
+            return self._run_artifact_download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
             )
 
     def _run_artifact_download(
         self,
-        root: Optional[str] = None,
+        root: str,
         recursive: bool = False,
         allow_missing_references: bool = False,
-    ) -> Optional[FilePathStr]:
+    ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
         if run._settings._require_nexus:
@@ -1735,39 +1729,31 @@ class Artifact:
                         recursive,
                         allow_missing_references,
                     )
-                    if result is not None:
-                        if result.response.download_artifact_response.error_message:
-                            raise ValueError(
-                                f"Error downloading artifact: {result.response.download_artifact_response.error_message}"
-                            )
-                        download_path = (
-                            result.response.download_artifact_response.file_download_path
+                    assert result is not None
+                    response = result.response.download_artifact_response
+                    if response.error_message:
+                        raise ValueError(
+                            f"Error downloading artifact: {response.error_message}"
                         )
-                        return FilePathStr(download_path)
-                    return FilePathStr(python_download_path)
+                    download_path = response.file_download_path
+                    return FilePathStr(download_path)
                 raise NotImplementedError("cannot download in offline mode")
-        else:
-            return self._download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
-        return FilePathStr("")
+            raise NotImplementedError
+        return self._download(
+            root=root,
+            recursive=recursive,
+            allow_missing_references=allow_missing_references,
+        )
 
     def _download(
         self,
-        root: Optional[str] = None,
+        root: str,
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         require_nexus = False
         if wandb.run is not None:
             require_nexus = wandb.run._settings._require_nexus
-
-        self._ensure_logged("download")
-
-        root = root or self._default_root()
-        self._add_download_root(root)
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1838,7 +1824,7 @@ class Artifact:
 
         if recursive:
             for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact._download()
+                dependent_artifact.download()
 
         if log:
             now = datetime.now()

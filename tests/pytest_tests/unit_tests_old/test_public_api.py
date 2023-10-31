@@ -345,10 +345,11 @@ def test_artifact_files(runner, mock_server, api):
         assert "storagePath" not in file._attrs.keys()
 
 
-def test_artifact_download(runner, mock_server, api):
+def test_artifact_download(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
-        path = art._download()
+        path = art.download()
         if platform.system() == "Windows":
             part = "mnist-v0"
         else:
@@ -445,9 +446,10 @@ def test_artifact_manual_error(runner, mock_server, api):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="Verify is broken on Windows"
 )
-def test_artifact_verify(runner, mock_server, api):
+def test_artifact_verify(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     art = api.artifact("entity/project/mnist:v0", type="dataset")
-    art._download()
+    art.download()
     with pytest.raises(ValueError):
         art.verify()
 
