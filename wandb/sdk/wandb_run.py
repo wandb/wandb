@@ -1172,8 +1172,10 @@ class Run:
                 art.add_file(file_path, name=save_name)
         if not files_added:
             warnings.warn(
-                "No .py files or Dockerfiles detected in current directory. No code will be logged to your wandb run."
-            )
+                "No .py files or Dockerfiles detected in current directory. No code will be logged to your wandb run.",
+                UserWarning,
+                stacklevel=2
+                )
             return None
 
         return self._log_artifact(art)
