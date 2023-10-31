@@ -273,33 +273,6 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			}
 		}
 	}
-	/**
-	/* For now, reference artifact downloads will be handled by the python core
-	/* so no need to accumulate upstream artifacts
-	if ad.Recursive != nil {
-		if *ad.Recursive {
-			for _, referencedArtifact := range ad.UpstreamArtifacts {
-				referencedArtifactSeq := referencedArtifact.GetArtifactSequence()
-				refArtifactProject := referencedArtifactSeq.Project
-				versionIndex := strconv.Itoa(*referencedArtifact.GetVersionIndex())
-				refArtifactQualifiedName := getArtifactQualifiedName(refArtifactProject.EntityName, refArtifactProject.Name, referencedArtifactSeq.Name, versionIndex)
-				newDownloader := NewArtifactDownloader(
-					ad.Ctx,
-					ad.GraphqlClient,
-					ad.DownloadManager,
-					refArtifactQualifiedName,
-					ad.DownloadRoot,
-					ad.Recursive,
-					ad.AllowMissingReferences,
-				)
-				_, err := newDownloader.Download()
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-	*/
 	return nil
 }
 
@@ -322,19 +295,6 @@ func (ad *ArtifactDownloader) Download() (downloadRoot string, rerr error) {
 	if err != nil {
 		return "", err
 	}
-
-	// todo: Logs??
-	/*
-		nFiles := len(artifactManifest.Contents)
-		fmt.Printf("\n\n manifest size ===> %v \n\n", nFiles)
-		size := 0
-		for _, file := range artifactManifest.Contents {
-			size += int(file.Size)
-		}
-		if nFiles > 5000 || size > 50*1024*1024 {
-			ad.logger.Info("downloadArtifact: downloading large artifact %s, %d MB, %d files", ad.QualifiedName, size/(1024*1024), nFiles)
-		}
-	*/
 
 	if err := ad.downloadFiles(artifactAttrs.Id, artifactManifest); err != nil {
 		return "", err
