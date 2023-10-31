@@ -1694,16 +1694,16 @@ class Artifact:
                 settings=wandb.Settings(silent="true"),
             ):
                 return self._run_artifact_download(
-                        root=root,
-                        recursive=recursive,
-                        allow_missing_references=allow_missing_references,
-                    )
-        else:
-            return self._run_artifact_download(
                     root=root,
                     recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
+        else:
+            return self._run_artifact_download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
 
     def _run_artifact_download(
         self,
@@ -1733,13 +1733,12 @@ class Artifact:
                         return FilePathStr(download_path)
                     raise RuntimeError("download failed")
                 raise NotImplementedError("cannot download in offline mode")
-        else:
-            return self._download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
-        return FilePathStr("")
+            raise wandb.CommError("unable to communicate with W&B")
+        return self._download(
+            root=root,
+            recursive=recursive,
+            allow_missing_references=allow_missing_references,
+        )
 
     def _download(
         self,
