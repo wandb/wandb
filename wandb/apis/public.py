@@ -450,7 +450,7 @@ class Api:
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: Optional[dict] = None,
-    ) -> None:
+    ) -> "RunQueue":
         """Create a new run queue (launch).
 
         Arguments:
@@ -2338,7 +2338,7 @@ class Run(Attrs):
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
-                "Manually create one with `wandb artifacts put`"
+                "Manually create one with `wandb artifact put`"
             )
         else:
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
@@ -2377,7 +2377,7 @@ class Run(Attrs):
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
             raise ValueError(
                 "Only existing artifacts are accepted by this api. "
-                "Manually create one with `wandb artifacts put`"
+                "Manually create one with `wandb artifact put`"
             )
         else:
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")

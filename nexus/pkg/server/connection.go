@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,8 +21,8 @@ import (
 )
 
 const (
-	messageSize    = 1024 * 1024      // 1MB message size
-	maxMessageSize = 64 * 1024 * 1024 // 64MB max message size
+	messageSize    = 1024 * 1024            // 1MB message size
+	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
 )
 
 // Connection is the connection for a stream.
@@ -158,6 +159,9 @@ func (nc *Connection) readConnection() {
 			nc.inChan <- msg
 		}
 	}
+	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
+		panic(scanner.Err())
+	}
 	close(nc.inChan)
 }
 
@@ -278,6 +282,8 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 		"run_url": nc.stream.settings.GetRunUrl().GetValue(),
 		"entity":  nc.stream.settings.GetEntity().GetValue(),
 	})
+	// TODO: remove this once we have a better observability setup
+	nc.stream.logger.CaptureInfo("nexus", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message

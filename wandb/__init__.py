@@ -11,8 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.15.12.dev1"
-_minimum_nexus_version = "0.16.0b1"
+__version__ = "0.15.13.dev1"
+_minimum_nexus_version = "0.16.0b3"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -135,6 +135,15 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+log_model = _preinit.PreInitCallable(
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+)
+use_model = _preinit.PreInitCallable(
+    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model
+)
+link_model = _preinit.PreInitCallable(
+    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model
+)
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
@@ -202,6 +211,21 @@ _sentry = _Sentry()
 _sentry.setup()
 
 
+# print a warning if running py 3.6 saying that it will be deprecated in the 0.16.0 release
+try:
+    import sys
+
+    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
+        termwarn(
+            "Support for Python 3.6 will be discontinued "
+            "in the upcoming 0.16.0 release of wandb. "
+            "We recommend upgrading to Python 3.7 or a later version.",
+            repeat=False,
+        )
+except Exception:
+    pass
+
+
 __all__ = (
     "__version__",
     "init",
@@ -226,4 +250,7 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_model",
+    "use_model",
+    "link_model",
 )

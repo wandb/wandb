@@ -717,7 +717,7 @@ class SendManager:
 
         result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
         for message in self._server_messages:
-            # guard agains the case the message level returns malformed from server
+            # guard against the case the message level returns malformed from server
             message_level = str(message.get("messageLevel"))
             message_level_sanitized = int(
                 printer.INFO if not message_level.isdigit() else message_level
@@ -821,8 +821,10 @@ class SendManager:
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state.runtime = max(events_rt, history_rt)
-        self._resume_state.step = history.get("_step", -1) + 1 if history else 0
-        self._resume_state.history = resume_status["historyLineCount"]
+        last_step = history.get("_step", 0)
+        history_line_count = resume_status["historyLineCount"]
+        self._resume_state.step = last_step + 1 if history_line_count > 0 else last_step
+        self._resume_state.history = history_line_count
         self._resume_state.events = resume_status["eventsLineCount"]
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
