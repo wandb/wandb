@@ -136,26 +136,37 @@ type FileTransferHandler struct {
 	totalBytes    int64
 	uploadedBytes int64
 	DedupedBytes  int64
+	fileCounts    *service.FileCounts
 }
 
 func NewFileTransferHandler() *FileTransferHandler {
 	return &FileTransferHandler{
-		info: make(map[string]*service.FileTransferInfoRequest),
+		info:       make(map[string]*service.FileTransferInfoRequest),
+		fileCounts: &service.FileCounts{},
 	}
 }
 
 func (fth *FileTransferHandler) Handle(record *service.FileTransferInfoRequest) {
 	key := record.GetPath()
 	if info, ok := fth.info[key]; ok {
-		fth.uploadedBytes += record.GetProcessed()
-		fth.uploadedBytes -= info.GetProcessed()
+		fth.uploadedBytes += record.GetProcessed() - info.GetProcessed()
+
+		fth.fileCounts.OtherCount += record.GetFileCounts().GetOtherCount() - info.GetFileCounts().GetOtherCount()
+		fth.fileCounts.WandbCount += record.GetFileCounts().GetWandbCount() - info.GetFileCounts().GetWandbCount()
+		fth.fileCounts.MediaCount += record.GetFileCounts().GetMediaCount() - info.GetFileCounts().GetMediaCount()
+		fth.fileCounts.ArtifactCount += record.GetFileCounts().GetArtifactCount() - info.GetFileCounts().GetArtifactCount()
+
 		fth.info[key] = record
 	} else {
 		fth.totalBytes += record.GetSize()
 		fth.uploadedBytes += record.GetProcessed()
+
+		fth.fileCounts.OtherCount += record.GetFileCounts().GetOtherCount()
+		fth.fileCounts.WandbCount += record.GetFileCounts().GetWandbCount()
+		fth.fileCounts.MediaCount += record.GetFileCounts().GetMediaCount()
+		fth.fileCounts.ArtifactCount += record.GetFileCounts().GetArtifactCount()
 		fth.info[record.GetPath()] = record
 	}
-
 }
 
 func (fth *FileTransferHandler) GetTotalBytes() int64 {
@@ -172,14 +183,7 @@ func (fth *FileTransferHandler) GetDedupedBytes() int64 {
 
 // TODO: with the new rust client we want to get rid of this
 func (fth *FileTransferHandler) GetFileCounts() *service.FileCounts {
-	fileCounts := &service.FileCounts{}
-	for _, info := range fth.info {
-		fileCounts.OtherCount += info.FileCounts.GetOtherCount()
-		fileCounts.WandbCount += info.FileCounts.GetWandbCount()
-		fileCounts.MediaCount += info.FileCounts.GetMediaCount()
-		fileCounts.ArtifactCount += info.FileCounts.GetArtifactCount()
-	}
-	return fileCounts
+	return fth.fileCounts
 }
 
 func (fth *FileTransferHandler) IsDone() bool {
