@@ -117,7 +117,7 @@ type Handler struct {
 	fh *FileHandler
 
 	// ft is the file transfer info for the stream
-	ft map[string]*service.FileTransferInfoRequest
+	ft *FileTransferHandler
 }
 
 // NewHandler creates a new handler
@@ -133,7 +133,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		ft:                  make(map[string]*service.FileTransferInfoRequest),
+		ft:                  NewFileTransferHandler(),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
 		loopbackChan:        loopbackChan,
@@ -393,37 +393,18 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
-	// fmt.Println("handlePollExit")
-	// fmt.Println(h.ft)
-	// h.sendRecordWithControl(record,
-	// 	func(control *service.Control) {
-	// 		control.AlwaysSend = true
-	// 	},
-	// )
-
-	totalBytes := 0
-	uploadedBytes := 0
-	fileCounts := service.FileCounts{}
-	for _, info := range h.ft {
-		totalBytes += int(info.GetSize())
-		uploadedBytes += int(info.GetProcessed())
-		fileCounts.OtherCount += int32(info.FileCounts.GetOtherCount())
-		fileCounts.WandbCount += int32(info.FileCounts.GetWandbCount())
-		fileCounts.MediaCount += int32(info.FileCounts.GetMediaCount())
-		fileCounts.ArtifactCount += int32(info.FileCounts.GetArtifactCount())
-	}
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_PollExitResponse{
 					PollExitResponse: &service.PollExitResponse{
 						PusherStats: &service.FilePusherStats{
-							UploadedBytes: int64(uploadedBytes),
-							TotalBytes:    int64(totalBytes),
-							DedupedBytes:  0,
+							UploadedBytes: h.ft.GetUploadedBytes(),
+							TotalBytes:    h.ft.GetTotalBytes(),
+							DedupedBytes:  h.ft.GetDedupedBytes(),
 						},
-						FileCounts: &fileCounts,
-						Done:       totalBytes == uploadedBytes,
+						FileCounts: h.ft.GetFileCounts(),
+						Done:       h.ft.IsDone(),
 					},
 				},
 			},
@@ -680,7 +661,7 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	info := record.GetRequest().GetFileTransferInfo()
-	h.ft[info.GetPath()] = info
+	h.ft.Handle(info)
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

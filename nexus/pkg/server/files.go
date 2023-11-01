@@ -130,3 +130,58 @@ func (fh *FileHandler) Final() *service.Record {
 	}
 	return fh.final
 }
+
+type FileTransferHandler struct {
+	info          map[string]*service.FileTransferInfoRequest
+	totalBytes    int64
+	uploadedBytes int64
+	DedupedBytes  int64
+}
+
+func NewFileTransferHandler() *FileTransferHandler {
+	return &FileTransferHandler{
+		info: make(map[string]*service.FileTransferInfoRequest),
+	}
+}
+
+func (fth *FileTransferHandler) Handle(record *service.FileTransferInfoRequest) {
+	key := record.GetPath()
+	if info, ok := fth.info[key]; ok {
+		fth.uploadedBytes += record.GetProcessed()
+		fth.uploadedBytes -= info.GetProcessed()
+		fth.info[key] = record
+	} else {
+		fth.totalBytes += record.GetSize()
+		fth.uploadedBytes += record.GetProcessed()
+		fth.info[record.GetPath()] = record
+	}
+
+}
+
+func (fth *FileTransferHandler) GetTotalBytes() int64 {
+	return fth.totalBytes
+}
+
+func (fth *FileTransferHandler) GetUploadedBytes() int64 {
+	return fth.uploadedBytes
+}
+
+func (fth *FileTransferHandler) GetDedupedBytes() int64 {
+	return fth.DedupedBytes
+}
+
+// TODO: with the new rust client we want to get rid of this
+func (fth *FileTransferHandler) GetFileCounts() *service.FileCounts {
+	fileCounts := &service.FileCounts{}
+	for _, info := range fth.info {
+		fileCounts.OtherCount += info.FileCounts.GetOtherCount()
+		fileCounts.WandbCount += info.FileCounts.GetWandbCount()
+		fileCounts.MediaCount += info.FileCounts.GetMediaCount()
+		fileCounts.ArtifactCount += info.FileCounts.GetArtifactCount()
+	}
+	return fileCounts
+}
+
+func (fth *FileTransferHandler) IsDone() bool {
+	return fth.totalBytes == fth.uploadedBytes
+}
