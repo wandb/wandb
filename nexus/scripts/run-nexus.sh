@@ -13,6 +13,6 @@
 #
 
 set -e
-BASE=$(dirname $(dirname $(readlink -f $0)))
-cd $BASE
+#BASE=$(dirname $(dirname $(readlink -f $0)))
+cd /Users/ibindlish/Documents/Projects/wandb/nexus
 go run cmd/nexus/main.go $*

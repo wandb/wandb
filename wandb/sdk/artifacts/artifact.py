@@ -1753,7 +1753,6 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        wandb.termwarn("\n\ninside python downloads\n\n")
         # todo: remove once artifact reference downloads are supported in nexus
         require_nexus = False
         if wandb.run is not None:
