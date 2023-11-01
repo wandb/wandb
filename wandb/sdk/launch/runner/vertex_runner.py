@@ -172,6 +172,7 @@ async def launch_vertex_job(
     synchronous: bool = False,
 ) -> VertexSubmittedRun:
     try:
+        await environment.verify()
         aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
