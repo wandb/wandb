@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -76,6 +77,20 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 // Download downloads a file from the server
 func (ft *DefaultFileTransfer) Download(task *Task) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
+	dir := path.Dir(task.Path)
+
+	// Check if the directory already exists
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		// Directory doesn't exist, create it
+		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			// Handle the error if it occurs
+			return err
+		}
+	} else if err != nil {
+		// Handle other errors that may occur while checking directory existence
+		return err
+	}
+
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {

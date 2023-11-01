@@ -246,6 +246,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_PollExit:
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
+	case *service.Request_DownloadArtifact:
+		s.sendDownloadArtifact(record, x.DownloadArtifact)
 	default:
 		// TODO: handle errors
 	}
@@ -845,6 +847,31 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 			Response: &service.Response{
 				ResponseType: &service.Response_LogArtifactResponse{
 					LogArtifactResponse: &response,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+}
+
+func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+	var response service.DownloadArtifactResponse
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.Recursive, &msg.AllowMissingReferences)
+	fileDownloadPath, err := downloader.Download()
+	if err != nil {
+		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)
+		response.ErrorMessage = err.Error()
+	} else {
+		response.FileDownloadPath = fileDownloadPath
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_DownloadArtifactResponse{
+					DownloadArtifactResponse: &response,
 				},
 			},
 		},
