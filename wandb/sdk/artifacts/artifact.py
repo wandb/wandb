@@ -1718,17 +1718,17 @@ class Artifact:
                 raise NotImplementedError
             if run._settings._offline:
                 raise NotImplementedError("cannot download in offline mode")
-            # Start the download process in the user process too, to handle reference downloads
-            self._download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
             handle = run._backend.interface.deliver_download_artifact(
                 self.qualified_name,
                 root,
                 recursive,
                 allow_missing_references,
+            )
+            # Start the download process in the user process too, to handle reference downloads
+            self._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
             )
             result = handle.wait(timeout=-1)
             if result is None:
@@ -1753,6 +1753,7 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        wandb.termwarn("\n\ninside python downloads\n\n")
         # todo: remove once artifact reference downloads are supported in nexus
         require_nexus = False
         if wandb.run is not None:
