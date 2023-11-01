@@ -830,7 +830,9 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep)
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+	)
 	artifactID, err := saver.Save()
 	if err != nil {
 		response.ErrorMessage = err.Error()

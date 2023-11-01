@@ -24,6 +24,7 @@ type ArtifactSaver struct {
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
+	StagingDir  string
 }
 
 func NewArtifactSaver(
@@ -32,6 +33,7 @@ func NewArtifactSaver(
 	uploadManager *filetransfer.FileTransferManager,
 	artifact *service.ArtifactRecord,
 	historyStep int64,
+	stagingDir string,
 ) ArtifactSaver {
 	return ArtifactSaver{
 		Ctx:                 ctx,
@@ -39,6 +41,7 @@ func NewArtifactSaver(
 		FileTransferManager: uploadManager,
 		Artifact:            artifact,
 		HistoryStep:         historyStep,
+		StagingDir:          stagingDir,
 	}
 }
 
@@ -272,11 +275,23 @@ func (as *ArtifactSaver) commitArtifact(artifactID string) error {
 	return err
 }
 
+func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
+	for _, entry := range manifest.Contents {
+		if entry.LocalPath != nil && strings.HasPrefix(*entry.LocalPath, as.StagingDir) {
+			// We intentionally ignore errors below.
+			_ = os.Chmod(*entry.LocalPath, 0600)
+			_ = os.Remove(*entry.LocalPath)
+		}
+	}
+}
+
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
 	}
+
+	defer as.deleteStagingFiles(&manifest)
 
 	artifactAttrs, err := as.createArtifact()
 	if err != nil {

@@ -2999,10 +2999,12 @@ class LogArtifactRequest(google.protobuf.message.Message):
 
     ARTIFACT_FIELD_NUMBER: builtins.int
     HISTORY_STEP_FIELD_NUMBER: builtins.int
+    STAGING_DIR_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     @property
     def artifact(self) -> global___ArtifactRecord: ...
     history_step: builtins.int
+    staging_dir: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
     def __init__(
@@ -3010,10 +3012,11 @@ class LogArtifactRequest(google.protobuf.message.Message):
         *,
         artifact: global___ArtifactRecord | None = ...,
         history_step: builtins.int = ...,
+        staging_dir: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "artifact", b"artifact"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "artifact", b"artifact", "history_step", b"history_step"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "artifact", b"artifact", "history_step", b"history_step", "staging_dir", b"staging_dir"]) -> None: ...
 
 global___LogArtifactRequest = LogArtifactRequest
 
