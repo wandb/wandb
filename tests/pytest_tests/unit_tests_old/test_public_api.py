@@ -345,7 +345,8 @@ def test_artifact_files(runner, mock_server, api):
         assert "storagePath" not in file._attrs.keys()
 
 
-def test_artifact_download(runner, mock_server, api):
+def test_artifact_download(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
         path = art.download()
@@ -369,7 +370,8 @@ def test_artifact_delete(runner, mock_server, api):
         art.delete(delete_aliases=True)
 
 
-def test_artifact_checkout(runner, mock_server, api):
+def test_artifact_checkout(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     with runner.isolated_filesystem():
         # Create a file that should be removed as part of checkout
         os.makedirs(os.path.join(".", "artifacts", "mnist"))
@@ -444,7 +446,8 @@ def test_artifact_manual_error(runner, mock_server, api):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="Verify is broken on Windows"
 )
-def test_artifact_verify(runner, mock_server, api):
+def test_artifact_verify(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     art.download()
     with pytest.raises(ValueError):

@@ -61,8 +61,7 @@ servers = ServerMap()
 
 
 def get_temp_dir_kwargs(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    return dict(temp_dir=tmp_path)
 
 
 def test_cleanup(*args, **kwargs):
@@ -284,6 +283,15 @@ def test_settings(test_dir, mocker, live_mock_server):
 @pytest.fixture
 def mocked_run(runner, test_settings):
     """A managed run object for tests with a mock backend"""
+    run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
+    run._set_backend(MagicMock())
+    yield run
+
+
+@pytest.fixture
+def mocked_run_disable_job_creation(runner, test_settings):
+    """A managed run object for tests with a mock backend"""
+    test_settings.update({"disable_job_creation": True})
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run

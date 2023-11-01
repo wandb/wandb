@@ -419,8 +419,8 @@ jobs:
       - run:
           name: Install Go
           command: |
-            wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
             PATH=/usr/local/go/bin:$PATH
             go version
           no_output_timeout: 1m
@@ -1210,7 +1210,9 @@ workflows:
       - kfp:
           name: "mach-kubeflow"
           toxenv: "func-kfp-py37"
-          execute: << pipeline.parameters.nightly_execute_kfp >>
+          # execute: << pipeline.parameters.nightly_execute_kfp >>
+          # TODO: re-enable kfp tests once we support kfp>=2.0.0
+          execute: false
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           requires:
@@ -1222,7 +1224,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11]
+              python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           requires:
             - "slack-notify-on-start"
@@ -1251,7 +1253,7 @@ workflows:
       - pip_install_wandb:
           matrix:
             parameters:
-              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
           context: slack-secrets
           notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
           requires:
@@ -1376,7 +1378,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11]
+              python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1390,7 +1392,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10, 11 ]
+              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1404,7 +1406,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10, 11 ]
+              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1424,7 +1426,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11]
+              python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1438,7 +1440,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11]
+              python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"

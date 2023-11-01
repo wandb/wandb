@@ -10,35 +10,38 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/nexus/internal/filetransfer"
 	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
 )
 
 type ArtifactSaver struct {
 	// Resources.
-	Ctx           context.Context
-	GraphqlClient graphql.Client
-	UploadManager *uploader.UploadManager
+	Ctx                 context.Context
+	GraphqlClient       graphql.Client
+	FileTransferManager *filetransfer.FileTransferManager
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
+	StagingDir  string
 }
 
 func NewArtifactSaver(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	uploadManager *uploader.UploadManager,
+	uploadManager *filetransfer.FileTransferManager,
 	artifact *service.ArtifactRecord,
 	historyStep int64,
+	stagingDir string,
 ) ArtifactSaver {
 	return ArtifactSaver{
-		Ctx:           ctx,
-		GraphqlClient: graphQLClient,
-		UploadManager: uploadManager,
-		Artifact:      artifact,
-		HistoryStep:   historyStep,
+		Ctx:                 ctx,
+		GraphqlClient:       graphQLClient,
+		FileTransferManager: uploadManager,
+		Artifact:            artifact,
+		HistoryStep:         historyStep,
+		StagingDir:          stagingDir,
 	}
 }
 
@@ -114,7 +117,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	const maxBacklog int = 10000
 
 	type TaskResult struct {
-		Task *uploader.UploadTask
+		Task *filetransfer.Task
 		Name string
 	}
 
@@ -181,18 +184,20 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 					continue
 				}
 				numInProgress++
-				task := &uploader.UploadTask{
-					Path:    *entry.LocalPath,
-					Url:     *edge.Node.UploadUrl,
-					Headers: edge.Node.UploadHeaders,
-					CompletionCallback: func(task *uploader.UploadTask) {
-						taskResultsChan <- TaskResult{task, name}
-					},
+				task := &filetransfer.Task{
+					Type:     filetransfer.UploadTask,
+					Path:     *entry.LocalPath,
+					Url:      *edge.Node.UploadUrl,
+					Headers:  edge.Node.UploadHeaders,
+					FileType: filetransfer.ArtifactFile,
 				}
-				as.UploadManager.AddTask(task)
+				task.AddCompletionCallback(func(task *filetransfer.Task) {
+					taskResultsChan <- TaskResult{task, name}
+				})
+				as.FileTransferManager.AddTask(task)
 			}
 		}
-		// Wait for uploader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
+		// Wait for filetransfer to catch up. If there's nothing more to schedule, wait for all in progress tasks.
 		for numInProgress > maxBacklog || (len(fileSpecsBatch) == 0 && numInProgress > 0) {
 			numInProgress--
 			result := <-taskResultsChan
@@ -215,29 +220,29 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	cache := map[string]string{}
 	for name, entry := range manifest.Contents {
 		if entry.Ref != nil && strings.HasPrefix(*entry.Ref, "wandb-client-artifact:") {
-			ref_parsed, err := url.Parse(*entry.Ref)
+			refParsed, err := url.Parse(*entry.Ref)
 			if err != nil {
 				return err
 			}
-			client_id, path := ref_parsed.Host, strings.TrimPrefix(ref_parsed.Path, "/")
-			server_id, ok := cache[client_id]
+			clientId, path := refParsed.Host, strings.TrimPrefix(refParsed.Path, "/")
+			serverId, ok := cache[clientId]
 			if !ok {
-				response, err := gql.ClientIDMapping(as.Ctx, as.GraphqlClient, client_id)
+				response, err := gql.ClientIDMapping(as.Ctx, as.GraphqlClient, clientId)
 				if err != nil {
 					return err
 				}
 				if response.ClientIDMapping == nil {
-					return fmt.Errorf("could not resolve client id %v", client_id)
+					return fmt.Errorf("could not resolve client id %v", clientId)
 				}
-				server_id = response.ClientIDMapping.ServerID
-				cache[client_id] = server_id
+				serverId = response.ClientIDMapping.ServerID
+				cache[clientId] = serverId
 			}
-			server_id_hex, err := utils.B64ToHex(server_id)
+			serverIdHex, err := utils.B64ToHex(serverId)
 			if err != nil {
 				return err
 			}
-			resolved_ref := "wandb-artifact://" + server_id_hex + "/" + path
-			entry.Ref = &resolved_ref
+			resolvedRef := "wandb-artifact://" + serverIdHex + "/" + path
+			entry.Ref = &resolvedRef
 			manifest.Contents[name] = entry
 		}
 	}
@@ -245,16 +250,18 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 }
 
 func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
-	resultChan := make(chan *uploader.UploadTask)
-	task := &uploader.UploadTask{
-		Path:    manifestFile,
-		Url:     *uploadUrl,
-		Headers: uploadHeaders,
-		CompletionCallback: func(task *uploader.UploadTask) {
-			resultChan <- task
-		},
+	resultChan := make(chan *filetransfer.Task)
+	task := &filetransfer.Task{
+		Type:     filetransfer.UploadTask,
+		Path:     manifestFile,
+		Url:      *uploadUrl,
+		Headers:  uploadHeaders,
+		FileType: filetransfer.ArtifactFile,
 	}
-	as.UploadManager.AddTask(task)
+	task.AddCompletionCallback(func(task *filetransfer.Task) {
+		resultChan <- task
+	})
+	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
 }
@@ -268,11 +275,23 @@ func (as *ArtifactSaver) commitArtifact(artifactID string) error {
 	return err
 }
 
+func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
+	for _, entry := range manifest.Contents {
+		if entry.LocalPath != nil && strings.HasPrefix(*entry.LocalPath, as.StagingDir) {
+			// We intentionally ignore errors below.
+			_ = os.Chmod(*entry.LocalPath, 0600)
+			_ = os.Remove(*entry.LocalPath)
+		}
+	}
+}
+
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
 	}
+
+	defer as.deleteStagingFiles(&manifest)
 
 	artifactAttrs, err := as.createArtifact()
 	if err != nil {
