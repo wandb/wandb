@@ -1781,6 +1781,9 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
+            if require_nexus and entry.ref is None:
+                # Handled by nexus
+                return
             try:
                 entry.download(root)
             except FileNotFoundError as e:
@@ -1808,9 +1811,6 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_path(edge["node"]["name"])
-                    if require_nexus and entry.ref is None:
-                        # Handled by nexus
-                        continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
