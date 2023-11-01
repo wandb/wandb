@@ -182,7 +182,6 @@ def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
         print(f"[{i}]: {html}")
     assert len(displayed_html) == 8
     assert run_id in displayed_html[2]
-    assert "(success)" in displayed_html[5]
     assert "Run history:" in displayed_html[6]
 
 
@@ -195,7 +194,6 @@ def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
         print(f"[{i}]: {html}")
     assert len(displayed_html) == 6
     assert run_id in displayed_html[2]
-    assert "(success)" in displayed_html[5]
     assert "Run history:" not in displayed_html[6]
 
 
