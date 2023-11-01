@@ -1711,7 +1711,6 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        wandb.termwarn(f"\n\n root val {root}\n\n")
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
         if run._settings._require_nexus:
