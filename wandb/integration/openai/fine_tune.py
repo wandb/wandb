@@ -320,13 +320,13 @@ class WandbLogger:
                 f.write(file_content)
 
             # create a Table
-            # try:
-            table, n_items = cls._make_table(file_content)
-            artifact.add(table, file_id)
-            wandb.config.update({f"n_{prefix}": n_items})
-            artifact.metadata["items"] = n_items
-            # except:
-            #     print(f"File {file_id} could not be read as a valid JSON file")
+            try:
+                table, n_items = cls._make_table(file_content)
+                artifact.add(table, file_id)
+                wandb.config.update({f"n_{prefix}": n_items})
+                artifact.metadata["items"] = n_items
+            except:
+                print(f"File {file_id} could not be read as a valid JSON file")
         else:
             # log number of items
             wandb.config.update({f"n_{prefix}": artifact.metadata.get("items")})
@@ -348,3 +348,9 @@ class WandbLogger:
             )
             
         return table, len(df)
+
+
+```
+TODO:
+- `model` type and rename `model_metadata`
+````
