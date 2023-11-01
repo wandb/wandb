@@ -191,7 +191,6 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				task.AddCompletionCallback(func(task *filetransfer.Task) {
 					taskResultsChan <- TaskResult{task, name}
 				})
-				task.AddCompletionCallback(as.FileTransferManager.ProgressCallback())
 				as.FileTransferManager.AddTask(task)
 			}
 		}
@@ -259,7 +258,6 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 	task.AddCompletionCallback(func(task *filetransfer.Task) {
 		resultChan <- task
 	})
-	task.AddCompletionCallback(as.FileTransferManager.ProgressCallback())
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err

@@ -67,9 +67,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		req.Header.Set(parts[0], parts[1])
 	}
 
-	fmt.Printf("Uploading file... %s\n", task.Name)
 	if _, err = ft.client.Do(req); err != nil {
-		fmt.Println(err)
 		return err
 	}
 
@@ -133,16 +131,10 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 	}
 
 	pr.read += n
-	pr.reportProgress()
-
-	return n, err
-}
-
-func (pr *ProgressReader) reportProgress() {
-	if pr.len == 0 {
-		return
+	if pr.len > 0 {
+		pr.progressCallback(pr.read, pr.len)
 	}
-	pr.progressCallback(pr.read, pr.len)
+	return n, err
 }
 
 func (pr *ProgressReader) Len() int {

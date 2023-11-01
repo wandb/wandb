@@ -2446,24 +2446,28 @@ class Run:
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        # wait for them, it's ok to do this serially but this can be improved
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._poll_exit_response = result.response.poll_exit_response
+        self._footer_file_pusher_status_info(
+            self._poll_exit_response, printer=self._printer
+        )
+
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
         assert result
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+
         server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
         job_info_handle = self._backend.interface.deliver_request_job_info()
-
-        # wait for them, it's ok to do this serially but this can be improved
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
-        self._poll_exit_response = result.response.poll_exit_response
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -3603,6 +3607,8 @@ class Run:
         line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
         if progress.deduped_bytes > 0:
             line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        else:
+            line += "\r"
 
         percent_done = (
             1.0
@@ -3612,7 +3618,7 @@ class Run:
 
         printer.progress_update(line, percent_done)
         if done:
-            printer.progress_close()
+            printer.progress_close(line)
 
             dedupe_fraction = (
                 progress.deduped_bytes / float(progress.total_bytes)

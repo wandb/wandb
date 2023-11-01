@@ -244,7 +244,6 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
-		s.sendPollExit(record, x.PollExit)
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
 	default:
@@ -841,25 +840,6 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 			Response: &service.Response{
 				ResponseType: &service.Response_LogArtifactResponse{
 					LogArtifactResponse: &response,
-				},
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.outChan <- result
-}
-
-func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
-	fileCounts := s.fileTransferManager.GetFileCounts()
-
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						FileCounts: fileCounts,
-					},
 				},
 			},
 		},

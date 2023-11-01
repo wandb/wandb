@@ -405,7 +405,6 @@ func (h *Handler) handlePollExit(record *service.Record) {
 		fileCounts.MediaCount += int32(info.FileCounts.GetMediaCount())
 		fileCounts.ArtifactCount += int32(info.FileCounts.GetArtifactCount())
 	}
-
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
@@ -415,8 +414,9 @@ func (h *Handler) handlePollExit(record *service.Record) {
 							UploadedBytes: int64(uploadedBytes),
 							TotalBytes:    int64(totalBytes),
 							DedupedBytes:  0,
-							// FileCounts:    &fileCounts,
 						},
+						FileCounts: &fileCounts,
+						Done:       totalBytes == uploadedBytes,
 					},
 				},
 			},
