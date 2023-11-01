@@ -168,7 +168,7 @@ class PrinterTerm(_Printer):
         else:
             return wandb.termlog
 
-    def progress_update(self, text: str, _: Optional[float] = None) -> None:
+    def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
     def progress_close(self, text: Optional[str] = None) -> None:
