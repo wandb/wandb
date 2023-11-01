@@ -117,6 +117,8 @@ def build(
 
 
 def should_add_load_argument(platform: Optional[str]) -> bool:
+    # the load option does not work when multiple platforms are specified:
+    # https://github.com/docker/buildx/issues/59
     if platform is None or (platform and "," not in platform):
         return True
     return False

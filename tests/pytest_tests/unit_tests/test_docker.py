@@ -24,7 +24,7 @@ def test_buildx_not_installed(runner):
 
 @pytest.mark.parametrize(
     "platform,adds_load_arg",
-    [(None, True), ("linux/amd64", True), ("linux/amd64,linux/arm664", False)],
+    [(None, True), ("linux/amd64", True), ("linux/amd64,linux/arm64", False)],
 )
 def test_buildx_load_platform(platform, adds_load_arg):
     res = should_add_load_argument(platform)
