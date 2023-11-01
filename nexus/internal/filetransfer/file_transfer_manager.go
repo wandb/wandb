@@ -204,10 +204,6 @@ func (fm *FileTransferManager) transfer(task *Task) error {
 	case UploadTask:
 		err = fm.fileTransfer.Upload(task)
 	case DownloadTask:
-		// Skip downloading the file if it already exists
-		if _, err := os.Stat(task.Path); err == nil {
-			return nil
-		}
 		if err := fm.ensureDownloadRootDir(task.Path); err != nil {
 			return err
 		}
