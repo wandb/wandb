@@ -277,8 +277,8 @@ class WandbLogger:
         # fine-tune details
         fine_tune_id = fine_tune.id
         artifact = wandb.Artifact(
-            "fine_tune_details",
-            type="fine_tune_details",
+            "model_metadata",
+            type="model",
             metadata=dict(fine_tune),
         )
         with artifact.new_file(
@@ -348,9 +348,3 @@ class WandbLogger:
             )
             
         return table, len(df)
-
-
-```
-TODO:
-- `model` type and rename `model_metadata`
-````
