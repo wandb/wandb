@@ -9,6 +9,9 @@ from pathlib import Path
 try:
     import openai
     from openai import OpenAI
+
+    if openai.api_key is None:
+        print("OPENAI_API_KEY is not set!")
 except ImportError as e:
     raise Exception(
         "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install --pre openai`"
