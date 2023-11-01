@@ -65,7 +65,7 @@ class WandbLogger:
         """
 
         openai_client = OpenAI(
-            api_key=os.environ['OPENAI_API_KEY'],
+            api_key=os.environ["OPENAI_API_KEY"],
         )
         cls.openai_client = openai_client
 
@@ -124,7 +124,9 @@ class WandbLogger:
                 )
                 return fine_tune
             time.sleep(60)
-            fine_tune = cls.openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=fine_tune.id)
+            fine_tune = cls.openai_client.fine_tuning.jobs.retrieve(
+                fine_tuning_job_id=fine_tune.id
+            )
 
     @classmethod
     def _log_fine_tune(
@@ -257,15 +259,9 @@ class WandbLogger:
     @classmethod
     def _log_artifacts(cls, fine_tune, project, entity):
         # training/validation files
-        training_file = (
-            fine_tune.training_file
-            if fine_tune.training_file
-            else None
-        )
+        training_file = fine_tune.training_file if fine_tune.training_file else None
         validation_file = (
-            fine_tune.validation_file
-            if fine_tune.validation_file
-            else None
+            fine_tune.validation_file if fine_tune.validation_file else None
         )
         for file, prefix, artifact_type in (
             (training_file, "train", "training_files"),
@@ -281,9 +277,7 @@ class WandbLogger:
             type="model",
             metadata=dict(fine_tune),
         )
-        with artifact.new_file(
-            "model_metadata.json", mode="w", encoding="utf-8"
-        ) as f:
+        with artifact.new_file("model_metadata.json", mode="w", encoding="utf-8") as f:
             dict_fine_tune = dict(fine_tune)
             dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
             json.dump(dict_fine_tune, f, indent=2)
@@ -350,5 +344,5 @@ class WandbLogger:
                 messages[1]["content"],
                 messages[2]["content"],
             )
-            
+
         return table, len(df)
