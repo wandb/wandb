@@ -118,7 +118,7 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
             == "NVIDIA_TESLA_T4"
         )
         env = req["worker_pool_specs"][0]["container_spec"]["env"]
-        # Pop api key and base url - these are hard to control because our 
+        # Pop api key and base url - these are hard to control because our
         # sdk will autopopulate them from a million places.
         env = env[2:]
         assert env == [
