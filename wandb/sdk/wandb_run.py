@@ -2451,10 +2451,6 @@ class Run:
         result = poll_exit_handle.wait(timeout=-1)
         assert result
         self._poll_exit_response = result.response.poll_exit_response
-        self._footer_file_pusher_status_info(
-            self._poll_exit_response, printer=self._printer
-        )
-
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
         assert result
