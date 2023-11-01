@@ -47,6 +47,7 @@ class WandbLogger:
     def sync(
         cls,
         id=None,
+        openai_client=None,
         n_fine_tunes=None,
         project="OpenAI-Fine-Tune",
         entity=None,
@@ -57,6 +58,7 @@ class WandbLogger:
         """
         Sync fine-tunes to Weights & Biases.
         :param id: The id of the fine-tune (optional)
+        :param openai_client: Pass the `OpenAI()` client (optional)
         :param n_fine_tunes: Number of most recent fine-tunes to log when an id is not provided. By default, every fine-tune is synced.
         :param project: Name of the project where you're sending runs. By default, it is "GPT-3".
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
@@ -64,9 +66,10 @@ class WandbLogger:
         :param blocking: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
         """
 
-        openai_client = OpenAI(
-            api_key=os.environ["OPENAI_API_KEY"],
-        )
+        if openai_client is None:
+            openai_client = OpenAI(
+                api_key=os.environ["OPENAI_API_KEY"],
+            )
         cls.openai_client = openai_client
 
         if id:
