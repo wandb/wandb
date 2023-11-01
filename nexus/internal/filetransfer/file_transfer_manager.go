@@ -1,6 +1,8 @@
 package filetransfer
 
 import (
+	"os"
+	"path"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -202,11 +204,23 @@ func (fm *FileTransferManager) transfer(task *Task) error {
 	case UploadTask:
 		err = fm.fileTransfer.Upload(task)
 	case DownloadTask:
+		if err := fm.ensureDownloadRootDir(task.Path); err != nil {
+			return err
+		}
 		err = fm.fileTransfer.Download(task)
 	default:
 		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
 	}
 	return err
+}
+
+func (fm *FileTransferManager) ensureDownloadRootDir(filePath string) error {
+	baseDir := path.Dir(filePath)
+	info, err := os.Stat(baseDir)
+	if err == nil && info.IsDir() {
+		return nil
+	}
+	return os.MkdirAll(baseDir, 0777)
 }
 
 // GetFileCounts returns the file counts for the fileTransfer

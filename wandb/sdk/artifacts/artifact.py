@@ -1718,6 +1718,12 @@ class Artifact:
                 raise NotImplementedError
             if run._settings._offline:
                 raise NotImplementedError("cannot download in offline mode")
+            # Start the download process in the user process too, to handle reference downloads
+            self._download(
+                root=root,
+                recursive=recursive,
+                allow_missing_references=allow_missing_references,
+            )
             result = run._backend.interface.communicate_download_artifact(
                 self.qualified_name,
                 root,
@@ -1744,6 +1750,11 @@ class Artifact:
         recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
+        # todo: remove once artifact reference downloads are supported in nexus
+        require_nexus = False
+        if wandb.run is not None:
+            require_nexus = wandb.run._settings._require_nexus
+
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         log = False
@@ -1794,6 +1805,9 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_path(edge["node"]["name"])
+                    if require_nexus and entry.ref is None:
+                        # Handled by nexus
+                        continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
