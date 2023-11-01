@@ -303,6 +303,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record)
 		response = nil
+	case *service.Request_DownloadArtifact:
+		h.handleDownloadArtifact(record)
+		response = nil
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
@@ -372,6 +375,10 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleDownloadArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
