@@ -2440,9 +2440,10 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        self._footer_exit_status_info(
-            self._exit_code, settings=self._settings, printer=self._printer
-        )
+        # this message is confusing, we should remove it
+        # self._footer_exit_status_info(
+        #     self._exit_code, settings=self._settings, printer=self._printer
+        # )
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
@@ -2450,6 +2451,9 @@ class Run:
         # wait for them, it's ok to do this serially but this can be improved
         result = poll_exit_handle.wait(timeout=-1)
         assert result
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
         self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
@@ -3148,8 +3152,8 @@ class Run:
             path: (StrPath) path to downloaded artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=model_name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. Please make sure the artifact type of the model you're trying to use contains the word 'model'."
         path = artifact.download()
 
@@ -3581,7 +3585,7 @@ class Run:
                     poll_exit_responses_list, printer=printer
                 )
         else:
-            raise ValueError(
+            logger.error(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
                 "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
@@ -3614,7 +3618,7 @@ class Run:
 
         printer.progress_update(line, percent_done)
         if done:
-            printer.progress_close(line)
+            printer.progress_close()
 
             dedupe_fraction = (
                 progress.deduped_bytes / float(progress.total_bytes)
