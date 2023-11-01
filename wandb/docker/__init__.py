@@ -102,8 +102,7 @@ def build(
     tags: List[str], file: str, context_path: str, platform: Optional[str] = None
 ) -> str:
     command = ["buildx", "build"] if is_buildx_installed() else ["build"]
-    if platform is None or (platform and "," not in platform):
-        command += ["--load"]
+    command += ["--load"] if should_add_load_argument(platform) else []
     if platform:
         command += ["--platform", platform]
     build_tags = []
@@ -114,6 +113,12 @@ def build(
         args,
     )
     return stdout
+
+
+def should_add_load_argument(platform: Optional[str]) -> bool:
+    if platform is None or (platform and "," not in platform):
+        return True
+    return False
 
 
 def run_command_live_output(args: List[Any]) -> str:
