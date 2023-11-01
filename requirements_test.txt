@@ -13,3 +13,4 @@ parameterized
 flask>2.0.0
 pandas
 responses
+werkzeug>=3.0.1 # not directly required, pinned by Snyk to avoid a vulnerability
