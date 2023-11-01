@@ -126,7 +126,6 @@ def construct_scheduler_args(
     queue: str,
     project: str,
     author: Optional[str] = None,
-    sweep_type: Optional[str] = "wandb",
     return_job: bool = False,
 ) -> Union[List[str], Dict[str, str], None]:
     """Construct sweep scheduler args.
@@ -170,8 +169,6 @@ def construct_scheduler_args(
         f"{queue!r}",
         "--project",
         f"{project!r}",
-        "--sweep_type",
-        f"{sweep_type}",
     ]
     if author:
         args += [
