@@ -2,10 +2,24 @@ import sys
 
 import pytest
 import wandb
-from tensorflow.keras import backend as K  # noqa: N812
-from tensorflow.keras.layers import LSTM, Concatenate, Dense, Embedding, Flatten, Input
-from tensorflow.keras.models import Model, Sequential
-from wandb.keras import WandbCallback
+
+try:
+    import tensorflow
+except ImportError:
+    pytest.skip("skipping while tf is unavailable", allow_module_level=True)
+
+keras = tensorflow.keras
+from keras import backend as K  # noqa: N812, E402
+from keras.layers import (  # noqa: E402
+    LSTM,
+    Concatenate,
+    Dense,
+    Embedding,
+    Flatten,
+    Input,
+)
+from keras.models import Model, Sequential  # noqa: E402
+from wandb.keras import WandbCallback  # noqa: E402
 
 
 def test_no_init():

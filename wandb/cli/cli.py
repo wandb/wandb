@@ -1058,12 +1058,6 @@ def launch_sweep(
     else:
         overrides["args"] = args
 
-    # set name of scheduler
-    prefix = "sweep" if scheduler_job else "wandb"
-    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
-    if scheduler_args.get("name"):
-        name = scheduler_args["name"]
-
     # configure scheduler job resource
     resource = scheduler_args.get("resource")
     if resource:
@@ -1084,7 +1078,7 @@ def launch_sweep(
     launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name=name,
+        name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
