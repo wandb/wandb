@@ -47,12 +47,11 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	}(file)
 
 	stat, err := file.Stat()
-	if err == nil {
-		task.Size = stat.Size()
-	} else {
+	if err != nil {
 		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
 		return err
 	}
+	task.Size = stat.Size()
 
 	progressReader, err := NewProgressReader(file, task.Size, task.ProgressCallback)
 	if err != nil {
