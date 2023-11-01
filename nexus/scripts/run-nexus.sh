@@ -12,7 +12,6 @@
 #      ${NEXUS_DIR}/scripts/setup-nexus-path.sh python require-nexus.py
 #
 
-set -e
-#BASE=$(dirname $(dirname $(readlink -f $0)))
-cd /Users/ibindlish/Documents/Projects/wandb/nexus
+BASE=$(dirname $(dirname $(readlink -f $0)))
+cd $BASE
 go run cmd/nexus/main.go $*
