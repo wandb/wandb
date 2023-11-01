@@ -771,6 +771,9 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 		task.SetProgressCallback(
 			func(processed, total int) {
+				if processed == 0 {
+					return
+				}
 				request := &service.Request{
 					RequestType: &service.Request_FileTransferInfo{
 						FileTransferInfo: &service.FileTransferInfoRequest{

@@ -108,19 +108,19 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 
 type ProgressReader struct {
 	*os.File
-	len              int
-	read             int
-	progressCallback func(processed, total int)
+	len      int
+	read     int
+	callback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File, size int64, progressCallback func(processed, total int)) (*ProgressReader, error) {
+func NewProgressReader(file *os.File, size int64, callback func(processed, total int)) (*ProgressReader, error) {
 	if size > math.MaxInt {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
-		File:             file,
-		len:              int(size),
-		progressCallback: progressCallback,
+		File:     file,
+		len:      int(size),
+		callback: callback,
 	}, nil
 }
 
@@ -131,8 +131,8 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 	}
 
 	pr.read += n
-	if pr.len > 0 {
-		pr.progressCallback(pr.read, pr.len)
+	if pr.callback != nil {
+		pr.callback(pr.read, pr.len)
 	}
 	return n, err
 }
