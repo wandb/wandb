@@ -1724,12 +1724,15 @@ class Artifact:
                 recursive=recursive,
                 allow_missing_references=allow_missing_references,
             )
-            result = run._backend.interface.communicate_download_artifact(
+            handle = run._backend.interface.deliver_download_artifact(
                 self.qualified_name,
                 root,
                 recursive,
                 allow_missing_references,
             )
+            result = handle.wait(timeout=-1)
+            if result is None:
+                handle.abandon()
             assert result is not None
             response = result.response.download_artifact_response
             if response.error_message:
