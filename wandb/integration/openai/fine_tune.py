@@ -282,7 +282,7 @@ class WandbLogger:
             metadata=dict(fine_tune),
         )
         with artifact.new_file(
-            "fine_tune_details.json", mode="w", encoding="utf-8"
+            "model_metadata.json", mode="w", encoding="utf-8"
         ) as f:
             dict_fine_tune = dict(fine_tune)
             dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
@@ -322,7 +322,11 @@ class WandbLogger:
             # create a Table
             try:
                 table, n_items = cls._make_table(file_content)
+                # Add table to the artifact.
                 artifact.add(table, file_id)
+                # Add the same table to the workspace.
+                wandb.log({f"{prefix}_data": table})
+                # Update the run config and artifact metadata
                 wandb.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
             except:
