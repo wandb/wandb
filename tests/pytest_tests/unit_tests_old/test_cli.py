@@ -39,7 +39,7 @@ def docker(request, mock_server, mocker, monkeypatch):
     return docker
 
 
-def test_artifact_download(runner, git_repo, mock_server):
+def test_artifact_download(runner, git_repo, mock_server, mocked_run):
     result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
     print(result.output)
     print(result.exception)
