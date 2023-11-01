@@ -13,10 +13,11 @@ def mock_vertex_environment():
     """Mock an instance of the GcpEnvironment class."""
     environment = MagicMock()
     environment.region.return_value = "europe-west-4"
+
     async def _mock_verify():
         return True
-    environment.verify = _mock_verify
 
+    environment.verify = _mock_verify
 
 
 @pytest.mark.asyncio
