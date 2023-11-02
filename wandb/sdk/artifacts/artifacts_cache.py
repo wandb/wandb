@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 
 class ArtifactsCache:
     def __init__(self, cache_dir: StrPath) -> None:
-        wandb.termwarn("\n\nCounting INIT ===> setting umask here\n\n")
         self._cache_dir = Path(cache_dir)
         self._obj_dir = self._cache_dir / "obj"
         self._temp_dir = self._cache_dir / "tmp"
