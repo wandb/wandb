@@ -14,5 +14,4 @@
 
 set -e
 BASE=$(dirname $(dirname $(readlink -f $0)))
-cd $BASE
-go run cmd/nexus/main.go $*
+go run $BASE/cmd/nexus/main.go $*
