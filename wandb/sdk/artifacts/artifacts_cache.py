@@ -188,7 +188,6 @@ class ArtifactsCache:
             try:
                 yield temp_file
                 temp_file.close()
-                wandb.termwarn(f"\n\nUMASK val ===> {self._sys_umask}")
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
