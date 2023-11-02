@@ -91,4 +91,4 @@ def _import_module_hook() -> None:
     """On wandb import, setup anything needed based on parent process require calls."""
     # TODO: optimize by caching which pids this has been done for or use real import hooks
     # TODO: make this more generic, but for now this works
-    require("service")
+    require("nexus")
