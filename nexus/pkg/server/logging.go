@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log/slog"
-	"sync/atomic"
 	"os"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -30,8 +32,8 @@ func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 var earlyLogger atomic.Value
 
 type EarlyLogger struct {
-	active bool
-	bufWriter io.Writer
+	active      bool
+	bufWriter   io.Writer
 	bytesBuffer bytes.Buffer
 }
 
