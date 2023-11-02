@@ -28,6 +28,9 @@ if TYPE_CHECKING:
             pass
 
 
+_sys_umask = None
+
+
 class ArtifactsCache:
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = Path(cache_dir)
@@ -173,6 +176,13 @@ class ArtifactsCache:
     def _cache_opener(self, path: Path, size: int) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
+            global _sys_umask
+            if _sys_umask is None:
+                # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
+                # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
+                umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
+                umask = int(subprocess.check_output(umask_cmd))
+                _sys_umask = umask
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
@@ -181,11 +191,7 @@ class ArtifactsCache:
             try:
                 yield temp_file
                 temp_file.close()
-                # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
-                # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
-                umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
-                umask = int(subprocess.check_output(umask_cmd))
-                os.chmod(temp_file.name, 0o666 & ~umask)
+                os.chmod(temp_file.name, 0o666 & ~_sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
             except Exception:
