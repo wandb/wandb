@@ -245,14 +245,16 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(downloadRoot, *entry.LocalPath)
 					task := &filetransfer.Task{
-						TaskType: filetransfer.DownloadTask,
+						Type:     filetransfer.DownloadTask,
 						Path:     downloadLocalPath,
 						Url:      *entry.DownloadURL,
-						CompletionCallback: func(task *filetransfer.Task) {
-							taskResultsChan <- TaskResult{task, *entry.LocalPath}
-						},
 						FileType: filetransfer.ArtifactFile,
 					}
+					task.AddCompletionCallback(
+						func(task *filetransfer.Task) {
+							taskResultsChan <- TaskResult{task, *entry.LocalPath}
+						},
+					)
 					// Skip downloading the file if it already exists
 					if _, err := os.Stat(task.Path); err == nil {
 						numDone++
