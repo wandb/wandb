@@ -2412,7 +2412,7 @@ class Run:
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
-            result = handle.wait(timeout=0)
+            result = handle.wait(timeout=0, release=False)
             if not result:
                 return
             probe_handle.set_probe_result(result)
@@ -2443,30 +2443,34 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        self._footer_exit_status_info(
-            self._exit_code, settings=self._settings, printer=self._printer
-        )
+        # this message is confusing, we should remove it
+        # self._footer_exit_status_info(
+        #     self._exit_code, settings=self._settings, printer=self._printer
+        # )
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        # wait for them, it's ok to do this serially but this can be improved
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
+        self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
         assert result
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+
         server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
         job_info_handle = self._backend.interface.deliver_request_job_info()
-
-        # wait for them, it's ok to do this serially but this can be improved
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
-        self._poll_exit_response = result.response.poll_exit_response
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -3584,7 +3588,7 @@ class Run:
                     poll_exit_responses_list, printer=printer
                 )
         else:
-            raise ValueError(
+            logger.error(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
                 "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
@@ -3603,10 +3607,11 @@ class Run:
         done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = (
-            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
-            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-        )
+        line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
+        if progress.deduped_bytes > 0:
+            line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        else:
+            line += "\r"
 
         percent_done = (
             1.0

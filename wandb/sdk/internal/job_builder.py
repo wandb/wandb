@@ -338,7 +338,14 @@ class JobBuilder:
             # configure job from environment
             source_type = self._get_source_type(metadata)
             if not source_type:
-                wandb.termwarn("No source type found, not creating job artifact")
+                # if source_type is None, then we don't have enough information to build a job
+                # if the user intended to create a job, warn.
+                if (
+                    self._settings.job_name
+                    or self._settings.job_source
+                    or self._source_type
+                ):
+                    wandb.termwarn("No source type found, not creating job artifact")
                 return None
 
             program_relpath = self._get_program_relpath(source_type, metadata)

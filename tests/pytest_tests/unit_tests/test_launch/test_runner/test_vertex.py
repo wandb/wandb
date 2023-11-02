@@ -88,7 +88,11 @@ def vertex_runner(test_settings):
     async def _mock_get_credentials(*args, **kwargs):
         return MagicMock()
 
+    async def _mock_verify(*args, **kwargs):
+        return MagicMock()
+
     environment.get_credentials = _mock_get_credentials
+    environment.verify = _mock_verify
     api = Api(default_settings=test_settings(), load_settings=False)
     runner = VertexRunner(api, {"SYNCHRONOUS": False}, environment, registry)
     return runner

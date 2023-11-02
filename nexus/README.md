@@ -66,7 +66,7 @@ if you encounter an error, mention that you are using Nexus.
 ## Feature Parity Status
 
 The following table shows the status of the feature parity
-between the current W&B SDK and Nexus for version `0.16.0b3`.
+between the current W&B SDK and Nexus for version `0.17.0b1`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
