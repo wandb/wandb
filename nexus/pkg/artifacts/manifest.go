@@ -29,6 +29,7 @@ type ManifestEntry struct {
 	Size            int64                  `json:"size"`
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
+	DownloadURL     *string                `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -108,4 +109,15 @@ func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
 
 	digest, rerr = utils.ComputeB64MD5(data)
 	return
+}
+
+func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {
+	manifestEntries := m.Contents
+	manifestEntry, ok := manifestEntries[path]
+	if !ok {
+		// implement _get_obj_entry
+		// For now just return error
+		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
+	}
+	return manifestEntry, nil
 }

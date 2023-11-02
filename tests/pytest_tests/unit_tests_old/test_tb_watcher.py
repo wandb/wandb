@@ -9,6 +9,7 @@ import pytest
     reason="TODO: Windows is legitimately busted",
 )
 def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
+    pytest.importorskip("tensorflow")
     pytest.importorskip("tensorboard.summary.v1")
     import tensorboard.summary.v1 as tb_summary
     import tensorflow as tf

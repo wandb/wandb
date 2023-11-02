@@ -13,16 +13,9 @@ import numpy as np
 import plotly
 import pytest
 import requests
-import tensorflow as tf
 import wandb
 import wandb.errors as errors
 from wandb import util
-
-try:
-    import torch
-except ImportError:
-    pass
-
 
 ###############################################################################
 # Test util.json_friendly
@@ -30,6 +23,9 @@ except ImportError:
 
 
 def pt_variable(nested_list, requires_grad=True):
+    pytest.importorskip("torch")
+    import torch
+
     v = torch.autograd.Variable(torch.Tensor(nested_list))
     v.requires_grad = requires_grad
     return v
@@ -91,6 +87,9 @@ def json_friendly_test(orig_data, obj):
     ],
 )
 def test_pytorch_json_nd(array_shape):
+    pytest.importorskip("torch")
+    import torch
+
     a = nested_list(*array_shape)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
@@ -112,6 +111,9 @@ def test_pytorch_json_nd(array_shape):
     ],
 )
 def test_tensorflow_json_nd(array_shape):
+    pytest.importorskip("tensorflow")
+    import tensorflow as tf
+
     a = nested_list(*array_shape)
     json_friendly_test(a, tf.convert_to_tensor(a))
     v = tf.Variable(tf.convert_to_tensor(a))
@@ -457,6 +459,9 @@ def test_make_tarfile():
 
 
 def test_is_tf_tensor():
+    pytest.importorskip("tensorflow")
+    import tensorflow as tf
+
     assert util.is_tf_tensor(tf.constant(1))
     assert not util.is_tf_tensor(tf.Variable(1))
     assert not util.is_tf_tensor(1)
@@ -464,6 +469,9 @@ def test_is_tf_tensor():
 
 
 def test_is_pytorch_tensor():
+    pytest.importorskip("torch")
+    import torch
+
     assert util.is_pytorch_tensor(torch.tensor(1))
     assert not util.is_pytorch_tensor(1)
     assert not util.is_pytorch_tensor(None)

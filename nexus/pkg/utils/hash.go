@@ -26,3 +26,12 @@ func B64ToHex(data string) (string, error) {
 func EncodeBytesAsHex(contents []byte) string {
 	return hex.EncodeToString(contents)
 }
+
+func HexToB64(data string) (string, error) {
+	buf, err := hex.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	b64Str := base64.StdEncoding.EncodeToString(buf)
+	return b64Str, nil
+}
