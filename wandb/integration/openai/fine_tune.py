@@ -1,10 +1,9 @@
 import datetime
 import io
-import os
 import json
-import time
+import os
 import re
-from pathlib import Path
+import time
 
 try:
     import openai
@@ -26,7 +25,7 @@ except ImportError as e:
 
 try:
     import pandas as pd
-except:
+except ImportError as e:
     raise Exception(
         "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`"
     ) from e
@@ -34,13 +33,9 @@ except:
 import wandb
 from wandb.sdk.lib import telemetry
 
-# from openai import File, FineTune, FineTuningJob
-
 
 class WandbLogger:
-    """
-    Log fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)
-    """
+    """Log fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
     _wandb_api = None
     _logged_in = False
@@ -58,8 +53,8 @@ class WandbLogger:
         blocking=True,
         **kwargs_wandb_init,
     ):
-        """
-        Sync fine-tunes to Weights & Biases.
+        """Sync fine-tunes to Weights & Biases.
+
         :param id: The id of the fine-tune (optional)
         :param openai_client: Pass the `OpenAI()` client (optional)
         :param n_fine_tunes: Number of most recent fine-tunes to log when an id is not provided. By default, every fine-tune is synced.
@@ -68,7 +63,6 @@ class WandbLogger:
         :param force: Forces logging and overwrite existing wandb run of the same fine-tune.
         :param blocking: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
         """
-
         if openai_client is None:
             openai_client = OpenAI(
                 api_key=os.environ["OPENAI_API_KEY"],
@@ -159,7 +153,7 @@ class WandbLogger:
         try:
             results_id = fine_tune.result_files[0]
             results = cls.openai_client.files.retrieve_content(file_id=results_id)
-        except:
+        except openai.NotFoundError:
             if show_individual_warnings:
                 print(f"Fine-tune {fine_tune_id} has no results and will not be logged")
             return
@@ -309,7 +303,7 @@ class WandbLogger:
             # get file content
             try:
                 file_content = cls.openai_client.files.retrieve_content(file_id=file_id)
-            except:
+            except openai.NotFoundError:
                 print(
                     f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
                 )
@@ -329,7 +323,7 @@ class WandbLogger:
                 # Update the run config and artifact metadata
                 wandb.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
-            except:
+            except Exception:
                 print(f"File {file_id} could not be read as a valid JSON file")
         else:
             # log number of items
@@ -342,7 +336,7 @@ class WandbLogger:
         table = wandb.Table(columns=["role: system", "role: user", "role: assistant"])
 
         df = pd.read_json(io.StringIO(file_content), orient="records", lines=True)
-        for idx, message in df.iterrows():
+        for _idx, message in df.iterrows():
             messages = message.messages
             assert len(messages) == 3
             table.add_data(
