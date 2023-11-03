@@ -443,7 +443,6 @@ class LaunchProject:
                     f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
                 )
                 self.set_entry_point(EntrypointDefaults.PYTHON)
-            assert self.git_version
             branch_name = utils._fetch_git_repo(
                 self.project_dir, self.uri, self.git_version
             )

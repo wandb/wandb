@@ -466,7 +466,7 @@ def _make_refspec_from_version(version: Optional[str]) -> List[str]:
     ]
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: str) -> str:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[str]:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
     checks out commit ``version``. Assumes authentication parameters are
