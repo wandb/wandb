@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import tempfile
-import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
