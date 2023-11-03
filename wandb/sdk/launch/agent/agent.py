@@ -331,10 +331,7 @@ class LaunchAgent:
     def _check_submitted_run_called_init(
         self, entity: str, project: str, run_id: str, rqi_id: str
     ) -> bool:
-        """
-        Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming
-        """
-
+        """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
         # TODO: Checks the _wandb key in the run config for the run queue item id. If it exists, the
         # submitted run definitely called init. Falls back to checking state of run.
 
@@ -348,8 +345,7 @@ class LaunchAgent:
             _logger.info(
                 f"Run {entity/project/run_id} with rqi id: {rqi_id} did not have associated run"
             )
-        finally:
-            return False
+        return False
 
     async def finish_thread_id(
         self,
