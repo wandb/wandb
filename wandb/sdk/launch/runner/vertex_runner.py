@@ -21,6 +21,9 @@ GCP_CONSOLE_URI = "https://console.cloud.google.com"
 _logger = logging.getLogger(__name__)
 
 
+WANDB_RUN_ID_KEY = "wandb-run-id"
+
+
 class VertexSubmittedRun(AbstractRun):
     def __init__(self, job: Any) -> None:
         self._job = job
@@ -184,12 +187,14 @@ async def launch_vertex_job(
             staging_bucket=spec_args.get("staging_bucket"),
             credentials=await environment.get_credentials(),
         )
+        labels = spec_args.get("labels", {})
+        labels[WANDB_RUN_ID_KEY] = launch_project.run_id
         job = aiplatform.CustomJob(
             display_name=launch_project.name,
             worker_pool_specs=spec_args.get("worker_pool_specs"),
             base_output_dir=spec_args.get("base_output_dir"),
             encryption_spec_key_name=spec_args.get("encryption_spec_key_name"),
-            labels=spec_args.get("labels", {}),
+            labels=labels,
         )
         execution_kwargs = dict(
             timeout=run_args.get("timeout"),
