@@ -1,3 +1,7 @@
+import json
+import os
+from unittest import mock
+
 import pytest
 from wandb.errors import CommError, UsageError
 
@@ -117,18 +121,18 @@ def test_resume_never_failure(wandb_init):
         wandb_init(resume="never", id=run_id, project="project")
 
 
-# TODO
-# def test_resume_auto_failure(live_mock_server, test_settings):
-#     # env vars have a higher priority than the BASE settings
-#     # so that if that is set (e.g. by some other test/fixture),
-#     # test_settings.wandb_dir != run_settings.wandb_dir
-#     # and this test will fail
-#     with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.root_dir}):
-#         test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
-#         live_mock_server.set_ctx({"resume": True})
-#         with open(test_settings.resume_fname, "w") as f:
-#             f.write(json.dumps({"run_id": "resume-me"}))
-#         run = wandb.init(resume="auto", settings=test_settings)
-#         assert run.id == "resume-me"
-#         run.finish(exit_code=3)
-#         assert os.path.exists(test_settings.resume_fname)
+def test_resume_auto_failure(wandb_init, tmp_path):
+    # env vars have a higher priority than the BASE settings
+    # so that if that is set (e.g. by some other test/fixture),
+    # test_settings.wandb_dir != run_settings.wandb_dir
+    # and this test will fail
+    with mock.patch.dict(os.environ, {"WANDB_DIR": str(tmp_path.absolute())}):
+        run = wandb_init(project="project", id="resume-me")
+        run.finish()
+        resume_fname = run._settings.resume_fname
+        with open(resume_fname, "w") as f:
+            f.write(json.dumps({"run_id": "resume-me"}))
+        run = wandb_init(resume="auto", project="project")
+        assert run.id == "resume-me"
+        run.finish(exit_code=3)
+        assert os.path.exists(resume_fname)
