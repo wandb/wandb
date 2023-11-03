@@ -1468,7 +1468,8 @@ def launch_agent(
         )
         handler = logging.StreamHandler(log_file_stream)
         handler.formatter = logging.Formatter(
-            "%(asctime)s %(levelname)-7s %(threadName)s%(name)s:%(lineno)d %(message)s"
+            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
         )
         _launch_logger.addHandler(handler)
         del _launch_logger
