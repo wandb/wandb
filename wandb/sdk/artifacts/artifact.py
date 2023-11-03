@@ -61,7 +61,6 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
-from wandb.sdk.lib.mailbox import MailboxHandle
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 reset_path = util.vendor_setup()
@@ -71,7 +70,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    pass
+    from wandb.sdk.lib.mailbox import MailboxHandle
 
 
 class Artifact:
@@ -771,7 +770,7 @@ class Artifact:
 
             if timeout is None:
                 timeout = -1
-            termlog(f"Waiting for artifact {self.name} to be commited...")
+            termlog(f"Waiting for artifact {self.name} to be committed...")
             result = self._save_handle.wait(timeout=timeout)
             if not result:
                 raise WaitTimeoutError(
@@ -782,7 +781,7 @@ class Artifact:
                 raise ValueError(response.error_message)
             self._populate_after_save(response.artifact_id)
             termlog(prefix=False, newline=True)
-            termlog(f"Commited artifact {self.qualified_name}")
+            termlog(f"Committed artifact {self.qualified_name}")
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
@@ -1477,6 +1476,7 @@ class Artifact:
             staging_path = f.name
             shutil.copyfile(path, staging_path)
             os.chmod(staging_path, 0o400)
+
         entry = ArtifactManifestEntry(
             path=name,
             digest=digest or md5_file_b64(staging_path),

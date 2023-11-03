@@ -72,7 +72,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future[None]]]:
+    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future]]:
         try:
             server_artifact, commit_fut = self._save_internal(
                 type,
@@ -113,7 +113,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future[None]]]:
+    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future]]:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})

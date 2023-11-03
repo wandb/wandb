@@ -380,6 +380,7 @@ class SendManager:
         if record_type not in {"output", "request", "output_raw"}:
             logger.debug(f"send: {record_type}")
         assert send_handler, f"unknown send handler: {handler_str}"
+
         context_id = context.context_id_from_record(record)
         api_context = self._context_keeper.get(context_id)
         try:
