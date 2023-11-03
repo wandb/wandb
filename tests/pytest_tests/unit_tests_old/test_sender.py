@@ -147,35 +147,3 @@ def test_exit_poll_local(
         assert not out_of_date
     else:
         assert out_of_date == outdated
-
-
-@pytest.mark.parametrize("messageLevel", ["a20", "None", ""])
-def test_server_response_message_malformed_level(
-    publish_util, mock_server, collect_responses, messageLevel
-):
-    mock_server.ctx["server_settings"] = True
-    mock_server.ctx["server_messages"] = [
-        {
-            "messageLevel": messageLevel,
-        },
-    ]
-    publish_util()
-    server_messages = collect_responses.server_info_resp.server_messages.item
-    assert len(server_messages) == 1
-    assert server_messages[0].level == INFO
-
-
-@pytest.mark.parametrize("messageLevel", ["30", 40])
-def test_server_response_message_level(
-    publish_util, mock_server, collect_responses, messageLevel
-):
-    mock_server.ctx["server_settings"] = True
-    mock_server.ctx["server_messages"] = [
-        {
-            "messageLevel": messageLevel,
-        },
-    ]
-    publish_util()
-    server_messages = collect_responses.server_info_resp.server_messages.item
-    assert len(server_messages) == 1
-    assert server_messages[0].level == int(messageLevel)

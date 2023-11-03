@@ -1,5 +1,5 @@
 import pytest
-from wandb.errors import CommError
+from wandb.errors import CommError, UsageError
 
 
 def test_upsert_bucket_409(
@@ -76,3 +76,59 @@ def test_gql_410(
     with relay_server(inject=[inject_response]):
         run = wandb_init(settings=test_settings({"_graphql_retry_max": 4}))
         run.finish()
+
+
+def test_resume_no_metadata(relay_server, wandb_init):
+    run = wandb_init(project="test")
+    run_id = run.id
+    run.finish()
+
+    with relay_server() as relay:
+        run = wandb_init(resume="allow", id=run_id, project="test")
+        run.finish()
+        uploaded_files = relay.context.get_run_uploaded_files(run_id)
+
+        assert "wandb-metadata.json" not in uploaded_files
+
+
+def test_resume_allow_success(
+    wandb_init,
+    relay_server,
+):
+    with relay_server() as relay:
+        run = wandb_init(project="project")
+        run_id = run.id
+        run.log({"acc": 10}, step=15, commit=True)
+        run.finish()
+
+        run = wandb_init(resume="allow", id=run_id, project="project")
+        run.log({"acc": 10})
+        run.finish()
+        history = relay.context.get_run_history(run_id, include_private=True)
+        assert len(history["_step"]) == 2 and history["_step"][1] == 16
+
+
+def test_resume_never_failure(wandb_init):
+    run = wandb_init(project="project")
+    run_id = run.id
+    run.finish()
+
+    with pytest.raises(UsageError):
+        wandb_init(resume="never", id=run_id, project="project")
+
+
+# TODO
+# def test_resume_auto_failure(live_mock_server, test_settings):
+#     # env vars have a higher priority than the BASE settings
+#     # so that if that is set (e.g. by some other test/fixture),
+#     # test_settings.wandb_dir != run_settings.wandb_dir
+#     # and this test will fail
+#     with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.root_dir}):
+#         test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
+#         live_mock_server.set_ctx({"resume": True})
+#         with open(test_settings.resume_fname, "w") as f:
+#             f.write(json.dumps({"run_id": "resume-me"}))
+#         run = wandb.init(resume="auto", settings=test_settings)
+#         assert run.id == "resume-me"
+#         run.finish(exit_code=3)
+#         assert os.path.exists(test_settings.resume_fname)

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 
 def generate_history():
     history = []
@@ -24,8 +26,6 @@ def assert_history(relay_server, run, publish_util, dropped=None, inject=None):
     with relay_server(inject=inject) as relay:
         history = generate_history()
         publish_util(run=run, history=history)
-
-    print(relay.context.raw_data)
 
     context_history = relay.context.get_run_history(run.id, include_private=True)
     context_history.drop(columns=["__run_id"], inplace=True)
@@ -116,3 +116,21 @@ def test_fstream_status_429(
         run=run, status=429, application_pattern="112"
     )
     assert_history(relay_server, run, publish_util, inject=[injected_response])
+
+
+@pytest.mark.nexus_failure(
+    "file_stream", reason="need to implement dropped in file_stream"
+)
+def test_fstream_status_404(
+    relay_server,
+    mock_run,
+    publish_util,
+    inject_file_stream_response,
+):
+    run = mock_run(use_magic_mock=True)
+    injected_response = inject_file_stream_response(
+        run=run, status=404, application_pattern="112"
+    )
+    assert_history(
+        relay_server, run, publish_util, inject=[injected_response], dropped=1
+    )

@@ -84,6 +84,8 @@ class RunAttrs:
     sweep_name: str
     project: Dict[str, Any]
     config: Dict[str, Any]
+    remote: Optional[str] = None
+    commit: Optional[str] = None
 
 
 class Context:
@@ -247,6 +249,8 @@ class Context:
             sweep_name=run_entry["sweepName"],
             project=run_entry["project"],
             config=run_entry["config"],
+            remote=run_entry.get("repo"),
+            commit=run_entry.get("commit"),
         )
 
     # todo: add getter (by run_id) utilities for other properties
@@ -298,7 +302,10 @@ class QueryResolver:
             return None
         query = response_data.get("data", {}).get("upsertBucket") is not None
         if query:
-            data = response_data["data"]["upsertBucket"].get("bucket")
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["upsertBucket"].get("bucket"))
             data["config"] = json.loads(data["config"])
             return data
         return None
