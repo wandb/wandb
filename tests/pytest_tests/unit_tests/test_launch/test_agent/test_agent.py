@@ -3,7 +3,6 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
-import wandb
 from wandb.errors import CommError
 from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
 from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
@@ -286,9 +285,7 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
 
 @pytest.mark.asyncio
 async def test_thread_finish_sweep_fail(mocker, clean_agent):
-    """
-    test thread finished with 0 exit status, but sweep didn't init
-    """
+    """Test thread finished with 0 exit status, but sweep didn't init."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -346,9 +343,7 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
 
 @pytest.mark.asyncio
 async def test_thread_finish_run_fail_start(mocker, clean_agent):
-    """
-    Tests that if a run does not exist, the run queue item is failed
-    """
+    """Tests that if a run does not exist, the run queue item is failed."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -379,9 +374,7 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
 
 @pytest.mark.asyncio
 async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
-    """
-    Tests that if a run does not exist, the run queue item is not failed for old servers
-    """
+    """Tests that if a run does not exist, the run queue item is not failed for old servers."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -411,9 +404,7 @@ async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
 
 @pytest.mark.asyncio
 async def test_thread_finish_run_fail_different_entity(mocker, clean_agent):
-    """
-    Tests that no check is made if the agent entity does not match
-    """
+    """Tests that no check is made if the agent entity does not match."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
