@@ -355,6 +355,7 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
+    job.project = "test-project"
     run = MagicMock()
 
     async def mock_get_logs():
@@ -388,6 +389,7 @@ async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.run_queue_item_id = "asdasd"
+    job.project = "test-project"
     run = MagicMock()
 
     async def mock_get_logs():
