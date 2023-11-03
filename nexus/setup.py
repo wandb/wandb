@@ -18,7 +18,7 @@ _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 # Nexus version
 # -------------
-NEXUS_VERSION = "0.16.0b3"
+NEXUS_VERSION = "0.17.0b1"
 
 
 PACKAGE: str = "wandb_core"
