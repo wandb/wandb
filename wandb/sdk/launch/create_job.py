@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import tempfile
+import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
@@ -121,7 +122,8 @@ def _create_job(
         if not metadata:
             return None, "", []
     except Exception as e:
-        wandb.termerror(f"Error creating job: {e}")
+        e_traceback_str = "".join(traceback.format_tb(e.__traceback__))
+        wandb.termerror(f"Error creating job: {e}/n{e_traceback_str} ")
         return None, "", []
 
     _dump_metadata_and_requirements(
@@ -276,7 +278,6 @@ def _create_repo_metadata(
         wandb.termerror("Path must be a git URI")
         return None
 
-    assert git_hash is not None
     ref = GitHubReference(path, git_hash)
     if not ref:
         wandb.termerror("Could not parse git URI")

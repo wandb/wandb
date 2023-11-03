@@ -60,6 +60,7 @@ class GitHubReference:
         import git  # type: ignore
 
         repo = git.Repo.init(dst_dir)
+        self.path = repo.working_dir
         origin = repo.create_remote("origin", self.uri or "")
 
         try:
@@ -104,4 +105,3 @@ class GitHubReference:
             head.checkout()
             self.commit_hash = head.commit.hexsha
         repo.submodule_update(init=True, recursive=True)
-        self.path = repo.working_dir

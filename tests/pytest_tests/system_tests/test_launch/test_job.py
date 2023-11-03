@@ -128,18 +128,18 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     def mock_fetch_repo(self, dst_dir):
         # mock dumping a file to the local clone of the repo
-        os.makedirs(os.path.join(dst_dir, "commit/path/"), exist_ok=True)
-        with open(os.path.join(dst_dir, "commit/path/requirements.txt"), "w") as f:
+        os.makedirs(os.path.join(dst_dir, "commit/"), exist_ok=True)
+        with open(os.path.join(dst_dir, "commit/requirements.txt"), "w") as f:
             f.write("wandb\n")
 
-        with open(os.path.join(dst_dir, "commit/path/runtime.txt"), "w") as f:
+        with open(os.path.join(dst_dir, "commit/runtime.txt"), "w") as f:
             f.write("3.8.9\n")
 
-        with open(os.path.join(dst_dir, "commit/path/main.py"), "w") as f:
+        with open(os.path.join(dst_dir, "commit/main.py"), "w") as f:
             f.write("print('hello world')")
 
         self.commit_hash = "1234567890"
-        self._update_path(dst_dir)
+        self.path = "commit"
 
     monkeypatch.setattr(GitHubReference, "fetch", mock_fetch_repo)
 
@@ -166,7 +166,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == [
         "python3.8",
-        "commit/path/main.py",
+        "main.py",
     ]
     assert job_v0._job_info["source"]["notebook"] is False
 
