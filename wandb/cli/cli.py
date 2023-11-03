@@ -1462,7 +1462,16 @@ def launch_agent(
         if log_file == "-":
             log_file_stream = sys.stdout
         else:
-            log_file_stream = open(log_file, "w")
+            try:
+                log_file_stream = open(log_file, "w")
+            # check if file is writable
+            except Exception as e:
+                wandb.termerror(
+                    f"Could not open {log_file} for writing logs. Please check "
+                    f"the path and permissions.\nError: {e}"
+                )
+                return
+
         wandb.termlog(
             f"Logging agent output to {'stdout' if log_file == '-' else log_file}. "
         )
