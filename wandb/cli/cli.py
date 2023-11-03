@@ -1421,6 +1421,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1445,7 +1455,24 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
+    if log_file is not None:
+        _launch_logger = logging.getLogger("wandb.sdk.launch")
+        if log_file == "-":
+            log_file_stream = sys.stdout
+        else:
+            log_file_stream = open(log_file, "w")
+        wandb.termlog(
+            f"Logging agent output to {'stdout' if log_file == '-' else log_file}. "
+        )
+        handler = logging.StreamHandler(log_file_stream)
+        handler.formatter = logging.Formatter(
+            "%(asctime)s %(levelname)-7s %(threadName)s%(name)s:%(lineno)d %(message)s"
+        )
+        _launch_logger.addHandler(handler)
+        del _launch_logger
+
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
