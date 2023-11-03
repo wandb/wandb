@@ -67,7 +67,9 @@ class GitHubReference:
             # We fetch the origin so that we have branch and tag references
             origin.fetch(depth=1)
         except git.exc.GitCommandError as e:
-            raise LaunchError(f"Unable to fetch {self.url}: {e}")
+            raise LaunchError(
+                f"Unable to fetch from git remote repository {self.url}:\n{e}"
+            )
 
         ref: Union[git.RemoteReference, str]
         if self.ref:
