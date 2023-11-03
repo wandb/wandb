@@ -2939,12 +2939,10 @@ class DownloadArtifactRequest(google.protobuf.message.Message):
 
     QUALIFIED_NAME_FIELD_NUMBER: builtins.int
     DOWNLOAD_ROOT_FIELD_NUMBER: builtins.int
-    RECURSIVE_FIELD_NUMBER: builtins.int
     ALLOW_MISSING_REFERENCES_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     qualified_name: builtins.str
     download_root: builtins.str
-    recursive: builtins.bool
     allow_missing_references: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
@@ -2953,12 +2951,11 @@ class DownloadArtifactRequest(google.protobuf.message.Message):
         *,
         qualified_name: builtins.str = ...,
         download_root: builtins.str = ...,
-        recursive: builtins.bool = ...,
         allow_missing_references: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "allow_missing_references", b"allow_missing_references", "download_root", b"download_root", "qualified_name", b"qualified_name", "recursive", b"recursive"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "allow_missing_references", b"allow_missing_references", "download_root", b"download_root", "qualified_name", b"qualified_name"]) -> None: ...
 
 global___DownloadArtifactRequest = DownloadArtifactRequest
 

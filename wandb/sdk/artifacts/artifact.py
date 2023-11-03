@@ -147,7 +147,6 @@ class Artifact:
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
         self._save_future: Optional[MessageFuture] = None
-        self._dependent_artifacts: Set[Artifact] = set()
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -1597,7 +1596,7 @@ class Artifact:
         # `artifact.download`. In the future, we should refactor the deserialization
         # pattern such that this special case is not needed.
         if wb_class == wandb.Table:
-            self.download(recursive=True)
+            self.download()
 
         # Get the ArtifactManifestEntry
         item = self.get_path(entry.path)
@@ -1661,7 +1660,6 @@ class Artifact:
     def download(
         self,
         root: Optional[str] = None,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
@@ -1672,8 +1670,6 @@ class Artifact:
 
         Arguments:
             root: The directory in which to download this artifact's files.
-            recursive: If true, then all dependent artifacts are eagerly downloaded.
-                Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
             The path to the downloaded contents.
@@ -1695,20 +1691,17 @@ class Artifact:
             ):
                 return self._run_artifact_download(
                     root=root,
-                    recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
         else:
             return self._run_artifact_download(
                 root=root,
-                recursive=recursive,
                 allow_missing_references=allow_missing_references,
             )
 
     def _run_artifact_download(
         self,
         root: str,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
@@ -1721,13 +1714,11 @@ class Artifact:
             handle = run._backend.interface.deliver_download_artifact(
                 self.qualified_name,
                 root,
-                recursive,
                 allow_missing_references,
             )
             # Start the download process in the user process too, to handle reference downloads
             self._download(
                 root=root,
-                recursive=recursive,
                 allow_missing_references=allow_missing_references,
             )
             result = handle.wait(timeout=-1)
@@ -1743,14 +1734,12 @@ class Artifact:
             return FilePathStr(download_path)
         return self._download(
             root=root,
-            recursive=recursive,
             allow_missing_references=allow_missing_references,
         )
 
     def _download(
         self,
         root: str,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in nexus
@@ -1824,10 +1813,6 @@ class Artifact:
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
-
-        if recursive:
-            for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact.download()
 
         if log:
             now = datetime.now()
@@ -2235,13 +2220,6 @@ class Artifact:
             self._manifest = ArtifactManifest.from_manifest_json(
                 json.loads(util.ensure_text(request.content))
             )
-        for entry in self.manifest.entries.values():
-            referenced_id = entry._referenced_artifact_id()
-            if referenced_id:
-                assert self._client is not None
-                dep_artifact = self._from_id(referenced_id, client=self._client)
-                assert dep_artifact is not None
-                self._dependent_artifacts.add(dep_artifact)
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
