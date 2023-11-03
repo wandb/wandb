@@ -32,6 +32,13 @@ class Report(Base):
         validators=[TypeValidator(Block, how="keys")],
     )
 
+    @classmethod
+    def _load_spec_only(cls, url, api=None):
+        if api is None:
+            api = PublicApi()
+        report_id = cls._url_to_report_id(url)
+        return api.client.execute(VIEW_REPORT, variable_values={"reportId": report_id})
+
     def __init__(
         self,
         project,
