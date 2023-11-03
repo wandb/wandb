@@ -446,6 +446,8 @@ class LaunchProject:
             branch_name = utils._fetch_git_repo(
                 self.project_dir, self.uri, self.git_version
             )
+            if self.git_version is None:
+                self.git_version = branch_name
 
 
 class EntryPoint:
