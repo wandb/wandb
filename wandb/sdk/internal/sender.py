@@ -1472,7 +1472,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future[None]]]:
+    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future]]:
         from pkg_resources import parse_version
 
         assert self._pusher
