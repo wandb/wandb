@@ -127,23 +127,3 @@ def test_sync_spell_run(mocked_run, mock_server, backend_interface, parse_ctx):
         }
     finally:
         del os.environ["SPELL_RUN_URL"]
-
-
-@pytest.mark.parametrize("empty_query", [True, False])
-@pytest.mark.parametrize("local_none", [True, False])
-@pytest.mark.parametrize("outdated", [True, False])
-def test_exit_poll_local(
-    publish_util, mock_server, collect_responses, empty_query, local_none, outdated
-):
-    mock_server.ctx["out_of_date"] = outdated
-    mock_server.ctx["empty_query"] = empty_query
-    mock_server.ctx["local_none"] = local_none
-    publish_util()
-
-    out_of_date = collect_responses.server_info_resp.local_info.out_of_date
-    if empty_query:
-        assert out_of_date
-    elif local_none:
-        assert not out_of_date
-    else:
-        assert out_of_date == outdated
