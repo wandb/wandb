@@ -11,6 +11,7 @@ import os
 import pytest
 import requests
 import wandb
+from wandb.old.summary import Summary
 from wandb.sdk.lib import filesystem
 
 
@@ -372,5 +373,5 @@ def test_direct_specification_of_api_key(mock_server, test_settings):
 def test_nested_summary(api, mock_server):
     run = api.runs("test/test")[0]
     summary_dict = {"a": {"b": {"c": 0.9}}}
-    summary = wandb.old.summary.Summary(run, summary_dict)
+    summary = Summary(run, summary_dict)
     assert summary["a"]["b"]["c"] == 0.9
