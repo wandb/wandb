@@ -99,6 +99,7 @@ class GitHubReference:
                     f"Unable to determine branch or commit to checkout from {self.url}"
                 )
             self.default_branch = default_branch
+            self.ref = default_branch
             head = repo.create_head(default_branch, origin.refs[default_branch])
             head.checkout()
             self.commit_hash = head.commit.hexsha

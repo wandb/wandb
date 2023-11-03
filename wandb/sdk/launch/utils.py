@@ -480,6 +480,8 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[
     if ref is None:
         raise LaunchError(f"Unable to parse git uri: {uri}")
     ref.fetch(dst_dir)
+    if version is None:
+        version = ref.ref
     return version
 
 
