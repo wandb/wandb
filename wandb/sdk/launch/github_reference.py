@@ -43,8 +43,8 @@ class GitHubReference:
         """Initialize a reference from a remote and ref.
 
         Arguments:
-            remote: A remote URL or URI
-            ref: A branch or commit
+            remote: A remote URL or URI.
+            ref: A branch, tag, or commit hash.
         """
         self.uri = remote
         self.ref = ref

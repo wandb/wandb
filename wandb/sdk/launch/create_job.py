@@ -122,8 +122,7 @@ def _create_job(
         if not metadata:
             return None, "", []
     except Exception as e:
-        e_traceback_str = "".join(traceback.format_tb(e.__traceback__))
-        wandb.termerror(f"Error creating job: {e}/n{e_traceback_str} ")
+        wandb.termerror(f"Error creating job: {e}")
         return None, "", []
 
     _dump_metadata_and_requirements(
