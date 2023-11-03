@@ -17,7 +17,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.github_reference import GitReference
+from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (

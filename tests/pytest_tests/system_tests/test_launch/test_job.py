@@ -8,7 +8,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
-from wandb.sdk.launch.github_reference import GitReference
+from wandb.sdk.launch.git_reference import GitReference
 
 
 def test_job_call(relay_server, user, wandb_init, test_settings):
