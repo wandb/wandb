@@ -17,7 +17,7 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.github_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
 
 from .builder.templates._wandb_bootstrap import (
@@ -476,7 +476,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[
     # executable is available on the PATH, so we only want to fail if we actually need it.
 
     _logger.info("Fetching git repo")
-    ref = GitHubReference(uri, version)
+    ref = GitReference(uri, version)
     if ref is None:
         raise LaunchError(f"Unable to parse git uri: {uri}")
     ref.fetch(dst_dir)

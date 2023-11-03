@@ -38,7 +38,7 @@ def _parse_netloc(netloc: str) -> Tuple[Optional[str], Optional[str], str]:
 
 
 @dataclass
-class GitHubReference:
+class GitReference:
     def __init__(self, remote: str, ref: Optional[str] = None) -> None:
         """Initialize a reference from a remote and ref.
 

@@ -10,7 +10,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.github_reference import GitReference
 from wandb.sdk.launch.utils import _is_git_uri
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
@@ -276,7 +276,7 @@ def _create_repo_metadata(
         wandb.termerror("Path must be a git URI")
         return None
 
-    ref = GitHubReference(path, git_hash)
+    ref = GitReference(path, git_hash)
     if not ref:
         wandb.termerror("Could not parse git URI")
         return None

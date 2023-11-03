@@ -8,7 +8,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.github_reference import GitReference
 
 
 def test_job_call(relay_server, user, wandb_init, test_settings):
@@ -141,7 +141,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         self.commit_hash = "1234567890"
         self.path = "commit"
 
-    monkeypatch.setattr(GitHubReference, "fetch", mock_fetch_repo)
+    monkeypatch.setattr(GitReference, "fetch", mock_fetch_repo)
 
     artifact, action, aliases = _create_job(
         api=internal_api,
