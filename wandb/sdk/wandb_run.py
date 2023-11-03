@@ -1416,6 +1416,7 @@ class Run:
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
+        split_table_set = set()
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
@@ -1425,9 +1426,15 @@ class Run:
             elif isinstance(row[k], CustomChart):
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
-                value = row[k].get_config_value(
-                    "Vega2", row[k].user_query(f"{k}_table")
-                )
+                if row[k]._split_table:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+                    )
+                    split_table_set.add(k)
+                else:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"{k}_table")
+                    )
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
 
@@ -1435,7 +1442,10 @@ class Run:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row[f"{k}_table"] = row.pop(k)
+            if k in split_table_set:
+                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+            else:
+                row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -2014,6 +2024,7 @@ class Run:
         data_table: "wandb.Table",
         fields: Dict[str, Any],
         string_fields: Optional[Dict[str, Any]] = None,
+        split_table: Optional[bool] = False,
     ) -> CustomChart:
         """Create a custom plot on a table.
 
@@ -2026,7 +2037,9 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
+        return custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}, split_table
+        )
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -2427,28 +2440,34 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        self._footer_exit_status_info(
-            self._exit_code, settings=self._settings, printer=self._printer
-        )
+        # this message is confusing, we should remove it
+        # self._footer_exit_status_info(
+        #     self._exit_code, settings=self._settings, printer=self._printer
+        # )
+
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
+
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        # wait for them, it's ok to do this serially but this can be improved
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
+        self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
         assert result
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+
         server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
         job_info_handle = self._backend.interface.deliver_request_job_info()
-
-        # wait for them, it's ok to do this serially but this can be improved
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
-        self._poll_exit_response = result.response.poll_exit_response
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -3568,7 +3587,7 @@ class Run:
                     poll_exit_responses_list, printer=printer
                 )
         else:
-            raise ValueError(
+            logger.error(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
                 "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
@@ -3587,10 +3606,11 @@ class Run:
         done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = (
-            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
-            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-        )
+        line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
+        if progress.deduped_bytes > 0:
+            line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        else:
+            line += "\r"
 
         percent_done = (
             1.0

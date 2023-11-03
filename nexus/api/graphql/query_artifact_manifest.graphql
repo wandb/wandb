@@ -1,0 +1,15 @@
+query ArtifactManifest(
+    $entityName: String!,
+    $projectName: String!,
+    $name: String!
+) {
+    project(entityName: $entityName, name: $projectName) {
+        artifact(name: $name) {
+            currentManifest {
+                file {
+                    directUrl
+                }
+            }
+        }
+    }
+}

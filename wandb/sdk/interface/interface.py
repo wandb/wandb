@@ -19,6 +19,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
@@ -464,11 +465,33 @@ class InterfaceBase:
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
+        log_artifact.staging_dir = get_staging_dir()
         resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
     def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_download_artifact(
+        self,
+        qualified_name: str,
+        download_root: str,
+        recursive: bool,
+        allow_missing_references: bool,
+    ) -> MailboxHandle:
+        download_artifact = pb.DownloadArtifactRequest()
+        download_artifact.qualified_name = qualified_name
+        download_artifact.download_root = download_root
+        download_artifact.recursive = recursive
+        download_artifact.allow_missing_references = allow_missing_references
+        resp = self._deliver_download_artifact(download_artifact)
+        return resp
+
+    @abstractmethod
+    def _deliver_download_artifact(
+        self, download_artifact: pb.DownloadArtifactRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(
