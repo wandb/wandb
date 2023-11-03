@@ -950,8 +950,8 @@ class WandbImporter:
 
         # Compare run metrics is not interesting because it just compares the artifacts.
         # We can do this a lot faster in the artifact comparison stage
-        # if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
-        #     problems.append("metrics:" + str(non_matching_metrics))
+        if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
+            problems.append("metrics:" + str(non_matching_metrics))
 
         if non_matching_files := self._compare_run_files(src_run, dst_run):
             problems.append("files" + str(non_matching_files))
@@ -1029,35 +1029,56 @@ class WandbImporter:
 
         return non_matching
 
+    # @progress.subsubtask_progress_deco(
+    #     "Validate run metrics: {dst_run.entity}/{dst_run.project}/{dst_run.id}"
+    # )
+    # def _compare_run_metrics(self, src_run: Run, dst_run: Run):
+    #     # NOTE: compare run metrics depend on artifacts, so if artifacts haven't uploaded yet
+    #     # this will always say the runs don't match (even though they might)
+
+    #     src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
+    #     dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
+
+    #     # NA never equals NA, so fill for easier comparison
+    #     src_df = src_df.fill_nan(None)
+    #     dst_df = dst_df.fill_nan(None)
+
+    #     non_matching = []
+    #     for col in src_df.columns:
+    #         src = src_df[col]
+    #         try:
+    #             dst = dst_df[col]
+    #         except pl.ColumnNotFoundError:
+    #             non_matching.append(f"{col} does not exist in dst")
+    #             continue
+
+    #         # # handle case where NaN is a string
+    #         # src = standardize_series(src)
+    #         # dst = standardize_series(dst)
+
+    #         if not src.series_equal(dst):
+    #             non_matching.append(col)
+
+    #     if non_matching:
+    #         return f"Non-matching metrics {non_matching=}"
+    #     else:
+    #         return None
+
     @progress.subsubtask_progress_deco(
         "Validate run metrics: {dst_run.entity}/{dst_run.project}/{dst_run.id}"
     )
     def _compare_run_metrics(self, src_run: Run, dst_run: Run):
-        # NOTE: compare run metrics depend on artifacts, so if artifacts haven't uploaded yet
-        # this will always say the runs don't match (even though they might)
-
-        src_df = WandbRun(src_run)._get_metrics_df_from_parquet_history_paths()
-        dst_df = WandbRun(dst_run)._get_metrics_df_from_parquet_history_paths()
-
-        # NA never equals NA, so fill for easier comparison
-        src_df = src_df.fill_nan(None)
-        dst_df = dst_df.fill_nan(None)
+        # This version uses scan history which is a lot slower but will catch UI bugs.
+        src_metrics = list(WandbRun(src_run)._get_metrics_from_scan_history_fallback())
+        dst_metrics = list(WandbRun(dst_run)._get_metrics_from_scan_history_fallback())
 
         non_matching = []
-        for col in src_df.columns:
-            src = src_df[col]
-            try:
-                dst = dst_df[col]
-            except pl.ColumnNotFoundError:
-                non_matching.append(f"{col} does not exist in dst")
-                continue
+        for src, dst in zip(src_metrics, dst_metrics):
+            for k, src_v in src.items():
+                dst_v = dst.get(k)
 
-            # # handle case where NaN is a string
-            # src = standardize_series(src)
-            # dst = standardize_series(dst)
-
-            if not src.series_equal(dst):
-                non_matching.append(col)
+                if not almost_equal(src_v, dst_v):
+                    non_matching.append(f"{k=}, {src_v=}, {dst_v=}")
 
         if non_matching:
             return f"Non-matching metrics {non_matching=}"
@@ -2163,7 +2184,7 @@ def recursive_cast_to_dict(obj):
         return obj
 
 
-def almost_equal(x, y, eps=1e-8):
+def almost_equal(x, y, eps=1e-6):
     if isinstance(x, numbers.Number) and isinstance(y, numbers.Number):
         return abs(x - y) < eps
 
