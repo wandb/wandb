@@ -328,7 +328,7 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def _check_submitted_run_called_init(
+    def _check_run_exists_and_inited(
         self, entity: str, project: str, run_id: str, rqi_id: str
     ) -> bool:
         """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
@@ -343,7 +343,7 @@ class LaunchAgent:
                 return True
         except CommError:
             _logger.info(
-                f"Run {entity/project/run_id} with rqi id: {rqi_id} did not have associated run"
+                f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run"
             )
         return False
 
@@ -386,7 +386,9 @@ class LaunchAgent:
             start_time = time.time()
             interval = 1
             while True:
-                called_init = self._check_submitted_run_called_init(
+                assert job_and_run_status.project is not None
+                assert job_and_run_status.run_id is not None
+                called_init = self._check_run_exists_and_inited(
                     self._entity,
                     job_and_run_status.project,
                     job_and_run_status.run_id,
@@ -402,7 +404,6 @@ class LaunchAgent:
                         logs = await job_and_run_status.run.get_logs()
                     await asyncio.sleep(interval)
                     interval *= 2
-
             if not called_init:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
