@@ -105,6 +105,7 @@ class Context:
         self._events: Optional[pd.DataFrame] = None
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
+        self._output: Optional[Any] = None
 
     def upsert(self, entry: Dict[str, Any]) -> None:
         entry_id: str = entry["name"]
@@ -174,6 +175,14 @@ class Context:
         )
 
         return deepcopy(self._summary)
+
+    @property
+    def output(self) -> pd.DataFrame:
+        if self._output is not None:
+            return deepcopy(self._output)
+
+        self._output = self.get_file_contents("output.log")
+        return deepcopy(self._output)
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -321,17 +330,19 @@ class QueryResolver:
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
             name = kwargs.get("path").split("/")[2]
-            files = {
-                file_name: [
-                    {
-                        "content": [
-                            json.loads(k) for k in file_value.get("content", [])
-                        ],
-                        "offset": file_value.get("offset"),
-                    }
-                ]
-                for file_name, file_value in request_data["files"].items()
-            }
+            files = defaultdict(list)
+            for file_name, file_value in request_data["files"].items():
+                content = []
+                for k in file_value.get("content", []):
+                    try:
+                        content.append(json.loads(k))
+                    except json.decoder.JSONDecodeError:
+                        content.append([k])
+
+                files[file_name].append(
+                    {"offset": file_value.get("offset"), "content": content}
+                )
+
             post_processed_data = {
                 "name": name,
                 "dropped": [request_data["dropped"]]

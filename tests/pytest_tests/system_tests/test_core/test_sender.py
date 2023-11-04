@@ -2,7 +2,6 @@ import os
 import shutil
 import time
 import unittest.mock
-from unittest.mock import patch
 
 import pytest
 import wandb
@@ -491,11 +490,105 @@ def test_sender_upsert_run(internal_sm, test_settings, mock_run):
 
     send_manager = internal_sm(test_settings())
     results = []
-    with patch.object(send_manager._api, "upsert_run", side_effect=CommError("test")):
-        with patch.object(
+    with unittest.mock.patch.object(
+        send_manager._api, "upsert_run", side_effect=CommError("test")
+    ):
+        with unittest.mock.patch.object(
             send_manager, "_respond_result", wraps=lambda x: results.append(x)
         ):
             send_manager.send_run(record)
 
     assert len(results) == 1
     assert results[0].run_result.error.message == "test"
+
+
+def test_resume_error_must(user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True, settings={"resume": "must"})
+    with backend_interface(run, initial_run=False) as interface:
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
+        assert run_result.HasField("error")
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
+
+
+def test_resume_success(wandb_init, mock_run, backend_interface):
+    run = wandb_init()
+    run.log(dict(a=1), step=15)
+    run.finish()
+
+    resume_run = mock_run(
+        use_magic_mock=True,
+        settings={
+            "resume": "allow",
+            "project": run.project,
+            "run_id": run.id,
+            "entity": run.entity,
+        },
+    )
+
+    with backend_interface(resume_run, initial_run=False) as interface:
+        handle = interface.deliver_run(resume_run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
+        assert run_result.HasField("error") is False
+        assert run_result.run.starting_step == 16
+
+
+def test_resume_error_never(wandb_init, mock_run, backend_interface):
+    # seed server with a run
+    # TODO: make a fixture for this
+    run = wandb_init()
+    run.log(dict(a=1), step=15)
+    run.finish()
+
+    resume_run = mock_run(
+        use_magic_mock=True,
+        settings={
+            "resume": "never",
+            "project": run.project,
+            "run_id": run.id,
+            "entity": run.entity,
+        },
+    )
+
+    with backend_interface(resume_run, initial_run=False) as interface:
+        handle = interface.deliver_run(resume_run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
+        assert run_result.HasField("error")
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
+
+
+def test_output(user, mock_run, relay_server, backend_interface):
+    with relay_server() as relay:
+        run = mock_run(
+            use_magic_mock=True,
+            settings={"console": "auto"},
+        )
+        with backend_interface(run) as interface:
+            for _ in range(10):
+                interface.publish_output("stdout", "\rSome recurring line")
+            interface.publish_output("stdout", "\rFinal line baby\n")
+
+    assert "Final line baby" in relay.context.output[0][0]
+
+
+def test_sync_spell_run(user, mock_run, relay_server, backend_interface):
+    with unittest.mock.patch.dict("os.environ", SPELL_RUN_URL="https://spell.run/foo"):
+        with relay_server() as relay:
+            run = mock_run(use_magic_mock=True)
+            with backend_interface(run):
+                pass
+    assert (
+        relay.context.config[run.id]["_wandb"]["value"]["spell_url"]
+        == "https://spell.run/foo"
+    )
+    # TODO: relay server can't snoop on arbitrary urls
+    # Check that we pinged spells API
+    #     assert mock_server.ctx["spell_data"] == {
+    #         "access_token": None,
+    #         "url": "{}/mock_server_entity/test/runs/{}".format(
+    #             mocked_run._settings.base_url, mocked_run.id
+    #         ),
+    #     }
