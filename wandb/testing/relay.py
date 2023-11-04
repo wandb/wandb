@@ -316,7 +316,10 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
-        query = request_data.get("files") is not None
+
+        query = request_data.get("files") is not None or kwargs.get(
+            "path", ""
+        ).endswith("/file_stream")
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
             name = kwargs.get("path").split("/")[2]
@@ -329,7 +332,7 @@ class QueryResolver:
                         "offset": file_value.get("offset"),
                     }
                 ]
-                for file_name, file_value in request_data["files"].items()
+                for file_name, file_value in request_data.get("files", {}).items()
             }
             post_processed_data = {
                 "name": name,
