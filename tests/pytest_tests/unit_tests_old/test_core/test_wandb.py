@@ -149,3 +149,13 @@ def test_live_policy_file_upload(live_mock_server, test_settings):
     assert "saveFile" in server_ctx["file_bytes"].keys()
     # TODO: bug sometimes it seems that on windows the first file is sent twice
     assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
+
+
+"""Test internal APIs"""
+from wandb.apis import internal
+
+
+def test_get_run_state(test_settings):
+    _api = internal.Api()
+    res = _api.get_run_state("test", "test", "test")
+    assert res == "running", "Test run must have state running"
