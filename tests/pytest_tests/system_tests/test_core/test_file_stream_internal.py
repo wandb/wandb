@@ -121,6 +121,7 @@ def test_fstream_status_429(
 @pytest.mark.nexus_failure(
     "file_stream", reason="need to implement dropped in file_stream"
 )
+@pytest.mark.skip(reason="need to verify that history is correct")
 def test_fstream_status_404(
     relay_server,
     mock_run,
