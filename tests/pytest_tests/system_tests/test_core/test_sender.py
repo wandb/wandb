@@ -1,5 +1,7 @@
+import json
 import os
 import shutil
+import threading
 import time
 import unittest.mock
 
@@ -592,3 +594,126 @@ def test_sync_spell_run(user, mock_run, relay_server, backend_interface):
     #             mocked_run._settings.base_url, mocked_run.id
     #         ),
     #     }
+
+
+def test_send_status_request_stopped(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    body = json.dumps(
+        {
+            "data": {
+                "project": {
+                    "run": {
+                        "stopped": True,
+                    }
+                }
+            }
+        }
+    )
+    inject_response = inject_graphql_response(
+        body=body,
+        query_match_fn=lambda query, _: "query RunStoppedStatus" in query,
+        application_pattern="1",  # apply once and stop
+    )
+    run = mock_run(use_magic_mock=True)
+
+    with relay_server(inject=[inject_response]), backend_interface(run) as interface:
+        handle = interface.deliver_stop_status()
+        result = handle.wait(timeout=5)
+        stop_status = result.response.stop_status_response
+        assert result is not None
+        assert stop_status.run_should_stop
+
+
+def test_parallel_requests(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    body = json.dumps(
+        {
+            "data": {
+                "project": {
+                    "run": {
+                        "stopped": True,
+                    }
+                }
+            }
+        }
+    )
+    inject_response = inject_graphql_response(
+        body=body,
+        query_match_fn=lambda query, _: "query RunStoppedStatus" in query,
+        application_pattern="1",  # apply once and stop
+    )
+    run = mock_run(use_magic_mock=True)
+
+    def send_sync_request(interface, i):
+        if i % 3 == 0:
+            stop_status = (
+                interface.deliver_stop_status()
+                .wait(timeout=5)
+                .response.stop_status_response
+            )
+            assert stop_status is not None and stop_status.run_should_stop
+        elif i % 3 == 2:
+            summary = (
+                interface.deliver_get_summary()
+                .wait(timeout=5)
+                .response.get_summary_response
+            )
+            assert summary is not None and hasattr(summary, "item")
+
+    threads = []
+
+    with relay_server(inject=[inject_response]), backend_interface(run) as interface:
+        for i in range(10):
+            threads.append(
+                threading.Thread(
+                    target=send_sync_request,
+                    args=(
+                        interface,
+                        i,
+                    ),
+                    daemon=True,
+                )
+            )
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join()
+
+
+def test_send_status_request_network(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    inject_response = inject_graphql_response(
+        body=json.dumps({"error": "rate limit exceeded"}),
+        status=429,
+        query_match_fn=lambda query, _: "mutation UpsertBucket" in query,
+        application_pattern="11112",  # apply 4 times and stop
+    )
+
+    run = mock_run(use_magic_mock=True)
+    with unittest.mock.patch.object(
+        wandb.sdk.lib.retry.Retry, "MAX_SLEEP_SECONDS", 1e-2
+    ):
+        with relay_server(inject=[inject_response]), backend_interface(
+            run
+        ) as interface:
+            result = interface.deliver_network_status().wait(timeout=5)
+            assert result is not None
+            network = result.response.network_status_response
+            assert len(network.network_responses) > 0
+            assert network.network_responses[0].http_status_code == 429
