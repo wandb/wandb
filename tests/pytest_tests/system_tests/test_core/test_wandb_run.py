@@ -205,8 +205,12 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
             False,
         ),
         (None, False),
-        ({}, False),
+        ({}, True),
     ],
+)
+@pytest.mark.nexus_failure(
+    feature="version_check",
+    reason="need to implement versioning in wandb core",
 )
 def test_local_warning(
     relay_server,
@@ -216,15 +220,18 @@ def test_local_warning(
     local_info,
     warn,
 ):
-    body = {"serverInfo": {"cliVersionInfo": {}}}
+    body = {
+        "viewer": {},
+        "serverInfo": {"cliVersionInfo": {}},
+    }
     if local_info != "":
         body["serverInfo"]["latestLocalVersionInfo"] = local_info
 
     inject_response = inject_graphql_response(
         body=json.dumps({"data": body}),
         status=200,
-        query_match_fn=lambda query, _: "query ServerInfo" in query,
-        application_pattern="12",  # apply once and stop
+        query_match_fn=lambda query, _: "query Viewer" in query,
+        application_pattern="1",
     )
     # we do not retry 409s on queries, so this should fail
     with relay_server(inject=[inject_response]):
