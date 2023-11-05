@@ -400,12 +400,11 @@ def _handle_terminal_output(
     if config.terminal_output:
         task_name = f"Terminal Output {run_identifier}"
         task = progress.subtask_pbar.add_task(task_name, total=None)
-        sm.send(rm._make_output_record(">>> empty line"))
-        # lines = rm.run.logs()
-        # if lines is not None:
-        #     for line in lines:
-        #         sm.send(rm._make_output_record(line))
-        #         progress.subtask_pbar.update(task, advance=1)
+        lines = rm.run.logs()
+        if lines is not None:
+            for line in lines:
+                sm.send(rm._make_output_record(line))
+                progress.subtask_pbar.update(task, advance=1)
         progress.subtask_pbar.remove_task(task)
 
 
