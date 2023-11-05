@@ -1,7 +1,8 @@
 """file_stream tests."""
 
 import json
-
+import unittest.mock
+import wandb
 import pytest
 
 
@@ -135,3 +136,23 @@ def test_fstream_status_404(
     assert_history(
         relay_server, run, publish_util, inject=[injected_response], dropped=1
     )
+
+
+@pytest.mark.skip(reason="need to verify that history is correct and fix dropped count")
+def test_fstream_status_max_retries(
+    relay_server,
+    mock_run,
+    publish_util,
+    inject_file_stream_response,
+):
+    # set short max sleep so we can exhaust retries
+    with unittest.mock.patch.object(
+        wandb.sdk.internal.file_stream, "MAX_SLEEP_SECONDS", 1e-2
+    ):
+        run = mock_run(use_magic_mock=True)
+        injected_response = inject_file_stream_response(
+            run=run, status=500, application_pattern="1"
+        )
+        assert_history(
+            relay_server, run, publish_util, inject=[injected_response], dropped=1
+        )
