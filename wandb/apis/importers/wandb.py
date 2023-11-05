@@ -952,8 +952,8 @@ class WandbImporter:
 
         # Compare run metrics is not interesting because it just compares the artifacts.
         # We can do this a lot faster in the artifact comparison stage
-        if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
-            problems.append("metrics:" + str(non_matching_metrics))
+        # if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
+        #     problems.append("metrics:" + str(non_matching_metrics))
 
         if non_matching_files := self._compare_run_files(src_run, dst_run):
             problems.append("files" + str(non_matching_files))
