@@ -458,10 +458,10 @@ def send_run_with_send_manager(
         _handle_run_record(sm, rm)
         _handle_telem(sm, rm)
         _handle_metadata(sm, rm, config)
-        _handle_use_artifacts(sm, rm, config, run_identifier)
-        _handle_log_artifacts(sm, rm, config, run_identifier)
-        _handle_history(sm, rm, config, run_identifier)
-        _handle_summary(sm, rm, config)
+        # _handle_use_artifacts(sm, rm, config, run_identifier)
+        # _handle_log_artifacts(sm, rm, config, run_identifier)
+        # _handle_history(sm, rm, config, run_identifier)
+        # _handle_summary(sm, rm, config)
         _handle_terminal_output(sm, rm, config, run_identifier)
 
 
