@@ -941,7 +941,7 @@ class WandbImporter:
         with open(RUNS_ERRORS_JSONL_FNAME, "w"):
             pass
 
-    def _get_run_problems(self, src_run, dst_run, force_retry=True):
+    def _get_run_problems(self, src_run, dst_run, force_retry=False):
         problems = []
 
         if force_retry:
@@ -1446,15 +1446,15 @@ class WandbImporter:
                     max_workers=max_workers,
                 )
 
-            if reports:
-                self.true_import_reports(namespaces=namespaces)
+            # if reports:
+            #     self.true_import_reports(namespaces=namespaces)
 
-            if artifacts:
-                self.true_import_artifact_sequences(
-                    namespaces=namespaces,
-                    incremental=incremental,
-                    max_workers=max_workers,
-                )
+            # if artifacts:
+            #     self.true_import_artifact_sequences(
+            #         namespaces=namespaces,
+            #         incremental=incremental,
+            #         max_workers=max_workers,
+            #     )
 
             if not repeat_if_error:
                 break
