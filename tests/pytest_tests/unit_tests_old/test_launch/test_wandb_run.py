@@ -1,6 +1,7 @@
 from unittest import mock
 
 import wandb
+from wandb.apis import internal
 
 
 def test_repo_job_creation(live_mock_server, test_settings, git_repo_fn):
@@ -47,3 +48,12 @@ def test_container_job_creation(live_mock_server, test_settings):
         ]
         assert "docker-tag" in aliases
         assert "latest" in aliases
+
+
+"""Test internal APIs"""
+
+
+def test_get_run_state(test_settings):
+    _api = internal.Api()
+    res = _api.get_run_state("test", "test", "test")
+    assert res == "running", "Test run must have state running"

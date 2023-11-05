@@ -108,7 +108,10 @@ class Context:
         self._output: Optional[Any] = None
 
     def upsert(self, entry: Dict[str, Any]) -> None:
-        entry_id: str = entry["name"]
+        try:
+            entry_id: str = entry["name"]
+        except KeyError:
+            entry_id = entry["id"]
         self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
@@ -262,6 +265,9 @@ class Context:
             commit=run_entry.get("commit"),
         )
 
+    def get_run(self, run_id: str) -> Dict[str, Any]:
+        return self._entries.get(run_id, {})
+
     # todo: add getter (by run_id) utilities for other properties
 
 
@@ -315,7 +321,8 @@ class QueryResolver:
                 k: v for (k, v) in request_data["variables"].items() if v is not None
             }
             data.update(response_data["data"]["upsertBucket"].get("bucket"))
-            data["config"] = json.loads(data["config"])
+            if "config" in data:
+                data["config"] = json.loads(data["config"])
             return data
         return None
 

@@ -1,6 +1,7 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
 
+import json
 from unittest import mock
 
 import pytest
@@ -84,3 +85,125 @@ def test_run_queue(user):
         assert queue.type == "local-container"
     finally:
         queue.delete()
+
+
+def test_from_path(wandb_init, api):
+    seed_run = wandb_init()
+    seed_run.finish()
+
+    run = api.from_path(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert isinstance(run, wandb.apis.public.Run)
+    run = api.from_path(f"{seed_run.entity}/{seed_run.project}/runs/{seed_run.id}")
+    assert isinstance(run, wandb.apis.public.Run)
+
+
+def test_display(wandb_init, api):
+    seed_run = wandb_init()
+    seed_run.finish()
+
+    run = api.from_path(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert not run.display()
+
+
+def test_run_load(base_url, wandb_init, api):
+    seed_run = wandb_init()
+    seed_run.log(dict(acc=100, loss=0))
+    seed_run.finish()
+
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert run.summary_metrics["acc"] == 100
+    assert run.summary_metrics["loss"] == 0
+    assert (
+        run.url == f"{base_url}/{seed_run.entity}/{seed_run.project}/runs/{seed_run.id}"
+    )
+
+
+def test_run_history(wandb_init, api):
+    seed_run = wandb_init()
+    seed_run.log(dict(acc=100, loss=0))
+    seed_run.finish()
+
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert run.history(pandas=False)[0]["acc"] == 100
+    assert run.history(pandas=False)[0]["loss"] == 0
+
+
+def test_run_config(wandb_init, api):
+    seed_run = wandb_init(config=dict(epochs=10))
+    seed_run.finish()
+
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert run.config == {"epochs": 10}
+
+
+def test_run_history_keys(wandb_init, api):
+    seed_run = wandb_init()
+    seed_run.log(dict(acc=100, loss=0))
+    seed_run.log(dict(acc=0, loss=1))
+    seed_run.finish()
+
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    assert run.history(keys=["acc", "loss"], pandas=False) == [
+        {"_step": 0, "loss": 0, "acc": 100},
+        {"_step": 1, "loss": 1, "acc": 0},
+    ]
+
+
+def test_run_history_keys_bad_arg(wandb_init, api, capsys):
+    seed_run = wandb_init()
+    seed_run.finish()
+
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+
+    run.history(keys="acc", pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.history(keys=[["acc"]], pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+    run.scan_history(keys="acc")
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.scan_history(keys=[["acc"]])
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+
+def test_run_summary(wandb_init, relay_server):
+    seed_run = wandb_init()
+    seed_run.finish()
+
+    with relay_server() as relay:
+        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+        run.summary.update({"cool": 1000})
+
+        result = json.loads(relay.context.get_run(run.storage_id)["summaryMetrics"])
+        assert result["cool"] == 1000
+
+
+def test_run_create(user, relay_server):
+    with relay_server() as relay:
+        run = Api().create_run(project="test")
+        result = relay.context.get_run(run.id)
+        assert result["entity"] == user
+        assert result["project"]["name"] == "test"
+        assert result["name"] == run.id
+
+
+def test_run_update(wandb_init, relay_server):
+    seed_run = wandb_init()
+    seed_run.finish()
+
+    with relay_server() as relay:
+        run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+        run.tags.append("test")
+        run.config["foo"] = "bar"
+        run.update()
+
+        result = relay.context.get_run(run.id)
+        assert result["tags"] == ["test"]
+        assert result["config"]["foo"]["value"] == "bar"
+        assert result["entity"] == seed_run.entity

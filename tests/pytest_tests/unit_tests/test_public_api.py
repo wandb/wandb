@@ -12,6 +12,12 @@ def test_api_auto_login_no_tty():
         Api()
 
 
+def test_direct_specification_of_api_key():
+    # test_settings has a different API key
+    api = wandb.PublicApi(api_key="abcd" * 10)
+    assert api.api_key == "abcd" * 10
+
+
 def test_thread_local_cookies():
     try:
         _thread_local_api_settings.cookies = {"foo": "bar"}

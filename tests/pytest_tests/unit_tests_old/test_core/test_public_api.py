@@ -5,7 +5,6 @@ test_wandb
 Tests for the `wandb.apis.PublicApi` module.
 """
 
-import json
 import os
 
 import pytest
@@ -15,15 +14,6 @@ from wandb.old.summary import Summary
 from wandb.sdk.lib import filesystem
 
 
-def test_from_path(mock_server, api):
-    run = api.from_path("test/test/test")
-    assert isinstance(run, wandb.apis.public.Run)
-    run = api.from_path("test/test/runs/test")
-    assert isinstance(run, wandb.apis.public.Run)
-    sweep = api.from_path("test/test/sweeps/test")
-    assert isinstance(sweep, wandb.apis.public.Sweep)
-
-
 def test_to_html(mock_server, api):
     run = api.from_path("test/test/test")
     assert "test/test/runs/test?jupyter=true" in run.to_html()
@@ -31,70 +21,10 @@ def test_to_html(mock_server, api):
     assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
 
 
-def test_project_sweeps(mock_server, api):
-    project = api.from_path("test")
-    psweeps = project.sweeps()
-    assert len(psweeps) == 1
-    assert psweeps[0].id == "testid"
-    assert psweeps[0].name == "testname"
-
-    no_sweeps_project = api.from_path("testnosweeps")
-    nspsweeps = no_sweeps_project.sweeps()
-    assert len(nspsweeps) == 0
-
-
-def test_display(mock_server, api):
-    run = api.from_path("test/test/test")
-    assert not run.display()
-
-
-def test_run_load(mock_server, api):
-    run = api.run("test/test/test")
-    assert run.summary_metrics == {"acc": 100, "loss": 0}
-    assert run.url == "https://wandb.ai/test/test/runs/test"
-
-
 def test_run_retry(mock_server, api):
     mock_server.set_context("fail_graphql_times", 2)
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
-
-
-def test_run_history(mock_server, api):
-    run = api.run("test/test/test")
-    assert run.history(pandas=False)[0] == {"acc": 10, "loss": 90}
-
-
-def test_run_history_keys(mock_server, api):
-    run = api.run("test/test/test")
-    assert run.history(keys=["acc", "loss"], pandas=False) == [
-        {"loss": 0, "acc": 100},
-        {"loss": 1, "acc": 0},
-    ]
-
-
-def test_run_history_keys_bad_arg(mock_server, api, capsys):
-    run = api.run("test/test/test")
-    run.history(keys="acc", pandas=False)
-    captured = capsys.readouterr()
-    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
-
-    run.history(keys=[["acc"]], pandas=False)
-    captured = capsys.readouterr()
-    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
-
-    run.scan_history(keys="acc")
-    captured = capsys.readouterr()
-    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
-
-    run.scan_history(keys=[["acc"]])
-    captured = capsys.readouterr()
-    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
-
-
-def test_run_config(mock_server, api):
-    run = api.run("test/test/test")
-    assert run.config == {"epochs": 10}
 
 
 def test_run_history_system(mock_server, api):
@@ -104,29 +34,6 @@ def test_run_history_system(mock_server, api):
         {"cpu": 20},
         {"cpu": 30},
     ]
-
-
-def test_run_summary(mock_server, api):
-    run = api.run("test/test/test")
-    run.summary.update({"cool": 1000})
-    res = json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"])
-    assert {"acc": 100, "loss": 0, "cool": 1000} == res
-
-
-def test_run_create(mock_server, api):
-    run = api.create_run(project="test")
-    variables = {"entity": "mock_server_entity", "name": run.id, "project": "test"}
-    assert mock_server.ctx["graphql"][-1]["variables"] == variables
-
-
-def test_run_update(mock_server, api):
-    run = api.run("test/test/test")
-    run.tags.append("test")
-    run.config["foo"] = "bar"
-    run.update()
-    res = json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"])
-    assert {"acc": 100, "loss": 0} == res
-    assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 
 def test_run_delete(mock_server, api):
@@ -266,15 +173,6 @@ def test_delete_file(runner, mock_server, api):
     assert mock_server.ctx["graphql"][-1]["variables"] == {"files": [file.id]}
 
 
-def test_sweep(runner, mock_server, api):
-    sweep = api.sweep("test/test/test")
-    assert sweep.entity == "test"
-    assert sweep.best_run().name == "beast-bug-33"
-    assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
-    assert sweep.state in ["running", "finished"]
-    assert str(sweep) == "<Sweep test/test/test (running)>"
-
-
 def test_run_wait_until_finished(runner, mock_server, api, capsys):
     run = api.run("test/test/test")
     run.wait_until_finished()
@@ -362,12 +260,6 @@ def test_generate_api_key(mock_server, api):
     assert u.api_keys[-1] != key
     mock_server.set_context("graphql_conflict", True)
     assert u.generate_api_key() is None
-
-
-def test_direct_specification_of_api_key(mock_server, test_settings):
-    # test_settings has a different API key
-    api = wandb.PublicApi(api_key="abcd" * 10)
-    assert api.api_key == "abcd" * 10
 
 
 def test_nested_summary(api, mock_server):
