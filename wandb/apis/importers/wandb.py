@@ -1446,15 +1446,15 @@ class WandbImporter:
                     max_workers=max_workers,
                 )
 
-            # if reports:
-            #     self.true_import_reports(namespaces=namespaces)
+            if reports:
+                self.true_import_reports(namespaces=namespaces)
 
-            # if artifacts:
-            #     self.true_import_artifact_sequences(
-            #         namespaces=namespaces,
-            #         incremental=incremental,
-            #         max_workers=max_workers,
-            #     )
+            if artifacts:
+                self.true_import_artifact_sequences(
+                    namespaces=namespaces,
+                    incremental=incremental,
+                    max_workers=max_workers,
+                )
 
             if not repeat_if_error:
                 break
