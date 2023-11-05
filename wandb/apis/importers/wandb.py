@@ -941,8 +941,11 @@ class WandbImporter:
         with open(RUNS_ERRORS_JSONL_FNAME, "w"):
             pass
 
-    def _get_run_problems(self, src_run, dst_run):
+    def _get_run_problems(self, src_run, dst_run, force_retry=True):
         problems = []
+
+        if force_retry:
+            problems.append("__force_retry__")
 
         if non_matching_metadata := self._compare_run_metadata(src_run, dst_run):
             problems.append("metadata:" + str(non_matching_metadata))
