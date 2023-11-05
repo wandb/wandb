@@ -2187,6 +2187,11 @@ def recursive_cast_to_dict(obj):
 
 
 def almost_equal(x, y, eps=1e-6):
+    if isinstance(x, dict) and isinstance(y, dict):
+        if x.keys() != y.keys():
+            return False
+        return all(almost_equal(x[k], y[k], eps) for k in x)
+
     if isinstance(x, numbers.Number) and isinstance(y, numbers.Number):
         return abs(x - y) < eps
 
