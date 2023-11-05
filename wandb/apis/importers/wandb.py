@@ -313,6 +313,8 @@ class WandbRun:
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
+        if "_step" in df:
+            df = df.with_columns(pl.col("_step").cast(pl.Int64))
         for row in df.iter_rows(named=True):
             row = remove_keys_with_none_values(row)
             row = self._modify_table_artifact_paths(row)
