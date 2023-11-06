@@ -915,7 +915,7 @@ message LogArtifactResponse {
  * DownloadArtifact:
  */
 message DownloadArtifactRequest {
-  string qualified_name = 1;
+  string artifact_id = 1;
   string download_root = 2;
   bool recursive = 3;
   bool allow_missing_references = 4;

@@ -21,7 +21,7 @@ type ArtifactDownloader struct {
 	GraphqlClient   graphql.Client
 	DownloadManager *filetransfer.FileTransferManager
 	// Input
-	QualifiedName          string
+	ArtifactID             string
 	DownloadRoot           string
 	Recursive              *bool
 	AllowMissingReferences *bool
@@ -33,7 +33,7 @@ func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
 	downloadManager *filetransfer.FileTransferManager,
-	qualifiedName string,
+	artifactID string,
 	downloadRoot string,
 	recursive *bool,
 	allowMissingReferences *bool,
@@ -42,7 +42,7 @@ func NewArtifactDownloader(
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
 		DownloadManager:        downloadManager,
-		QualifiedName:          qualifiedName,
+		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
@@ -50,48 +50,38 @@ func NewArtifactDownloader(
 	}
 }
 
-func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByNameProjectArtifact, rerr error) {
-	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
-	if err != nil {
-		return gql.ArtifactByNameProjectArtifact{}, err
-	}
-	response, err := gql.ArtifactByName(
+func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByIDArtifact, rerr error) {
+	response, err := gql.ArtifactByID(
 		ad.Ctx,
 		ad.GraphqlClient,
-		entityName,
-		projectName,
-		artifactName,
+		ad.ArtifactID,
 	)
 	if err != nil {
-		return gql.ArtifactByNameProjectArtifact{}, err
+		return gql.ArtifactByIDArtifact{}, err
 	}
-	artifact := response.GetProject().GetArtifact()
+	artifact := response.GetArtifact()
 	if artifact == nil {
-		return gql.ArtifactByNameProjectArtifact{}, fmt.Errorf("could not access artifact %s", ad.QualifiedName)
+		return gql.ArtifactByIDArtifact{}, fmt.Errorf("could not access artifact")
 	}
 	return *artifact, nil
 }
 
-func (ad *ArtifactDownloader) getArtifactManifest() (manifest Manifest, rerr error) {
-	entityName, projectName, artifactName, err := parseArtifactQualifiedName(ad.QualifiedName)
-	if err != nil {
-		return Manifest{}, err
-	}
+func (ad *ArtifactDownloader) getArtifactManifest(artifact gql.ArtifactByIDArtifact) (manifest Manifest, rerr error) {
 	response, err := gql.ArtifactManifest(
 		ad.Ctx,
 		ad.GraphqlClient,
-		entityName,
-		projectName,
-		artifactName,
+		artifact.ArtifactSequence.Project.EntityName,
+		artifact.ArtifactSequence.Project.Name,
+		artifact.ArtifactSequence.Name,
 	)
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("could not get manifest for artifact %s", ad.QualifiedName)
+		return Manifest{}, fmt.Errorf("could not get manifest for artifact %s", artifact.ArtifactSequence.Name)
 	}
 	artifactManifest := response.GetProject().GetArtifact().GetCurrentManifest()
 	if artifactManifest == nil {
-		return Manifest{}, fmt.Errorf("could not access manifest for artifact %s", ad.QualifiedName)
+		return Manifest{}, fmt.Errorf("could not access manifest for artifact %s", artifact.ArtifactSequence.Name)
 	}
 	directURL := artifactManifest.GetFile().DirectUrl
 	manifest, err = loadManifestFromURL(directURL)
@@ -236,7 +226,7 @@ func (ad *ArtifactDownloader) Download() (rerr error) {
 	if err != nil {
 		return err
 	}
-	artifactManifest, err := ad.getArtifactManifest()
+	artifactManifest, err := ad.getArtifactManifest(artifactAttrs)
 	if err != nil {
 		return err
 	}

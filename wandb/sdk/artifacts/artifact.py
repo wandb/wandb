@@ -1719,7 +1719,7 @@ class Artifact:
             if run._settings._offline:
                 raise NotImplementedError("cannot download in offline mode")
             handle = run._backend.interface.deliver_download_artifact(
-                self.qualified_name,
+                self.id,
                 root,
                 recursive,
                 allow_missing_references,
