@@ -50,7 +50,7 @@ def test_artifact_download(runner, git_repo, mock_server, mocked_run):
     if platform.system() == "Windows":
         head, tail = os.path.splitdrive(path)
         path = head + tail.replace(":", "-")
-    assert "Artifact downloaded to %s" % path in result.output
+    assert "Artifact downloaded to %s" % os.path.abspath(path) in result.output
     assert os.path.exists(path)
 
 
