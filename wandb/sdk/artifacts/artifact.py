@@ -1739,8 +1739,7 @@ class Artifact:
                 raise ValueError(
                     f"Error downloading artifact: {response.error_message}"
                 )
-            download_path = response.file_download_path
-            return FilePathStr(download_path)
+            return FilePathStr(root)
         return self._download(
             root=root,
             recursive=recursive,
@@ -1755,8 +1754,8 @@ class Artifact:
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in nexus
         require_nexus = False
-        if wandb.run is not None:
-            require_nexus = wandb.run._settings._require_nexus
+        assert wandb.run is not None
+        require_nexus = wandb.run._settings._require_nexus
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())

@@ -923,8 +923,7 @@ message DownloadArtifactRequest {
 }
 
 message DownloadArtifactResponse {
-  string file_download_path = 1;
-  string error_message = 2;
+  string error_message = 1;
 }
 
 /*

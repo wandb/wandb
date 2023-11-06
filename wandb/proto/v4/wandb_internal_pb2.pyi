@@ -3083,17 +3083,14 @@ global___DownloadArtifactRequest = DownloadArtifactRequest
 class DownloadArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    FILE_DOWNLOAD_PATH_FIELD_NUMBER: builtins.int
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    file_download_path: builtins.str
     error_message: builtins.str
     def __init__(
         self,
         *,
-        file_download_path: builtins.str = ...,
         error_message: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message", "file_download_path", b"file_download_path"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message"]) -> None: ...
 
 global___DownloadArtifactResponse = DownloadArtifactResponse
 
