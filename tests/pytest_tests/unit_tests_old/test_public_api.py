@@ -308,7 +308,7 @@ def test_artifact_get_path(runner, mock_server, api):
         if platform.system() == "Windows":
             part = "mnist-v0"
         path = os.path.join(".", "artifacts", part, "digits.h5")
-        assert res == path
+        assert res == os.path.abspath(path)
 
 
 def test_artifact_get_path_download(runner, mock_server, api):
@@ -354,7 +354,7 @@ def test_artifact_download(runner, mock_server, api, mocked_run):
             part = "mnist-v0"
         else:
             part = "mnist:v0"
-        assert path == os.path.join(".", "artifacts", part)
+        assert path == os.path.abspath(os.path.join(".", "artifacts", part))
         assert os.listdir(path) == ["digits.h5"]
 
 
@@ -380,7 +380,7 @@ def test_artifact_checkout(runner, mock_server, api, mocked_run):
 
         art = api.artifact("entity/project/mnist:v0", type="dataset")
         path = art.checkout()
-        assert path == os.path.join(".", "artifacts", "mnist")
+        assert path == os.path.abspath(os.path.join(".", "artifacts", "mnist"))
         assert os.listdir(path) == ["digits.h5"]
 
 
