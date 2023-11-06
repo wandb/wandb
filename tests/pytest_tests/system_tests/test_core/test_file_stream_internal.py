@@ -2,8 +2,9 @@
 
 import json
 import unittest.mock
-import wandb
+
 import pytest
+import wandb
 
 
 def generate_history():
