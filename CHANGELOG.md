@@ -30,12 +30,12 @@
 * fix(nexus): fix a number of issues by @dmitryduev in https://github.com/wandb/wandb/pull/6491
 * fix(media): saving mlp figure to buffer and reading with PIL should specify format by @mova in https://github.com/wandb/wandb/pull/6465
 * fix(nexus): send content-length, check response status code in uploader by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6401
-* fix(sdk): pin ipython version <8.17.1 by @luisbergua in https://github.com/wandb/wandb/pull/6522
 * fix(sdk): fix step logic when resuming runs with no metrics logged by @luisbergua in https://github.com/wandb/wandb/pull/6480
 * fix(sdk): hook_handle being set to list instead of dict on unhook by @vatsalaggarwal in https://github.com/wandb/wandb/pull/6503
 * fix(launch): verify gcp credentials before creating vertex job by @bcsherma in https://github.com/wandb/wandb/pull/6537
 * fix(launch): add load option to docker buildx by @KyleGoyette in https://github.com/wandb/wandb/pull/6508
 * fix(artifacts): fix perf regressions in artifact downloads and fix file download location by @ibindlish in https://github.com/wandb/wandb/pull/6535
+* fix(sdk): add warning when `log_code` can't locate any files by @umakrishnaswamy in https://github.com/wandb/wandb/pull/6532
 ### :books: Docs
 * docs(media): fix `Graph` docstring by @harupy in https://github.com/wandb/wandb/pull/6458
 * docs(public-api): Fix suggested command for uploading artifacts by @geke-mir in https://github.com/wandb/wandb/pull/6513
