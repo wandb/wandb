@@ -25,3 +25,8 @@ def test_sweep(runner, mock_server, api):
     assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
     assert sweep.state in ["running", "finished"]
     assert str(sweep) == "<Sweep test/test/test (running)>"
+
+
+def test_to_html(mock_server, api):
+    sweep = api.from_path("test/test/sweeps/test")
+    assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()

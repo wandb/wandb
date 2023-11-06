@@ -307,6 +307,10 @@ class QueryResolver:
                 "name": "create_artifact",
                 "resolver": self.resolve_create_artifact,
             },
+            {
+                "name": "delete_run",
+                "resolver": self.resolve_delete_run,
+            },
         ]
 
     @staticmethod
@@ -323,6 +327,21 @@ class QueryResolver:
             data.update(response_data["data"]["upsertBucket"].get("bucket"))
             if "config" in data:
                 data["config"] = json.loads(data["config"])
+            return data
+        return None
+
+    @staticmethod
+    def resolve_delete_run(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+        query = "query" in request_data and "deleteRun" in request_data["query"]
+        if query:
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["deleteRun"])
             return data
         return None
 
@@ -708,6 +727,7 @@ class RelayServer:
                     print("*****************")
                 # rotate the injection pattern
                 injected_response.application_pattern.next()
+                # TODO: allow access to the request object when making the mocked response
                 if should_apply:
                     with responses.RequestsMock() as mocked_responses:
                         # do the actual injection
