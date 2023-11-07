@@ -36,6 +36,7 @@
 * fix(launch): add load option to docker buildx by @KyleGoyette in https://github.com/wandb/wandb/pull/6508
 * fix(artifacts): fix perf regressions in artifact downloads and fix file download location by @ibindlish in https://github.com/wandb/wandb/pull/6535
 * fix(sdk): add warning when `log_code` can't locate any files by @umakrishnaswamy in https://github.com/wandb/wandb/pull/6532
+* fix(sdk): adjust ipython hooks for v8.17 by @dmitryduev in https://github.com/wandb/wandb/pull/6563
 ### :books: Docs
 * docs(media): fix `Graph` docstring by @harupy in https://github.com/wandb/wandb/pull/6458
 * docs(public-api): Fix suggested command for uploading artifacts by @geke-mir in https://github.com/wandb/wandb/pull/6513
