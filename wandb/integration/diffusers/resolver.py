@@ -23,6 +23,7 @@ class DiffusersPipelineResolver:
         pass
 
         try:
+            self.autolog_id = generate_id(length=16)
             pipeline, input_data = args[:2]
             pipeline_configs = dict(pipeline.config)
             table = wandb.Table(columns=["Architecture"], data=[pipeline_configs])
@@ -30,3 +31,6 @@ class DiffusersPipelineResolver:
         except Exception as e:
             logger.warning(e)
         return None
+
+    def get_latest_id(self):
+        return self.autolog_id
