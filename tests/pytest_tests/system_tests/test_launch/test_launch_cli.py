@@ -507,7 +507,9 @@ def test_launch_supplied_docker_image(
     assert "test:tag" in result.output
 
 
-def test_launch_supplied_logfile(runner, monkeypatch, caplog):
+def test_launch_supplied_logfile(
+    runner, monkeypatch, caplog, wandb_init, test_settings
+):
     """Test that the logfile is set properly when supplied via the CLI."""
 
     def patched_pop_empty_queue(self, queue):
