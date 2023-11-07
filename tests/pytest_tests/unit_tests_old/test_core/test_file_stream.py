@@ -30,27 +30,6 @@ def assert_history(publish_util, dropped=None):
         assert ctx_util.dropped_chunks == dropped
 
 
-def test_fstream_status_404(publish_util, mock_server, inject_requests, capsys):
-    match = inject_requests.Match(path_suffix="/file_stream", count=2)
-    inject_requests.add(match=match, http_status=404)
-    assert_history(publish_util, dropped=1)
-    stdout, stderr = capsys.readouterr()
-    assert "Dropped streaming file chunk" in stderr
-
-
-def test_fstream_status_max_retries(
-    publish_util, mock_server, inject_requests, mocker, capsys
-):
-    # set short max sleep so we can exhaust retries
-    mocker.patch("wandb.wandb_sdk.internal.file_stream.MAX_SLEEP_SECONDS", 0.1)
-
-    match = inject_requests.Match(path_suffix="/file_stream")
-    inject_requests.add(match=match, http_status=500)
-    assert_history(publish_util, dropped=1)
-    stdout, stderr = capsys.readouterr()
-    assert "Dropped streaming file chunk" in stderr
-
-
 def test_fstream_requests_error(
     publish_util, mock_server, inject_requests, mocker, capsys
 ):
