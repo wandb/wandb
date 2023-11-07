@@ -50,22 +50,6 @@ func NewArtifactDownloader(
 	}
 }
 
-func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByIDArtifact, rerr error) {
-	response, err := gql.ArtifactByID(
-		ad.Ctx,
-		ad.GraphqlClient,
-		ad.ArtifactID,
-	)
-	if err != nil {
-		return gql.ArtifactByIDArtifact{}, err
-	}
-	artifact := response.GetArtifact()
-	if artifact == nil {
-		return gql.ArtifactByIDArtifact{}, fmt.Errorf("could not access artifact")
-	}
-	return *artifact, nil
-}
-
 func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest Manifest, rerr error) {
 	response, err := gql.ArtifactManifest(
 		ad.Ctx,
@@ -228,16 +212,12 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 }
 
 func (ad *ArtifactDownloader) Download() (rerr error) {
-	artifactAttrs, err := ad.getArtifact()
-	if err != nil {
-		return err
-	}
-	artifactManifest, err := ad.getArtifactManifest(artifactAttrs.Id)
+	artifactManifest, err := ad.getArtifactManifest(ad.ArtifactID)
 	if err != nil {
 		return err
 	}
 
-	if err := ad.downloadFiles(artifactAttrs.Id, artifactManifest); err != nil {
+	if err := ad.downloadFiles(ad.ArtifactID, artifactManifest); err != nil {
 		return err
 	}
 	return nil
