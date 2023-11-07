@@ -1,4 +1,4 @@
-# 0.16.0 (Nov 8, 2023)
+# 0.16.0 (Nov 7, 2023)
 
 ### :magic_wand: Enhancements
 * feat(nexus): add nested config support by @kptkin in https://github.com/wandb/wandb/pull/6417
