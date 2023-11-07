@@ -300,16 +300,17 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_SampledHistory:
 		h.handleSampledHistory(record, response)
 	case *service.Request_ServerInfo:
-		h.handleServerInfo(record)
+		h.handleServerInfo(record, response)
+		return
 	case *service.Request_Shutdown:
 		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record)
-		response = nil
+		return
 	case *service.Request_DownloadArtifact:
 		h.handleDownloadArtifact(record)
-		response = nil
+		return
 	case *service.Request_JobInfo:
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
@@ -323,14 +324,13 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleGetSystemMetrics(record, response)
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
+		return
 	case *service.Request_InternalMessages:
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
-	if response != nil {
-		h.sendResponse(record, response)
-	}
+	h.sendResponse(record, response)
 
 	// shutdown request indicates that we have gone through the exit path and
 	// have sent all the requests needed to extract the final bits of information
@@ -423,7 +423,13 @@ func (h *Handler) handleFinal(record *service.Record) {
 	)
 }
 
-func (h *Handler) handleServerInfo(record *service.Record) {
+func (h *Handler) handleServerInfo(record *service.Record, response *service.Response) {
+	if h.settings.GetXOffline().GetValue() {
+		response.ResponseType = &service.Response_ServerInfoResponse{
+			ServerInfoResponse: &service.ServerInfoResponse{},
+		}
+		h.sendResponse(record, response)
+	}
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true

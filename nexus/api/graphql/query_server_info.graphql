@@ -1,0 +1,10 @@
+# @genqlient(omitempty: true)
+query ServerInfo{
+    serverInfo {
+        cliVersionInfo
+        latestLocalVersionInfo {
+            outOfDate
+            latestVersionString
+        }
+    }
+}

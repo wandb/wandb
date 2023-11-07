@@ -248,8 +248,12 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureError("sender: sendRequest: unexpected type", err)
 	}
 }
 
@@ -885,11 +889,33 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	if s.graphqlClient == nil {
 		return
 	}
+	data, err := gql.ServerInfo(
+		s.ctx,           // ctx
+		s.graphqlClient, // client
+	)
 
+	localInfo := &service.LocalInfo{}
+	if err != nil {
+		err = fmt.Errorf("sender: sendServerInfo: failed to get server info: %s", err)
+		s.logger.CaptureError("sender received error", err)
+	} else {
+		localVersionInfo := data.GetServerInfo().GetLatestLocalVersionInfo()
+		if localVersionInfo != nil {
+			localInfo.Version = localVersionInfo.GetLatestVersionString()
+			localInfo.OutOfDate = localVersionInfo.GetOutOfDate()
+		} else {
+			localInfo.Version = "latest"
+			localInfo.OutOfDate = false
+		}
+	}
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
-				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{
+						LocalInfo: localInfo,
+					},
+				},
 			},
 		},
 		Control: record.Control,

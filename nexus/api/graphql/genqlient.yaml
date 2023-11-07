@@ -16,3 +16,5 @@ bindings:
     type: int64
   JSONString:
     type: string
+  JSON:
+    type: interface{}
