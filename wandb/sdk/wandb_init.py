@@ -422,7 +422,7 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pause_backend(self) -> None:
+    def _pause_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is None:
             return None
 
@@ -435,7 +435,7 @@ class _WandbInit:
             logger.info("pausing backend")  # type: ignore
             self.backend.interface.publish_pause()
 
-    def _resume_backend(self) -> None:
+    def _resume_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is not None and self.backend.interface is not None:
             logger.info("resuming backend")  # type: ignore
             self.backend.interface.publish_resume()
