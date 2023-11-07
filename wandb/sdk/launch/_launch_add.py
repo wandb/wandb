@@ -17,10 +17,14 @@ from wandb.sdk.launch.utils import (
 
 
 def push_to_queue(
-    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
+    api: Api,
+    queue_name: str,
+    launch_spec: Dict[str, Any],
+    project_queue: str,
+    priority: Optional[int] = 2, # Medium
 ) -> Any:
     try:
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
+        res = api.push_to_run_queue(queue_name, launch_spec, project_queue, priority)
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -46,6 +50,7 @@ def launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[str] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -119,6 +124,7 @@ def launch_add(
             repository=repository,
             sweep_id=sweep_id,
             author=author,
+            priority=priority,
         )
     )
 
@@ -143,6 +149,7 @@ async def _launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -198,7 +205,7 @@ async def _launch_add(
         project_queue = LAUNCH_DEFAULT_PROJECT
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, project_queue)
+    res = push_to_queue(api, queue_name, launch_spec, project_queue, priority)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")

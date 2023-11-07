@@ -957,6 +957,7 @@ class Api:
         run_queue_item_id,
         container_job=False,
         project_queue=None,
+        priority=None,
     ):
         """Return a single queued run based on the path.
 
@@ -970,6 +971,7 @@ class Api:
             run_queue_item_id,
             container_job=container_job,
             project_queue=project_queue,
+            priority=priority,
         )
 
     def run_queue(
@@ -2468,6 +2470,7 @@ class QueuedRun:
         run_queue_item_id,
         container_job=False,
         project_queue=LAUNCH_DEFAULT_PROJECT,
+        priority=None,
     ):
         self.client = client
         self._entity = entity
@@ -2478,6 +2481,7 @@ class QueuedRun:
         self._run = None
         self.container_job = container_job
         self.project_queue = project_queue
+        self.priority = priority
 
     @property
     def queue_name(self):
@@ -4876,6 +4880,7 @@ class Job:
         resource="local-container",
         resource_args=None,
         project_queue=None,
+        priority=None,
     ):
         from wandb.sdk.launch import _launch_add
 
@@ -4906,5 +4911,6 @@ class Job:
             resource=resource,
             project_queue=project_queue,
             resource_args=resource_args,
+            priority=priority,
         )
         return queued_run

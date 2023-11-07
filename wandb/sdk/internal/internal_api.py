@@ -333,6 +333,8 @@ class Api:
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
         self.create_launch_agent_input_info: Optional[List[str]] = None
         self.server_create_run_queue_supports_drc: Optional[bool] = None
+        self.server_create_run_queue_supports_priority: Optional[bool] = None
+        self.server_push_to_run_queue_by_name_supports_priority: Optional[bool] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -640,7 +642,7 @@ class Api:
                 }
             }
         """
-        if self.server_create_run_queue_supports_drc is None:
+        if self.server_create_run_queue_supports_drc is None or self.server_create_run_queue_supports_priority is None:
             query = gql(query_string)
             res = self.gql(query)
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
@@ -649,11 +651,18 @@ class Api:
                     res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
                 )
             ]
+            self.server_create_run_queue_supports_priority = "prioritizationMode" in [
+                x["name"]
+                for x in (
+                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
         return (
             "createRunQueue" in mutations,
             self.server_create_run_queue_supports_drc,
+            self.server_create_run_queue_supports_priority,
         )
-
+    
     @normalize_exceptions
     def create_default_resource_config_introspection(self) -> bool:
         _, _, mutations = self.server_info_introspection()
@@ -688,6 +697,38 @@ class Api:
             )
         ]
         return self.fail_run_queue_item_input_info
+
+    # TODO(np): Do we need this? push_to_run_queue_by_name already tries
+    # newer queries then falls back as each fails.  This would be the same number of requests
+    # as introspection, but we'd run through the whole progression of try/except every time.
+    
+    # @normalize_exceptions
+    # def push_to_run_queue_by_name_introspection(self) -> bool:
+    #     _, _, mutations = self.server_info_introspection()
+    #     query_string = """
+    #        query ProbePushToRunQueueByNameInput {
+    #            PushToRunQueueByNameInputType: __type(name: "PushToRunQueueByNameInput") {
+    #                name
+    #                inputFields {
+    #                    name
+    #                }
+    #             }
+    #         }
+    #     """
+    #     if self.server_push_to_run_queue_by_name_supports_priority is None:
+    #         query = gql(query_string)
+    #         res = self.gql(query)
+    #         self.server_push_to_run_queue_by_name_supports_priority = "priority" in [
+    #             x["name"]
+    #             for x in (
+    #                 res.get("PushToRunQueueByNameInputType", {}).get("inputFields", [{}])
+    #             )
+    #         ]
+    #     return (
+    #         "pushToRunQueueByName" in mutations,
+    #         self.server_push_to_run_queue_by_name_supports_priority,
+    #     )
+        
 
     @normalize_exceptions
     def fail_run_queue_item(
@@ -1393,9 +1434,10 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
+        prioritization_mode: Optional[str] = None,
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        (create_run_queue, supports_drc) = self.create_run_queue_introspection()
+        (create_run_queue, supports_drc, supports_prioritization) = self.create_run_queue_introspection()
         if not create_run_queue:
             raise UnsupportedError(
                 "run queue creation is not supported by this version of wandb server."
@@ -1404,32 +1446,68 @@ class Api:
             raise UnsupportedError(
                 "default resource configurations are not supported by this version of wandb server."
             )
+        if not supports_prioritization and prioritization_mode is not None:
+            raise UnsupportedError(
+                "launch prioritization is not supported by this version of wandb server."
+            )
 
-        query = gql(
-            """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access,
-                    defaultResourceConfigID: $defaultResourceConfigID
+        if supports_drc and supports_prioritization:
+            query = gql(
+                """
+            mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
+                createRunQueue(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        queueName: $queueName,
+                        access: $access,
+                        defaultResourceConfigID: $defaultResourceConfigID
+                        prioritizationMode: $prioritizationMode
+                    }
+                ) {
+                    success
+                    queueID
                 }
-            ) {
-                success
-                queueID
             }
-        }
-        """
-        )
-        variable_values = {
-            "entity": entity,
-            "project": project,
-            "queueName": queue_name,
-            "access": access,
-            "defaultResourceConfigID": config_id,
-        }
+            """
+            )
+            variable_values = {
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "access": access,
+                "defaultResourceConfigID": config_id,
+                "prioritizationMode": prioritization_mode,
+            }
+        elif supports_drc:
+            query = gql(
+                """
+            mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
+                createRunQueue(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        queueName: $queueName,
+                        access: $access,
+                        defaultResourceConfigID: $defaultResourceConfigID
+                    }
+                ) {
+                    success
+                    queueID
+                }
+            }
+            """
+            )
+            variable_values = {
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "access": access,
+                "defaultResourceConfigID": config_id,
+            }
+        # No need to handle the case where only prioritization is supported
+        # because prioritization support came after DRCs
+            
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"
         ]
@@ -1437,10 +1515,68 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
-        self, entity: str, project: str, queue_name: str, run_spec: str
+        self, entity: str, project: str, queue_name: str, run_spec: str, priority: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
-        """Queryless mutation, should be used before legacy fallback method."""
         mutation = gql(
+            """
+        mutation pushToRunQueueByName(
+            $entityName: String!,
+            $projectName: String!,
+            $queueName: String!,
+            $runSpec: JSONString!,
+            $priority: Int,
+        ) {
+            pushToRunQueueByName(
+                input: {
+                    entityName: $entityName,
+                    projectName: $projectName,
+                    queueName: $queueName,
+                    runSpec: $runSpec,
+                    priority: $priority,
+                }
+            ) {
+                runQueueItemId
+                runSpec
+            }
+        }
+        """
+        )
+        variables = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "runSpec": run_spec,
+            "priority": priority,
+        }
+        try:
+            result: Optional[Dict[str, Any]] = self.gql(
+                mutation, variables, check_retry_fn=util.no_retry_4xx
+            ).get("pushToRunQueueByName")
+
+            if not result:
+                return None
+
+            if result.get("runSpec"):
+                run_spec = json.loads(str(result["runSpec"]))
+                result["runSpec"] = run_spec
+
+            return result
+        except Exception as e:
+            # Failed, but not because server didn't understand priority input field
+            if (
+                '"priority": Unknown field.'
+                not in str(e)
+            ):
+                return None
+
+        """Queryless mutation, should be used before legacy fallback method."""
+        
+        if priority is not None:
+            raise UnsupportedError(
+                "launch prioritization is not supported by this version of wandb server."
+            )
+            
+        mutation_no_priority = gql(
             """
         mutation pushToRunQueueByName(
             $entityName: String!,
@@ -1470,7 +1606,7 @@ class Api:
         }
         try:
             result: Optional[Dict[str, Any]] = self.gql(
-                mutation, variables, check_retry_fn=util.no_retry_4xx
+                mutation_no_priority, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
 
             if not result:
@@ -1525,18 +1661,25 @@ class Api:
         queue_name: str,
         launch_spec: Dict[str, str],
         project_queue: str,
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project_queue, queue_name, run_spec
+            entity, project_queue, queue_name, run_spec, priority
         )
 
         if push_result:
             return push_result
 
         """ Legacy Method """
+        
+        if priority is not None:
+            raise UnsupportedError(
+                "launch prioritization is not supported by this version of wandb server."
+            )
+            
         queues_found = self.get_project_run_queues(entity, project_queue)
         matching_queues = [
             q
