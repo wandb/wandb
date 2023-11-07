@@ -535,7 +535,6 @@ def test_launch_supplied_logfile(runner, monkeypatch, caplog):
                 ],
             )
 
-            assert result.exit_code == 0
             assert "Internal agent logs printing to agent.logs" in result.output
 
             print("Output from cli command:")
@@ -547,3 +546,5 @@ def test_launch_supplied_logfile(runner, monkeypatch, caplog):
                 print("agent.logs:")
                 print(logs)
                 assert "Internal agent logs printing to agent.logs" in logs
+
+            assert result.exit_code == 0  # Do at the end so we get maximum printing
