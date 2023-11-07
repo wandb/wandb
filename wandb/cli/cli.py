@@ -1457,32 +1457,6 @@ def launch_agent(
     url=None,
     log_file=None,
 ):
-    if log_file is not None:
-        _launch_logger = logging.getLogger("wandb.sdk.launch")
-        if log_file == "-":
-            log_file_stream = sys.stdout
-        else:
-            try:
-                log_file_stream = open(log_file, "w")
-            # check if file is writable
-            except Exception as e:
-                wandb.termerror(
-                    f"Could not open {log_file} for writing logs. Please check "
-                    f"the path and permissions.\nError: {e}"
-                )
-                return
-
-        wandb.termlog(
-            f"Logging agent output to {'stdout' if log_file == '-' else log_file}. "
-        )
-        handler = logging.StreamHandler(log_file_stream)
-        handler.formatter = logging.Formatter(
-            "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-            "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-        )
-        _launch_logger.addHandler(handler)
-        del _launch_logger
-
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1492,6 +1466,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
