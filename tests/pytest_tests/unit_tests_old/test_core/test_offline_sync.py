@@ -5,7 +5,6 @@ import sys
 import time
 
 import pytest
-
 from tests.pytest_tests.unit_tests_old import utils
 
 
