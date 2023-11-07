@@ -382,7 +382,7 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     val = env.get(ARTIFACT_DIR, default_dir)
-    return val
+    return os.path.abspath(val)
 
 
 def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:

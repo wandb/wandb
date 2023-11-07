@@ -1706,6 +1706,12 @@ def create(
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
 
+    if entrypoint is None and job_type in ["git", "code"]:
+        wandb.termwarn(
+            f"No entrypoint provided for {job_type} job, defaulting to main.py"
+        )
+        entrypoint = "main.py"
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,

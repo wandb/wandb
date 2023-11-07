@@ -1,4 +1,3 @@
-import json
 import os
 import platform
 import subprocess
@@ -8,7 +7,6 @@ import pytest
 import wandb
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
-from wandb.proto import wandb_internal_pb2
 
 
 @pytest.fixture
@@ -37,43 +35,6 @@ def docker(request, mock_server, mocker, monkeypatch):
         subprocess, "check_output", lambda *args, **kwargs: wandb_args["check_output"]
     )
     return docker
-
-
-def test_artifact_download(runner, git_repo, mock_server, mocked_run):
-    result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-    assert result.exit_code == 0
-    assert "Downloading dataset artifact" in result.output
-    path = os.path.join(".", "artifacts", "mnist:v0")
-    if platform.system() == "Windows":
-        head, tail = os.path.splitdrive(path)
-        path = head + tail.replace(":", "-")
-    assert "Artifact downloaded to %s" % path in result.output
-    assert os.path.exists(path)
-
-
-def test_artifact_upload(runner, git_repo, mock_server, mocked_run):
-    with open("artifact.txt", "w") as f:
-        f.write("My Artifact")
-    result = runner.invoke(cli.artifact, ["put", "artifact.txt", "-n", "test/simple"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-    assert result.exit_code == 0
-    assert "Uploading file artifact.txt to:" in result.output
-    assert "FAKE_ENTITY/FAKE_PROJECT/mnist:v0" in result.output
-
-
-def test_artifact_ls(runner, git_repo, mock_server):
-    result = runner.invoke(cli.artifact, ["ls", "test"])
-    print(result.output)
-    print(result.exception)
-    print(traceback.print_tb(result.exc_info[2]))
-    assert result.exit_code == 0
-    assert "81.3KB" in result.output
-    assert "mnist:v2" in result.output
 
 
 @pytest.mark.skipif(
@@ -200,51 +161,3 @@ def test_restore_not_git(runner, mock_server, docker, monkeypatch):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         assert "Original run has no git history" in result.output
-
-
-@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
-def test_sweep_pause(runner, mock_server, test_settings, stop_method):
-    with runner.isolated_filesystem():
-        sweep_config = {
-            "name": "My Sweep",
-            "method": "grid",
-            "parameters": {"parameter1": {"values": [1, 2, 3]}},
-        }
-        sweep_id = wandb.sweep(sweep_config)
-        assert sweep_id == "test"
-        assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
-        assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
-        if stop_method == "stop":
-            assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
-        else:
-            assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
-
-
-def test_sweep_scheduler(runner, mock_server, test_settings):
-    with runner.isolated_filesystem():
-        with open("config.json", "w") as f:
-            json.dump(
-                {
-                    "queue": "default",
-                    "resource": "local-process",
-                    "job": "mock-launch-job",
-                    "scheduler": {
-                        "resource": "local-process",
-                    },
-                },
-                f,
-            )
-        sweep_config = {
-            "name": "My Sweep",
-            "method": "grid",
-            "parameters": {"parameter1": {"values": [1, 2, 3]}},
-        }
-        sweep_id = wandb.sweep(sweep_config)
-        assert sweep_id == "test"
-        assert (
-            runner.invoke(
-                cli.launch_sweep,
-                ["config.json", "--resume_id", sweep_id],
-            ).exit_code
-            == 0
-        )

@@ -363,6 +363,11 @@ def build_sagemaker_args(
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 
+    # Add wandb tag
+    tags = sagemaker_args.get("Tags", [])
+    tags.append({"Key": "WandbRunId", "Value": launch_project.run_id})
+    sagemaker_args["Tags"] = tags
+
     # remove args that were passed in for launch but not passed to sagemaker
     sagemaker_args.pop("EcrRepoName", None)
     sagemaker_args.pop("region", None)

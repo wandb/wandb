@@ -41,6 +41,9 @@ class _Requires:
 
     def _require_nexus(self) -> None:
         os.environ["WANDB_REQUIRE_NEXUS"] = "True"
+        wandb.teardown = wandb._teardown  # type: ignore
+        wandb.attach = wandb._attach  # type: ignore
+        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_nexus(self) -> None:
         self._require_nexus()
