@@ -25,8 +25,6 @@ type ArtifactDownloader struct {
 	DownloadRoot           string
 	Recursive              *bool
 	AllowMissingReferences *bool
-	// Properties
-	UpstreamArtifacts []gql.ArtifactByIDArtifact
 }
 
 func NewArtifactDownloader(
@@ -46,7 +44,6 @@ func NewArtifactDownloader(
 		DownloadRoot:           downloadRoot,
 		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
-		UpstreamArtifacts:      []gql.ArtifactByIDArtifact{},
 	}
 }
 
@@ -74,37 +71,7 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 	if err != nil {
 		return Manifest{}, err
 	}
-
-	// Set upstream artifacts, if any
-	err = ad.setUpstreamArtifacts(manifest)
-	if err != nil {
-		return Manifest{}, err
-	}
 	return manifest, nil
-}
-
-func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
-	for _, entry := range manifest.Contents {
-		referencedID, err := getReferencedID(entry.Ref)
-		if err != nil {
-			return err
-		}
-		if referencedID != nil {
-			response, err := gql.ArtifactByID(
-				ad.Ctx,
-				ad.GraphqlClient,
-				*referencedID,
-			)
-			if err != nil {
-				return err
-			}
-			depArtifact := response.GetArtifact()
-			if depArtifact != nil {
-				ad.UpstreamArtifacts = append(ad.UpstreamArtifacts, *depArtifact)
-			}
-		}
-	}
-	return nil
 }
 
 func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest) error {
