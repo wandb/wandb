@@ -10,7 +10,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.utils import _is_git_uri
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
@@ -109,15 +109,19 @@ def _create_job(
 
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
-    metadata, requirements = _make_metadata_for_partial_job(
-        job_type=job_type,
-        tempdir=tempdir,
-        git_hash=git_hash,
-        runtime=runtime,
-        path=path,
-        entrypoint=entrypoint,
-    )
-    if not metadata:
+    try:
+        metadata, requirements = _make_metadata_for_partial_job(
+            job_type=job_type,
+            tempdir=tempdir,
+            git_hash=git_hash,
+            runtime=runtime,
+            path=path,
+            entrypoint=entrypoint,
+        )
+        if not metadata:
+            return None, "", []
+    except Exception as e:
+        wandb.termerror(f"Error creating job: {e}")
         return None, "", []
 
     _dump_metadata_and_requirements(
@@ -272,26 +276,21 @@ def _create_repo_metadata(
         wandb.termerror("Path must be a git URI")
         return None
 
-    ref = GitHubReference.parse(path)
+    ref = GitReference(path, git_hash)
     if not ref:
         wandb.termerror("Could not parse git URI")
         return None
 
     ref.fetch(tempdir)
 
-    commit = git_hash
+    commit = ref.commit_hash
     if not commit:
         if not ref.commit_hash:
             wandb.termerror("Could not find git commit hash")
             return None
         commit = ref.commit_hash
 
-    local_dir = os.path.join(tempdir, ref.directory or "")
-    src_dir = ref.directory or ""
-    filename = ref.file
-    if not filename and path.endswith(".py"):
-        filename = os.path.basename(path)
-
+    local_dir = os.path.join(tempdir, ref.path or "")
     python_version = runtime
     if not python_version:
         if os.path.exists(os.path.join(local_dir, "runtime.txt")):
@@ -307,31 +306,10 @@ def _create_repo_metadata(
     python_version = _clean_python_version(python_version)
 
     # check if entrypoint is valid
-    if entrypoint:
-        if not os.path.exists(os.path.join(local_dir, entrypoint)):
-            wandb.termerror(f"Invalid entrypoint: {entrypoint}")
-            return None
-        # prepend working dir (specified in path)
-        entrypoint = os.path.join(src_dir, entrypoint)
-    elif not filename:
-        if path.endswith(".py"):
-            wandb.termerror("Invalid entrypoint provided in path")
-        else:
-            wandb.termerror(
-                "Invalid entrypoint. Provide an entrypoint in the path or use -E"
-            )
+    assert entrypoint is not None
+    if not os.path.exists(os.path.join(local_dir, entrypoint)):
+        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
         return None
-    else:  # try to make one from the path, assumes working dir is parent of file
-        rel_entrypoint = os.path.join(src_dir, filename)
-        if rel_entrypoint.startswith("/"):
-            rel_entrypoint = rel_entrypoint[1:]
-
-        if not os.path.exists(os.path.join(tempdir, rel_entrypoint)):
-            wandb.termerror(
-                f"Entrypoint {rel_entrypoint} not valid, specify one in the path or use -E"
-            )
-            return None
-        entrypoint = rel_entrypoint
 
     # check if requirements.txt exists
     # start at the location of the python file and recurse up to the git root
@@ -359,7 +337,6 @@ def _create_repo_metadata(
             "commit": commit,
             "remote": ref.url,
         },
-        "root": ref.repo,
         "codePathLocal": entrypoint,  # not in git context, optionally also set local
         "codePath": entrypoint,
         "entrypoint": [f"python{python_version}", entrypoint],
