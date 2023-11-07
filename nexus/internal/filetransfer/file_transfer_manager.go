@@ -36,15 +36,6 @@ type FileTransferManager struct {
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
 
-	// fileCounts is the file counts for the file transfer
-	fileCounts *service.FileCounts
-
-	// fileCountsChan is the channel used to count files uploaded/downloaded by type
-	fileCountsChan chan FileType
-
-	// wgfc is the wait group for the file counts channel ops
-	wgfc *sync.WaitGroup
-
 	// settings is the settings for the file transfer
 	settings *service.Settings
 
@@ -84,38 +75,16 @@ func WithFSCChan(fsChan chan protoreflect.ProtoMessage) FileTransferManagerOptio
 func NewFileTransferManager(opts ...FileTransferManagerOption) *FileTransferManager {
 
 	fm := FileTransferManager{
-		inChan:         make(chan *Task, bufferSize),
-		fileCounts:     &service.FileCounts{},
-		fileCountsChan: make(chan FileType, bufferSize),
-		wgfc:           &sync.WaitGroup{},
-		wg:             &sync.WaitGroup{},
-		semaphore:      make(chan struct{}, defaultConcurrencyLimit),
+		inChan:    make(chan *Task, bufferSize),
+		wg:        &sync.WaitGroup{},
+		semaphore: make(chan struct{}, defaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
 		opt(&fm)
 	}
 
-	fm.wgfc.Add(1)
-	go fm.fileCount()
-
 	return &fm
-}
-
-func (fm *FileTransferManager) fileCount() {
-	for fileType := range fm.fileCountsChan {
-		switch fileType {
-		case WandbFile:
-			fm.fileCounts.WandbCount++
-		case MediaFile:
-			fm.fileCounts.MediaCount++
-		case ArtifactFile:
-			fm.fileCounts.ArtifactCount++
-		default:
-			fm.fileCounts.OtherCount++
-		}
-	}
-	fm.wgfc.Done()
 }
 
 // Start is the main loop for the fileTransfer
@@ -141,12 +110,8 @@ func (fm *FileTransferManager) Start() {
 					)
 				}
 				// Execute the callback.
-				if task.CompletionCallback != nil {
-					task.CompletionCallback(task)
-				}
-
-				if task.Err == nil {
-					fm.fileCountsChan <- task.FileType
+				for _, callback := range task.CompletionCallback {
+					callback(task)
 				}
 				// mark the task as done
 				fm.wg.Done()
@@ -169,9 +134,6 @@ func (fm *FileTransferManager) FileStreamCallback() func(task *Task) {
 		if task.Err != nil {
 			return
 		}
-		if task.FileType == ArtifactFile {
-			return
-		}
 		record := &service.FilesUploaded{
 			Files: []string{task.Name},
 		}
@@ -191,28 +153,18 @@ func (fm *FileTransferManager) Close() {
 	// todo: review this, we don't want to cause a panic
 	close(fm.inChan)
 	fm.wg.Wait()
-	close(fm.fileCountsChan)
-	fm.wgfc.Wait()
 }
 
 // transfer uploads/downloads a file to/from the server
 func (fm *FileTransferManager) transfer(task *Task) error {
 	var err error
-	switch task.TaskType {
+	switch task.Type {
 	case UploadTask:
 		err = fm.fileTransfer.Upload(task)
 	case DownloadTask:
 		err = fm.fileTransfer.Download(task)
 	default:
-		fm.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
+		fm.logger.CaptureFatalAndPanic("transfer: unknown task type", err)
 	}
 	return err
-}
-
-// GetFileCounts returns the file counts for the fileTransfer
-func (fm *FileTransferManager) GetFileCounts() *service.FileCounts {
-	if fm == nil {
-		return &service.FileCounts{}
-	}
-	return fm.fileCounts
 }

@@ -270,7 +270,7 @@ class TorchHistory:
     def unhook_all(self):
         for handle in self._hook_handles.values():
             handle.remove()
-        self._hook_handles = []
+        self._hook_handles = {}
 
     def unhook(self, name):
         handle = self._hook_handles.pop(name)

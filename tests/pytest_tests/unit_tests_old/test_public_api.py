@@ -308,7 +308,7 @@ def test_artifact_get_path(runner, mock_server, api):
         if platform.system() == "Windows":
             part = "mnist-v0"
         path = os.path.join(".", "artifacts", part, "digits.h5")
-        assert res == path
+        assert res == os.path.abspath(path)
 
 
 def test_artifact_get_path_download(runner, mock_server, api):
@@ -345,7 +345,8 @@ def test_artifact_files(runner, mock_server, api):
         assert "storagePath" not in file._attrs.keys()
 
 
-def test_artifact_download(runner, mock_server, api):
+def test_artifact_download(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
         path = art.download()
@@ -353,7 +354,7 @@ def test_artifact_download(runner, mock_server, api):
             part = "mnist-v0"
         else:
             part = "mnist:v0"
-        assert path == os.path.join(".", "artifacts", part)
+        assert path == os.path.abspath(os.path.join(".", "artifacts", part))
         assert os.listdir(path) == ["digits.h5"]
 
 
@@ -369,7 +370,8 @@ def test_artifact_delete(runner, mock_server, api):
         art.delete(delete_aliases=True)
 
 
-def test_artifact_checkout(runner, mock_server, api):
+def test_artifact_checkout(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     with runner.isolated_filesystem():
         # Create a file that should be removed as part of checkout
         os.makedirs(os.path.join(".", "artifacts", "mnist"))
@@ -378,7 +380,7 @@ def test_artifact_checkout(runner, mock_server, api):
 
         art = api.artifact("entity/project/mnist:v0", type="dataset")
         path = art.checkout()
-        assert path == os.path.join(".", "artifacts", "mnist")
+        assert path == os.path.abspath(os.path.join(".", "artifacts", "mnist"))
         assert os.listdir(path) == ["digits.h5"]
 
 
@@ -444,7 +446,8 @@ def test_artifact_manual_error(runner, mock_server, api):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="Verify is broken on Windows"
 )
-def test_artifact_verify(runner, mock_server, api):
+def test_artifact_verify(runner, mock_server, api, mocked_run):
+    wandb.run = mocked_run
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     art.download()
     with pytest.raises(ValueError):

@@ -244,9 +244,10 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
-		s.sendPollExit(record, x.PollExit)
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
+	case *service.Request_DownloadArtifact:
+		s.sendDownloadArtifact(record, x.DownloadArtifact)
 	default:
 		// TODO: handle errors
 	}
@@ -768,15 +769,72 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.Task{TaskType: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
-		task.CompletionCallback = s.fileTransferManager.FileStreamCallback()
+		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+
+		task.SetProgressCallback(
+			func(processed, total int) {
+				if processed == 0 {
+					return
+				}
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type: service.FileTransferInfoRequest_Upload,
+							Path: fullPath,
+							// Url:       *file.UploadUrl,
+							Size:      int64(total),
+							Processed: int64(processed),
+						},
+					},
+				}
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
+		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
+		task.AddCompletionCallback(
+			func(*filetransfer.Task) {
+				fileCounts := &service.FileCounts{}
+				switch fileType {
+				case filetransfer.MediaFile:
+					fileCounts.MediaCount = 1
+				case filetransfer.OtherFile:
+					fileCounts.OtherCount = 1
+				case filetransfer.WandbFile:
+					fileCounts.WandbCount = 1
+				}
+
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type:       service.FileTransferInfoRequest_Upload,
+							Path:       fullPath,
+							Size:       task.Size,
+							Processed:  task.Size,
+							FileCounts: fileCounts,
+						},
+					},
+				}
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
+
 		s.fileTransferManager.AddTask(task)
 	}
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep)
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+	)
 	artifactID, err := saver.Save()
 	if err != nil {
 		response.ErrorMessage = err.Error()
@@ -798,16 +856,22 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	s.outChan <- result
 }
 
-func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
-	fileCounts := s.fileTransferManager.GetFileCounts()
+func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+	var response service.DownloadArtifactResponse
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.Recursive, &msg.AllowMissingReferences)
+	fileDownloadPath, err := downloader.Download()
+	if err != nil {
+		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)
+		response.ErrorMessage = err.Error()
+	} else {
+		response.FileDownloadPath = fileDownloadPath
+	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
-				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						FileCounts: fileCounts,
-					},
+				ResponseType: &service.Response_DownloadArtifactResponse{
+					DownloadArtifactResponse: &response,
 				},
 			},
 		},

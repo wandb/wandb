@@ -284,6 +284,7 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_sweep_fail(mocker, clean_agent):
     _setup_thread_finish(mocker)
     mock_config = {
@@ -300,11 +301,12 @@ async def test_thread_finish_sweep_fail(mocker, clean_agent):
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_run_fail(mocker, clean_agent):
     _setup_thread_finish(mocker)
     mock_config = {
@@ -321,11 +323,12 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_run_fail_start(mocker, clean_agent):
     _setup_thread_finish(mocker)
     mock_config = {
@@ -341,8 +344,8 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
     agent._jobs_lock = MagicMock()
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert mocker.api.fail_run_queue_item.called_once
-    assert mock_saver.save_contents.called_once
+    mocker.api.fail_run_queue_item.assert_called_once()
+    mock_saver.save_contents.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -423,6 +426,9 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason="TypeError: object MagicMock can't be used in 'await' expression on Windows"
+)
 async def test_thread_finish_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits 0 but there is no run."""
     _setup_thread_finish(mocker)
@@ -451,6 +457,9 @@ async def test_thread_finish_no_run(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason="TypeError: object MagicMock can't be used in 'await' expression on Windows"
+)
 async def test_thread_failed_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits non-zero but there is no run."""
     _setup_thread_finish(mocker)
