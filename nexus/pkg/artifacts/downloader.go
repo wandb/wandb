@@ -66,22 +66,24 @@ func (ad *ArtifactDownloader) getArtifact() (attrs gql.ArtifactByIDArtifact, rer
 	return *artifact, nil
 }
 
-func (ad *ArtifactDownloader) getArtifactManifest(artifact gql.ArtifactByIDArtifact) (manifest Manifest, rerr error) {
+func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest Manifest, rerr error) {
 	response, err := gql.ArtifactManifest(
 		ad.Ctx,
 		ad.GraphqlClient,
-		artifact.ArtifactSequence.Project.EntityName,
-		artifact.ArtifactSequence.Project.Name,
-		artifact.ArtifactSequence.Name,
+		artifactID,
 	)
 	if err != nil {
 		return Manifest{}, err
 	} else if response == nil {
-		return Manifest{}, fmt.Errorf("could not get manifest for artifact %s", artifact.ArtifactSequence.Name)
+		return Manifest{}, fmt.Errorf("could not get manifest for artifact")
 	}
-	artifactManifest := response.GetProject().GetArtifact().GetCurrentManifest()
+	artifact := response.Artifact
+	if artifact == nil {
+		return Manifest{}, fmt.Errorf("could not access artifact")
+	}
+	artifactManifest := artifact.CurrentManifest
 	if artifactManifest == nil {
-		return Manifest{}, fmt.Errorf("could not access manifest for artifact %s", artifact.ArtifactSequence.Name)
+		return Manifest{}, fmt.Errorf("could not access manifest for artifact")
 	}
 	directURL := artifactManifest.GetFile().DirectUrl
 	manifest, err = loadManifestFromURL(directURL)
@@ -162,7 +164,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				if err != nil {
 					return err
 				}
-				if _, ok := nameToScheduledTime[*entry.LocalPath]; ok {
+				if _, ok := nameToScheduledTime[filePath]; ok {
 					continue
 				}
 				// Reference artifacts will temporarily be handled by the python user process
@@ -170,7 +172,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					numDone++
 					continue
 				}
-				entry.DownloadURL = &edge.GetNode().DirectUrl
+				node := edge.GetNode()
+				if node == nil {
+					return fmt.Errorf("error reading entry from fetched file urls")
+				}
+				entry.DownloadURL = &node.DirectUrl
 				entry.LocalPath = &filePath
 				nameToScheduledTime[*entry.LocalPath] = now
 				manifestEntriesBatch = append(manifestEntriesBatch, entry)
@@ -226,7 +232,7 @@ func (ad *ArtifactDownloader) Download() (rerr error) {
 	if err != nil {
 		return err
 	}
-	artifactManifest, err := ad.getArtifactManifest(artifactAttrs)
+	artifactManifest, err := ad.getArtifactManifest(artifactAttrs.Id)
 	if err != nil {
 		return err
 	}
