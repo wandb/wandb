@@ -119,6 +119,7 @@ def test_cb_delete_item():
     del s["this"]["nest1"]
     m.check_removes(("this", "nest1"))
 
+
 def test_update_with_nested_dict():
     s, m = create_summary_and_mock({})
     s.update(dict(that=dict(nest1=dict(nest2=4, nest2b=5))))
