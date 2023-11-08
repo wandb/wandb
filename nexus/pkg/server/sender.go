@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,9 +16,9 @@ import (
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/debounce"
+	"github.com/wandb/wandb/nexus/internal/filetransfer"
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/internal/uploader"
 	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/artifacts"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
@@ -58,8 +59,8 @@ type Sender struct {
 	// fileStream is the file stream
 	fileStream *fs.FileStream
 
-	// uploader is the file uploader
-	uploadManager *uploader.UploadManager
+	// filetransfer is the file uploader/downloader
+	fileTransferManager *filetransfer.FileTransferManager
 
 	// RunRecord is the run record
 	RunRecord *service.RunRecord
@@ -109,6 +110,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -119,6 +123,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
@@ -134,21 +141,23 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
 		)
-		uploaderRetryClient := clients.NewRetryClient(
+		fileTransferRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileUploaderRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileUploaderRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileUploaderRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileUploaderTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
+			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileTransferTimeoutSeconds().GetValue()*int32(time.Second))),
 		)
-		defaultUploader := uploader.NewDefaultUploader(
+		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
 			logger,
-			uploaderRetryClient,
+			fileTransferRetryClient,
 		)
-		sender.uploadManager = uploader.NewUploadManager(
-			uploader.WithLogger(logger),
-			uploader.WithSettings(settings),
-			uploader.WithUploader(defaultUploader),
+		sender.fileTransferManager = filetransfer.NewFileTransferManager(
+			filetransfer.WithLogger(logger),
+			filetransfer.WithSettings(settings),
+			filetransfer.WithFileTransfer(defaultFileTransfer),
+			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
 		)
 
 	}
@@ -235,9 +244,10 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
-		s.sendPollExit(record, x.PollExit)
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
+	case *service.Request_DownloadArtifact:
+		s.sendDownloadArtifact(record, x.DownloadArtifact)
 	default:
 		// TODO: handle errors
 	}
@@ -252,7 +262,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
 	s.fileStream.Start()
-	s.uploadManager.Start()
+	s.fileTransferManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
@@ -265,7 +275,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename, uploader.WandbFile)
+	s.sendFile(MetaFilename, filetransfer.WandbFile)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -302,7 +312,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		s.uploadManager.Close()
+		s.fileTransferManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
@@ -733,16 +743,16 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 	files := filesRecord.GetFiles()
 	for _, file := range files {
 		if strings.HasPrefix(file.GetPath(), "media") {
-			s.sendFile(file.GetPath(), uploader.MediaFile)
+			s.sendFile(file.GetPath(), filetransfer.MediaFile)
 		} else {
-			s.sendFile(file.GetPath(), uploader.OtherFile)
+			s.sendFile(file.GetPath(), filetransfer.OtherFile)
 		}
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string, fileType uploader.FileType) {
-	if s.graphqlClient == nil || s.uploadManager == nil {
+func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
+	if s.graphqlClient == nil || s.fileTransferManager == nil {
 		return
 	}
 
@@ -759,14 +769,72 @@ func (s *Sender) sendFile(name string, fileType uploader.FileType) {
 
 	for _, file := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &uploader.UploadTask{Path: fullPath, Url: *file.UploadUrl, FileType: fileType}
-		s.uploadManager.AddTask(task)
+		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+
+		task.SetProgressCallback(
+			func(processed, total int) {
+				if processed == 0 {
+					return
+				}
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type: service.FileTransferInfoRequest_Upload,
+							Path: fullPath,
+							// Url:       *file.UploadUrl,
+							Size:      int64(total),
+							Processed: int64(processed),
+						},
+					},
+				}
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
+		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
+		task.AddCompletionCallback(
+			func(*filetransfer.Task) {
+				fileCounts := &service.FileCounts{}
+				switch fileType {
+				case filetransfer.MediaFile:
+					fileCounts.MediaCount = 1
+				case filetransfer.OtherFile:
+					fileCounts.OtherCount = 1
+				case filetransfer.WandbFile:
+					fileCounts.WandbCount = 1
+				}
+
+				request := &service.Request{
+					RequestType: &service.Request_FileTransferInfo{
+						FileTransferInfo: &service.FileTransferInfoRequest{
+							Type:       service.FileTransferInfoRequest_Upload,
+							Path:       fullPath,
+							Size:       task.Size,
+							Processed:  task.Size,
+							FileCounts: fileCounts,
+						},
+					},
+				}
+
+				rec := &service.Record{
+					RecordType: &service.Record_Request{Request: request},
+				}
+				s.loopbackChan <- rec
+			},
+		)
+
+		s.fileTransferManager.AddTask(task)
 	}
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, msg.Artifact, msg.HistoryStep)
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+	)
 	artifactID, err := saver.Save()
 	if err != nil {
 		response.ErrorMessage = err.Error()
@@ -788,16 +856,22 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	s.outChan <- result
 }
 
-func (s *Sender) sendPollExit(record *service.Record, _ *service.PollExitRequest) {
-	fileCounts := s.uploadManager.GetFileCounts()
+func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+	var response service.DownloadArtifactResponse
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.AllowMissingReferences)
+	fileDownloadPath, err := downloader.Download()
+	if err != nil {
+		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)
+		response.ErrorMessage = err.Error()
+	} else {
+		response.FileDownloadPath = fileDownloadPath
+	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
-				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						FileCounts: fileCounts,
-					},
+				ResponseType: &service.Response_DownloadArtifactResponse{
+					DownloadArtifactResponse: &response,
 				},
 			},
 		},

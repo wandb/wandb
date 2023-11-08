@@ -23,6 +23,7 @@ from wandb.sdk.launch.runner.abstract import State, Status
 from wandb.sdk.launch.utils import get_kube_context_and_api_client
 
 WANDB_K8S_LABEL_NAMESPACE = "wandb.ai"
+WANDB_K8S_RUN_ID = f"{WANDB_K8S_LABEL_NAMESPACE}/run-id"
 WANDB_K8S_LABEL_AGENT = f"{WANDB_K8S_LABEL_NAMESPACE}/agent"
 WANDB_K8S_LABEL_MONITOR = f"{WANDB_K8S_LABEL_NAMESPACE}/monitor"
 

@@ -1055,12 +1055,6 @@ def launch_sweep(
     else:
         overrides["args"] = args
 
-    # set name of scheduler
-    prefix = "sweep" if scheduler_job else "wandb"
-    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
-    if scheduler_args.get("name"):
-        name = scheduler_args["name"]
-
     # configure scheduler job resource
     resource = scheduler_args.get("resource")
     if resource:
@@ -1081,7 +1075,7 @@ def launch_sweep(
     launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name=name,
+        name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
@@ -1427,6 +1421,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1451,6 +1455,7 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1461,6 +1466,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
@@ -1711,6 +1719,12 @@ def create(
     if not project:
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
+
+    if entrypoint is None and job_type in ["git", "code"]:
+        wandb.termwarn(
+            f"No entrypoint provided for {job_type} job, defaulting to main.py"
+        )
+        entrypoint = "main.py"
 
     artifact, action, aliases = _create_job(
         api=api,

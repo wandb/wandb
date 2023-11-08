@@ -8,6 +8,7 @@ depend:
         - xgboost>=1.3.0
         - scikit-learn
 tag:
+  shard: xgboost
   skips:
     - platform: win
 assert:

@@ -720,8 +720,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         f"{queue!r}",
         "--project",
         f"{project!r}",
-        "--sweep_type",
-        "wandb",
         "--author",
         "'author'",
     ]
