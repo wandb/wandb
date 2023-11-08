@@ -377,15 +377,17 @@ class LaunchAgent:
                 fnames,
             )
         elif job_and_run_status.project is None or job_and_run_status.run_id is None:
-                _logger.error(
-                    f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
-                )
-                wandb.termerror(
-                    "Missing project or run id on thread called finish thread id"
-                )
-                await self.fail_run_queue_item(
-                    job_and_run_status.run_queue_item_id, "submitted job was finished without assigned project or run id", "agent"
-                )
+            _logger.error(
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
+            )
+            wandb.termerror(
+                "Missing project or run id on thread called finish thread id"
+            )
+            await self.fail_run_queue_item(
+                job_and_run_status.run_queue_item_id,
+                "submitted job was finished without assigned project or run id",
+                "agent",
+            )
         elif job_and_run_status.run is not None:
             called_init = False
             # We do some weird stuff here getting run info to check for a
