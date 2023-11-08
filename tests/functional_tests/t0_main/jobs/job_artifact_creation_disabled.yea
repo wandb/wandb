@@ -1,6 +1,8 @@
 id: 5.jobs.artifact-creation-disabled
 plugin:
   - wandb
+tag:
+  shard: launch
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][exitcode]: 0

@@ -1631,6 +1631,7 @@ workflows:
                 - "ray2"
                 - "sklearn"
                 - "metaflow"
+                - "launch"
                 - "artifacts"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
