@@ -1588,7 +1588,6 @@ workflows:
               python_version_minor: [8]
               shard:
                 - "tf24"
-                - "ray112"
                 - "ray2"
                 - "sklearn"
                 - "metaflow"
