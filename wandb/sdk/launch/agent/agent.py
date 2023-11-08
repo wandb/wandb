@@ -332,8 +332,9 @@ class LaunchAgent:
         self, entity: str, project: str, run_id: str, rqi_id: str
     ) -> bool:
         """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
-        # TODO: Checks the _wandb key in the run config for the run queue item id. If it exists, the
+        # Checks the _wandb key in the run config for the run queue item id. If it exists, the
         # submitted run definitely called init. Falls back to checking state of run.
+        # TODO: handle resuming runs
 
         # Sweep runs exist but are in pending state, normal launch runs won't exist
         # so will raise a CommError.
@@ -375,6 +376,16 @@ class LaunchAgent:
                 job_and_run_status.err_stage,
                 fnames,
             )
+        elif job_and_run_status.project is None or job_and_run_status.run_id is None:
+                _logger.error(
+                    f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
+                )
+                wandb.termerror(
+                    "Missing project or run id on thread called finish thread id"
+                )
+                await self.fail_run_queue_item(
+                    job_and_run_status.run_queue_item_id, "submitted job was finished without assigned project or run id", "agent"
+                )
         elif job_and_run_status.run is not None:
             called_init = False
             # We do some weird stuff here getting run info to check for a
@@ -386,8 +397,6 @@ class LaunchAgent:
             start_time = time.time()
             interval = 1
             while True:
-                assert job_and_run_status.project is not None
-                assert job_and_run_status.run_id is not None
                 called_init = self._check_run_exists_and_inited(
                     self._entity,
                     job_and_run_status.project,
