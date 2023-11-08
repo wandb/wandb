@@ -1,6 +1,6 @@
 id: 0.keras.evaltable.tf26
 tag:
-    shard: tf26
+    shard: artifacts
 plugin:
     - wandb
 command:
