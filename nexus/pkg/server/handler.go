@@ -99,6 +99,8 @@ type Handler struct {
 	// TODO(memory): persist this in the future as it will grow with number of distinct keys
 	consolidatedSummary map[string]string
 
+	deltaSummary map[string]string
+
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
@@ -133,6 +135,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
+		deltaSummary:        make(map[string]string),
 		ft:                  NewFileTransferHandler(),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
@@ -672,6 +675,13 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) updateSummary(summaryRecord *service.Record) {
+	for _, item := range summaryRecord.GetSummary().GetUpdate() {
+		// h.updateSummary
+		h.deltaSummary[item.GetKey()] = item.GetValueJson()
+	}
+}
+
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	runtime := int32(h.timer.Elapsed().Seconds())
@@ -682,7 +692,9 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.sendRecord(summaryRecord)
+	h.updateSummary(summaryRecord)
+	// h.sendRecord(summaryRecord)
+
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
