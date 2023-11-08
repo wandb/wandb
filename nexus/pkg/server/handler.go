@@ -10,9 +10,15 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
+)
+
+const (
+	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 // Timer is used to track the run start and execution times
@@ -101,6 +107,8 @@ type Handler struct {
 
 	deltaSummary map[string]string
 
+	summaryDebouncer *debounce.Debouncer
+
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
@@ -162,6 +170,13 @@ func NewHandler(
 		Args:       h.settings.GetXArgs().GetValue(),
 		Colab:      h.settings.GetColabUrl().GetValue(),
 	}
+
+	h.summaryDebouncer = debounce.NewDebouncer(
+		summaryDebouncerRateLimit,
+		summaryDebouncerBurstSize,
+		logger,
+	)
+
 	return h
 }
 
@@ -599,7 +614,8 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 		},
 	})
-	h.sendRecord(summaryRecord)
+	// h.sendRecord(summaryRecord)
+	h.updateSummary(summaryRecord)
 
 	// send the exit record
 	h.sendRecordWithControl(record,
@@ -680,6 +696,7 @@ func (h *Handler) updateSummary(summaryRecord *service.Record) {
 		// h.updateSummary
 		h.deltaSummary[item.GetKey()] = item.GetValueJson()
 	}
+	h.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
