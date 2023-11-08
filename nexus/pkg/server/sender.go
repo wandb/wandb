@@ -193,6 +193,9 @@ func (s *Sender) sendRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
+	case *service.Record_Footer:
+	case *service.Record_Header:
+	case *service.Record_Final:
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
