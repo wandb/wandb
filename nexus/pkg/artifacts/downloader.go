@@ -27,10 +27,8 @@ type ArtifactDownloader struct {
 	// Input
 	QualifiedName          string
 	DownloadRoot           *string
-	Recursive              *bool
 	AllowMissingReferences *bool
 	// Properties
-	UpstreamArtifacts   []gql.ArtifactByIDArtifact
 	DefaultDownloadRoot *string
 }
 
@@ -40,7 +38,6 @@ func NewArtifactDownloader(
 	downloadManager *filetransfer.FileTransferManager,
 	qualifiedName string,
 	downloadRoot *string,
-	recursive *bool,
 	allowMissingReferences *bool,
 ) *ArtifactDownloader {
 	return &ArtifactDownloader{
@@ -49,9 +46,7 @@ func NewArtifactDownloader(
 		DownloadManager:        downloadManager,
 		QualifiedName:          qualifiedName,
 		DownloadRoot:           downloadRoot,
-		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
-		UpstreamArtifacts:      []gql.ArtifactByIDArtifact{},
 		DefaultDownloadRoot:    nil,
 	}
 }
@@ -118,12 +113,6 @@ func (ad *ArtifactDownloader) getArtifactManifest() (artifactManifest Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	}
-
-	// Set upstream artifacts, if any
-	err = ad.setUpstreamArtifacts(manifest)
-	if err != nil {
-		return Manifest{}, err
-	}
 	return manifest, nil
 }
 
@@ -145,32 +134,6 @@ func (ad *ArtifactDownloader) setDefaultDownloadRoot(artifactAttrs gql.ArtifactB
 		downloadRoot = SystemPreferredPath(downloadRoot, false)
 	}
 	ad.DefaultDownloadRoot = &downloadRoot
-	return nil
-}
-
-func (ad *ArtifactDownloader) setUpstreamArtifacts(manifest Manifest) error {
-	for _, entry := range manifest.Contents {
-		referencedID, err := getReferencedID(entry.Ref)
-		if err != nil {
-			return err
-		}
-		if referencedID != nil {
-			response, err := gql.ArtifactByID(
-				ad.Ctx,
-				ad.GraphqlClient,
-				*referencedID,
-			)
-			if err != nil {
-				return err
-			} else if response == nil {
-				return fmt.Errorf("could not get artifact by id for reference %s", *entry.Ref)
-			}
-			depArtifact := response.GetArtifact()
-			if depArtifact != nil {
-				ad.UpstreamArtifacts = append(ad.UpstreamArtifacts, *depArtifact)
-			}
-		}
-	}
 	return nil
 }
 

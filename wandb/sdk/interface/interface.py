@@ -421,7 +421,7 @@ class InterfaceBase:
             # Download source info from logged partial job artifact
             job_info = {}
             try:
-                path = artifact.get_path("wandb-job.json").download()
+                path = artifact.get_entry("wandb-job.json").download()
                 with open(path) as f:
                     job_info = json.load(f)
             except Exception as e:
@@ -480,13 +480,11 @@ class InterfaceBase:
         self,
         qualified_name: str,
         download_root: str,
-        recursive: bool,
         allow_missing_references: bool,
     ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.qualified_name = qualified_name
         download_artifact.download_root = download_root
-        download_artifact.recursive = recursive
         download_artifact.allow_missing_references = allow_missing_references
         resp = self._deliver_download_artifact(download_artifact)
         return resp

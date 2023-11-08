@@ -193,6 +193,9 @@ func (s *Sender) sendRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
+	case *service.Record_Footer:
+	case *service.Record_Header:
+	case *service.Record_Final:
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
@@ -858,7 +861,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.Recursive, &msg.AllowMissingReferences)
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.AllowMissingReferences)
 	fileDownloadPath, err := downloader.Download()
 	if err != nil {
 		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)

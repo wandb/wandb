@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
@@ -14,54 +13,6 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
-
-// Timer is used to track the run start and execution times
-type Timer struct {
-	startTime   time.Time
-	resumeTime  time.Time
-	accumulated time.Duration
-	isStarted   bool
-	isPaused    bool
-}
-
-func (t *Timer) GetStartTimeMicro() float64 {
-	return float64(t.startTime.UnixMicro()) / 1e6
-}
-
-func (t *Timer) Start(startTime *time.Time) {
-	if startTime != nil {
-		t.startTime = *startTime
-	} else {
-		t.startTime = time.Now()
-	}
-	t.resumeTime = t.startTime
-	t.isStarted = true
-}
-
-func (t *Timer) Pause() {
-	if !t.isPaused {
-		elapsed := time.Since(t.resumeTime)
-		t.accumulated += elapsed
-		t.isPaused = true
-	}
-}
-
-func (t *Timer) Resume() {
-	if t.isPaused {
-		t.resumeTime = time.Now()
-		t.isPaused = false
-	}
-}
-
-func (t *Timer) Elapsed() time.Duration {
-	if !t.isStarted {
-		return 0
-	}
-	if t.isPaused {
-		return t.accumulated
-	}
-	return t.accumulated + time.Since(t.resumeTime)
-}
 
 // Handler is the handler for a stream
 // it handles the incoming messages, processes them
@@ -239,9 +190,11 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
-		h.handleFinal(record)
+		h.handleFinal()
 	case *service.Record_Footer:
+		h.handleFooter()
 	case *service.Record_Header:
+		h.handleHeader(record)
 	case *service.Record_History:
 		h.handleHistory(x.History)
 	case *service.Record_LinkArtifact:
@@ -363,6 +316,8 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.fh.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
+		h.handleFinal()
+		h.handleFooter()
 	case service.DeferRequest_END:
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
@@ -415,10 +370,39 @@ func (h *Handler) handlePollExit(record *service.Record) {
 	h.outChan <- result
 }
 
-func (h *Handler) handleFinal(record *service.Record) {
-	h.sendRecordWithControl(record,
+func (h *Handler) handleHeader(record *service.Record) {
+	h.sendRecordWithControl(
+		record,
 		func(control *service.Control) {
-			control.AlwaysSend = true
+			control.AlwaysSend = false
+		},
+	)
+}
+
+func (h *Handler) handleFinal() {
+	record := &service.Record{
+		RecordType: &service.Record_Final{
+			Final: &service.FinalRecord{},
+		},
+	}
+	h.sendRecordWithControl(
+		record,
+		func(control *service.Control) {
+			control.AlwaysSend = false
+		},
+	)
+}
+
+func (h *Handler) handleFooter() {
+	record := &service.Record{
+		RecordType: &service.Record_Footer{
+			Footer: &service.FooterRecord{},
+		},
+	}
+	h.sendRecordWithControl(
+		record,
+		func(control *service.Control) {
+			control.AlwaysSend = false
 		},
 	)
 }
