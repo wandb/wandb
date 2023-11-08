@@ -5,7 +5,7 @@ Create a manager channel.
 
 import atexit
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import psutil
 
@@ -16,6 +16,7 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 
 if TYPE_CHECKING:
+    from wandb.proto import wandb_settings_pb2
     from wandb.sdk.service import service
     from wandb.sdk.service.service_base import ServiceInterface
     from wandb.sdk.wandb_settings import Settings
@@ -200,7 +201,7 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(self, attach_id: str) -> Optional[Dict[str, Any]]:
+    def _inform_attach(self, attach_id: str) -> Optional["wandb_settings_pb2.Settings"]:
         svc_iface = self._get_service_interface()
         try:
             response = svc_iface._svc_inform_attach(attach_id=attach_id)

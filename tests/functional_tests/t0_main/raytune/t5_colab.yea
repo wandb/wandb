@@ -2,6 +2,7 @@ plugin:
   - wandb
 tag:
   shard: ray112
+  skip: true
 env:
   - WANDB_DISABLE_SERVICE: "true"
 depend:

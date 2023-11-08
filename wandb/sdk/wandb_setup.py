@@ -22,7 +22,7 @@ import wandb
 from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
 
-Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
+Settings = Union["wandb_settings.Settings", Dict[str, Any]]
 
 Logger = Union[logging.Logger, "_EarlyLogger"]
 
