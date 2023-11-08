@@ -23,7 +23,6 @@ type ArtifactDownloader struct {
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
-	Recursive              *bool
 	AllowMissingReferences *bool
 }
 
@@ -33,7 +32,6 @@ func NewArtifactDownloader(
 	downloadManager *filetransfer.FileTransferManager,
 	artifactID string,
 	downloadRoot string,
-	recursive *bool,
 	allowMissingReferences *bool,
 ) *ArtifactDownloader {
 	return &ArtifactDownloader{
@@ -42,7 +40,6 @@ func NewArtifactDownloader(
 		DownloadManager:        downloadManager,
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
-		Recursive:              recursive,
 		AllowMissingReferences: allowMissingReferences,
 	}
 }
