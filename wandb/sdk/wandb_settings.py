@@ -1201,10 +1201,7 @@ class Settings(SettingsData):
 
     def _convert_console(self, console: str) -> str:
         if console == "auto":
-            if self._jupyter or self._windows:
-                console = "wrap"
-            else:
-                console = "redirect"
+            console = "wrap"
         return console
 
     def _get_colab_url(self) -> Optional[str]:
