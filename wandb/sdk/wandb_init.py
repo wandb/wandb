@@ -67,20 +67,6 @@ def _huggingface_version() -> Optional[str]:
     return None
 
 
-def _maybe_mp_process(backend: Backend) -> bool:
-    parent_process = getattr(
-        backend._multiprocessing, "parent_process", None
-    )  # New in version 3.8.
-    if parent_process:
-        return parent_process() is not None
-    process = backend._multiprocessing.current_process()
-    if process.name == "MainProcess":
-        return False
-    if process.name.startswith("Process-"):
-        return True
-    return False
-
-
 def _handle_launch_config(settings: "Settings") -> Dict[str, Any]:
     launch_run_config: Dict[str, Any] = {}
     if not settings.launch:
@@ -179,12 +165,12 @@ class _WandbInit:
                 )
                 self.printer.display(line, level="warn")
 
-        # we add this logic to be backward compatible with the old behavior of disable
-        # where it would disable the service if the mode was set to disabled
         mode = kwargs.get("mode")
         settings_mode = (kwargs.get("settings") or {}).get("mode")
-        _disable_service = mode == "disabled" or settings_mode == "disabled"
-        setup_settings = {"_disable_service": _disable_service}
+        if mode == "disabled" or settings_mode == "disabled":
+            setup_settings = {"mode": "disabled"}
+        else:
+            setup_settings = {}
 
         self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
@@ -661,32 +647,11 @@ class _WandbInit:
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
 
-            # probe the active start method
-            active_start_method: Optional[str] = None
-            if self.settings.start_method == "thread":
-                active_start_method = self.settings.start_method
-            else:
-                active_start_method = getattr(
-                    backend._multiprocessing, "get_start_method", lambda: None
-                )()
-
-            if active_start_method == "spawn":
-                tel.env.start_spawn = True
-            elif active_start_method == "fork":
-                tel.env.start_fork = True
-            elif active_start_method == "forkserver":
-                tel.env.start_forkserver = True
-            elif active_start_method == "thread":
-                tel.env.start_thread = True
-
             if os.environ.get("PEX"):
                 tel.env.pex = True
 
             if self.settings._aws_lambda:
                 tel.env.aws_lambda = True
-
-            if os.environ.get(wandb.env._DISABLE_SERVICE):
-                tel.feature.service_disabled = True
 
             if manager:
                 tel.feature.service = True
@@ -696,8 +661,6 @@ class _WandbInit:
                 tel.feature.flow_control_custom = True
             if self.settings._require_nexus:
                 tel.feature.nexus = True
-
-            tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not self.settings.label_disable:
             if self.notebook:

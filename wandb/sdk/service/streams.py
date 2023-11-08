@@ -11,26 +11,23 @@ import queue
 import threading
 import time
 from threading import Event
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import psutil
 
-import wandb
-import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib.mailbox import (
-    Mailbox,
-    MailboxProbe,
-    MailboxProgress,
-    MailboxProgressAll,
-)
+from wandb.sdk.internal.internal import wandb_internal
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
 
 from ..interface.interface_relay import InterfaceRelay
 
-# from wandb.sdk.wandb_settings import Settings
+if TYPE_CHECKING:
+    from wandb.sdk.internal.settings_static import SettingsStatic
+
+    # from wandb.sdk.wandb_settings import Settings
+    from wandb.sdk.lib.mailbox import MailboxProbe, MailboxProgress, MailboxProgressAll
 
 
 class StreamThread(threading.Thread):
@@ -54,10 +51,10 @@ class StreamRecord:
     _relay_q: "queue.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: SettingsStatic
+    _settings: "SettingsStatic"
     _started: bool
 
-    def __init__(self, settings: SettingsStatic, mailbox: Mailbox) -> None:
+    def __init__(self, settings: "SettingsStatic", mailbox: Mailbox) -> None:
         self._started = False
         self._mailbox = mailbox
         self._record_q = queue.Queue()
@@ -99,7 +96,7 @@ class StreamRecord:
     def mark_started(self) -> None:
         self._started = True
 
-    def update(self, settings: SettingsStatic) -> None:
+    def update(self, settings: "SettingsStatic") -> None:
         # Note: Currently just overriding the _settings attribute
         # once we use Settings Class we might want to properly update it
         self._settings = settings
@@ -162,7 +159,7 @@ class StreamMux:
     def set_pid(self, pid: int) -> None:
         self._pid = pid
 
-    def add_stream(self, stream_id: str, settings: SettingsStatic) -> None:
+    def add_stream(self, stream_id: str, settings: "SettingsStatic") -> None:
         action = StreamAction(action="add", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
@@ -172,7 +169,7 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
-    def update_stream(self, stream_id: str, settings: SettingsStatic) -> None:
+    def update_stream(self, stream_id: str, settings: "SettingsStatic") -> None:
         action = StreamAction(action="update", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
@@ -211,7 +208,7 @@ class StreamMux:
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings = action._data
         thread = StreamThread(
-            target=wandb.wandb_sdk.internal.internal.wandb_internal,
+            target=wandb_internal,
             kwargs=dict(
                 settings=settings,
                 record_q=stream._record_q,
@@ -245,7 +242,9 @@ class StreamMux:
                 stream.drop()
                 stream.join()
 
-    def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
+    def _on_probe_exit(
+        self, probe_handle: "MailboxProbe", stream: StreamRecord
+    ) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
             result = handle.wait(timeout=0)
@@ -255,10 +254,10 @@ class StreamMux:
         handle = stream.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
-    def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
+    def _on_progress_exit(self, _: "MailboxProgress") -> None:
         pass
 
-    def _on_progress_exit_all(self, progress_all_handle: MailboxProgressAll) -> None:
+    def _on_progress_exit_all(self, progress_all_handle: "MailboxProgressAll") -> None:
         probe_handles = []
         progress_handles = progress_all_handle.get_progress_handles()
         for progress_handle in progress_handles:

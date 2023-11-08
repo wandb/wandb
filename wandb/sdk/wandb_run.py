@@ -708,8 +708,7 @@ class Run:
         self._attach_pid = os.getpid()
 
         # for now, use runid as attach id, this could/should be versioned in the future
-        if not self._settings._disable_service:
-            self._attach_id = self._settings.run_id
+        self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
@@ -848,10 +847,6 @@ class Run:
 
     def __getstate__(self) -> Any:
         """Return run state as a custom pickle."""
-        # We only pickle in service mode
-        if not self._settings or self._settings._disable_service:
-            return
-
         _attach_id = self._attach_id
         if not _attach_id:
             return
@@ -2081,10 +2076,7 @@ class Run:
             console = self._settings.console
         # only use raw for service to minimize potential changes
         if console == "wrap":
-            if not self._settings._disable_service:
-                console = "wrap_raw"
-            else:
-                console = "wrap_emu"
+            console = "wrap_raw"
         logger.info("redirect: %s", console)
 
         out_redir: redirect.RedirectBase

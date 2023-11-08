@@ -2525,19 +2525,11 @@ def status(settings):
 
 
 @cli.command("disabled", help="Disable W&B.")
-@click.option(
-    "--service",
-    is_flag=True,
-    show_default=True,
-    default=True,
-    help="Disable W&B service",
-)
-def disabled(service):
+def disabled():
     api = InternalApi()
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2545,19 +2537,11 @@ def disabled(service):
 
 
 @cli.command("enabled", help="Enable W&B.")
-@click.option(
-    "--service",
-    is_flag=True,
-    show_default=True,
-    default=True,
-    help="Enable W&B service",
-)
-def enabled(service):
+def enabled():
     api = InternalApi()
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
