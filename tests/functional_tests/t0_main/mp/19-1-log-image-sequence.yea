@@ -5,8 +5,6 @@ depend:
     requirements:
         - numpy
         - pillow
-tag:
-    shard: service
 parametrize:
     permute:
         - :yea:start_method:

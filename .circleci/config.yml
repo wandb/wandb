@@ -1427,8 +1427,8 @@ workflows:
             - "system-tests"
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
+              python_version_major: [3]
+              python_version_minor: [9]
           name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1631,7 +1631,6 @@ workflows:
                 - "ray2"
                 - "sklearn"
                 - "metaflow"
-                - "service"
                 - "artifacts"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"

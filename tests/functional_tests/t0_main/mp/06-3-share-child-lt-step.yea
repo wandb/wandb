@@ -1,8 +1,6 @@
 id: 0.mp.06-3-share-child-lt-step
 plugin:
   - wandb
-tag:
-  shard: service
 parametrize:
   permute:
     - :yea:start_method:

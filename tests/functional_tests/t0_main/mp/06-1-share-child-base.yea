@@ -1,8 +1,6 @@
 id: 0.mp.06-1-share-child-base
 plugin:
   - wandb
-tag:
-  shard: service
 parametrize:
   permute:
     - :yea:start_method:
