@@ -239,9 +239,11 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Files:
 		h.handleFiles(record)
 	case *service.Record_Final:
-		h.handleFinal(record)
+		h.handleFinal()
 	case *service.Record_Footer:
+		h.handleFooter()
 	case *service.Record_Header:
+		h.handleHeader(record)
 	case *service.Record_History:
 		h.handleHistory(x.History)
 	case *service.Record_LinkArtifact:
@@ -363,6 +365,8 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.fh.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
+		h.handleFinal()
+		h.handleFooter()
 	case service.DeferRequest_END:
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
@@ -415,12 +419,26 @@ func (h *Handler) handlePollExit(record *service.Record) {
 	h.outChan <- result
 }
 
-func (h *Handler) handleFinal(record *service.Record) {
-	h.sendRecordWithControl(record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
+func (h *Handler) handleHeader(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleFinal() {
+	rec := &service.Record{
+		RecordType: &service.Record_Final{
+			Final: &service.FinalRecord{},
 		},
-	)
+	}
+	h.sendRecord(rec)
+}
+
+func (h *Handler) handleFooter() {
+	rec := &service.Record{
+		RecordType: &service.Record_Footer{
+			Footer: &service.FooterRecord{},
+		},
+	}
+	h.sendRecord(rec)
 }
 
 func (h *Handler) handleServerInfo(record *service.Record) {
