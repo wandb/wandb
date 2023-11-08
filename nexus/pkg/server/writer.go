@@ -31,6 +31,10 @@ type Writer struct {
 	// store is the store for the writer
 	store *Store
 
+	// recordNum is the running count of stored records
+	recordNum int64
+
+	// wg is the wait group for the writer
 	wg sync.WaitGroup
 }
 
@@ -110,6 +114,8 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
+	w.recordNum += 1
+	record.Num = w.recordNum
 	w.storeChan <- record
 }
 
