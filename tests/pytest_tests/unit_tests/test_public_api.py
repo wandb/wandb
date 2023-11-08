@@ -170,3 +170,5 @@ def test_artifact_download_logger():
             assert termlog.call_args == call
         else:
             termlog.assert_not_called()
+
+def test_update_summary_nestedDict():
