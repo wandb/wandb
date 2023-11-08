@@ -1281,7 +1281,7 @@ class Artifact:
 
         Arguments:
             uri: The URI path of the reference to add. Can be an object returned from
-                Artifact.get_path to store a reference to another artifact's entry.
+                Artifact.get_entry to store a reference to another artifact's entry.
             name: The path within the artifact to place the contents of this reference
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
@@ -1512,6 +1512,13 @@ class Artifact:
             self.manifest.remove_entry(entry)
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
+        """Deprecated, use get_entry(name) instead."""
+        termwarn(
+            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        )
+        return self.get_entry(name)
+
+    def get_entry(self, name: StrPath) -> ArtifactManifestEntry:
         """Get the entry with the given name.
 
         Arguments:
@@ -1533,13 +1540,13 @@ class Artifact:
             # Run using the artifact
             with wandb.init() as r:
                 artifact = r.use_artifact("my_dataset:latest")
-                path = artifact.get_path("file.txt")
+                entry = artifact.get_entry("file.txt")
 
                 # Can now download 'file.txt' directly:
-                path.download()
+                entry.download()
             ```
         """
-        self._ensure_logged("get_path")
+        self._ensure_logged("get_entry")
 
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
@@ -1599,7 +1606,7 @@ class Artifact:
             self.download()
 
         # Get the ArtifactManifestEntry
-        item = self.get_path(entry.path)
+        item = self.get_entry(entry.path)
         item_path = item.download()
 
         # Load the object from the JSON blob
@@ -1795,7 +1802,7 @@ class Artifact:
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
-                    entry = self.get_path(edge["node"]["name"])
+                    entry = self.get_entry(edge["node"]["name"])
                     if require_nexus and entry.ref is None:
                         # Handled by nexus
                         continue
@@ -1884,7 +1891,7 @@ class Artifact:
                 full_path = os.path.join(dirpath, file)
                 artifact_path = os.path.relpath(full_path, start=root)
                 try:
-                    self.get_path(artifact_path)
+                    self.get_entry(artifact_path)
                 except KeyError:
                     # File is not part of the artifact, remove it.
                     os.remove(full_path)
@@ -1916,7 +1923,7 @@ class Artifact:
                 full_path = os.path.join(dirpath, file)
                 artifact_path = os.path.relpath(full_path, start=root)
                 try:
-                    self.get_path(artifact_path)
+                    self.get_entry(artifact_path)
                 except KeyError:
                     raise ValueError(
                         "Found file {} which is not a member of artifact {}".format(
@@ -1956,10 +1963,10 @@ class Artifact:
         if len(self.manifest.entries) > 1:
             raise ValueError(
                 "This artifact contains more than one file, call `.download()` to get "
-                'all files or call .get_path("filename").download()'
+                'all files or call .get_entry("filename").download()'
             )
 
-        return self.get_path(list(self.manifest.entries)[0]).download(root)
+        return self.get_entry(list(self.manifest.entries)[0]).download(root)
 
     def files(
         self, names: Optional[List[str]] = None, per_page: int = 50

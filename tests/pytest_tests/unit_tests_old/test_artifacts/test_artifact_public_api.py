@@ -40,7 +40,7 @@ def test_artifact_get_path(runner, mock_server, api):
     assert art.type == "dataset"
     assert art.name == "mnist:v0"
     with runner.isolated_filesystem():
-        path = art.get_path("digits.h5")
+        path = art.get_entry("digits.h5")
         res = path.download()
         part = art.name
         if platform.system() == "Windows":
@@ -52,7 +52,7 @@ def test_artifact_get_path(runner, mock_server, api):
 def test_artifact_get_path_download(runner, mock_server, api):
     with runner.isolated_filesystem():
         art = api.artifact("entity/project/mnist:v0", type="dataset")
-        path = art.get_path("digits.h5").download(os.getcwd())
+        path = art.get_entry("digits.h5").download(os.getcwd())
         assert os.path.exists("./digits.h5")
         assert path == os.path.join(os.getcwd(), "digits.h5")
 

@@ -396,7 +396,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
     monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_path = lambda _: artifact
+    artifact.get_entry = lambda _: artifact
     artifact.ref_target = lambda: uri
 
     local_path = handler.load_path(manifest_entry)
@@ -417,7 +417,7 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
     monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_path = lambda _: artifact
+    artifact.get_entry = lambda _: artifact
     artifact.download = lambda: path
 
     local_path = handler.load_path(manifest_entry, local=True)
