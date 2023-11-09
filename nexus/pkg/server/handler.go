@@ -56,8 +56,10 @@ type Handler struct {
 	// TODO(memory): persist this in the future as it will grow with number of distinct keys
 	consolidatedSummary map[string]string
 
-	deltaSummary map[string]string
+	// summaryDelta is the delta summary (keys updated since the last time we sent summary)
+	summaryDelta map[string]string
 
+	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
 
 	// historyRecord is the history record used to track
@@ -94,7 +96,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
-		deltaSummary:        make(map[string]string),
+		summaryDelta:        make(map[string]string),
 		ft:                  NewFileTransferHandler(),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
@@ -195,7 +197,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryDebouncer.Debounce(h.upsertSummary)
+	h.summaryDebouncer.Debounce(h.sendSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -233,7 +235,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleSystemMetrics(record)
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
-		h.summaryDebouncer.Flush(h.upsertSummary)
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
@@ -325,7 +326,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryDebouncer.Flush(h.upsertSummary)
+		h.summaryDebouncer.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -602,7 +603,7 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 		},
 	})
 	// h.sendRecord(summaryRecord)
-	h.updateSummary(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 
 	// send the exit record
 	h.sendRecordWithControl(record,
@@ -678,23 +679,19 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) updateSummary(summaryRecord *service.Record) {
+func (h *Handler) updateSummaryDelta(summaryRecord *service.Record) {
 	for _, item := range summaryRecord.GetSummary().GetUpdate() {
-		// h.updateSummary
-		h.deltaSummary[item.GetKey()] = item.GetValueJson()
+		h.summaryDelta[item.GetKey()] = item.GetValueJson()
 	}
 	h.summaryDebouncer.SetNeedsDebounce()
 }
 
-func (h *Handler) upsertSummary() {
-	// record := &service.Record{
-	// 	RecordType: &service.Record_Summary{
-	// }
+func (h *Handler) sendSummary() {
 	summaryRecord := &service.SummaryRecord{
 		Update: []*service.SummaryItem{},
 	}
 
-	for key, value := range h.deltaSummary {
+	for key, value := range h.summaryDelta {
 		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
 			Key: key, ValueJson: value,
 		})
@@ -705,7 +702,8 @@ func (h *Handler) upsertSummary() {
 		},
 	}
 	h.sendRecord(record)
-	h.deltaSummary = make(map[string]string)
+	// reset delta summary
+	h.summaryDelta = make(map[string]string)
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -718,8 +716,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.updateSummary(summaryRecord)
-	// h.sendRecord(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

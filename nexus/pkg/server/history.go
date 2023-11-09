@@ -133,7 +133,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO add an option to disable summary (this could be quite expensive)
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
 	// h.sendRecord(summaryRecord)
-	h.updateSummary(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 }
 
 // handleHistoryInternal adds internal history items to the history record
