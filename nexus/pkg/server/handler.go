@@ -9,9 +9,15 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
+)
+
+const (
+	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 // Handler is the handler for a stream
@@ -50,6 +56,12 @@ type Handler struct {
 	// TODO(memory): persist this in the future as it will grow with number of distinct keys
 	consolidatedSummary map[string]string
 
+	// summaryDelta is the delta summary (keys updated since the last time we sent summary)
+	summaryDelta map[string]string
+
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
@@ -84,6 +96,7 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
+		summaryDelta:        make(map[string]string),
 		ft:                  NewFileTransferHandler(),
 		fwdChan:             make(chan *service.Record, BufferSize),
 		outChan:             make(chan *service.Result, BufferSize),
@@ -110,6 +123,13 @@ func NewHandler(
 		Args:       h.settings.GetXArgs().GetValue(),
 		Colab:      h.settings.GetColabUrl().GetValue(),
 	}
+
+	h.summaryDebouncer = debounce.NewDebouncer(
+		summaryDebouncerRateLimit,
+		summaryDebouncerBurstSize,
+		logger,
+	)
+
 	return h
 }
 
@@ -177,6 +197,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
+	h.summaryDebouncer.Debounce(h.sendSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -305,6 +326,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
+		h.summaryDebouncer.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -580,7 +602,8 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 		},
 	})
-	h.sendRecord(summaryRecord)
+	// h.sendRecord(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 
 	// send the exit record
 	h.sendRecordWithControl(record,
@@ -656,6 +679,33 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) updateSummaryDelta(summaryRecord *service.Record) {
+	for _, item := range summaryRecord.GetSummary().GetUpdate() {
+		h.summaryDelta[item.GetKey()] = item.GetValueJson()
+	}
+	h.summaryDebouncer.SetNeedsDebounce()
+}
+
+func (h *Handler) sendSummary() {
+	summaryRecord := &service.SummaryRecord{
+		Update: []*service.SummaryItem{},
+	}
+
+	for key, value := range h.summaryDelta {
+		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
+			Key: key, ValueJson: value,
+		})
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: summaryRecord,
+		},
+	}
+	h.sendRecord(record)
+	// reset delta summary
+	h.summaryDelta = make(map[string]string)
+}
+
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	runtime := int32(h.timer.Elapsed().Seconds())
@@ -666,7 +716,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.sendRecord(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
