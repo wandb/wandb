@@ -1421,6 +1421,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1445,6 +1455,7 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1455,6 +1466,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
