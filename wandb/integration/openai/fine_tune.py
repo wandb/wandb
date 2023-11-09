@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+
 import wandb
 from wandb.sdk.lib import telemetry
 
@@ -38,8 +39,7 @@ except ImportError as e:
 
 
 class WandbLogger:
-    """Log OpenAI [fine-tunes](https://platform.openai.com/docs/api-reference/fine-tuning/object)
-    to [Weights & Biases](https://wandb.me/openai-docs)."""
+    """Log OpenAI fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
     _wandb_api = None
     _logged_in = False
