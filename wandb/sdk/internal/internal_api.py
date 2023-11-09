@@ -641,7 +641,10 @@ class Api:
                 }
             }
         """
-        if self.server_create_run_queue_supports_drc is None or self.server_create_run_queue_supports_priority is None:
+        if (
+            self.server_create_run_queue_supports_drc is None
+            or self.server_create_run_queue_supports_priority is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
@@ -1404,7 +1407,11 @@ class Api:
         prioritization_mode: Optional[str] = None,
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        (create_run_queue, supports_drc, supports_prioritization) = self.create_run_queue_introspection()
+        (
+            create_run_queue,
+            supports_drc,
+            supports_prioritization,
+        ) = self.create_run_queue_introspection()
         if not create_run_queue:
             raise UnsupportedError(
                 "run queue creation is not supported by this version of wandb server."

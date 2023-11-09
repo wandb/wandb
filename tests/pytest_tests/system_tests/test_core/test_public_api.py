@@ -81,7 +81,7 @@ def test_run_queue(user):
         entity=user,
         access="project",
         type="local-container",
-        prioritization_mode="V0"
+        prioritization_mode="V0",
     )
     try:
         assert queue.name == "test-queue"
