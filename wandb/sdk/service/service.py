@@ -184,8 +184,7 @@ class _Service:
                 if not nexus_path:
                     wandb_nexus = get_module(
                         "wandb_core",
-                        required="Please install the required dependency 'wandb-core' by running the following command: "
-                        "`pip install wandb-core --pre`",
+                        required="The nexus experiment requires the wandb_core module.",
                     )
                     _check_nexus_version_compatibility(wandb_nexus.__version__)
                     nexus_path = wandb_nexus.get_nexus_path()

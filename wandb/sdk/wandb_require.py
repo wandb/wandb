@@ -41,9 +41,6 @@ class _Requires:
 
     def _require_nexus(self) -> None:
         os.environ["WANDB_REQUIRE_NEXUS"] = "True"
-        wandb.teardown = wandb._teardown  # type: ignore
-        wandb.attach = wandb._attach  # type: ignore
-        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_nexus(self) -> None:
         self._require_nexus()
@@ -94,4 +91,4 @@ def _import_module_hook() -> None:
     """On wandb import, setup anything needed based on parent process require calls."""
     # TODO: optimize by caching which pids this has been done for or use real import hooks
     # TODO: make this more generic, but for now this works
-    require("nexus")
+    require("service")

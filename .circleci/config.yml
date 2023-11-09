@@ -253,21 +253,12 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
             - run:
-                name: Install Go
-                command: |
-                  wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
-                  PATH=/usr/local/go/bin:$PATH
-                  go version
-                no_output_timeout: 1m
-            - run:
                 name: Setup environment
                 command: |
                   curl https://pyenv.run | bash
                   echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
                   echo 'eval "$(pyenv init -)"' >> ~/.bashrc
                   echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-                  echo 'export PATH=/usr/local/go/bin:$PATH"' >> ~/.bashrc
                   source ~/.bashrc
                 no_output_timeout: 30m
             - run:
@@ -343,14 +334,6 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
             - run:
-                name: Install Go
-                command: |
-                  wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
-                  PATH=/usr/local/go/bin:$PATH
-                  go version
-                no_output_timeout: 1m
-            - run:
                 name: Install python dependencies
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
@@ -360,7 +343,6 @@ jobs:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  PATH=/usr/local/go/bin:$PATH \
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
@@ -544,14 +526,6 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
-          #  - run:
-          #       name: Install Go
-          #       command: |
-          #         wget https://go.dev/dl/go1.21.3.windows-amd64.zip
-          #         tar -C /usr/local -xzf go1.21.3.windows-amd64.zip
-          #         PATH=/usr/local/go/bin:$PATH
-          #         go version
-          #       no_output_timeout: 1m
             - run:
                 name: Install python dependencies
                 shell: bash.exe
@@ -611,14 +585,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Go
-          command: |
-            wget https://go.dev/dl/go1.21.3.darwin-arm64.tar.gz
-            tar -C $HOME -xzf go1.21.3.darwin-arm64.tar.gz
-            PATH=$HOME/go/bin:$PATH
-            go version
-          no_output_timeout: 1m
-      - run:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
@@ -628,7 +594,6 @@ jobs:
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            PATH=$HOME/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
@@ -1418,7 +1383,20 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
-
+      #
+      # System tests with pytest on Linux, using real wandb server, with Nexus
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
+          name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
       #
       # Nexus smoke tests with pytest on Linux, using real wandb server
       #
@@ -1427,8 +1405,8 @@ workflows:
             - "system-tests"
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
+              python_version_major: [ 3 ]
+              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1468,7 +1446,6 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/test_artifacts"
-
 
       #
       # Unit tests with pytest on Linux
