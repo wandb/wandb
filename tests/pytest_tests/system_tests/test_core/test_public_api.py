@@ -81,13 +81,11 @@ def test_run_queue(user):
         entity=user,
         access="project",
         type="local-container",
-        prioritization_mode="V0",
     )
     try:
         assert queue.name == "test-queue"
         assert queue.access == "PROJECT"
         assert queue.type == "local-container"
-        assert queue.prioritization_mode == "V0"
     finally:
         queue.delete()
 
