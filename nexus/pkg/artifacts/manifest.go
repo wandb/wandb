@@ -3,6 +3,8 @@ package artifacts
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -86,9 +88,28 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 	manifestEntries := m.Contents
 	manifestEntry, ok := manifestEntries[path]
 	if !ok {
-		// implement _get_obj_entry
-		// For now just return error
 		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
 	return manifestEntry, nil
+}
+
+func loadManifestFromURL(url string) (Manifest, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer resp.Body.Close()
+	manifest := Manifest{}
+	if resp.StatusCode != http.StatusOK {
+		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
+	}
+	err = json.Unmarshal(body, &manifest)
+	if err != nil {
+		return Manifest{}, nil
+	}
+	return manifest, nil
 }
