@@ -4,13 +4,13 @@ canonicalsrc =
     .tox/func-s_artifacts-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_default-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_docs-py39/lib/python3.9/site-packages/wandb/
+    .tox/func-s_launch-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_llm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_metaflow-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_mitm-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_noml-py39/lib/python3.9/site-packages/wandb/
     .tox/func-s_ray112-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_ray2-py38/lib/python3.8/site-packages/wandb/
-    .tox/func-s_service-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_sklearn-py38/lib/python3.8/site-packages/wandb/
     .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
