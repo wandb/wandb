@@ -478,12 +478,12 @@ class InterfaceBase:
 
     def deliver_download_artifact(
         self,
-        qualified_name: str,
+        artifact_id: str,
         download_root: str,
         allow_missing_references: bool,
     ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
-        download_artifact.qualified_name = qualified_name
+        download_artifact.artifact_id = artifact_id
         download_artifact.download_root = download_root
         download_artifact.allow_missing_references = allow_missing_references
         resp = self._deliver_download_artifact(download_artifact)
