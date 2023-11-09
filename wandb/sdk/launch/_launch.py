@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -25,6 +26,35 @@ from .utils import (
 )
 
 _logger = logging.getLogger(__name__)
+
+
+def set_launch_logfile(logfile: str) -> None:
+    """Set the logfile for the launch agent."""
+    # Get logger of parent module
+    _launch_logger = logging.getLogger("wandb.sdk.launch")
+    if logfile == "-":
+        logfile_stream = sys.stdout
+    else:
+        try:
+            logfile_stream = open(logfile, "w")
+        # check if file is writable
+        except Exception as e:
+            wandb.termerror(
+                f"Could not open {logfile} for writing logs. Please check "
+                f"the path and permissions.\nError: {e}"
+            )
+            return
+
+    wandb.termlog(
+        f"Internal agent logs printing to {'stdout' if logfile == '-' else logfile}. "
+    )
+    handler = logging.StreamHandler(logfile_stream)
+    handler.formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+    )
+    _launch_logger.addHandler(handler)
+    _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
 def resolve_agent_config(  # noqa: C901

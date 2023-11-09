@@ -328,6 +328,26 @@ class LaunchAgent:
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
+    def _check_run_exists_and_inited(
+        self, entity: str, project: str, run_id: str, rqi_id: str
+    ) -> bool:
+        """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
+        # Checks the _wandb key in the run config for the run queue item id. If it exists, the
+        # submitted run definitely called init. Falls back to checking state of run.
+        # TODO: handle resuming runs
+
+        # Sweep runs exist but are in pending state, normal launch runs won't exist
+        # so will raise a CommError.
+        try:
+            run_state = self._api.get_run_state(entity, project, run_id)
+            if run_state.lower() != "pending":
+                return True
+        except CommError:
+            _logger.info(
+                f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run"
+            )
+        return False
+
     async def finish_thread_id(
         self,
         thread_id: int,
@@ -356,35 +376,38 @@ class LaunchAgent:
                 job_and_run_status.err_stage,
                 fnames,
             )
+        elif job_and_run_status.project is None or job_and_run_status.run_id is None:
+            _logger.error(
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
+            )
+            wandb.termerror(
+                "Missing project or run id on thread called finish thread id"
+            )
+            await self.fail_run_queue_item(
+                job_and_run_status.run_queue_item_id,
+                "submitted job was finished without assigned project or run id",
+                "agent",
+            )
         elif job_and_run_status.run is not None:
-            run_info = None
+            called_init = False
             # We do some weird stuff here getting run info to check for a
             # created in run in W&B.
             #
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
-            #
-            # Sweep runs exist but have no info before they are started
-            # so run_info returned will be None, while normal runs just throw a
-            # comm error.
             logs = None
             start_time = time.time()
             interval = 1
             while True:
-                try:
-                    run_info = self._api.get_run_info(
-                        self._entity,
-                        job_and_run_status.project,
-                        job_and_run_status.run_id,
-                    )
-                except CommError:
-                    pass
-                if (
-                    run_info is not None
-                    or time.time() - start_time > RUN_INFO_GRACE_PERIOD
-                ):
+                called_init = self._check_run_exists_and_inited(
+                    self._entity,
+                    job_and_run_status.project,
+                    job_and_run_status.run_id,
+                    job_and_run_status.run_queue_item_id,
+                )
+                if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
                     break
-                if run_info is None:
+                if not called_init:
                     # Fetch the logs now if we don't get run info on the
                     # first try, in case the logs are cleaned from the runner
                     # environment (e.g. k8s) during the run info grace period.
@@ -392,8 +415,7 @@ class LaunchAgent:
                         logs = await job_and_run_status.run.get_logs()
                     await asyncio.sleep(interval)
                     interval *= 2
-
-            if run_info is None:
+            if not called_init:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
                     _msg = "The submitted job exited successfully but failed to call wandb.init"
