@@ -195,6 +195,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
+	h.summaryDebouncer.Debounce(h.upsertSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -232,6 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleSystemMetrics(record)
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
+		h.summaryDebouncer.Flush(h.upsertSummary)
 	case *service.Record_Tbrecord:
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
@@ -683,6 +685,28 @@ func (h *Handler) updateSummary(summaryRecord *service.Record) {
 	h.summaryDebouncer.SetNeedsDebounce()
 }
 
+func (h *Handler) upsertSummary() {
+	// record := &service.Record{
+	// 	RecordType: &service.Record_Summary{
+	// }
+	summaryRecord := &service.SummaryRecord{
+		Update: []*service.SummaryItem{},
+	}
+
+	for key, value := range h.deltaSummary {
+		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
+			Key: key, ValueJson: value,
+		})
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: summaryRecord,
+		},
+	}
+	h.sendRecord(record)
+	h.deltaSummary = make(map[string]string)
+}
+
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	runtime := int32(h.timer.Elapsed().Seconds())
@@ -695,7 +719,6 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.updateSummary(summaryRecord)
 	// h.sendRecord(summaryRecord)
-
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
