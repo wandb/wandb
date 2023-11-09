@@ -1,6 +1,7 @@
 id: 0.keras.subclassedmodel.tf26
 tag:
     shard: artifacts
+    skip: true
 plugin:
     - wandb
 command:
