@@ -4,16 +4,22 @@ import json
 import os
 import re
 import time
+import wandb
+from wandb.sdk.lib import telemetry
 
 try:
     import openai
     from openai import OpenAI
+    from pkg_resources import parse_version
 
-    if openai.api_key is None:
-        print("OPENAI_API_KEY is not set!")
+    openai_version = openai.__version__
+    if parse_version(openai_version) < parse_version("1.0.1"):
+        raise wandb.Error(
+            f"This integration requires openai version 1.0.1 and above. Your current version is {openai_version}"
+        )
 except ImportError as e:
     raise Exception(
-        "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install --pre openai`"
+        "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
     ) from e
 
 try:
@@ -30,12 +36,10 @@ except ImportError as e:
         "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`"
     ) from e
 
-import wandb
-from wandb.sdk.lib import telemetry
-
 
 class WandbLogger:
-    """Log fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
+    """Log OpenAI [fine-tunes](https://platform.openai.com/docs/api-reference/fine-tuning/object)
+    to [Weights & Biases](https://wandb.me/openai-docs)."""
 
     _wandb_api = None
     _logged_in = False
