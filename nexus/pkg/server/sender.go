@@ -177,6 +177,7 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 
 	for record := range inChan {
 		s.sendRecord(record)
+		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 	}
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
