@@ -1,6 +1,8 @@
 id: 0.mp.03-parent-child
 plugin:
   - wandb
+tag:
+  shard: service
 parametrize:
   permute:
     - :yea:start_method:

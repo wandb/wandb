@@ -2,7 +2,6 @@ id: 4.jobs.repo-end-to-end
 plugin:
   - wandb
 tag:
-  shard: launch
   platforms:
     - linux
 depend:

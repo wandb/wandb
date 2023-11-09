@@ -14,6 +14,7 @@ def worker_process(run, i):
 
 
 def main():
+    wandb.require("service")
     run = wandb.init()
 
     counter = mp.Value("i", 0)

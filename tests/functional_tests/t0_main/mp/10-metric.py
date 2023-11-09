@@ -2,6 +2,7 @@
 
 import wandb
 
+wandb.require("service")
 run = wandb.init()
 print("somedata")
 run.define_metric("m2", summary="max")

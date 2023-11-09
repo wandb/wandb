@@ -16,6 +16,7 @@ def process_child(attach_id):
 
 
 def main():
+    wandb.require("service")
     run = wandb.init()
     # Start a new run in parallel in a child process
     processes = [

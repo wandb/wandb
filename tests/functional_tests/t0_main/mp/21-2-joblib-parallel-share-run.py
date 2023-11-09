@@ -24,4 +24,5 @@ def main():
 
 
 if __name__ == "__main__":
+    wandb.require("service")
     main()

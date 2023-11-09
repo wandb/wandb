@@ -57,6 +57,7 @@ def main_sync(workers: List):
 
 
 def main():
+    wandb.require("service")
     wandb.setup()
 
     workers = []

@@ -17,6 +17,8 @@ def process_child(attach_id):
 
 
 def main():
+    wandb.require("service")
+
     run = wandb.init()
     print("parent output")
     run.config.c1 = 11
