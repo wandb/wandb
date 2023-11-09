@@ -1,0 +1,12 @@
+with-expecter: true
+dry-run: true
+packages:
+    github.com/wandb/wandb/nexus/pkg/server:
+        # place your package-specific config here
+        config:
+        interfaces:
+            # select the interfaces you want mocked
+            HandlerInterface:
+                # Modify package-level config for this specific interface (if applicable)
+                config:
+                    dir: pkg/server
