@@ -3171,7 +3171,7 @@ class Run:
     def link_model(
         self,
         path: StrPath,
-        linked_model_name: str,
+        registered_model_name: str,
         model_name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
@@ -3217,12 +3217,12 @@ class Run:
         Returns:
             None
         """
-        name_parts = linked_model_name.split("/")
+        name_parts = registered_model_name.split("/")
         assert (
             len(name_parts) == 1
         ), "Please provide only the name of the registered model. Do not append the entity or project name."
         project = "model-registry"
-        target_path = self.entity + "/" + project + "/" + linked_model_name
+        target_path = self.entity + "/" + project + "/" + registered_model_name
 
         artifact = self._log_artifact(
             artifact_or_path=path, name=model_name, type="model"
