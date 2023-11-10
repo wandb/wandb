@@ -107,6 +107,7 @@ class DiffusersTextToImagePipelineResolver:
                     loggable_kwarg_chunk[idx]
                     for loggable_kwarg_chunk in loggable_kwarg_chunks
                 ]
+                table_row.replace(None, "")
                 table_row.append(wandb.Image(image))
                 table.add_data(*table_row)
         return {"text-to-image": table}
