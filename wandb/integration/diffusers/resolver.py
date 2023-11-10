@@ -64,6 +64,9 @@ class DiffusersPipelineResolver:
         )
         for idx, arg in enumerate(args):
             kwargs[pipeline_call_parameters[idx][0]] = arg
+        for pipeline_parameter in pipeline_call_parameters:
+            if pipeline_parameter[0] not in kwargs:
+                kwargs[pipeline_parameter[0]] = pipeline_parameter[1].default
         return kwargs
 
     def prepare_table(
