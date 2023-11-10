@@ -11,7 +11,7 @@ from .utils import chunkify
 logger = logging.getLogger(__name__)
 
 
-TEXT_TO_IMAGE_PIPELINES = {
+SUPPORTED_PIPELINES = {
     "StableDiffusionPipeline": {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
@@ -19,9 +19,7 @@ TEXT_TO_IMAGE_PIPELINES = {
 }
 
 
-class DiffusersPipelineResolver:
-    autolog_id = None
-
+class DiffusersTextToImagePipelineResolver:
     def __call__(
         self,
         args: Sequence[Any],
@@ -33,8 +31,6 @@ class DiffusersPipelineResolver:
         pass
 
         try:
-            self.autolog_id = generate_id(length=16)
-
             # Get the pipeline and the args
             pipeline, args = args[0], args[1:]
 
@@ -67,16 +63,17 @@ class DiffusersPipelineResolver:
         for pipeline_parameter in pipeline_call_parameters:
             if pipeline_parameter[0] not in kwargs:
                 kwargs[pipeline_parameter[0]] = pipeline_parameter[1].default
+        if "generator" in kwargs:
+            generator = kwargs.pop("generator", None)
+            kwargs["seed"] = generator.get_state().to("cpu").tolist()[0]
         return kwargs
 
-    def prepare_table(
-        self, pipeline_configs: Dict[str, Any], kwargs: Dict[str, Any]
-    ) -> wandb.Table:
+    def prepare_table(self, pipeline_configs: Dict[str, Any]) -> wandb.Table:
         columns = []
-        if pipeline_configs["pipeline-name"] in TEXT_TO_IMAGE_PIPELINES:
-            columns += TEXT_TO_IMAGE_PIPELINES[pipeline_configs["pipeline-name"]][
-                "table-schema"
-            ]
+        pipeline_name = pipeline_configs["pipeline-name"]
+        print("PIPELINE NAME", pipeline_name, "\n\n\n\n\n\n")
+        if pipeline_name in SUPPORTED_PIPELINES:
+            columns += SUPPORTED_PIPELINES[pipeline_name]["table-schema"]
         return wandb.Table(columns=columns)
 
     def prepare_loggable_dict(
@@ -85,9 +82,9 @@ class DiffusersPipelineResolver:
         response: Response,
         kwargs: Dict[str, Any],
     ) -> Dict[str, Any]:
-        table = self.prepare_table(pipeline_configs, kwargs)
+        table = self.prepare_table(pipeline_configs)
         images = response.images
-        loggable_kwarg_ids = TEXT_TO_IMAGE_PIPELINES[pipeline_configs["pipeline-name"]][
+        loggable_kwarg_ids = SUPPORTED_PIPELINES[pipeline_configs["pipeline-name"]][
             "kwarg-logging"
         ]
         loggable_kwarg_chunks = []
@@ -114,6 +111,3 @@ class DiffusersPipelineResolver:
                 table_row.append(wandb.Image(image))
                 table.add_data(*table_row)
         return {"text-to-image": table}
-
-    def get_latest_id(self):
-        return self.autolog_id

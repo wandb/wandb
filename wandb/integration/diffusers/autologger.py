@@ -2,16 +2,15 @@ import logging
 
 from wandb.sdk.integration_utils.auto_logging import AutologAPI
 
-from .resolver import DiffusersPipelineResolver
+from .resolver import DiffusersTextToImagePipelineResolver
 
 logger = logging.getLogger(__name__)
 
-resolver = DiffusersPipelineResolver()
-
-autolog = AutologAPI(
+text_to_image_autolog = AutologAPI(
     name="diffusers",
-    symbols=("StableDiffusionPipeline.__call__",),
-    resolver=resolver,
+    symbols=(
+        "DiffusionPipeline.__call__",
+        "StableDiffusionPipeline.__call__",
+    ),
+    resolver=DiffusersTextToImagePipelineResolver(),
 )
-
-autolog.get_latest_id = resolver.get_latest_id
