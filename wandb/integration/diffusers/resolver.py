@@ -14,7 +14,7 @@ SUPPORTED_PIPELINES = {
     "StableDiffusionPipeline": {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
-    }
+    },
 }
 
 
@@ -64,7 +64,11 @@ class DiffusersTextToImagePipelineResolver:
                 kwargs[pipeline_parameter[0]] = pipeline_parameter[1].default
         if "generator" in kwargs:
             generator = kwargs.pop("generator", None)
-            kwargs["seed"] = generator.get_state().to("cpu").tolist()[0]
+            kwargs["seed"] = (
+                generator.get_state().to("cpu").tolist()[0]
+                if generator is not None
+                else None
+            )
         return kwargs
 
     def prepare_table(self, pipeline_configs: Dict[str, Any]) -> wandb.Table:
@@ -106,7 +110,7 @@ class DiffusersTextToImagePipelineResolver:
                     loggable_kwarg_chunk[idx]
                     for loggable_kwarg_chunk in loggable_kwarg_chunks
                 ]
-                table_row.replace(None, "")
+                table_row = [val if val is not None else "" for val in table_row]
                 table_row.append(wandb.Image(image))
                 table.add_data(*table_row)
         return {"text-to-image": table}
