@@ -11,9 +11,12 @@ from .utils import chunkify
 logger = logging.getLogger(__name__)
 
 
-TEXT_TO_IMAGE_PIPELINES = [
-    "StableDiffusionPipeline",
-]
+TEXT_TO_IMAGE_PIPELINES = {
+    "StableDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    }
+}
 
 
 class DiffusersPipelineResolver:
@@ -68,7 +71,9 @@ class DiffusersPipelineResolver:
     ) -> wandb.Table:
         columns = []
         if pipeline_configs["pipeline-name"] in TEXT_TO_IMAGE_PIPELINES:
-            columns += ["Prompt", "Negative-Prompt", "Generated-Image"]
+            columns += TEXT_TO_IMAGE_PIPELINES[pipeline_configs["pipeline-name"]][
+                "table-schema"
+            ]
         return wandb.Table(columns=columns)
 
     def prepare_loggable_dict(
