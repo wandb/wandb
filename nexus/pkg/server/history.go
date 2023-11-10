@@ -243,6 +243,9 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
 		}
 	}
+	if h.historyItem == nil {
+		h.historyItem = make(map[string]string)
+	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
 	//	a single step in the history. Users can send multiple partial history
@@ -274,10 +277,18 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	//	being set to true.
 	if request.Step != nil {
 		if request.Step.Num > h.historyRecord.Step.Num {
+			for key, value := range h.historyItem {
+				hi := &service.HistoryItem{
+					Key:       key,
+					ValueJson: value,
+				}
+				h.historyRecord.Item = append(h.historyRecord.Item, hi)
+			}
 			h.handleHistory(h.historyRecord)
 			h.historyRecord = &service.HistoryRecord{
 				Step: &service.HistoryStep{Num: request.Step.Num},
 			}
+			h.historyItem = make(map[string]string)
 		} else if request.Step.Num < h.historyRecord.Step.Num {
 			h.logger.CaptureWarn("received history record for a step that has already been received",
 				"received", request.Step, "current", h.historyRecord.Step)
@@ -286,17 +297,28 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	}
 
 	// Append the history items from the request to the current history record.
-	h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
+	// h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
+	for _, item := range request.Item {
+		h.historyItem[item.Key] = item.ValueJson
+	}
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
+		for key, value := range h.historyItem {
+			hi := &service.HistoryItem{
+				Key:       key,
+				ValueJson: value,
+			}
+			h.historyRecord.Item = append(h.historyRecord.Item, hi)
+		}
 		h.handleHistory(h.historyRecord)
 		h.historyRecord = &service.HistoryRecord{
 			Step: &service.HistoryStep{
 				Num: h.historyRecord.Step.Num + 1,
 			},
 		}
+		h.historyItem = make(map[string]string)
 	}
 }
 
