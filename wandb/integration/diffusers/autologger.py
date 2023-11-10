@@ -12,6 +12,10 @@ text_to_image_autolog = AutologAPI(
         "DiffusionPipeline.__call__",
         "AutoPipelineForText2Image.__call__",
         "StableDiffusionPipeline.__call__",
+        "KandinskyCombinedPipeline.__call__",
+        "KandinskyV22CombinedPipeline.__call__",
+        "LatentConsistencyModelPipeline.__call__",
+        "LDMTextToImagePipeline.__call__",
     ),
     resolver=DiffusersTextToImagePipelineResolver(),
 )

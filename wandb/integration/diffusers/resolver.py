@@ -15,6 +15,22 @@ SUPPORTED_PIPELINES = {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
     },
+    "KandinskyCombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "KandinskyV22CombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "LatentConsistencyModelPipeline": {
+        "table-schema": ["Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt"],
+    },
+    "LDMTextToImagePipeline": {
+        "table-schema": ["Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt"],
+    },
 }
 
 
@@ -48,7 +64,7 @@ class DiffusersTextToImagePipelineResolver:
             )
             return loggable_dict
         except Exception as e:
-            logger.warning(e)
+            print(e)
         return None
 
     def get_updated_kwargs(
