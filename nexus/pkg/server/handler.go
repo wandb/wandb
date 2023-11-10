@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 
 	"github.com/wandb/wandb/nexus/pkg/monitor"
+	"github.com/wandb/wandb/nexus/pkg/server/history"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/nexus/internal/debounce"
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -52,26 +52,19 @@ type Handler struct {
 	// runMetadata is the metadata associated with the run
 	runMetadata *service.MetadataRequest
 
-	// consolidatedSummary is the full summary (all keys)
-	// TODO(memory): persist this in the future as it will grow with number of distinct keys
-	consolidatedSummary map[string]string
-
-	// summaryDelta is the delta summary (keys updated since the last time we sent summary)
-	summaryDelta map[string]string
-
 	// summaryDebouncer is the debouncer for summary updates
 	summaryDebouncer *debounce.Debouncer
 
-	// historyRecord is the history record used to track
-	// current active history record for the stream
-	historyRecord *service.HistoryRecord
+	// sas is the active set for the stream summary deltas
+	sas *history.ActiveSet[*service.SummaryItem]
+	// sas is the active set for the stream consolidated summary
+	csas *history.ActiveSet[*service.SummaryItem]
 
-	// sampledHistory is the sampled history for the stream
-	// TODO fix this to be generic type
-	sampledHistory map[string]*ReservoirSampling[float32]
+	// mm is the history manager for the stream
+	mm *history.DefineKeys[service.MetricRecord]
 
-	// mh is the metric handler for the stream
-	mh *MetricHandler
+	has *history.ActiveSet[*service.HistoryItem]
+	sm  *history.SampleManager[float32]
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -92,16 +85,15 @@ func NewHandler(
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
-		ctx:                 ctx,
-		settings:            settings,
-		logger:              logger,
-		consolidatedSummary: make(map[string]string),
-		summaryDelta:        make(map[string]string),
-		ft:                  NewFileTransferHandler(),
-		fwdChan:             make(chan *service.Record, BufferSize),
-		outChan:             make(chan *service.Result, BufferSize),
-		loopbackChan:        loopbackChan,
+		ctx:          ctx,
+		settings:     settings,
+		logger:       logger,
+		ft:           NewFileTransferHandler(),
+		fwdChan:      make(chan *service.Record, BufferSize),
+		outChan:      make(chan *service.Result, BufferSize),
+		loopbackChan: loopbackChan,
 	}
+
 	if !settings.GetXDisableStats().GetValue() {
 		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
@@ -197,7 +189,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryDebouncer.Debounce(h.sendSummary)
+	h.summaryDebouncer.Debounce(h.sas.Flush)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -322,11 +314,12 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.handleHistory(h.historyRecord)
+		// h.handleHistory(h.historyRecord)
+		h.has.Flush()
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryDebouncer.Flush(h.sendSummary)
+		h.summaryDebouncer.Flush(h.sas.Flush)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -597,13 +590,15 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// update summary with runtime
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
-		{
-			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+	summary := &service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			&service.SummaryItem{
+				Key:       "_wandb",
+				ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+			},
 		},
-	})
-	// h.sendRecord(summaryRecord)
-	h.updateSummaryDelta(summaryRecord)
+	}
+	h.updateSummaryDelta(summary)
 
 	// send the exit record
 	h.sendRecordWithControl(record,
@@ -628,14 +623,9 @@ func (h *Handler) handleFiles(record *service.Record) {
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
-	var items []*service.SummaryItem
-
-	for key, element := range h.consolidatedSummary {
-		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
-	}
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
-			Item: items,
+			Item: h.csas.Gets(),
 		},
 	}
 }
@@ -679,31 +669,26 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) updateSummaryDelta(summaryRecord *service.Record) {
-	for _, item := range summaryRecord.GetSummary().GetUpdate() {
-		h.summaryDelta[item.GetKey()] = item.GetValueJson()
-	}
-	h.summaryDebouncer.SetNeedsDebounce()
-}
-
-func (h *Handler) sendSummary() {
-	summaryRecord := &service.SummaryRecord{
-		Update: []*service.SummaryItem{},
-	}
-
-	for key, value := range h.summaryDelta {
-		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
-			Key: key, ValueJson: value,
+func (h *Handler) updateSummaryDelta(summary *service.SummaryRecord) {
+	if h.sas == nil {
+		h.sas = history.NewActiveSet(0, func(idx int64, values map[string]*service.SummaryItem) {
+			record := &service.Record{
+				RecordType: &service.Record_Summary{
+					Summary: &service.SummaryRecord{
+						Update: h.sas.Gets(),
+					},
+				},
+			}
+			h.sendRecord(record)
 		})
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: summaryRecord,
-		},
+	if h.csas == nil {
+		h.csas = history.NewActiveSet[*service.SummaryItem](0, nil)
 	}
-	h.sendRecord(record)
-	// reset delta summary
-	h.summaryDelta = make(map[string]string)
+	h.csas.Updates(summary.GetUpdate()...)
+
+	h.sas.Updates(summary.GetUpdate()...)
+	h.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -715,8 +700,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 	})
 
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.updateSummaryDelta(summaryRecord)
+	h.updateSummaryDelta(summary)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
