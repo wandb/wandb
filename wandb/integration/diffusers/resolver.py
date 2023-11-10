@@ -31,6 +31,18 @@ SUPPORTED_PIPELINES = {
         "table-schema": ["Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt"],
     },
+    "StableDiffusionPanoramaPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "PixArtAlphaPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "StableDiffusionSAGPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
 }
 
 
