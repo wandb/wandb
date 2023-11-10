@@ -20,6 +20,8 @@ text_to_image_autolog = AutologAPI(
         "StableDiffusionParadigmsPipeline.__call__",
         "PixArtAlphaPipeline.__call__",
         "StableDiffusionSAGPipeline.__call__",
+        "SemanticStableDiffusionPipeline.__call__",
+        "StableDiffusionXLPipeline.__call__",
     ),
     resolver=DiffusersTextToImagePipelineResolver(),
 )

@@ -43,6 +43,20 @@ SUPPORTED_PIPELINES = {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
     },
+    "SemanticStableDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "StableDiffusionXLPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Prompt-2",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "prompt_2", "negative_prompt_2"],
+    },
 }
 
 
