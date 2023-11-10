@@ -102,9 +102,6 @@ func NewHandler(
 		outChan:             make(chan *service.Result, BufferSize),
 		loopbackChan:        loopbackChan,
 	}
-	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
-	}
 
 	// initialize the run metadata from settings
 	h.runMetadata = &service.MetadataRequest{
@@ -129,31 +126,15 @@ func NewHandler(
 		summaryDebouncerBurstSize,
 		logger,
 	)
-
 	return h
 }
 
-// do this starts the handler
-func (h *Handler) do(in, lb <-chan *service.Record) {
+func (h *Handler) do(in chan *service.Record) {
 	defer h.logger.Reraise()
-	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-loop:
-	for in != nil || lb != nil {
-		select {
-		case record, ok := <-in:
-			if !ok {
-				in = nil
-				continue
-			}
-			h.handleRecord(record)
-		case record, ok := <-lb:
-			if !ok {
-				// exit the handler loop when loopback goes away
-				// (note: this could leave unread data on in chan)
-				break loop
-			}
-			h.handleRecord(record)
-		}
+
+	for record := range in {
+		h.logger.Debug("handling record", "record", record)
+		h.handleRecord(record)
 	}
 }
 
@@ -466,10 +447,14 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleCodeSave()
 
 	// start the system monitor
-	h.systemMonitor.Do()
-	systemInfo := h.systemMonitor.Probe()
-	if systemInfo != nil {
-		proto.Merge(h.runMetadata, systemInfo)
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.loopbackChan)
+		h.systemMonitor.Do()
+		systemInfo := h.systemMonitor.Probe()
+		if systemInfo != nil {
+			proto.Merge(h.runMetadata, systemInfo)
+		}
+
 	}
 
 	h.handleMetadata()

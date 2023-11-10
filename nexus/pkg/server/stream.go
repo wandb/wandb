@@ -88,10 +88,28 @@ func (s *Stream) Start() {
 	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
 	s.dispatcher = NewDispatcher(s.logger)
 
-	// handle the client requests
+	fwdChan := make(chan *service.Record, BufferSize)
+
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(s.inChan, s.sender.loopbackChan)
+		wg := sync.WaitGroup{}
+		for _, ch := range []chan *service.Record{s.inChan, s.loopbackChan} {
+			wg.Add(1)
+			go func(ch chan *service.Record) {
+				for record := range ch {
+					fwdChan <- record
+				}
+				wg.Done()
+			}(ch)
+		}
+		wg.Wait()
+		close(fwdChan)
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		s.handler.do(fwdChan)
 		s.wg.Done()
 	}()
 
@@ -132,6 +150,7 @@ func (s *Stream) GetRun() *service.RunRecord {
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
+	close(s.inChan)
 	s.handler.Close()
 	s.writer.Close()
 	s.sender.Close()
