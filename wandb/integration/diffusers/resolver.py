@@ -49,7 +49,7 @@ class DiffusersTextToImagePipelineResolver:
             )
             return loggable_dict
         except Exception as e:
-            print(e)
+            logger.warning(e)
         return None
 
     def get_updated_kwargs(
@@ -71,7 +71,6 @@ class DiffusersTextToImagePipelineResolver:
     def prepare_table(self, pipeline_configs: Dict[str, Any]) -> wandb.Table:
         columns = []
         pipeline_name = pipeline_configs["pipeline-name"]
-        print("PIPELINE NAME", pipeline_name, "\n\n\n\n\n\n")
         if pipeline_name in SUPPORTED_PIPELINES:
             columns += SUPPORTED_PIPELINES[pipeline_name]["table-schema"]
         return wandb.Table(columns=columns)
