@@ -5,6 +5,7 @@ from typing import Any, Dict, Sequence
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
 from wandb.sdk.lib.runid import generate_id
+from .utils import chunkify
 
 
 logger = logging.getLogger(__name__)
@@ -41,9 +42,13 @@ class DiffusersPipelineResolver:
             pipeline_configs = dict(pipeline.config)
             pipeline_configs["pipeline-name"] = pipeline.__class__.__name__
 
-            # Prepare the wandb.Table
-            table = self.prepare_table(pipeline_configs, kwargs)
-            return {"text-to-image": table, **kwargs}
+            wandb.config.update({"pipeline": pipeline_configs, "params": kwargs})
+
+            # Return the WandB loggable dict
+            loggable_dict = self.prepare_loggable_dict(
+                pipeline_configs, response, kwargs
+            )
+            return loggable_dict
         except Exception as e:
             print(e)
         return None
@@ -65,6 +70,37 @@ class DiffusersPipelineResolver:
         if pipeline_configs["pipeline-name"] in TEXT_TO_IMAGE_PIPELINES:
             columns += ["Prompt", "Negative-Prompt", "Generated-Image"]
         return wandb.Table(columns=columns)
+
+    def prepare_loggable_dict(
+        self,
+        pipeline_configs: Dict[str, Any],
+        response: Response,
+        kwargs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        table = self.prepare_table(pipeline_configs, kwargs)
+        images = response.images
+        prompt_logging = (
+            kwargs["prompt"]
+            if isinstance(kwargs["prompt"], list)
+            else [kwargs["prompt"]]
+        )
+        negative_prompt_logging = (
+            kwargs["negative_prompt"]
+            if isinstance(kwargs["negative_prompt"], list)
+            else [kwargs["negative_prompt"]]
+        )
+        images = chunkify(images, len(prompt_logging))
+        for idx in range(len(prompt_logging)):
+            for image in images[idx]:
+                wandb.log(
+                    {"Generated-Image": wandb.Image(image, caption=prompt_logging[idx])}
+                )
+                table.add_data(
+                    prompt_logging[idx],
+                    negative_prompt_logging[idx],
+                    wandb.Image(image),
+                )
+        return {"text-to-image": table}
 
     def get_latest_id(self):
         return self.autolog_id
