@@ -27,7 +27,7 @@ patch_tf_keras()
 class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     """A checkpoint that periodically saves a Keras model or model weights.
 
-    Saves weights are uploaded to W&B as a `wandb.Artifact`.
+    Saved weights are uploaded to W&B as a `wandb.Artifact`.
 
     Since this callback is subclassed from `tf.keras.callbacks.ModelCheckpoint`, the
     checkpointing logic is taken care of by the parent callback. You can learn more
