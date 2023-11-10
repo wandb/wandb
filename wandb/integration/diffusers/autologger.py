@@ -10,9 +10,8 @@ resolver = DiffusersPipelineResolver()
 
 autolog = AutologAPI(
     name="diffusers",
-    symbols=("DiffusionPipeline.__call__",),
+    symbols=("StableDiffusionPipeline.__call__",),
     resolver=resolver,
-    telemetry_feature="diffusers_pipeline_autolog",
 )
 
 autolog.get_latest_id = resolver.get_latest_id
