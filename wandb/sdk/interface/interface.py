@@ -298,6 +298,7 @@ class InterfaceBase:
         ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
         if ttl_duration_input:
             proto_artifact.ttl_duration_seconds = ttl_duration_input
+        proto_artifact.staging_dir = get_staging_dir()
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -466,7 +467,6 @@ class InterfaceBase:
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
-        log_artifact.staging_dir = get_staging_dir()
         resp = self._communicate_artifact(log_artifact)
         return resp
 

@@ -204,6 +204,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
 	case *service.Record_Artifact:
+		h.handleArtifact(record)
 	case *service.Record_Config:
 		h.handleConfig(record)
 	case *service.Record_Exit:
@@ -355,6 +356,10 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 			control.Local = true
 		},
 	)
+}
+
+func (h *Handler) handleArtifact(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record) {

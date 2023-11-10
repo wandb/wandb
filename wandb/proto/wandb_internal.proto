@@ -384,6 +384,7 @@ message ArtifactRecord {
   string sequence_client_id = 16;
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
+  string staging_dir = 19;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
@@ -902,7 +903,6 @@ message JobInfoResponse {
 message LogArtifactRequest {
   ArtifactRecord artifact = 1;
   int64 history_step = 2;
-  string staging_dir = 3;
   _RequestInfo _info = 200;
 }
 

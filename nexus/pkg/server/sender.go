@@ -221,6 +221,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
+	case *service.Record_Artifact:
+		s.sendArtifact(record, x.Artifact)
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
@@ -834,10 +836,20 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 	}
 }
 
+func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0 /* historyStep */, msg.StagingDir,
+	)
+	_, err := saver.Save()
+	if err != nil {
+		s.logger.Error("Failed to save artifact", "entity", msg.Entity, "project", msg.Project, "name", msg.Name)
+	}
+}
+
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.Artifact.StagingDir,
 	)
 	artifactID, err := saver.Save()
 	if err != nil {
