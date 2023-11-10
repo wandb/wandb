@@ -87,27 +87,32 @@ class DiffusersPipelineResolver:
     ) -> Dict[str, Any]:
         table = self.prepare_table(pipeline_configs, kwargs)
         images = response.images
-        prompt_logging = (
-            kwargs["prompt"]
-            if isinstance(kwargs["prompt"], list)
-            else [kwargs["prompt"]]
-        )
-        negative_prompt_logging = (
-            kwargs["negative_prompt"]
-            if isinstance(kwargs["negative_prompt"], list)
-            else [kwargs["negative_prompt"]]
-        )
-        images = chunkify(images, len(prompt_logging))
-        for idx in range(len(prompt_logging)):
+        loggable_kwarg_ids = TEXT_TO_IMAGE_PIPELINES[pipeline_configs["pipeline-name"]][
+            "kwarg-logging"
+        ]
+        loggable_kwarg_chunks = []
+        for loggable_kwarg_id in loggable_kwarg_ids:
+            loggable_kwarg_chunks.append(
+                kwargs[loggable_kwarg_id]
+                if isinstance(kwargs[loggable_kwarg_id], list)
+                else [kwargs[loggable_kwarg_id]]
+            )
+        images = chunkify(images, len(loggable_kwarg_chunks[0]))
+        for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
                 wandb.log(
-                    {"Generated-Image": wandb.Image(image, caption=prompt_logging[idx])}
+                    {
+                        "Generated-Image": wandb.Image(
+                            image, caption=loggable_kwarg_chunks[0][idx]
+                        )
+                    }
                 )
-                table.add_data(
-                    prompt_logging[idx],
-                    negative_prompt_logging[idx],
-                    wandb.Image(image),
-                )
+                table_row = [
+                    loggable_kwarg_chunk[idx]
+                    for loggable_kwarg_chunk in loggable_kwarg_chunks
+                ]
+                table_row.append(wandb.Image(image))
+                table.add_data(*table_row)
         return {"text-to-image": table}
 
     def get_latest_id(self):
