@@ -4,7 +4,6 @@ from typing import Any, Dict, Sequence
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
-from wandb.sdk.lib.runid import generate_id
 from .utils import chunkify
 
 

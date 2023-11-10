@@ -10,6 +10,7 @@ text_to_image_autolog = AutologAPI(
     name="diffusers",
     symbols=(
         "DiffusionPipeline.__call__",
+        "AutoPipelineForText2Image.__call__",
         "StableDiffusionPipeline.__call__",
     ),
     resolver=DiffusersTextToImagePipelineResolver(),
