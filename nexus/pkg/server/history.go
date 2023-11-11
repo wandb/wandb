@@ -105,6 +105,56 @@ func (h *Handler) sampleHistory(history *service.HistoryRecord) {
 	}
 }
 
+type ActiveHistory struct {
+	values map[string]*service.HistoryItem
+	step   int64
+	flush  func(*service.HistoryStep, []*service.HistoryItem)
+}
+
+func NewActiveHistory(step int64, flush func(*service.HistoryStep, []*service.HistoryItem)) *ActiveHistory {
+	return &ActiveHistory{
+		values: make(map[string]*service.HistoryItem),
+		step:   step,
+		flush:  flush,
+	}
+}
+
+func (ah *ActiveHistory) Clear() {
+	clear(ah.values)
+}
+
+func (ah *ActiveHistory) UpdateValues(values []*service.HistoryItem) {
+	for _, value := range values {
+		ah.values[value.GetKey()] = value
+	}
+}
+
+func (ah *ActiveHistory) UpdateStep(step int64) {
+	ah.step = step
+}
+
+func (ah *ActiveHistory) GetStep() *service.HistoryStep {
+	step := &service.HistoryStep{
+		Num: ah.step,
+	}
+	return step
+}
+
+func (ah *ActiveHistory) GetValues() []*service.HistoryItem {
+	var values []*service.HistoryItem
+	for _, value := range ah.values {
+		values = append(values, value)
+	}
+	return values
+}
+
+func (ah *ActiveHistory) Flush() {
+	if ah.flush != nil {
+		ah.flush(ah.GetStep(), ah.GetValues())
+	}
+	ah.Clear()
+}
+
 // handleHistory handles a history record. This is the main entry point for history records.
 // It is responsible for handling the history record internally, processing it,
 // and forwarding it to the Writer.
@@ -236,12 +286,23 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// and step. If the user provided a step in the request,
 	// use that, otherwise use 0.
 	if h.historyRecord == nil {
-		h.historyRecord = &service.HistoryRecord{}
+		var step int64
 		if request.Step != nil {
-			h.historyRecord.Step = request.Step
+			step = request.Step.Num
 		} else {
-			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
+			step = h.runRecord.StartingStep
 		}
+
+		h.historyRecord = NewActiveHistory(
+			step,
+			func(step *service.HistoryStep, items []*service.HistoryItem) {
+				record := &service.HistoryRecord{
+					Step: step,
+					Item: items,
+				}
+				h.handleHistory(record)
+			},
+		)
 	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
@@ -272,31 +333,29 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// - If the request doesn't have a step, and doesn't have a flush flag, this is
 	//	equivalent to step being equal to the current step number and a flush flag
 	//	being set to true.
-	if request.Step != nil {
-		if request.Step.Num > h.historyRecord.Step.Num {
-			h.handleHistory(h.historyRecord)
-			h.historyRecord = &service.HistoryRecord{
-				Step: &service.HistoryStep{Num: request.Step.Num},
-			}
-		} else if request.Step.Num < h.historyRecord.Step.Num {
+	if request.GetStep() != nil {
+		step := request.Step.GetNum()
+		current := h.historyRecord.GetStep().Num
+		if step > current {
+			h.historyRecord.Flush()
+			h.historyRecord.UpdateStep(step)
+		} else if step < current {
 			h.logger.CaptureWarn("received history record for a step that has already been received",
-				"received", request.Step, "current", h.historyRecord.Step)
+				"received", step, "current", current)
 			return
 		}
 	}
 
 	// Append the history items from the request to the current history record.
-	h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
+	// h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
+	h.historyRecord.UpdateValues(request.Item)
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
-		h.handleHistory(h.historyRecord)
-		h.historyRecord = &service.HistoryRecord{
-			Step: &service.HistoryStep{
-				Num: h.historyRecord.Step.Num + 1,
-			},
-		}
+		h.historyRecord.Flush()
+		step := h.historyRecord.GetStep().Num + 1
+		h.historyRecord.UpdateStep(step)
 	}
 }
 

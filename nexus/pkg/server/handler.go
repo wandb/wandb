@@ -20,6 +20,14 @@ const (
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
+type HandlerInterface interface {
+	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
+	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
+	Handle()
+	Close()
+	GetRun() *service.RunRecord
+}
+
 // Handler is the handler for a stream
 // it handles the incoming messages, processes them
 // and passes them to the writer
@@ -39,8 +47,11 @@ type Handler struct {
 	// outChan is the channel for results to the client
 	outChan chan *service.Result
 
-	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
-	loopbackChan chan *service.Record
+	// inChan is the channel for incoming messages received through the stream
+	inChan <-chan *service.Record
+
+	// streamLoopbackChan is the channel for internal loopback messages from the stream
+	streamLoopbackChan chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -64,7 +75,11 @@ type Handler struct {
 
 	// historyRecord is the history record used to track
 	// current active history record for the stream
-	historyRecord *service.HistoryRecord
+	historyRecord *ActiveHistory
+	// historyRecord *service.HistoryRecord
+
+	// // historyItem acts like the history record but uses a map instead of a list
+	// historyItem map[string]*service.HistoryItem
 
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
@@ -88,7 +103,6 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
-	loopbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -98,12 +112,6 @@ func NewHandler(
 		consolidatedSummary: make(map[string]string),
 		summaryDelta:        make(map[string]string),
 		ft:                  NewFileTransferHandler(),
-		fwdChan:             make(chan *service.Record, BufferSize),
-		outChan:             make(chan *service.Result, BufferSize),
-		loopbackChan:        loopbackChan,
-	}
-	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
 
 	// initialize the run metadata from settings
@@ -133,20 +141,30 @@ func NewHandler(
 	return h
 }
 
-// do this starts the handler
-func (h *Handler) do(in, lb <-chan *service.Record) {
+func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
+	h.inChan = in
+	h.streamLoopbackChan = lb
+}
+
+func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
+	h.fwdChan = fwd
+	h.outChan = out
+}
+
+// Handle starts the handler
+func (h *Handler) Handle() {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:
-	for in != nil || lb != nil {
+	for h.inChan != nil || h.streamLoopbackChan != nil {
 		select {
-		case record, ok := <-in:
+		case record, ok := <-h.inChan:
 			if !ok {
-				in = nil
+				h.inChan = nil
 				continue
 			}
 			h.handleRecord(record)
-		case record, ok := <-lb:
+		case record, ok := <-h.streamLoopbackChan:
 			if !ok {
 				// exit the handler loop when loopback goes away
 				// (note: this could leave unread data on in chan)
@@ -312,7 +330,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	// to stop processing new incoming messages.
 	// TODO(beta): assess whether this would be better shutdown with a context
 	if shutdown {
-		close(h.loopbackChan)
+		close(h.streamLoopbackChan)
 	}
 }
 
@@ -322,7 +340,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.handleHistory(h.historyRecord)
+		h.historyRecord.Flush()
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
@@ -466,6 +484,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleCodeSave()
 
 	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() && h.systemMonitor == nil {
+		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.streamLoopbackChan)
+	}
 	h.systemMonitor.Do()
 	systemInfo := h.systemMonitor.Probe()
 	if systemInfo != nil {
@@ -619,7 +640,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler(h.logger, h.loopbackChan)
+		h.fh = NewFileHandler(h.logger, h.streamLoopbackChan)
 		h.fh.Start()
 	}
 
