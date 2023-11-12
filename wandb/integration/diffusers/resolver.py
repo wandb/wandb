@@ -57,7 +57,11 @@ SUPPORTED_PIPELINES = {
         ],
         "kwarg-logging": ["prompt", "negative_prompt", "prompt_2", "negative_prompt_2"],
     },
-    "StableDiffusionGLIGENPipeline": {
+    "WuerstchenCombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
+    "IFPipeline": {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
     },
