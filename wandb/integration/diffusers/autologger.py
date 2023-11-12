@@ -2,7 +2,7 @@ import logging
 
 from wandb.sdk.integration_utils.auto_logging import AutologAPI
 
-from .resolver import DiffusersTextToImagePipelineResolver
+from .pipeline_resolver import DiffusersPipelineResolver
 
 logger = logging.getLogger(__name__)
 
@@ -25,5 +25,5 @@ text_to_image_autolog = AutologAPI(
         "WuerstchenCombinedPipeline.__call__",
         "IFPipeline.__call__",
     ),
-    resolver=DiffusersTextToImagePipelineResolver(),
+    resolver=DiffusersPipelineResolver(),
 )

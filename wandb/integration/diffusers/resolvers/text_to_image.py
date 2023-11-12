@@ -10,7 +10,7 @@ from .utils import chunkify
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_PIPELINES = {
+SUPPORTED_TEXT_TO_IMAGE_PIPELINES = {
     "StableDiffusionPipeline": {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
@@ -77,8 +77,6 @@ class DiffusersTextToImagePipelineResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Any:
-        pass
-
         try:
             # Get the pipeline and the args
             pipeline, args = args[0], args[1:]
@@ -124,8 +122,8 @@ class DiffusersTextToImagePipelineResolver:
     def prepare_table(self, pipeline_configs: Dict[str, Any]) -> wandb.Table:
         columns = []
         pipeline_name = pipeline_configs["pipeline-name"]
-        if pipeline_name in SUPPORTED_PIPELINES:
-            columns += SUPPORTED_PIPELINES[pipeline_name]["table-schema"]
+        if pipeline_name in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
+            columns += SUPPORTED_TEXT_TO_IMAGE_PIPELINES[pipeline_name]["table-schema"]
         return wandb.Table(columns=columns)
 
     def prepare_loggable_dict(
@@ -136,9 +134,9 @@ class DiffusersTextToImagePipelineResolver:
     ) -> Dict[str, Any]:
         table = self.prepare_table(pipeline_configs)
         images = response.images
-        loggable_kwarg_ids = SUPPORTED_PIPELINES[pipeline_configs["pipeline-name"]][
-            "kwarg-logging"
-        ]
+        loggable_kwarg_ids = SUPPORTED_TEXT_TO_IMAGE_PIPELINES[
+            pipeline_configs["pipeline-name"]
+        ]["kwarg-logging"]
         loggable_kwarg_chunks = []
         for loggable_kwarg_id in loggable_kwarg_ids:
             loggable_kwarg_chunks.append(
