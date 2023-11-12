@@ -1430,7 +1430,7 @@ workflows:
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
       #
       # Unit tests with pytest on Linux
       #
@@ -1465,7 +1465,7 @@ workflows:
           name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - win:
           requires:
@@ -1495,7 +1495,7 @@ workflows:
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/tests_launch"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - mac:
           requires:
@@ -1571,9 +1571,23 @@ workflows:
               shard:
                 - "tf115"
                 - "tf21"
-                - "tf24"
                 - "tf25"
                 - "tf26"
+                - "xgboost"
+          name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/functional_tests"
+
+      - tox-base:
+          requires:
+            - "functional-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              shard:
+                - "tf24"
                 - "ray112"
                 - "ray2"
                 - "sklearn"
@@ -1621,7 +1635,7 @@ workflows:
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old/tests_launch/"
+          tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
       - pytest:
           requires:
