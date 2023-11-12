@@ -9,6 +9,7 @@ else:
     from typing import Literal
 
 import openai
+from litellm import completion
 from github import Github
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
@@ -17,7 +18,9 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 openai.api_key = OPENAI_API_KEY
 
-Model = Literal["gpt-4", "gpt-3.5-turbo", "vicuna-7b-v1.1"]
+Model = Literal[
+    "gpt-4", "gpt-3.5-turbo", "vicuna-7b-v1.1"
+]  # todo add litellm.model_list
 
 CC_TYPES = os.environ.get(
     "CC_TYPES",
@@ -59,7 +62,7 @@ CC_SCOPES = os.environ.get(
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def chat_completion_with_backoff(**kwargs):
     """Call OpenAI's chat completion API with exponential backoff."""
-    return openai.ChatCompletion.create(**kwargs)
+    return completion(**kwargs)
 
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
