@@ -164,7 +164,7 @@ class ArtifactManifestEntry:
         Examples:
             Basic usage
             ```
-            ref_url = source_artifact.get_path('file.txt').ref_url()
+            ref_url = source_artifact.get_entry('file.txt').ref_url()
             derived_artifact.add_reference(ref_url)
             ```
         """
