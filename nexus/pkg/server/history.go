@@ -165,20 +165,11 @@ func (ah *ActiveHistory) Flush() {
 	ah.Clear()
 }
 
-// handleHistory handles a history record. This is the main entry point for history records.
-// It is responsible for handling the history record internally, processing it,
-// and forwarding it to the Writer.
-func (h *Handler) handleHistory(history *service.HistoryRecord) {
+// flushHistory flushes a history record. It is responsible for handling the history record internally,
+// processing it, and forwarding it to the Writer.
+func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	if history.GetItem() == nil {
 		return
-	}
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	if h.historyRecord == nil {
-		h.historyRecord = NewActiveHistory(
-			history.GetStep().GetNum(),
-			nil,
-		)
-		h.historyRecord.UpdateValues(history.GetItem())
 	}
 
 	h.handleHistoryInternal(history)
@@ -190,11 +181,27 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		RecordType: &service.Record_History{History: history},
 	}
 	h.sendRecord(record)
-	h.historyRecord.Clear()
+
 	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
 	summary := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.GetItem())
 	h.updateSummaryDelta(summary)
+}
+
+// handleHistory handles a history record. This is the main entry point for history records.
+// It is responsible for handling the history record internally, processing it,
+// and forwarding it to the Writer.
+func (h *Handler) handleHistory(history *service.HistoryRecord) {
+	// TODO replace history encoding with a map, this will make it easier to handle history
+	h.historyRecord = NewActiveHistory(
+		history.GetStep().GetNum(),
+		nil,
+	)
+	h.historyRecord.UpdateValues(history.GetItem())
+
+	h.flushHistory(history)
+
+	h.historyRecord.Flush()
 }
 
 // handleHistoryInternal adds internal history items to the history record
@@ -312,7 +319,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 					Step: step,
 					Item: items,
 				}
-				h.handleHistory(record)
+				h.flushHistory(record)
 			},
 		)
 	}
