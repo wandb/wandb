@@ -538,7 +538,7 @@ class Api:
             name=name,
             entity=entity,
             prioritization_mode=prioritization_mode,
-            access=access,
+            _access=access,
             _default_resource_config_id=config_id,
             _default_resource_config=config,
         )
