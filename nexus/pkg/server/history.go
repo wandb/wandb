@@ -149,6 +149,9 @@ func (ah *ActiveHistory) GetValues() []*service.HistoryItem {
 }
 
 func (ah *ActiveHistory) Flush() {
+	if ah == nil {
+		return
+	}
 	if ah.flush != nil {
 		ah.flush(ah.GetStep(), ah.GetValues())
 	}
