@@ -55,6 +55,10 @@ SUPPORTED_TEXT_TO_IMAGE_PIPELINES = {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
     },
+    "AltDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+    },
 }
 
 
