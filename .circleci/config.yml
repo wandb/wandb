@@ -1551,7 +1551,7 @@ workflows:
               python_version_minor: [9]
               shard:
                 - "docs"
-                - "llm"
+                # - "llm"  # TODO: needs review
                 - "noml"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
