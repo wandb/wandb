@@ -1,5 +1,4 @@
 import logging
-import inspect
 from typing import Any, Dict, Sequence
 
 import wandb
@@ -135,4 +134,4 @@ class DiffusersTextToImagePipelineResolver:
                 table_row = [val if val is not None else "" for val in table_row]
                 table_row.append(wandb.Image(image))
                 self.wandb_table.add_data(*table_row)
-        return {"text-to-image": self.wandb_table}
+        return {"Text-to-Image": self.wandb_table}

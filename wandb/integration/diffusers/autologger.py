@@ -27,6 +27,7 @@ autolog = AutologAPI(
         "StableDiffusionXLPipeline.__call__",
         "StableDiffusionXLImg2ImgPipeline.__call__",
         "IFPipeline.__call__",
+        "BlipDiffusionPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )
