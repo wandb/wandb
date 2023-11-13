@@ -31,11 +31,7 @@ class SummarySubDict:
             self._root = root
             json_dict = root._json_dict
             for k in path:
-                if k in json_dict:
-                    json_dict = json_dict[k]
-                else:
-                    json_dict[k] = {}
-                    json_dict = json_dict[k]
+                json_dict = json_dict.get(k, {})
 
             self._json_dict = json_dict
         self._dict = {}
