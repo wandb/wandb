@@ -85,7 +85,9 @@ class DiffusersTextToImagePipelineResolver:
             pipeline_configs = dict(pipeline.config)
             pipeline_configs["pipeline-name"] = self.pipeline_name
 
-            wandb.config.update({"pipeline": pipeline_configs, "params": kwargs})
+            wandb.config.update(
+                {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
+            )
 
             # Return the WandB loggable dict
             loggable_dict = self.prepare_loggable_dict(response, kwargs)
