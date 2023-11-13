@@ -172,6 +172,14 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	if history.GetItem() == nil {
 		return
 	}
+	// TODO replace history encoding with a map, this will make it easier to handle history
+	if h.historyRecord == nil {
+		h.historyRecord = NewActiveHistory(
+			history.GetStep().GetNum(),
+			nil,
+		)
+		h.historyRecord.UpdateValues(history.GetItem())
+	}
 
 	h.handleHistoryInternal(history)
 	h.handleAllHistoryMetric(history)
@@ -182,24 +190,16 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		RecordType: &service.Record_History{History: history},
 	}
 	h.sendRecord(record)
-
+	h.historyRecord.Clear()
 	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.updateSummaryDelta(summaryRecord)
+	summary := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.GetItem())
+	h.updateSummaryDelta(summary)
 }
 
 // handleHistoryInternal adds internal history items to the history record
 // these items are used for internal bookkeeping and are not sent by the user
 func (h *Handler) handleHistoryInternal(history *service.HistoryRecord) {
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	if h.historyRecord == nil {
-		h.historyRecord = NewActiveHistory(
-			history.GetStep().GetNum(),
-			nil)
-		h.historyRecord.UpdateValues(history.GetItem())
-	}
-
 	// TODO: add a timestamp field to the history record
 	var runTime float64 = 0
 	if item, ok := h.historyRecord.GetItem("_timestamp"); ok {

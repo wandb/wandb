@@ -455,16 +455,18 @@ func TestHandleHistory(t *testing.T) {
 			expected: []data{
 				{
 					items: map[string]string{
-						"key1":  "1",
-						"key2":  "2",
-						"_step": "0",
+						"key1":     "1",
+						"key2":     "2",
+						"_step":    "0",
+						"_runtime": "0.000000",
 					},
 					step: 0,
 				},
 				{
 					items: map[string]string{
-						"key2":  "3",
-						"_step": "1",
+						"key2":     "3",
+						"_step":    "1",
+						"_runtime": "0.000000",
 					},
 					step: 1,
 				},
@@ -521,8 +523,8 @@ func TestHandleHistory(t *testing.T) {
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)
 				}
-				for k, v := range d.items {
-					if actual.items[k] != v {
+				for k, v := range actual.items {
+					if d.items[k] != v {
 						t.Errorf("expected %v, got %v", v, actual.items[k])
 					}
 				}
