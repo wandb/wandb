@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import torch
 
@@ -170,9 +170,18 @@ class SDXLResolver:
         else:
             existing_workflow = wandb.config.workflow
             updated_workflow = existing_workflow + [
-                {"pipeline": pipeline_configs, "params": kwargs}
+                {
+                    "pipeline": pipeline_configs,
+                    "params": kwargs,
+                    "stage": self.workflow_stage,
+                }
             ]
-            wandb.config.workflow.update(updated_workflow)
+            wandb.config.update(
+                {
+                    "workflow": updated_workflow,
+                },
+                allow_val_change=True,
+            )
 
     def prepare_loggable_dict(
         self,
@@ -186,5 +195,5 @@ class SDXLResolver:
             self.prepare_loggable_dict_for_text_to_image(
                 pipeline, self.workflow_stage, response, kwargs
             )
-            self.update_wandb_configs(pipeline_configs, kwargs)
-        return {"text-to-image": self.wandb_table}
+        self.update_wandb_configs(pipeline_configs, kwargs)
+        return {f"Text-to-Image/{self.workflow_stage}": self.wandb_table}
