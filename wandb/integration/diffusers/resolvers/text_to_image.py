@@ -69,6 +69,13 @@ SUPPORTED_TEXT_TO_IMAGE_PIPELINES = {
 
 
 class DiffusersTextToImagePipelineResolver:
+    def __init__(self, pipeline_name: str) -> None:
+        self.pipeline_name = pipeline_name
+        columns = []
+        if pipeline_name in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
+            columns += SUPPORTED_TEXT_TO_IMAGE_PIPELINES[pipeline_name]["table-schema"]
+        self.wandb_table = wandb.Table(columns=columns)
+
     def __call__(
         self,
         args: Sequence[Any],
@@ -86,7 +93,7 @@ class DiffusersTextToImagePipelineResolver:
 
             # Get the pipeline configs
             pipeline_configs = dict(pipeline.config)
-            pipeline_configs["pipeline-name"] = pipeline.__class__.__name__
+            pipeline_configs["pipeline-name"] = self.pipeline_name
 
             wandb.config.update({"pipeline": pipeline_configs, "params": kwargs})
 
@@ -119,20 +126,12 @@ class DiffusersTextToImagePipelineResolver:
             )
         return kwargs
 
-    def prepare_table(self, pipeline_configs: Dict[str, Any]) -> wandb.Table:
-        columns = []
-        pipeline_name = pipeline_configs["pipeline-name"]
-        if pipeline_name in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
-            columns += SUPPORTED_TEXT_TO_IMAGE_PIPELINES[pipeline_name]["table-schema"]
-        return wandb.Table(columns=columns)
-
     def prepare_loggable_dict(
         self,
         pipeline_configs: Dict[str, Any],
         response: Response,
         kwargs: Dict[str, Any],
     ) -> Dict[str, Any]:
-        table = self.prepare_table(pipeline_configs)
         images = response.images
         loggable_kwarg_ids = SUPPORTED_TEXT_TO_IMAGE_PIPELINES[
             pipeline_configs["pipeline-name"]
@@ -160,5 +159,5 @@ class DiffusersTextToImagePipelineResolver:
                 ]
                 table_row = [val if val is not None else "" for val in table_row]
                 table_row.append(wandb.Image(image))
-                table.add_data(*table_row)
-        return {"text-to-image": table}
+                self.wandb_table.add_data(*table_row)
+        return {"text-to-image": self.wandb_table}

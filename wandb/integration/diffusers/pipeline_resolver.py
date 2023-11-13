@@ -9,6 +9,9 @@ from .resolvers.text_to_image import (
 
 
 class DiffusersPipelineResolver:
+    def __init__(self) -> None:
+        self.wandb_table = None
+
     def __call__(
         self,
         args: Sequence[Any],
@@ -17,7 +20,8 @@ class DiffusersPipelineResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Any:
-        if args[0].__class__.__name__ in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
-            return DiffusersTextToImagePipelineResolver()(
+        pipeline_name = args[0].__class__.__name__
+        if pipeline_name in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
+            return DiffusersTextToImagePipelineResolver(pipeline_name)(
                 args, kwargs, response, start_time, time_elapsed
             )
