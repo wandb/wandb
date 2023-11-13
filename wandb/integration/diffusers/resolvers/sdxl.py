@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence
 
 import torch
 
