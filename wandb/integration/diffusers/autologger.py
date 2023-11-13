@@ -23,6 +23,7 @@ autolog = AutologAPI(
         "SemanticStableDiffusionPipeline.__call__",
         "WuerstchenCombinedPipeline.__call__",
         "AltDiffusionPipeline.__call__",
+        "StableDiffusionAttendAndExcitePipeline.__call__",
         "StableDiffusionXLPipeline.__call__",
         "StableDiffusionXLImg2ImgPipeline.__call__",
         "IFPipeline.__call__",
