@@ -14,6 +14,7 @@ SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
         "table-schema": [
             "Reference-Image",
             "Prompt",
+            "Negative-Prompt",
             "Source-Subject-Category",
             "Target-Subject-Category",
             "Generated-Image",
@@ -21,10 +22,70 @@ SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
         "kwarg-logging": [
             "reference_image",
             "prompt",
+            "neg_prompt",
             "source_subject_category",
             "target_subject_category",
         ],
-        "kwarg-actions": [wandb.Image, None, None, None],
+        "kwarg-actions": [wandb.Image, None, None, None, None],
+    },
+    "BlipDiffusionControlNetPipeline": {
+        "table-schema": [
+            "Reference-Image",
+            "Control-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Source-Subject-Category",
+            "Target-Subject-Category",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "reference_image",
+            "condtioning_image",
+            "prompt",
+            "neg_prompt",
+            "source_subject_category",
+            "target_subject_category",
+        ],
+        "kwarg-actions": [wandb.Image, wandb.Image, None, None, None, None],
+    },
+    "StableDiffusionControlNetPipeline": {
+        "table-schema": [
+            "Control-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "StableDiffusionControlNetImg2ImgPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Control-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "control_image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, wandb.Image, None, None],
+    },
+    "StableDiffusionControlNetInpaintPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Mask-Image",
+            "Control-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+            "mask_image",
+            "control_image",
+            "prompt",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [wandb.Image, wandb.Image, wandb.Image, None, None],
     },
 }
 
@@ -45,27 +106,27 @@ class DiffusersImageToImagePipelineResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Any:
-        try:
-            # Get the pipeline and the args
-            pipeline, args = args[0], args[1:]
+        # try:
+        # Get the pipeline and the args
+        pipeline, args = args[0], args[1:]
 
-            # Update the Kwargs so that they can be logged easily
-            kwargs = get_updated_kwargs(pipeline, args, kwargs)
+        # Update the Kwargs so that they can be logged easily
+        kwargs = get_updated_kwargs(pipeline, args, kwargs)
 
-            # Get the pipeline configs
-            pipeline_configs = dict(pipeline.config)
-            pipeline_configs["pipeline-name"] = self.pipeline_name
+        # Get the pipeline configs
+        pipeline_configs = dict(pipeline.config)
+        pipeline_configs["pipeline-name"] = self.pipeline_name
 
-            wandb.config.update(
-                {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
-            )
+        wandb.config.update(
+            {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
+        )
 
-            # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(response, kwargs)
-            return loggable_dict
-        except Exception as e:
-            print(e)
-        return None
+        # Return the WandB loggable dict
+        loggable_dict = self.prepare_loggable_dict(response, kwargs)
+        return loggable_dict
+        # except Exception as e:
+        #     print(e)
+        # return None
 
     def prepare_loggable_dict(
         self, response: Response, kwargs: Dict[str, Any]
@@ -84,10 +145,13 @@ class DiffusersImageToImagePipelineResolver:
         images = chunkify(images, len(loggable_kwarg_chunks[0]))
         for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
+                prompt_index = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[self.pipeline_name][
+                    "kwarg-logging"
+                ].index("prompt")
                 wandb.log(
                     {
                         "Generated-Image": wandb.Image(
-                            image, caption=loggable_kwarg_chunks[1][idx]
+                            image, caption=loggable_kwarg_chunks[prompt_index][idx]
                         )
                     }
                 )

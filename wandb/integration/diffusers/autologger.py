@@ -28,6 +28,10 @@ autolog = AutologAPI(
         "StableDiffusionXLImg2ImgPipeline.__call__",
         "IFPipeline.__call__",
         "BlipDiffusionPipeline.__call__",
+        "BlipDiffusionControlNetPipeline.__call__",
+        "StableDiffusionControlNetPipeline.__call__",
+        "StableDiffusionControlNetImg2ImgPipeline.__call__",
+        "StableDiffusionControlNetInpaintPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )
