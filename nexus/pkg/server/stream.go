@@ -93,7 +93,7 @@ func (s *Stream) SetHandler(handler HandlerInterface) {
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
 	// handle the client requests with the handler
-	s.handler.SetInboundChannels(s.inChan, s.sender.loopbackChan, s.loopbackChan)
+	s.handler.SetInboundChannels(s.inChan, s.loopbackChan)
 	handlerFwdChan := make(chan *service.Record, BufferSize)
 	handlerOutChan := make(chan *service.Result, BufferSize)
 	s.handler.SetOutboundChannels(handlerFwdChan, handlerOutChan)
