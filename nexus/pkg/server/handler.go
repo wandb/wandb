@@ -47,11 +47,11 @@ type Handler struct {
 	// outChan is the channel for results to the client
 	outChan chan *service.Result
 
+	// loopbackChan is the channel for internal loopback messages (from stream and sender)
+	loopbackChan chan *service.Record
+
 	// inChan is the channel for incoming messages received through the stream
 	inChan <-chan *service.Record
-
-	// streamLoopbackChan is the channel for internal loopback messages from the stream
-	streamLoopbackChan chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -143,7 +143,7 @@ func NewHandler(
 
 func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
 	h.inChan = in
-	h.streamLoopbackChan = lb
+	h.loopbackChan = lb
 }
 
 func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
@@ -156,7 +156,7 @@ func (h *Handler) Handle() {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:
-	for h.inChan != nil || h.streamLoopbackChan != nil {
+	for h.inChan != nil || h.loopbackChan != nil {
 		select {
 		case record, ok := <-h.inChan:
 			if !ok {
@@ -164,7 +164,7 @@ loop:
 				continue
 			}
 			h.handleRecord(record)
-		case record, ok := <-h.streamLoopbackChan:
+		case record, ok := <-h.loopbackChan:
 			if !ok {
 				// exit the handler loop when loopback goes away
 				// (note: this could leave unread data on in chan)
@@ -330,7 +330,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	// to stop processing new incoming messages.
 	// TODO(beta): assess whether this would be better shutdown with a context
 	if shutdown {
-		close(h.streamLoopbackChan)
+		close(h.loopbackChan)
 	}
 }
 
@@ -485,7 +485,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() && h.systemMonitor == nil {
-		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.streamLoopbackChan)
+		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.loopbackChan)
 	}
 	h.systemMonitor.Do()
 	systemInfo := h.systemMonitor.Probe()
@@ -640,7 +640,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	if h.fh == nil {
-		h.fh = NewFileHandler(h.logger, h.streamLoopbackChan)
+		h.fh = NewFileHandler(h.logger, h.loopbackChan)
 		h.fh.Start()
 	}
 
