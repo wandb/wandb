@@ -1,7 +1,10 @@
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
+
+import torch
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
+
 from .utils import chunkify, get_updated_kwargs
 
 
@@ -18,6 +21,28 @@ TEXT_TO_IMAGE_COLUMNS = [
     "Negative-Prompt-2",
     "Generated-Image",
 ]
+
+
+def decode_sdxl_t2i_latents(pipeline: Any, latents: torch.FloatTensor) -> List:
+    with torch.no_grad():
+        needs_upcasting = (
+            pipeline.vae.dtype == torch.float16 and pipeline.vae.config.force_upcast
+        )
+        if needs_upcasting:
+            pipeline.upcast_vae()
+            latents = latents.to(
+                next(iter(pipeline.vae.post_quant_conv.parameters())).dtype
+            )
+        images = pipeline.vae.decode(
+            latents / pipeline.vae.config.scaling_factor, return_dict=False
+        )[0]
+        if needs_upcasting:
+            pipeline.vae.to(dtype=torch.float16)
+        if pipeline.watermark is not None:
+            images = pipeline.watermark.apply_watermark(images)
+        images = pipeline.image_processor.postprocess(images, output_type="pil")
+        pipeline.maybe_free_model_hooks()
+        return images
 
 
 class SDXLResolver:
@@ -48,7 +73,7 @@ class SDXLResolver:
 
             # Return the WandB loggable dict
             loggable_dict = self.prepare_loggable_dict(
-                pipeline_configs, response, kwargs
+                pipeline, pipeline_configs, response, kwargs
             )
             return loggable_dict
         except Exception as e:
@@ -72,7 +97,11 @@ class SDXLResolver:
         self.wandb_table = wandb.Table(columns=columns)
 
     def prepare_loggable_dict_for_text_to_image(
-        self, workflow_stage: str, response: Response, kwargs: Dict[str, Any]
+        self,
+        pipeline: Any,
+        workflow_stage: str,
+        response: Response,
+        kwargs: Dict[str, Any],
     ) -> Dict[str, Any]:
         prompt_logging = (
             kwargs["prompt"]
@@ -94,7 +123,12 @@ class SDXLResolver:
             if isinstance(kwargs["negative_prompt_2"], list)
             else [kwargs["negative_prompt_2"]]
         )
-        images = chunkify(response.images, len(prompt_logging))
+        images = (
+            decode_sdxl_t2i_latents(pipeline, response.images)
+            if kwargs["output_type"] == "latent"
+            else response.images
+        )
+        images = chunkify(images, len(prompt_logging))
         for idx in range(len(prompt_logging)):
             for image in images[idx]:
                 wandb.log(
@@ -142,6 +176,7 @@ class SDXLResolver:
 
     def prepare_loggable_dict(
         self,
+        pipeline: Any,
         pipeline_configs: Dict[str, Any],
         response: Response,
         kwargs: Dict[str, Any],
@@ -149,7 +184,7 @@ class SDXLResolver:
         self.create_wandb_table(pipeline_configs)
         if self.task == "text_to_image":
             self.prepare_loggable_dict_for_text_to_image(
-                self.workflow_stage, response, kwargs
+                pipeline, self.workflow_stage, response, kwargs
             )
             self.update_wandb_configs(pipeline_configs, kwargs)
         return {"text-to-image": self.wandb_table}
