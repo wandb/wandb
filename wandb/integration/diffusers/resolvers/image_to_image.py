@@ -87,6 +87,20 @@ SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
         ],
         "kwarg-actions": [wandb.Image, wandb.Image, wandb.Image, None, None],
     },
+    "CycleDiffusionPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Source-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+            "prompt",
+            "source_prompt",
+        ],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
 }
 
 
