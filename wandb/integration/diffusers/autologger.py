@@ -6,7 +6,7 @@ from .pipeline_resolver import DiffusersPipelineResolver
 
 logger = logging.getLogger(__name__)
 
-text_to_image_autolog = AutologAPI(
+autolog = AutologAPI(
     name="diffusers",
     symbols=(
         "DiffusionPipeline.__call__",

@@ -1,1 +1,4 @@
-from .autologger import text_to_image_autolog
+from .autologger import autolog
+
+
+__all__ = ["autolog"]
