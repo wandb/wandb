@@ -140,6 +140,13 @@ func (ah *ActiveHistory) GetStep() *service.HistoryStep {
 	return step
 }
 
+func (ah *ActiveHistory) GetItem(key string) (*service.HistoryItem, bool) {
+	if value, ok := ah.values[key]; ok {
+		return value, ok
+	}
+	return nil, false
+}
+
 func (ah *ActiveHistory) GetValues() []*service.HistoryItem {
 	var values []*service.HistoryItem
 	for _, value := range ah.values {
@@ -166,14 +173,8 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		return
 	}
 
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	historyMap := make(map[string]string)
-	for _, item := range history.GetItem() {
-		historyMap[item.GetKey()] = item.GetValueJson()
-	}
-
-	h.handleHistoryInternal(history, &historyMap)
-	h.handleAllHistoryMetric(history, &historyMap)
+	h.handleHistoryInternal(history)
+	h.handleAllHistoryMetric(history)
 
 	h.sampleHistory(history)
 
@@ -185,17 +186,24 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	// h.sendRecord(summaryRecord)
 	h.updateSummaryDelta(summaryRecord)
 }
 
 // handleHistoryInternal adds internal history items to the history record
 // these items are used for internal bookkeeping and are not sent by the user
-func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyMap *map[string]string) {
+func (h *Handler) handleHistoryInternal(history *service.HistoryRecord) {
+	// TODO replace history encoding with a map, this will make it easier to handle history
+	if h.historyRecord == nil {
+		h.historyRecord = NewActiveHistory(
+			history.GetStep().GetNum(),
+			nil)
+		h.historyRecord.UpdateValues(history.GetItem())
+	}
 
 	// TODO: add a timestamp field to the history record
 	var runTime float64 = 0
-	if value, ok := (*historyMap)["_timestamp"]; ok {
+	if item, ok := h.historyRecord.GetItem("_timestamp"); ok {
+		value := item.GetValueJson()
 		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			h.logger.CaptureError("error parsing timestamp", err)
@@ -212,19 +220,19 @@ func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyM
 // handleAllHistoryMetric handles all history items. It is responsible for matching current history
 // items with defined metrics, and creating new metrics if needed. It also handles step metric in case
 // it needs to be synced, but not part of the history record.
-func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord, historyMap *map[string]string) {
+func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord) {
 	// This means that there are no metrics defined, and we don't need to do anything
 	if h.mh == nil {
 		return
 	}
 
 	for _, item := range history.GetItem() {
-		h.imputeStepMetric(item, history, historyMap)
+		h.imputeStepMetric(item, history)
 	}
 }
 
 // imputeStepMetric imputes a step metric if it needs to be synced, but not part of the history record.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.HistoryRecord, historyMap *map[string]string) {
+func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.HistoryRecord) {
 
 	// check if history item matches a defined metric or a glob metric
 	metric := h.matchHistoryItemMetric(item)
@@ -236,17 +244,18 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.H
 	}
 
 	// check if step metric is already in history
-	if _, ok := (*historyMap)[key]; ok {
+	if _, ok := h.historyRecord.GetItem(key); ok {
 		return
 	}
 
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.consolidatedSummary[key]; ok {
-		(*historyMap)[key] = value
+		// TODO: add nested key support
 		hi := &service.HistoryItem{
 			Key:       key,
 			ValueJson: value,
 		}
+		h.historyRecord.UpdateValues([]*service.HistoryItem{hi})
 		history.Item = append(history.Item, hi)
 	}
 }
@@ -350,7 +359,6 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	}
 
 	// Append the history items from the request to the current history record.
-	// h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
 	h.historyRecord.UpdateValues(request.Item)
 
 	// Flush the history record and start to collect a new one with

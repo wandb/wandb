@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -28,7 +27,7 @@ func makeFlushRecord() *service.Record {
 	return record
 }
 
-func makeInputRecord(d data) *service.Record {
+func makePartialHistoryRecord(d data) *service.Record {
 	items := []*service.HistoryItem{}
 	for k, v := range d.items {
 		items = append(items, &service.HistoryItem{
@@ -56,6 +55,29 @@ func makeInputRecord(d data) *service.Record {
 	return record
 }
 
+func makeHistoryRecord(d data) *service.Record {
+	items := []*service.HistoryItem{}
+	for k, v := range d.items {
+		items = append(items, &service.HistoryItem{
+			Key:       k,
+			ValueJson: v,
+		})
+	}
+	history := &service.HistoryRecord{
+		Item: items,
+		Step: &service.HistoryStep{Num: d.step},
+	}
+	record := &service.Record{
+		RecordType: &service.Record_History{
+			History: history,
+		},
+		Control: &service.Control{
+			MailboxSlot: "junk",
+		},
+	}
+	return record
+}
+
 func makeOutput(record *service.Record) data {
 	switch x := record.GetRecordType().(type) {
 	case *service.Record_History:
@@ -65,9 +87,9 @@ func makeOutput(record *service.Record) data {
 		}
 		items := map[string]string{}
 		for _, item := range history.Item {
-			if strings.HasPrefix(item.Key, "_") {
-				continue
-			}
+			// if strings.HasPrefix(item.Key, "_") {
+			// 	continue
+			// }
 			items[item.Key] = item.ValueJson
 		}
 		return data{
@@ -385,7 +407,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			makeHandler(inChan, loopbackChan, fwdChan, outChan, false)
 
 			for _, d := range tc.input {
-				record := makeInputRecord(d)
+				record := makePartialHistoryRecord(d)
 				inChan <- record
 			}
 
@@ -409,4 +431,106 @@ func TestHandlePartialHistory(t *testing.T) {
 		},
 		)
 	}
+}
+
+func TestHandleHistory(t *testing.T) {
+	testCases := []testCase{
+		{
+			name: "IncreaseStep",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+						"key2": "2",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key2": "3",
+					},
+					step: 1,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1":  "1",
+						"key2":  "2",
+						"_step": "0",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key2":  "3",
+						"_step": "1",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		// { // TODO: mock out time
+		// 	name: "Timestamp",
+		// 	input: []data{
+		// 		{
+		// 			items: map[string]string{
+		// 				"key1":       "1",
+		// 				"key2":       "2",
+		// 				"_timestamp": "1.257894e+09",
+		// 			},
+		// 			step: 0,
+		// 		},
+		// 	},
+		// 	expected: []data{
+		// 		{
+		// 			items: map[string]string{
+		// 				"key1":     "1",
+		// 				"key2":     "2",
+		// 				"_runtime": "63393490800.000000",
+		// 				"_step":    "0",
+		// 			},
+		// 			step: 0,
+		// 		},
+		// 		{
+		// 			flush: true,
+		// 		},
+		// 	},
+		// },
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			inChan, loopbackChan := makeInboundChannels()
+			fwdChan, outChan := makeOutboundChannels()
+
+			makeHandler(inChan, loopbackChan, fwdChan, outChan, false)
+
+			for _, d := range tc.input {
+				record := makeHistoryRecord(d)
+				inChan <- record
+			}
+
+			inChan <- makeFlushRecord()
+
+			for _, d := range tc.expected {
+				record := <-fwdChan
+				actual := makeOutput(record)
+				if actual.step != d.step {
+					t.Errorf("expected step %v, got %v", d.step, actual.step)
+				}
+				for k, v := range d.items {
+					if actual.items[k] != v {
+						t.Errorf("expected %v, got %v", v, actual.items[k])
+					}
+				}
+				if d.flush != actual.flush {
+					t.Errorf("expected %v, got %v", d.flush, d.flush)
+				}
+			}
+		})
+	}
+
 }
