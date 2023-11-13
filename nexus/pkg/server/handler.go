@@ -80,9 +80,6 @@ type Handler struct {
 	// current active history record for the stream
 	historyRecord *service.HistoryRecord
 
-	// historyItem acts like the history record but uses a map instead of a list
-	historyItem map[string]string
-
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
 	sampledHistory map[string]*ReservoirSampling[float32]
