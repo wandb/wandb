@@ -123,6 +123,7 @@ def check_pr_title(
         model=model,
         messages=messages,
     )
+    # fixme:
     is_compliant = response.choices[0]["message"]["content"].lower().strip()
     print(is_compliant)
 

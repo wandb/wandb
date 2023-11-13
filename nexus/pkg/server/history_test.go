@@ -1,40 +1,11 @@
-package server
+package server_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
-
-func makeInboundChannels() (chan *service.Record, chan *service.Record) {
-	inChan := make(chan *service.Record, BufferSize)
-	loopbackChan := make(chan *service.Record, BufferSize)
-	return inChan, loopbackChan
-}
-
-func makeHandler(
-	inChan, loopbackChan chan *service.Record,
-	debounce bool,
-) *Handler {
-	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
-	h := NewHandler(context.Background(), &service.Settings{}, logger)
-
-	h.SetInboundChannels(inChan, loopbackChan)
-	handlerFwdChan := make(chan *service.Record, BufferSize)
-	handlerOutChan := make(chan *service.Result, BufferSize)
-	h.SetOutboundChannels(handlerFwdChan, handlerOutChan)
-
-	if !debounce {
-		h.summaryDebouncer = nil
-	}
-
-	go h.Handle()
-
-	return h
-}
 
 type data struct {
 	items map[string]string
@@ -409,7 +380,9 @@ func TestHandlePartialHistory(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			inChan, loopbackChan := makeInboundChannels()
-			h := makeHandler(inChan, loopbackChan, false)
+			fwdChan, outChan := makeOutboundChannels()
+
+			makeHandler(inChan, loopbackChan, fwdChan, outChan, false)
 
 			for _, d := range tc.input {
 				record := makeInputRecord(d)
@@ -419,7 +392,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			inChan <- makeFlushRecord()
 
 			for _, d := range tc.expected {
-				record := <-h.fwdChan
+				record := <-fwdChan
 				actual := makeOutput(record)
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)

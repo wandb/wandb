@@ -76,10 +76,6 @@ type Handler struct {
 	// historyRecord is the history record used to track
 	// current active history record for the stream
 	historyRecord *ActiveHistory
-	// historyRecord *service.HistoryRecord
-
-	// // historyItem acts like the history record but uses a map instead of a list
-	// historyItem map[string]*service.HistoryItem
 
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
@@ -149,6 +145,10 @@ func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service
 func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
 	h.fwdChan = fwd
 	h.outChan = out
+}
+
+func (h *Handler) DisableSummaryDebouncer() {
+	h.summaryDebouncer = nil
 }
 
 // Handle starts the handler
