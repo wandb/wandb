@@ -4,7 +4,7 @@ from typing import Any, Dict, Sequence
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
-from .utils import chunkify
+from .utils import chunkify, get_updated_kwargs
 
 
 logger = logging.getLogger(__name__)
@@ -47,16 +47,6 @@ SUPPORTED_TEXT_TO_IMAGE_PIPELINES = {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
     },
-    "StableDiffusionXLPipeline": {
-        "table-schema": [
-            "Prompt",
-            "Negative-Prompt",
-            "Prompt-2",
-            "Negative-Prompt-2",
-            "Generated-Image",
-        ],
-        "kwarg-logging": ["prompt", "negative_prompt", "prompt_2", "negative_prompt_2"],
-    },
     "WuerstchenCombinedPipeline": {
         "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
         "kwarg-logging": ["prompt", "negative_prompt"],
@@ -89,7 +79,7 @@ class DiffusersTextToImagePipelineResolver:
             pipeline, args = args[0], args[1:]
 
             # Update the Kwargs so that they can be logged easily
-            kwargs = self.get_updated_kwargs(pipeline, args, kwargs)
+            kwargs = get_updated_kwargs(pipeline, args, kwargs)
 
             # Get the pipeline configs
             pipeline_configs = dict(pipeline.config)
@@ -98,44 +88,19 @@ class DiffusersTextToImagePipelineResolver:
             wandb.config.update({"pipeline": pipeline_configs, "params": kwargs})
 
             # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(
-                pipeline_configs, response, kwargs
-            )
+            loggable_dict = self.prepare_loggable_dict(response, kwargs)
             return loggable_dict
         except Exception as e:
             print(e)
         return None
 
-    def get_updated_kwargs(
-        self, pipeline: Any, args: Sequence[Any], kwargs: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        pipeline_call_parameters = list(
-            inspect.signature(pipeline.__call__).parameters.items()
-        )
-        for idx, arg in enumerate(args):
-            kwargs[pipeline_call_parameters[idx][0]] = arg
-        for pipeline_parameter in pipeline_call_parameters:
-            if pipeline_parameter[0] not in kwargs:
-                kwargs[pipeline_parameter[0]] = pipeline_parameter[1].default
-        if "generator" in kwargs:
-            generator = kwargs.pop("generator", None)
-            kwargs["seed"] = (
-                generator.get_state().to("cpu").tolist()[0]
-                if generator is not None
-                else None
-            )
-        return kwargs
-
     def prepare_loggable_dict(
-        self,
-        pipeline_configs: Dict[str, Any],
-        response: Response,
-        kwargs: Dict[str, Any],
+        self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = response.images
-        loggable_kwarg_ids = SUPPORTED_TEXT_TO_IMAGE_PIPELINES[
-            pipeline_configs["pipeline-name"]
-        ]["kwarg-logging"]
+        loggable_kwarg_ids = SUPPORTED_TEXT_TO_IMAGE_PIPELINES[self.pipeline_name][
+            "kwarg-logging"
+        ]
         loggable_kwarg_chunks = []
         for loggable_kwarg_id in loggable_kwarg_ids:
             loggable_kwarg_chunks.append(
