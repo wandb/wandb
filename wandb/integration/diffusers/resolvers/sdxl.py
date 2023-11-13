@@ -1,5 +1,3 @@
-import logging
-import inspect
 from typing import Any, Dict, Sequence
 
 import wandb
@@ -47,17 +45,6 @@ class SDXLResolver:
             # Get the pipeline configs
             pipeline_configs = dict(pipeline.config)
             pipeline_configs["pipeline-name"] = self.pipeline_name
-
-            if "workflow" not in wandb.config:
-                wandb.config.update(
-                    {"workflow": [{"pipeline": pipeline_configs, "params": kwargs}]}
-                )
-            else:
-                existing_workflow = wandb.config.workflow
-                updated_workflow = existing_workflow + [
-                    {"pipeline": pipeline_configs, "params": kwargs}
-                ]
-                wandb.config.workflow.update(updated_workflow)
 
             # Return the WandB loggable dict
             loggable_dict = self.prepare_loggable_dict(
@@ -112,7 +99,7 @@ class SDXLResolver:
             for image in images[idx]:
                 wandb.log(
                     {
-                        "Generated-Image": wandb.Image(
+                        f"Generated-Image/{workflow_stage}": wandb.Image(
                             image,
                             caption=f"Prompt-1: {prompt_logging[idx]}\nPrompt-2: {prompt2_logging[idx]}",
                         )
@@ -131,6 +118,28 @@ class SDXLResolver:
                     wandb.Image(image),
                 )
 
+    def update_wandb_configs(
+        self, pipeline_configs: Dict[str, Any], kwargs: Dict[str, Any]
+    ) -> None:
+        if "workflow" not in wandb.config:
+            wandb.config.update(
+                {
+                    "workflow": [
+                        {
+                            "pipeline": pipeline_configs,
+                            "params": kwargs,
+                            "stage": self.workflow_stage,
+                        }
+                    ]
+                }
+            )
+        else:
+            existing_workflow = wandb.config.workflow
+            updated_workflow = existing_workflow + [
+                {"pipeline": pipeline_configs, "params": kwargs}
+            ]
+            wandb.config.workflow.update(updated_workflow)
+
     def prepare_loggable_dict(
         self,
         pipeline_configs: Dict[str, Any],
@@ -142,4 +151,5 @@ class SDXLResolver:
             self.prepare_loggable_dict_for_text_to_image(
                 self.workflow_stage, response, kwargs
             )
+            self.update_wandb_configs(pipeline_configs, kwargs)
         return {"text-to-image": self.wandb_table}
