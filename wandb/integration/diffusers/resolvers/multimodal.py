@@ -1,9 +1,13 @@
+import os
+import tempfile
 import logging
 from typing import Any, Dict, List, Sequence
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
-from .utils import chunkify, get_updated_kwargs
+from .utils import chunkify, get_updated_kwargs, postprocess_pils_to_np
+
+from diffusers.utils import export_to_gif
 
 
 logger = logging.getLogger(__name__)
@@ -246,6 +250,17 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["image", "prompt", "negative_prompt"],
         "kwarg-actions": [wandb.Image, None, None],
     },
+    "AnimateDiffPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Number-of-Frames",
+            "Generated-Video",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "num_frames"],
+        "kwarg-actions": [None, None, None],
+        "output-type": "video",
+    },
 }
 
 
@@ -286,7 +301,17 @@ class DiffusersMultiModalPipelineResolver:
         # except Exception as e:
         #     print(e)
         # return None
-    
+
+    def get_output_images(self, response: Response) -> List:
+        if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
+            return response.images
+        else:
+            if (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "video"
+            ):
+                return response.frames
+
     def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             try:
@@ -297,15 +322,34 @@ class DiffusersMultiModalPipelineResolver:
             except ValueError:
                 caption = None
             wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
-    
-    def add_data_to_table(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
+        else:
+            if (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "video"
+            ):
+                try:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    caption = loggable_kwarg_chunks[prompt_index][idx]
+                except ValueError:
+                    caption = None
+                wandb.log(
+                    {
+                        "Generated-Video": wandb.Video(
+                            postprocess_pils_to_np(image), fps=4, caption=caption
+                        )
+                    }
+                )
+
+    def add_data_to_table(
+        self, image: Any, loggable_kwarg_chunks: List, idx: int
+    ) -> None:
         table_row = []
         kwarg_actions = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-actions"
         ]
-        for column_idx, loggable_kwarg_chunk in enumerate(
-            loggable_kwarg_chunks
-        ):
+        for column_idx, loggable_kwarg_chunk in enumerate(loggable_kwarg_chunks):
             if kwarg_actions[column_idx] is None:
                 table_row.append(
                     loggable_kwarg_chunk[idx]
@@ -313,17 +357,21 @@ class DiffusersMultiModalPipelineResolver:
                     else ""
                 )
             else:
-                table_row.append(
-                    kwarg_actions[column_idx](loggable_kwarg_chunk[idx])
-                )
+                table_row.append(kwarg_actions[column_idx](loggable_kwarg_chunk[idx]))
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             table_row.append(wandb.Image(image))
+        else:
+            if (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "video"
+            ):
+                table_row.append(wandb.Video(postprocess_pils_to_np(image), fps=4))
         self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
-        images = response.images
+        images = self.get_output_images(response)
         loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-logging"
         ]

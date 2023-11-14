@@ -1,5 +1,8 @@
 import inspect
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
+
+import numpy as np
+
 
 def chunkify(input_list, chunk_size):
     chunk_size = max(1, chunk_size)
@@ -27,3 +30,10 @@ def get_updated_kwargs(
             else None
         )
     return kwargs
+
+
+def postprocess_pils_to_np(image: List):
+    return np.stack(
+        [np.transpose(np.array(img).astype("uint8"), axes=(2, 0, 1)) for img in image],
+        axis=0,
+    )
