@@ -319,6 +319,76 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-actions": [None],
         "output-type": "video",
     },
+    "StableDiffusionImg2ImgPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "StableDiffusionInpaintPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Mask-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "mask_image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, wandb.Image, None, None],
+    },
+    "StableDiffusionDepth2ImgPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "StableDiffusionImageVariationPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+        ],
+        "kwarg-actions": [wandb.Image],
+    },
+    "StableDiffusionPipelineSafe": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "StableDiffusionUpscalePipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Upscaled-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "StableDiffusionAdapterPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
 }
 
 
@@ -460,7 +530,6 @@ class DiffusersMultiModalPipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = self.get_output_images(response)
-        print(images, "\n\n\n\n\n")
         loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-logging"
         ]

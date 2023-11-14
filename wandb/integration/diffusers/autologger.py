@@ -49,6 +49,13 @@ autolog = AutologAPI(
         "StableDiffusionPix2PixZeroPipeline.__call__",
         "PNDMPipeline.__call__",
         "ShapEPipeline.__call__",
+        "StableDiffusionImg2ImgPipeline.__call__",
+        "StableDiffusionInpaintPipeline.__call__",
+        "StableDiffusionDepth2ImgPipeline.__call__",
+        "StableDiffusionImageVariationPipeline.__call__",
+        "StableDiffusionPipelineSafe.__call__",
+        "StableDiffusionUpscalePipeline.__call__",
+        "StableDiffusionAdapterPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )
