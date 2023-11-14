@@ -172,8 +172,38 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 		return
 	}
 
-	h.handleHistoryInternal(history)
-	h.handleAllHistoryMetric(history)
+	// adds internal history items to the history record
+	// these items are used for internal bookkeeping and are not sent by the user
+	// TODO: add a timestamp field to the history record
+	var runTime float64 = 0
+	if item, ok := h.historyRecord.GetItem("_timestamp"); ok {
+		value := item.GetValueJson()
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			h.logger.CaptureError("error parsing timestamp", err)
+		} else {
+			runTime = val - h.timer.GetStartTimeMicro()
+		}
+	}
+	history.Item = append(history.Item,
+		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
+		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
+	)
+
+	// handles all history items. It is responsible for matching current history
+	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+	// it needs to be synced, but not part of the history record.
+	// This means that there are metrics defined for this run
+	if h.mh != nil {
+		for _, item := range history.GetItem() {
+			step := h.imputeStepMetric(item)
+			// TODO: fix this, we update history while we are iterating over it
+			// TODO: handle nested step metrics (e.g. step defined by another step)
+			if step != nil {
+				history.Item = append(history.Item, step)
+			}
+		}
+	}
 
 	h.sampleHistory(history)
 
@@ -204,42 +234,8 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	h.historyRecord.Flush()
 }
 
-// handleHistoryInternal adds internal history items to the history record
-// these items are used for internal bookkeeping and are not sent by the user
-func (h *Handler) handleHistoryInternal(history *service.HistoryRecord) {
-	// TODO: add a timestamp field to the history record
-	var runTime float64 = 0
-	if item, ok := h.historyRecord.GetItem("_timestamp"); ok {
-		value := item.GetValueJson()
-		val, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			h.logger.CaptureError("error parsing timestamp", err)
-		} else {
-			runTime = val - h.timer.GetStartTimeMicro()
-		}
-	}
-	history.Item = append(history.Item,
-		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
-	)
-}
-
-// handleAllHistoryMetric handles all history items. It is responsible for matching current history
-// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-// it needs to be synced, but not part of the history record.
-func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord) {
-	// This means that there are no metrics defined, and we don't need to do anything
-	if h.mh == nil {
-		return
-	}
-
-	for _, item := range history.GetItem() {
-		h.imputeStepMetric(item, history)
-	}
-}
-
 // imputeStepMetric imputes a step metric if it needs to be synced, but not part of the history record.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.HistoryRecord) {
+func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
 
 	// check if history item matches a defined metric or a glob metric
 	metric := h.matchHistoryItemMetric(item)
@@ -247,12 +243,12 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.H
 	key := metric.GetStepMetric()
 	// check if step metric is defined and if it needs to be synced
 	if !(metric.GetOptions().GetStepSync() && key != "") {
-		return
+		return nil
 	}
 
 	// check if step metric is already in history
 	if _, ok := h.historyRecord.GetItem(key); ok {
-		return
+		return nil
 	}
 
 	// we use the summary value of the metric as the algorithm for imputing the step metric
@@ -263,8 +259,9 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.H
 			ValueJson: value,
 		}
 		h.historyRecord.UpdateValues([]*service.HistoryItem{hi})
-		history.Item = append(history.Item, hi)
+		return hi
 	}
+	return nil
 }
 
 // matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
