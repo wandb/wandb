@@ -45,6 +45,10 @@ autolog = AutologAPI(
         "AnimateDiffPipeline.__call__",
         "AudioLDMPipeline.__call__",
         "AudioLDM2Pipeline.__call__",
+        "MusicLDMPipeline.__call__",
+        "StableDiffusionPix2PixZeroPipeline.__call__",
+        "PNDMPipeline.__call__",
+        "ShapEPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )

@@ -281,6 +281,44 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-actions": [None, None, None],
         "output-type": "audio",
     },
+    "MusicLDMPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Audio-Length-in-Seconds",
+            "Generated-Audio",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "audio_length_in_s"],
+        "kwarg-actions": [None, None, None],
+        "output-type": "audio",
+    },
+    "StableDiffusionPix2PixZeroPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "PNDMPipeline": {
+        "table-schema": [
+            "Batch-Size",
+            "Number-of-Inference-Steps",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["batch_size", "num_inference_steps"],
+        "kwarg-actions": [None, None],
+    },
+    "ShapEPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Generated-Video",
+        ],
+        "kwarg-logging": ["prompt"],
+        "kwarg-actions": [None],
+        "output-type": "video",
+    },
 }
 
 
@@ -330,6 +368,8 @@ class DiffusersMultiModalPipelineResolver:
                 SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
                 == "video"
             ):
+                if self.pipeline_name in ["ShapEPipeline"]:
+                    return response.images
                 return response.frames
             elif (
                 SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
@@ -420,6 +460,7 @@ class DiffusersMultiModalPipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = self.get_output_images(response)
+        print(images, "\n\n\n\n\n")
         loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-logging"
         ]
