@@ -8,14 +8,14 @@ if sys.version_info < (3, 8):
 else:
     from typing import Literal
 
-import openai
 from github import Github
+from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 GITHUB_TOKEN = os.environ.get("GITHUB_API_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 Model = Literal["gpt-4", "gpt-3.5-turbo", "vicuna-7b-v1.1"]
 
@@ -59,7 +59,7 @@ CC_SCOPES = os.environ.get(
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def chat_completion_with_backoff(**kwargs):
     """Call OpenAI's chat completion API with exponential backoff."""
-    return openai.ChatCompletion.create(**kwargs)
+    return client.chat.completions.create(**kwargs)
 
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
@@ -123,6 +123,7 @@ def check_pr_title(
         model=model,
         messages=messages,
     )
+    # fixme:
     is_compliant = response.choices[0]["message"]["content"].lower().strip()
     print(is_compliant)
 

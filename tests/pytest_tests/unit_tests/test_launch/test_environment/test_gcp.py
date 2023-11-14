@@ -121,6 +121,29 @@ async def test_upload_dir(mocker):
     )
 
 
+@pytest.mark.asyncio
+async def test_verify_storage_uri(mocker):
+    """Test that we verify storage uris for gcs properly."""
+    credentials = MagicMock()
+    credentials.valid = True
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.google.auth.default",
+        return_value=(credentials, "project"),
+    )
+    mock_storage_client = MagicMock()
+    mock_storage_client.thing = "haha"
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.google.cloud.storage.Client",
+        MagicMock(return_value=mock_storage_client),
+    )
+    mock_bucket = MagicMock()
+    mock_storage_client.get_bucket = MagicMock(return_value=mock_bucket)
+
+    environment = GcpEnvironment("region")
+    await environment.verify_storage_uri("gs://bucket/key")
+    mock_storage_client.get_bucket.assert_called_once_with("bucket")
+
+
 @pytest.mark.parametrize(
     "region,value",
     [
