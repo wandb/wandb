@@ -56,6 +56,8 @@ autolog = AutologAPI(
         "StableDiffusionPipelineSafe.__call__",
         "StableDiffusionUpscalePipeline.__call__",
         "StableDiffusionAdapterPipeline.__call__",
+        "StableDiffusionGLIGENPipeline.__call__",
+        "StableDiffusionModelEditingPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )

@@ -389,6 +389,24 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["image", "prompt", "negative_prompt"],
         "kwarg-actions": [wandb.Image, None, None],
     },
+    "StableDiffusionGLIGENPipeline": {
+        "table-schema": [
+            "Prompt",
+            "GLIGEN-Phrases",
+            "GLIGEN-Boxes",
+            "GLIGEN-Inpaint-Image",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "gligen_phrases",
+            "gligen_boxes",
+            "gligen_inpaint_image",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [None, None, None, wandb.Image, None],
+    },
 }
 
 
