@@ -43,6 +43,8 @@ autolog = AutologAPI(
         "KandinskyV22Img2ImgCombinedPipeline.__call__",
         "KandinskyV22InpaintCombinedPipeline.__call__",
         "AnimateDiffPipeline.__call__",
+        "AudioLDMPipeline.__call__",
+        "AudioLDM2Pipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )

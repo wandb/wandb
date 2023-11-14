@@ -7,8 +7,6 @@ import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
 from .utils import chunkify, get_updated_kwargs, postprocess_pils_to_np
 
-from diffusers.utils import export_to_gif
-
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +259,28 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-actions": [None, None, None],
         "output-type": "video",
     },
+    "AudioLDMPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Audio-Length-in-Seconds",
+            "Generated-Audio",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "audio_length_in_s"],
+        "kwarg-actions": [None, None, None],
+        "output-type": "audio",
+    },
+    "AudioLDM2Pipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Audio-Length-in-Seconds",
+            "Generated-Audio",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "audio_length_in_s"],
+        "kwarg-actions": [None, None, None],
+        "output-type": "audio",
+    },
 }
 
 
@@ -311,6 +331,11 @@ class DiffusersMultiModalPipelineResolver:
                 == "video"
             ):
                 return response.frames
+            elif (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "audio"
+            ):
+                return response.audios
 
     def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
@@ -341,6 +366,24 @@ class DiffusersMultiModalPipelineResolver:
                         )
                     }
                 )
+            elif (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "audio"
+            ):
+                try:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    caption = loggable_kwarg_chunks[prompt_index][idx]
+                except ValueError:
+                    caption = None
+                wandb.log(
+                    {
+                        "Generated-Audio": wandb.Audio(
+                            image, sample_rate=16000, caption=caption
+                        )
+                    }
+                )
 
     def add_data_to_table(
         self, image: Any, loggable_kwarg_chunks: List, idx: int
@@ -366,6 +409,11 @@ class DiffusersMultiModalPipelineResolver:
                 == "video"
             ):
                 table_row.append(wandb.Video(postprocess_pils_to_np(image), fps=4))
+            elif (
+                SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
+                == "audio"
+            ):
+                table_row.append(wandb.Audio(image, sample_rate=16000))
         self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
