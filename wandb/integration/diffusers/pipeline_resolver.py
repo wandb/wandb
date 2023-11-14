@@ -2,16 +2,8 @@ from typing import Any, Dict, Sequence
 
 from wandb.sdk.integration_utils.auto_logging import Response
 
-from .resolvers import (
-    SUPPORTED_SDXL_PIPELINES,
-    SUPPORTED_TEXT_TO_IMAGE_PIPELINES,
-    SUPPORTED_IMAGE_TO_IMAGE_PIPELINES,
-)
-from .resolvers import (
-    DiffusersTextToImagePipelineResolver,
-    SDXLResolver,
-    DiffusersImageToImagePipelineResolver,
-)
+from .resolvers import SUPPORTED_SDXL_PIPELINES, SUPPORTED_MULTIMODAL_PIPELINES
+from .resolvers import SDXLResolver, DiffusersMultiModalPipelineResolver
 
 
 class DiffusersPipelineResolver:
@@ -28,10 +20,8 @@ class DiffusersPipelineResolver:
     ) -> Any:
         pipeline_name = args[0].__class__.__name__
         resolver = None
-        if pipeline_name in SUPPORTED_TEXT_TO_IMAGE_PIPELINES:
-            resolver = DiffusersTextToImagePipelineResolver(pipeline_name)
-        elif pipeline_name in SUPPORTED_IMAGE_TO_IMAGE_PIPELINES:
-            resolver = DiffusersImageToImagePipelineResolver(pipeline_name)
+        if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
+            resolver = DiffusersMultiModalPipelineResolver(pipeline_name)
         elif pipeline_name in SUPPORTED_SDXL_PIPELINES:
             resolver = SDXLResolver(pipeline_name)
         loggable_dict = resolver(args, kwargs, response, start_time, time_elapsed)

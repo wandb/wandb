@@ -9,7 +9,7 @@ from .utils import chunkify, get_updated_kwargs
 logger = logging.getLogger(__name__)
 
 
-SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
+SUPPORTED_MULTIMODAL_PIPELINES = {
     "BlipDiffusionPipeline": {
         "table-schema": [
             "Reference-Image",
@@ -141,15 +141,80 @@ SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
         ],
         "kwarg-actions": [wandb.Image, wandb.Image],
     },
+    "StableDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "KandinskyCombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "KandinskyV22CombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "LatentConsistencyModelPipeline": {
+        "table-schema": ["Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt"],
+        "kwarg-actions": [None],
+    },
+    "LDMTextToImagePipeline": {
+        "table-schema": ["Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt"],
+        "kwarg-actions": [None],
+    },
+    "StableDiffusionPanoramaPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "PixArtAlphaPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "StableDiffusionSAGPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "SemanticStableDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "WuerstchenCombinedPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "IFPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "AltDiffusionPipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "StableDiffusionAttendAndExcitePipeline": {
+        "table-schema": ["Prompt", "Negative-Prompt", "Generated-Image"],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
 }
 
 
-class DiffusersImageToImagePipelineResolver:
+class DiffusersMultiModalPipelineResolver:
     def __init__(self, pipeline_name: str) -> None:
         self.pipeline_name = pipeline_name
         columns = []
-        if pipeline_name in SUPPORTED_IMAGE_TO_IMAGE_PIPELINES:
-            columns += SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[pipeline_name]["table-schema"]
+        if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
+            columns += SUPPORTED_MULTIMODAL_PIPELINES[pipeline_name]["table-schema"]
         self.wandb_table = wandb.Table(columns=columns)
 
     def __call__(
@@ -186,7 +251,7 @@ class DiffusersImageToImagePipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = response.images
-        loggable_kwarg_ids = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[self.pipeline_name][
+        loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-logging"
         ]
         loggable_kwarg_chunks = []
@@ -200,7 +265,7 @@ class DiffusersImageToImagePipelineResolver:
         for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
                 try:
-                    prompt_index = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[
                         self.pipeline_name
                     ]["kwarg-logging"].index("prompt")
                     caption = loggable_kwarg_chunks[prompt_index][idx]
@@ -208,7 +273,7 @@ class DiffusersImageToImagePipelineResolver:
                     caption = None
                 wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
                 table_row = []
-                kwarg_actions = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[self.pipeline_name][
+                kwarg_actions = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
                     "kwarg-actions"
                 ]
                 for column_idx, loggable_kwarg_chunk in enumerate(
@@ -226,4 +291,4 @@ class DiffusersImageToImagePipelineResolver:
                         )
                 table_row.append(wandb.Image(image))
                 self.wandb_table.add_data(*table_row)
-        return {"Image-to-Image": self.wandb_table}
+        return {"Result-Table": self.wandb_table}
