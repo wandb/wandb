@@ -21,7 +21,7 @@ const (
 )
 
 type HandlerInterface interface {
-	SetInboundChannels(in <-chan *service.Record, slb chan *service.Record)
+	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
 	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
 	Handle()
 	Close()
@@ -75,7 +75,7 @@ type Handler struct {
 
 	// historyRecord is the history record used to track
 	// current active history record for the stream
-	historyRecord *service.HistoryRecord
+	historyRecord *ActiveHistory
 
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
@@ -137,14 +137,18 @@ func NewHandler(
 	return h
 }
 
-func (h *Handler) SetInboundChannels(in <-chan *service.Record, slb chan *service.Record) {
+func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
 	h.inChan = in
-	h.loopbackChan = slb
+	h.loopbackChan = lb
 }
 
 func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
 	h.fwdChan = fwd
 	h.outChan = out
+}
+
+func (h *Handler) DisableSummaryDebouncer() {
+	h.summaryDebouncer = nil
 }
 
 // Handle starts the handler
@@ -336,7 +340,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.handleHistory(h.historyRecord)
+		h.historyRecord.Flush()
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
