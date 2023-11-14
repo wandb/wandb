@@ -111,11 +111,28 @@ type ActiveHistory struct {
 	flush  func(*service.HistoryStep, []*service.HistoryItem)
 }
 
-func NewActiveHistory(step int64, flush func(*service.HistoryStep, []*service.HistoryItem)) *ActiveHistory {
-	return &ActiveHistory{
+type ActiveHistoryOptions func(ac *ActiveHistory)
+
+func NewActiveHistory(opts ...ActiveHistoryOptions) *ActiveHistory {
+	ah := &ActiveHistory{
 		values: make(map[string]*service.HistoryItem),
-		step:   step,
-		flush:  flush,
+	}
+
+	for _, opt := range opts {
+		opt(ah)
+	}
+	return ah
+}
+
+func WithFlush(flush func(*service.HistoryStep, []*service.HistoryItem)) ActiveHistoryOptions {
+	return func(ac *ActiveHistory) {
+		ac.flush = flush
+	}
+}
+
+func WithStep(step int64) ActiveHistoryOptions {
+	return func(ac *ActiveHistory) {
+		ac.step = step
 	}
 }
 
@@ -224,8 +241,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO replace history encoding with a map, this will make it easier to handle history
 	h.historyRecord = NewActiveHistory(
-		history.GetStep().GetNum(),
-		nil,
+		WithStep(history.GetStep().GetNum()),
 	)
 	h.historyRecord.UpdateValues(history.GetItem())
 
@@ -310,14 +326,16 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 		}
 
 		h.historyRecord = NewActiveHistory(
-			step,
-			func(step *service.HistoryStep, items []*service.HistoryItem) {
-				record := &service.HistoryRecord{
-					Step: step,
-					Item: items,
-				}
-				h.flushHistory(record)
-			},
+			WithStep(step),
+			WithFlush(
+				func(step *service.HistoryStep, items []*service.HistoryItem) {
+					record := &service.HistoryRecord{
+						Step: step,
+						Item: items,
+					}
+					h.flushHistory(record)
+				},
+			),
 		)
 	}
 
