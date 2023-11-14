@@ -439,9 +439,8 @@ jobs:
       - when:
           condition: << parameters.upload_go_cov >>
           steps:
-            - codecov/upload
-                - flags:
-                    - system
+            - codecov/upload:
+                flags: system
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
