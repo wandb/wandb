@@ -319,10 +319,15 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// use that, otherwise use 0.
 	if h.historyRecord == nil {
 		var step int64
-		if request.Step != nil {
+		switch {
+		case request.Step != nil:
 			step = request.Step.Num
-		} else {
+		case h.runRecord != nil:
 			step = h.runRecord.StartingStep
+		default:
+			// TODO: this should never happen, but we should handle it
+			// gracefully, should we raise an error?
+			step = 0
 		}
 
 		h.historyRecord = NewActiveHistory(

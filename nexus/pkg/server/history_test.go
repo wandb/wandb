@@ -7,9 +7,11 @@ import (
 )
 
 type data struct {
-	items map[string]string
-	step  int64
-	flush bool
+	items    map[string]string
+	step     int64
+	flush    bool
+	stepNil  bool
+	flushNil bool
 }
 
 func makeFlushRecord() *service.Record {
@@ -36,9 +38,13 @@ func makePartialHistoryRecord(d data) *service.Record {
 		})
 	}
 	partialHistoryRequest := &service.PartialHistoryRequest{
-		Item:   items,
-		Step:   &service.HistoryStep{Num: d.step},
-		Action: &service.HistoryAction{Flush: d.flush},
+		Item: items,
+	}
+	if !d.stepNil {
+		partialHistoryRequest.Step = &service.HistoryStep{Num: d.step}
+	}
+	if !d.flushNil {
+		partialHistoryRequest.Action = &service.HistoryAction{Flush: d.flush}
 	}
 	record := &service.Record{
 		RecordType: &service.Record_Request{
@@ -389,6 +395,282 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 						"key2": "3",
+					},
+					step: 0,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "NilStepNilFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+						"key2": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+				{
+					items: map[string]string{
+						"key2": "3",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+						"key2": "2",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key2": "3",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "NilStepNilFlushNilStepNoFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+						"key2": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+						"key2": "3",
+					},
+					stepNil: true,
+					flush:   false,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+						"key2": "2",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+						"key2": "3",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "NilStepNilFlushNilStepFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil: true,
+					flush:   true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "StepNoFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step:  1,
+					flush: false,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "StepFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step:  1,
+					flush: true,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step: 1,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					step: 2,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "StepNilFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step:     1,
+					flushNil: true,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "NilStepFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					stepNil: true,
+					flush:   true,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					step: 0,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					step: 1,
+				},
+				{
+					flush: true,
+				},
+			},
+		},
+		{
+			name: "NilStepNoFlushNilStepNilFlush",
+			input: []data{
+				{
+					items: map[string]string{
+						"key1": "1",
+					},
+					stepNil: true,
+					flush:   false,
+				},
+				{
+					items: map[string]string{
+						"key1": "2",
+					},
+					stepNil:  true,
+					flushNil: true,
+				},
+			},
+			expected: []data{
+				{
+					items: map[string]string{
+						"key1": "2",
 					},
 					step: 0,
 				},
