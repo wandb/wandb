@@ -16,6 +16,8 @@ comment:
 ignore:
   - "wandb/vendor"
   - "wandb/proto"
+  - "nexus/pkg/service"
+  - "nexus/internal/gql"
 
 coverage:
   precision: 2
