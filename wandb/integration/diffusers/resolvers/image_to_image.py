@@ -101,6 +101,46 @@ SUPPORTED_IMAGE_TO_IMAGE_PIPELINES = {
         ],
         "kwarg-actions": [wandb.Image, None, None],
     },
+    "StableDiffusionInstructPix2PixPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+            "prompt",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "PaintByExamplePipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Example-Image",
+            "Mask-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+            "example_image",
+            "mask_image",
+        ],
+        "kwarg-actions": [wandb.Image, wandb.Image, wandb.Image],
+    },
+    "RePaintPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Mask-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "image",
+            "mask_image",
+        ],
+        "kwarg-actions": [wandb.Image, wandb.Image],
+    },
 }
 
 
@@ -159,16 +199,14 @@ class DiffusersImageToImagePipelineResolver:
         images = chunkify(images, len(loggable_kwarg_chunks[0]))
         for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
-                prompt_index = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[self.pipeline_name][
-                    "kwarg-logging"
-                ].index("prompt")
-                wandb.log(
-                    {
-                        "Generated-Image": wandb.Image(
-                            image, caption=loggable_kwarg_chunks[prompt_index][idx]
-                        )
-                    }
-                )
+                try:
+                    prompt_index = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[
+                        self.pipeline_name
+                    ]["kwarg-logging"].index("prompt")
+                    caption = loggable_kwarg_chunks[prompt_index][idx]
+                except ValueError:
+                    caption = None
+                wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
                 table_row = []
                 kwarg_actions = SUPPORTED_IMAGE_TO_IMAGE_PIPELINES[self.pipeline_name][
                     "kwarg-actions"
