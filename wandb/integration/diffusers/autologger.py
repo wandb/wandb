@@ -11,6 +11,8 @@ autolog = AutologAPI(
     symbols=(
         "DiffusionPipeline.__call__",
         "AutoPipelineForText2Image.__call__",
+        "AutoPipelineForImage2Image.__call__",
+        "AutoPipelineForInpainting.__call__",
         "StableDiffusionPipeline.__call__",
         "KandinskyCombinedPipeline.__call__",
         "KandinskyV22CombinedPipeline.__call__",
@@ -36,6 +38,10 @@ autolog = AutologAPI(
         "StableDiffusionInstructPix2PixPipeline.__call__",
         "PaintByExamplePipeline.__call__",
         "RePaintPipeline.__call__",
+        "KandinskyImg2ImgCombinedPipeline.__call__",
+        "KandinskyInpaintCombinedPipeline.__call__",
+        "KandinskyV22Img2ImgCombinedPipeline.__call__",
+        "KandinskyV22InpaintCombinedPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )

@@ -206,6 +206,46 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["prompt", "negative_prompt"],
         "kwarg-actions": [None, None],
     },
+    "KandinskyImg2ImgCombinedPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "KandinskyInpaintCombinedPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "KandinskyV22Img2ImgCombinedPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
+    "KandinskyV22InpaintCombinedPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
 }
 
 
@@ -265,9 +305,9 @@ class DiffusersMultiModalPipelineResolver:
         for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
                 try:
-                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[
-                        self.pipeline_name
-                    ]["kwarg-logging"].index("prompt")
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
                     caption = loggable_kwarg_chunks[prompt_index][idx]
                 except ValueError:
                     caption = None
