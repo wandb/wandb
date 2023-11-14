@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -286,6 +286,39 @@ class DiffusersMultiModalPipelineResolver:
         # except Exception as e:
         #     print(e)
         # return None
+    
+    def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
+        if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
+            try:
+                prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                    "kwarg-logging"
+                ].index("prompt")
+                caption = loggable_kwarg_chunks[prompt_index][idx]
+            except ValueError:
+                caption = None
+            wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
+    
+    def add_data_to_table(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
+        table_row = []
+        kwarg_actions = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+            "kwarg-actions"
+        ]
+        for column_idx, loggable_kwarg_chunk in enumerate(
+            loggable_kwarg_chunks
+        ):
+            if kwarg_actions[column_idx] is None:
+                table_row.append(
+                    loggable_kwarg_chunk[idx]
+                    if loggable_kwarg_chunk[idx] is not None
+                    else ""
+                )
+            else:
+                table_row.append(
+                    kwarg_actions[column_idx](loggable_kwarg_chunk[idx])
+                )
+        if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
+            table_row.append(wandb.Image(image))
+        self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
         self, response: Response, kwargs: Dict[str, Any]
@@ -304,31 +337,6 @@ class DiffusersMultiModalPipelineResolver:
         images = chunkify(images, len(loggable_kwarg_chunks[0]))
         for idx in range(len(loggable_kwarg_chunks[0])):
             for image in images[idx]:
-                try:
-                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
-                        "kwarg-logging"
-                    ].index("prompt")
-                    caption = loggable_kwarg_chunks[prompt_index][idx]
-                except ValueError:
-                    caption = None
-                wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
-                table_row = []
-                kwarg_actions = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
-                    "kwarg-actions"
-                ]
-                for column_idx, loggable_kwarg_chunk in enumerate(
-                    loggable_kwarg_chunks
-                ):
-                    if kwarg_actions[column_idx] is None:
-                        table_row.append(
-                            loggable_kwarg_chunk[idx]
-                            if loggable_kwarg_chunk[idx] is not None
-                            else ""
-                        )
-                    else:
-                        table_row.append(
-                            kwarg_actions[column_idx](loggable_kwarg_chunk[idx])
-                        )
-                table_row.append(wandb.Image(image))
-                self.wandb_table.add_data(*table_row)
+                self.log_media(image, loggable_kwarg_chunks, idx)
+                self.add_data_to_table(image, loggable_kwarg_chunks, idx)
         return {"Result-Table": self.wandb_table}

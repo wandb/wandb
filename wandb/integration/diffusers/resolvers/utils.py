@@ -1,7 +1,6 @@
 import inspect
 from typing import Any, Dict, Sequence
 
-
 def chunkify(input_list, chunk_size):
     chunk_size = max(1, chunk_size)
     return [
