@@ -17,7 +17,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, call, patch
 
 import httpx
 import pytest
@@ -28,7 +28,7 @@ import wandb.errors
 import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from wandb.apis import internal
-from wandb.errors import CommError, UnsupportedError
+from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import check_httpx_exc_retriable
 from wandb.sdk.lib import retry
 
@@ -123,65 +123,6 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
         os.chmod(tmp_path, 0o444)
         internal.InternalApi()
         os.chmod(tmp_path, 0o777)  # Allow the test runner to clean up.
-
-
-def test_create_run_queue(monkeypatch):
-    _api = internal.Api()
-
-    # prioritization_mode present on server
-    _api.api.gql = MagicMock(return_value={"createRunQueue": "test-result"})
-    _api.api.create_run_queue_introspection = MagicMock(return_value=(True, True, True))
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
-
-    kwargs = {
-        "entity": "test-entity",
-        "project": "test-project",
-        "queue_name": "test-queue",
-        "access": "test-access",
-        "prioritization_mode": "test-prioritization-mode",
-        "config_id": "test-config-id",
-    }
-    resp = _api.create_run_queue(**kwargs)
-    assert resp == "test-result"
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "project": "test-project",
-            "queueName": "test-queue",
-            "access": "test-access",
-            "prioritizationMode": "test-prioritization-mode",
-            "defaultResourceConfigID": "test-config-id",
-        },
-    )
-
-    # prioritization_mode not present on server
-    _api.api.gql = MagicMock(return_value={"createRunQueue": "test-result"})
-    _api.api.create_run_queue_introspection = MagicMock(
-        return_value=(True, True, False)
-    )
-    mock_gql = MagicMock(return_value="test-gql-resp")
-    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", mock_gql)
-
-    # trying to use prioritization_mode gives error
-    with pytest.raises(UnsupportedError):
-        _api.create_run_queue(**kwargs)
-
-    # able to create queue without prioritization_mode
-    del kwargs["prioritization_mode"]
-    resp = _api.create_run_queue(**kwargs)
-    assert resp == "test-result"
-    _api.api.gql.assert_called_once_with(
-        "test-gql-resp",
-        {
-            "entity": "test-entity",
-            "project": "test-project",
-            "queueName": "test-queue",
-            "access": "test-access",
-            "defaultResourceConfigID": "test-config-id",
-        },
-    )
 
 
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]

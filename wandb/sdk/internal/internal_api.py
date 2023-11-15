@@ -647,6 +647,8 @@ class Api:
         ):
             query = gql(query_string)
             res = self.gql(query)
+            if res is None:
+                raise CommError("Could not get CreateRunQueue input from GQL.")
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
                 x["name"]
                 for x in (
@@ -1414,15 +1416,18 @@ class Api:
         ) = self.create_run_queue_introspection()
         if not create_run_queue:
             raise UnsupportedError(
-                "run queue creation is not supported by this version of wandb server."
+                "run queue creation is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
             )
         if not supports_drc and config_id is not None:
             raise UnsupportedError(
-                "default resource configurations are not supported by this version of wandb server."
+                "default resource configurations are not supported by this version "
+                "of wandb server. Consider updating to the latest version."
             )
         if not supports_prioritization and prioritization_mode is not None:
             raise UnsupportedError(
-                "launch prioritization is not supported by this version of wandb server."
+                "launch prioritization is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
             )
 
         if supports_prioritization:
