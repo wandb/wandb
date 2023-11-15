@@ -348,6 +348,13 @@ jobs:
                 no_output_timeout: 10m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_flags >>]
+                steps:
+                  - codecov/upload:
+                      flags: << parameters.codecov_flags >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -1531,10 +1538,10 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           tox_args: "tests/pytest_tests/unit_tests"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: "unittest"
 
       #
