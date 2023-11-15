@@ -4866,6 +4866,7 @@ class Job:
         queue=None,
         resource="local-container",
         resource_args=None,
+        template_variables=None,
         project_queue=None,
     ):
         from wandb.sdk.launch import _launch_add
@@ -4891,6 +4892,7 @@ class Job:
         queued_run = _launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
+            template_variables=template_variables,
             project=project or self._project,
             entity=entity or self._entity,
             queue_name=queue,

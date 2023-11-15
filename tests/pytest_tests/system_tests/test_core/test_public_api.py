@@ -79,7 +79,6 @@ def test_run_queue(user):
     queue = api.create_run_queue(
         name="test-queue",
         entity=user,
-        access="project",
         type="local-container",
     )
     try:

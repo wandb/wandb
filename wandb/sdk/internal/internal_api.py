@@ -1553,7 +1553,7 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
-
+            wandb.termwarn(result)
             if not result:
                 return None
 
