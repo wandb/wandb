@@ -1389,7 +1389,7 @@ workflows:
       - prep:
           name: "unit-tests"
       - prep:
-          name: "unit-tests-mock-server"
+          name: "old-unit-tests"
       - prep:
           name: "functional-tests"
       - prep:
@@ -1452,12 +1452,12 @@ workflows:
       #
       - tox-base:
           requires:
-            - "unit-tests-mock-server"
+            - "old-unit-tests"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11]
-          name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "old-unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_flags: "unittest-old"
@@ -1481,7 +1481,7 @@ workflows:
       #
       - win:
           requires:
-            - "unit-tests-mock-server"
+            - "old-unit-tests"
           filters:
             branches:
               only:
@@ -1492,7 +1492,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "old-unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
@@ -1519,12 +1519,12 @@ workflows:
 
       - mac:
           requires:
-            - "unit-tests-mock-server"
+            - "old-unit-tests"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "old-unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
@@ -1670,12 +1670,12 @@ workflows:
       # todo: fix base docker image for cuda and uncomment this
       - launch:
           requires:
-            - "unit-tests-mock-server"
+            - "old-unit-tests"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "old-unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
           codecov_flags: "unittest-old"
