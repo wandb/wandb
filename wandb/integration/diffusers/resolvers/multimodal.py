@@ -3,9 +3,17 @@ import tempfile
 import logging
 from typing import Any, Dict, List, Sequence
 
+import numpy as np
+import PIL
+
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
-from .utils import chunkify, get_updated_kwargs, postprocess_pils_to_np
+from .utils import (
+    chunkify,
+    get_updated_kwargs,
+    postprocess_pils_to_np,
+    postprocess_np_arrays_for_video,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -444,6 +452,16 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["batch_size", "num_inference_steps"],
         "kwarg-actions": [None, None],
     },
+    "TextToVideoSDPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Number-of-Frames",
+            "Generated-Video",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "num_frames"],
+        "output-type": "video",
+    },
 }
 
 
@@ -585,19 +603,34 @@ class DiffusersMultiModalPipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = self.get_output_images(response)
-        loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
-            "kwarg-logging"
-        ]
-        loggable_kwarg_chunks = []
-        for loggable_kwarg_id in loggable_kwarg_ids:
-            loggable_kwarg_chunks.append(
-                kwargs[loggable_kwarg_id]
-                if isinstance(kwargs[loggable_kwarg_id], list)
-                else [kwargs[loggable_kwarg_id]]
+        if self.pipeline_name == "TextToVideoSDPipeline":
+            video = postprocess_np_arrays_for_video(images)
+            wandb.log(
+                {"Generated-Video": wandb.Video(video, fps=4, caption=kwargs["prompt"])}
             )
-        images = chunkify(images, len(loggable_kwarg_chunks[0]))
-        for idx in range(len(loggable_kwarg_chunks[0])):
-            for image in images[idx]:
-                self.log_media(image, loggable_kwarg_chunks, idx)
-                self.add_data_to_table(image, loggable_kwarg_chunks, idx)
+            loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                "kwarg-logging"
+            ]
+            table_row = [
+                kwargs[loggable_kwarg_ids[idx]]
+                for idx in range(len(loggable_kwarg_ids))
+            ]
+            table_row.append(wandb.Video(video, fps=4))
+            self.wandb_table.add_data(*table_row)
+        else:
+            loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                "kwarg-logging"
+            ]
+            loggable_kwarg_chunks = []
+            for loggable_kwarg_id in loggable_kwarg_ids:
+                loggable_kwarg_chunks.append(
+                    kwargs[loggable_kwarg_id]
+                    if isinstance(kwargs[loggable_kwarg_id], list)
+                    else [kwargs[loggable_kwarg_id]]
+                )
+            images = chunkify(images, len(loggable_kwarg_chunks[0]))
+            for idx in range(len(loggable_kwarg_chunks[0])):
+                for image in images[idx]:
+                    self.log_media(image, loggable_kwarg_chunks, idx)
+                    self.add_data_to_table(image, loggable_kwarg_chunks, idx)
         return {"Result-Table": self.wandb_table}

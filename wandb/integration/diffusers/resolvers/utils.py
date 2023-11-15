@@ -37,3 +37,7 @@ def postprocess_pils_to_np(image: List):
         [np.transpose(np.array(img).astype("uint8"), axes=(2, 0, 1)) for img in image],
         axis=0,
     )
+
+
+def postprocess_np_arrays_for_video(images: List[np.array]):
+    return np.transpose(np.stack((images), axis=0), axes=(0, 3, 1, 2))
