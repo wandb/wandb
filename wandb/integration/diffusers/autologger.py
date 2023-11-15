@@ -63,6 +63,7 @@ autolog = AutologAPI(
         "VersatileDiffusionDualGuidedPipeline.__call__",
         "LDMPipeline.__call__",
         "TextToVideoSDPipeline.__call__",
+        "TextToVideoZeroPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
 )

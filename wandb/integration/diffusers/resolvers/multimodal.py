@@ -462,6 +462,15 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["prompt", "negative_prompt", "num_frames"],
         "output-type": "video",
     },
+    "TextToVideoZeroPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Number-of-Frames",
+            "Generated-Video",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt", "video_length"],
+    },
 }
 
 
@@ -603,8 +612,10 @@ class DiffusersMultiModalPipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = self.get_output_images(response)
-        if self.pipeline_name == "TextToVideoSDPipeline":
-            video = postprocess_np_arrays_for_video(images)
+        if self.pipeline_name in ["TextToVideoSDPipeline", "TextToVideoZeroPipeline"]:
+            video = postprocess_np_arrays_for_video(
+                images, normalize=self.pipeline_name == "TextToVideoZeroPipeline"
+            )
             wandb.log(
                 {"Generated-Video": wandb.Video(video, fps=4, caption=kwargs["prompt"])}
             )

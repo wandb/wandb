@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -39,5 +39,8 @@ def postprocess_pils_to_np(image: List):
     )
 
 
-def postprocess_np_arrays_for_video(images: List[np.array]):
+def postprocess_np_arrays_for_video(
+    images: List[np.array], normalize: Optional[bool] = False
+):
+    images = [(img * 255).astype("uint8") for img in images] if normalize else images
     return np.transpose(np.stack((images), axis=0), axes=(0, 3, 1, 2))
