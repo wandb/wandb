@@ -587,6 +587,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_flags:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -617,6 +620,13 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_flags >>]
+          steps:
+            - codecov/upload:
+              flags: << parameters.codecov_flags >>
 
   launch:
     parameters:
