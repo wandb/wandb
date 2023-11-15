@@ -523,7 +523,12 @@ class Api:
 
         # 3. create run queue
         create_queue_result = api.create_run_queue(
-            entity, LAUNCH_DEFAULT_PROJECT, name, "PROJECT", prioritization_mode, config_id
+            entity,
+            LAUNCH_DEFAULT_PROJECT,
+            name,
+            "PROJECT",
+            prioritization_mode,
+            config_id,
         )
         if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
