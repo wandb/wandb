@@ -435,6 +435,15 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-logging": ["image", "prompt", "negative_prompt"],
         "kwarg-actions": [wandb.Image, None, None],
     },
+    "LDMPipeline": {
+        "table-schema": [
+            "Batch-Size",
+            "Number-of-Inference-Steps",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["batch_size", "num_inference_steps"],
+        "kwarg-actions": [None, None],
+    },
 }
 
 
