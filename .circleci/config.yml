@@ -637,6 +637,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_flags:
+        type: string
+        default: ""
       python_version_major:
         type: integer
         default: 3
@@ -669,6 +672,13 @@ jobs:
             python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_flags >>]
+          steps:
+            - codecov/upload:
+              flags: << parameters.codecov_flags >>
 
   kfp:
     parameters:
