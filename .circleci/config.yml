@@ -348,7 +348,6 @@ jobs:
                 no_output_timeout: 10m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
-            - save-test-results
             - when:
                 condition:
                   not:
@@ -358,6 +357,7 @@ jobs:
                       name: Upload coverage to codecov
                       command: |
                         nox -s codecov -- << parameters.codecov_args >>
+            - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
@@ -449,7 +449,6 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
-      - save-test-results
       - when:
           condition:
             not:
@@ -459,6 +458,7 @@ jobs:
                 name: Upload coverage to codecov
                 command: |
                   nox -s codecov -- << parameters.codecov_args >>
+      - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -659,6 +659,9 @@ jobs:
       python_version_minor:
         type: integer
         default: 7
+      codecov_args:
+        type: string
+        default: ""
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
@@ -673,6 +676,7 @@ jobs:
           name: Install python dependencies, build r2d
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install nox
             pip3 install chardet
             pip3 install iso8601
       - run:
@@ -684,6 +688,15 @@ jobs:
           command: |
             python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  python3 -m nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
 
   kfp:
