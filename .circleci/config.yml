@@ -298,6 +298,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_flags:
+        type: string
+        default: ""
       shard:
         type: string
         default: "default"
@@ -345,6 +348,13 @@ jobs:
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_flags >>]
+                steps:
+                  - codecov/upload:
+                    flags: << parameters.codecov_flags >>
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
