@@ -9,10 +9,24 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/nexus/internal/debounce"
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
+
+const (
+	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	summaryDebouncerBurstSize = 1        // todo: audit burst size
+)
+
+type HandlerInterface interface {
+	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
+	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
+	Handle()
+	Close()
+	GetRun() *service.RunRecord
+}
 
 // Handler is the handler for a stream
 // it handles the incoming messages, processes them
@@ -33,8 +47,11 @@ type Handler struct {
 	// outChan is the channel for results to the client
 	outChan chan *service.Result
 
-	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
+	// loopbackChan is the channel for internal loopback messages (from stream and sender)
 	loopbackChan chan *service.Record
+
+	// inChan is the channel for incoming messages received through the stream
+	inChan <-chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -50,9 +67,15 @@ type Handler struct {
 	// TODO(memory): persist this in the future as it will grow with number of distinct keys
 	consolidatedSummary map[string]string
 
+	// summaryDelta is the delta summary (keys updated since the last time we sent summary)
+	summaryDelta map[string]string
+
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
 	// historyRecord is the history record used to track
 	// current active history record for the stream
-	historyRecord *service.HistoryRecord
+	historyRecord *ActiveHistory
 
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
@@ -76,7 +99,6 @@ func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
-	loopbackChan chan *service.Record,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
@@ -84,13 +106,8 @@ func NewHandler(
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
+		summaryDelta:        make(map[string]string),
 		ft:                  NewFileTransferHandler(),
-		fwdChan:             make(chan *service.Record, BufferSize),
-		outChan:             make(chan *service.Result, BufferSize),
-		loopbackChan:        loopbackChan,
-	}
-	if !settings.GetXDisableStats().GetValue() {
-		h.systemMonitor = monitor.NewSystemMonitor(settings, logger, loopbackChan)
 	}
 
 	// initialize the run metadata from settings
@@ -110,23 +127,44 @@ func NewHandler(
 		Args:       h.settings.GetXArgs().GetValue(),
 		Colab:      h.settings.GetColabUrl().GetValue(),
 	}
+
+	h.summaryDebouncer = debounce.NewDebouncer(
+		summaryDebouncerRateLimit,
+		summaryDebouncerBurstSize,
+		logger,
+	)
+
 	return h
 }
 
-// do this starts the handler
-func (h *Handler) do(in, lb <-chan *service.Record) {
+func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
+	h.inChan = in
+	h.loopbackChan = lb
+}
+
+func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
+	h.fwdChan = fwd
+	h.outChan = out
+}
+
+func (h *Handler) DisableSummaryDebouncer() {
+	h.summaryDebouncer = nil
+}
+
+// Handle starts the handler
+func (h *Handler) Handle() {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:
-	for in != nil || lb != nil {
+	for h.inChan != nil || h.loopbackChan != nil {
 		select {
-		case record, ok := <-in:
+		case record, ok := <-h.inChan:
 			if !ok {
-				in = nil
+				h.inChan = nil
 				continue
 			}
 			h.handleRecord(record)
-		case record, ok := <-lb:
+		case record, ok := <-h.loopbackChan:
 			if !ok {
 				// exit the handler loop when loopback goes away
 				// (note: this could leave unread data on in chan)
@@ -177,6 +215,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
+	h.summaryDebouncer.Debounce(h.sendSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -301,10 +340,11 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.handleHistory(h.historyRecord)
+		h.historyRecord.Flush()
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
+		h.summaryDebouncer.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -444,6 +484,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleCodeSave()
 
 	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() && h.systemMonitor == nil {
+		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.loopbackChan)
+	}
 	h.systemMonitor.Do()
 	systemInfo := h.systemMonitor.Probe()
 	if systemInfo != nil {
@@ -580,7 +623,8 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 		},
 	})
-	h.sendRecord(summaryRecord)
+	// h.sendRecord(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 
 	// send the exit record
 	h.sendRecordWithControl(record,
@@ -656,6 +700,33 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) updateSummaryDelta(summaryRecord *service.Record) {
+	for _, item := range summaryRecord.GetSummary().GetUpdate() {
+		h.summaryDelta[item.GetKey()] = item.GetValueJson()
+	}
+	h.summaryDebouncer.SetNeedsDebounce()
+}
+
+func (h *Handler) sendSummary() {
+	summaryRecord := &service.SummaryRecord{
+		Update: []*service.SummaryItem{},
+	}
+
+	for key, value := range h.summaryDelta {
+		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
+			Key: key, ValueJson: value,
+		})
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: summaryRecord,
+		},
+	}
+	h.sendRecord(record)
+	// reset delta summary
+	h.summaryDelta = make(map[string]string)
+}
+
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	runtime := int32(h.timer.Elapsed().Seconds())
@@ -666,7 +737,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	})
 
 	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.sendRecord(summaryRecord)
+	h.updateSummaryDelta(summaryRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

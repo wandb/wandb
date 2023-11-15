@@ -389,7 +389,7 @@ class KubernetesRunner(AbstractRunner):
         )
         for cont in containers:
             # Add our env vars to user supplied env vars
-            env = cont.get("env", [])
+            env = cont.get("env") or []
             env.extend(
                 [{"name": key, "value": value} for key, value in env_vars.items()]
             )

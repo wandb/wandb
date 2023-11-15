@@ -177,6 +177,7 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 
 	for record := range inChan {
 		s.sendRecord(record)
+		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 	}
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
@@ -861,13 +862,11 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.AllowMissingReferences)
-	fileDownloadPath, err := downloader.Download()
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
+	err := downloader.Download()
 	if err != nil {
-		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)
+		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
 		response.ErrorMessage = err.Error()
-	} else {
-		response.FileDownloadPath = fileDownloadPath
 	}
 
 	result := &service.Result{
