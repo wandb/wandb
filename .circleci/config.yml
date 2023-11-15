@@ -1414,8 +1414,8 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F system"
       #
       # System tests with pytest on Linux, using real wandb server, with Nexus
@@ -1464,6 +1464,7 @@ workflows:
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
@@ -1478,6 +1479,7 @@ workflows:
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           tox_args: "tests/pytest_tests/unit_tests"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
 
       #
@@ -1559,6 +1561,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           parallelism: 4
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       - tox-base:
@@ -1573,6 +1576,7 @@ workflows:
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/standalone_tests"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       - tox-base:
@@ -1590,6 +1594,7 @@ workflows:
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       #
@@ -1611,6 +1616,7 @@ workflows:
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       - tox-base:
@@ -1631,6 +1637,7 @@ workflows:
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       #
@@ -1685,6 +1692,7 @@ workflows:
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F system"
 
       #
@@ -1700,6 +1708,7 @@ workflows:
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
+          coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F system"
 
       #
