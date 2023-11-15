@@ -625,11 +625,6 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - run:
-              name: Fix M1 issues
-              command: |
-                sudo softwareupdate --install-rosetta --agree-to-license
-                arch -x86_64 $SHELL
             - codecov/upload:
               flags: << parameters.codecov_flags >>
 
