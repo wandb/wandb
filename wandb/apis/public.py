@@ -448,6 +448,7 @@ class Api:
         name: str,
         type: "RunQueueResourceType",
         entity: Optional[str] = None,
+        prioritization_mode: Optional["RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
     ) -> "RunQueue":
@@ -457,6 +458,7 @@ class Api:
             name: (str) Name of the queue to create
             type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
+            prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue.
 
         Returns:
@@ -491,6 +493,11 @@ class Api:
                 "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
             )
 
+        if prioritization_mode:
+            prioritization_mode = prioritization_mode.upper()
+            if prioritization_mode not in ["V0"]:
+                raise ValueError("prioritization_mode must be 'V0' if present")
+
         if config is None:
             config = {}
 
@@ -516,12 +523,20 @@ class Api:
 
         # 3. create run queue
         create_queue_result = api.create_run_queue(
-            entity, LAUNCH_DEFAULT_PROJECT, name, "PROJECT", config_id
+            entity, LAUNCH_DEFAULT_PROJECT, name, "PROJECT", prioritization_mode, config_id
         )
         if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
 
-        return RunQueue(self.client, name, entity, "PROJECT", config_id, config)
+        return RunQueue(
+            client=self.client,
+            name=name,
+            entity=entity,
+            prioritization_mode=prioritization_mode,
+            _access="PROJECT",
+            _default_resource_config_id=config_id,
+            _default_resource_config=config,
+        )
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
@@ -2657,6 +2672,7 @@ RunQueueResourceType = Literal[
     "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
 ]
 RunQueueAccessType = Literal["project", "user"]
+RunQueuePrioritizationMode = Literal["V0"]
 
 
 class RunQueue:
@@ -2665,6 +2681,7 @@ class RunQueue:
         client: RetryingClient,
         name: str,
         entity: str,
+        prioritization_mode: Optional[RunQueuePrioritizationMode] = None,
         _access: Optional[RunQueueAccessType] = None,
         _default_resource_config_id: Optional[int] = None,
         _default_resource_config: Optional[dict] = None,
@@ -2672,6 +2689,7 @@ class RunQueue:
         self._name: str = name
         self._client = client
         self._entity = entity
+        self._prioritization_mode = prioritization_mode
         self._access = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
@@ -2686,6 +2704,10 @@ class RunQueue:
     @property
     def entity(self):
         return self._entity
+
+    @property
+    def prioritization_mode(self) -> RunQueuePrioritizationMode:
+        return self._prioritization_mode
 
     @property
     def access(self) -> RunQueueAccessType:
