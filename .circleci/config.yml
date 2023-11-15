@@ -298,6 +298,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
       shard:
         type: string
         default: "default"
@@ -346,6 +349,15 @@ jobs:
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_args >>]
+                steps:
+                  - run:
+                      name: Upload coverage to codecov
+                      command: |
+                        nox -s codecov -- << parameters.codecov_args >>
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
@@ -1404,6 +1416,7 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+          codecov_args: "-F system"
       #
       # System tests with pytest on Linux, using real wandb server, with Nexus
       #
@@ -1417,7 +1430,7 @@ workflows:
           name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
-          codecov_args: "-F core -F system"
+          codecov_args: "-F system"
       #
       # Nexus smoke tests with pytest on Linux, using real wandb server
       #
@@ -1430,8 +1443,8 @@ workflows:
               python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_nexus"
+          codecov_args: "-F system"
       #
       # Nexus unit tests
       #
@@ -1450,8 +1463,8 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
       #
@@ -1464,8 +1477,8 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
+          codecov_args: "-F unit"
 
       #
       # Unit tests with pytest on Windows and MacOS
@@ -1515,8 +1528,8 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          # codecov_args: "-F client -F unit"
 
       - mac:
           requires:
@@ -1544,9 +1557,9 @@ workflows:
                 - "default"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 4
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1559,8 +1572,8 @@ workflows:
                 - "mitm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/standalone_tests"
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1576,8 +1589,8 @@ workflows:
                 - "noml"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_args: "-F func"
 
       #
       # Functional tests with yea on Linux
@@ -1597,8 +1610,8 @@ workflows:
                 - "xgboost"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1617,8 +1630,8 @@ workflows:
                 - "artifacts"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_args: "-F func"
 
       #
       # Functional tests with yea on Windows
@@ -1671,8 +1684,8 @@ workflows:
                 - "artifacts"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
+          codecov_args: "-F system"
 
       #
       # notebook tests
@@ -1686,26 +1699,9 @@ workflows:
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
-          coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
-#      - win:
-#          matrix:
-#            parameters:
-#              python_version_major: [3]
-#              python_version_minor: [9]
-#          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          parallelism: 1
-#          xdist: 1
-#      - mac:
-#          matrix:
-#            parameters:
-#              python_version_major: [3]
-#              python_version_minor: [9]
-#          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          parallelism: 1
-#          xdist: 1
+          codecov_args: "-F system"
+
       #
       # functional tests with different executors
       #
@@ -1721,32 +1717,3 @@ workflows:
                 - "executor-gunicorn"
                 - "executor-pex"
           name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-
-  # todo: needs love
-  #  manual_test:
-  #    when: << pipeline.parameters.manual_test >>
-  #    jobs:
-  #      - test:
-  #          name: << pipeline.parameters.manual_test_name >>
-  #          image: << pipeline.parameters.manual_test_image >>
-  #          toxenv: << pipeline.parameters.manual_test_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
-  #
-  #  manual_win:
-  #    when: << pipeline.parameters.manual_win >>
-  #    jobs:
-  #      - win:
-  #          name: << pipeline.parameters.manual_win_name >>
-  #          toxenv: << pipeline.parameters.manual_win_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
-  #
-  #  manual_mac:
-  #    when: << pipeline.parameters.manual_mac >>
-  #    jobs:
-  #      - mac:
-  #          name: << pipeline.parameters.manual_mac_name >>
-  #          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
