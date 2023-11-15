@@ -479,26 +479,35 @@ def test_launch_add_template_variables(
 ):
     queue_name = "tvqueue"
     proj = "test1"
-    settings = test_settings({"project": proj})
     queue_config = {"e": ["{{var1}}"]}
-    queue_template_variables = {"var1": {"type": "string", "enum": ["a", "b"]}}
-    # with relay_server():
-    with relay_server(), runner.isolated_filesystem():
-        run = wandb_init(settings=settings)
-        api = PublicApi()
+    queue_template_variables = {
+        "var1": {"schema": {"type": "string", "enum": ["a", "b"]}}
+    }
+    template_variables = {"var1": "a"}
+    with relay_server() as relay, runner.isolated_filesystem():
+        # run = wandb_init(settings=settings)
+        api = PublicApi(api_key=user)
         print(api.default_entity)
         api.create_run_queue(
-            queue_name, "local-container", user, queue_config, queue_template_variables
+            entity=user,
+            name=queue_name,
+            type="local-container",
+            config=queue_config,
+            template_variables=queue_template_variables,
         )
-        # _ = launch_add(
-        #     template_variables=template_variables,
-        #     project=proj,
-        #     entity=user,
-        #     queue_name=queue_name,
-        #     docker_image="abc:latest",
-        # )
-
-        run.finish()
+        _ = launch_add(
+            template_variables=template_variables,
+            project=proj,
+            entity=user,
+            queue_name=queue_name,
+            docker_image="abc:latest",
+        )
+        for comm in relay.context.raw_data:
+            q = comm["request"].get("query")
+            if q and "mutation pushToRunQueueByName(" in str(q):
+                assert comm["response"].get("data") is not None
+            elif q and "mutation pushToRunQueue(" in str(q):
+                raise Exception("should not be falling back to legacy here")
 
 
 def test_display_updated_runspec(

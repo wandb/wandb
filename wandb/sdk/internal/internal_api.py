@@ -671,7 +671,7 @@ class Api:
         if self.server_supports_template_variables is None:
             query = gql(query_string)
             res = self.gql(query)
-            self.server_supports_template_variables = "templateVariables" in [
+            self.server_supports_template_variables = "templateVariableValues" in [
                 x["name"]
                 for x in (
                     res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
@@ -1387,20 +1387,20 @@ class Api:
             raise Exception()
         supports_template_vars = self.push_to_run_queue_introspection()
 
-        mutation_inputs = """
-            $entityName: String!
-            $resource: String!
+        mutation_params = """
+            $entityName: String!,
+            $resource: String!,
             $config: JSONString!
         """
-        mutation_params = """
-                entityName: $entityName
-                resource: $resource
-                config: $config
+        mutation_inputs = """
+            entityName: $entityName,
+            resource: $resource,
+            config: $config
         """
 
         if supports_template_vars:
-            mutation_inputs += ", templateVariables: JSONString"
-            mutation_params += ", templateVariables: templateVariables"
+            mutation_params += ", $templateVariables: JSONString"
+            mutation_inputs += ", templateVariables: $templateVariables"
         else:
             if template_variables is not None:
                 raise UnsupportedError(
@@ -1415,15 +1415,32 @@ class Api:
         if supports_template_vars:
             if template_variables is not None:
                 variable_values["templateVariables"] = json.dumps(template_variables)
-
-        query = gql(
+            else:
+                variable_values["templateVariables"] = "{}"
+        print(
             f"""
         mutation createDefaultResourceConfig(
-            {mutation_inputs}
+            {mutation_params}
         ) {{
             createDefaultResourceConfig(
             input: {{
-                {mutation_params}
+                {mutation_inputs}
+            }}
+            ) {{
+            defaultResourceConfigID
+            success
+            }}
+        }}
+        """
+        )
+        query = gql(
+            f"""
+        mutation createDefaultResourceConfig(
+            {mutation_params}
+        ) {{
+            createDefaultResourceConfig(
+            input: {{
+                {mutation_inputs}
             }}
             ) {{
             defaultResourceConfigID
@@ -1522,10 +1539,11 @@ class Api:
 
         if self.server_supports_template_variables:
             if template_variables is not None:
-                variables.update({"templateVariables": json.dumps(template_variables)})
-            else:
-                mutation_params += ", templateVariables: JSONString"
-                mutation_input += ", templateVariables: $templateVariables"
+                variables.update(
+                    {"templateVariableValues": json.dumps(template_variables)}
+                )
+                mutation_params += ", $templateVariableValues: JSONString"
+                mutation_input += ", templateVariableValues: $templateVariableValues"
         else:
             if template_variables is not None:
                 wandb.termwarn(
@@ -1677,13 +1695,10 @@ class Api:
             runSpec: $runSpec
         """
         if self.server_supports_template_variables:
-            mutation_params += ", templateVariables: JSONString"
-            mutation_input += ", templateVariables: $templateVariables"
-            update_val = None
             if template_variables is not None:
-                update_val = json.dumps(template_variables)
-
-            variables.update({"templateVariables": update_val})
+                mutation_params += ", $templateVariableValues: JSONString"
+                mutation_input += ", templateVariableValues: $templateVariableValues"
+                variables.update({"templateVariableValues": template_variables})
         else:
             if template_variables is not None:
                 wandb.termwarn(
