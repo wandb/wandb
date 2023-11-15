@@ -236,7 +236,10 @@ async def _launch_add(
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
 
     public_api = public.Api()
-    # TODO: check job exists without downloading
+    try:
+        public_api.artifact(job, type="job")
+    except ValueError:
+        raise LaunchError(f"Unable to fetch job with name {job}, make sure job exists")
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
