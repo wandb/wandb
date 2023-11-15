@@ -407,6 +407,34 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-actions": [None, None, None, wandb.Image, None],
     },
+    "VersatileDiffusionTextToImagePipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["prompt", "negative_prompt"],
+        "kwarg-actions": [None, None],
+    },
+    "VersatileDiffusionImageVariationPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None],
+    },
+    "VersatileDiffusionDualGuidedPipeline": {
+        "table-schema": [
+            "Source-Image",
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": ["image", "prompt", "negative_prompt"],
+        "kwarg-actions": [wandb.Image, None, None],
+    },
 }
 
 
