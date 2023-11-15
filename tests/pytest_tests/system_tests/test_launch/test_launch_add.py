@@ -10,7 +10,6 @@ from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
-
 class MockBranch:
     def __init__(self, name):
         self.name = name
@@ -329,7 +328,7 @@ def test_push_to_runqueue_exists(
             entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
         )
 
-        result = api.push_to_run_queue(queue, args, None,  LAUNCH_DEFAULT_PROJECT)
+        result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
 
         assert result["runQueueItemId"]
 
@@ -364,7 +363,7 @@ def test_push_to_default_runqueue_notexist(
     with relay_server():
         run = wandb_init(settings=settings)
         res = api.push_to_run_queue(
-            "nonexistent-queue", launch_spec, None,  LAUNCH_DEFAULT_PROJECT
+            "nonexistent-queue", launch_spec, None, LAUNCH_DEFAULT_PROJECT
         )
         run.finish()
 
@@ -475,13 +474,14 @@ def test_launch_add_repository(
         run.finish()
 
 
-def test_launch_add_template_variables(runner, relay_server, user, test_settings, wandb_init):
+def test_launch_add_template_variables(
+    runner, relay_server, user, test_settings, wandb_init
+):
     queue_name = "tvqueue"
     proj = "test1"
     settings = test_settings({"project": proj})
     queue_config = {"e": ["{{var1}}"]}
     queue_template_variables = {"var1": {"type": "string", "enum": ["a", "b"]}}
-    template_variables = {"var1": "a"}
     # with relay_server():
     with relay_server(), runner.isolated_filesystem():
         run = wandb_init(settings=settings)
@@ -513,7 +513,9 @@ def test_display_updated_runspec(
 
     def push_with_drc(api, queue_name, launch_spec, template_variables, project_queue):
         # mock having a DRC
-        res = api.push_to_run_queue(queue_name, launch_spec, template_variables, project_queue)
+        res = api.push_to_run_queue(
+            queue_name, launch_spec, template_variables, project_queue
+        )
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
         return res
@@ -542,6 +544,7 @@ def test_display_updated_runspec(
 
         run.finish()
 
+
 def test_container_queued_run(monkeypatch, user):
     def patched_push_to_run_queue_by_name(*args, **kwargs):
         return {"runQueueItemId": "1"}
@@ -554,4 +557,3 @@ def test_container_queued_run(monkeypatch, user):
 
     queued_run = launch_add(job="test/test/test-job:v0")
     assert queued_run
-
