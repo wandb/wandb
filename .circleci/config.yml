@@ -466,8 +466,9 @@ jobs:
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
             # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
       - run:
-          name: Install nox and upload coverage to codecov
+          name: Install python, nox and upload coverage to codecov
           command: |
+            apt-get update && apt-get install -y python3-pip
             pip install nox
             nox -s codecov
 
