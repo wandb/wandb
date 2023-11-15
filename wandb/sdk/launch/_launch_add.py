@@ -217,7 +217,6 @@ async def _launch_add(
             }
 
     validate_launch_spec_source(launch_spec)
-    wandb.termwarn(f"{template_variables}")
     res = push_to_queue(api, queue_name, launch_spec, template_variables, project_queue)
 
     if res is None or "runQueueItemId" not in res:

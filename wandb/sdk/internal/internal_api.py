@@ -1430,22 +1430,7 @@ class Api:
                 variable_values["templateVariables"] = json.dumps(template_variables)
             else:
                 variable_values["templateVariables"] = "{}"
-        print(
-            f"""
-        mutation createDefaultResourceConfig(
-            {mutation_params}
-        ) {{
-            createDefaultResourceConfig(
-            input: {{
-                {mutation_inputs}
-            }}
-            ) {{
-            defaultResourceConfigID
-            success
-            }}
-        }}
-        """
-        )
+
         query = gql(
             f"""
         mutation createDefaultResourceConfig(

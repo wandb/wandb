@@ -485,9 +485,7 @@ def test_launch_add_template_variables(
     }
     template_variables = {"var1": "a"}
     with relay_server() as relay, runner.isolated_filesystem():
-        # run = wandb_init(settings=settings)
         api = PublicApi(api_key=user)
-        print(api.default_entity)
         api.create_run_queue(
             entity=user,
             name=queue_name,
