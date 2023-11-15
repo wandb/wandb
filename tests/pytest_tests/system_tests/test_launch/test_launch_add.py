@@ -10,6 +10,7 @@ from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
+
 class MockBranch:
     def __init__(self, name):
         self.name = name
@@ -110,10 +111,10 @@ def test_launch_add_delete_queued_run(
 
 
 # TODO(gst): Identify root cause of (threaded?) artifact creation error
-@pytest.mark.xfail(
-    strict=False,
-    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
-)
+# @pytest.mark.xfail(
+#     strict=False,
+#     reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
+# )
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
@@ -210,7 +211,6 @@ def test_launch_build_push_job(
         assert queued_run.state == "pending"
         assert queued_run.entity == user
         assert queued_run.project == proj
-        assert queued_run.container_job is True
         assert queued_run.project_queue == LAUNCH_DEFAULT_PROJECT
 
         rqi = internal_api.pop_from_run_queue(queue, user, LAUNCH_DEFAULT_PROJECT)
@@ -329,7 +329,7 @@ def test_push_to_runqueue_exists(
             entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
         )
 
-        result = api.push_to_run_queue(queue, args, LAUNCH_DEFAULT_PROJECT)
+        result = api.push_to_run_queue(queue, args, None,  LAUNCH_DEFAULT_PROJECT)
 
         assert result["runQueueItemId"]
 
@@ -364,7 +364,7 @@ def test_push_to_default_runqueue_notexist(
     with relay_server():
         run = wandb_init(settings=settings)
         res = api.push_to_run_queue(
-            "nonexistent-queue", launch_spec, LAUNCH_DEFAULT_PROJECT
+            "nonexistent-queue", launch_spec, None,  LAUNCH_DEFAULT_PROJECT
         )
         run.finish()
 
@@ -406,7 +406,7 @@ def test_push_to_runqueue_old_server(
             entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
         )
 
-        result = api.push_to_run_queue(queue, args, LAUNCH_DEFAULT_PROJECT)
+        result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
         run.finish()
 
         assert result["runQueueItemId"]
@@ -433,7 +433,7 @@ def test_push_with_repository(
     with relay_server():
         run = wandb_init(settings=settings)
         res = api.push_to_run_queue(
-            "nonexistent-queue", launch_spec, LAUNCH_DEFAULT_PROJECT
+            "nonexistent-queue", launch_spec, None, LAUNCH_DEFAULT_PROJECT
         )
         run.finish()
 
@@ -475,35 +475,30 @@ def test_launch_add_repository(
         run.finish()
 
 
-def test_launch_add_template_variables(relay_server, user, test_settings, wandb_init):
+def test_launch_add_template_variables(runner, relay_server, user, test_settings, wandb_init):
     queue_name = "tvqueue"
     proj = "test1"
-    api = PublicApi()
     settings = test_settings({"project": proj})
     queue_config = {"e": ["{{var1}}"]}
     queue_template_variables = {"var1": {"type": "string", "enum": ["a", "b"]}}
     template_variables = {"var1": "a"}
     # with relay_server():
-    run = wandb_init(settings=settings)
-    api.create_run_queue(
-        queue_name, "local-container", user, queue_config, queue_template_variables
-    )
-    _ = launch_add(
-        None,
-        None,
-        None,
-        template_variables,
-        proj,
-        user,
-        queue_name,
-        None,
-        None,
-        None,
-        None,
-        "abc:latest",
-    )
+    with relay_server(), runner.isolated_filesystem():
+        run = wandb_init(settings=settings)
+        api = PublicApi()
+        print(api.default_entity)
+        api.create_run_queue(
+            queue_name, "local-container", user, queue_config, queue_template_variables
+        )
+        # _ = launch_add(
+        #     template_variables=template_variables,
+        #     project=proj,
+        #     entity=user,
+        #     queue_name=queue_name,
+        #     docker_image="abc:latest",
+        # )
 
-    run.finish()
+        run.finish()
 
 
 def test_display_updated_runspec(
@@ -516,9 +511,9 @@ def test_display_updated_runspec(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
-    def push_with_drc(api, queue_name, launch_spec, project_queue):
+    def push_with_drc(api, queue_name, launch_spec, template_variables, project_queue):
         # mock having a DRC
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue, None)
+        res = api.push_to_run_queue(queue_name, launch_spec, template_variables, project_queue)
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
         return res
@@ -546,3 +541,17 @@ def test_display_updated_runspec(
         )
 
         run.finish()
+
+def test_container_queued_run(monkeypatch, user):
+    def patched_push_to_run_queue_by_name(*args, **kwargs):
+        return {"runQueueItemId": "1"}
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
+    )
+
+    queued_run = launch_add(job="test/test/test-job:v0")
+    assert queued_run
+

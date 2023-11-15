@@ -1503,7 +1503,7 @@ class Api:
             $entityName: String!,
             $projectName: String!,
             $queueName: String!,
-            $runSpec: JSONString!,
+            $runSpec: JSONString!
         """
 
         mutation_input = """
@@ -1553,7 +1553,6 @@ class Api:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
-            wandb.termwarn(result)
             if not result:
                 return None
 

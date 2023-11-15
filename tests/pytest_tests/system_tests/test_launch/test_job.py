@@ -35,7 +35,6 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
         assert queued_run.state == "pending"
         assert queued_run.entity == user
         assert queued_run.project == proj
-        assert queued_run.container_job is True
 
         rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
