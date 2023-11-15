@@ -1244,7 +1244,7 @@ def launch_sweep(
     help="Path to the Dockerfile used to build the job, relative to the job's root",
 )
 @click.option(
-    "template-variables",
+    "--template-variables",
     "-T",
     default=None,
     help="JSON string containing values for template variables, only usable with the queue option. Template variables can also be passed via the `template_variables` key in the config",

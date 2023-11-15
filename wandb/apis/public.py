@@ -521,7 +521,7 @@ class Api:
         if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
 
-        return RunQueue(self.client, name, entity, "project", config_id, config)
+        return RunQueue(self.client, name, entity, "PROJECT", config_id, config)
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
