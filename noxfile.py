@@ -97,7 +97,7 @@ def download_codecov(session):
 
     session.run(
         "curl",
-        "-o" if system != "windows" else "-Os",
+        "-o",
         local_file,
         url,
         external=True,

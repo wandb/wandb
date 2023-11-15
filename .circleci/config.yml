@@ -1546,12 +1546,12 @@ workflows:
       - win:
           requires:
             - "unit-tests"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
-          #       - /^release-.*/
-          #       - /^.*-ci-win$/
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1707,7 +1707,6 @@ workflows:
       #
       # wandb launch tests
       #
-      # todo: fix base docker image for cuda and uncomment this
       - launch:
           requires:
             - "unit-tests-mock-server"
@@ -1718,6 +1717,7 @@ workflows:
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
       - pytest:
