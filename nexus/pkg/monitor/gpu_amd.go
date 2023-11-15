@@ -11,6 +11,9 @@ import (
 	"sync"
 )
 
+// TODO: this is a port of the python code
+// should eventually switch to https://github.com/amd/go_amd_smi
+
 const rocmSMICmd string = "/usr/bin/rocm-smi"
 
 type StatsKeys string
