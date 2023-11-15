@@ -488,7 +488,7 @@ jobs:
       - run:
           name: Upload coverage to codecov
           command: |
-            nox -s codecov -- -F core -F unit
+            nox -s codecov -- -F unit
 
   protobuf-compatability:
     parameters:
@@ -609,6 +609,9 @@ jobs:
       tox_args:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
     macos:
       xcode: 14.3.1
     resource_class: macos.m1.medium.gen1
@@ -621,6 +624,7 @@ jobs:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install nox
             brew install ffmpeg
       - run:
           name: Run tests
@@ -629,6 +633,15 @@ jobs:
             ulimit -n 4096
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  python3 -m nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
 
   launch:
@@ -1531,7 +1544,8 @@ workflows:
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          # codecov_args: "-F client -F unit"
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
 
       - mac:
           requires:
@@ -1542,9 +1556,9 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
-
+          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
       #
       # Functional tests with yea on Linux (base only)
       #
