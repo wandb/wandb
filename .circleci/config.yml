@@ -381,9 +381,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
-      upload_go_cov:
-        type: boolean
-        default: false
+      codecov_args:
+        type: string
+        default: ""
       notify_on_failure:
         type: boolean
         default: false
@@ -439,10 +439,14 @@ jobs:
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
       - save-test-results
       - when:
-          condition: << parameters.upload_go_cov >>
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
           steps:
-            - codecov/upload:
-                flags: system
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  nox -s codecov -- << parameters.codecov_args >>
       # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
@@ -469,11 +473,10 @@ jobs:
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
       - run:
           name: Upload coverage to codecov
           command: |
-            nox -s codecov
+            nox -s codecov -- -F core -F unit
 
   protobuf-compatability:
     parameters:
@@ -1413,9 +1416,8 @@ workflows:
               python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
-          upload_go_cov: true
+          codecov_args: "-F core -F system"
       #
       # Nexus smoke tests with pytest on Linux, using real wandb server
       #

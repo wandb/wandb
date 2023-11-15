@@ -127,7 +127,7 @@ def run_codecov(session):
 
     command.extend(args)
 
-    session.run(command, external=True)
+    session.run(*command, external=True)
 
 
 @nox.session(python=False, name="codecov")
