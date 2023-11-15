@@ -395,7 +395,7 @@ class InterfaceShared(InterfaceBase):
         self, status: pb.StatusRequest
     ) -> Optional[pb.StatusResponse]:
         req = self._make_request(status=status)
-        resp = self._communicate(req, local=True)
+        resp = self._communicate(req, timeout=3600, local=True)
         if resp is None:
             return None
         assert resp.response.status_response
