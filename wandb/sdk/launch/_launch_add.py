@@ -240,7 +240,9 @@ async def _launch_add(
         try:
             public_api.artifact(job, type="job")
         except ValueError:
-            raise LaunchError(f"Unable to fetch job with name {job}, make sure job exists")
+            raise LaunchError(
+                f"Unable to fetch job with name {job}, make sure job exists"
+            )
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
