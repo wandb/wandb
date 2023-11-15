@@ -530,6 +530,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -564,6 +567,7 @@ jobs:
                 shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install nox
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -585,6 +589,15 @@ jobs:
                   yes | gcloud auth configure-docker
                   DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_args >>]
+                steps:
+                  - run:
+                      name: Upload coverage to codecov
+                      command: |
+                        nox -s codecov -- << parameters.codecov_args >>
             - save-test-results
 
   mac:
@@ -1527,17 +1540,18 @@ workflows:
           name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - win:
           requires:
             - "unit-tests"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1545,6 +1559,7 @@ workflows:
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests --timeout 300"
 
       - mac:
