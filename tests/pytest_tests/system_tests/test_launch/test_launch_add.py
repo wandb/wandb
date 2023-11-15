@@ -475,6 +475,37 @@ def test_launch_add_repository(
         run.finish()
 
 
+def test_launch_add_template_variables(relay_server, user, test_settings, wandb_init):
+    queue_name = "tvqueue"
+    proj = "test1"
+    api = PublicApi()
+    settings = test_settings({"project": proj})
+    queue_config = {"e": ["{{var1}}"]}
+    queue_template_variables = {"var1": {"type": "string", "enum": ["a", "b"]}}
+    template_variables = {"var1": "a"}
+    # with relay_server():
+    run = wandb_init(settings=settings)
+    api.create_run_queue(
+        queue_name, "local-container", user, queue_config, queue_template_variables
+    )
+    _ = launch_add(
+        None,
+        None,
+        None,
+        template_variables,
+        proj,
+        user,
+        queue_name,
+        None,
+        None,
+        None,
+        None,
+        "abc:latest",
+    )
+
+    run.finish()
+
+
 def test_display_updated_runspec(
     relay_server, user, test_settings, wandb_init, monkeypatch
 ):
@@ -487,7 +518,7 @@ def test_display_updated_runspec(
 
     def push_with_drc(api, queue_name, launch_spec, project_queue):
         # mock having a DRC
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
+        res = api.push_to_run_queue(queue_name, launch_spec, project_queue, None)
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
         return res

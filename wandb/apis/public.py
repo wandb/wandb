@@ -447,16 +447,15 @@ class Api:
         self,
         name: str,
         type: "RunQueueResourceType",
-        access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: Optional[dict] = None,
+        template_variables: Optional[dict] = None,
     ) -> "RunQueue":
         """Create a new run queue (launch).
 
         Arguments:
             name: (str) Name of the queue to create
             type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            access: (str) Access level for the queue. Either "project" or "user".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             config: (dict) Optional default resource configuration to be used for the queue.
 
@@ -480,10 +479,6 @@ class Api:
             raise ValueError("name must be non-empty")
         if len(name) > 64:
             raise ValueError("name must be less than 64 characters")
-
-        access = access.upper()
-        if access not in ["PROJECT", "USER"]:
-            raise ValueError("access must be one of 'project' or 'user'")
 
         if type not in [
             "local-container",
@@ -513,7 +508,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, type, config_json
+            entity, type, config_json, template_variables
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
@@ -521,12 +516,12 @@ class Api:
 
         # 3. create run queue
         create_queue_result = api.create_run_queue(
-            entity, LAUNCH_DEFAULT_PROJECT, name, access, config_id
+            entity, LAUNCH_DEFAULT_PROJECT, name, "PROJECT", config_id
         )
         if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
 
-        return RunQueue(self.client, name, entity, access, config_id, config)
+        return RunQueue(self.client, name, entity, "project", config_id, config)
 
     def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
@@ -955,7 +950,6 @@ class Api:
         project,
         queue_name,
         run_queue_item_id,
-        container_job=False,
         project_queue=None,
     ):
         """Return a single queued run based on the path.
@@ -968,7 +962,6 @@ class Api:
             project,
             queue_name,
             run_queue_item_id,
-            container_job=container_job,
             project_queue=project_queue,
         )
 
@@ -2466,7 +2459,6 @@ class QueuedRun:
         project,
         queue_name,
         run_queue_item_id,
-        container_job=False,
         project_queue=LAUNCH_DEFAULT_PROJECT,
     ):
         self.client = client
@@ -2476,7 +2468,6 @@ class QueuedRun:
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
-        self.container_job = container_job
         self.project_queue = project_queue
 
     @property

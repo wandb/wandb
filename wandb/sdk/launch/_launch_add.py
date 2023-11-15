@@ -1,6 +1,6 @@
 import asyncio
 import pprint
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.apis.public as public
@@ -17,10 +17,16 @@ from wandb.sdk.launch.utils import (
 
 
 def push_to_queue(
-    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
+    api: Api,
+    queue_name: str,
+    launch_spec: Dict[str, Any],
+    project_queue: str,
+    template_variables: Optional[dict],
 ) -> Any:
     try:
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
+        res = api.push_to_run_queue(
+            queue_name, launch_spec, project_queue, template_variables
+        )
     except Exception as e:
         wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
         return None
@@ -31,6 +37,7 @@ def launch_add(
     uri: Optional[str] = None,
     job: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
+    template_variables: Optional[Dict[str, Union[float, int, str]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     queue_name: Optional[str] = None,
@@ -54,6 +61,7 @@ def launch_add(
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
+        template_variables: A dictionary containing values of template variables for a run queue
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
@@ -104,6 +112,7 @@ def launch_add(
             uri,
             job,
             config,
+            template_variables,
             project,
             entity,
             queue_name,
@@ -128,6 +137,7 @@ async def _launch_add(
     uri: Optional[str],
     job: Optional[str],
     config: Optional[Dict[str, Any]],
+    template_variables: Optional[dict],
     project: Optional[str],
     entity: Optional[str],
     queue_name: Optional[str],
@@ -196,9 +206,18 @@ async def _launch_add(
         queue_name = "default"
     if project_queue is None:
         project_queue = LAUNCH_DEFAULT_PROJECT
+    spec_template_vars = launch_spec.get("template_variables")
+    if isinstance(spec_template_vars, dict):
+        if template_variables is None:
+            template_variables = spec_template_vars
+        else:
+            template_variables = {
+                **template_variables,
+                **spec_template_vars,
+            }
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, project_queue)
+    res = push_to_queue(api, queue_name, launch_spec, project_queue, template_variables)
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
@@ -215,19 +234,15 @@ async def _launch_add(
     else:
         wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
+
     public_api = public.Api()
-    container_job = False
-    if job:
-        job_artifact = public_api.job(job)
-        if job_artifact._job_info.get("source_type") == "image":
-            container_job = True
+    # TODO: check job exists without downloading
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
         launch_spec["project"],
         queue_name,
         res["runQueueItemId"],
-        container_job,
         project_queue,
     )
     return queued_run  # type: ignore
