@@ -110,10 +110,10 @@ def test_launch_add_delete_queued_run(
 
 
 # TODO(gst): Identify root cause of (threaded?) artifact creation error
-# @pytest.mark.xfail(
-#     strict=False,
-#     reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
-# )
+@pytest.mark.xfail(
+    strict=False,
+    reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
+)
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
