@@ -460,16 +460,19 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install python, pip, and nox
+          command: |
+            apt-get update && apt-get install -y python3-pip
+            python3 -m pip3 install nox
+      - run:
           name: Run Nexus' Go tests and collect coverage
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
             # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
       - run:
-          name: Install python, nox and upload coverage to codecov
+          name: Upload coverage to codecov
           command: |
-            apt-get update && apt-get install -y python3-pip
-            python3 -m pip install nox
             nox -s codecov
 
   protobuf-compatability:
