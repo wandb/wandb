@@ -1,6 +1,5 @@
 import os
 import platform
-import subprocess
 
 import nox
 
