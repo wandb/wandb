@@ -337,6 +337,7 @@ jobs:
                 name: Install python dependencies
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install nox
                   pip install -U pip
                 no_output_timeout: 5m
             - run:
@@ -416,6 +417,7 @@ jobs:
           name: Install Python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
+            pip install nox
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
@@ -463,7 +465,11 @@ jobs:
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
             # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
-      - codecov/upload
+      - run:
+          name: Install nox and upload coverage to codecov
+          command: |
+            pip install nox
+            nox -s codecov
 
   protobuf-compatability:
     parameters:
