@@ -324,6 +324,7 @@ jobs:
     environment:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
+      CODECOV_FLAGS: << parameters.codecov_flags >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -348,13 +349,6 @@ jobs:
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - save-test-results
-            - when:
-                condition:
-                  not:
-                    equal: ["", << parameters.codecov_flags >>]
-                steps:
-                  - codecov/upload:
-                    flags: << parameters.codecov_flags >>
             # conditionally post a notification to slack if the job failed
             - when:
                 condition: << parameters.notify_on_failure >>
@@ -387,9 +381,6 @@ jobs:
         default: "core"
       toxenv:
         type: string
-      coverage_dir:
-        type: string
-        default: ""
       codecov_flags:
         type: string
         default: ""
@@ -415,7 +406,6 @@ jobs:
     working_directory: /mnt/ramdisk
     environment:
       SHARD: << parameters.shard >>
-      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -517,6 +507,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_flags:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -541,6 +534,7 @@ jobs:
     parallelism: << parameters.parallelism >>
     environment:
       COVERAGE_DIR: << parameters.coverage_dir >>
+      CODECOV_FLAGS: << parameters.codecov_flags >>
     steps:
       - checkout
       - when:
@@ -605,6 +599,7 @@ jobs:
     parallelism: << parameters.parallelism >>
     environment:
       COVERAGE_DIR: << parameters.coverage_dir >>
+      CODECOV_FLAGS: << parameters.codecov_flags >>
     steps:
       - checkout
       - run:
@@ -620,13 +615,6 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - save-test-results
-      - when:
-          condition:
-            not:
-              equal: ["", << parameters.codecov_flags >>]
-          steps:
-            - codecov/upload:
-              flags: << parameters.codecov_flags >>
 
   launch:
     parameters:
@@ -634,9 +622,6 @@ jobs:
         type: string
       tox_args:
         type: string
-      coverage_dir:
-        type: string
-        default: ""
       codecov_flags:
         type: string
         default: ""
@@ -650,8 +635,6 @@ jobs:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     resource_class: large
-    environment:
-      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - attach_workspace:
           at: .
@@ -1506,6 +1489,7 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_flags: "unittest-old"
 
       - win:
           requires:
@@ -1524,6 +1508,7 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+          codecov_flags: "unittest"
 
       - mac:
           requires:
@@ -1532,12 +1517,12 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          environment:
-            COVERAGE_FLAG: "unittest-old"
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_flags: "unittest-old"
+
 
       - mac:
           requires:
@@ -1546,12 +1531,11 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          environment:
-            COVERAGE_FLAG: "unittest"
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
           coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
+          codecov_flags: "unittest"
 
       #
       # Functional tests with yea on Linux (base only)
@@ -1569,6 +1553,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_flags: "functional"
           parallelism: 4
 
       - tox-base:
@@ -1584,6 +1569,8 @@ workflows:
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/standalone_tests"
+          codecov_flags: "functional"
+
 
       - tox-base:
           requires:
@@ -1601,6 +1588,7 @@ workflows:
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_flags: "functional"
 
       #
       # Functional tests with yea on Linux
@@ -1622,6 +1610,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_flags: "functional"
 
       - tox-base:
           requires:
@@ -1642,6 +1631,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          codecov_flags: "functional"
 
       #
       # Functional tests with yea on Windows
@@ -1660,7 +1650,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "func-win-default-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-win-circle"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_flags: "functional"
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
@@ -1678,7 +1670,6 @@ workflows:
               python_version_minor: [9]
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
           codecov_flags: "unittest-old"
 
