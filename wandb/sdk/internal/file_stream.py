@@ -344,7 +344,7 @@ class FileStreamApi:
         self._client.proxies.update(api.client.transport.session.proxies or {})
         self._file_policies: Dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
-        self._queue: queue.Queue = queue.Queue(maxsize=64)
+        self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
