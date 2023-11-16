@@ -71,18 +71,32 @@ class NetworkRecv:
 class NetworkTrafficSent:
     """Network traffic sent."""
 
+    name = "network.traffic_sent"
+    samples: "Deque[float]"
+    last_value: float
+    last_sample: float
+
+
     def __init__(self) -> None:
         self.network_sent = NetworkSent()
+        self.samples = deque([])
+        self.last_value = 0.0
+        self.last_sample = self.network_sent.sent_init
 
     def sample(self) -> None:
         self.network_sent.sample()
+        current_sample = self.network_sent.samples[-1]
+        delta_sent = current_sample - self.last_sample
+        self.samples.append(delta_sent)
+        self.last_sample = current_sample
 
     def clear(self) -> None:
         self.network_sent.clear()
+        self.samples.clear()
+        self.last_value = 0.0
 
     def aggregate(self) -> dict:
-        sent = self.network_sent.aggregate()
-        return {**sent}
+        return {self.name: aggregate_mean(self.samples)} if self.samples else {self.name: 0}
 
 
 class NetworkTrafficReceived:
