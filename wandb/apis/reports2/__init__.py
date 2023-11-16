@@ -1,2 +1,2 @@
 from . import interface
-from .interface import *
+from .interface import *  # noqa
