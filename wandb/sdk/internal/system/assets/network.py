@@ -66,7 +66,41 @@ class NetworkRecv:
         # return {"network": {self.name: aggregate}}
 
         return {self.name: aggregate}
+    
 
+class NetworkTrafficSent:
+    """Network traffic sent."""
+
+    def __init__(self) -> None:
+        self.network_sent = NetworkSent()
+
+    def sample(self) -> None:
+        self.network_sent.sample()
+
+    def clear(self) -> None:
+        self.network_sent.clear()
+
+    def aggregate(self) -> dict:
+        sent = self.network_sent.aggregate()
+        return {**sent}
+
+
+class NetworkTrafficReceived:
+    """Network traffic received."""
+
+    def __init__(self) -> None:
+        self.network_recv = NetworkRecv()
+
+    def sample(self) -> None:
+        self.network_recv.sample()
+
+    def clear(self) -> None:
+        self.network_recv.clear()
+
+    def aggregate(self) -> dict:
+        recv = self.network_recv.aggregate()
+        return {**recv}
+    
 
 @asset_registry.register
 class Network:
@@ -80,6 +114,8 @@ class Network:
         self.metrics: List[Metric] = [
             NetworkSent(),
             NetworkRecv(),
+            NetworkTrafficSent(),
+            NetworkTrafficReceived()
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
