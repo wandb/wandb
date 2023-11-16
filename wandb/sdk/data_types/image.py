@@ -336,7 +336,7 @@ class Image(BatchableMedia):
                 _boxes[key]._key = key
 
         return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
+            source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj.get("caption"),
             grouping=json_obj.get("grouping"),
             classes=classes,

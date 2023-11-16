@@ -57,7 +57,7 @@ def _load_dir_from_artifact(source_artifact: "Artifact", path: str) -> str:
     # Construct the directory path by inspecting the target download location.
     for p, _ in source_artifact.manifest.entries.items():
         if p.startswith(path):
-            example_path = source_artifact.get_path(p).download()
+            example_path = source_artifact.get_entry(p).download()
             if dl_path is None:
                 root = example_path[: -len(p)]
                 dl_path = os.path.join(root, path)
@@ -132,7 +132,7 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # First, if the entry is a file, the download it.
         entry = source_artifact.manifest.entries.get(path)
         if entry is not None:
-            dl_path = str(source_artifact.get_path(path).download())
+            dl_path = str(source_artifact.get_entry(path).download())
         else:
             # If not, assume it is directory.
             # FUTURE: Add this functionality to the artifact loader
