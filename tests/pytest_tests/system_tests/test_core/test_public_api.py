@@ -738,9 +738,7 @@ def test_query_user_multiple(relay_server, inject_users):
         assert len(api.users(email)) == 2
 
 
-def test_create_run_queue_template_variables_not_supported(
-    runner, user, monkeypatch
-):
+def test_create_run_queue_template_variables_not_supported(runner, user, monkeypatch):
     queue_name = "tvqueue"
     queue_config = {"e": ["{{var1}}"]}
     queue_template_variables = {
