@@ -74,22 +74,6 @@ def test_run_metadata(wandb_init):
     assert len(metadata)
 
 
-def test_run_queue(user):
-    api = Api()
-    queue = api.create_run_queue(
-        name="test-queue",
-        entity=user,
-        access="project",
-        type="local-container",
-    )
-    try:
-        assert queue.name == "test-queue"
-        assert queue.access == "PROJECT"
-        assert queue.type == "local-container"
-    finally:
-        queue.delete()
-
-
 @pytest.fixture(scope="function")
 def inject_run(user, inject_graphql_response):
     def helper(

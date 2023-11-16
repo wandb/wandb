@@ -1373,6 +1373,7 @@ def launch(
                     uri,
                     job,
                     config,
+                    None,
                     project,
                     entity,
                     queue,
