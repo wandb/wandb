@@ -1702,13 +1702,14 @@ class Api:
         launch_spec: Dict[str, str],
         template_variables: Optional[dict],
         project_queue: str,
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project_queue, queue_name, run_spec, template_variables
+            entity, project_queue, queue_name, run_spec, template_variables, priority
         )
 
         if push_result:
