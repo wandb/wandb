@@ -1,6 +1,4 @@
-id: 0.mp.20-1-process-pool-executor
-tag:
-  shard: service
+id: 0.mp.20-1-process-pool-executor  
 
 var:
   - history_len:

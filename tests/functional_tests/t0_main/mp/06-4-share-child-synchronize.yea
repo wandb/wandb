@@ -1,8 +1,7 @@
 id: 0.mp.06-4-share-synchronize
 plugin:
   - wandb
-tag:
-  shard: service
+  
 parametrize:
   permute:
     - :yea:start_method:

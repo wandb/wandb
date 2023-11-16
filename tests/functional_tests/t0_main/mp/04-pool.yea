@@ -1,8 +1,6 @@
 id: 0.mp.04-pool
 plugin:
   - wandb
-tag:
-  shard: service
 parametrize:
   permute:
     - :yea:start_method:

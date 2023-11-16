@@ -16,7 +16,6 @@ def worker(log, info):
 
 
 def main():
-    wandb.require("service")
     with wandb.init() as run:
         with ProcessPoolExecutor() as executor:
             # log handler
