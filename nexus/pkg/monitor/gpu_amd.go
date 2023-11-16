@@ -30,18 +30,20 @@ type Stats map[StatsKeys]float64
 
 type InfoDict map[string]interface{}
 
-type GPUAMDStats struct {
+type GPUAMD struct {
 	name    string
 	samples []Stats
 	mutex   sync.Mutex
 }
 
-func NewGPUAMDStats() *GPUAMDStats {
-	return &GPUAMDStats{
+func NewGPUAMD() *GPUAMD {
+	return &GPUAMD{
 		name:    "gpu",
 		samples: make([]Stats, 0),
 	}
 }
+
+func (g *GPUAMD) Name() string { return g.name }
 
 func getROCMSMIStats() (InfoDict, error) {
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
@@ -59,7 +61,7 @@ func getROCMSMIStats() (InfoDict, error) {
 	return stats, nil
 }
 
-func (g *GPUAMDStats) parseStats(stats map[string]string) Stats {
+func (g *GPUAMD) parseStats(stats map[string]string) Stats {
 	parsedStats := make(Stats)
 
 	gpuUsage, err := parseFloat(stats["GPU use (%)"])
@@ -96,7 +98,7 @@ func parseFloat(s string) (float64, error) {
 	return f, err
 }
 
-func (g *GPUAMDStats) Sample() {
+func (g *GPUAMD) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -123,14 +125,14 @@ func (g *GPUAMDStats) Sample() {
 	}
 }
 
-func (g *GPUAMDStats) Clear() {
+func (g *GPUAMD) ClearMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	g.samples = make([]Stats, 0)
 }
 
-func (g *GPUAMDStats) Aggregate() map[string]float64 {
+func (g *GPUAMD) AggregateMetrics() map[string]float64 {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
