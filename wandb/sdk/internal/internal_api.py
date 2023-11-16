@@ -682,7 +682,10 @@ class Api:
             }
         """
 
-        if self.server_supports_template_variables is None or self.server_push_to_run_queue_supports_priority is None:
+        if (
+            self.server_supports_template_variables is None
+            or self.server_push_to_run_queue_supports_priority is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
             self.server_supports_template_variables = "templateVariableValues" in [
@@ -698,7 +701,10 @@ class Api:
                 )
             ]
 
-        return self.server_supports_template_variables, self.server_push_to_run_queue_supports_priority
+        return (
+            self.server_supports_template_variables,
+            self.server_push_to_run_queue_supports_priority,
+        )
 
     @normalize_exceptions
     def create_default_resource_config_introspection(self) -> bool:
@@ -1406,7 +1412,7 @@ class Api:
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
-        supports_template_vars = self.push_to_run_queue_introspection()
+        supports_template_vars, _ = self.push_to_run_queue_introspection()
 
         mutation_params = """
             $entityName: String!,
@@ -1592,7 +1598,7 @@ class Api:
             runSpec: $runSpec
         """
 
-        variables = {
+        variables: Dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
             "queueName": queue_name,
