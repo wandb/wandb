@@ -686,6 +686,8 @@ def test_container_queued_run(monkeypatch, user):
 
 
 def test_job_dne(monkeypatch, user):
+    def patched_push_to_run_queue_by_name(*args, **kwargs):
+        return {"runQueueItemId": "1"}
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
         "push_to_run_queue_by_name",
