@@ -76,7 +76,6 @@ class NetworkTrafficSent:
     last_value: float
     last_sample: float
 
-
     def __init__(self) -> None:
         self.network_sent = NetworkSent()
         self.samples = deque([])
@@ -96,7 +95,11 @@ class NetworkTrafficSent:
         self.last_value = 0.0
 
     def aggregate(self) -> dict:
-        return {self.name: aggregate_mean(self.samples)} if self.samples else {self.name: 0}
+        return (
+            {self.name: aggregate_mean(self.samples)}
+            if self.samples
+            else {self.name: 0}
+        )
 
 
 class NetworkTrafficReceived:
