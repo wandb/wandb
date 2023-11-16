@@ -80,7 +80,7 @@ class Report(Base):
         )
 
     def save(self, draft: bool = False, clone: bool = False):
-        model = self.to_model()
+        self.to_model()
 
         return self
 
