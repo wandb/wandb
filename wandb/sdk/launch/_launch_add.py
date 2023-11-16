@@ -23,14 +23,9 @@ def push_to_queue(
     template_variables: Optional[dict],
     project_queue: str,
 ) -> Any:
-    try:
-        res = api.push_to_run_queue(
-            queue_name, launch_spec, template_variables, project_queue
-        )
-    except Exception as e:
-        wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
-        return None
-    return res
+    return api.push_to_run_queue(
+        queue_name, launch_spec, template_variables, project_queue
+    )
 
 
 def launch_add(
@@ -208,12 +203,13 @@ async def _launch_add(
         project_queue = LAUNCH_DEFAULT_PROJECT
     spec_template_vars = launch_spec.get("template_variables")
     if isinstance(spec_template_vars, dict):
+        launch_spec.pop("template_variables")
         if template_variables is None:
             template_variables = spec_template_vars
         else:
             template_variables = {
-                **template_variables,
                 **spec_template_vars,
+                **template_variables,
             }
 
     validate_launch_spec_source(launch_spec)

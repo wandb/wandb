@@ -1599,8 +1599,8 @@ class Api:
                 mutation_input += ", templateVariableValues: $templateVariableValues"
         else:
             if template_variables is not None:
-                wandb.termwarn(
-                    "wandb server instance does not support template variables in resource configs. Please update."
+                raise UnsupportedError(
+                    "server does not support template variables, please update server instance"
                 )
 
         mutation = gql(
@@ -1751,11 +1751,13 @@ class Api:
             if template_variables is not None:
                 mutation_params += ", $templateVariableValues: JSONString"
                 mutation_input += ", templateVariableValues: $templateVariableValues"
-                variables.update({"templateVariableValues": template_variables})
+                variables.update(
+                    {"templateVariableValues": json.dumps(template_variables)}
+                )
         else:
             if template_variables is not None:
-                wandb.termwarn(
-                    "wandb server instance does not support template variables in resource configs. Please update."
+                raise UnsupportedError(
+                    "server does not support template variables, please update server instance"
                 )
 
         mutation = gql(

@@ -6,6 +6,7 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.internal.internal_api import UnsupportedError
 from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
@@ -474,8 +475,44 @@ def test_launch_add_repository(
         run.finish()
 
 
-def test_launch_add_template_variables(
-    runner, relay_server, user, test_settings, wandb_init
+def test_launch_add_template_variables(runner, relay_server, user):
+    queue_name = "tvqueue"
+    proj = "test1"
+    queue_config = {"e": ["{{var1}}"]}
+    queue_template_variables = {
+        "var1": {"schema": {"type": "string", "enum": ["a", "b"]}}
+    }
+    template_variables = {"var1": "a"}
+    base_config = {"template_variables": {"var1": "b"}}
+    with relay_server() as relay, runner.isolated_filesystem():
+        api = PublicApi(api_key=user)
+        api.create_run_queue(
+            entity=user,
+            name=queue_name,
+            type="local-container",
+            config=queue_config,
+            template_variables=queue_template_variables,
+        )
+        _ = launch_add(
+            template_variables=template_variables,
+            project=proj,
+            entity=user,
+            queue_name=queue_name,
+            docker_image="abc:latest",
+            config=base_config,
+        )
+        for comm in relay.context.raw_data:
+            q = comm["request"].get("query")
+            vars = comm["request"].get("variables")
+            if q and "mutation pushToRunQueueByName(" in str(q):
+                assert comm["response"].get("data") is not None
+                assert vars["templateVariableValues"] == '{"var1": "a"}'
+            elif q and "mutation pushToRunQueue(" in str(q):
+                raise Exception("should not be falling back to legacy here")
+
+
+def test_launch_add_template_variables_legacy_push(
+    runner, relay_server, user, monkeypatch
 ):
     queue_name = "tvqueue"
     proj = "test1"
@@ -484,6 +521,11 @@ def test_launch_add_template_variables(
         "var1": {"schema": {"type": "string", "enum": ["a", "b"]}}
     }
     template_variables = {"var1": "a"}
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        lambda *args, **kwargs: None,
+    )
     with relay_server() as relay, runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
@@ -502,10 +544,82 @@ def test_launch_add_template_variables(
         )
         for comm in relay.context.raw_data:
             q = comm["request"].get("query")
-            if q and "mutation pushToRunQueueByName(" in str(q):
+            if q and "mutation pushToRunQueue(" in str(q):
                 assert comm["response"].get("data") is not None
-            elif q and "mutation pushToRunQueue(" in str(q):
-                raise Exception("should not be falling back to legacy here")
+            elif q and "mutation pushToRunQueueByName(" in str(q):
+                raise Exception("should not be using non legacy here")
+
+
+def test_launch_add_template_variables_not_supported(user, monkeypatch):
+    queue_name = "tvqueue"
+    proj = "test1"
+    queue_config = {"e": ["{{var1}}"]}
+    template_variables = {"var1": "a"}
+
+    def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_varaibles = False
+        return False
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_introspection",
+        patched_push_to_run_queue_introspection,
+    )
+    api = PublicApi(api_key=user)
+    api.create_run_queue(
+        entity=user,
+        name=queue_name,
+        type="local-container",
+        config=queue_config,
+    )
+    with pytest.raises(UnsupportedError):
+        _ = launch_add(
+            template_variables=template_variables,
+            project=proj,
+            entity=user,
+            queue_name=queue_name,
+            docker_image="abc:latest",
+        )
+
+
+def test_launch_add_template_variables_not_supported_legacy_push(
+    runner, user, monkeypatch
+):
+    queue_name = "tvqueue"
+    proj = "test1"
+    queue_config = {"e": ["{{var1}}"]}
+    template_variables = {"var1": "a"}
+
+    def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_varaibles = False
+        return False
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_introspection",
+        patched_push_to_run_queue_introspection,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        lambda *args, **kwargs: None,
+    )
+    with runner.isolated_filesystem():
+        api = PublicApi(api_key=user)
+        api.create_run_queue(
+            entity=user,
+            name=queue_name,
+            type="local-container",
+            config=queue_config,
+        )
+        with pytest.raises(UnsupportedError):
+            _ = launch_add(
+                template_variables=template_variables,
+                project=proj,
+                entity=user,
+                queue_name=queue_name,
+                docker_image="abc:latest",
+            )
 
 
 def test_display_updated_runspec(
@@ -560,6 +674,11 @@ def test_container_queued_run(monkeypatch, user):
         wandb.sdk.internal.internal_api.Api,
         "push_to_run_queue_by_name",
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
+    )
+    monkeypatch.setattr(
+        wandb.PublicApi,
+        "artifact",
+        lambda *arg, **kwargs: "artifact",
     )
 
     queued_run = launch_add(job="test/test/test-job:v0")
