@@ -2889,12 +2889,7 @@ class RunQueue:
     ) -> "RunQueue":
         public_api = Api()
         return public_api.create_run_queue(
-            name,
-            resource,
-            entity,
-            prioritization_mode,
-            config,
-            template_variables
+            name, resource, entity, prioritization_mode, config, template_variables
         )
 
 
