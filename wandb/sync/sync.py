@@ -282,9 +282,6 @@ class SyncThread(threading.Thread):
                 if data is None:
                     break
                 pb, exit_pb, cont = self._parse_pb(data, exit_pb)
-                record_type = pb.WhichOneof("record_type")
-                print(pb, pb.num, record_type, cont)
-                input()
                 if exit_pb is not None:
                     finished = True
                 if cont:
