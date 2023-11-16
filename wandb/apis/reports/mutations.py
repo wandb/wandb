@@ -5,7 +5,6 @@ VIEW_REPORT = gql(
     query SpecificReport($reportId: ID!) {
         view(id: $reportId) {
             id
-            type
             name
             displayName
             description
@@ -17,12 +16,6 @@ VIEW_REPORT = gql(
             createdAt
             updatedAt
             spec
-            previewUrl
-            user {
-                name
-                username
-                userInfo
-            }
         }
     }
     """
