@@ -685,7 +685,7 @@ def test_container_queued_run(monkeypatch, user):
     assert queued_run
 
 
-def test_job_dne(monkeypatch, user, relay_server):
+def test_job_dne(monkeypatch, user):
     def patched_push_to_run_queue_by_name(*args, **kwargs):
         return {"runQueueItemId": "1"}
 

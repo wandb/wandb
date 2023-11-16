@@ -1417,7 +1417,7 @@ class Api:
         else:
             if template_variables is not None:
                 raise UnsupportedError(
-                    "server does not support template variables, please update server instance"
+                    "server does not support template variables, please update server instance to >=0.46"
                 )
 
         variable_values = {
@@ -1600,7 +1600,7 @@ class Api:
         else:
             if template_variables is not None:
                 raise UnsupportedError(
-                    "server does not support template variables, please update server instance"
+                    "server does not support template variables, please update server instance to >=0.46"
                 )
 
         mutation = gql(
@@ -1757,7 +1757,7 @@ class Api:
         else:
             if template_variables is not None:
                 raise UnsupportedError(
-                    "server does not support template variables, please update server instance"
+                    "server does not support template variables, please update server instance to >=0.46"
                 )
 
         mutation = gql(
@@ -1775,6 +1775,9 @@ class Api:
         )
 
         response = self.gql(mutation, variable_values=variables)
+        if not response.get("pushToRunQueue"):
+            raise CommError(f"Error pushing run queue item to queue {queue_name}.")
+
         result: Optional[Dict[str, Any]] = response["pushToRunQueue"]
         return result
 
