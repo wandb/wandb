@@ -1,7 +1,6 @@
 pytest
 hypothesis
 hypothesis-fspaths
-coverage
 
 Pillow
 pandas
