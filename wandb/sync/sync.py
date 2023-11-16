@@ -51,6 +51,7 @@ class SyncThread(threading.Thread):
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -66,6 +67,7 @@ class SyncThread(threading.Thread):
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -85,6 +87,8 @@ class SyncThread(threading.Thread):
             if self._entity:
                 pb.run.entity = self._entity
             pb.control.req_resp = True
+        elif record_type in ("output", "output_raw") and self._skip_console:
+            return pb, exit_pb, True
         elif record_type == "exit":
             exit_pb = pb
             return pb, exit_pb, True
@@ -278,6 +282,9 @@ class SyncThread(threading.Thread):
                 if data is None:
                     break
                 pb, exit_pb, cont = self._parse_pb(data, exit_pb)
+                record_type = pb.WhichOneof("record_type")
+                print(pb, pb.num, record_type, cont)
+                input()
                 if exit_pb is not None:
                     finished = True
                 if cont:
@@ -325,6 +332,7 @@ class SyncManager:
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -338,6 +346,7 @@ class SyncManager:
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
 
     def status(self):
         pass
@@ -359,6 +368,7 @@ class SyncManager:
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
             append=self._append,
+            skip_console=self._skip_console,
         )
         self._thread.start()
 
