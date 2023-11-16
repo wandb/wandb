@@ -686,5 +686,10 @@ def test_container_queued_run(monkeypatch, user):
 
 
 def test_job_dne(monkeypatch, user):
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
+    )
     with pytest.raises(LaunchError):
         launch_add(job="test/test/test-job:v0")
