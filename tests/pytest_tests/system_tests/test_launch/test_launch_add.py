@@ -8,7 +8,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.internal_api import UnsupportedError
 from wandb.sdk.launch._launch_add import launch_add
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
 
 
 class MockBranch:
@@ -683,3 +683,8 @@ def test_container_queued_run(monkeypatch, user):
 
     queued_run = launch_add(job="test/test/test-job:v0")
     assert queued_run
+
+
+def test_job_dne(monkeypatch, user):
+    with pytest.raises(LaunchError):
+        launch_add(job="test/test/test-job:v0")
