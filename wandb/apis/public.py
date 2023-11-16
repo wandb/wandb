@@ -2882,14 +2882,14 @@ class RunQueue:
         cls,
         name: str,
         resource: "RunQueueResourceType",
-        access: "RunQueueAccessType",
         entity: Optional[str] = None,
+        prioritization_mode: Optional["RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
     ) -> "RunQueue":
         public_api = Api()
         return public_api.create_run_queue(
-            name, resource, access, entity, config, template_variables
+            name, resource, entity, prioritization_mode, config, template_variables
         )
 
 
