@@ -69,6 +69,12 @@ class SyncThread(threading.Thread):
         self._append = append
         self._skip_console = skip_console
 
+        tmp_log_file = tempfile.NamedTemporaryFile(
+            prefix="wandb-sync-", suffix=".log", delete=False
+        )
+        print(f"Find console logs at: {tmp_log_file.name}")
+        self._console_log = open(tmp_log_file.name, "wb")
+
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
         pb.ParseFromString(data)
@@ -88,11 +94,15 @@ class SyncThread(threading.Thread):
                 pb.run.entity = self._entity
             pb.control.req_resp = True
         elif record_type in ("output", "output_raw") and self._skip_console:
+            line = getattr(pb, record_type).line.encode("utf-8")
+            if pb.num < 100:  # TODO: this is just to test
+                self._console_log.write(line)
             return pb, exit_pb, True
         elif record_type == "exit":
             exit_pb = pb
             return pb, exit_pb, True
         elif record_type == "final":
+            self._console_log.close()
             assert exit_pb, "final seen without exit"
             pb = exit_pb
             exit_pb = None
@@ -282,11 +292,23 @@ class SyncThread(threading.Thread):
                 if data is None:
                     break
                 pb, exit_pb, cont = self._parse_pb(data, exit_pb)
-                record_type = pb.WhichOneof("record_type")
-                print(pb, pb.num, record_type, cont)
-                input()
+                print(pb.num, end="\r")
+                # record_type = pb.WhichOneof("record_type")
+                # print(pb, pb.num, record_type, cont)
+                # input()
+                if pb.num > 1000 and pb.num < 85000:
+                    continue
                 if exit_pb is not None:
                     finished = True
+                    print(
+                        f"Me is done, sending {self._console_log.name} of size {os.path.getsize(self._console_log.name)}"
+                    )
+                    files = wandb_internal_pb2.FilesRecord()
+                    f = files.files.add()
+                    f.path = self._console_log.name
+                    f.policy = wandb_internal_pb2.FilesItem.PolicyType.NOW
+                    record = wandb_internal_pb2.Record(files=files)
+                    sm.send(record)
                 if cont:
                     continue
                 sm.send(pb)
