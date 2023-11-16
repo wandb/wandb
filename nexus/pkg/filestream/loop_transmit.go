@@ -2,9 +2,10 @@ package filestream
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
