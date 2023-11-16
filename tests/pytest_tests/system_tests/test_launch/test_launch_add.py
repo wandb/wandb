@@ -632,7 +632,9 @@ def test_display_updated_runspec(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
-    def push_with_drc(api, queue_name, launch_spec, template_variables, project_queue, priority):
+    def push_with_drc(
+        api, queue_name, launch_spec, template_variables, project_queue, priority
+    ):
         # mock having a DRC
         res = api.push_to_run_queue(
             queue_name, launch_spec, template_variables, project_queue, priority
