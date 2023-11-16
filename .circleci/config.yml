@@ -3,10 +3,9 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
-  go: circleci/go@1.7.3
-  gcloud: circleci/gcp-cli@3.1.0
-  gke: circleci/gcp-gke@2.1.0
-  codecov: codecov/codecov@3
+  go: circleci/go@1.9.0
+  gcloud: circleci/gcp-cli@3.1.1
+  gke: circleci/gcp-gke@2.2.0
 
 parameters:
   manual:
@@ -298,6 +297,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
       shard:
         type: string
         default: "default"
@@ -337,6 +339,7 @@ jobs:
                 name: Install python dependencies
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install nox
                   pip install -U pip
                 no_output_timeout: 5m
             - run:
@@ -344,6 +347,15 @@ jobs:
                 no_output_timeout: 10m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_args >>]
+                steps:
+                  - run:
+                      name: Upload coverage to codecov
+                      command: |
+                        nox -s codecov -- << parameters.codecov_args >>
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -377,7 +389,7 @@ jobs:
         default: "core"
       toxenv:
         type: string
-      coverage_dir:
+      codecov_args:
         type: string
         default: ""
       notify_on_failure:
@@ -402,7 +414,6 @@ jobs:
     working_directory: /mnt/ramdisk
     environment:
       SHARD: << parameters.shard >>
-      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - checkout
       - run:
@@ -413,6 +424,7 @@ jobs:
           name: Install Python dependencies
           command: |
             pip install tox==<< pipeline.parameters.tox_version >>
+            pip install nox
             pip install -U pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
@@ -432,6 +444,15 @@ jobs:
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -450,12 +471,19 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install python, pip, and nox
+          command: |
+            sudo apt-get update && sudo apt-get install -y python3-pip
+            pip install nox
+      - run:
           name: Run Nexus' Go tests and collect coverage
           command: |
             cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-            # Added to force a coverage count by coverage-tools.py: cover-gotest-circle
-      - codecov/upload
+      - run:
+          name: Upload coverage to codecov
+          command: |
+            nox -s codecov -- -F unit
 
   protobuf-compatability:
     parameters:
@@ -497,6 +525,9 @@ jobs:
       coverage_dir:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
       parallelism:
         type: integer
         default: 4
@@ -531,6 +562,7 @@ jobs:
                 shell: bash.exe
                 command: |
                   pip install tox==<< pipeline.parameters.tox_version >>
+                  pip install nox
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -552,6 +584,15 @@ jobs:
                   yes | gcloud auth configure-docker
                   DATE=$(date -u +%Y%m%d) CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
                 no_output_timeout: 10m
+            - when:
+                condition:
+                  not:
+                    equal: ["", << parameters.codecov_args >>]
+                steps:
+                  - run:
+                      name: Upload coverage to codecov
+                      command: |
+                        nox -s codecov -- << parameters.codecov_args >>
             - save-test-results
 
   mac:
@@ -576,6 +617,9 @@ jobs:
       tox_args:
         type: string
         default: ""
+      codecov_args:
+        type: string
+        default: ""
     macos:
       xcode: 14.3.1
     resource_class: macos.m1.medium.gen1
@@ -588,6 +632,7 @@ jobs:
           name: Install python dependencies
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install nox
             brew install ffmpeg
       - run:
           name: Run tests
@@ -596,6 +641,15 @@ jobs:
             ulimit -n 4096
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  python3 -m nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
 
   launch:
@@ -604,21 +658,19 @@ jobs:
         type: string
       tox_args:
         type: string
-      coverage_dir:
-        type: string
-        default: ""
       python_version_major:
         type: integer
         default: 3
       python_version_minor:
         type: integer
         default: 7
+      codecov_args:
+        type: string
+        default: ""
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
     resource_class: large
-    environment:
-      COVERAGE_DIR: << parameters.coverage_dir >>
     steps:
       - attach_workspace:
           at: .
@@ -627,6 +679,7 @@ jobs:
           name: Install python dependencies, build r2d
           command: |
             pip3 install tox==<< pipeline.parameters.tox_version >>
+            pip3 install nox
             pip3 install chardet
             pip3 install iso8601
       - run:
@@ -638,6 +691,15 @@ jobs:
           command: |
             python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  python3 -m nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
 
   kfp:
@@ -1343,8 +1405,7 @@ workflows:
       - tox-base:
           name: "code-check"
           python_version_minor: 9
-          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,codecov-check,auto-codegen-check"
-
+          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
       #
       # Prep jobs
       #
@@ -1380,9 +1441,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+          codecov_args: "-F system"
       #
       # System tests with pytest on Linux, using real wandb server, with Nexus
       #
@@ -1395,8 +1456,8 @@ workflows:
               python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
+          codecov_args: "-F system"
       #
       # Nexus smoke tests with pytest on Linux, using real wandb server
       #
@@ -1409,8 +1470,8 @@ workflows:
               python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
           name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_nexus"
+          codecov_args: "-F system"
       #
       # Nexus unit tests
       #
@@ -1428,9 +1489,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11]
           name: "unit-linux-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
       #
@@ -1442,9 +1503,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
+          codecov_args: "-F unit"
 
       #
       # Unit tests with pytest on Windows and MacOS
@@ -1463,8 +1524,8 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-win-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - win:
@@ -1481,8 +1542,8 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-win-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests --timeout 300"
 
       - mac:
@@ -1493,9 +1554,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-mock_server-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_args: "-F unit"
 
       - mac:
           requires:
@@ -1505,10 +1566,9 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-mac-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
-
+          codecov_args: "-F unit"
       #
       # Functional tests with yea on Linux (base only)
       #
@@ -1523,9 +1583,10 @@ workflows:
                 - "default"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 4
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1538,8 +1599,9 @@ workflows:
                 - "mitm"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/standalone_tests"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1555,8 +1617,9 @@ workflows:
                 - "noml"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F func"
 
       #
       # Functional tests with yea on Linux
@@ -1576,8 +1639,9 @@ workflows:
                 - "xgboost"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F func"
 
       - tox-base:
           requires:
@@ -1596,8 +1660,9 @@ workflows:
                 - "artifacts"
           name: "func-linux-s_<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F func"
 
       #
       # Functional tests with yea on Windows
@@ -1624,7 +1689,6 @@ workflows:
       #
       # wandb launch tests
       #
-      # todo: fix base docker image for cuda and uncomment this
       - launch:
           requires:
             - "unit-tests-mock-server"
@@ -1633,8 +1697,8 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-launch-mock-server-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
       - pytest:
@@ -1649,9 +1713,9 @@ workflows:
                 - "sweep"
                 - "artifacts"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-linux-circle"
-          coverage_dir: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
+          codecov_args: "-F system"
 
       #
       # notebook tests
@@ -1664,27 +1728,10 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-notebooks-linux-circle"
-          coverage_dir: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
-#      - win:
-#          matrix:
-#            parameters:
-#              python_version_major: [3]
-#              python_version_minor: [9]
-#          name: "system-notebooks-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          parallelism: 1
-#          xdist: 1
-#      - mac:
-#          matrix:
-#            parameters:
-#              python_version_major: [3]
-#              python_version_minor: [9]
-#          name: "system-notebooks-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-#          parallelism: 1
-#          xdist: 1
+          codecov_args: "-F system"
+
       #
       # functional tests with different executors
       #
@@ -1700,32 +1747,3 @@ workflows:
                 - "executor-gunicorn"
                 - "executor-pex"
           name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-
-  # todo: needs love
-  #  manual_test:
-  #    when: << pipeline.parameters.manual_test >>
-  #    jobs:
-  #      - test:
-  #          name: << pipeline.parameters.manual_test_name >>
-  #          image: << pipeline.parameters.manual_test_image >>
-  #          toxenv: << pipeline.parameters.manual_test_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
-  #
-  #  manual_win:
-  #    when: << pipeline.parameters.manual_win >>
-  #    jobs:
-  #      - win:
-  #          name: << pipeline.parameters.manual_win_name >>
-  #          toxenv: << pipeline.parameters.manual_win_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
-  #
-  #  manual_mac:
-  #    when: << pipeline.parameters.manual_mac >>
-  #    jobs:
-  #      - mac:
-  #          name: << pipeline.parameters.manual_mac_name >>
-  #          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-  #          parallelism: << pipeline.parameters.manual_parallelism >>
-  #          xdist: << pipeline.parameters.manual_xdist >>
