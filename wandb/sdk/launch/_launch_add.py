@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Union
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
+from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
@@ -56,7 +57,8 @@ def launch_add(
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
-        template_variables: A dictionary containing values of template variables for a run queue
+        template_variables: A dictionary containing values of template variables for a run queue.
+            Expected format of {"<var-name>": <var-value>}
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
@@ -235,10 +237,8 @@ async def _launch_add(
     if job is not None:
         try:
             public_api.artifact(job, type="job")
-        except ValueError:
-            raise LaunchError(
-                f"Unable to fetch job with name {job}, make sure job exists"
-            )
+        except (ValueError, CommError) as e:
+            raise LaunchError(f"Unable to fetch job with name {job}: {e}")
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],

@@ -685,7 +685,7 @@ def test_container_queued_run(monkeypatch, user):
     assert queued_run
 
 
-def test_job_dne(monkeypatch, user):
+def test_job_dne(monkeypatch, user, relay_server):
     def patched_push_to_run_queue_by_name(*args, **kwargs):
         return {"runQueueItemId": "1"}
 
@@ -694,5 +694,6 @@ def test_job_dne(monkeypatch, user):
         "push_to_run_queue_by_name",
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
     )
+
     with pytest.raises(LaunchError):
         launch_add(job="test/test/test-job:v0")
