@@ -1,4 +1,5 @@
 import os
+import platform
 
 import nox
 
@@ -80,3 +81,61 @@ def list_failing_tests_nexus(session):
         ],
         plugins=[my_plugin],
     )
+
+
+@nox.session(python=False, name="download-codecov")
+def download_codecov(session):
+    system = platform.system().lower()
+    if system == "darwin":
+        system = "macos"
+    url = f"https://uploader.codecov.io/latest/{system}/codecov"
+    if system == "windows":
+        url += ".exe"
+        local_file = "codecov.exe"
+    else:
+        local_file = "codecov"
+
+    session.run(
+        "curl",
+        "-o",
+        local_file,
+        url,
+        external=True,
+    )
+
+    session.run("chmod", "+x", local_file, external=True)
+
+
+@nox.session(python=False, name="run-codecov")
+def run_codecov(session):
+    args = session.posargs or []
+
+    system = platform.system().lower()
+    if system == "linux":
+        command = ["./codecov"]
+    elif system == "darwin":
+        arch = platform.machine().lower()
+        if arch != "x86_64":
+            session.run("softwareupdate", "--install-rosetta", "--agree-to-license")
+            command = ["arch", "-x86_64", "./codecov"]
+        else:
+            command = ["./codecov"]
+    elif system == "windows":
+        command = ["codecov.exe"]
+    else:
+        raise OSError("Unsupported operating system")
+
+    command.extend(args)
+
+    session.run(*command, external=True)
+
+
+@nox.session(python=False, name="codecov")
+def codecov(session):
+    session.notify("download-codecov")
+    session.notify("run-codecov", posargs=session.posargs)
+
+
+if __name__ == "__main__":
+    download_codecov()
+    run_codecov()
