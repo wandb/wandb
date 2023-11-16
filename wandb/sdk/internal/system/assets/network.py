@@ -66,7 +66,7 @@ class NetworkRecv:
         # return {"network": {self.name: aggregate}}
 
         return {self.name: aggregate}
-    
+
 
 class NetworkTrafficSent:
     """Network traffic sent."""
@@ -100,7 +100,7 @@ class NetworkTrafficReceived:
     def aggregate(self) -> dict:
         recv = self.network_recv.aggregate()
         return {**recv}
-    
+
 
 @asset_registry.register
 class Network:
@@ -115,7 +115,7 @@ class Network:
             NetworkSent(),
             NetworkRecv(),
             NetworkTrafficSent(),
-            NetworkTrafficReceived()
+            NetworkTrafficReceived(),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
