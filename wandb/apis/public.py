@@ -2873,14 +2873,11 @@ class RunQueue:
         access: "RunQueueAccessType",
         entity: Optional[str] = None,
         config: Optional[dict] = None,
+        template_variables: Optional[dict] = None,
     ) -> "RunQueue":
         public_api = Api()
         return public_api.create_run_queue(
-            name,
-            resource,
-            access,
-            entity,
-            config,
+            name, resource, access, entity, config, template_variables
         )
 
 
