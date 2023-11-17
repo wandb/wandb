@@ -1,8 +1,6 @@
 id: 0.mp.05-pool-nofinish
 plugin:
   - wandb
-tag:
-  shard: service
 parametrize:
   permute:
     - :yea:start_method:
