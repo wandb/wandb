@@ -50,6 +50,9 @@ parameters:
   tox_version:
     type: string
     default: "4.5.1"
+  go_version:
+    type: string
+    default: "1.21.4"
   container_registry:
     type: string
     default: "gcr.io"
@@ -431,8 +434,8 @@ jobs:
       - run:
           name: Install Go
           command: |
-            wget https://go.dev/dl/go1.21.3.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go1.21.3.linux-amd64.tar.gz
+            wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
+            tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
             PATH=/usr/local/go/bin:$PATH
             go version
           no_output_timeout: 1m

@@ -44,6 +44,15 @@ class ServiceStartPortError(Error):
     pass
 
 
+def get_core_path() -> str:
+    core_path: str = os.environ.get("_WANDB_NEXUS_PATH", "")
+    wandb_core = get_module("wandb_core")
+    if not core_path and wandb_core:
+        _check_wandb_core_version_compatibility(wandb_core.__version__)
+        core_path = wandb_core.get_nexus_path()
+    return core_path
+
+
 def _check_wandb_core_version_compatibility(core_version: str) -> None:
     """Checks if the installed wandb-core version is compatible with the wandb version."""
     from pkg_resources import parse_version
@@ -176,18 +185,12 @@ class _Service:
             #
             #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
             #       to assist in running the nexus service from a live development directory.
-            core_path: str = os.environ.get("_WANDB_NEXUS_PATH", "")
-            wandb_core = get_module("wandb_core")
-            if not core_path and wandb_core:
-                _check_wandb_core_version_compatibility(wandb_core.__version__)
-                core_path = wandb_core.get_nexus_path()
+            core_path = get_core_path()
             if core_path:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
-                # TODO(artifacts): this is temporary until the artifact logic is fixed
-                os.environ["WANDB_REQUIRE_NEXUS"] = "True"
             else:
                 service_args.extend(["wandb", "service"])
 
