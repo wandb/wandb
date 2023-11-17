@@ -88,12 +88,8 @@ def download_codecov(session):
     system = platform.system().lower()
     if system == "darwin":
         system = "macos"
-    url = f"https://uploader.codecov.io/latest/{system}/codecov"
-    if system == "windows":
-        url += ".exe"
-        local_file = "codecov.exe"
-    else:
-        local_file = "codecov"
+    url = f"https://uploader.codecov.io/latest/{system}/codecov{'' if system != 'windows' else '.exe'}"
+    local_file = f"codecov{'' if system != 'windows' else '.exe'}"
 
     session.run(
         "curl",
@@ -108,23 +104,20 @@ def download_codecov(session):
 
 @nox.session(python=False, name="run-codecov")
 def run_codecov(session):
-    args = session.posargs or []
-
     system = platform.system().lower()
-    if system == "linux":
+    if system == "linux" or (
+        system == "darwin" and platform.machine().lower() == "x86_64"
+    ):
         command = ["./codecov"]
     elif system == "darwin":
-        arch = platform.machine().lower()
-        if arch != "x86_64":
-            session.run("softwareupdate", "--install-rosetta", "--agree-to-license")
-            command = ["arch", "-x86_64", "./codecov"]
-        else:
-            command = ["./codecov"]
+        session.run("softwareupdate", "--install-rosetta", "--agree-to-license")
+        command = ["arch", "-x86_64", "./codecov"]
     elif system == "windows":
         command = ["codecov.exe"]
     else:
         raise OSError("Unsupported operating system")
 
+    args = session.posargs or []
     command.extend(args)
 
     session.run(*command, external=True)
@@ -134,8 +127,3 @@ def run_codecov(session):
 def codecov(session):
     session.notify("download-codecov")
     session.notify("run-codecov", posargs=session.posargs)
-
-
-if __name__ == "__main__":
-    download_codecov()
-    run_codecov()
