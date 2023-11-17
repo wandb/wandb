@@ -186,7 +186,7 @@ class _Service:
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
-                # TODO(artifacts): this is temporary until artifacts fixes their logic
+                # TODO(artifacts): this is temporary until the artifact logic is fixed
                 os.environ["WANDB_REQUIRE_NEXUS"] = "True"
             else:
                 service_args.extend(["wandb", "service"])
