@@ -54,7 +54,7 @@ executors:
       server_tag:
         description: "Test server repository tag"
         type: string
-        default: "latest"
+        default: master
     resource_class: xlarge
     working_directory: /mnt/ramdisk
 
