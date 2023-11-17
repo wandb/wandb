@@ -62,7 +62,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
-from wandb.sdk.service.service import get_core_path
+from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -1714,7 +1714,7 @@ class Artifact:
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if get_core_path():
+        if get_core_path():  # require Nexus
             if not run._backend or not run._backend.interface:
                 raise NotImplementedError
             if run._settings._offline:
