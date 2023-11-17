@@ -5,7 +5,6 @@ orbs:
   slack: circleci/slack@4.12.5
   go: circleci/go@1.9.0
   gcloud: circleci/gcp-cli@3.1.1
-  gke: circleci/gcp-gke@2.2.0
 
 parameters:
   manual:
@@ -47,9 +46,6 @@ parameters:
   manual_xdist:
     type: integer
     default: 1
-  tox_version:
-    type: string
-    default: "4.5.1"
   go_version:
     type: string
     default: "1.21.4"
@@ -72,9 +68,6 @@ parameters:
     type: boolean
     default: true
   nightly_execute_standalone_gpu:
-    type: boolean
-    default: true
-  nightly_execute_kfp:
     type: boolean
     default: true
   nightly_execute_standalone_gpu_win:
@@ -264,10 +257,9 @@ jobs:
                   source ~/.bashrc
                 no_output_timeout: 30m
             - run:
-                name: Install tox
+                name: Install requirements
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install -U pip
+                  pip install -U pip tox
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -341,9 +333,7 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install nox
-                  pip install -U pip
+                  pip install -U tox nox pip
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -426,9 +416,7 @@ jobs:
       - run:
           name: Install Python dependencies
           command: |
-            pip install tox==<< pipeline.parameters.tox_version >>
-            pip install nox
-            pip install -U pip
+            pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
@@ -564,8 +552,7 @@ jobs:
                 name: Install python dependencies
                 shell: bash.exe
                 command: |
-                  pip install tox==<< pipeline.parameters.tox_version >>
-                  pip install nox
+                  pip install -U tox nox pip
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -634,8 +621,7 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip3 install tox==<< pipeline.parameters.tox_version >>
-            pip3 install nox
+            pip3 install -U tox nox pip
             brew install ffmpeg
       - run:
           name: Run tests
@@ -681,10 +667,7 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip3 install tox==<< pipeline.parameters.tox_version >>
-            pip3 install nox
-            pip3 install chardet
-            pip3 install iso8601
+            pip3 install tox nox chardet iso8601
       - run:
           name: pull base docker images
           command: |
@@ -704,92 +687,6 @@ jobs:
                 command: |
                   python3 -m nox -s codecov -- << parameters.codecov_args >>
       - save-test-results
-
-  kfp:
-    parameters:
-      toxenv:
-        type: string
-      execute:
-        type: boolean
-        default: true
-      notify_on_failure:
-        type: boolean
-        default: true
-      notify_on_success:
-        type: boolean
-        default: false
-    machine:
-      image: ubuntu-2004:2022.04.1
-      docker_layer_caching: true
-    resource_class: large
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - run:
-                name: Install system deps
-                command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
-            - run:
-                name: Use py37
-                command: |
-                  pyenv install -s 3.7.13
-                  pyenv versions
-                  pyenv global 3.7.13
-            - run:
-                name: Install python dependencies
-                command: |
-                  pip install --upgrade pip
-                  pip install tox==<< pipeline.parameters.tox_version >>
-            - run:
-                name: Install kubectl
-                command: |
-                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-            - run:
-                name: Install kind
-                command: |
-                  curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
-                  chmod +x ./kind/kind
-                  export PATH="./kind:$PATH"
-                  kind create cluster
-            - run:
-                name: Install KFP
-                command: |
-                  export PIPELINE_VERSION=1.7.1
-                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
-                  sleep 10s
-                  kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
-                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
-                  sleep 10s
-                  kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
-                  kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
-            - run:
-                name: Run tests
-                command: |
-                  tox run -v -e << parameters.toxenv >>
-                no_output_timeout: 25m
-            # conditionally post a notification to slack if the job failed/succeeded
-            - when:
-                condition: << parameters.notify_on_failure >>
-                steps:
-                  - slack/notify:
-                      event: fail
-                      template: basic_fail_1
-                      mentions: "@channel"
-                      # taken from slack-secrets context
-                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-            - when:
-                condition: << parameters.notify_on_success >>
-                steps:
-                  - slack/notify:
-                      event: pass
-                      template: basic_success_1
-                      # taken from slack-secrets context
-                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-            - save-test-results
 
   slack_notify:
     parameters:
@@ -1269,19 +1166,7 @@ workflows:
           requires:
             - "slack-notify-on-start"
           notify_on_failure: true
-      #
-      # kfp tests
-      #
-      - kfp:
-          name: "mach-kubeflow"
-          toxenv: "func-kfp-py37"
-          # execute: << pipeline.parameters.nightly_execute_kfp >>
-          # TODO: re-enable kfp tests once we support kfp>=2.0.0
-          execute: false
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
+
       #
       # protobuf compatibility tests
       #
@@ -1407,7 +1292,7 @@ workflows:
       #
       - tox-base:
           name: "code-check"
-          python_version_minor: 9
+          python_version_minor: 10
           toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
       #
       # Prep jobs
@@ -1444,11 +1329,11 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_core"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "-m 'not nexus_failure' tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
       #
-      # System tests with pytest on Linux, using real wandb server, with Nexus
+      # System tests with Service
       #
       - pytest:
           requires:
@@ -1456,9 +1341,9 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
-          name: "nexus-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+              python_version_minor: [ 10, 11 ]
+          name: "service-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
       #
