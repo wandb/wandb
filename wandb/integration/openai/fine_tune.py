@@ -4,14 +4,11 @@ import json
 import os
 import re
 import time
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
-from wandb.sdk.lib import telemetry
 from wandb.data_types import Table
-
-from typing import Optional, Any, Dict
-from typing import Tuple
-
+from wandb.sdk.lib import telemetry
 
 try:
     import openai
@@ -124,12 +121,12 @@ class WandbLogger:
                 return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
-                    f"Fine-tune {fine_tune_id} has has failed and will not be logged"
+                    f"Fine-tune {fine_tune.id} has has failed and will not be logged"
                 )
                 return fine_tune
             if fine_tune.status == "cancelled":
                 wandb.termwarn(
-                    f"Fine-tune {fine_tune_id} has was cancelled and will not be logged"
+                    f"Fine-tune {fine_tune.id} has was cancelled and will not be logged"
                 )
                 return fine_tune
             time.sleep(60)
