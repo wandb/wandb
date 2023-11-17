@@ -3,10 +3,10 @@ from typing import Any, Dict, Sequence
 from wandb.sdk.integration_utils.auto_logging import Response
 
 from .resolvers import (
-    SUPPORTED_SDXL_PIPELINES,
     SUPPORTED_MULTIMODAL_PIPELINES,
-    SDXLResolver,
+    SUPPORTED_SDXL_PIPELINES,
     DiffusersMultiModalPipelineResolver,
+    SDXLResolver,
 )
 
 
