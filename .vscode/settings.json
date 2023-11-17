@@ -18,7 +18,7 @@
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
   "python.testing.nosetestsEnabled": false,
-  "python.formatting.provider": "black",
+  "python.formatting.provider": "none",
   "python.formatting.autopep8Args": [
     "--max-line-length",
     "120"
@@ -29,8 +29,7 @@
   "python.linting.pylintEnabled": false,
   "jupyter.jupyterServerType": "local",
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   },
 }
-
