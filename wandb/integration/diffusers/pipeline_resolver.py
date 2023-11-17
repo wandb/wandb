@@ -15,6 +15,7 @@ class DiffusersPipelineResolver:
     [HuggingFace Diffusers](https://huggingface.co/docs/diffusers/index),
     providing necessary data transformations, formatting, and logging.
 
+
     This is based off `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
     """
 
@@ -38,6 +39,7 @@ class DiffusersPipelineResolver:
                 the request.
             start_time: (float) Time when request started.
             time_elapsed: (float) Time elapsed for the request.
+
         Returns:
             Packed data as a dictionary for logging to wandb, None if an exception occurred.
         """

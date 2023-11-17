@@ -470,6 +470,19 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
 
 
 class DiffusersMultiModalPipelineResolver:
+    """Resolver for  request and responses from
+    [HuggingFace Diffusers](https://huggingface.co/docs/diffusers/index)
+    multi-modal Diffusion Pipelines, providing necessary data
+    transformations, formatting, and logging.
+
+    This resolver is internally involed in the
+    `__call__` for `wandb.integration.diffusers.pipeline_resolver.DiffusersPipelineResolver`.
+    This is based off `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
+
+    Arguments:
+        pipeline_name: (str) The name of the Diffusion Pipeline.
+    """
+
     def __init__(self, pipeline_name: str) -> None:
         self.pipeline_name = pipeline_name
         columns = []
@@ -487,6 +500,19 @@ class DiffusersMultiModalPipelineResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Any:
+        """Main call method for the `DiffusersPipelineResolver` class.
+
+        Arguments:
+            args: (Sequence[Any]) List of arguments.
+            kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
+            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+                the request.
+            start_time: (float) Time when request started.
+            time_elapsed: (float) Time elapsed for the request.
+
+        Returns:
+            Packed data as a dictionary for logging to wandb, None if an exception occurred.
+        """
         try:
             # Get the pipeline and the args
             pipeline, args = args[0], args[1:]
@@ -510,6 +536,16 @@ class DiffusersMultiModalPipelineResolver:
         return None
 
     def get_output_images(self, response: Response) -> List:
+        """Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's
+        response.
+
+        Arguments:
+            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+                the request.
+
+        Returns:
+            List of generated images, audio, video, etc.
+        """
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             return response.images
         else:
@@ -527,6 +563,14 @@ class DiffusersMultiModalPipelineResolver:
                 return response.audios
 
     def log_media(self, image: Any, loggable_kwarg_chunks: List, idx: int) -> None:
+        """Log the generated images, audio, video, etc. from the Diffusion Pipeline's
+        response along with an optional caption to a media panel in the run.
+
+        Arguments:
+            image: (Any) The generated images, audio, video, etc. from the Diffusion
+                Pipeline's response.
+            loggable_kwarg_chunks: (List) Loggable chunks of kwargs.
+        """
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             try:
                 prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
@@ -577,6 +621,14 @@ class DiffusersMultiModalPipelineResolver:
     def add_data_to_table(
         self, image: Any, loggable_kwarg_chunks: List, idx: int
     ) -> None:
+        """Populate the row of the `wandb.Table`.
+
+        Arguments:
+            image: (Any) The generated images, audio, video, etc. from the Diffusion
+                Pipeline's response.
+            loggable_kwarg_chunks: (List) Loggable chunks of kwargs.
+            idx: (int) Chunk index.
+        """
         table_row = []
         kwarg_actions = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
             "kwarg-actions"
@@ -608,7 +660,20 @@ class DiffusersMultiModalPipelineResolver:
     def prepare_loggable_dict(
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
+        """Prepare the loggable dictionary, which is the packed data as a dictionary
+        for logging to wandb, None if an exception occurred.
+
+        Arguments:
+            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+                the request.
+            kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
+
+        Returns:
+            Packed data as a dictionary for logging to wandb, None if an exception occurred.
+        """
+        # Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
         images = self.get_output_images(response)
+
         # Account for exception pipelines for text-to-video
         if self.pipeline_name in ["TextToVideoSDPipeline", "TextToVideoZeroPipeline"]:
             video = postprocess_np_arrays_for_video(
@@ -630,6 +695,7 @@ class DiffusersMultiModalPipelineResolver:
             loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
                 "kwarg-logging"
             ]
+            # chunkify loggable kwargs
             loggable_kwarg_chunks = []
             for loggable_kwarg_id in loggable_kwarg_ids:
                 loggable_kwarg_chunks.append(
@@ -637,9 +703,13 @@ class DiffusersMultiModalPipelineResolver:
                     if isinstance(kwargs[loggable_kwarg_id], list)
                     else [kwargs[loggable_kwarg_id]]
                 )
+            # chunkify the generated media
             images = chunkify(images, len(loggable_kwarg_chunks[0]))
             for idx in range(len(loggable_kwarg_chunks[0])):
                 for image in images[idx]:
+                    # Log media to media panel
                     self.log_media(image, loggable_kwarg_chunks, idx)
+                    # Populate the row of the wandb_table
                     self.add_data_to_table(image, loggable_kwarg_chunks, idx)
+
         return {"Result-Table": self.wandb_table}
