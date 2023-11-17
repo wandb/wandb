@@ -11,7 +11,7 @@ parameters:
   go_version:
     description: "Go version"
     type: string
-    default: "1.21.3"
+    default: "1.21.4"
 
 commands:
   install_go:
@@ -30,7 +30,7 @@ commands:
           name: Install Go
           command: |
             wget https://go.dev/dl/go<<parameters.version>>.<<parameters.system>>.tar.gz
-            tar -C /usr/local -xzf https://go.dev/dl/go<<parameters.version>>.<<parameters.system>>.tar.gz
+            tar -C /usr/local -xzf go<<parameters.version>>.<<parameters.system>>.tar.gz
             PATH=/usr/local/go/bin:$PATH
             go version
           no_output_timeout: 1m
