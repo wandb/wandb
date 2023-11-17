@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import numpy as np
 
 
-def chunkify(input_list, chunk_size):
+def chunkify(input_list, chunk_size) -> List:
     chunk_size = max(1, chunk_size)
     return [
         input_list[i : i + chunk_size] for i in range(0, len(input_list), chunk_size)
@@ -32,7 +32,7 @@ def get_updated_kwargs(
     return kwargs
 
 
-def postprocess_pils_to_np(image: List):
+def postprocess_pils_to_np(image: List) -> np.array:
     return np.stack(
         [np.transpose(np.array(img).astype("uint8"), axes=(2, 0, 1)) for img in image],
         axis=0,
