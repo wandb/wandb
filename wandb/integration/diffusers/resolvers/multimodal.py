@@ -475,6 +475,8 @@ class DiffusersMultiModalPipelineResolver:
         columns = []
         if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
             columns += SUPPORTED_MULTIMODAL_PIPELINES[pipeline_name]["table-schema"]
+        else:
+            wandb.Error("Pipeline not supported for logging")
         self.wandb_table = wandb.Table(columns=columns)
 
     def __call__(
@@ -485,27 +487,26 @@ class DiffusersMultiModalPipelineResolver:
         start_time: float,
         time_elapsed: float,
     ) -> Any:
-        # try:
-        # Get the pipeline and the args
-        pipeline, args = args[0], args[1:]
+        try:
+            # Get the pipeline and the args
+            pipeline, args = args[0], args[1:]
 
-        # Update the Kwargs so that they can be logged easily
-        kwargs = get_updated_kwargs(pipeline, args, kwargs)
+            # Update the Kwargs so that they can be logged easily
+            kwargs = get_updated_kwargs(pipeline, args, kwargs)
 
-        # Get the pipeline configs
-        pipeline_configs = dict(pipeline.config)
-        pipeline_configs["pipeline-name"] = self.pipeline_name
+            # Get the pipeline configs
+            pipeline_configs = dict(pipeline.config)
+            pipeline_configs["pipeline-name"] = self.pipeline_name
 
-        wandb.config.update(
-            {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
-        )
+            wandb.config.update(
+                {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
+            )
 
-        # Return the WandB loggable dict
-        loggable_dict = self.prepare_loggable_dict(response, kwargs)
-        return loggable_dict
-        # except Exception as e:
-        #     print(e)
-        # return None
+            # Return the WandB loggable dict
+            loggable_dict = self.prepare_loggable_dict(response, kwargs)
+            return loggable_dict
+        except Exception as e:
+            logger.warning(e)
 
     def get_output_images(self, response: Response) -> List:
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:

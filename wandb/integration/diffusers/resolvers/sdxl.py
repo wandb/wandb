@@ -8,6 +8,9 @@ from wandb.sdk.integration_utils.auto_logging import Response
 from .utils import chunkify, get_updated_kwargs
 
 
+logger = logging.getLogger(__name__)
+
+
 SUPPORTED_SDXL_PIPELINES = [
     "StableDiffusionXLPipeline",
     "StableDiffusionXLImg2ImgPipeline",
@@ -77,8 +80,7 @@ class SDXLResolver:
             )
             return loggable_dict
         except Exception as e:
-            print(e)
-        return None
+            logger.warning(e)
 
     def create_wandb_table(self, pipeline_configs: Dict[str, Any]) -> None:
         columns = []
@@ -196,4 +198,4 @@ class SDXLResolver:
                 pipeline, self.workflow_stage, response, kwargs
             )
         self.update_wandb_configs(pipeline_configs, kwargs)
-        return {f"Text-to-Image/{self.workflow_stage}": self.wandb_table}
+        return {f"{self.workflow_stage}/Result-Table": self.wandb_table}
