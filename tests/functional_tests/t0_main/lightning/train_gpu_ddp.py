@@ -11,9 +11,6 @@ from torch.utils.data import DataLoader
 
 
 def main():
-    # Use concurrency experiment
-    wandb.require(experiment="service")
-
     # boost stats logging frequency for testing
     stats_settings = dict(_stats_sample_rate_seconds=0.5, _stats_samples_to_average=2)
     wandb.setup(settings=stats_settings)
