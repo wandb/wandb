@@ -476,6 +476,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
 def sync(
     ctx,
@@ -499,6 +500,7 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
     append=None,
+    skip_console=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -568,6 +570,7 @@ def sync(
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
             append=append,
+            skip_console=skip_console,
         )
         for p in _path:
             sm.add(p)
@@ -1373,6 +1376,7 @@ def launch(
                     uri,
                     job,
                     config,
+                    None,
                     project,
                     entity,
                     queue,

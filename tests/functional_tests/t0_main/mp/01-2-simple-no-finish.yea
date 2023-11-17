@@ -1,8 +1,6 @@
 id: 0.mp.01-2-simple-no-finish
 plugin:
   - wandb
-tag:
-  shard: service
 
 depend:
   requirements:

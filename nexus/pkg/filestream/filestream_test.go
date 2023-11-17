@@ -11,10 +11,11 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/filestream"
 	"github.com/wandb/wandb/nexus/pkg/server"
 
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/segmentio/encoding/json"
 
 	"sync"
 
