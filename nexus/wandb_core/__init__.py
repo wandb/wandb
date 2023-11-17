@@ -1,4 +1,4 @@
-"""W&B Nexus: Calcium-Rich Bones for the SDK."""
+"""W&B Core: This is the backend for the W&B client library."""
 __all__ = ("__version__", "get_nexus_path")
 
 from pathlib import Path

@@ -97,7 +97,7 @@ launch = [
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
-nexus = ["wandb-core>=0.17.0b2"]
+core = ["wandb-core>=0.17.0b2"]
 
 [tool.setuptools]
 zip-safe = false
