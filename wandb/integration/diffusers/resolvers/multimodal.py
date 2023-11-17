@@ -1,10 +1,5 @@
-import os
-import tempfile
 import logging
 from typing import Any, Dict, List, Sequence
-
-import numpy as np
-import PIL
 
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
@@ -612,6 +607,7 @@ class DiffusersMultiModalPipelineResolver:
         self, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         images = self.get_output_images(response)
+        # Account for exception pipelines for text-to-video
         if self.pipeline_name in ["TextToVideoSDPipeline", "TextToVideoZeroPipeline"]:
             video = postprocess_np_arrays_for_video(
                 images, normalize=self.pipeline_name == "TextToVideoZeroPipeline"
