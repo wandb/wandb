@@ -171,7 +171,9 @@ class WandbLogger:
             results = cls.openai_client.files.retrieve_content(file_id=results_id)
         except openai.NotFoundError:
             if show_individual_warnings:
-                wandb.termwarn(f"Fine-tune {fine_tune_id} has no results and will not be logged")
+                wandb.termwarn(
+                    f"Fine-tune {fine_tune_id} has no results and will not be logged"
+                )
             return
 
         # check run has not been logged already
@@ -353,7 +355,9 @@ class WandbLogger:
                 cls._run.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
             except Exception:
-                wandb.termerror(f"File {file_id} could not be read as a valid JSON file")
+                wandb.termerror(
+                    f"File {file_id} could not be read as a valid JSON file"
+                )
         else:
             # log number of items
             cls._run.config.update({f"n_{prefix}": artifact.metadata.get("items")})
