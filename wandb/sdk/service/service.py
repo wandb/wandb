@@ -43,7 +43,6 @@ class ServiceStartPortError(Error):
 
     pass
 
-  
 class _Service:
     _settings: "Settings"
     _sock_port: Optional[int]
