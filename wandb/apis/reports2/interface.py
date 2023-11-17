@@ -1,3 +1,4 @@
+from dataclasses import InitVar
 from typing import Iterable, List, Literal, Optional, Union
 from typing import List as LList
 
@@ -21,13 +22,10 @@ from .internal import (
 _api = wandb.Api()
 DEFAULT_ENTITY = _api.default_entity
 
-report_api_dataclass = dataclass(
-    config=ConfigDict(validate_assignment=True, extra="forbid", slots=True)
-)
+dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-@report_api_dataclass
-# @dataclasses.dataclass
+@dataclass(config=dataclass_config)
 class Base:
     def __repr__(self):
         fields = ", ".join(
@@ -36,7 +34,7 @@ class Base:
         return f"{self.__class__.__name__}({fields})"
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Layout(Base):
     x: int = 0
     y: int = 0
@@ -51,14 +49,27 @@ class Layout(Base):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Report(Base):
     project: str
     entity: str = DEFAULT_ENTITY
     title: str = "Untitled Report"
     description: str = ""
 
-    blocks: List["BlockTypes"] = Field(default_factory=list)
+    blocks: InitVar[List["BlockTypes"]] = Field(default_factory=list)
+    _thing: str = ""
+
+    # def __post_init__(self, blocks):
+    #     self.blocks_ = []
+
+    @property
+    def blocks(self):
+        # hide enclosing p blocks
+        return self._blocks[1:-1]
+
+    @blocks.setter
+    def blocks(self, v):
+        return [P()] + v + [P()]
 
     def to_model(self):
         return internal.ReportViewspec(
@@ -99,7 +110,7 @@ class Report(Base):
         # )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Block(Base):
     ...
 
@@ -115,7 +126,7 @@ class Block(Base):
     #     return cls.from_model(model)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Heading(Block):
     @classmethod
     def from_model(cls, model: internal.Heading):
@@ -134,7 +145,7 @@ class Heading(Block):
             return H3(text=text, blocks=blocks)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class List(Block):
     @classmethod
     def from_model(cls, model: internal.List):
@@ -173,7 +184,7 @@ class List(Block):
         return UnorderedList(items=list_items)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class H1(Heading):
     text: str
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -189,7 +200,7 @@ class H1(Heading):
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class H2(Block):
     text: str
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -205,7 +216,7 @@ class H2(Block):
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class H3(Block):
     text: str
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -221,7 +232,7 @@ class H3(Block):
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class P(Block):
     text: str
 
@@ -235,7 +246,7 @@ class P(Block):
         return cls(text=text)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CheckedListItem:
     text: str
     checked: bool = False
@@ -247,7 +258,7 @@ class CheckedListItem:
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class OrderedListItem:
     text: str
 
@@ -258,7 +269,7 @@ class OrderedListItem:
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class UnorderedListItem:
     text: str
 
@@ -268,7 +279,7 @@ class UnorderedListItem:
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CheckedList(List):
     items: LList[CheckedListItem]
 
@@ -277,7 +288,7 @@ class CheckedList(List):
         return internal.List(children=items)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class OrderedList(List):
     items: LList[OrderedListItem]
 
@@ -286,7 +297,7 @@ class OrderedList(List):
         return internal.List(children=items)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class UnorderedList(List):
     items: LList[UnorderedListItem]
 
@@ -295,7 +306,7 @@ class UnorderedList(List):
         return internal.List(children=items)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CodeBlock(Block):
     code: str
     language: str
@@ -318,7 +329,7 @@ class CodeBlock(Block):
         return cls(code=text, language=model.language)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class MarkdownBlock(Block):
     text: str
 
@@ -330,7 +341,7 @@ class MarkdownBlock(Block):
         return cls(text=model.content)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class LatexBlock(Block):
     text: str
 
@@ -342,7 +353,7 @@ class LatexBlock(Block):
         return cls(text=model.content)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Image(Block):
     # TODO: fix captions
     url: AnyUrl
@@ -359,7 +370,7 @@ class Image(Block):
         return internal.Image(url=model.url)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class BlockQuote(Block):
     text: str
 
@@ -375,7 +386,7 @@ class BlockQuote(Block):
         return cls(text=text)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class HorizontalRule(Block):
     def to_model(self):
         return internal.HorizontalRule()
@@ -385,7 +396,7 @@ class HorizontalRule(Block):
         return cls()
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Video(Block):
     url: AnyUrl
 
@@ -397,7 +408,7 @@ class Video(Block):
         return cls(url=model.url)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Spotify(Block):
     spotify_id: str
 
@@ -409,7 +420,7 @@ class Spotify(Block):
         return cls(spotify_id=model.spotify_id)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class SoundCloud(Block):
     html: str
 
@@ -421,7 +432,7 @@ class SoundCloud(Block):
         return cls(html=model.html)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Gallery(Block):
     ids: list[str]
 
@@ -433,12 +444,12 @@ class Gallery(Block):
         return cls(ids=model.ids)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CustomRunColors:
     ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Runset(Base):
     entity: Optional[str] = None
     project: Optional[str] = None
@@ -469,13 +480,12 @@ class Runset(Base):
         )
 
 
-@report_api_dataclass
-# @dataclasses.dataclass
+@dataclass(config=dataclass_config)
 class Panel(Base):
     layout: Layout = Field(default_factory=Layout)
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class PanelGrid(Block):
     runsets: list[Runset] = Field(default_factory=list)
     panels: list[Panel] = Field(default_factory=list)
@@ -483,24 +493,32 @@ class PanelGrid(Block):
     active_runset: Optional[str] = None
 
     def to_model(self):
-        ...
+        return internal.PanelGrid(
+            metadata=internal.PanelGridMetadata(
+                run_sets=[rs.to_model() for rs in self.runsets],
+                panel_bank_section_config=internal.PanelBankSectionConfig(
+                    panels=[p.to_model() for p in self.panels],
+                ),
+                custom_run_colors=self.custom_run_colors,
+            )
+        )
 
     @classmethod
     def from_model(cls, model: internal.PanelGrid):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class TableOfContents(Block):
     ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Twitter(Block):
     ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class WeaveBlock(Block):
     ...
 
@@ -544,12 +562,12 @@ block_mapping = {
 }
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CustomRunColors:
     ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -641,7 +659,7 @@ class LinePlot(Panel):
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ScatterPlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -669,7 +687,7 @@ class ScatterPlot(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class BarPlot(Panel):
     title: Optional[str] = None
     metrics: Optional[list[str]] = None
@@ -696,7 +714,7 @@ class BarPlot(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ScalarChart(Panel):
     title: Optional[str] = None
     metric: str = ""
@@ -714,7 +732,7 @@ class ScalarChart(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CodeComparer(Panel):
     diff: Optional[CodeCompareDiff] = None
 
@@ -726,12 +744,12 @@ class CodeComparer(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlotColumn:
     ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlot(Panel):
     columns: list[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
@@ -746,7 +764,7 @@ class ParallelCoordinatesPlot(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
@@ -758,7 +776,7 @@ class ParameterImportancePlot(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class RunComparer(Panel):
     diff_only: Optional[Literal["split"]] = None
 
@@ -770,7 +788,7 @@ class RunComparer(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class MediaBrowser(Panel):
     num_columns: Optional[int] = None
     media_keys: Optional[list[str]] = None
@@ -793,7 +811,7 @@ class MediaBrowser(Panel):
         )
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class MarkdownPanel(Panel):
     markdown: Optional[str] = None
 
@@ -805,7 +823,7 @@ class MarkdownPanel(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class ConfusionMatrix(Panel):
     def to_model(self):
         ...
@@ -815,7 +833,7 @@ class ConfusionMatrix(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class DataFrames(Panel):
     def to_model(self):
         ...
@@ -825,7 +843,7 @@ class DataFrames(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class MultiRunTable(Panel):
     def to_model(self):
         ...
@@ -835,7 +853,7 @@ class MultiRunTable(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Vega(Panel):
     def to_model(self):
         ...
@@ -845,7 +863,7 @@ class Vega(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class CustomChart(Panel):
     query: dict = Field(default_factory=dict)
     chart_name: str = Field(default_factory=dict)
@@ -860,7 +878,7 @@ class CustomChart(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class Vega3(Panel):
     def to_model(self):
         ...
@@ -870,7 +888,7 @@ class Vega3(Panel):
         ...
 
 
-@report_api_dataclass
+@dataclass(config=dataclass_config)
 class WeavePanel(Panel):
     ...
 

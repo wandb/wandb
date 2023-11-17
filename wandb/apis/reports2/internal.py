@@ -72,6 +72,21 @@ class LocalPanelSettings(ReportAPIBaseModel):
     ref: dict = Field(default_factory=dict)
 
 
+class PanelBankConfigSection(ReportAPIBaseModel):
+    name: Literal["Hidden Panels"] = "Hidden Panels"
+    is_open: bool = False
+    type: str = "flow"
+    flow_config: FlowConfig = Field(default_factory=Field)
+    sorted: int = 0
+    local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
+
+
+class PanelBankConfig(ReportAPIBaseModel):
+    state: int = 0
+    settings: dict = Field(default_factory=PanelBankConfigSettings)
+    sections: list[dict] = Field(default_factory=list)
+
+
 class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     name: str = "Hidden Panels"
     is_open: bool = False
@@ -85,12 +100,6 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     ref: dict = Field(default_factory=dict)
 
 
-class PanelBankConfig(ReportAPIBaseModel):
-    state: int = 0
-    settings: dict = Field(default_factory=PanelBankConfigSettings)
-    sections: list[dict] = Field(default_factory=list)
-
-
 class PanelBankSectionConfig(ReportAPIBaseModel):
     name: Literal["Report Panels"] = "Report Panels"
     is_open: bool = False
@@ -99,6 +108,10 @@ class PanelBankSectionConfig(ReportAPIBaseModel):
     flow_config: dict = Field(default_factory=dict)
     sorted: int = 0
     local_panel_settings: dict = Field(default_factory=dict)
+
+
+class PanelGridCustomRunColors(ReportAPIBaseModel):
+    ref: Ref
 
 
 class PanelGridMetadata(ReportAPIBaseModel):
@@ -111,7 +124,9 @@ class PanelGridMetadata(ReportAPIBaseModel):
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
-    custom_run_colors: dict = Field(default_factory=dict)
+    custom_run_colors: PanelGridCustomRunColors = Field(
+        default_factory=PanelGridCustomRunColors
+    )
 
 
 class Block(ReportAPIBaseModel):
