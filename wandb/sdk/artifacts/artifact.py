@@ -62,6 +62,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -1713,7 +1714,7 @@ class Artifact:
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if run._settings._require_nexus:
+        if get_core_path():  # require Nexus
             if not run._backend or not run._backend.interface:
                 raise NotImplementedError
             if run._settings._offline:
@@ -1751,7 +1752,7 @@ class Artifact:
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in nexus
         assert wandb.run is not None
-        require_nexus = wandb.run._settings._require_nexus
+        require_nexus = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
