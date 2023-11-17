@@ -8,7 +8,6 @@ from wandb.sdk.integration_utils.auto_logging import Response
 
 from .utils import chunkify, get_updated_kwargs
 
-
 logger = logging.getLogger(__name__)
 
 

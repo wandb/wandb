@@ -4,10 +4,9 @@ from .multimodal import (
 )
 from .sdxl import SUPPORTED_SDXL_PIPELINES, SDXLResolver
 
-
 __all__ = [
-    "SUPPORTED_SDXL_PIPELINES",
-    "SDXLResolver",
     "SUPPORTED_MULTIMODAL_PIPELINES",
+    "SUPPORTED_SDXL_PIPELINES",
     "DiffusersMultiModalPipelineResolver",
+    "SDXLResolver",
 ]
