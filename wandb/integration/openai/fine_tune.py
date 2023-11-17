@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.data_types import Table
+from wandb.sdk.wandb_run import Run
 from wandb.sdk.lib import telemetry
 
 try:
@@ -48,6 +49,7 @@ class WandbLogger:
     _wandb_api: wandb.Api = None
     _logged_in: bool = False
     openai_client: OpenAI = None
+    _run: Run = None
 
     @classmethod
     def sync(
@@ -178,7 +180,7 @@ class WandbLogger:
                     )
                     if not force:
                         print(
-                            'Use "--force" in the CLI or "force=True" in python if you want to overwrite previous run'
+                            "Use `force=True` if you want to overwrite previous run"
                         )
                 else:
                     print(
@@ -192,7 +194,7 @@ class WandbLogger:
                 return
 
         # start a wandb run
-        run = wandb.init(
+        cls._run = wandb.init(
             job_type="fine-tune",
             config=cls._get_config(fine_tune),
             project=project,
@@ -212,18 +214,18 @@ class WandbLogger:
             step = metrics.pop("step")
             if step is not None:
                 step = int(step)
-            run.log(metrics, step=step)
+            cls._run.log(metrics, step=step)
         fine_tuned_model = fine_tune.fine_tuned_model
         if fine_tuned_model is not None:
-            run.summary["fine_tuned_model"] = fine_tuned_model
+            cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
         cls._log_artifacts(fine_tune, project, entity)
 
         # mark run as complete
-        run.summary["status"] = "succeeded"
+        cls._run.summary["status"] = "succeeded"
 
-        run.finish()
+        cls._run.finish()
         return True
 
     @classmethod
@@ -232,7 +234,11 @@ class WandbLogger:
             if wandb.login():
                 cls._logged_in = True
             else:
-                raise Exception("You need to log in to wandb")
+                raise Exception(
+                    "It appears you are not currently logged in to Weights & Biases. "
+                    "Please run `wandb login` in your terminal. "
+                    "When prompted, you can obtain your API key by visiting wandb.ai/authorize."
+                )
 
     @classmethod
     def _get_wandb_run(cls, run_path: str):
@@ -289,7 +295,7 @@ class WandbLogger:
             dict_fine_tune = dict(fine_tune)
             dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
             json.dump(dict_fine_tune, f, indent=2)
-        wandb.run.log_artifact(
+        cls._run.log_artifact(
             artifact,
             aliases=["latest", fine_tune_id],
         )
@@ -334,17 +340,17 @@ class WandbLogger:
                 # Add table to the artifact.
                 artifact.add(table, file_id)
                 # Add the same table to the workspace.
-                wandb.log({f"{prefix}_data": table})
+                cls._run.log({f"{prefix}_data": table})
                 # Update the run config and artifact metadata
-                wandb.config.update({f"n_{prefix}": n_items})
+                cls._run.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
             except Exception:
                 print(f"File {file_id} could not be read as a valid JSON file")
         else:
             # log number of items
-            wandb.config.update({f"n_{prefix}": artifact.metadata.get("items")})
+            cls._run.config.update({f"n_{prefix}": artifact.metadata.get("items")})
 
-        wandb.run.use_artifact(artifact, aliases=["latest", artifact_alias])
+        cls._run.use_artifact(artifact, aliases=["latest", artifact_alias])
 
     @classmethod
     def _make_table(cls, file_content: str) -> Tuple[Table, int]:
