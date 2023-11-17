@@ -45,6 +45,8 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
+from wandb.sdk.lib.gql_client import build_gql_client
+
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
@@ -253,37 +255,11 @@ class Api:
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
-
-        # todo: remove these hacky hacks after settings refactor is complete
-        #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
-            self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
-        )
-        proxies = self.settings("_proxies") or json.loads(
-            self._environ.get("WANDB__PROXIES", "{}")
-        )
-
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key or "")
-        extra_http_headers.update(_thread_local_api_settings.headers or {})
-        self.client = Client(
-            transport=GraphQLSession(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
-                    "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                    **extra_http_headers,
-                },
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
-                auth=auth,
-                url=f"{self.settings('base_url')}/graphql",
-                cookies=_thread_local_api_settings.cookies,
-                proxies=proxies,
-            )
+        self.client = build_gql_client(
+            user_agent=self.user_agent,
+            api_key=self.api_key,
+            settings=self.settings,
+            environ=self._environ,
         )
 
         # httpx is an optional dependency, so we lazily instantiate the client
