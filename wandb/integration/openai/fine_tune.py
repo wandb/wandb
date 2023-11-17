@@ -54,24 +54,24 @@ class WandbLogger:
     @classmethod
     def sync(
         cls,
-        id: Optional[str] = None,
+        fine_tune_job_id: Optional[str] = None,
         openai_client: Optional[OpenAI] = None,
-        n_fine_tunes: Optional[int] = None,
+        first_n_fine_tunes: Optional[int] = None,
         project: str = "OpenAI-Fine-Tune",
         entity: Optional[str] = None,
-        force: bool = False,
-        blocking: bool = True,
+        overwrite: bool = False,
+        wait_for_job_success: bool = True,
         **kwargs_wandb_init: Dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
 
-        :param id: The id of the fine-tune (optional)
+        :param fine_tune_job_id: The id of the fine-tune (optional)
         :param openai_client: Pass the `OpenAI()` client (optional)
-        :param n_fine_tunes: Number of most recent fine-tunes to log when an id is not provided. By default, every fine-tune is synced.
+        :param first_n_fine_tunes: Number of most recent fine-tunes to log when an fine_tune_job_id is not provided. By default, every fine-tune is synced.
         :param project: Name of the project where you're sending runs. By default, it is "GPT-3".
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
-        :param force: Forces logging and overwrite existing wandb run of the same fine-tune.
-        :param blocking: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
+        :param overwrite: Forces logging and overwrite existing wandb run of the same fine-tune.
+        :param wait_for_job_success: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
         """
         if openai_client is None:
             openai_client = OpenAI(
@@ -79,9 +79,9 @@ class WandbLogger:
             )
         cls.openai_client = openai_client
 
-        if id:
+        if fine_tune_job_id:
             print("Retrieving fine-tune job...")
-            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=id)
+            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=fine_tune_job_id)
             fine_tunes = [fine_tune]
         else:
             # get list of fine_tune to log
@@ -89,22 +89,26 @@ class WandbLogger:
             if not fine_tunes or fine_tunes.data is None:
                 print("No fine-tune has been retrieved")
                 return
+            # Select the `first_n_fine_tunes` from the `fine_tunes.data` list.
+            # If `first_n_fine_tunes` is None, it selects all items in the list (from start to end).
+            # If for example, `first_n_fine_tunes` is 5, it selects the last 5 items in the list.
+            # Note that the last items in the list are the latest fine-tune jobs.
             fine_tunes = fine_tunes.data[
-                -n_fine_tunes if n_fine_tunes is not None else None :
+                -first_n_fine_tunes if first_n_fine_tunes is not None else None :
             ]
 
         # log starting from oldest fine_tune
-        show_individual_warnings = not (id is None and n_fine_tunes is None)
+        show_individual_warnings = not (fine_tune_job_id is None and first_n_fine_tunes is None)
         fine_tune_logged = []
         for fine_tune in fine_tunes:
-            if blocking:
+            if wait_for_job_success:
                 fine_tune = cls._wait_for_job_success(fine_tune)
 
             cls._log_fine_tune(
                 fine_tune,
                 project,
                 entity,
-                force,
+                overwrite,
                 show_individual_warnings,
                 **kwargs_wandb_init,
             )
@@ -142,7 +146,7 @@ class WandbLogger:
         fine_tune: FineTuningJob,
         project: str,
         entity: Optional[str, None],
-        force: bool,
+        overwrite: bool,
         show_individual_warnings: bool,
         **kwargs_wandb_init: Dict[str, Any],
     ):
@@ -178,17 +182,17 @@ class WandbLogger:
                     print(
                         f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}"
                     )
-                    if not force:
-                        print("Use `force=True` if you want to overwrite previous run")
+                    if not overwrite:
+                        print("Use `overwrite=True` if you want to overwrite previous run")
                 else:
                     print(
                         f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
                     )
-                if wandb_status != "succeeded" or force:
+                if wandb_status != "succeeded" or overwrite:
                     print(
                         f"A new wandb run will be created for fine-tune {fine_tune_id} and previous run will be overwritten"
                     )
-            if wandb_status == "succeeded" and not force:
+            if wandb_status == "succeeded" and not overwrite:
                 return
 
         # start a wandb run
