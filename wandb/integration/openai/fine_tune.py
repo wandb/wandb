@@ -7,6 +7,11 @@ import time
 
 import wandb
 from wandb.sdk.lib import telemetry
+from wandb.data_types import Table
+
+from typing import Optional, Any, Dict
+from typing import Tuple
+
 
 try:
     import openai
@@ -18,6 +23,8 @@ try:
         raise wandb.Error(
             f"This integration requires openai version 1.0.1 and above. Your current version is {openai_version}"
         )
+
+    from openai.types.fine_tuning import FineTuningJob
 except ImportError as e:
     raise Exception(
         "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
@@ -41,22 +48,22 @@ except ImportError as e:
 class WandbLogger:
     """Log OpenAI fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
-    _wandb_api = None
-    _logged_in = False
-    openai_client = None
+    _wandb_api: wandb.Api = None
+    _logged_in: bool = False
+    openai_client: OpenAI = None
 
     @classmethod
     def sync(
         cls,
-        id=None,
-        openai_client=None,
-        n_fine_tunes=None,
-        project="OpenAI-Fine-Tune",
-        entity=None,
-        force=False,
-        blocking=True,
-        **kwargs_wandb_init,
-    ):
+        id: Optional[str] = None,
+        openai_client: Optional[OpenAI] = None,
+        n_fine_tunes: Optional[int] = None,
+        project: str = "OpenAI-Fine-Tune",
+        entity: Optional[str] = None,
+        force: bool = False,
+        blocking: bool = True,
+        **kwargs_wandb_init: Dict[str, Any],
+    ) -> str:
         """Sync fine-tunes to Weights & Biases.
 
         :param id: The id of the fine-tune (optional)
@@ -88,9 +95,7 @@ class WandbLogger:
             ]
 
         # log starting from oldest fine_tune
-        show_individual_warnings = (
-            False if id is None and n_fine_tunes is None else True
-        )
+        show_individual_warnings = not (id is None and n_fine_tunes is None)
         fine_tune_logged = []
         for fine_tune in fine_tunes:
             if blocking:
@@ -111,7 +116,7 @@ class WandbLogger:
         return "🎉 wandb sync completed successfully"
 
     @classmethod
-    def _wait_for_job_success(cls, fine_tune):
+    def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
         wandb.termwarn("Waiting for the Fine-tuning job to be finished...")
         while True:
             if fine_tune.status == "succeeded":
@@ -119,12 +124,12 @@ class WandbLogger:
                 return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
-                    "Fine-tune {fine_tune_id} has has failed and will not be logged"
+                    f"Fine-tune {fine_tune_id} has has failed and will not be logged"
                 )
                 return fine_tune
             if fine_tune.status == "cancelled":
                 wandb.termwarn(
-                    "Fine-tune {fine_tune_id} has was cancelled and will not be logged"
+                    f"Fine-tune {fine_tune_id} has was cancelled and will not be logged"
                 )
                 return fine_tune
             time.sleep(60)
@@ -135,12 +140,12 @@ class WandbLogger:
     @classmethod
     def _log_fine_tune(
         cls,
-        fine_tune,
-        project,
-        entity,
-        force,
-        show_individual_warnings=None,
-        **kwargs_wandb_init,
+        fine_tune: FineTuningJob,
+        project: str,
+        entity: Optional[str, None],
+        force: bool,
+        show_individual_warnings: bool,
+        **kwargs_wandb_init: Dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
         status = fine_tune.status
@@ -190,7 +195,7 @@ class WandbLogger:
                 return
 
         # start a wandb run
-        wandb.init(
+        run = wandb.init(
             job_type="fine-tune",
             config=cls._get_config(fine_tune),
             project=project,
@@ -200,7 +205,7 @@ class WandbLogger:
             **kwargs_wandb_init,
         )
 
-        with telemetry.context(run=wandb.run) as tel:
+        with telemetry.context(run=run) as tel:
             tel.feature.openai_finetuning = True
 
         # log results
@@ -210,18 +215,18 @@ class WandbLogger:
             step = metrics.pop("step")
             if step is not None:
                 step = int(step)
-            wandb.log(metrics, step=step)
+            run.log(metrics, step=step)
         fine_tuned_model = fine_tune.fine_tuned_model
         if fine_tuned_model is not None:
-            wandb.summary["fine_tuned_model"] = fine_tuned_model
+            run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
         cls._log_artifacts(fine_tune, project, entity)
 
         # mark run as complete
-        wandb.summary["status"] = "succeeded"
+        run.summary["status"] = "succeeded"
 
-        wandb.finish()
+        run.finish()
         return True
 
     @classmethod
@@ -233,7 +238,7 @@ class WandbLogger:
                 raise Exception("You need to log in to wandb")
 
     @classmethod
-    def _get_wandb_run(cls, run_path):
+    def _get_wandb_run(cls, run_path: str):
         cls._ensure_logged_in()
         try:
             if cls._wandb_api is None:
@@ -243,7 +248,7 @@ class WandbLogger:
             return None
 
     @classmethod
-    def _get_wandb_artifact(cls, artifact_path):
+    def _get_wandb_artifact(cls, artifact_path: str):
         cls._ensure_logged_in()
         try:
             if cls._wandb_api is None:
@@ -253,7 +258,7 @@ class WandbLogger:
             return None
 
     @classmethod
-    def _get_config(cls, fine_tune):
+    def _get_config(cls, fine_tune: FineTuningJob) -> Dict[str, Any]:
         config = dict(fine_tune)
         config["result_files"] = config["result_files"][0]
         if config.get("created_at"):
@@ -261,7 +266,9 @@ class WandbLogger:
         return config
 
     @classmethod
-    def _log_artifacts(cls, fine_tune, project, entity):
+    def _log_artifacts(
+        cls, fine_tune: FineTuningJob, project: str, entity: Optional[str]
+    ) -> None:
         # training/validation files
         training_file = fine_tune.training_file if fine_tune.training_file else None
         validation_file = (
@@ -291,7 +298,14 @@ class WandbLogger:
         )
 
     @classmethod
-    def _log_artifact_inputs(cls, file_id, prefix, artifact_type, project, entity):
+    def _log_artifact_inputs(
+        cls,
+        file_id: Optional[str, None],
+        prefix: str,
+        artifact_type: str,
+        project: str,
+        entity: Optional[str, None],
+    ) -> None:
         # get input artifact
         artifact_name = f"{prefix}-{file_id}"
         # sanitize name to valid wandb artifact name
@@ -336,7 +350,7 @@ class WandbLogger:
         wandb.run.use_artifact(artifact, aliases=["latest", artifact_alias])
 
     @classmethod
-    def _make_table(cls, file_content):
+    def _make_table(cls, file_content: str) -> Tuple[Table, int]:
         table = wandb.Table(columns=["role: system", "role: user", "role: assistant"])
 
         df = pd.read_json(io.StringIO(file_content), orient="records", lines=True)
