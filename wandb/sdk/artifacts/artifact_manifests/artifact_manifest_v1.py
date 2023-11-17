@@ -71,7 +71,7 @@ class ArtifactManifestV1(ArtifactManifest):
         return {
             "version": self.__class__.version(),
             "storagePolicy": self.storage_policy.name(),
-            "storagePolicyConfig": self.storage_policy.config() or {},
+            "storagePolicyConfig": self.storage_policy.config(),
             "contents": contents,
         }
 
