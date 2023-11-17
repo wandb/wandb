@@ -558,7 +558,7 @@ def test_launch_add_template_variables_not_supported(user, monkeypatch):
 
     def patched_push_to_run_queue_introspection(*args, **kwargs):
         args[0].server_supports_template_varaibles = False
-        return False
+        return (False, False)
 
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
@@ -592,7 +592,7 @@ def test_launch_add_template_variables_not_supported_legacy_push(
 
     def patched_push_to_run_queue_introspection(*args, **kwargs):
         args[0].server_supports_template_varaibles = False
-        return False
+        return (False, False)
 
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
@@ -632,10 +632,12 @@ def test_display_updated_runspec(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
-    def push_with_drc(api, queue_name, launch_spec, template_variables, project_queue):
+    def push_with_drc(
+        api, queue_name, launch_spec, template_variables, project_queue, priority
+    ):
         # mock having a DRC
         res = api.push_to_run_queue(
-            queue_name, launch_spec, template_variables, project_queue
+            queue_name, launch_spec, template_variables, project_queue, priority
         )
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}
