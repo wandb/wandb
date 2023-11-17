@@ -21,18 +21,19 @@ commands:
         description: "Go version"
         type: string
         default: << pipeline.parameters.go_version >>
-      system:
-        description: "OS"
-        type: enum
-        enum: ["linux-amd64", "darwin-amd64"]
     steps:
       - run:
           name: Install Go
           command: |
-            wget https://go.dev/dl/go<<parameters.version>>.<<parameters.system>>.tar.gz
-            tar -C . -xzf go<<parameters.version>>.<<parameters.system>>.tar.gz
-            rm go<<parameters.version>>.<<parameters.system>>.tar.gz
-            # PATH=go/bin:$PATH
+            system=$(uname -s | tr '[:upper:]' '[:lower:]')
+            if [ "$system" = "darwin" ]; then
+              system="darwin-amd64"
+            else
+              system="linux-amd64"
+            fi
+            wget https://go.dev/dl/go<<parameters.version>>.$system.tar.gz
+            tar -C . -xzf go<<parameters.version>>.$system.tar.gz
+            rm go<<parameters.version>>.${system}.tar.gz
             echo 'export PATH="go/bin:$PATH"' >> "$BASH_ENV"
           no_output_timeout: 1m
 
@@ -72,8 +73,7 @@ jobs:
       python_version: << parameters.python_version >>
     steps:
       - checkout
-      - install_go:
-          system: "linux-amd64"
+      - install_go
       - run:
           name: Check Python version
           command: |
