@@ -507,6 +507,7 @@ class DiffusersMultiModalPipelineResolver:
             return loggable_dict
         except Exception as e:
             logger.warning(e)
+        return None
 
     def get_output_images(self, response: Response) -> List:
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:

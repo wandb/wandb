@@ -81,6 +81,7 @@ class SDXLResolver:
             return loggable_dict
         except Exception as e:
             logger.warning(e)
+        return None
 
     def create_wandb_table(self, pipeline_configs: Dict[str, Any]) -> None:
         columns = []
