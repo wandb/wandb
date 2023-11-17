@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb.data_types import Table
-from wandb.sdk.wandb_run import Run
 from wandb.sdk.lib import telemetry
+from wandb.sdk.wandb_run import Run
 
 try:
     import openai
@@ -179,9 +179,7 @@ class WandbLogger:
                         f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}"
                     )
                     if not force:
-                        print(
-                            "Use `force=True` if you want to overwrite previous run"
-                        )
+                        print("Use `force=True` if you want to overwrite previous run")
                 else:
                     print(
                         f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
@@ -204,7 +202,7 @@ class WandbLogger:
             **kwargs_wandb_init,
         )
 
-        with telemetry.context(run=run) as tel:
+        with telemetry.context(run=cls._run) as tel:
             tel.feature.openai_finetuning = True
 
         # log results
