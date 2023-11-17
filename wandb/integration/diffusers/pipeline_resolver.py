@@ -11,10 +11,7 @@ from .resolvers import (
 
 
 class DiffusersPipelineResolver:
-    """Resolver for `DiffusionPipeline` request and responses from
-    [HuggingFace Diffusers](https://huggingface.co/docs/diffusers/index),
-    providing necessary data transformations, formatting, and logging.
-
+    """Resolver for `DiffusionPipeline` request and responses from [HuggingFace Diffusers](https://huggingface.co/docs/diffusers/index), providing necessary data transformations, formatting, and logging.
 
     This is based off `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
     """

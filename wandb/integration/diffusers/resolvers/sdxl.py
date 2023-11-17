@@ -27,6 +27,18 @@ TEXT_TO_IMAGE_COLUMNS = [
 
 
 def decode_sdxl_t2i_latents(pipeline: Any, latents: torch.FloatTensor) -> List:
+    """Resolver for  request and responses from
+    [HuggingFace Diffusers](https://huggingface.co/docs/diffusers/index)
+    multi-modal Diffusion Pipelines, providing necessary data
+    transformations, formatting, and logging.
+
+    This resolver is internally involed in the
+    `__call__` for `wandb.integration.diffusers.pipeline_resolver.DiffusersPipelineResolver`.
+    This is based off `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
+
+    Arguments:
+        pipeline_name: (str) The name of the Diffusion Pipeline.
+    """
     with torch.no_grad():
         needs_upcasting = (
             pipeline.vae.dtype == torch.float16 and pipeline.vae.config.force_upcast
