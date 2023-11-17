@@ -62,7 +62,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
-from wandb.sdk.service.core_path import get_core_path
+from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
