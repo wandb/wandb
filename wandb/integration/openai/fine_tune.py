@@ -80,7 +80,7 @@ class WandbLogger:
         cls.openai_client = openai_client
 
         if fine_tune_job_id:
-            print("Retrieving fine-tune job...")
+            wandb.termlog("Retrieving fine-tune job...")
             fine_tune = openai_client.fine_tuning.jobs.retrieve(
                 fine_tuning_job_id=fine_tune_job_id
             )
@@ -89,7 +89,7 @@ class WandbLogger:
             # get list of fine_tune to log
             fine_tunes = openai_client.fine_tuning.jobs.list()
             if not fine_tunes or fine_tunes.data is None:
-                print("No fine-tune has been retrieved")
+                wandb.termwarn("No fine-tune has been retrieved")
                 return
             # Select the `first_n_fine_tunes` from the `fine_tunes.data` list.
             # If `first_n_fine_tunes` is None, it selects all items in the list (from start to end).
@@ -118,7 +118,7 @@ class WandbLogger:
             )
 
         if not show_individual_warnings and not any(fine_tune_logged):
-            print("No new successful fine-tunes were found")
+            wandb.termwarn("No new successful fine-tunes were found")
 
         return "🎉 wandb sync completed successfully"
 
@@ -160,7 +160,7 @@ class WandbLogger:
         # check run completed successfully
         if status != "succeeded":
             if show_individual_warnings:
-                print(
+                wandb.termwarn(
                     f'Fine-tune {fine_tune_id} has the status "{status}" and will not be logged'
                 )
             return
@@ -171,7 +171,7 @@ class WandbLogger:
             results = cls.openai_client.files.retrieve_content(file_id=results_id)
         except openai.NotFoundError:
             if show_individual_warnings:
-                print(f"Fine-tune {fine_tune_id} has no results and will not be logged")
+                wandb.termwarn(f"Fine-tune {fine_tune_id} has no results and will not be logged")
             return
 
         # check run has not been logged already
@@ -183,19 +183,19 @@ class WandbLogger:
             wandb_status = wandb_run.summary.get("status")
             if show_individual_warnings:
                 if wandb_status == "succeeded":
-                    print(
+                    wandb.termwarn(
                         f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}"
                     )
                     if not overwrite:
-                        print(
+                        wandb.termlog(
                             "Use `overwrite=True` if you want to overwrite previous run"
                         )
                 else:
-                    print(
+                    wandb.termwarn(
                         f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
                     )
                 if wandb_status != "succeeded" or overwrite:
-                    print(
+                    wandb.termlog(
                         f"A new wandb run will be created for fine-tune {fine_tune_id} and previous run will be overwritten"
                     )
             if wandb_status == "succeeded" and not overwrite:
@@ -333,7 +333,7 @@ class WandbLogger:
             try:
                 file_content = cls.openai_client.files.retrieve_content(file_id=file_id)
             except openai.NotFoundError:
-                print(
+                wandb.termerror(
                     f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
                 )
                 return
@@ -353,7 +353,7 @@ class WandbLogger:
                 cls._run.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
             except Exception:
-                print(f"File {file_id} could not be read as a valid JSON file")
+                wandb.termerror(f"File {file_id} could not be read as a valid JSON file")
         else:
             # log number of items
             cls._run.config.update({f"n_{prefix}": artifact.metadata.get("items")})
