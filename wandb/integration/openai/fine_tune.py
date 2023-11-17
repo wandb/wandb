@@ -81,7 +81,9 @@ class WandbLogger:
 
         if fine_tune_job_id:
             print("Retrieving fine-tune job...")
-            fine_tune = openai_client.fine_tuning.jobs.retrieve(fine_tuning_job_id=fine_tune_job_id)
+            fine_tune = openai_client.fine_tuning.jobs.retrieve(
+                fine_tuning_job_id=fine_tune_job_id
+            )
             fine_tunes = [fine_tune]
         else:
             # get list of fine_tune to log
@@ -98,7 +100,9 @@ class WandbLogger:
             ]
 
         # log starting from oldest fine_tune
-        show_individual_warnings = not (fine_tune_job_id is None and first_n_fine_tunes is None)
+        show_individual_warnings = not (
+            fine_tune_job_id is None and first_n_fine_tunes is None
+        )
         fine_tune_logged = []
         for fine_tune in fine_tunes:
             if wait_for_job_success:
@@ -183,7 +187,9 @@ class WandbLogger:
                         f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}"
                     )
                     if not overwrite:
-                        print("Use `overwrite=True` if you want to overwrite previous run")
+                        print(
+                            "Use `overwrite=True` if you want to overwrite previous run"
+                        )
                 else:
                     print(
                         f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
