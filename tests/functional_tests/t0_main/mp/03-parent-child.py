@@ -24,8 +24,6 @@ def process_child():
 
 
 def main():
-    wandb.require("service")
-
     try:
         os.mkdir("tmp")
     except FileExistsError:

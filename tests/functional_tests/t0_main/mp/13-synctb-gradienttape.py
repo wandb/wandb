@@ -16,7 +16,6 @@ args = parser.parse_args()
 
 # We're defining some default hyper-parameters here, usually you'll
 # use argparse or another config management tool as well
-wandb.require("service")
 config_defaults = dict(epochs=2, dropout=0.2, learning_rate=0.001)
 wandb.init(config=config_defaults, sync_tensorboard=True)
 
