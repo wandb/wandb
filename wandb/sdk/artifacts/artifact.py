@@ -1714,7 +1714,7 @@ class Artifact:
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if get_core_path():
+        if get_core_path():  # require Nexus
             if not run._backend or not run._backend.interface:
                 raise NotImplementedError
             if run._settings._offline:
