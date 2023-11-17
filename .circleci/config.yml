@@ -11,7 +11,7 @@ parameters:
   go_version:
     description: "Go version"
     type: string
-    default: "1.21.4"
+    default: "1.21.3"
 
 commands:
   install_go:
