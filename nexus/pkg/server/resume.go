@@ -1,8 +1,9 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"

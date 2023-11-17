@@ -223,7 +223,7 @@ class GcpEnvironment(AbstractEnvironment):
         try:
             credentials = await self.get_credentials()
             storage_client = await cloud_storage_client(credentials=credentials)
-            bucket = await event_loop_thread_exec(storage_client).get_bucket(bucket)
+            bucket = await event_loop_thread_exec(storage_client.get_bucket)(bucket)
         except google.api_core.exceptions.NotFound as e:
             raise LaunchError(f"Bucket {bucket} does not exist.") from e
 
