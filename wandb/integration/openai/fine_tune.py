@@ -149,7 +149,7 @@ class WandbLogger:
         cls,
         fine_tune: FineTuningJob,
         project: str,
-        entity: Optional[str, None],
+        entity: Optional[str],
         overwrite: bool,
         show_individual_warnings: bool,
         **kwargs_wandb_init: Dict[str, Any],
@@ -311,11 +311,11 @@ class WandbLogger:
     @classmethod
     def _log_artifact_inputs(
         cls,
-        file_id: Optional[str, None],
+        file_id: Optional[str],
         prefix: str,
         artifact_type: str,
         project: str,
-        entity: Optional[str, None],
+        entity: Optional[str],
     ) -> None:
         # get input artifact
         artifact_name = f"{prefix}-{file_id}"
