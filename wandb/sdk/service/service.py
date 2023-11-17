@@ -181,13 +181,14 @@ class _Service:
             wandb_core = get_module("wandb_core")
             if not core_path and wandb_core:
                 _check_wandb_core_version_compatibility(wandb_core.__version__)
-                core_path = wandb_core.get_core_path()
-
+                core_path = wandb_core.get_nexus_path()
             if core_path:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
+                # TODO: this is temporary until artifacts fixes their logic
+                os.environ["WANDB_REQUIRE_NEXUS"] = "True"
             else:
                 service_args.extend(["wandb", "service"])
 
