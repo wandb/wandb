@@ -436,8 +436,8 @@ class Run:
     <!--yeadoc-test:run-object-basic-->
     ```python
     import wandb
-
     run = wandb.init()
+    # best pracitce is to assign the run to a variable named `run` so it is accessible in your scripts
     ```
 
     There is only ever at most one active `wandb.Run` in any process,
