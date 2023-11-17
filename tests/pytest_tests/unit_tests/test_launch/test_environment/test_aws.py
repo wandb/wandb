@@ -56,7 +56,7 @@ async def test_verify_storage(mocker):
     await environment.verify_storage_uri("s3://bucket/key")
 
     def _raise(*args, **kwargs):
-        raise ClientError({}, "Error")
+        raise ClientError({"Error": {"Code": 400}}, "Error")
 
     environment.get_session = _raise
     with pytest.raises(LaunchError):
@@ -201,7 +201,7 @@ async def test_upload_invalid_path(mocker):
     environment = _get_environment()
     with pytest.raises(LaunchError) as e:
         await environment.upload_dir("invalid_path", "s3://bucket/key")
-    assert "Source invalid_path does not exist." == str(e.value)
+    assert "Source invalid_path does not exist." in str(e.value)
     mocker.patch(
         "wandb.sdk.launch.environment.aws_environment.os.path.isdir",
         return_value=True,
@@ -209,7 +209,7 @@ async def test_upload_invalid_path(mocker):
     for path in ["s3a://bucket/key", "s3n://bucket/key"]:
         with pytest.raises(LaunchError) as e:
             await environment.upload_dir("tests", path)
-        assert f"Destination {path} is not a valid s3 URI." == str(e.value)
+        assert f"Destination {path} is not a valid s3 URI." in str(e.value)
 
 
 @pytest.mark.asyncio

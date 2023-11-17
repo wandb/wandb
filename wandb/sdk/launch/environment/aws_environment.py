@@ -24,7 +24,7 @@ botocore = get_module(
 
 _logger = logging.getLogger(__name__)
 
-S3_URI_RE = re.compile(r"s3://([^/]+)/(.+)")
+S3_URI_RE = re.compile(r"s3://([^/]+)(/(.*))?")
 
 
 class AwsEnvironment(AbstractEnvironment):
