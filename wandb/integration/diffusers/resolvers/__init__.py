@@ -1,8 +1,8 @@
-from .sdxl import SUPPORTED_SDXL_PIPELINES, SDXLResolver
 from .multimodal import (
     SUPPORTED_MULTIMODAL_PIPELINES,
     DiffusersMultiModalPipelineResolver,
 )
+from .sdxl import SUPPORTED_SDXL_PIPELINES, SDXLResolver
 
 
 __all__ = [

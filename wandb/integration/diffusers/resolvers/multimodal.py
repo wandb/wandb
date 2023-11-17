@@ -6,8 +6,8 @@ from wandb.sdk.integration_utils.auto_logging import Response
 from .utils import (
     chunkify,
     get_updated_kwargs,
-    postprocess_pils_to_np,
     postprocess_np_arrays_for_video,
+    postprocess_pils_to_np,
 )
 
 

@@ -2,8 +2,12 @@ from typing import Any, Dict, Sequence
 
 from wandb.sdk.integration_utils.auto_logging import Response
 
-from .resolvers import SUPPORTED_SDXL_PIPELINES, SUPPORTED_MULTIMODAL_PIPELINES
-from .resolvers import SDXLResolver, DiffusersMultiModalPipelineResolver
+from .resolvers import (
+    SUPPORTED_SDXL_PIPELINES,
+    SUPPORTED_MULTIMODAL_PIPELINES,
+    SDXLResolver,
+    DiffusersMultiModalPipelineResolver,
+)
 
 
 class DiffusersPipelineResolver:
