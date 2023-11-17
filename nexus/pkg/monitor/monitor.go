@@ -2,10 +2,11 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/segmentio/encoding/json"
 
 	"google.golang.org/protobuf/proto"
 

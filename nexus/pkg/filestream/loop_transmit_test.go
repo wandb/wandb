@@ -1,12 +1,13 @@
 package filestream
 
 import (
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
