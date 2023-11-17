@@ -493,6 +493,15 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     self.training_data
                 )  # generator, tf.data.Dataset etc
                 self._training_data_y = None
+            if int(tf.__version__.split(".")[1]) >= 14:
+                deprecate(
+                    field_name=Deprecated.keras_callback__log_gradients,
+                    warning_message=(
+                        "The `log_gradient` feature is deprecated for tensorflow 2.14.0 or higher. "
+                        "Setting log_gradients = False"
+                    ),
+                )
+                self.log_gradients = False
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
