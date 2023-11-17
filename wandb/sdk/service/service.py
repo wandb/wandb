@@ -170,6 +170,7 @@ class _Service:
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
 
+            # TODO: add proper logic here:
             service_args = []
             if self._settings._require_nexus:
                 # NOTE: The wandb_core module will be distributed at first as an alpha
