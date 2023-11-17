@@ -170,7 +170,6 @@ class _Service:
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
 
-            # TODO: add proper logic here:
             service_args = []
             # NOTE: "wandb-core" is the name of the package that will be distributed
             #       as the stable version of the wandb core library.
@@ -187,7 +186,7 @@ class _Service:
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
-                # TODO: this is temporary until artifacts fixes their logic
+                # TODO(artifacts): this is temporary until artifacts fixes their logic
                 os.environ["WANDB_REQUIRE_NEXUS"] = "True"
             else:
                 service_args.extend(["wandb", "service"])
