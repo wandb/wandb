@@ -38,6 +38,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/wandb/wandb/nexus/internal/perflib"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -91,6 +92,9 @@ type FileStream struct {
 	maxItemsPerPush int
 	delayProcess    time.Duration
 	heartbeatTime   time.Duration
+
+	// keep track of performance characteristics
+	track *perflib.PerfTracker
 }
 
 type FileStreamOption func(fs *FileStream)
@@ -164,6 +168,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		delayProcess:    defaultDelayProcess,
 		heartbeatTime:   defaultHeartbeatTime,
+		track:           perflib.NewPerfTracker(),
 	}
 	for _, opt := range opts {
 		opt(fs)
