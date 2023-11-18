@@ -126,7 +126,9 @@ class WandbLogger:
         wandb.termlog("Waiting for the Fine-tuning job to be finished...")
         while True:
             if fine_tune.status == "succeeded":
-                wandb.termlog("Fine-tuning finished, logging metrics, model metadata, and more to W&B")
+                wandb.termlog(
+                    "Fine-tuning finished, logging metrics, model metadata, and more to W&B"
+                )
                 return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
