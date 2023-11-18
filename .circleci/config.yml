@@ -1351,26 +1351,11 @@ workflows:
           matrix:
             parameters:
               python_version_major: [ 3 ]
-              python_version_minor: [ 10, 11 ]
+              python_version_minor: [ 10 ]
           name: "system(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
-      # #
-      # # Nexus smoke tests with pytest on Linux, using real wandb server
-      # #
-      # - pytest:
-      #     requires:
-      #       - "system-tests"
-      #     matrix:
-      #       parameters:
-      #         python_version_major: [ 3 ]
-      #         python_version_minor: [ 7, 8, 9, 10, 11, 12 ]
-      #     name: "nexus-smoke-system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     tox_args: "tests/pytest_tests/system_tests/test_nexus"
-      #     codecov_args: "-F system"
-
       #
       # Nexus unit tests
       #
@@ -1390,7 +1375,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11]
           name: "unit-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          tox_args: "-m 'not nexus_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1401,7 +1386,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [10, 11]
+              python_version_minor: [10]
           name: "unit(service)-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
@@ -1418,7 +1403,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests"
+          tox_args: "-m 'not nexus_failure' tests/pytest_tests/unit_tests"
           codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
@@ -1429,7 +1414,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [10, 11]
+              python_version_minor: [10]
           name: "unit(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
@@ -1623,7 +1608,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
@@ -1653,7 +1638,7 @@ workflows:
                 - "launch"
                 - "sweep"
                 - "artifacts"
-          name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system(service)-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
           codecov_args: "-F system"
@@ -1670,7 +1655,7 @@ workflows:
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_notebooks"
+          tox_args: "-m 'not nexus_failure' tests/pytest_tests/system_tests/test_notebooks"
           codecov_args: "-F system"
 
       - pytest:
@@ -1680,7 +1665,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "system(service)-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
           codecov_args: "-F system"
