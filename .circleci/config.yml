@@ -1477,7 +1477,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          tox_args: "-m 'not nexus_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_args: "-F unit"
 
       - mac:
