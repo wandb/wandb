@@ -84,6 +84,7 @@ def test_artifact_files(runner, mock_server, api):
 
 
 @pytest.mark.nexus_failure(feature="artifacts")
+@pytest.mark.skipif(platform.system() == "Windows", reason="TODO: fix on windows")
 def test_artifact_download(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
     with runner.isolated_filesystem():

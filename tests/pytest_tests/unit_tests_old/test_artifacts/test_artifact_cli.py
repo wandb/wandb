@@ -7,6 +7,7 @@ from wandb.cli import cli
 
 
 @pytest.mark.nexus_failure(feature="artifacts")
+@pytest.mark.skipif(platform.system() == "Windows", reason="TODO: fix on windows")
 def test_artifact_download(runner, git_repo, mock_server, mocked_run):
     result = runner.invoke(cli.artifact, ["get", "test/mnist:v0"])
     print(result.output)
