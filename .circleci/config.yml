@@ -1483,9 +1483,45 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+
+      - win:
+          requires:
+            - "unit-tests-legacy"
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
-          tox_args: "tests/pytest_tests/unit_tests_old --timeout 300 --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+
+      - win:
+          requires:
+            - "unit-tests"
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_args: "-F unit"
+          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
 
       - win:
           requires:
@@ -1500,7 +1536,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests --timeout 300"
@@ -1593,37 +1629,47 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [9]
+              python_version_minor: [7, 9]
               shard:
-                - "docs"
                 # - "llm"  # TODO: needs review
                 - "noml"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F func"
-
-      #
-      # Functional tests with yea on Linux
-      #
-      - tox-base:
-          requires:
-            - "functional-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
+                - "tf24"
+                - "ray112"
+                - "ray2"
+                - "sklearn"
+                - "metaflow"
                 - "tf115"
                 - "tf21"
                 - "tf25"
                 - "tf26"
                 - "xgboost"
+            excludes:
+              - shard: "tf115"
+                python_version_minor: "9"
+              - shard: "tf21"
+                python_version_minor: "9"
+              - shard: "tf24"
+                python_version_minor: "7"
+              - shard: "tf25"
+                python_version_minor: "9"
+              - shard: "tf26"
+                python_version_minor: "9"
+              - shard: "ray112"
+                python_version_minor: "7"
+              - shard: "ray2"
+                python_version_minor: "7"
+              - shard: "metaflow"
+                python_version_minor: "7"
+              - shard: "xgboost"
+                python_version_minor: "9"
+              - shard: "sklearn"
+                python_version_minor: "7"
+              - shard: "noml"
+                python_version_minor: "7"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       - tox-base:
@@ -1634,11 +1680,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [8]
               shard:
-                - "tf24"
-                - "ray112"
-                - "ray2"
-                - "sklearn"
-                - "metaflow"
+                - "docs"
                 - "artifacts"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
