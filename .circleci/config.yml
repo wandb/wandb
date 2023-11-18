@@ -634,11 +634,20 @@ jobs:
             pip3 install -U tox nox pip
             brew install ffmpeg
       - run:
+          name: Install Go
+          command: |
+            wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
+            tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
+            PATH=/usr/local/go/bin:$PATH
+            go version
+      - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            PATH=/usr/local/go/bin:$PATH \
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+            python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
       - when:
           condition:
@@ -1467,6 +1476,18 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          codecov_args: "-F unit"
+
+      - mac:
+          requires:
+            - "unit-tests-legacy"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_args: "-F unit"
@@ -1479,6 +1500,18 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests"
+          codecov_args: "-F unit"
+
+      - mac:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests"
           codecov_args: "-F unit"
