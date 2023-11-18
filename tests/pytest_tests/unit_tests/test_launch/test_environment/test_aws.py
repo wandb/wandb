@@ -55,12 +55,13 @@ async def test_verify_storage(mocker):
     environment = _get_environment()
     await environment.verify_storage_uri("s3://bucket/key")
 
-    def _raise(*args, **kwargs):
-        raise ClientError({"Error": {"Code": 400}}, "Error")
+    for code in [404, 403, 0]:
+        client.head_bucket.side_effect = ClientError({"Error": {"Code": code}}, "Error")
+        with pytest.raises(LaunchError):
+            await environment.verify_storage_uri("s3://bucket/key")
 
-    environment.get_session = _raise
     with pytest.raises(LaunchError):
-        await environment.verify_storage_uri("s3://bucket/key")
+        await environment.verify_storage_uri("s3a://bucket/key")
 
 
 @pytest.mark.asyncio
