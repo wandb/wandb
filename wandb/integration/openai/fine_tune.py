@@ -124,10 +124,10 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termwarn("Waiting for the Fine-tuning job to be finished...")
+        wandb.termlog("Waiting for the Fine-tuning job to be finished...")
         while True:
             if fine_tune.status == "succeeded":
-                wandb.termwarn("Fine-tuning finished, logging metrics to W&B")
+                wandb.termlog("Fine-tuning finished, logging metrics to W&B")
                 return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
