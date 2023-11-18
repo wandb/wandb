@@ -8,10 +8,7 @@ except Exception:
     )
 
 from pkg_resources import parse_version
+from .openai import autolog
 
-openai_version = openai.__version__
-if parse_version(openai_version) <= parse_version("0.28.1"):
-    from .openai import autolog
-else:
+if parse_version(openai.__version__) > parse_version("0.28.1"):
     from .fine_tune import WandbLogger
-    from .openai import autolog
