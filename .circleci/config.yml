@@ -96,6 +96,38 @@ commands:
             - store_artifacts:
                 path: cover-results
 
+  install_go:
+    description: "Install Go with the specified version and system"
+    parameters:
+      version:
+        description: "Go version"
+        type: string
+        default: << pipeline.parameters.go_version >>
+    steps:
+      - run:
+          name: Install Go
+          command: |
+            os=$(uname -s | tr '[:upper:]' '[:lower:]')
+            architecture=$(uname -m)
+
+            if [ "$os" = "darwin" ] && ["$architecture" == "x86_64"]; then
+              system="darwin-amd64"
+            elif [ "$os" == "darwin" ] && [ "$architecture" == "arm64" ]; then
+              system="darwin-arm64"
+            elif [ "$os" == "linux" ] && [ "$architecture" == "x86_64" ]; then
+              system="linux-amd64"
+            elif [ "$os" == "linux" ] && [ "$architecture" == "arm64" ]; then
+              system="linux-arm64"
+            else
+              echo "Unsupported system: $os $architecture"
+              exit 1
+            fi
+            wget https://go.dev/dl/go<<parameters.version>>.$system.tar.gz
+            tar -C $HOME -xzf go<<parameters.version>>.$system.tar.gz
+            rm go<<parameters.version>>.${system}.tar.gz
+            echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
+          no_output_timeout: 1m
+
   setup_docker_buildx:
     description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
     parameters:
@@ -335,19 +367,11 @@ jobs:
                 command: |
                   pip install -U tox nox pip
                 no_output_timeout: 5m
-            - run:
-                name: Install Go
-                command: |
-                  wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
-                  tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
-                  PATH=/usr/local/go/bin:$PATH
-                  go version
-                no_output_timeout: 1m
+            - install_go
             - run:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  PATH=/usr/local/go/bin:$PATH \
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - when:
@@ -429,19 +453,11 @@ jobs:
             pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
-      - run:
-          name: Install Go
-          command: |
-            wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
-            tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
-            PATH=/usr/local/go/bin:$PATH
-            go version
-          no_output_timeout: 1m
+      - install_go
       - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            PATH=/usr/local/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
@@ -633,19 +649,12 @@ jobs:
           command: |
             pip3 install -U tox nox pip
             brew install ffmpeg
-      - run:
-          name: Install Go
-          command: |
-            wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
-            tar -C $HOME -xzf go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
-            PATH=$HOME/go/bin:$PATH
-            go version
+      - install_go
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            PATH=$HOME/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
             python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
