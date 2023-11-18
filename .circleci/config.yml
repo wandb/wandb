@@ -108,27 +108,40 @@ commands:
           name: Install Go
           command: |
             os=$(uname -o | tr '[:upper:]' '[:lower:]')
+            case $os in
+              msys)
+                system="windows"
+                suffix="zip"
+                ;;
+              darwin)
+                system="$os"
+                suffix="tar.gz"
+                ;;
+              *linux*)
+                system="linux"
+                suffix="tar.gz"
+                ;;
+              *)
+                echo "Unsupported OS: $os"
+                exit 1
+                ;;
+            esac
+
             architecture=$(uname -m)
 
-            if [ "$os" == "msys" ] ; then
-              system="windows"
-              suffix="zip"
-            elif [ "$os" == "darwin" ] || ["$os" == "linux" ]; then
-              system="$os"
-              suffix="tar.gz"
-            else
-              echo "Unsupported OS: $os"
-              exit 1
-            fi
-
-            if [ "$architecture" == "x86_64" ]; then
+            case $architecture in
+              x86_64)
                 arch="amd64"
-            elif [ "$architecture" == "arm64" ]; then
-                system="arm64"
-            else
+                ;;
+              arm64)
+                arch="arm64"
+                ;;
+              *)
                 echo "Unsupported architecture: $architecture"
                 exit 1
-            fi
+                ;;
+            esac
+
 
             go_file=go<<parameters.version>>.$system-$arch.$suffix
             curl -L -o $go_file https://go.dev/dl/$go_file
