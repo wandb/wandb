@@ -637,15 +637,15 @@ jobs:
           name: Install Go
           command: |
             wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
-            tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
-            PATH=/usr/local/go/bin:$PATH
+            tar -C $HOME -xzf go<< pipeline.parameters.go_version >>.darwin-arm64.tar.gz
+            PATH=$HOME/go/bin:$PATH
             go version
       - run:
           name: Run tests
           # Tests failed with Too many open files, so added ulimit
           command: |
             ulimit -n 4096
-            PATH=/usr/local/go/bin:$PATH \
+            PATH=$HOME/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
             python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
           no_output_timeout: 10m
