@@ -336,10 +336,20 @@ jobs:
                   pip install -U tox nox pip
                 no_output_timeout: 5m
             - run:
+                name: Install Go
+                command: |
+                  wget https://go.dev/dl/go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
+                  tar -C /usr/local -xzf go<< pipeline.parameters.go_version >>.linux-amd64.tar.gz
+                  PATH=/usr/local/go/bin:$PATH
+                  go version
+                no_output_timeout: 1m
+            - run:
                 name: Run tests
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+                  PATH=/usr/local/go/bin:$PATH \
+                  CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
             - when:
                 condition:
                   not:
