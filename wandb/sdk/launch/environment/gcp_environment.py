@@ -224,7 +224,7 @@ class GcpEnvironment(AbstractEnvironment):
             credentials = await self.get_credentials()
             storage_client = await cloud_storage_client(credentials=credentials)
             bucket = await event_loop_thread_exec(storage_client.get_bucket)(bucket)
-        except google.api_core.exceptions.NotFound as e:
+        except google.api_core.exceptions.GoogleAPICallError as e:
             raise LaunchError(
                 f"Failed verifying storage uri {uri}: bucket {bucket} does not exist."
             ) from e
@@ -260,15 +260,13 @@ class GcpEnvironment(AbstractEnvironment):
             blob = await event_loop_thread_exec(bucket.blob)(key)
             await event_loop_thread_exec(blob.upload_from_filename)(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            if e.code == 404:
-                raise LaunchError(
-                    f"{_err_prefix}: Could not upload file to GCS: bucket {bucket} does not exist."
-                ) from e
-            elif e.code == 403:
-                raise LaunchError(
-                    f"{_err_prefix}: Could not upload file to GCS: bucket {bucket} is not accessible. Please check your permissions and try again."
-                ) from e
-            raise LaunchError(f"{_err_prefix}: GCS upload failed: {e}") from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
 
     async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
@@ -305,14 +303,14 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = await event_loop_thread_exec(bucket.blob)(gcs_path)
                     await event_loop_thread_exec(blob.upload_from_filename)(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            if e.code == 404:
-                raise LaunchError(
-                    f"{_err_prefix}: Could not upload directory to GCS: bucket {bucket} does not exist."
-                ) from e
-            elif e.code == 403:
-                raise LaunchError(
-                    f"{_err_prefix}: Could not upload directory to GCS: bucket {bucket} is not accessible. Please check your permissions and try again."
-                ) from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
+        except Exception as e:
             raise LaunchError(f"{_err_prefix}: GCS upload failed: {e}") from e
 
 

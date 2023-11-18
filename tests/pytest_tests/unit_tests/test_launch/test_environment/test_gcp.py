@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
+from google.api_core.exceptions import GoogleAPICallError
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from wandb.sdk.launch.environment.gcp_environment import (
     GCP_REGION_ENV_VAR,
@@ -119,6 +120,9 @@ async def test_upload_dir(mocker):
             ),
         ],
     )
+
+    # Magic mock that will be caught s GoogleAPICallError
+    mock_bucket.blob.side_effect = GoogleAPICallError("error")
 
 
 @pytest.mark.asyncio
