@@ -1667,9 +1667,9 @@ workflows:
               - shard: "noml"
                 python_version_minor: "7"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F func"
 
       - tox-base:
