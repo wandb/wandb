@@ -1469,33 +1469,33 @@ workflows:
       #
       # Unit tests with pytest on Windows and MacOS
       #
-      - win:
-          requires:
-            - "unit-tests-legacy"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
-          #       - /^release-.*/
-          #       - /^.*-ci-win$/
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F unit"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+      # - win:
+      #     requires:
+      #       - "unit-tests-legacy"
+      #     # filters:
+      #     #   branches:
+      #     #     only:
+      #     #       - main
+      #     #       - /^release-.*/
+      #     #       - /^.*-ci-win$/
+      #     matrix:
+      #       parameters:
+      #         python_version_major: [3]
+      #         python_version_minor: [9]
+      #     name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #     toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #     codecov_args: "-F unit"
+      #     tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - win:
           requires:
             - "unit-tests-legacy"
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
-          #       - /^release-.*/
-          #       - /^.*-ci-win$/
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1505,6 +1505,24 @@ workflows:
           codecov_args: "-F unit"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
+      # - win:
+      #     requires:
+      #       - "unit-tests"
+      #     # filters:
+      #     #   branches:
+      #     #     only:
+      #     #       - main
+      #     #       - /^release-.*/
+      #     #       - /^.*-ci-win$/
+      #     matrix:
+      #       parameters:
+      #         python_version_major: [3]
+      #         python_version_minor: [9]
+      #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #     toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+      #     codecov_args: "-F unit"
+      #     tox_args: "tests/pytest_tests/unit_tests --timeout 300"
+
       - win:
           requires:
             - "unit-tests"
@@ -1514,24 +1532,6 @@ workflows:
           #       - main
           #       - /^release-.*/
           #       - /^.*-ci-win$/
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "nexus-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F unit"
-          tox_args: "tests/pytest_tests/unit_tests --timeout 300"
-
-      - win:
-          requires:
-            - "unit-tests"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1670,12 +1670,12 @@ workflows:
       - win:
           requires:
             - "functional-tests"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
