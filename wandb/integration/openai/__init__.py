@@ -1,11 +1,7 @@
 __all__ = ("autolog", "WandbLogger")
 
-try:
-    import openai
-except Exception:
-    print(
-        "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
-    )
+from wandb import util
+openai = get_module("openai")
 
 from pkg_resources import parse_version
 from .openai import autolog

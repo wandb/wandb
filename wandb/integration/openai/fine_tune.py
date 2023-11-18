@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 import wandb
+from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
@@ -28,19 +29,17 @@ except ImportError as e:
         "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
     ) from e
 
-try:
-    import numpy as np
-except ImportError as e:
-    raise Exception(
-        "Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`"
-    ) from e
+np = get_module(
+    name = "numpy",
+    required = "Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
+    lazy = "False"
+)
 
-try:
-    import pandas as pd
-except ImportError as e:
-    raise Exception(
-        "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`"
-    ) from e
+pd = get_module(
+    name = "pandas",
+    required = "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
+    lazy = "False"
+)
 
 
 class WandbLogger:
