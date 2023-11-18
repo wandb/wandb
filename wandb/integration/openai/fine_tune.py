@@ -30,15 +30,15 @@ except ImportError as e:
     ) from e
 
 np = util.get_module(
-    name = "numpy",
-    required = "Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
-    lazy = "False"
+    name="numpy",
+    required="Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
+    lazy="False",
 )
 
 pd = util.get_module(
-    name = "pandas",
-    required = "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
-    lazy = "False"
+    name="pandas",
+    required="Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
+    lazy="False",
 )
 
 
