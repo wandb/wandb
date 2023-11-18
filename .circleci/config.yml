@@ -107,29 +107,8 @@ commands:
       - run:
           name: Install Go
           command: |
-            os=$(uname -o | tr '[:upper:]' '[:lower:]')
-            case $os in
-              msys)
-                system="windows"
-                suffix="zip"
-                ;;
-              darwin)
-                system="$os"
-                suffix="tar.gz"
-                ;;
-              *linux*)
-                system="linux"
-                suffix="tar.gz"
-                ;;
-              *)
-                echo "Unsupported OS: $os"
-                exit 1
-                ;;
-            esac
-
-            architecture=$(uname -m)
-
-            case $architecture in
+            file_name=go<<parameters.version>>
+            case $(uname -m) in
               x86_64)
                 arch="amd64"
                 ;;
@@ -137,21 +116,44 @@ commands:
                 arch="arm64"
                 ;;
               *)
-                echo "Unsupported architecture: $architecture"
+                echo "Unsupported architecture: $(uname -m)"
                 exit 1
                 ;;
             esac
 
+            case $(uname | tr '[:upper:]' '[:lower:]') in
+              msys*)
+                file_name=$file_name.windows-$arch.zip
+                suffix="zip"
+                ;;
+              darwin*)
+                file_name=$file_name.darwin-$arch.zip
+                suffix="tar.gz"
+                ;;
+              linux*)
+                file_name=$file_name.linux-$arch.zip
+                suffix="tar.gz"
+                ;;
+              *)
+                echo "Unsupported OS: $(uname)"
+                exit 1
+                ;;
+            esac
 
-            go_file=go<<parameters.version>>.$system-$arch.$suffix
-            curl -L -o $go_file https://go.dev/dl/$go_file
-            if [ "$suffix" == "zip" ]; then
-              unzip -q $go_file -d $HOME
-            elif [ "$suffix" == "tar.gz" ]; then
-              tar -C $HOME -xzf $go_file
-            fi
-            rm $go_file
+            curl -L -o $file_name https://go.dev/dl/$file_name
+            case $suffix in
+              zip)
+                unzip -q $file_name -d $HOME
+                ;;
+              tar.gz)
+                tar -C $HOME -xzf $file_name
+                ;;
+            esac
+
+            rm $file_name
+
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
+
             $HOME/go/bin/go version
           no_output_timeout: 1m
 
@@ -593,6 +595,7 @@ jobs:
     executor:
       name: win/<< parameters.machine_executor >>
       size: << parameters.executor_size >>
+      shell: bash.exe
     parallelism: << parameters.parallelism >>
     environment:
       COVERAGE_DIR: << parameters.coverage_dir >>
@@ -603,16 +606,14 @@ jobs:
           steps:
             - run:
                 name: Install python dependencies
-                shell: bash.exe
                 command: |
-                  pip install -U tox nox pip
+                  python -m pip install -U tox nox pip
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
                 steps:
                   - run:
                       name: Update tox.ini on a GPU machine to install the proper pytorch version
-                      shell: bash.exe
                       command: |
                         CUDA_VERSION=`ls "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA"`
                         CUDA_VERSION_NO_DOT=`echo "${CUDA_VERSION//./}"`
@@ -621,7 +622,6 @@ jobs:
             - install_go
             - run:
                 name: Run tests
-                shell: bash.exe
                 command: |
                   echo $GCLOUD_SERVICE_KEY > key.json
                   gcloud auth activate-service-account --key-file=key.json
