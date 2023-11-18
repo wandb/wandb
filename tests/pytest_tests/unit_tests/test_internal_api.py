@@ -129,6 +129,10 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
 
 
+@pytest.mark.skipif(
+    sys.version_info.major == 3 and sys.version_info.minor < 8,
+    reason="flaky on 3.7",
+)
 class TestUploadFile:
     """Tests `upload_file` and `upload_file_async`.
 
@@ -138,10 +142,6 @@ class TestUploadFile:
     So these tests tend to come in pairs: `test_foo` and `test_async_foo`.
     """
 
-    @pytest.mark.skipif(
-        sys.version_info.major == 3 and sys.version_info.minor < 8,
-        reason="flaky on 3.7",
-    )
     class TestSimple:
         def test_adds_headers_to_request(
             self, mock_responses: responses.RequestsMock, example_file: Path
