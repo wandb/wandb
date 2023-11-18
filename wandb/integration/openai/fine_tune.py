@@ -100,7 +100,9 @@ class WandbLogger:
             ]
 
         # log starting from oldest fine_tune
-        show_individual_warnings =  fine_tune_job_id is not None or num_fine_tunes is not None
+        show_individual_warnings = (
+            fine_tune_job_id is not None or num_fine_tunes is not None
+        )
         fine_tune_logged = []
         for fine_tune in fine_tunes:
             if wait_for_job_success:
