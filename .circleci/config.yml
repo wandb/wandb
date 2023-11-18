@@ -1600,6 +1600,7 @@ workflows:
               python_version_minor: [9]
               shard:
                 - "default"
+                - "artifacts"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
@@ -1616,6 +1617,7 @@ workflows:
               python_version_minor: [ 9 ]
               shard:
                 - "mitm"
+                - "docs"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/standalone_tests"
@@ -1625,47 +1627,16 @@ workflows:
       - tox-base:
           requires:
             - "functional-tests"
-          context: sdk-third-party-api
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 9]
+              python_version_minor: [7]
               shard:
-                # - "llm"  # TODO: needs review
-                - "noml"
-                - "tf24"
-                - "ray112"
-                - "ray2"
-                - "sklearn"
-                - "metaflow"
                 - "tf115"
                 - "tf21"
                 - "tf25"
                 - "tf26"
                 - "xgboost"
-            excludes:
-              - shard: "tf115"
-                python_version_minor: "9"
-              - shard: "tf21"
-                python_version_minor: "9"
-              - shard: "tf24"
-                python_version_minor: "7"
-              - shard: "tf25"
-                python_version_minor: "9"
-              - shard: "tf26"
-                python_version_minor: "9"
-              - shard: "ray112"
-                python_version_minor: "7"
-              - shard: "ray2"
-                python_version_minor: "7"
-              - shard: "metaflow"
-                python_version_minor: "7"
-              - shard: "xgboost"
-                python_version_minor: "9"
-              - shard: "sklearn"
-                python_version_minor: "7"
-              - shard: "noml"
-                python_version_minor: "7"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
@@ -1675,13 +1646,19 @@ workflows:
       - tox-base:
           requires:
             - "functional-tests"
+          context: sdk-third-party-api
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [8]
+              python_version_minor: [9]
               shard:
-                - "docs"
-                - "artifacts"
+                # - "llm"  # TODO: needs review
+                - "noml"
+                - "tf24"
+                - "ray112"
+                - "ray2"
+                - "sklearn"
+                - "metaflow"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
