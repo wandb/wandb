@@ -107,26 +107,39 @@ commands:
       - run:
           name: Install Go
           command: |
-            os=$(uname -s | tr '[:upper:]' '[:lower:]')
+            os=$(uname -o | tr '[:upper:]' '[:lower:]')
             architecture=$(uname -m)
 
-            if [ "$os" = "darwin" ] && ["$architecture" == "x86_64"]; then
-              system="darwin-amd64"
-            elif [ "$os" == "darwin" ] && [ "$architecture" == "arm64" ]; then
-              system="darwin-arm64"
-            elif [ "$os" == "linux" ] && [ "$architecture" == "x86_64" ]; then
-              system="linux-amd64"
-            elif [ "$os" == "linux" ] && [ "$architecture" == "arm64" ]; then
-              system="linux-arm64"
+            if [ "$os" == "msys" ] ; then
+              system="windows"
+              suffix="zip"
+            elif [ "$os" == "darwin" ] || ["$os" == "linux" ]; then
+              system="$os"
+              suffix="tar.gz"
             else
-              echo "Unsupported system: $os $architecture"
+              echo "Unsupported OS: $os"
               exit 1
             fi
-            wget https://go.dev/dl/go<<parameters.version>>.$system.tar.gz
-            tar -C $HOME -xzf go<<parameters.version>>.$system.tar.gz
-            rm go<<parameters.version>>.${system}.tar.gz
+
+            if [ "$architecture" == "x86_64" ]; then
+                arch="amd64"
+            elif [ "$architecture" == "arm64" ]; then
+                system="arm64"
+            else
+                echo "Unsupported architecture: $architecture"
+                exit 1
+            fi
+
+            go_file=go<<parameters.version>>.$system-$arch.$suffix
+            curl -L -o $go_file https://go.dev/dl/$go_file
+            if [ "$suffix" == "zip" ]; then
+              unzip -q $go_file -d $HOME
+            elif [ "$suffix" == "tar.gz" ]; then
+              tar -C $HOME -xzf $go_file
+            fi
+            rm $go_file
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
-            go version
+            $HOME/go/bin/go version
           no_output_timeout: 1m
 
   setup_docker_buildx:
