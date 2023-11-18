@@ -29,13 +29,13 @@ except ImportError as e:
         "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
     ) from e
 
-np = get_module(
+np = util.get_module(
     name = "numpy",
     required = "Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
     lazy = "False"
 )
 
-pd = get_module(
+pd = util.get_module(
     name = "pandas",
     required = "Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
     lazy = "False"
