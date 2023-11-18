@@ -434,7 +434,7 @@ jobs:
             PATH=/usr/local/go/bin:$PATH \
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag << pipeline.parameters.wandb_server_tag >> << parameters.tox_args >>
+              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
       - when:
           condition:
             not:
