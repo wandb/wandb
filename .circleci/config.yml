@@ -127,11 +127,11 @@ commands:
                 suffix="zip"
                 ;;
               darwin*)
-                file_name=$file_name.darwin-$arch.zip
+                file_name=$file_name.darwin-$arch.tar.gz
                 suffix="tar.gz"
                 ;;
               linux*)
-                file_name=$file_name.linux-$arch.zip
+                file_name=$file_name.linux-$arch.tar.gz
                 suffix="tar.gz"
                 ;;
               *)
