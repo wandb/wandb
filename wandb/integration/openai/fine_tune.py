@@ -56,7 +56,7 @@ class WandbLogger:
         cls,
         fine_tune_job_id: Optional[str] = None,
         openai_client: Optional[OpenAI] = None,
-        first_n_fine_tunes: Optional[int] = None,
+        num_fine_tunes: Optional[int] = None,
         project: str = "OpenAI-Fine-Tune",
         entity: Optional[str] = None,
         overwrite: bool = False,
@@ -67,7 +67,7 @@ class WandbLogger:
 
         :param fine_tune_job_id: The id of the fine-tune (optional)
         :param openai_client: Pass the `OpenAI()` client (optional)
-        :param first_n_fine_tunes: Number of most recent fine-tunes to log when an fine_tune_job_id is not provided. By default, every fine-tune is synced.
+        :param num_fine_tunes: Number of most recent fine-tunes to log when an fine_tune_job_id is not provided. By default, every fine-tune is synced.
         :param project: Name of the project where you're sending runs. By default, it is "GPT-3".
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
         :param overwrite: Forces logging and overwrite existing wandb run of the same fine-tune.
@@ -91,16 +91,16 @@ class WandbLogger:
             if not fine_tunes or fine_tunes.data is None:
                 wandb.termwarn("No fine-tune has been retrieved")
                 return
-            # Select the `first_n_fine_tunes` from the `fine_tunes.data` list.
-            # If `first_n_fine_tunes` is None, it selects all items in the list (from start to end).
-            # If for example, `first_n_fine_tunes` is 5, it selects the last 5 items in the list.
+            # Select the `num_fine_tunes` from the `fine_tunes.data` list.
+            # If `num_fine_tunes` is None, it selects all items in the list (from start to end).
+            # If for example, `num_fine_tunes` is 5, it selects the last 5 items in the list.
             # Note that the last items in the list are the latest fine-tune jobs.
             fine_tunes = fine_tunes.data[
-                -first_n_fine_tunes if first_n_fine_tunes is not None else None :
+                -num_fine_tunes if num_fine_tunes is not None else None :
             ]
 
         # log starting from oldest fine_tune
-        show_individual_warnings =  fine_tune_job_id is not None or first_n_fine_tunes is not None
+        show_individual_warnings =  fine_tune_job_id is not None or num_fine_tunes is not None
         fine_tune_logged = []
         for fine_tune in fine_tunes:
             if wait_for_job_success:
