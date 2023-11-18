@@ -126,6 +126,7 @@ commands:
             tar -C $HOME -xzf go<<parameters.version>>.$system.tar.gz
             rm go<<parameters.version>>.${system}.tar.gz
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
+            go version
           no_output_timeout: 1m
 
   setup_docker_buildx:
@@ -591,6 +592,7 @@ jobs:
                         CUDA_VERSION_NO_DOT=`echo "${CUDA_VERSION//./}"`
                         v=${CUDA_VERSION_NO_DOT:1}
                         sed -i -e "s/whl\/cpu/whl\/cu$v/g" tox.ini
+            - install_go
             - run:
                 name: Run tests
                 shell: bash.exe
@@ -1444,12 +1446,12 @@ workflows:
       - win:
           requires:
             - "unit-tests-legacy"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
