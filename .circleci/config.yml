@@ -25,18 +25,103 @@ commands:
       - run:
           name: Install Go
           command: |
-            system=$(uname -s | tr '[:upper:]' '[:lower:]')
-            if [ "$system" = "darwin" ]; then
-              system="darwin-amd64"
-            else
-              system="linux-amd64"
-            fi
-            wget https://go.dev/dl/go<<parameters.version>>.$system.tar.gz
-            tar -C . -xzf go<<parameters.version>>.$system.tar.gz
-            rm go<<parameters.version>>.${system}.tar.gz
-            echo 'export PATH="go/bin:$PATH"' >> "$BASH_ENV"
+            file_name=go<<parameters.version>>
+            case $(uname -m) in
+              x86_64)
+                arch="amd64"
+                ;;
+              arm64)
+                arch="arm64"
+                ;;
+              *)
+                echo "Unsupported architecture: $(uname -m)"
+                exit 1
+                ;;
+            esac
+            case $(uname | tr '[:upper:]' '[:lower:]') in
+              msys*)
+                file_name=$file_name.windows-$arch.zip
+                suffix="zip"
+                ;;
+              darwin*)
+                file_name=$file_name.darwin-$arch.tar.gz
+                suffix="tar.gz"
+                ;;
+              linux*)
+                file_name=$file_name.linux-$arch.tar.gz
+                suffix="tar.gz"
+                ;;
+              *)
+                echo "Unsupported OS: $(uname)"
+                exit 1
+                ;;
+            esac
+            curl -L -o $file_name https://go.dev/dl/$file_name
+            case $suffix in
+              zip)
+                unzip -q $file_name -d $HOME
+                ;;
+              tar.gz)
+                tar -C $HOME -xzf $file_name
+                ;;
+            esac
+            rm $file_name
+            echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+            go version
           no_output_timeout: 1m
+  codecov_upload:
+    description: "Upload coverage to codecov"
+    parameters:
+      arguments:
+        description: "Arguments to pass to codecov"
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: Download codecov
+          command: |
+            os = $(uname | tr '[:upper:]' '[:lower:]')
+            case $os in
+              msys*)
+                system="windows"
+                file_name=codecov.exe
+                ;;
+              darwin*)
+                system="macos"
+                file_name=codecov
+                ;;
+              linux*)
+                system="linux"
+                file_name=codecov
+                ;;
+              *)
+                echo "Unsupported OS: $(uname)"
+                exit 1
+                ;;
+            esac
 
+            curl -L -o $file_name https://codecov.io/latest/${system}/$file_name
+            chmod +x $file_name
+
+            case $os in
+              darwin*)
+                if [ "$(uname -m)" = "arm64" ]; then
+                  softwareupdate --install-rosetta --agree-to-license
+                  arch -x86_64 ./$file_name << parameters.arguments >>
+                else
+                  ./$file_name << parameters.arguments >>
+                fi
+                ;;
+              msys*|linux*)
+                ./$file_name << parameters.arguments >>
+                ;;
+              *)
+                echo "Unsupported OS: $(uname)"
+                exit 1
+                ;;
+            esac
+          no_output_timeout: 1m
 
 executors:
   test-server:
@@ -58,16 +143,28 @@ executors:
         type: string
         default: master
     resource_class: xlarge
-    working_directory: /mnt/ramdisk
+  macos:
+    macos:
+      xcode: "14.2.0"
+    resource_class: macos.m1.medium.gen1
+  linux:
+    docker:
+      - image: cimg/base:stable
+    resource_class: medium
+
 
 jobs:
-  test:
+  system_tests:
     description: "Run tests against test server"
     parameters:
       python_version:
         description: "Python version"
         type: string
         default: << pipeline.parameters.python_version >>
+      codecov_arguments:
+        description: "Arguments to pass to codecov"
+        type: string
+        default: ""
     executor:
       name: test-server
       python_version: << parameters.python_version >>
@@ -75,21 +172,51 @@ jobs:
       - checkout
       - install_go
       - run:
-          name: Check Python version
+          name: build and install wandb-core
           command: |
-            python --version
-            go version
+            pip install -U nox
+            nox -s build-nexus install-nexus
+      - run:
+          name: run tests
+          command: |
+            mkdir -p test-results .coverage
+            pip install -U pytest pytest-cov pytest-xdist
+            # pytest -n=auto --cov=wandb --cov-report= --cov-report=xml --junitxml=test-results/junit.xml --no-cov-on-fail tests
+            # go tool covdata textfmt -i=.coverage -o coverage.txt
+      - store_test_results:
+          path: test-results
+      - codecov_upload:
+          arguments: << parameters.codecov_arguments >>
+
+  core-unit-test:
+    parameters:
+      os:
+        type: executor
+        default: linux
+    executor: << parameters.os >>
+    steps:
+      - checkout
+      - install_go
+      - run:
+          name: run go tests
+          command: |
+            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - codecov_upload:
+          arguments: -f coverage.txt
       - slack/notify:
           event: fail
           template: basic_fail_1
           mentions: "@channel"
           channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-
 workflows:
   all-tests:
     jobs:
-      - test:
+      - system_tests:
           matrix:
             parameters:
-               python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+      - core-unit-test:
+          matrix:
+            parameters:
+              os: [linux, macos]
