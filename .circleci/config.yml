@@ -193,6 +193,10 @@ jobs:
       os:
         type: executor
         default: linux
+      codecov_arguments:
+        description: "Arguments to pass to codecov"
+        type: string
+        default: ""
     executor: << parameters.os >>
     steps:
       - checkout
@@ -200,14 +204,10 @@ jobs:
       - run:
           name: run go tests
           command: |
+            cd nexus
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov_upload:
-          arguments: -f coverage.txt
-      - slack/notify:
-          event: fail
-          template: basic_fail_1
-          mentions: "@channel"
-          channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+          arguments: << parameters.codecov_arguments >>
 
 workflows:
   all-tests:
@@ -216,7 +216,9 @@ workflows:
           matrix:
             parameters:
               python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+              codecov_arguments: ["-F system"]
       - core-unit-test:
           matrix:
             parameters:
               os: [linux, macos]
+              codecov_arguments: ["-F unit"]
