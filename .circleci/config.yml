@@ -189,7 +189,8 @@ jobs:
       - codecov_upload:
           arguments: << parameters.codecov_arguments >>
 
-  core-unit-test:
+  core-unit-tests:
+    description: "Run wandb-core unit tests"
     parameters:
       os:
         type: executor
@@ -211,15 +212,40 @@ jobs:
       - codecov_upload:
           arguments: << parameters.codecov_arguments >>
 
+  client-unit-tests:
+    description: "Run wandb client unit tests"
+    parameters:
+      os:
+        type: executor
+        default: linux
+      codecov_arguments:
+        description: "Arguments to pass to codecov"
+        type: string
+        default: ""
+    executor: << parameters.os >>
+    working_directory: ~/project
+    steps:
+      - checkout
+      - codecov_upload:
+          arguments: << parameters.codecov_arguments >>
+
 workflows:
   all-tests:
     jobs:
       - system_tests:
+          name: "system tests (py<< parameters.python_version >>)"
           matrix:
             parameters:
               python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
               codecov_arguments: ["-F system"]
-      - core-unit-test:
+      - core-unit-tests:
+          name: "core unit tests (<< parameters.os >>)"
+          matrix:
+            parameters:
+              os: [linux, macos]
+              codecov_arguments: ["-F unit"]
+      - client-unit-tests:
+          name: "client unit tests (<< parameters.os >>)"
           matrix:
             parameters:
               os: [linux, macos]
