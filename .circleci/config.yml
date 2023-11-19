@@ -81,7 +81,7 @@ commands:
       - run:
           name: Download codecov
           command: |
-            os = $(uname | tr '[:upper:]' '[:lower:]')
+            os=$(uname | tr '[:upper:]' '[:lower:]')
             case $os in
               msys*)
                 system="windows"
@@ -101,7 +101,7 @@ commands:
                 ;;
             esac
 
-            curl -L -o $file_name https://codecov.io/latest/${system}/$file_name
+            curl -Os https://uploader.codecov.io/latest/$system/$file_name
             chmod +x $file_name
 
             case $os in
@@ -168,6 +168,7 @@ jobs:
     executor:
       name: test-server
       python_version: << parameters.python_version >>
+    working_directory: ~/project
     steps:
       - checkout
       - install_go
@@ -198,6 +199,7 @@ jobs:
         type: string
         default: ""
     executor: << parameters.os >>
+    working_directory: ~/project
     steps:
       - checkout
       - install_go
