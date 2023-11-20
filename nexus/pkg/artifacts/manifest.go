@@ -2,10 +2,13 @@ package artifacts
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"sort"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
@@ -115,9 +118,28 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 	manifestEntries := m.Contents
 	manifestEntry, ok := manifestEntries[path]
 	if !ok {
-		// implement _get_obj_entry
-		// For now just return error
 		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
 	return manifestEntry, nil
+}
+
+func loadManifestFromURL(url string) (Manifest, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer resp.Body.Close()
+	manifest := Manifest{}
+	if resp.StatusCode != http.StatusOK {
+		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
+	}
+	err = json.Unmarshal(body, &manifest)
+	if err != nil {
+		return Manifest{}, nil
+	}
+	return manifest, nil
 }

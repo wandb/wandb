@@ -86,6 +86,7 @@ class LaunchProject:
         self.resource = resource
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
+        self.author = launch_spec.get("author")
         self.python_version: Optional[str] = launch_spec.get("python_version")
         self.accelerator_base_image: Optional[str] = resource_args_build.get(
             "accelerator", {}
@@ -256,6 +257,7 @@ class LaunchProject:
             "run_id": self.run_id,
             "run_name": self.name,
             "image_uri": image,
+            "author": self.author,
         }
         update_dict.update(os.environ)
         result = recursive_macro_sub(self.resource_args, update_dict)

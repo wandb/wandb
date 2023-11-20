@@ -1,21 +1,34 @@
+"""These test the high level sdk methods by mocking out the backend.
+See wandb_integration_test.py for tests that launch a real backend against
+a live backend server.
+"""
+import importlib
+import os
+import platform
+import subprocess
+import time
+
+import pytest
+import wandb
+from tests.pytest_tests.unit_tests_old import utils
+
+
+@pytest.mark.wandb_args(k8s=True)
+def test_k8s_success(wandb_init_run):
+    assert wandb.run._settings.docker == "test@sha256:1234"
+
+
+@pytest.mark.wandb_args(k8s=False)
+def test_k8s_failure(wandb_init_run):
+    assert wandb.run._settings.docker is None
+
+
 """These test the full stack by launching a real backend server.  You won't get
 credit for coverage of the backend logic in these tests.  See test_sender.py for testing
 specific backend logic, or wandb_test.py for testing frontend logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
-import importlib
-import json
-import os
-import platform
-import subprocess
-import time
-from unittest import mock
-
-import pytest
-import wandb
-
-from tests.pytest_tests.unit_tests_old import utils
 
 reloadFn = importlib.reload
 
@@ -26,32 +39,11 @@ reloadFn = importlib.reload
 #  errors until we ensure we propagate the errors up.
 
 
-def test_resume_allow_success(live_mock_server, test_settings):
-    res = live_mock_server.set_ctx({"resume": True})
-    print("CTX AFTER UPDATE", res)
-    print("GET RIGHT AWAY", live_mock_server.get_ctx())
-    run = wandb.init(reinit=True, resume="allow", settings=test_settings)
-    run.log({"acc": 10})
-    run.finish()
-    server_ctx = live_mock_server.get_ctx()
-    print("CTX", server_ctx)
-    first_stream_hist = utils.first_filestream(server_ctx)["files"][
-        "wandb-history.jsonl"
-    ]
-    print(first_stream_hist)
-    assert first_stream_hist["offset"] == 15
-    assert json.loads(first_stream_hist["content"][0])["_step"] == 16
-    # TODO: test _runtime offset setting
-    # TODO: why no event stream?
-    # assert first_stream['files']['wandb-events.jsonl'] == {
-    #    'content': ['{"acc": 10, "_step": 15}'], 'offset': 0
-    # }
-
-
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="File syncing is somewhat busted in windows",
 )
+@pytest.mark.nexus_failure(feature="files")
 def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
     with runner.isolation():
         with open("train.py", "w") as f:
@@ -93,39 +85,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         assert num_runs == 2
 
 
-def test_resume_never_failure(runner, live_mock_server, test_settings):
-    with runner.isolation():
-        live_mock_server.set_ctx({"resume": True})
-        print("CTX", live_mock_server.get_ctx())
-        with pytest.raises(wandb.UsageError):
-            wandb.init(reinit=True, resume="never", settings=test_settings)
-
-
-def test_resume_auto_failure(live_mock_server, test_settings):
-    # env vars have a higher priority than the BASE settings
-    # so that if that is set (e.g. by some other test/fixture),
-    # test_settings.wandb_dir != run_settings.wandb_dir
-    # and this test will fail
-    with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.root_dir}):
-        test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
-        live_mock_server.set_ctx({"resume": True})
-        with open(test_settings.resume_fname, "w") as f:
-            f.write(json.dumps({"run_id": "resume-me"}))
-        run = wandb.init(resume="auto", settings=test_settings)
-        assert run.id == "resume-me"
-        run.finish(exit_code=3)
-        assert os.path.exists(test_settings.resume_fname)
-
-
-def test_resume_no_metadata(live_mock_server, test_settings):
-    # do not write metadata file if we are resuming
-    live_mock_server.set_ctx({"resume": True})
-    run = wandb.init(resume=True, settings=test_settings)
-    run.finish()
-    ctx = live_mock_server.get_ctx()
-    assert "wandb-metadata.json" not in ctx["storage"][run.id]
-
-
+@pytest.mark.nexus_failure(feature="files")
 def test_network_fault_files(live_mock_server, test_settings):
     live_mock_server.set_ctx({"fail_storage_times": 5})
     run = wandb.init(settings=test_settings)
@@ -146,31 +106,9 @@ def test_network_fault_files(live_mock_server, test_settings):
     )
 
 
-# TODO(jhr): look into why this timeout needed to be extend for windows
-@pytest.mark.timeout(120)
-def test_network_fault_graphql(live_mock_server, test_settings):
-    # TODO: Initial login fails within 5 seconds so we fail after boot.
-    run = wandb.init(settings=test_settings)
-    live_mock_server.set_ctx({"fail_graphql_times": 5})
-    run.finish()
-    ctx = live_mock_server.get_ctx()
-    print(ctx)
-    assert [
-        f
-        for f in sorted(ctx["storage"][run.id])
-        if not f.endswith(".patch") and not f.endswith(".py")
-    ] == sorted(
-        [
-            "wandb-metadata.json",
-            "requirements.txt",
-            "config.yaml",
-            "wandb-summary.json",
-        ]
-    )
-
-
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
+@pytest.mark.nexus_failure(feature="files")
 def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(
         {

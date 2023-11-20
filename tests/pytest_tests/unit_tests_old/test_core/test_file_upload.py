@@ -1,8 +1,6 @@
 """
 file upload tests.
 """
-
-
 import os
 
 
