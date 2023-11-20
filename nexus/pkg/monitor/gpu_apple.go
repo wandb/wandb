@@ -16,7 +16,10 @@ func getStats() map[string]interface{} {
 
 	jsonString := C.GoString(cstr)
 	var result map[string]interface{}
-	json.Unmarshal([]byte(jsonString), &result)
+	err := json.Unmarshal([]byte(jsonString), &result)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	return result
 }
