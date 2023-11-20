@@ -1,21 +1,25 @@
-from dataclasses import InitVar
-from typing import Iterable, List, Literal, Optional, Union
-from typing import List as LList
+import os
+import random
+from typing import Iterable, Literal, Optional, Union
+from urllib.parse import urlparse, urlunparse
 
-from pydantic import AnyUrl, ConfigDict, Field
-from pydantic.dataclasses import dataclass, rebuild_dataclass
+from pydantic import AnyUrl, ConfigDict, Field, validator
+from pydantic.dataclasses import dataclass
 
 import wandb
 
-from . import internal
+from . import gql, internal
 from .internal import (
     CodeCompareDiff,
     FontSize,
     GroupAgg,
     GroupArea,
+    Language,
     LegendPosition,
     LinePlotStyle,
     Range,
+    ReportEntity,
+    ReportProject,
     SmoothingType,
 )
 
@@ -29,9 +33,20 @@ dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=Tr
 class Base:
     def __repr__(self):
         fields = ", ".join(
-            f"{k}={v!r}" for k, v in self.__dict__.items() if not none_or_empty(v)
+            f"{k}={v!r}" for k, v in self.__dict__.items() if _should_show_attr(k, v)
         )
         return f"{self.__class__.__name__}({fields})"
+
+    # @property
+    # def _model(self):
+    #     return self.to_model()
+
+
+@dataclass(config=dataclass_config)
+class Auto:
+    """This value will be defined when the report is saved."""
+
+    ...
 
 
 @dataclass(config=dataclass_config)
@@ -50,80 +65,25 @@ class Layout(Base):
 
 
 @dataclass(config=dataclass_config)
-class Report(Base):
-    project: str
-    entity: str = DEFAULT_ENTITY
-    title: str = "Untitled Report"
-    description: str = ""
-
-    blocks: InitVar[List["BlockTypes"]] = Field(default_factory=list)
-    _thing: str = ""
-
-    # def __post_init__(self, blocks):
-    #     self.blocks_ = []
-
-    @property
-    def blocks(self):
-        # hide enclosing p blocks
-        return self._blocks[1:-1]
-
-    @blocks.setter
-    def blocks(self, v):
-        return [P()] + v + [P()]
-
-    def to_model(self):
-        return internal.ReportViewspec(
-            display_name=self.title,
-            description=self.description,
-            project=internal.Project(name=self.project, entity_name=self.entity),
-            spec=internal.Spec(blocks=[b.to_model() for b in self.blocks]),
-        )
-
-    @classmethod
-    def from_model(cls, model: internal.ReportViewspec):
-        return cls(
-            title=model.display_name,
-            description=model.description,
-            entity=model.project.entity_name,
-            project=model.project.name,
-            # blocks=[lookup(b) for b in model.spec.blocks],
-            blocks=[lookup(b) for b in model.spec.blocks],
-        )
-
-    def save(self, draft: bool = False, clone: bool = False):
-        self.to_model()
-
-        return self
-
-        # r = self._api.client.execute(
-        #     UPSERT_VIEW,
-        #     variable_values={
-        #         "id": None if clone or not self.id else self.id,
-        #         "name": generate_name() if clone or not self.name else self.name,
-        #         "entityName": self.entity,
-        #         "projectName": self.project,
-        #         "description": self.description,
-        #         "displayName": self.title,
-        #         "type": "runs/draft" if draft else "runs",
-        #         "spec": model.spec.model_dump_json(),
-        #     },
-        # )
-
-
-@dataclass(config=dataclass_config)
 class Block(Base):
     ...
 
     def __repr__(self):
         fields = ", ".join(
-            f"{k}={v!r}" for k, v in self.__dict__.items() if not none_or_empty(v)
+            f"{k}={v!r}" for k, v in self.__dict__.items() if not _should_show_attr(v)
         )
         return f"{self.__class__.__name__}({fields})"
 
     # @classmethod
     # def from_model(cls, model: internal.BlockTypes):
-    #     cls = block_mapping.get(model.__class__)
-    #     return cls.from_model(model)
+    #     return None
+    # cls = block_mapping.get(model.__class__)
+    # return cls.from_model(model)
+
+
+@dataclass(config=dataclass_config)
+class UnknownBlock(Block):
+    ...
 
 
 @dataclass(config=dataclass_config)
@@ -135,14 +95,14 @@ class Heading(Block):
 
         blocks = None
         if model.collapsed_children:
-            blocks = [lookup(b) for b in model.collapsed_children]
+            blocks = [_lookup(b) for b in model.collapsed_children]
 
         if model.level == 1:
-            return H1(text=text, blocks=blocks)
+            return H1(text=text, collapsed_blocks=blocks)
         if model.level == 2:
-            return H2(text=text, blocks=blocks)
+            return H2(text=text, collapsed_blocks=blocks)
         if model.level == 3:
-            return H3(text=text, blocks=blocks)
+            return H3(text=text, collapsed_blocks=blocks)
 
 
 @dataclass(config=dataclass_config)
@@ -186,7 +146,7 @@ class List(Block):
 
 @dataclass(config=dataclass_config)
 class H1(Heading):
-    text: str
+    text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -202,7 +162,7 @@ class H1(Heading):
 
 @dataclass(config=dataclass_config)
 class H2(Block):
-    text: str
+    text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -218,7 +178,7 @@ class H2(Block):
 
 @dataclass(config=dataclass_config)
 class H3(Block):
-    text: str
+    text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -234,7 +194,7 @@ class H3(Block):
 
 @dataclass(config=dataclass_config)
 class P(Block):
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.Paragraph(children=[internal.Text(text=self.text)])
@@ -248,7 +208,7 @@ class P(Block):
 
 @dataclass(config=dataclass_config)
 class CheckedListItem:
-    text: str
+    text: str = ""
     checked: bool = False
 
     def to_model(self):
@@ -260,7 +220,7 @@ class CheckedListItem:
 
 @dataclass(config=dataclass_config)
 class OrderedListItem:
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.ListItem(
@@ -271,7 +231,7 @@ class OrderedListItem:
 
 @dataclass(config=dataclass_config)
 class UnorderedListItem:
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.ListItem(
@@ -281,7 +241,7 @@ class UnorderedListItem:
 
 @dataclass(config=dataclass_config)
 class CheckedList(List):
-    items: LList[CheckedListItem]
+    items: list[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
     def to_model(self):
         items = [x.to_model() for x in self.items]
@@ -290,7 +250,7 @@ class CheckedList(List):
 
 @dataclass(config=dataclass_config)
 class OrderedList(List):
-    items: LList[OrderedListItem]
+    items: list[OrderedListItem] = Field(default_factory=lambda: [OrderedListItem()])
 
     def to_model(self):
         items = [x.to_model() for x in self.items]
@@ -299,7 +259,9 @@ class OrderedList(List):
 
 @dataclass(config=dataclass_config)
 class UnorderedList(List):
-    items: LList[UnorderedListItem]
+    items: list[UnorderedListItem] = Field(
+        default_factory=lambda: [UnorderedListItem()]
+    )
 
     def to_model(self):
         items = [x.to_model() for x in self.items]
@@ -308,8 +270,8 @@ class UnorderedList(List):
 
 @dataclass(config=dataclass_config)
 class CodeBlock(Block):
-    code: str
-    language: str
+    code: str = ""
+    language: Optional[Language] = "python"
 
     def to_model(self):
         return internal.CodeBlock(
@@ -331,7 +293,7 @@ class CodeBlock(Block):
 
 @dataclass(config=dataclass_config)
 class MarkdownBlock(Block):
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.MarkdownBlock(content=self.text)
@@ -343,7 +305,7 @@ class MarkdownBlock(Block):
 
 @dataclass(config=dataclass_config)
 class LatexBlock(Block):
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.LatexBlock(content=self.text)
@@ -372,7 +334,7 @@ class Image(Block):
 
 @dataclass(config=dataclass_config)
 class BlockQuote(Block):
-    text: str
+    text: str = ""
 
     def to_model(self):
         return internal.BlockQuote(
@@ -434,7 +396,7 @@ class SoundCloud(Block):
 
 @dataclass(config=dataclass_config)
 class Gallery(Block):
-    ids: list[str]
+    ids: list[str] = Field(default_factory=list)
 
     def to_model(self):
         return internal.Gallery(ids=self.ids)
@@ -445,27 +407,56 @@ class Gallery(Block):
 
 
 @dataclass(config=dataclass_config)
-class CustomRunColors:
+class CustomRunColors(Base):
     ...
 
 
 @dataclass(config=dataclass_config)
-class Runset(Base):
-    entity: Optional[str] = None
-    project: Optional[str] = None
-    name: str = "Run set"
-    query: str = ""
-    filters: dict = Field(default_factory=lambda: {"$or": [{"$and": []}]})
-    groupby: list = Field(default_factory=list)
-    order: list = Field(default_factory=lambda: ["-CreatedTimestamp"])
+class Order(Base):
+    name: str
+    ascending: bool = False
 
     def to_model(self):
+        return internal.SortKey(
+            key=internal.SortKeyKey(name=internal.get_frontend_name(self.name)),
+            ascending=self.ascending,
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.SortKey):
+        return cls(
+            name=internal.get_backend_name(model.key.name),
+            ascending=model.ascending,
+        )
+
+
+@dataclass(config=dataclass_config)
+class Runset(Base):
+    entity: Union[ReportEntity, str] = Field(default_factory=ReportEntity)
+    project: Union[ReportProject, str] = Field(default_factory=ReportProject)
+    name: str = "Run set"
+    query: str = ""
+    filters: str = ""  # keys with empty string name are excluded
+    groupby: list[str] = Field(default_factory=list)
+    order: list[Order] = Field(
+        default_factory=lambda: [Order("CreatedTimestamp", ascending=False)]
+    )
+
+    def to_model(self):
+        entity = "" if isinstance(self.entity, ReportEntity) else self.entity
+        project = "" if isinstance(self.project, ReportProject) else self.project
+        # entity = self.entity
+        # project = self.project
+
         return internal.Runset(
-            project=internal.Project(entity_name=self.entity, name=self.project),
+            project=internal.Project(entity_name=entity, name=project),
             name=self.name,
-            filters=self.filters,
-            grouping=self.groupby,
-            sort=self.order,
+            filters=internal.expr_to_filters(self.filters),
+            # TODO: Fix the groupings
+            grouping=[
+                internal.Key(name=internal.get_frontend_name(g)) for g in self.groupby
+            ],
+            sort=internal.Sort(keys=[o.to_model() for o in self.order]),
         )
 
     @classmethod
@@ -474,9 +465,9 @@ class Runset(Base):
             entity=model.project.entity_name,
             project=model.project.name,
             name=model.name,
-            filters=model.filters,
-            groupby=model.grouping,
-            order=model.sort,
+            filters=internal.filters_to_expr(model.filters),
+            groupby=[internal.get_backend_name(k.name) for k in model.grouping],
+            order=[Order.from_model(s) for s in model.sort.keys],
         )
 
 
@@ -485,12 +476,22 @@ class Panel(Base):
     layout: Layout = Field(default_factory=Layout)
 
 
+# @dataclass(config=dataclass_config)
+# class PanelGridColumn(Base):
+#     name: str
+#     visible: bool = True
+#     pinned: bool = False
+#     width: int = 100
+
+
 @dataclass(config=dataclass_config)
 class PanelGrid(Block):
-    runsets: list[Runset] = Field(default_factory=list)
+    runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
     panels: list[Panel] = Field(default_factory=list)
-    custom_run_colors: Optional[CustomRunColors] = None
-    active_runset: Optional[str] = None
+    # custom_run_colors: Optional[CustomRunColors] = None
+    active_runset: Optional[int] = None
+
+    # columns: list[str] = Field(default_factory=list)
 
     def to_model(self):
         return internal.PanelGrid(
@@ -499,13 +500,26 @@ class PanelGrid(Block):
                 panel_bank_section_config=internal.PanelBankSectionConfig(
                     panels=[p.to_model() for p in self.panels],
                 ),
-                custom_run_colors=self.custom_run_colors,
+                # custom_run_colors=custom_run_colors,
             )
         )
 
     @classmethod
     def from_model(cls, model: internal.PanelGrid):
-        ...
+        return cls(
+            runsets=[Runset.from_model(rs) for rs in model.metadata.run_sets],
+            panels=[
+                _lookup_panel(p)
+                for p in model.metadata.panel_bank_section_config.panels
+            ],
+            active_runset=model.metadata.open_run_set,
+        )
+
+    @validator("runsets")
+    def _validate_list_not_empty(cls, v):  # noqa: N805
+        if len(v) < 1:
+            raise ValueError("must have at least one runset")
+        return v
 
 
 @dataclass(config=dataclass_config)
@@ -539,6 +553,7 @@ BlockTypes = Union[
     Spotify,
     SoundCloud,
     Gallery,
+    PanelGrid,
     Block,
 ]
 
@@ -559,12 +574,8 @@ block_mapping = {
     internal.Spotify: Spotify,
     internal.Twitter: Twitter,
     internal.SoundCloud: SoundCloud,
+    internal.Block: Block,
 }
-
-
-@dataclass(config=dataclass_config)
-class CustomRunColors:
-    ...
 
 
 @dataclass(config=dataclass_config)
@@ -596,13 +607,10 @@ class LinePlot(Panel):
 
     def to_model(self):
         return internal.LinePlot(
-            layout=internal.Layout(
-                x=self.layout.x, y=self.layout.y, w=self.layout.w, h=self.layout.h
-            ),
             config=internal.LinePlotConfig(
                 chart_title=self.title,
                 x_axis=self.x,
-                metrics=listify(self.y),
+                metrics=_listify(self.y),
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_x[0],
@@ -627,6 +635,7 @@ class LinePlot(Panel):
                 aggregate=self.aggregate,
                 x_expression=self.xaxis_expression,
             ),
+            layout=self.layout.to_model(),
         )
 
     @classmethod
@@ -656,6 +665,7 @@ class LinePlot(Panel):
             legend_template=model.config.legend_template,
             aggregate=model.config.aggregate,
             xaxis_expression=model.config.x_expression,
+            layout=Layout.from_model(model.layout),
         )
 
 
@@ -680,11 +690,54 @@ class ScatterPlot(Panel):
     regression: Optional[bool] = None
 
     def to_model(self):
-        ...
+        return internal.ScatterPlot(
+            config=internal.ScatterPlotConfig(
+                chart_title=self.title,
+                x_axis=self.x,
+                y_axis=self.y,
+                z_axis=self.z,
+                x_axis_min=self.range_x[0],
+                x_axis_max=self.range_x[1],
+                y_axis_min=self.range_y[0],
+                y_axis_max=self.range_y[1],
+                z_axis_min=self.range_z[0],
+                z_axis_max=self.range_z[1],
+                x_axis_log_scale=self.log_x,
+                y_axis_log_scale=self.log_y,
+                z_axis_log_scale=self.log_z,
+                show_min_y_axis_line=self.running_ymin,
+                show_max_y_axis_line=self.running_ymax,
+                show_avg_y_axis_line=self.running_ymean,
+                legend_template=self.legend_template,
+                custom_gradient=self.gradient,
+                font_size=self.font_size,
+                show_linear_regression=self.regression,
+            ),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            title=model.config.chart_title,
+            x=model.config.x_axis,
+            y=model.config.y_axis,
+            z=model.config.z_axis,
+            range_x=(model.config.x_axis_min, model.config.x_axis_max),
+            range_y=(model.config.y_axis_min, model.config._axis_max),
+            range_z=(model.config.z_axis_min, model.config.z_axis_max),
+            log_x=model.config.x_axis_log_scale,
+            log_y=model.config.y_axis_log_scale,
+            log_z=model.config.z_axis_log_scale,
+            running_ymin=model.config.show_min_y_axis_line,
+            running_ymax=model.config.show_max_y_axis_line,
+            running_ymean=model.config.show_avg_y_axis_line,
+            legend_template=model.config.legend_template,
+            gradient=model.config.custom_gradient,
+            font_size=model.config.font_size,
+            regression=model.config.show_linear_regression,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -707,11 +760,50 @@ class BarPlot(Panel):
     line_colors: Optional[dict] = None
 
     def to_model(self):
-        ...
+        return internal.BarPlot(
+            config=internal.BarPlotConfig(
+                chart_title=self.title,
+                metrics=self.metrics,
+                vertical=self.orientation,
+                x_axis_min=self.range_x[0],
+                x_axis_max=self.range_x[1],
+                x_axis_title=self.title_x,
+                y_axis_title=self.title_y,
+                group_by=self.groupby,
+                group_agg=self.groupby_aggfunc,
+                group_area=self.groupby_rangefunc,
+                limit=self.max_runs_to_show,
+                bar_limit=self.max_bars_to_show,
+                expressions=self.custom_expressions,
+                legend_template=self.legend_template,
+                font_size=self.font_size,
+                override_series_titles=self.line_titles,
+                override_colors=self.line_colors,
+            ),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            title=model.config.chart_title,
+            metrics=model.config.metrics,
+            orientation=model.config.vertical,
+            range_x=(model.config.x_axis_min, model.config.x_axis_max),
+            title_x=model.config.x_axis_title,
+            title_y=model.config.y_axis_title,
+            groupby=model.config.group_by,
+            groupby_aggfunc=model.config.group_agg,
+            groupby_rangefunc=model.config.group_area,
+            max_runs_to_show=model.config.limit,
+            max_bars_to_show=model.config.bar_limit,
+            custom_expressions=model.config.expressions,
+            legend_template=model.config.legend_template,
+            font_size=model.config.font_size,
+            line_titles=model.config.override_series_titles,
+            line_colors=model.config.override_colors,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -725,11 +817,31 @@ class ScalarChart(Panel):
     font_size: Optional[FontSize] = None
 
     def to_model(self):
-        ...
+        return internal.ScalarChart(
+            config=internal.ScalarChartConfig(
+                chart_title=self.title,
+                metrics=self.metrics,
+                group_agg=self.groupby_aggfunc,
+                group_area=self.groupby_rangefunc,
+                expressions=self.custom_expressions,
+                legend_template=self.legend_template,
+                font_size=self.font_size,
+            ),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            title=model.config.chart_title,
+            metric=model.config.metrics,
+            groupby_aggfunc=model.config.group_agg,
+            groupby_rangefunc=model.config.group_area,
+            custom_expressions=model.config.expressions,
+            legend_template=model.config.legend_template,
+            font_size=model.config.font_size,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -737,11 +849,17 @@ class CodeComparer(Panel):
     diff: Optional[CodeCompareDiff] = None
 
     def to_model(self):
-        ...
+        return internal.CodeComparer(
+            config=internal.CodeComparerConfig(diff=self.diff),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            diff=model.config.diff,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -757,11 +875,25 @@ class ParallelCoordinatesPlot(Panel):
     font_size: Optional[FontSize] = None
 
     def to_model(self):
-        ...
+        return internal.ParallelCoordinatesPlot(
+            config=internal.ParallelCoordinatesPlotConfig(
+                chart_title=self.title,
+                columns=self.columns,
+                custom_gradient=self.gradient,
+                font_size=self.font_size,
+            ),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            columns=model.config.columns,
+            title=model.config.chart_title,
+            gradient=model.config.custom_gradient,
+            font_size=model.config.font_size,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -769,11 +901,17 @@ class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
     def to_model(self):
-        ...
+        return internal.ParameterImportancePlot(
+            config=internal.ParameterImportancePlotConfig(...),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            with_respect_to=model.config.target_key,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -781,11 +919,17 @@ class RunComparer(Panel):
     diff_only: Optional[Literal["split"]] = None
 
     def to_model(self):
-        ...
+        return internal.RunComparer(
+            config=internal.RunComparerConfig(diff_only=self.diff_only),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            diff_only=model.config.diff_only,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -816,11 +960,17 @@ class MarkdownPanel(Panel):
     markdown: Optional[str] = None
 
     def to_model(self):
-        ...
+        return internal.MarkdownPanel(
+            config=internal.MarkdownPanelConfig(value=self.markdown),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            markdown=model.config.values,
+            layout=Layout.from_model(model.layout),
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -871,11 +1021,16 @@ class CustomChart(Panel):
     chart_strings: dict = Field(default_factory=dict)
 
     def to_model(self):
-        ...
+        return internal.Vega2(config=internal.Vega2Config(...))
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        ...
+        return cls(
+            query=model.config.user_query.query_fields,
+            chart_name=model.config.panel_def_id,
+            chart_fields=model.config.field_setings,
+            chart_strings=model.config.string_settings,
+        )
 
 
 @dataclass(config=dataclass_config)
@@ -893,24 +1048,191 @@ class WeavePanel(Panel):
     ...
 
 
-def lookup(block):
-    # print(block)
+@dataclass(config=dataclass_config)
+class Report(Base):
+    project: str
+    entity: str = DEFAULT_ENTITY
+    title: str = "Untitled Report"
+    description: str = ""
+    id: Union[str, Auto] = Auto()
+    blocks: list[BlockTypes] = Field(default_factory=list)
+
+    def to_model(self):
+        blocks_with_padding = [P()] + self.blocks + [P()]
+        if isinstance((id := self.id), Auto):
+            id = ""
+
+        return internal.ReportViewspec(
+            display_name=self.title,
+            description=self.description,
+            project=internal.Project(name=self.project, entity_name=self.entity),
+            id=id,
+            spec=internal.Spec(blocks=[b.to_model() for b in blocks_with_padding]),
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.ReportViewspec):
+        blocks = model.spec.blocks[1:-1]
+        if not (id := model.id):
+            id = Auto()
+
+        return cls(
+            title=model.display_name,
+            description=model.description,
+            entity=model.project.entity_name,
+            project=model.project.name,
+            id=id,
+            blocks=[_lookup(b) for b in blocks[-1:]],
+        )
+
+    @property
+    def url(self):
+        if isinstance(self.id, Auto):
+            raise Exception("save report or explicitly pass `id` to get a url")
+
+        base = urlparse(_get_api().client.app_url)
+        scheme = base.scheme
+        netloc = base.netloc
+        path = os.path.join(
+            self.entity, self.project, "reports", f"{self.title}--{self.id}"
+        )
+        params = ""
+        query = ""
+        fragment = ""
+
+        return urlunparse((scheme, netloc, path, params, query, fragment))
+
+    def save(self, draft: bool = False, clone: bool = False):
+        model = self.to_model()
+
+        # create project if not exists
+        projects = _get_api().projects(self.entity)
+        is_new_project = True
+        for p in projects:
+            if p.name == self.project:
+                is_new_project = False
+                break
+
+        if is_new_project:
+            _get_api().create_project(self.project, self.entity)
+
+        r = _get_api().client.execute(
+            gql.upsert_view,
+            variable_values={
+                "id": None if clone or not model.id else model.id,
+                "name": _generate_name() if clone or not model.name else model.name,
+                "entityName": model.project.entity_name,
+                "projectName": model.project.name,
+                "description": model.description,
+                "displayName": model.display_name,
+                "type": "runs/draft" if draft else "runs",
+                "spec": model.spec.model_dump_json(by_alias=True),
+            },
+        )
+
+        viewspec = r["upsertView"]["view"]
+        model = internal.ReportViewspec.model_validate(viewspec)
+        return Report.from_model(model)
+
+    @classmethod
+    def from_url(cls, url):
+        vs = _url_to_viewspec(url)
+        model = internal.ReportViewspec.model_validate(vs)
+        return cls.from_model(model)
+
+
+def _get_api():
+    return wandb.Api()
+
+
+def _url_to_viewspec(url):
+    report_id = _url_to_report_id(url)
+    r = _get_api().client.execute(
+        gql.view_report, variable_values={"reportId": report_id}
+    )
+    viewspec = r["view"]
+    return viewspec
+
+
+def _url_to_report_id(url):
+    parse_result = urlparse(url)
+    path = parse_result.path
+
+    _, entity, project, _, name = path.split("/")
+    title, report_id = name.split("--")
+
+    return report_id
+
+
+def _generate_name(length: int = 12) -> str:
+    """Generate a random name.
+
+    This implementation roughly based the following snippet in core:
+    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44.
+    """
+
+    # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
+    def base_repr(number: int, base: int, padding: int = 0) -> str:
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if base > len(digits):
+            raise ValueError("Bases greater than 36 not handled in base_repr.")
+        elif base < 2:
+            raise ValueError("Bases less than 2 not handled in base_repr.")
+
+        num = abs(number)
+        res = []
+        while num:
+            res.append(digits[num % base])
+            num //= base
+        if padding:
+            res.append("0" * padding)
+        if number < 0:
+            res.append("-")
+        return "".join(reversed(res or "0"))
+
+    rand = random.random()
+    rand = int(float(str(rand)[2:]))
+    rand36 = base_repr(rand, 36)
+    return rand36.lower()[:length]
+
+
+def _lookup(block):
     cls = block_mapping.get(block.__class__)
     return cls.from_model(block)
 
 
-def none_or_empty(v):
+def _should_show_attr(k, v):
+    if k.startswith("_"):
+        return False
     if v is None:
-        return True
+        return False
     if isinstance(v, Iterable) and not isinstance(v, (str, bytes, bytearray)):
-        return all(x is None for x in v)
-    return False
+        return not all(x is None for x in v)
+    return True
 
 
-def listify(x):
+def _listify(x):
     if isinstance(x, Iterable):
         return list(x)
     return [x]
 
 
-rebuild_dataclass(LinePlot, force=True)
+def _lookup_panel(panel):
+    cls = panel_mapping.get(panel.__class__)
+    return cls.from_model(panel)
+
+
+panel_mapping = {
+    internal.LinePlot: LinePlot,
+    internal.ScatterPlot: ScatterPlot,
+    internal.BarPlot: BarPlot,
+    internal.ScalarChart: ScalarChart,
+    internal.CodeComparer: CodeComparer,
+    internal.ParallelCoordinatesPlot: ParallelCoordinatesPlot,
+    internal.ParameterImportancePlot: ParameterImportancePlot,
+    internal.RunComparer: RunComparer,
+    internal.Vega2: CustomChart,
+    # internal.Weave: Weave,
+    internal.MediaBrowser: MediaBrowser,
+    internal.MarkdownPanel: MarkdownPanel,
+}
