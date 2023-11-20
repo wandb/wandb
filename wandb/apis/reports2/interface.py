@@ -189,17 +189,59 @@ class H3(Block):
 
 
 @dataclass(config=dataclass_config)
+class Link:
+    text: str
+    url: AnyUrl
+
+
+@dataclass(config=dataclass_config)
+class InlineLatex:
+    text: str
+
+
+@dataclass(config=dataclass_config)
 class P(Block):
-    text: str = ""
+    text: Union[str, list[Union[str, Link, InlineLatex]]] = ""
 
     def to_model(self):
-        return internal.Paragraph(children=[internal.Text(text=self.text)])
+        if isinstance(text := self.text, str):
+            text = [text]
+
+        texts = []
+        for x in text:
+            if isinstance(x, str):
+                thing = internal.Text(text=x)
+            elif isinstance(x, Link):
+                thing = internal.InlineLink(
+                    url=x.url,
+                    children=internal.Text(text=x.text),
+                )
+            elif isinstance(x, InlineLatex):
+                thing = internal.InlineLatex(content=x.text)
+            texts.append(thing)
+
+        if not all(isinstance(x, str) for x in texts):
+            texts = [internal.Text()] + texts + [internal.Text()]
+
+        return internal.Paragraph(children=texts)
 
     @classmethod
     def from_model(cls, model: internal.Paragraph):
-        texts = [text.text for text in model.children]
-        text = "\n".join(texts)
-        return cls(text=text)
+        pieces = []
+        for x in model.children:
+            if isinstance(x, internal.Text):
+                thing = x.text
+            elif isinstance(x, internal.InlineLink):
+                thing = Link(url=x.url, text=x.children[0].text)
+            elif isinstance(x, internal.InlineLatex):
+                thing = InlineLatex(text=x.content)
+            pieces.append(thing)
+
+        pieces = pieces[1:-1]
+
+        if len(pieces) == 1 and isinstance(pieces[0], str):
+            return cls(text=pieces[0])
+        return cls(text=pieces)
 
 
 @dataclass(config=dataclass_config)
@@ -246,22 +288,22 @@ class CheckedList(List):
 
 @dataclass(config=dataclass_config)
 class OrderedList(List):
-    items: list[OrderedListItem] = Field(default_factory=lambda: [OrderedListItem()])
+    items: list[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
-        items = [x.to_model() for x in self.items]
-        return internal.List(children=items)
+        items = [OrderedListItem(x) for x in self.items]
+        children = [li.to_model() for li in items]
+        return internal.List(children=children, ordered=True)
 
 
 @dataclass(config=dataclass_config)
 class UnorderedList(List):
-    items: list[UnorderedListItem] = Field(
-        default_factory=lambda: [UnorderedListItem()]
-    )
+    items: list[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
-        items = [x.to_model() for x in self.items]
-        return internal.List(children=items)
+        items = [UnorderedListItem(x) for x in self.items]
+        children = [li.to_model() for li in items]
+        return internal.List(children=children)
 
 
 @dataclass(config=dataclass_config)
@@ -329,16 +371,16 @@ class Image(Block):
 
 
 @dataclass(config=dataclass_config)
-class BlockQuote(Block):
+class CalloutBlock(Block):
     text: str = ""
 
     def to_model(self):
-        return internal.BlockQuote(
+        return internal.CalloutBlock(
             children=[internal.CalloutLine(children=[internal.Text(text=self.text)])]
         )
 
     @classmethod
-    def from_model(cls, model: internal.BlockQuote):
+    def from_model(cls, model: internal.CalloutBlock):
         texts = [text.text for line in model.children for text in line.children]
         text = "\n".join(texts)
         return cls(text=text)
@@ -483,7 +525,7 @@ class Panel(Base):
 @dataclass(config=dataclass_config)
 class PanelGrid(Block):
     runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
-    panels: list[Panel] = Field(default_factory=list)
+    panels: list["PanelTypes"] = Field(default_factory=list)
     # custom_run_colors: Optional[CustomRunColors] = None
     active_runset: Optional[int] = None
 
@@ -520,7 +562,12 @@ class PanelGrid(Block):
 
 @dataclass(config=dataclass_config)
 class TableOfContents(Block):
-    ...
+    def to_model(self):
+        return internal.TableOfContents()
+
+    @classmethod
+    def from_model(cls, model: internal.TableOfContents):
+        return cls()
 
 
 @dataclass(config=dataclass_config)
@@ -543,7 +590,7 @@ BlockTypes = Union[
     LatexBlock,
     Image,
     List,
-    BlockQuote,
+    CalloutBlock,
     Video,
     HorizontalRule,
     Spotify,
@@ -551,11 +598,13 @@ BlockTypes = Union[
     Gallery,
     PanelGrid,
     Block,
+    TableOfContents,
 ]
+
 
 block_mapping = {
     internal.Paragraph: P,
-    internal.BlockQuote: BlockQuote,
+    internal.CalloutBlock: CalloutBlock,
     internal.CodeBlock: CodeBlock,
     internal.Gallery: Gallery,
     internal.Heading: Heading,
@@ -602,7 +651,7 @@ class LinePlot(Panel):
     xaxis_expression: Optional[str] = None
 
     def to_model(self):
-        return internal.LinePlot(
+        return internal.LinePlotInternal(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
                 x_axis=self.x,
@@ -635,7 +684,7 @@ class LinePlot(Panel):
         )
 
     @classmethod
-    def from_model(cls, model: internal.LinePlot):
+    def from_model(cls, model: internal.LinePlotInternal):
         return cls(
             title=model.config.chart_title,
             x=model.config.x_axis,
@@ -1084,14 +1133,15 @@ class Report(Base):
     @property
     def url(self):
         if isinstance(self.id, Auto):
-            raise Exception("save report or explicitly pass `id` to get a url")
+            raise AttributeError("save report or explicitly pass `id` to get a url")
 
         base = urlparse(_get_api().client.app_url)
+
+        title = self.title.replace(" ", "-")
+
         scheme = base.scheme
         netloc = base.netloc
-        path = os.path.join(
-            self.entity, self.project, "reports", f"{self.title}--{self.id}"
-        )
+        path = os.path.join(self.entity, self.project, "reports", f"{title}--{self.id}")
         params = ""
         query = ""
         fragment = ""
@@ -1127,8 +1177,8 @@ class Report(Base):
         )
 
         viewspec = r["upsertView"]["view"]
-        model = internal.ReportViewspec.model_validate(viewspec)
-        self = Report.from_model(model)
+        new_model = internal.ReportViewspec.model_validate(viewspec)
+        self.id = new_model.id
 
         wandb.termlog(f"Saved report to: {self.url}")
         return self
@@ -1138,6 +1188,22 @@ class Report(Base):
         vs = _url_to_viewspec(url)
         model = internal.ReportViewspec.model_validate(vs)
         return cls.from_model(model)
+
+    def to_html(self, height: int = 1024, hidden: bool = False) -> str:
+        """Generate HTML containing an iframe displaying this report."""
+        try:
+            url = self.url + "?jupyter=true"
+            style = f"border:none;width:100%;height:{height}px;"
+            prefix = ""
+            if hidden:
+                style += "display:none;"
+                prefix = wandb.sdk.lib.ipython.toggle_button("report")
+            return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
+        except AttributeError:
+            wandb.termlog("HTML repr will be available after you save the report!")
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
 
 def _get_api():
@@ -1222,7 +1288,7 @@ def _lookup_panel(panel):
 
 
 panel_mapping = {
-    internal.LinePlot: LinePlot,
+    internal.LinePlotInternal: LinePlot,
     internal.ScatterPlot: ScatterPlot,
     internal.BarPlot: BarPlot,
     internal.ScalarChart: ScalarChart,
@@ -1235,3 +1301,8 @@ panel_mapping = {
     internal.MediaBrowser: MediaBrowser,
     internal.MarkdownPanel: MarkdownPanel,
 }
+
+PanelTypes = Union[
+    "LinePlot",
+    "BarPlot",
+]

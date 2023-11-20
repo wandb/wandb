@@ -22,6 +22,31 @@ Range = Union[list[Optional[float]], tuple[Optional[float], Optional[float]]]
 Language = Literal["javascript", "python", "css", "json", "html", "markdown", "yaml"]
 Ops = Literal["OR", "AND", "=", "!=", "<=", ">=", "IN", "NIN", "=="]
 
+InternalPanelTypes = Union[
+    "LinePlotInternal",
+    "BarPlot",
+]
+
+
+InternalBlockTypes = Union[
+    "Heading",
+    "Paragraph",
+    "CodeBlock",
+    "MarkdownBlock",
+    "LatexBlock",
+    "Image",
+    "List",
+    "CalloutBlock",
+    "Video",
+    "HorizontalRule",
+    "Spotify",
+    "SoundCloud",
+    "Gallery",
+    "PanelGrid",
+    "TableOfContents",
+    # Block,
+]
+
 
 class Sentinel(BaseModel):
     ...
@@ -114,16 +139,10 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     ref: dict = Field(default_factory=dict)
 
 
-PanelTypes = Union[
-    "LinePlot",
-    "BarPlot",
-]
-
-
 class PanelBankSectionConfig(ReportAPIBaseModel):
     name: Literal["Report Panels"] = "Report Panels"
     is_open: bool = False
-    panels: list["PanelTypes"] = Field(default_factory=list)
+    panels: list["InternalPanelTypes"] = Field(default_factory=list)
     type: Literal["grid"] = "grid"
     flow_config: dict = Field(default_factory=dict)
     sorted: int = 0
@@ -232,13 +251,38 @@ class CodeLine(ReportAPIBaseModel):
 class Heading(Block):
     type: Literal["heading"] = "heading"
     children: list[Text] = Field(default_factory=lambda: [Text()])
-    collapsed_children: Optional[list["BlockTypes"]] = None
+    collapsed_children: Optional[list["InternalBlockTypes"]] = None
     level: int = 1
+
+
+class InlineLatex(ReportAPIBaseModel):
+    type: Literal["latex"] = "latex"
+    children: list[Text] = Field(default_factory=lambda: [Text()])
+    content: str = ""
+
+
+class InlineLink(ReportAPIBaseModel):
+    type: Literal["link"] = "link"
+    url: AnyUrl = "https://"
+    children: list[Text] = Field(default_factory=lambda: [Text()])
 
 
 class Paragraph(Block):
     type: Literal["paragraph"] = "paragraph"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: list[Union[InlineLatex, InlineLink, Text]] = Field(
+        default_factory=lambda: [Text()]
+    )
+
+    @validator("children", pre=True, each_item=True)
+    def parse_children(cls, v):
+        if isinstance(v, BaseModel):
+            v = v.model_dump()
+        if isinstance(v, dict):
+            if v.get("type") == "latex":
+                return InlineLatex(**v)
+            elif v.get("type") == "link":
+                return InlineLink(**v)
+        return Text(**v)
 
 
 class CodeBlock(Block):
@@ -285,7 +329,7 @@ class CalloutLine(ReportAPIBaseModel):
     children: list[Text] = Field(default_factory=lambda: [Text()])
 
 
-class BlockQuote(Block):
+class CalloutBlock(Block):
     type: Literal["callout-block"] = "callout-block"
     children: list[CalloutLine] = Field(default_factory=lambda: list)
 
@@ -337,29 +381,10 @@ class WeaveBlock(ReportAPIBaseModel):
     config: dict = Field(default_factory=dict)
 
 
-BlockTypes = Union[
-    Heading,
-    Paragraph,
-    CodeBlock,
-    MarkdownBlock,
-    LatexBlock,
-    Image,
-    List,
-    BlockQuote,
-    Video,
-    HorizontalRule,
-    Spotify,
-    SoundCloud,
-    Gallery,
-    PanelGrid,
-    # Block,
-]
-
-
 class Spec(ReportAPIBaseModel):
     version: int = 5
     panel_settings: dict = Field(default_factory=dict)
-    blocks: list[BlockTypes] = Field(default_factory=list)
+    blocks: list[InternalBlockTypes] = Field(default_factory=list)
     width: str = "readable"
     authors: list = Field(default_factory=list)
     discussion_threads: list = Field(default_factory=list)
@@ -449,9 +474,9 @@ class LinePlotConfig(ReportAPIBaseModel):
     # there are more here...
 
 
-class LinePlot(Panel):
+class LinePlotInternal(Panel):
     view_type: Literal["Run History Line Plot"] = "Run History Line Plot"
-    config: LinePlotConfig
+    config: LinePlotConfig = Field(default_factory=LinePlotConfig)
 
 
 class ScatterPlotConfig(ReportAPIBaseModel):
