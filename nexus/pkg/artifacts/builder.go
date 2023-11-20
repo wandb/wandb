@@ -6,6 +6,8 @@ import (
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type ArtifactBuilder struct {
@@ -14,9 +16,26 @@ type ArtifactBuilder struct {
 }
 
 func NewArtifactBuilder(artifactRecord *service.ArtifactRecord) *ArtifactBuilder {
-	return &ArtifactBuilder{
-		artifactRecord: artifactRecord,
+	artifactClone := proto.Clone(artifactRecord).(*service.ArtifactRecord)
+	builder := &ArtifactBuilder{
+		artifactRecord: artifactClone,
 	}
+	builder.initDefaultManifest()
+	return builder
+}
+
+func (b *ArtifactBuilder) initDefaultManifest() {
+	if b.artifactRecord.Manifest != nil {
+		return
+	}
+	b.artifactRecord.Manifest = &service.ArtifactManifest{
+			Version:       1,
+			StoragePolicy: "wandb-storage-policy-v1",
+			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
+				Key:       "storageLayout",
+				ValueJson: "\"V2\"",
+			}},
+		}
 }
 
 func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {

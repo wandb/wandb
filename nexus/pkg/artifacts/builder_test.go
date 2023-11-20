@@ -42,14 +42,6 @@ func TestArtifactBuilder(t *testing.T) {
 	metadataJson, err := json.Marshal(metadata)
 	assert.Nil(t, err)
 	baseArtifact := &service.ArtifactRecord{
-		Manifest: &service.ArtifactManifest{
-			Version:       1,
-			StoragePolicy: "wandb-storage-policy-v1",
-			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
-				Key:       "storageLayout",
-				ValueJson: "\"V2\"",
-			}},
-		},
 		Entity:           "entity",
 		Project:          "project",
 		RunId:            "runid",
