@@ -1,8 +1,11 @@
 package artifacts
 
 import (
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"os"
+	"sort"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
@@ -29,13 +32,13 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 		return
 	}
 	b.artifactRecord.Manifest = &service.ArtifactManifest{
-			Version:       1,
-			StoragePolicy: "wandb-storage-policy-v1",
-			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
-				Key:       "storageLayout",
-				ValueJson: "\"V2\"",
-			}},
-		}
+		Version:       1,
+		StoragePolicy: "wandb-storage-policy-v1",
+		StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
+			Key:       "storageLayout",
+			ValueJson: "\"V2\"",
+		}},
+	}
 }
 
 func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
@@ -61,7 +64,7 @@ func (b *ArtifactBuilder) updateManifestDigest() error {
 	if err != nil {
 		return err
 	}
-	manifestDigest := manifest.ComputeDigest()
+	manifestDigest := computeManifestDigest(&manifest)
 	b.artifactRecord.Digest = manifestDigest
 	b.isDigestUpToDate = true
 	return nil
@@ -91,4 +94,31 @@ func (b *ArtifactBuilder) writeToFile(dataMap map[string]interface{}) (filename 
 
 	digest, rerr = utils.ComputeB64MD5(data)
 	return
+}
+
+func computeManifestDigest(manifest *Manifest) string {
+	type hashedEntry struct {
+		name   string
+		digest string
+	}
+
+	var entries []hashedEntry
+	for name, entry := range manifest.Contents {
+		entries = append(entries, hashedEntry{
+			name:   name,
+			digest: entry.Digest,
+		})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].name < entries[j].name
+	})
+
+	hasher := md5.New()
+	hasher.Write([]byte("wandb-artifact-manifest-v1\n"))
+	for _, entry := range entries {
+		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
+	}
+
+	return utils.EncodeBytesAsHex(hasher.Sum(nil))
 }
