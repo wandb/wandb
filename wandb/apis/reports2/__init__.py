@@ -1,4 +1,4 @@
 from . import blocks, panels
-from .blocks import *
+from .blocks import *  # noqa
 from .interface import Layout, Report, Runset
-from .panels import *
+from .panels import *  # noqa
