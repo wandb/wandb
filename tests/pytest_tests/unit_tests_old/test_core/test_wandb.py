@@ -43,6 +43,7 @@ reloadFn = importlib.reload
     platform.system() == "Windows",
     reason="File syncing is somewhat busted in windows",
 )
+@pytest.mark.nexus_failure(feature="files")
 def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
     with runner.isolation():
         with open("train.py", "w") as f:
@@ -84,6 +85,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
         assert num_runs == 2
 
 
+@pytest.mark.nexus_failure(feature="files")
 def test_network_fault_files(live_mock_server, test_settings):
     live_mock_server.set_ctx({"fail_storage_times": 5})
     run = wandb.init(settings=test_settings)
@@ -106,6 +108,7 @@ def test_network_fault_files(live_mock_server, test_settings):
 
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
+@pytest.mark.nexus_failure(feature="files")
 def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(
         {
