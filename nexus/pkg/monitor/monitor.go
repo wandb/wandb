@@ -176,6 +176,9 @@ func NewSystemMonitor(
 		NewGPUNvidia(settings),
 	}
 
+	// TODO:
+	callSwift()
+
 	// if asset is available, add it to the list of assets to monitor
 	for _, asset := range assets {
 		if asset.IsAvailable() {
