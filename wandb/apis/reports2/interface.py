@@ -37,10 +37,6 @@ class Base:
         )
         return f"{self.__class__.__name__}({fields})"
 
-    # @property
-    # def _model(self):
-    #     return self.to_model()
-
 
 @dataclass(config=dataclass_config)
 class Auto:
@@ -1132,7 +1128,10 @@ class Report(Base):
 
         viewspec = r["upsertView"]["view"]
         model = internal.ReportViewspec.model_validate(viewspec)
-        return Report.from_model(model)
+        self = Report.from_model(model)
+
+        wandb.termlog(f"Saved report to: {self.url}")
+        return self
 
     @classmethod
     def from_url(cls, url):
