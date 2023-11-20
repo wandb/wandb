@@ -3129,6 +3129,27 @@ class Run:
             aliases: (list, optional) Aliases to apply to this artifact,
                     defaults to `["latest"]`
 
+        Examples:
+            ```python
+            run.log_model(
+                path="/local/directory",
+                name="my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.log_model(
+                path="/local/directory",
+                name="my_entity/my_project/my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+        Raises:
+            ValueError: if name has invalid special characters
+
         Returns:
             None
         """
@@ -3145,12 +3166,34 @@ class Run:
             name: (str) A model artifact name.
                 May be prefixed with entity/project/. Valid names
                 can be in the following forms:
-                    - name:version
-                    - name:alias
-                    - name:digest.
+                    - artifact_name:version
+                    - artifact_name:alias
+                    - artifact_name:digest.
+
+        Examples:
+            ```python
+            run.use_model(
+                name="my_model_artifact:latest",
+            )
+
+            run.use_model(
+                name="my_project/my_model_artifact:v0",
+            )
+
+            run.use_model(
+                name="my_entity/my_project/my_model_artifact:<digest>",
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.use_model(
+                name="my_entity/my_project/my_model_artifact",
+            )
+            ```
 
         Raises:
-            AssertionError: if type of artifact 'model_name' does not contain 'model'
+            AssertionError: if type of artifact 'name' does not contain 'model'
         Returns:
             path: (str) path to downloaded artifact file(s).
         """
@@ -3175,9 +3218,13 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Link a model version to a model portfolio (a promoted collection of model artifacts).
+        """Log a model artifact version and link it to a registered model in the model registry. The linked model version will be visible in the UI for the specified registered model.
 
-        The linked model will be visible in the UI for the specified portfolio.
+        Steps:
+            - Check if 'name' artifact has been logged. If so, use the artifact version that matches the files located at 'path' or log a new version. Otherwise log files under 'path' as a new artifact, 'name' of type 'model'.
+            - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project. If not, create a new registered model with name 'registered_model_name'.
+            - Link version of 'name' to registered model, 'registered_model_name'.
+            - Attach aliases from 'aliases' list to the newly linked version.
 
         Arguments:
             path: (str) A path to the contents of this model,
@@ -3186,7 +3233,8 @@ class Run:
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
             registered_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
-            name: (str) - the name of the model artifact that files in 'path' will be logged to.
+            name: (str) - the name of the model artifact that files in 'path' will be logged to. This will default to the basename of the path prepended with the current
+                run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.
                 The alias "latest" will always be applied to the latest version of an artifact that is linked.
@@ -3209,10 +3257,18 @@ class Run:
                 name="my_model_artifact",
                 aliases=["production"],
             )
+
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_reg_model",
+                name="my_entity/my_project/my_model_artifact",
+                aliases=["production"],
+            )
             ```
 
         Raises:
             AssertionError: if registered_model_name is a path
+            ValueError: if name has invalid special characters
 
         Returns:
             None
