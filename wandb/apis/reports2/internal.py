@@ -291,7 +291,7 @@ class Paragraph(Block):
     )
 
     @validator("children", pre=True, each_item=True)
-    def parse_children(cls, v):
+    def parse_children(cls, v):  # noqa: N805
         if isinstance(v, BaseModel):
             v = v.model_dump()
         if isinstance(v, dict):
