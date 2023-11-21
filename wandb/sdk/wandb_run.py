@@ -3196,7 +3196,7 @@ class Run:
 
         Raises:
             AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
-        
+
         Returns:
             path: (str) path to downloaded model artifact file(s).
         """
@@ -3221,8 +3221,8 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Log a model artifact version and link it to a registered model in the model registry. 
-        
+        """Log a model artifact version and link it to a registered model in the model registry.
+
         The linked model version will be visible in the UI for the specified registered model.
 
         Steps:
