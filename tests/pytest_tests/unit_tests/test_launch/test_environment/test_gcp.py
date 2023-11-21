@@ -70,6 +70,12 @@ async def test_upload_file(mocker):
     mock_bucket.blob.assert_called_once_with("key")
     mock_blob.upload_from_filename.assert_called_once_with("source")
 
+    mock_blob.upload_from_filename.side_effect = GoogleAPICallError(
+        "error", response={}
+    )
+    with pytest.raises(LaunchError):
+        await environment.upload_file("source", "gs://bucket/key")
+
 
 @pytest.mark.asyncio
 async def test_upload_dir(mocker):
@@ -122,7 +128,10 @@ async def test_upload_dir(mocker):
     )
 
     # Magic mock that will be caught s GoogleAPICallError
-    mock_bucket.blob.side_effect = GoogleAPICallError("error")
+    mock_bucket.blob.side_effect = GoogleAPICallError("error", response={})
+
+    with pytest.raises(LaunchError):
+        await environment.upload_dir("source", "gs://bucket/key")
 
 
 @pytest.mark.asyncio
