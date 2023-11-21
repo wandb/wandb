@@ -1,5 +1,6 @@
 import os
-import random
+import re
+from dataclasses import fields, is_dataclass
 from typing import Iterable, Literal, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
@@ -27,25 +28,69 @@ _api = wandb.Api()
 DEFAULT_ENTITY = _api.default_entity
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
+dataclass_settings = {"config": dataclass_config, "repr": False}
 
 
-@dataclass(config=dataclass_config)
+def _format_attr(name, value, indent, max_line_length, is_list_item=False):
+    formatted_value = repr(value)
+    if len(formatted_value) <= max_line_length:
+        prefix = f"{indent}{name}=" if not is_list_item else indent
+        return f"{prefix}{formatted_value}"
+
+    if isinstance(value, list) and all(is_dataclass(item) for item in value):
+        nested_indent = indent + "    "
+        nested_reprs = [
+            nested_indent + repr(item).replace("\n", "\n" + nested_indent)
+            for item in value
+        ]
+        return f"{indent}{name}=[\n" + ",\n".join(nested_reprs) + "\n" + indent + "]"
+    else:
+        prefix = f"{indent}{name}=" if not is_list_item else indent
+        return f"{prefix}{formatted_value}"
+
+
+@dataclass(**dataclass_settings)
 class Base:
     def __repr__(self):
-        fields = ", ".join(
-            f"{k}={v!r}" for k, v in self.__dict__.items() if _should_show_attr(k, v)
-        )
-        return f"{self.__class__.__name__}({fields})"
+        max_line_length = 80
+        indent = "    "
+        field_strings = []
+        single_line = self.__class__.__name__ + "("
+
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if _should_show_attr(f.name, value):
+                field_str = _format_attr(f.name, value, indent, max_line_length)
+                single_line += field_str[len(indent) :] + ", "
+
+                if len(single_line) > max_line_length:
+                    field_strings = [
+                        _format_attr(
+                            f.name, getattr(self, f.name), indent, max_line_length
+                        )
+                        for f in fields(self)
+                        if _should_show_attr(f.name, getattr(self, f.name))
+                    ]
+                    return (
+                        f"{self.__class__.__name__}(\n"
+                        + "\n".join(field_strings)
+                        + "\n)"
+                    )
+
+        if single_line.endswith("("):
+            return single_line + ")"
+        else:
+            return single_line[:-2] + ")"  # Remove the last comma and space
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Auto:
     """This value will be defined when the report is saved."""
 
     ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Layout(Base):
     x: int = 0
     y: int = 0
@@ -60,15 +105,9 @@ class Layout(Base):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Block(Base):
     ...
-
-    def __repr__(self):
-        fields = ", ".join(
-            f"{k}={v!r}" for k, v in self.__dict__.items() if not _should_show_attr(v)
-        )
-        return f"{self.__class__.__name__}({fields})"
 
     # @classmethod
     # def from_model(cls, model: internal.BlockTypes):
@@ -77,12 +116,12 @@ class Block(Base):
     # return cls.from_model(model)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class UnknownBlock(Block):
     ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Heading(Block):
     @classmethod
     def from_model(cls, model: internal.Heading):
@@ -101,7 +140,7 @@ class Heading(Block):
             return H3(text=text, collapsed_blocks=blocks)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class List(Block):
     @classmethod
     def from_model(cls, model: internal.List):
@@ -140,7 +179,7 @@ class List(Block):
         return UnorderedList(items=list_items)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class H1(Heading):
     text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -156,7 +195,7 @@ class H1(Heading):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class H2(Block):
     text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -172,7 +211,7 @@ class H2(Block):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class H3(Block):
     text: str = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
@@ -188,18 +227,18 @@ class H3(Block):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Link:
     text: str
     url: AnyUrl
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class InlineLatex:
     text: str
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class P(Block):
     text: Union[str, list[Union[str, Link, InlineLatex]]] = ""
 
@@ -244,7 +283,7 @@ class P(Block):
         return cls(text=pieces)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CheckedListItem:
     text: str = ""
     checked: bool = False
@@ -256,7 +295,7 @@ class CheckedListItem:
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class OrderedListItem:
     text: str = ""
 
@@ -267,7 +306,7 @@ class OrderedListItem:
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class UnorderedListItem:
     text: str = ""
 
@@ -277,7 +316,7 @@ class UnorderedListItem:
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CheckedList(List):
     items: list[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
@@ -286,7 +325,7 @@ class CheckedList(List):
         return internal.List(children=items)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class OrderedList(List):
     items: list[str] = Field(default_factory=lambda: [""])
 
@@ -296,7 +335,7 @@ class OrderedList(List):
         return internal.List(children=children, ordered=True)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class UnorderedList(List):
     items: list[str] = Field(default_factory=lambda: [""])
 
@@ -306,7 +345,7 @@ class UnorderedList(List):
         return internal.List(children=children)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CodeBlock(Block):
     code: str = ""
     language: Optional[Language] = "python"
@@ -329,7 +368,7 @@ class CodeBlock(Block):
         return cls(code=text, language=model.language)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class MarkdownBlock(Block):
     text: str = ""
 
@@ -341,7 +380,7 @@ class MarkdownBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class LatexBlock(Block):
     text: str = ""
 
@@ -353,7 +392,7 @@ class LatexBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Image(Block):
     # TODO: fix captions
     url: AnyUrl
@@ -370,7 +409,7 @@ class Image(Block):
         return internal.Image(url=model.url)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CalloutBlock(Block):
     text: str = ""
 
@@ -386,7 +425,7 @@ class CalloutBlock(Block):
         return cls(text=text)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class HorizontalRule(Block):
     def to_model(self):
         return internal.HorizontalRule()
@@ -396,7 +435,7 @@ class HorizontalRule(Block):
         return cls()
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Video(Block):
     url: AnyUrl
 
@@ -408,7 +447,7 @@ class Video(Block):
         return cls(url=model.url)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Spotify(Block):
     spotify_id: str
 
@@ -420,7 +459,7 @@ class Spotify(Block):
         return cls(spotify_id=model.spotify_id)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class SoundCloud(Block):
     html: str
 
@@ -432,7 +471,7 @@ class SoundCloud(Block):
         return cls(html=model.html)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Gallery(Block):
     ids: list[str] = Field(default_factory=list)
 
@@ -444,12 +483,12 @@ class Gallery(Block):
         return cls(ids=model.ids)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CustomRunColors(Base):
     ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Order(Base):
     name: str
     ascending: bool = False
@@ -468,13 +507,13 @@ class Order(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Runset(Base):
     entity: Union[ReportEntity, str] = Field(default_factory=ReportEntity)
     project: Union[ReportProject, str] = Field(default_factory=ReportProject)
     name: str = "Run set"
     query: str = ""
-    filters: str = ""  # keys with empty string name are excluded
+    filters: Optional[str] = None
     groupby: list[str] = Field(default_factory=list)
     order: list[Order] = Field(
         default_factory=lambda: [Order("CreatedTimestamp", ascending=False)]
@@ -509,12 +548,12 @@ class Runset(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Panel(Base):
     layout: Layout = Field(default_factory=Layout)
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(**dataclass_settings)
 # class PanelGridColumn(Base):
 #     name: str
 #     visible: bool = True
@@ -522,7 +561,7 @@ class Panel(Base):
 #     width: int = 100
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class PanelGrid(Block):
     runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
     panels: list["PanelTypes"] = Field(default_factory=list)
@@ -560,7 +599,7 @@ class PanelGrid(Block):
         return v
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class TableOfContents(Block):
     def to_model(self):
         return internal.TableOfContents()
@@ -570,12 +609,12 @@ class TableOfContents(Block):
         return cls()
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Twitter(Block):
     ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class WeaveBlock(Block):
     ...
 
@@ -623,7 +662,7 @@ block_mapping = {
 }
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -651,7 +690,7 @@ class LinePlot(Panel):
     xaxis_expression: Optional[str] = None
 
     def to_model(self):
-        return internal.LinePlotInternal(
+        return internal.LinePlot(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
                 x_axis=self.x,
@@ -684,7 +723,7 @@ class LinePlot(Panel):
         )
 
     @classmethod
-    def from_model(cls, model: internal.LinePlotInternal):
+    def from_model(cls, model: internal.LinePlot):
         return cls(
             title=model.config.chart_title,
             x=model.config.x_axis,
@@ -714,7 +753,26 @@ class LinePlot(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
+class CustomGradientPoint:
+    offset: int
+    color: str
+
+    @validator("color")
+    def validate_hex_color(cls, v):  # noqa: N805
+        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", v):
+            raise ValueError("Invalid hex color code")
+        return v
+
+    def to_model(self):
+        return internal.CustomGradientPoint(offset=self.offset, color=self.color)
+
+    @classmethod
+    def from_model(cls, model: internal.CustomGradientPoint):
+        return cls(offset=model.offset, color=model.color)
+
+
+@dataclass(**dataclass_settings)
 class ScatterPlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -730,11 +788,14 @@ class ScatterPlot(Panel):
     running_ymax: Optional[bool] = None
     running_ymean: Optional[bool] = None
     legend_template: Optional[str] = None
-    gradient: Optional[dict] = None
+    gradient: Optional[list[CustomGradientPoint]] = None
     font_size: Optional[FontSize] = None
     regression: Optional[bool] = None
 
     def to_model(self):
+        if (custom_gradient := self.gradient) is not None:
+            custom_gradient = [cgp.to_model() for cgp in self.gradient]
+
         return internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
@@ -754,7 +815,7 @@ class ScatterPlot(Panel):
                 show_max_y_axis_line=self.running_ymax,
                 show_avg_y_axis_line=self.running_ymean,
                 legend_template=self.legend_template,
-                custom_gradient=self.gradient,
+                custom_gradient=custom_gradient,
                 font_size=self.font_size,
                 show_linear_regression=self.regression,
             ),
@@ -763,13 +824,15 @@ class ScatterPlot(Panel):
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
+        if (gradient := model.config.custom_gradient) is not None:
+            gradient = [CustomGradientPoint.from_model(cgp) for cgp in gradient]
         return cls(
             title=model.config.chart_title,
             x=model.config.x_axis,
             y=model.config.y_axis,
             z=model.config.z_axis,
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
-            range_y=(model.config.y_axis_min, model.config._axis_max),
+            range_y=(model.config.y_axis_min, model.config.y_axis_max),
             range_z=(model.config.z_axis_min, model.config.z_axis_max),
             log_x=model.config.x_axis_log_scale,
             log_y=model.config.y_axis_log_scale,
@@ -778,17 +841,17 @@ class ScatterPlot(Panel):
             running_ymax=model.config.show_max_y_axis_line,
             running_ymean=model.config.show_avg_y_axis_line,
             legend_template=model.config.legend_template,
-            gradient=model.config.custom_gradient,
+            gradient=gradient,
             font_size=model.config.font_size,
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class BarPlot(Panel):
     title: Optional[str] = None
-    metrics: Optional[list[str]] = None
+    metrics: list[str] = Field(default_factory=list)
     orientation: str = "v"
     range_x: Range = Field(default_factory=lambda: (None, None))
     title_x: Optional[str] = None
@@ -808,8 +871,8 @@ class BarPlot(Panel):
         return internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
-                metrics=self.metrics,
-                vertical=self.orientation,
+                metric=self.metrics,
+                vertical=self.orientation == "v",
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 x_axis_title=self.title_x,
@@ -832,8 +895,8 @@ class BarPlot(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metrics=model.config.metrics,
-            orientation=model.config.vertical,
+            metrics=model.config.metric,
+            orientation="v" if model.config.vertical else "h",
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             title_x=model.config.x_axis_title,
             title_y=model.config.y_axis_title,
@@ -851,7 +914,7 @@ class BarPlot(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class ScalarChart(Panel):
     title: Optional[str] = None
     metric: str = ""
@@ -865,7 +928,7 @@ class ScalarChart(Panel):
         return internal.ScalarChart(
             config=internal.ScalarChartConfig(
                 chart_title=self.title,
-                metrics=self.metrics,
+                metrics=[self.metric],
                 group_agg=self.groupby_aggfunc,
                 group_area=self.groupby_rangefunc,
                 expressions=self.custom_expressions,
@@ -879,7 +942,7 @@ class ScalarChart(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metric=model.config.metrics,
+            metric=model.config.metrics[0],
             groupby_aggfunc=model.config.group_agg,
             groupby_rangefunc=model.config.group_area,
             custom_expressions=model.config.expressions,
@@ -889,9 +952,9 @@ class ScalarChart(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CodeComparer(Panel):
-    diff: Optional[CodeCompareDiff] = None
+    diff: CodeCompareDiff = "split"
 
     def to_model(self):
         return internal.CodeComparer(
@@ -907,12 +970,32 @@ class CodeComparer(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
-class ParallelCoordinatesPlotColumn:
-    ...
+@dataclass(**dataclass_settings)
+class ParallelCoordinatesPlotColumn(Base):
+    accessor: str
+    display_name: Optional[str] = None
+    inverted: Optional[Literal[True]] = None
+    log: Optional[Literal[True]] = None
+
+    def to_model(self):
+        return internal.Column(
+            accessor=self.accessor,
+            display_name=self.display_name,
+            inverted=self.inverted,
+            log=self.log,
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.Column):
+        return cls(
+            accessor=model.accessor,
+            display_name=model.display_name,
+            inverted=model.inverted,
+            log=model.log,
+        )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class ParallelCoordinatesPlot(Panel):
     columns: list[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
@@ -923,7 +1006,7 @@ class ParallelCoordinatesPlot(Panel):
         return internal.ParallelCoordinatesPlot(
             config=internal.ParallelCoordinatesPlotConfig(
                 chart_title=self.title,
-                columns=self.columns,
+                columns=[c.to_model() for c in self.columns],
                 custom_gradient=self.gradient,
                 font_size=self.font_size,
             ),
@@ -933,7 +1016,10 @@ class ParallelCoordinatesPlot(Panel):
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
-            columns=model.config.columns,
+            columns=[
+                ParallelCoordinatesPlotColumn.from_model(c)
+                for c in model.config.columns
+            ],
             title=model.config.chart_title,
             gradient=model.config.custom_gradient,
             font_size=model.config.font_size,
@@ -941,13 +1027,15 @@ class ParallelCoordinatesPlot(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
     def to_model(self):
         return internal.ParameterImportancePlot(
-            config=internal.ParameterImportancePlotConfig(...),
+            config=internal.ParameterImportancePlotConfig(
+                target_key=self.with_respect_to
+            ),
             layout=self.layout.to_model(),
         )
 
@@ -959,7 +1047,7 @@ class ParameterImportancePlot(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class RunComparer(Panel):
     diff_only: Optional[Literal["split"]] = None
 
@@ -977,10 +1065,10 @@ class RunComparer(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class MediaBrowser(Panel):
     num_columns: Optional[int] = None
-    media_keys: Optional[list[str]] = None
+    media_keys: list[str] = Field(default_factory=list)
 
     def to_model(self):
         return internal.MediaBrowser(
@@ -1000,9 +1088,9 @@ class MediaBrowser(Panel):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class MarkdownPanel(Panel):
-    markdown: Optional[str] = None
+    markdown: str = ""
 
     def to_model(self):
         return internal.MarkdownPanel(
@@ -1013,12 +1101,12 @@ class MarkdownPanel(Panel):
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
-            markdown=model.config.values,
+            markdown=model.config.value,
             layout=Layout.from_model(model.layout),
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class ConfusionMatrix(Panel):
     def to_model(self):
         ...
@@ -1028,7 +1116,7 @@ class ConfusionMatrix(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class DataFrames(Panel):
     def to_model(self):
         ...
@@ -1038,7 +1126,7 @@ class DataFrames(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class MultiRunTable(Panel):
     def to_model(self):
         ...
@@ -1048,7 +1136,7 @@ class MultiRunTable(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Vega(Panel):
     def to_model(self):
         ...
@@ -1058,7 +1146,7 @@ class Vega(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class CustomChart(Panel):
     query: dict = Field(default_factory=dict)
     chart_name: str = Field(default_factory=dict)
@@ -1066,19 +1154,32 @@ class CustomChart(Panel):
     chart_strings: dict = Field(default_factory=dict)
 
     def to_model(self):
-        return internal.Vega2(config=internal.Vega2Config(...))
+        return internal.Vega2(
+            config=internal.Vega2Config(
+                # user_query=internal.UserQuery(
+                #     query_fields=[
+                #         internal.QueryField(
+                #             args=...,
+                #             fields=...,
+                #             name=...,
+                #         )
+                #     ]
+                # )
+            ),
+            layout=self.layout.to_model(),
+        )
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
-            query=model.config.user_query.query_fields,
-            chart_name=model.config.panel_def_id,
-            chart_fields=model.config.field_setings,
-            chart_strings=model.config.string_settings,
+            # query=model.config.user_query.query_fields,
+            # chart_name=model.config.panel_def_id,
+            # chart_fields=model.config.field_settings,
+            # chart_strings=model.config.string_settings,
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Vega3(Panel):
     def to_model(self):
         ...
@@ -1088,12 +1189,12 @@ class Vega3(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class WeavePanel(Panel):
     ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(**dataclass_settings)
 class Report(Base):
     project: str
     entity: str = DEFAULT_ENTITY
@@ -1127,7 +1228,7 @@ class Report(Base):
             entity=model.project.entity_name,
             project=model.project.name,
             id=id,
-            blocks=[_lookup(b) for b in blocks[-1:]],
+            blocks=[_lookup(b) for b in blocks],
         )
 
     @property
@@ -1166,13 +1267,15 @@ class Report(Base):
             gql.upsert_view,
             variable_values={
                 "id": None if clone or not model.id else model.id,
-                "name": _generate_name() if clone or not model.name else model.name,
+                "name": internal._generate_name()
+                if clone or not model.name
+                else model.name,
                 "entityName": model.project.entity_name,
                 "projectName": model.project.name,
                 "description": model.description,
                 "displayName": model.display_name,
                 "type": "runs/draft" if draft else "runs",
-                "spec": model.spec.model_dump_json(by_alias=True),
+                "spec": model.spec.model_dump_json(by_alias=True, exclude_none=True),
             },
         )
 
@@ -1184,26 +1287,28 @@ class Report(Base):
         return self
 
     @classmethod
-    def from_url(cls, url):
+    def from_url(cls, url, *, as_model: bool = False):
         vs = _url_to_viewspec(url)
         model = internal.ReportViewspec.model_validate(vs)
+        if as_model:
+            return model
         return cls.from_model(model)
 
-    def to_html(self, height: int = 1024, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying this report."""
-        try:
-            url = self.url + "?jupyter=true"
-            style = f"border:none;width:100%;height:{height}px;"
-            prefix = ""
-            if hidden:
-                style += "display:none;"
-                prefix = wandb.sdk.lib.ipython.toggle_button("report")
-            return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-        except AttributeError:
-            wandb.termlog("HTML repr will be available after you save the report!")
+    # def to_html(self, height: int = 1024, hidden: bool = False) -> str:
+    #     """Generate HTML containing an iframe displaying this report."""
+    #     try:
+    #         url = self.url + "?jupyter=true"
+    #         style = f"border:none;width:100%;height:{height}px;"
+    #         prefix = ""
+    #         if hidden:
+    #             style += "display:none;"
+    #             prefix = wandb.sdk.lib.ipython.toggle_button("report")
+    #         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
+    #     except AttributeError:
+    #         wandb.termlog("HTML repr will be available after you save the report!")
 
-    def _repr_html_(self) -> str:
-        return self.to_html()
+    # def _repr_html_(self) -> str:
+    #     return self.to_html()
 
 
 def _get_api():
@@ -1229,38 +1334,6 @@ def _url_to_report_id(url):
     return report_id
 
 
-def _generate_name(length: int = 12) -> str:
-    """Generate a random name.
-
-    This implementation roughly based the following snippet in core:
-    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44.
-    """
-
-    # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
-    def base_repr(number: int, base: int, padding: int = 0) -> str:
-        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        if base > len(digits):
-            raise ValueError("Bases greater than 36 not handled in base_repr.")
-        elif base < 2:
-            raise ValueError("Bases less than 2 not handled in base_repr.")
-
-        num = abs(number)
-        res = []
-        while num:
-            res.append(digits[num % base])
-            num //= base
-        if padding:
-            res.append("0" * padding)
-        if number < 0:
-            res.append("-")
-        return "".join(reversed(res or "0"))
-
-    rand = random.random()
-    rand = int(float(str(rand)[2:]))
-    rand36 = base_repr(rand, 36)
-    return rand36.lower()[:length]
-
-
 def _lookup(block):
     cls = block_mapping.get(block.__class__)
     return cls.from_model(block)
@@ -1273,6 +1346,9 @@ def _should_show_attr(k, v):
         return False
     if isinstance(v, Iterable) and not isinstance(v, (str, bytes, bytearray)):
         return not all(x is None for x in v)
+    # ignore the default layout
+    if isinstance(v, Layout) and v.x == 0 and v.y == 0 and v.w == 8 and v.h == 6:
+        return False
     return True
 
 
@@ -1288,7 +1364,7 @@ def _lookup_panel(panel):
 
 
 panel_mapping = {
-    internal.LinePlotInternal: LinePlot,
+    internal.LinePlot: LinePlot,
     internal.ScatterPlot: ScatterPlot,
     internal.BarPlot: BarPlot,
     internal.ScalarChart: ScalarChart,
@@ -1303,6 +1379,26 @@ panel_mapping = {
 }
 
 PanelTypes = Union[
-    "LinePlot",
-    "BarPlot",
+    LinePlot,
+    ScatterPlot,
+    ScalarChart,
+    BarPlot,
+    CodeComparer,
+    ParallelCoordinatesPlot,
+    ParameterImportancePlot,
+    RunComparer,
+    MediaBrowser,
+    MarkdownPanel,
+    CustomChart,
+    WeavePanel,
 ]
+
+
+def _load_spec_from_url(url, as_model=False):
+    import json
+
+    vs = _url_to_viewspec(url)
+    spec = vs["spec"]
+    if as_model:
+        return internal.Spec.model_validate(spec)
+    return json.loads(spec)

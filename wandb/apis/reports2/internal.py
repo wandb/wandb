@@ -1,11 +1,46 @@
 """All of the serde stuff lives here."""
 import ast
 import json
+import random
+import re
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, validator
 from pydantic.alias_generators import to_camel
+
+
+def _generate_name(length: int = 12) -> str:
+    """Generate a random name.
+
+    This implementation roughly based the following snippet in core:
+    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44.
+    """
+
+    # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
+    def base_repr(number: int, base: int, padding: int = 0) -> str:
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        if base > len(digits):
+            raise ValueError("Bases greater than 36 not handled in base_repr.")
+        elif base < 2:
+            raise ValueError("Bases less than 2 not handled in base_repr.")
+
+        num = abs(number)
+        res = []
+        while num:
+            res.append(digits[num % base])
+            num //= base
+        if padding:
+            res.append("0" * padding)
+        if number < 0:
+            res.append("-")
+        return "".join(reversed(res or "0"))
+
+    rand = random.random()
+    rand = int(float(str(rand)[2:]))
+    rand36 = base_repr(rand, 36)
+    return rand36.lower()[:length]
+
 
 LinePlotStyle = Literal["line", "stacked-area", "pct-area"]
 BarPlotStyle = Literal["bar", "boxplot", "violin"]
@@ -21,31 +56,6 @@ CodeCompareDiff = Literal["split", "unified"]
 Range = Union[list[Optional[float]], tuple[Optional[float], Optional[float]]]
 Language = Literal["javascript", "python", "css", "json", "html", "markdown", "yaml"]
 Ops = Literal["OR", "AND", "=", "!=", "<=", ">=", "IN", "NIN", "=="]
-
-InternalPanelTypes = Union[
-    "LinePlotInternal",
-    "BarPlot",
-]
-
-
-InternalBlockTypes = Union[
-    "Heading",
-    "Paragraph",
-    "CodeBlock",
-    "MarkdownBlock",
-    "LatexBlock",
-    "Image",
-    "List",
-    "CalloutBlock",
-    "Video",
-    "HorizontalRule",
-    "Spotify",
-    "SoundCloud",
-    "Gallery",
-    "PanelGrid",
-    "TableOfContents",
-    # Block,
-]
 
 
 class Sentinel(BaseModel):
@@ -82,7 +92,8 @@ class Text(ReportAPIBaseModel):
 
 
 class Project(ReportAPIBaseModel):
-    name: str = ""
+    name: Optional[str] = None
+    # name: str = ""
     entity_name: str = ""
 
 
@@ -108,22 +119,8 @@ class LocalPanelSettings(ReportAPIBaseModel):
     ignore_outliers: bool = False
     x_axis_active: bool = False
     smoothing_active: bool = False
-    ref: dict = Field(default_factory=dict)
-
-
-class PanelBankConfigSection(ReportAPIBaseModel):
-    name: Literal["Hidden Panels"] = "Hidden Panels"
-    is_open: bool = False
-    type: str = "flow"
-    flow_config: FlowConfig = Field(default_factory=Field)
-    sorted: int = 0
-    local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
-
-
-class PanelBankConfig(ReportAPIBaseModel):
-    state: int = 0
-    settings: dict = Field(default_factory=PanelBankConfigSettings)
-    sections: list[dict] = Field(default_factory=list)
+    # ref: dict = Field(default_factory=dict)
+    ref: Optional[Ref] = None
 
 
 class PanelBankConfigSectionsItem(ReportAPIBaseModel):
@@ -132,21 +129,30 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     type: str = "flow"
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
-    local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
+    # local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
     panels: list = Field(default_factory=list)
-    local_panel_settings_ref: dict = Field(default_factory=dict)
-    panel_refs: list = Field(default_factory=list)
-    ref: dict = Field(default_factory=dict)
+    # local_panel_settings_ref: dict = Field(default_factory=dict)
+    # panel_refs: list = Field(default_factory=list)
+    # ref: dict = Field(default_factory=dict)
+    ref: Optional[Ref] = None
+
+
+class PanelBankConfig(ReportAPIBaseModel):
+    state: int = 0
+    settings: PanelBankConfigSettings = Field(default_factory=PanelBankConfigSettings)
+    sections: list[PanelBankConfigSectionsItem] = Field(
+        default_factory=lambda: [PanelBankConfigSectionsItem()]
+    )
 
 
 class PanelBankSectionConfig(ReportAPIBaseModel):
     name: Literal["Report Panels"] = "Report Panels"
     is_open: bool = False
-    panels: list["InternalPanelTypes"] = Field(default_factory=list)
+    panels: list["PanelTypes"] = Field(default_factory=list)
     type: Literal["grid"] = "grid"
-    flow_config: dict = Field(default_factory=dict)
+    flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
-    local_panel_settings: dict = Field(default_factory=dict)
+    local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
 
 
 class PanelGridCustomRunColors(ReportAPIBaseModel):
@@ -154,14 +160,17 @@ class PanelGridCustomRunColors(ReportAPIBaseModel):
 
 
 class PanelGridMetadataPanels(ReportAPIBaseModel):
-    views: dict = Field(default_factory=dict)
-    tabs: list = Field(default_factory=list)
-    ref: Ref = Field(default_factory=Ref)
+    views: dict = Field(
+        default_factory=lambda: {"0": {"name": "Panels", "defaults": [], "config": []}}
+    )
+    tabs: list = Field(default_factory=lambda: ["0"])
+    # ref: Ref = Field(default_factory=Ref)
+    ref: Optional[Ref] = None
 
 
 class PanelGridMetadata(ReportAPIBaseModel):
     open_viz: bool = True
-    open_run_set: Optional[int] = None  # none is closed
+    open_run_set: Optional[int] = 0  # none is closed
     name: Literal["unused-name"] = "unused-name"
     run_sets: list["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: PanelGridMetadataPanels = Field(default_factory=PanelGridMetadataPanels)
@@ -169,6 +178,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
+    custom_run_colors: dict = Field(default_factory=dict)
     # custom_run_colors: PanelGridCustomRunColors = Field(
     #     default_factory=PanelGridCustomRunColors
     # )
@@ -190,7 +200,7 @@ class RunsetSearch(ReportAPIBaseModel):
 
 class RunFeed(ReportAPIBaseModel):
     version: int = 2
-    column_visible: dict[str, bool] = Field(default_factory=dict)
+    column_visible: dict[str, bool] = Field(default_factory=lambda: {"run:name": False})
     column_pinned: dict[str, bool] = Field(default_factory=dict)
     column_widths: dict[str, int] = Field(default_factory=dict)
     column_order: list[str] = Field(default_factory=list)
@@ -224,22 +234,29 @@ class SortKey(ReportAPIBaseModel):
 
 class Sort(ReportAPIBaseModel):
     keys: list[SortKey] = Field(default_factory=lambda: [SortKey()])
-    ref: Ref = Field(default_factory=Ref)
+    # ref: Ref = Field(default_factory=Ref)
+    ref: Optional[Ref] = None
 
 
 class Runset(ReportAPIBaseModel):
-    id: str = ""
+    id: str = _generate_name()
     run_feed: RunFeed = Field(default_factory=RunFeed)
     enabled: bool = True
     project: Project = Field(default_factory=Project)
     name: str = "Run set"
     search: RunsetSearch = Field(default_factory=RunsetSearch)
-    filters: Filters = Field(default_factory=Filters)
+    filters: Filters = Field(
+        default_factory=lambda: Filters(filters=[Filters(op="AND")])
+    )
     grouping: list[Key] = Field(default_factory=list)
     sort: Sort = Field(default_factory=Sort)
-    selections: dict = Field(default_factory=dict)
+    # selections: dict = Field(default_factory=dict)
+    selections: dict = Field(
+        default_factory=lambda: {"root": 1, "bounds": [], "tree": []}
+    )
     expanded_row_addresses: list = Field(default_factory=list)
-    ref: Ref = Field(default_factory=Ref)
+    # ref: Ref = Field(default_factory=Ref)
+    ref: Optional[Ref] = None
 
 
 class CodeLine(ReportAPIBaseModel):
@@ -251,7 +268,7 @@ class CodeLine(ReportAPIBaseModel):
 class Heading(Block):
     type: Literal["heading"] = "heading"
     children: list[Text] = Field(default_factory=lambda: [Text()])
-    collapsed_children: Optional[list["InternalBlockTypes"]] = None
+    collapsed_children: Optional[list["BlockTypes"]] = None
     level: int = 1
 
 
@@ -384,7 +401,7 @@ class WeaveBlock(ReportAPIBaseModel):
 class Spec(ReportAPIBaseModel):
     version: int = 5
     panel_settings: dict = Field(default_factory=dict)
-    blocks: list[InternalBlockTypes] = Field(default_factory=list)
+    blocks: list["BlockTypes"] = Field(default_factory=list)
     width: str = "readable"
     authors: list = Field(default_factory=list)
     discussion_threads: list = Field(default_factory=list)
@@ -418,20 +435,20 @@ class Layout(ReportAPIBaseModel):
     h: int = 6
 
 
-class MediaBrowserConfig(ReportAPIBaseModel):
-    column_count: Optional[int] = None
-    media_keys: list[str] = Field(default_factory=list)
-
-
 class Panel(ReportAPIBaseModel):
     id: str = Field("", alias="__id__")
     layout: Layout = Field(default_factory=Layout)
     ref: Ref = Field(default_factory=Ref)
 
 
+class MediaBrowserConfig(ReportAPIBaseModel):
+    column_count: Optional[int] = None
+    media_keys: list[str] = Field(default_factory=list)
+
+
 class MediaBrowser(Panel):
     view_type: Literal["Media Browser"] = "Media Browser"
-    config: MediaBrowserConfig
+    config: MediaBrowserConfig = Field(default_factory=MediaBrowserConfig)
 
 
 class MarkdownPanelConfig(ReportAPIBaseModel):
@@ -474,9 +491,20 @@ class LinePlotConfig(ReportAPIBaseModel):
     # there are more here...
 
 
-class LinePlotInternal(Panel):
+class LinePlot(Panel):
     view_type: Literal["Run History Line Plot"] = "Run History Line Plot"
     config: LinePlotConfig = Field(default_factory=LinePlotConfig)
+
+
+class CustomGradientPoint(ReportAPIBaseModel):
+    offset: int = Field(0, ge=0, le=100)
+    color: str
+
+    @validator("color")
+    def validate_hex_color(cls, v):  # noqa: N805
+        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", v):
+            raise ValueError("Invalid hex color code")
+        return v
 
 
 class ScatterPlotConfig(ReportAPIBaseModel):
@@ -497,82 +525,84 @@ class ScatterPlotConfig(ReportAPIBaseModel):
     show_max_y_axis_line: Optional[Literal[True]] = None
     show_avg_y_axis_line: Optional[Literal[True]] = None
     legend_template: Optional[str] = None
-    custom_gradient: Optional[dict] = None
+    custom_gradient: Optional[list[CustomGradientPoint]] = None
     font_size: Optional[FontSize] = None
     show_linear_regression: Optional[Literal[True]] = None
 
 
 class ScatterPlot(Panel):
     view_type: Literal["Scatter Plot"] = "Scatter Plot"
-    config: ScatterPlotConfig
+    config: ScatterPlotConfig = Field(default_factory=ScatterPlotConfig)
 
 
 class BarPlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
-    metrics: list[str] = Field(default_factory=list)
+    metric: list[str] = Field(default_factory=list)
     vertical: bool = False
-    x_axis_min: Optional[float]
-    x_axis_max: Optional[float]
-    x_axis_title: Optional[str]
-    y_axis_title: Optional[str]
-    group_by: Optional[str]
-    group_agg: Optional[GroupAgg]
-    group_area: Optional[GroupArea]
-    limit: Optional[int]
-    bar_limit: Optional[int]
-    expressions: Optional[str]
-    legend_template: Optional[str]
-    font_size: Optional[FontSize]
-    override_series_titles: Optional[str]
-    override_colors: Optional[str]
+    x_axis_min: Optional[float] = None
+    x_axis_max: Optional[float] = None
+    x_axis_title: Optional[str] = None
+    y_axis_title: Optional[str] = None
+    group_by: Optional[str] = None
+    group_agg: Optional[GroupAgg] = None
+    group_area: Optional[GroupArea] = None
+    limit: Optional[int] = None
+    bar_limit: Optional[int] = None
+    expressions: Optional[str] = None
+    legend_template: Optional[str] = None
+    font_size: Optional[FontSize] = None
+    override_series_titles: Optional[str] = None
+    override_colors: Optional[str] = None
 
 
 class BarPlot(Panel):
     view_type: Literal["Bar Chart"] = "Bar Chart"
-    config: BarPlotConfig
+    config: BarPlotConfig = Field(default_factory=BarPlotConfig)
 
 
 class ScalarChartConfig(ReportAPIBaseModel):
-    chart_title: Optional[str]
-    metrics: list[str]
-    group_agg: Optional[GroupAgg]
-    group_area: Optional[GroupArea]
-    expressions: Optional[str]
-    legend_template: Optional[str]
-    font_size: Optional[FontSize]
+    chart_title: Optional[str] = None
+    metrics: list[str] = Field(default_factory=list)
+    group_agg: Optional[GroupAgg] = None
+    group_area: Optional[GroupArea] = None
+    expressions: Optional[str] = None
+    legend_template: Optional[str] = None
+    font_size: Optional[FontSize] = None
 
 
 class ScalarChart(Panel):
     view_type: Literal["Scalar Chart"] = "Scalar Chart"
-    config: ScalarChartConfig
+    config: ScalarChartConfig = Field(default_factory=ScalarChartConfig)
 
 
 class CodeComparerConfig(ReportAPIBaseModel):
-    diff: CodeCompareDiff
+    diff: CodeCompareDiff = "split"
 
 
 class CodeComparer(Panel):
     view_type: Literal["Code Comparer"] = "Code Comparer"
-    config: CodeComparerConfig
+    config: CodeComparerConfig = Field(default_factory=CodeComparerConfig)
 
 
 class Column(ReportAPIBaseModel):
     accessor: str
-    display_name: Optional[str]
-    inverted: Optional[Literal[True]]
-    log: Optional[Literal[True]]
+    display_name: Optional[str] = None
+    inverted: Optional[Literal[True]] = None
+    log: Optional[Literal[True]] = None
 
 
 class ParallelCoordinatesPlotConfig(ReportAPIBaseModel):
-    chart_title: Optional[str]
-    columns: list[Column]
-    custom_gradient: Optional[list]
-    font_size: Optional[FontSize]
+    chart_title: Optional[str] = None
+    columns: list[Column] = Field(default_factory=list)
+    custom_gradient: Optional[list] = None
+    font_size: Optional[FontSize] = None
 
 
 class ParallelCoordinatesPlot(Panel):
     view_type: Literal["Parallel Coordinates Plot"] = "Parallel Coordinates Plot"
-    config: ParallelCoordinatesPlotConfig
+    config: ParallelCoordinatesPlotConfig = Field(
+        default_factory=ParallelCoordinatesPlotConfig
+    )
 
 
 class ParameterConf(ReportAPIBaseModel):
@@ -582,12 +612,12 @@ class ParameterConf(ReportAPIBaseModel):
 
 class ParameterImportancePlotConfig(ReportAPIBaseModel):
     target_key: str
-    parameter_conf: ParameterConf
-    columns_pinned: dict
-    column_widths: dict
-    column_order: list[str]
-    page_size: int
-    only_show_selected: bool
+    # parameter_conf: ParameterConf = Field(default_factory=ParameterConf)
+    columns_pinned: dict = Field(default_factory=dict)
+    column_widths: dict = Field(default_factory=dict)
+    column_order: list[str] = Field(default_factory=list)
+    page_size: int = 10
+    only_show_selected: bool = False
 
 
 class ParameterImportancePlot(Panel):
@@ -604,39 +634,53 @@ class RunComparer(Panel):
     config: RunComparerConfig
 
 
-class QueryFieldsArg(ReportAPIBaseModel):
+class QueryFieldsValue(ReportAPIBaseModel):
     name: str
-    value: Union[str, list[str]]
+    value: Any
 
 
 class QueryFieldsField(ReportAPIBaseModel):
-    name: str
-    fields: list["QueryFieldsField"]
-    args: list[QueryFieldsArg]
+    name: str = ""
+    fields: Optional[list["QueryFieldsField"]] = None
+    # fields: list["QueryFieldsField"] = Field(default_factory=list)
+    value: list[QueryFieldsValue] = Field(default_factory=list)
 
 
 class QueryField(ReportAPIBaseModel):
-    name: str
-    fields: list[QueryFieldsField]
-    args: list[QueryFieldsArg]
+    args: list[QueryFieldsValue] = Field(
+        default_factory=lambda: [
+            QueryFieldsValue(name="runSets", value="${runSets}"),
+            QueryFieldsValue(name="limit", value=500),
+        ]
+    )
+    fields: list[QueryFieldsField] = Field(
+        default_factory=lambda: [
+            QueryFieldsField(name="id", value=[], fields=None),
+            QueryFieldsField(name="name", value=[], fields=None),
+        ]
+    )
+    name: str = "runSets"
 
 
 class UserQuery(ReportAPIBaseModel):
-    query_fields: list[QueryField]
+    query_fields: list[QueryField] = Field(default_factory=lambda: [QueryField()])
 
 
 class Vega2ConfigTransform(ReportAPIBaseModel):
-    name: str
+    name: Literal["tableWithLeafColNames"] = "tableWithLeafColNames"
 
 
 class Vega2Config(ReportAPIBaseModel):
-    transform: Vega2ConfigTransform
-    user_query: UserQuery
+    transform: Vega2ConfigTransform = Field(default_factory=Vega2ConfigTransform)
+    user_query: UserQuery = Field(default_factory=UserQuery)
+    panel_def_id: str = ""
+    field_settings: dict = Field(default_factory=dict)
+    string_settings: dict = Field(default_factory=dict)
 
 
 class Vega2(Panel):
     view_type: Literal["Vega2"] = "Vega2"
-    config: Vega2Config
+    config: Vega2Config = Field(default_factory=Vega2Config)
 
 
 class Weave(Panel):
@@ -646,7 +690,7 @@ class Weave(Panel):
 
 def expr_to_filters(expr: str) -> Filters:
     if not expr:
-        return Filters()
+        return Filters(op="OR", filters=[Filters(op="AND", filters=[])])
     parsed_expr = ast.parse(expr, mode="eval")
     return _parse_node(parsed_expr.body)
 
@@ -774,6 +818,40 @@ fe_name_mapping = {
 }
 reversed_fe_name_mapping = {v: k for k, v in fe_name_mapping.items()}
 
+PanelTypes = Union[
+    LinePlot,
+    ScatterPlot,
+    ScalarChart,
+    BarPlot,
+    CodeComparer,
+    ParallelCoordinatesPlot,
+    ParameterImportancePlot,
+    RunComparer,
+    MediaBrowser,
+    MarkdownPanel,
+    Vega2,
+    # WeavePanel,
+]
+
+BlockTypes = Union[
+    Heading,
+    Paragraph,
+    CodeBlock,
+    MarkdownBlock,
+    LatexBlock,
+    Image,
+    List,
+    CalloutBlock,
+    Video,
+    HorizontalRule,
+    Spotify,
+    SoundCloud,
+    Gallery,
+    PanelGrid,
+    TableOfContents,
+    # Block,
+]
+
 
 def get_frontend_name(name):
     return fe_name_mapping.get(name, name)
@@ -781,3 +859,47 @@ def get_frontend_name(name):
 
 def get_backend_name(name):
     return reversed_fe_name_mapping.get(name, name)
+
+
+# def fix_collisions(panels: List[Panel]) -> List[Panel]:
+#     x_max = 24
+
+#     for i, p1 in enumerate(panels):
+#         for p2 in panels[i:]:
+#             if collides(p1, p2):
+#                 # try to move right
+#                 x, y = shift(p1, p2)
+#                 if p2.layout.x + p2.layout.w + x <= x_max:
+#                     p2.layout.x += x
+
+#                 # if you hit right right bound, move down
+#                 else:
+#                     p2.layout.y += y
+
+#                     # then check if you can move left again to cleanup layout
+#                     p2.layout.x = 0
+#     return panels
+
+
+# def collides(p1: Panel, p2: Panel) -> bool:
+#     l1, l2 = p1.layout, p2.layout
+
+#     if (
+#         (p1.spec["__id__"] == p2.spec["__id__"])
+#         or (l1.x + l1.w <= l2.x)
+#         or (l1.x >= l2.w + l2.x)
+#         or (l1.y + l1.h <= l2.y)
+#         or (l1.y >= l2.y + l2.h)
+#     ):
+#         return False
+
+#     return True
+
+
+# def shift(p1: Panel, p2: Panel) -> Tuple[Panel, Panel]:
+#     l1, l2 = p1.layout, p2.layout
+
+#     x = l1.x + l1.w - l2.x
+#     y = l1.y + l1.h - l2.y
+
+#     return x, y
