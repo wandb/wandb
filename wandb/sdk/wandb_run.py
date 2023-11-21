@@ -3196,6 +3196,7 @@ class Run:
 
         Raises:
             AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
+        
         Returns:
             path: (str) path to downloaded model artifact file(s).
         """
