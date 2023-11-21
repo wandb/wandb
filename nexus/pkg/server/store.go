@@ -21,6 +21,9 @@ type Store struct {
 	// writer is the underlying writer
 	writer *leveldb.Writer
 
+	// reader is the underlying reader
+	reader *leveldb.Reader
+
 	// db is the underlying database
 	db *os.File
 

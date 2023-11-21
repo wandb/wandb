@@ -83,6 +83,8 @@ type Sender struct {
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
+
+	store *Store
 }
 
 // NewSender creates a new Sender with the given settings
@@ -253,6 +255,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case *service.Request_SenderRead:
+		s.sendSenderRead(record, x.SenderRead)
 	default:
 		// TODO: handle errors
 	}
@@ -882,6 +886,22 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendSenderRead(_ *service.Record, request *service.SenderReadRequest) {
+	if s.store == nil {
+		store, err := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+			return
+		}
+		s.store = store
+	}
+	if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
+		s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
+		return
+	}
+	// TODO
 }
 
 func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
