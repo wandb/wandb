@@ -1,16 +1,8 @@
 import threading
-import time
-from typing import Tuple
-from unittest import mock
 
-import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Network
-
-from wandb.sdk.internal.system.assets.network import (
-    NetworkTrafficSent,
-    NetworkTrafficReceived,
-)
+from wandb.sdk.internal.system.assets.network import NetworkTrafficSent
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
