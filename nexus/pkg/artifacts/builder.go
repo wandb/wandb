@@ -42,7 +42,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
-	filename, digest, err := b.writeToFile(dataMap)
+	filename, digest, err := b.writeDataToFile(dataMap)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,8 @@ func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
 	return b.artifactRecord
 }
 
-func (b *ArtifactBuilder) writeToFile(dataMap map[string]interface{}) (filename string, digest string, rerr error) {
+func (b *ArtifactBuilder) writeDataToFile(dataMap map[string]interface{}) (filename string, digest string, rerr error) {
+	// TODO: consolidate writeDataToFile with manifest.go WriteToFile
 	data, rerr := json.Marshal(dataMap)
 	if rerr != nil {
 		return
