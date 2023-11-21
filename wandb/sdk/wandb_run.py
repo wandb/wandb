@@ -3124,7 +3124,7 @@ class Run:
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
             name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
-                String containing only the following alphanumeric characters: dashes, underscores, and dots.
+                The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
             aliases: (list, optional) Aliases to apply to the created model artifact,
@@ -3168,9 +3168,9 @@ class Run:
                 model artifact.
                 May be prefixed with entity/project/. Valid names
                 can be in the following forms:
-                    - artifact_name:version
-                    - artifact_name:alias
-                    - artifact_name:digest.
+                    - model_artifact_name:version
+                    - model_artifact_name:alias
+                    - model_artifact_name:digest.
 
         Examples:
             ```python
@@ -3203,7 +3203,7 @@ class Run:
         artifact = self.use_artifact(artifact_or_name=name)
         assert "model" in str(
             artifact.type.lower()
-        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, it must have a type that contains the substring 'model'."
+        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3227,12 +3227,12 @@ class Run:
 
         Steps:
             - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
-            located at 'path' or log a new version. Otherwise log files under 'path' as a new artifact, 'name'
+            located at 'path' or log a new version. Otherwise log files under 'path' as a new model artifact, 'name'
             of type 'model'.
             - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project.
             If not, create a new registered model with name 'registered_model_name'.
-            - Link version of 'name' to registered model, 'registered_model_name'.
-            - Attach aliases from 'aliases' list to the newly linked version.
+            - Link version of model artifact 'name' to registered model, 'registered_model_name'.
+            - Attach aliases from 'aliases' list to the newly linked model artifact version.
 
         Arguments:
             path: (str) A path to the contents of this model,
@@ -3296,7 +3296,7 @@ class Run:
             artifact = public_api.artifact(name=f"{name}:latest")
             assert "model" in str(
                 artifact.type.lower()
-            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, it must have a type that contains the substring 'model'."
+            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
