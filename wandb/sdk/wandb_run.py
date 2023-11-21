@@ -3300,7 +3300,7 @@ class Run:
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
-        except ValueError:
+        except (ValueError, wandb.CommError):
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type="model"
             )
