@@ -39,6 +39,8 @@ func (fs *FileStream) processRecord(record *service.Record) {
 		fs.streamFinish(x.Exit)
 	case *service.Record_Preempting:
 		fs.streamPreempting(x.Preempting)
+	case *service.Record_StreamData:
+		fs.streamStreamData(x.StreamData)
 	case nil:
 		err := fmt.Errorf("filestream: field not set")
 		fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -51,25 +53,6 @@ func (fs *FileStream) processRecord(record *service.Record) {
 func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
-<<<<<<< HEAD
-	for record := range inChan {
-		fs.logger.Debug("filestream: record", "record", record)
-		switch x := record.RecordType.(type) {
-		case *service.Record_History:
-			fs.streamHistory(x.History)
-		case *service.Record_Summary:
-			fs.streamSummary(x.Summary)
-		case *service.Record_Stats:
-			fs.streamSystemMetrics(x.Stats)
-		case *service.Record_OutputRaw:
-			fs.streamOutputRaw(x.OutputRaw)
-		case *service.Record_Exit:
-			fs.streamFinish(x.Exit)
-		case *service.Record_Preempting:
-			fs.streamPreempting(x.Preempting)
-		case *service.Record_StreamData:
-			fs.streamStreamData(x.StreamData)
-=======
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
 		switch x := message.(type) {
@@ -77,7 +60,6 @@ func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 			fs.processRecord(x)
 		case *service.FilesUploaded:
 			fs.streamFilesUploaded(x)
->>>>>>> origin/main
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)

@@ -162,15 +162,14 @@ message ErrorInfo {
  * StreamTableRecord
  */
 message StreamTableRecord {
-  string                    run_id = 1;
-  string                    table = 2;
-  string                    entity = 3;
-  string                    project = 4;
-  _RecordInfo               _info = 200;
+  string run_id = 1;
+  string table = 2;
+  string entity = 3;
+  string project = 4;
+  _RecordInfo _info = 200;
 }
 
-message StreamTableResult {
-}
+message StreamTableResult {}
 
 /*
  * StreamDataRecord
