@@ -3115,8 +3115,7 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output
-        to this run.
+        """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
 
         Arguments:
             path: (str) A path to the contents of this model,
@@ -3221,8 +3220,9 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Log a model artifact version and link it to a registered model in the model registry. The linked model
-        version will be visible in the UI for the specified registered model.
+        """Log a model artifact version and link it to a registered model in the model registry. 
+        
+        The linked model version will be visible in the UI for the specified registered model.
 
         Steps:
             - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
