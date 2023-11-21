@@ -502,8 +502,8 @@ def test_unlogged_artifact_basic_method_errors(method):
 
 def test_unlogged_artifact_other_method_errors():
     art = Artifact("foo", type="any")
-    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_path"):
-        art.get_path("pathname")
+    with pytest.raises(ArtifactNotLoggedError, match="Artifact.get_entry"):
+        art.get_entry("pathname")
 
     with pytest.raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]

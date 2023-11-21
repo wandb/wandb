@@ -19,6 +19,7 @@ from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AGENT,
     WANDB_K8S_LABEL_MONITOR,
+    WANDB_K8S_RUN_ID,
     CustomResource,
     LaunchKubernetesMonitor,
 )
@@ -333,6 +334,7 @@ class KubernetesRunner(AbstractRunner):
 
         # Add labels to job metadata
         job_metadata.setdefault("labels", {})
+        job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
         if LaunchAgent.initialized():
             job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
@@ -387,7 +389,7 @@ class KubernetesRunner(AbstractRunner):
         )
         for cont in containers:
             # Add our env vars to user supplied env vars
-            env = cont.get("env", [])
+            env = cont.get("env") or []
             env.extend(
                 [{"name": key, "value": value} for key, value in env_vars.items()]
             )

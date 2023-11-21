@@ -122,6 +122,7 @@ func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClien
 // logger is an slog.Logger to use for logging, logResponse is a function to determine if the response
 // should be logged.
 func WithRetryClientResponseLogger(logger *slog.Logger, logResponse func(resp *http.Response) bool) RetryClientOption {
+	// TODO: should we also add a logRequest function?
 	return func(rc *retryablehttp.Client) {
 		rc.ResponseLogHook = getResponseLogHook(logger, logResponse)
 	}

@@ -2,10 +2,11 @@ package gowandb
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"os"
 	"sync"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"

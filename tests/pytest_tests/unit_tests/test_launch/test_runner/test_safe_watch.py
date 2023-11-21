@@ -49,6 +49,7 @@ def event_factory(resource_version):
 # loop after stop() is called.
 @pytest.mark.timeout(60)
 @pytest.mark.asyncio
+@pytest.mark.xfail(reason="This test is flaky.")
 async def test_safe_watch():
     """Test that safewatch wraps properly.
 

@@ -1,11 +1,12 @@
 package artifacts
 
 import (
-	"crypto/md5"
-	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
-	"sort"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
@@ -29,6 +30,7 @@ type ManifestEntry struct {
 	Size            int64                  `json:"size"`
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
+	DownloadURL     *string                `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -62,33 +64,6 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 	return manifest, nil
 }
 
-func (m *Manifest) ComputeDigest() string {
-	type hashedEntry struct {
-		name   string
-		digest string
-	}
-
-	var entries []hashedEntry
-	for name, entry := range m.Contents {
-		entries = append(entries, hashedEntry{
-			name:   name,
-			digest: entry.Digest,
-		})
-	}
-
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].name < entries[j].name
-	})
-
-	hasher := md5.New()
-	hasher.Write([]byte("wandb-artifact-manifest-v1\n"))
-	for _, entry := range entries {
-		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
-	}
-
-	return utils.EncodeBytesAsHex(hasher.Sum(nil))
-}
-
 func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
 	data, rerr := json.Marshal(m)
 	if rerr != nil {
@@ -108,4 +83,34 @@ func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
 
 	digest, rerr = utils.ComputeB64MD5(data)
 	return
+}
+
+func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {
+	manifestEntries := m.Contents
+	manifestEntry, ok := manifestEntries[path]
+	if !ok {
+		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
+	}
+	return manifestEntry, nil
+}
+
+func loadManifestFromURL(url string) (Manifest, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer resp.Body.Close()
+	manifest := Manifest{}
+	if resp.StatusCode != http.StatusOK {
+		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
+	}
+	err = json.Unmarshal(body, &manifest)
+	if err != nil {
+		return Manifest{}, nil
+	}
+	return manifest, nil
 }

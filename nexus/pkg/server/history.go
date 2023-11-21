@@ -2,13 +2,14 @@ package server
 
 import (
 	"container/heap"
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -105,43 +106,96 @@ func (h *Handler) sampleHistory(history *service.HistoryRecord) {
 	}
 }
 
-// handleHistory handles a history record. This is the main entry point for history records.
-// It is responsible for handling the history record internally, processing it,
-// and forwarding it to the Writer.
-func (h *Handler) handleHistory(history *service.HistoryRecord) {
+type ActiveHistory struct {
+	values map[string]*service.HistoryItem
+	step   int64
+	flush  func(*service.HistoryStep, []*service.HistoryItem)
+}
+
+type ActiveHistoryOptions func(ac *ActiveHistory)
+
+func NewActiveHistory(opts ...ActiveHistoryOptions) *ActiveHistory {
+	ah := &ActiveHistory{
+		values: make(map[string]*service.HistoryItem),
+	}
+
+	for _, opt := range opts {
+		opt(ah)
+	}
+	return ah
+}
+
+func WithFlush(flush func(*service.HistoryStep, []*service.HistoryItem)) ActiveHistoryOptions {
+	return func(ac *ActiveHistory) {
+		ac.flush = flush
+	}
+}
+
+func WithStep(step int64) ActiveHistoryOptions {
+	return func(ac *ActiveHistory) {
+		ac.step = step
+	}
+}
+
+func (ah *ActiveHistory) Clear() {
+	clear(ah.values)
+}
+
+func (ah *ActiveHistory) UpdateValues(values []*service.HistoryItem) {
+	for _, value := range values {
+		ah.values[value.GetKey()] = value
+	}
+}
+
+func (ah *ActiveHistory) UpdateStep(step int64) {
+	ah.step = step
+}
+
+func (ah *ActiveHistory) GetStep() *service.HistoryStep {
+	step := &service.HistoryStep{
+		Num: ah.step,
+	}
+	return step
+}
+
+func (ah *ActiveHistory) GetItem(key string) (*service.HistoryItem, bool) {
+	if value, ok := ah.values[key]; ok {
+		return value, ok
+	}
+	return nil, false
+}
+
+func (ah *ActiveHistory) GetValues() []*service.HistoryItem {
+	var values []*service.HistoryItem
+	for _, value := range ah.values {
+		values = append(values, value)
+	}
+	return values
+}
+
+func (ah *ActiveHistory) Flush() {
+	if ah == nil {
+		return
+	}
+	if ah.flush != nil {
+		ah.flush(ah.GetStep(), ah.GetValues())
+	}
+	ah.Clear()
+}
+
+// flushHistory flushes a history record. It is responsible for handling the history record internally,
+// processing it, and forwarding it to the Writer.
+func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	if history.GetItem() == nil {
 		return
 	}
 
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	historyMap := make(map[string]string)
-	for _, item := range history.GetItem() {
-		historyMap[item.GetKey()] = item.GetValueJson()
-	}
-
-	h.handleHistoryInternal(history, &historyMap)
-	h.handleAllHistoryMetric(history, &historyMap)
-
-	h.sampleHistory(history)
-
-	record := &service.Record{
-		RecordType: &service.Record_History{History: history},
-	}
-	h.sendRecord(record)
-
-	// TODO unify with handleSummary
-	// TODO add an option to disable summary (this could be quite expensive)
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.Item)
-	h.sendRecord(summaryRecord)
-}
-
-// handleHistoryInternal adds internal history items to the history record
-// these items are used for internal bookkeeping and are not sent by the user
-func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyMap *map[string]string) {
-
+	// adds internal history items to the history record
+	// these items are used for internal bookkeeping and are not sent by the user
 	// TODO: add a timestamp field to the history record
 	var runTime float64 = 0
-	if value, ok := (*historyMap)["_timestamp"]; ok {
+	if item, ok := h.historyRecord.GetItem("_timestamp"); ok {
+		value := item.GetValueJson()
 		val, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			h.logger.CaptureError("error parsing timestamp", err)
@@ -153,24 +207,52 @@ func (h *Handler) handleHistoryInternal(history *service.HistoryRecord, historyM
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
 		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
+
+	// handles all history items. It is responsible for matching current history
+	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+	// it needs to be synced, but not part of the history record.
+	// This means that there are metrics defined for this run
+	if h.mh != nil {
+		for _, item := range history.GetItem() {
+			step := h.imputeStepMetric(item)
+			// TODO: fix this, we update history while we are iterating over it
+			// TODO: handle nested step metrics (e.g. step defined by another step)
+			if step != nil {
+				history.Item = append(history.Item, step)
+			}
+		}
+	}
+
+	h.sampleHistory(history)
+
+	record := &service.Record{
+		RecordType: &service.Record_History{History: history},
+	}
+	h.sendRecord(record)
+
+	// TODO unify with handleSummary
+	// TODO add an option to disable summary (this could be quite expensive)
+	summary := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.GetItem())
+	h.updateSummaryDelta(summary)
 }
 
-// handleAllHistoryMetric handles all history items. It is responsible for matching current history
-// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-// it needs to be synced, but not part of the history record.
-func (h *Handler) handleAllHistoryMetric(history *service.HistoryRecord, historyMap *map[string]string) {
-	// This means that there are no metrics defined, and we don't need to do anything
-	if h.mh == nil {
-		return
-	}
+// handleHistory handles a history record. This is the main entry point for history records.
+// It is responsible for handling the history record internally, processing it,
+// and forwarding it to the Writer.
+func (h *Handler) handleHistory(history *service.HistoryRecord) {
+	// TODO replace history encoding with a map, this will make it easier to handle history
+	h.historyRecord = NewActiveHistory(
+		WithStep(history.GetStep().GetNum()),
+	)
+	h.historyRecord.UpdateValues(history.GetItem())
 
-	for _, item := range history.GetItem() {
-		h.imputeStepMetric(item, history, historyMap)
-	}
+	h.flushHistory(history)
+
+	h.historyRecord.Flush()
 }
 
 // imputeStepMetric imputes a step metric if it needs to be synced, but not part of the history record.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.HistoryRecord, historyMap *map[string]string) {
+func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
 
 	// check if history item matches a defined metric or a glob metric
 	metric := h.matchHistoryItemMetric(item)
@@ -178,23 +260,25 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem, history *service.H
 	key := metric.GetStepMetric()
 	// check if step metric is defined and if it needs to be synced
 	if !(metric.GetOptions().GetStepSync() && key != "") {
-		return
+		return nil
 	}
 
 	// check if step metric is already in history
-	if _, ok := (*historyMap)[key]; ok {
-		return
+	if _, ok := h.historyRecord.GetItem(key); ok {
+		return nil
 	}
 
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.consolidatedSummary[key]; ok {
-		(*historyMap)[key] = value
+		// TODO: add nested key support
 		hi := &service.HistoryItem{
 			Key:       key,
 			ValueJson: value,
 		}
-		history.Item = append(history.Item, hi)
+		h.historyRecord.UpdateValues([]*service.HistoryItem{hi})
+		return hi
 	}
+	return nil
 }
 
 // matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
@@ -235,12 +319,30 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// and step. If the user provided a step in the request,
 	// use that, otherwise use 0.
 	if h.historyRecord == nil {
-		h.historyRecord = &service.HistoryRecord{}
-		if request.Step != nil {
-			h.historyRecord.Step = request.Step
-		} else {
-			h.historyRecord.Step = &service.HistoryStep{Num: h.runRecord.StartingStep}
+		var step int64
+		switch {
+		case request.Step != nil:
+			step = request.Step.Num
+		case h.runRecord != nil:
+			step = h.runRecord.StartingStep
+		default:
+			// TODO: this should never happen, but we should handle it
+			// gracefully, should we raise an error?
+			step = 0
 		}
+
+		h.historyRecord = NewActiveHistory(
+			WithStep(step),
+			WithFlush(
+				func(step *service.HistoryStep, items []*service.HistoryItem) {
+					record := &service.HistoryRecord{
+						Step: step,
+						Item: items,
+					}
+					h.flushHistory(record)
+				},
+			),
+		)
 	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
@@ -271,31 +373,28 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	// - If the request doesn't have a step, and doesn't have a flush flag, this is
 	//	equivalent to step being equal to the current step number and a flush flag
 	//	being set to true.
-	if request.Step != nil {
-		if request.Step.Num > h.historyRecord.Step.Num {
-			h.handleHistory(h.historyRecord)
-			h.historyRecord = &service.HistoryRecord{
-				Step: &service.HistoryStep{Num: request.Step.Num},
-			}
-		} else if request.Step.Num < h.historyRecord.Step.Num {
+	if request.GetStep() != nil {
+		step := request.Step.GetNum()
+		current := h.historyRecord.GetStep().Num
+		if step > current {
+			h.historyRecord.Flush()
+			h.historyRecord.UpdateStep(step)
+		} else if step < current {
 			h.logger.CaptureWarn("received history record for a step that has already been received",
-				"received", request.Step, "current", h.historyRecord.Step)
+				"received", step, "current", current)
 			return
 		}
 	}
 
 	// Append the history items from the request to the current history record.
-	h.historyRecord.Item = append(h.historyRecord.Item, request.Item...)
+	h.historyRecord.UpdateValues(request.Item)
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
-		h.handleHistory(h.historyRecord)
-		h.historyRecord = &service.HistoryRecord{
-			Step: &service.HistoryStep{
-				Num: h.historyRecord.Step.Num + 1,
-			},
-		}
+		h.historyRecord.Flush()
+		step := h.historyRecord.GetStep().Num + 1
+		h.historyRecord.UpdateStep(step)
 	}
 }
 

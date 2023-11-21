@@ -1,11 +1,13 @@
 package filestream
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var boolTrue bool = true
@@ -16,15 +18,40 @@ type processedChunk struct {
 	Complete   *bool
 	Exitcode   *int32
 	Preempting bool
+	Uploaded   []string
 }
 
 func (fs *FileStream) addProcess(rec *service.Record) {
 	fs.processChan <- rec
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan *service.Record) {
+func (fs *FileStream) processRecord(record *service.Record) {
+	switch x := record.RecordType.(type) {
+	case *service.Record_History:
+		fs.streamHistory(x.History)
+	case *service.Record_Summary:
+		fs.streamSummary(x.Summary)
+	case *service.Record_Stats:
+		fs.streamSystemMetrics(x.Stats)
+	case *service.Record_OutputRaw:
+		fs.streamOutputRaw(x.OutputRaw)
+	case *service.Record_Exit:
+		fs.streamFinish(x.Exit)
+	case *service.Record_Preempting:
+		fs.streamPreempting(x.Preempting)
+	case nil:
+		err := fmt.Errorf("filestream: field not set")
+		fs.logger.CaptureFatalAndPanic("filestream error:", err)
+	default:
+		err := fmt.Errorf("filestream: Unknown type %T", x)
+		fs.logger.CaptureFatalAndPanic("filestream error:", err)
+	}
+}
+
+func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
+<<<<<<< HEAD
 	for record := range inChan {
 		fs.logger.Debug("filestream: record", "record", record)
 		switch x := record.RecordType.(type) {
@@ -42,6 +69,15 @@ func (fs *FileStream) loopProcess(inChan <-chan *service.Record) {
 			fs.streamPreempting(x.Preempting)
 		case *service.Record_StreamData:
 			fs.streamStreamData(x.StreamData)
+=======
+	for message := range inChan {
+		fs.logger.Debug("filestream: record", "message", message)
+		switch x := message.(type) {
+		case *service.Record:
+			fs.processRecord(x)
+		case *service.FilesUploaded:
+			fs.streamFilesUploaded(x)
+>>>>>>> origin/main
 		case nil:
 			err := fmt.Errorf("filestream: field not set")
 			fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -119,6 +155,12 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
+	})
+}
+
+func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploaded) {
+	fs.addTransmit(processedChunk{
+		Uploaded: msg.Files,
 	})
 }
 

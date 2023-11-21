@@ -186,7 +186,7 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            {"path": source_artifact.get_entry(json_obj["path"]).download()},
             key="",
         )
 
