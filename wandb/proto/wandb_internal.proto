@@ -46,6 +46,8 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    StreamTableRecord stream_table = 26;
+    StreamDataRecord stream_data = 27;
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -76,6 +78,7 @@ message Result {
     SummaryResult summary_result = 21;
     OutputResult output_result = 22;
     ConfigResult config_result = 23;
+    StreamTableResult stream_table_result = 25;
     /* response field does not belong here longterm */
     Response response = 100;
   }
@@ -153,6 +156,35 @@ message ErrorInfo {
   }
   string message = 1;
   ErrorCode code = 2;
+}
+
+/*
+ * StreamTableRecord
+ */
+message StreamTableRecord {
+  string run_id = 1;
+  string table = 2;
+  string entity = 3;
+  string project = 4;
+  _RecordInfo _info = 200;
+}
+
+message StreamTableResult {}
+
+/*
+ * StreamDataRecord
+ */
+message StreamDataRecord {
+  map<string, StreamValue> items = 1;
+  _RecordInfo _info = 200;
+}
+
+message StreamValue {
+  oneof stream_value_type {
+    int64 Int64Value = 1;
+    double DoubleValue = 2;
+    string StringValue = 3;
+  }
 }
 
 /*
