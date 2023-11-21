@@ -3277,7 +3277,7 @@ class Run:
 
         Raises:
             AssertionError: if registered_model_name is a path or
-                            if model artifact 'name' is of a type that does not contain the substring 'model'
+                if model artifact 'name' is of a type that does not contain the substring 'model'
             ValueError: if name has invalid special characters
 
         Returns:
