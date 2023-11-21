@@ -1,30 +1,45 @@
 package monitor
 
-// #cgo LDFLAGS: -L. -lapple
-// #include "apple.h"
-// #include <stdlib.h>
-import "C"
 import (
-	"encoding/json"
 	"fmt"
-	"unsafe"
+	"os"
+	"path/filepath"
 )
 
-func getStats() map[string]interface{} {
-	cstr := C.gpuStats()
-	defer C.free(unsafe.Pointer(cstr))
+// // #cgo LDFLAGS: -L. -lapple
+// // #include "apple.h"
+// // #include <stdlib.h>
+// import "C"
+// import (
+// 	"encoding/json"
+// 	"fmt"
+// 	"unsafe"
+// )
 
-	jsonString := C.GoString(cstr)
-	var result map[string]interface{}
-	err := json.Unmarshal([]byte(jsonString), &result)
-	if err != nil {
-		fmt.Println(err)
-	}
+// func getStats() map[string]interface{} {
+// 	cstr := C.gpuStats()
+// 	defer C.free(unsafe.Pointer(cstr))
 
-	return result
-}
+// 	jsonString := C.GoString(cstr)
+// 	var result map[string]interface{}
+// 	err := json.Unmarshal([]byte(jsonString), &result)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
+
+// 	return result
+// }
+
+// func callSwift() {
+// 	stats := getStats()
+// 	fmt.Println(stats)
+// }
 
 func callSwift() {
-	stats := getStats()
-	fmt.Println(stats)
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	fmt.Println(exPath)
 }

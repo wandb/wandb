@@ -134,8 +134,3 @@ def run_codecov(session):
 def codecov(session):
     session.notify("download-codecov")
     session.notify("run-codecov", posargs=session.posargs)
-
-
-if __name__ == "__main__":
-    download_codecov()
-    run_codecov()

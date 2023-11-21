@@ -88,25 +88,40 @@ public func getGPUStats() -> [String: Any] {
     return GPUStats
 }
 
-@_cdecl("gpuStats")
-public func gpuStats() -> UnsafePointer<CChar> {
+public func gpuStats() {
     let dictionary: [String: Any] = getGPUStats()
 
     do {
         let jsonData = try JSONSerialization.data(withJSONObject: dictionary, options: [])
-        if let jsonString = String(data: jsonData, encoding: .utf8),
-           let cString = strdup(jsonString) {
-            return UnsafePointer(cString)
+        if let jsonString = String(data: jsonData, encoding: .utf8) {
+            print(jsonString)
         }
     } catch {
         print("Error serializing dictionary: \(error)")
     }
-
-    // Fallback for an empty JSON object if serialization fails
-    let fallbackString = "{}"
-    let cString = strdup(fallbackString)!
-    return UnsafePointer(cString)
 }
+
+gpuStats()
+
+// @_cdecl("gpuStats")
+// public func gpuStats() -> UnsafePointer<CChar> {
+//     let dictionary: [String: Any] = getGPUStats()
+
+//     do {
+//         let jsonData = try JSONSerialization.data(withJSONObject: dictionary, options: [])
+//         if let jsonString = String(data: jsonData, encoding: .utf8),
+//            let cString = strdup(jsonString) {
+//             return UnsafePointer(cString)
+//         }
+//     } catch {
+//         print("Error serializing dictionary: \(error)")
+//     }
+
+//     // Fallback for an empty JSON object if serialization fails
+//     let fallbackString = "{}"
+//     let cString = strdup(fallbackString)!
+//     return UnsafePointer(cString)
+// }
 
 // Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
 //     printGPUStats()
