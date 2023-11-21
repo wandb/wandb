@@ -3115,7 +3115,8 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Declare a model artifact as an output of a run.
+        """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output
+        to this run.
 
         Arguments:
             path: (str) A path to the contents of this model,
@@ -3123,10 +3124,11 @@ class Run:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
-            name: (str, optional) An artifact name. String containing only the following alphanumeric characters: dashes, underscores, and dots.
+            name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
+                String containing only the following alphanumeric characters: dashes, underscores, and dots.
                 This will default to the basename of the path prepended with the current
                 run id  if not specified.
-            aliases: (list, optional) Aliases to apply to this artifact,
+            aliases: (list, optional) Aliases to apply to the created model artifact,
                     defaults to `["latest"]`
 
         Examples:
@@ -3160,10 +3162,11 @@ class Run:
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def use_model(self, name: str) -> FilePathStr:
-        """Download a logged model artifact.
+        """Download the files logged in a model artifact 'name'.
 
         Arguments:
-            name: (str) A model artifact name.
+            name: (str) A model artifact name. 'name' must match the name of an existing logged
+                model artifact.
                 May be prefixed with entity/project/. Valid names
                 can be in the following forms:
                     - artifact_name:version
@@ -3193,14 +3196,14 @@ class Run:
             ```
 
         Raises:
-            AssertionError: if type of artifact 'name' does not contain 'model'
+            AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
         Returns:
-            path: (str) path to downloaded artifact file(s).
+            path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
         assert "model" in str(
             artifact.type.lower()
-        ), "You can only use this method for 'model' artifacts. Please make sure the artifact type of the model you're trying to use contains the word 'model'."
+        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, it must have a type that contains the substring 'model'."
         path = artifact.download()
 
         # If returned directory contains only one file, return path to that file
@@ -3218,11 +3221,15 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Log a model artifact version and link it to a registered model in the model registry. The linked model version will be visible in the UI for the specified registered model.
+        """Log a model artifact version and link it to a registered model in the model registry. The linked model
+        version will be visible in the UI for the specified registered model.
 
         Steps:
-            - Check if 'name' artifact has been logged. If so, use the artifact version that matches the files located at 'path' or log a new version. Otherwise log files under 'path' as a new artifact, 'name' of type 'model'.
-            - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project. If not, create a new registered model with name 'registered_model_name'.
+            - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
+            located at 'path' or log a new version. Otherwise log files under 'path' as a new artifact, 'name'
+            of type 'model'.
+            - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project.
+            If not, create a new registered model with name 'registered_model_name'.
             - Link version of 'name' to registered model, 'registered_model_name'.
             - Attach aliases from 'aliases' list to the newly linked version.
 
@@ -3232,9 +3239,11 @@ class Run:
                     - `/local/directory`
                     - `/local/directory/file.txt`
                     - `s3://bucket/path`
-            registered_model_name: (str) - the name of the registered model that the model is to be linked to. The entity will be derived from the run
-            name: (str) - the name of the model artifact that files in 'path' will be logged to. This will default to the basename of the path prepended with the current
-                run id  if not specified.
+            registered_model_name: (str) - the name of the registered model that the model is to be linked to.
+                A registered model is a collection of model versions linked to the model registry, typically representing a
+                team's specific ML Task. The entity that this registered model belongs to will be derived from the run
+                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+                default to the basename of the path prepended with the current run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.
                 The alias "latest" will always be applied to the latest version of an artifact that is linked.
@@ -3267,7 +3276,8 @@ class Run:
             ```
 
         Raises:
-            AssertionError: if registered_model_name is a path
+            AssertionError: if registered_model_name is a path or
+                            if model artifact 'name' is of a type that does not contain the substring 'model'
             ValueError: if name has invalid special characters
 
         Returns:
@@ -3280,7 +3290,19 @@ class Run:
         project = "model-registry"
         target_path = self.entity + "/" + project + "/" + registered_model_name
 
-        artifact = self._log_artifact(artifact_or_path=path, name=name, type="model")
+        public_api = self._public_api()
+        try:
+            artifact = public_api.artifact(name=f"{name}:latest")
+            assert "model" in str(
+                artifact.type.lower()
+            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, it must have a type that contains the substring 'model'."
+            artifact = self._log_artifact(
+                artifact_or_path=path, name=name, type=artifact.type
+            )
+        except ValueError:
+            artifact = self._log_artifact(
+                artifact_or_path=path, name=name, type="model"
+            )
         self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
     @_run_decorator._noop_on_finish()
