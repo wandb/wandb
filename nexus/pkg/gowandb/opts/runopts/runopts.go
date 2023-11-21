@@ -11,6 +11,7 @@ type RunParams struct {
 	Name      *string
 	RunID     *string
 	Project   *string
+	Path      *string
 	Telemetry *service.TelemetryRecord
 }
 
@@ -37,5 +38,11 @@ func WithRunID(runID string) RunOption {
 func WithProject(project string) RunOption {
 	return func(p *RunParams) {
 		p.Project = &project
+	}
+}
+
+func WithPath(path string) RunOption {
+	return func(p *RunParams) {
+		p.Path = &path
 	}
 }
