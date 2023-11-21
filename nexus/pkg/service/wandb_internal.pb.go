@@ -119,7 +119,7 @@ func (x OutputRecord_OutputType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OutputRecord_OutputType.Descriptor instead.
 func (OutputRecord_OutputType) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{20, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{24, 0}
 }
 
 type OutputRawRecord_OutputType int32
@@ -165,7 +165,7 @@ func (x OutputRawRecord_OutputType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OutputRawRecord_OutputType.Descriptor instead.
 func (OutputRawRecord_OutputType) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{22, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{26, 0}
 }
 
 type MetricRecord_MetricGoal int32
@@ -214,7 +214,7 @@ func (x MetricRecord_MetricGoal) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MetricRecord_MetricGoal.Descriptor instead.
 func (MetricRecord_MetricGoal) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{24, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{28, 0}
 }
 
 type FilesItem_PolicyType int32
@@ -263,7 +263,7 @@ func (x FilesItem_PolicyType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FilesItem_PolicyType.Descriptor instead.
 func (FilesItem_PolicyType) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{36, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{40, 0}
 }
 
 type StatsRecord_StatsType int32
@@ -306,7 +306,7 @@ func (x StatsRecord_StatsType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use StatsRecord_StatsType.Descriptor instead.
 func (StatsRecord_StatsType) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{38, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{42, 0}
 }
 
 type DeferRequest_DeferState int32
@@ -391,7 +391,7 @@ func (x DeferRequest_DeferState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeferRequest_DeferState.Descriptor instead.
 func (DeferRequest_DeferState) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{54, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{58, 0}
 }
 
 type FileTransferInfoRequest_TransferType int32
@@ -437,7 +437,7 @@ func (x FileTransferInfoRequest_TransferType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FileTransferInfoRequest_TransferType.Descriptor instead.
 func (FileTransferInfoRequest_TransferType) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{91, 0}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{95, 0}
 }
 
 // Record: joined record for message passing and persistence
@@ -469,6 +469,8 @@ type Record struct {
 	//	*Record_Preempting
 	//	*Record_LinkArtifact
 	//	*Record_UseArtifact
+	//	*Record_StreamTable
+	//	*Record_StreamData
 	//	*Record_Request
 	RecordType isRecord_RecordType `protobuf_oneof:"record_type"`
 	Control    *Control            `protobuf:"bytes,16,opt,name=control,proto3" json:"control,omitempty"`
@@ -662,6 +664,20 @@ func (x *Record) GetUseArtifact() *UseArtifactRecord {
 	return nil
 }
 
+func (x *Record) GetStreamTable() *StreamTableRecord {
+	if x, ok := x.GetRecordType().(*Record_StreamTable); ok {
+		return x.StreamTable
+	}
+	return nil
+}
+
+func (x *Record) GetStreamData() *StreamDataRecord {
+	if x, ok := x.GetRecordType().(*Record_StreamData); ok {
+		return x.StreamData
+	}
+	return nil
+}
+
 func (x *Record) GetRequest() *Request {
 	if x, ok := x.GetRecordType().(*Record_Request); ok {
 		return x.Request
@@ -776,6 +792,14 @@ type Record_UseArtifact struct {
 	UseArtifact *UseArtifactRecord `protobuf:"bytes,25,opt,name=use_artifact,json=useArtifact,proto3,oneof"`
 }
 
+type Record_StreamTable struct {
+	StreamTable *StreamTableRecord `protobuf:"bytes,26,opt,name=stream_table,json=streamTable,proto3,oneof"`
+}
+
+type Record_StreamData struct {
+	StreamData *StreamDataRecord `protobuf:"bytes,27,opt,name=stream_data,json=streamData,proto3,oneof"`
+}
+
 type Record_Request struct {
 	// request field does not belong here longterm
 	Request *Request `protobuf:"bytes,100,opt,name=request,proto3,oneof"`
@@ -820,6 +844,10 @@ func (*Record_Preempting) isRecord_RecordType() {}
 func (*Record_LinkArtifact) isRecord_RecordType() {}
 
 func (*Record_UseArtifact) isRecord_RecordType() {}
+
+func (*Record_StreamTable) isRecord_RecordType() {}
+
+func (*Record_StreamData) isRecord_RecordType() {}
 
 func (*Record_Request) isRecord_RecordType() {}
 
@@ -940,6 +968,7 @@ type Result struct {
 	//	*Result_SummaryResult
 	//	*Result_OutputResult
 	//	*Result_ConfigResult
+	//	*Result_StreamTableResult
 	//	*Result_Response
 	ResultType isResult_ResultType `protobuf_oneof:"result_type"`
 	Control    *Control            `protobuf:"bytes,16,opt,name=control,proto3" json:"control,omitempty"`
@@ -1028,6 +1057,13 @@ func (x *Result) GetConfigResult() *ConfigResult {
 	return nil
 }
 
+func (x *Result) GetStreamTableResult() *StreamTableResult {
+	if x, ok := x.GetResultType().(*Result_StreamTableResult); ok {
+		return x.StreamTableResult
+	}
+	return nil
+}
+
 func (x *Result) GetResponse() *Response {
 	if x, ok := x.GetResultType().(*Result_Response); ok {
 		return x.Response
@@ -1084,6 +1120,10 @@ type Result_ConfigResult struct {
 	ConfigResult *ConfigResult `protobuf:"bytes,23,opt,name=config_result,json=configResult,proto3,oneof"`
 }
 
+type Result_StreamTableResult struct {
+	StreamTableResult *StreamTableResult `protobuf:"bytes,25,opt,name=stream_table_result,json=streamTableResult,proto3,oneof"`
+}
+
 type Result_Response struct {
 	// response field does not belong here longterm
 	Response *Response `protobuf:"bytes,100,opt,name=response,proto3,oneof"`
@@ -1100,6 +1140,8 @@ func (*Result_SummaryResult) isResult_ResultType() {}
 func (*Result_OutputResult) isResult_ResultType() {}
 
 func (*Result_ConfigResult) isResult_ResultType() {}
+
+func (*Result_StreamTableResult) isResult_ResultType() {}
 
 func (*Result_Response) isResult_ResultType() {}
 
@@ -1620,6 +1662,275 @@ func (x *ErrorInfo) GetCode() ErrorInfo_ErrorCode {
 	return ErrorInfo_UNKNOWN
 }
 
+// StreamTableRecord
+type StreamTableRecord struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RunId   string       `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	Table   string       `protobuf:"bytes,2,opt,name=table,proto3" json:"table,omitempty"`
+	Entity  string       `protobuf:"bytes,3,opt,name=entity,proto3" json:"entity,omitempty"`
+	Project string       `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
+	XInfo   *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+}
+
+func (x *StreamTableRecord) Reset() {
+	*x = StreamTableRecord{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamTableRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamTableRecord) ProtoMessage() {}
+
+func (x *StreamTableRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamTableRecord.ProtoReflect.Descriptor instead.
+func (*StreamTableRecord) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *StreamTableRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *StreamTableRecord) GetTable() string {
+	if x != nil {
+		return x.Table
+	}
+	return ""
+}
+
+func (x *StreamTableRecord) GetEntity() string {
+	if x != nil {
+		return x.Entity
+	}
+	return ""
+}
+
+func (x *StreamTableRecord) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *StreamTableRecord) GetXInfo() *XRecordInfo {
+	if x != nil {
+		return x.XInfo
+	}
+	return nil
+}
+
+type StreamTableResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *StreamTableResult) Reset() {
+	*x = StreamTableResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamTableResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamTableResult) ProtoMessage() {}
+
+func (x *StreamTableResult) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamTableResult.ProtoReflect.Descriptor instead.
+func (*StreamTableResult) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{11}
+}
+
+// StreamDataRecord
+type StreamDataRecord struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Items map[string]*StreamValue `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XInfo *XRecordInfo            `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
+}
+
+func (x *StreamDataRecord) Reset() {
+	*x = StreamDataRecord{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamDataRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamDataRecord) ProtoMessage() {}
+
+func (x *StreamDataRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamDataRecord.ProtoReflect.Descriptor instead.
+func (*StreamDataRecord) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *StreamDataRecord) GetItems() map[string]*StreamValue {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *StreamDataRecord) GetXInfo() *XRecordInfo {
+	if x != nil {
+		return x.XInfo
+	}
+	return nil
+}
+
+type StreamValue struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Types that are assignable to StreamValueType:
+	//
+	//	*StreamValue_Int64Value
+	//	*StreamValue_DoubleValue
+	//	*StreamValue_StringValue
+	StreamValueType isStreamValue_StreamValueType `protobuf_oneof:"stream_value_type"`
+}
+
+func (x *StreamValue) Reset() {
+	*x = StreamValue{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *StreamValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamValue) ProtoMessage() {}
+
+func (x *StreamValue) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamValue.ProtoReflect.Descriptor instead.
+func (*StreamValue) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{13}
+}
+
+func (m *StreamValue) GetStreamValueType() isStreamValue_StreamValueType {
+	if m != nil {
+		return m.StreamValueType
+	}
+	return nil
+}
+
+func (x *StreamValue) GetInt64Value() int64 {
+	if x, ok := x.GetStreamValueType().(*StreamValue_Int64Value); ok {
+		return x.Int64Value
+	}
+	return 0
+}
+
+func (x *StreamValue) GetDoubleValue() float64 {
+	if x, ok := x.GetStreamValueType().(*StreamValue_DoubleValue); ok {
+		return x.DoubleValue
+	}
+	return 0
+}
+
+func (x *StreamValue) GetStringValue() string {
+	if x, ok := x.GetStreamValueType().(*StreamValue_StringValue); ok {
+		return x.StringValue
+	}
+	return ""
+}
+
+type isStreamValue_StreamValueType interface {
+	isStreamValue_StreamValueType()
+}
+
+type StreamValue_Int64Value struct {
+	Int64Value int64 `protobuf:"varint,1,opt,name=Int64Value,proto3,oneof"`
+}
+
+type StreamValue_DoubleValue struct {
+	DoubleValue float64 `protobuf:"fixed64,2,opt,name=DoubleValue,proto3,oneof"`
+}
+
+type StreamValue_StringValue struct {
+	StringValue string `protobuf:"bytes,3,opt,name=StringValue,proto3,oneof"`
+}
+
+func (*StreamValue_Int64Value) isStreamValue_StreamValueType() {}
+
+func (*StreamValue_DoubleValue) isStreamValue_StreamValueType() {}
+
+func (*StreamValue_StringValue) isStreamValue_StreamValueType() {}
+
 // RunExitRecord: exit status of process
 type RunExitRecord struct {
 	state         protoimpl.MessageState
@@ -1634,7 +1945,7 @@ type RunExitRecord struct {
 func (x *RunExitRecord) Reset() {
 	*x = RunExitRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[10]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1647,7 +1958,7 @@ func (x *RunExitRecord) String() string {
 func (*RunExitRecord) ProtoMessage() {}
 
 func (x *RunExitRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1660,7 +1971,7 @@ func (x *RunExitRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunExitRecord.ProtoReflect.Descriptor instead.
 func (*RunExitRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{10}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RunExitRecord) GetExitCode() int32 {
@@ -1693,7 +2004,7 @@ type RunExitResult struct {
 func (x *RunExitResult) Reset() {
 	*x = RunExitResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[11]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1706,7 +2017,7 @@ func (x *RunExitResult) String() string {
 func (*RunExitResult) ProtoMessage() {}
 
 func (x *RunExitResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1719,7 +2030,7 @@ func (x *RunExitResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunExitResult.ProtoReflect.Descriptor instead.
 func (*RunExitResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{11}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{15}
 }
 
 // RunPreemptingRecord: run being preempted
@@ -1734,7 +2045,7 @@ type RunPreemptingRecord struct {
 func (x *RunPreemptingRecord) Reset() {
 	*x = RunPreemptingRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[12]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1747,7 +2058,7 @@ func (x *RunPreemptingRecord) String() string {
 func (*RunPreemptingRecord) ProtoMessage() {}
 
 func (x *RunPreemptingRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +2071,7 @@ func (x *RunPreemptingRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunPreemptingRecord.ProtoReflect.Descriptor instead.
 func (*RunPreemptingRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{12}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RunPreemptingRecord) GetXInfo() *XRecordInfo {
@@ -1779,7 +2090,7 @@ type RunPreemptingResult struct {
 func (x *RunPreemptingResult) Reset() {
 	*x = RunPreemptingResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[13]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1792,7 +2103,7 @@ func (x *RunPreemptingResult) String() string {
 func (*RunPreemptingResult) ProtoMessage() {}
 
 func (x *RunPreemptingResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1805,7 +2116,7 @@ func (x *RunPreemptingResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunPreemptingResult.ProtoReflect.Descriptor instead.
 func (*RunPreemptingResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{13}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{17}
 }
 
 // SettingsRecord: wandb/sdk/wandb_settings/Settings
@@ -1821,7 +2132,7 @@ type SettingsRecord struct {
 func (x *SettingsRecord) Reset() {
 	*x = SettingsRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[14]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1834,7 +2145,7 @@ func (x *SettingsRecord) String() string {
 func (*SettingsRecord) ProtoMessage() {}
 
 func (x *SettingsRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1847,7 +2158,7 @@ func (x *SettingsRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsRecord.ProtoReflect.Descriptor instead.
 func (*SettingsRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{14}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *SettingsRecord) GetItem() []*SettingsItem {
@@ -1876,7 +2187,7 @@ type SettingsItem struct {
 func (x *SettingsItem) Reset() {
 	*x = SettingsItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[15]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1889,7 +2200,7 @@ func (x *SettingsItem) String() string {
 func (*SettingsItem) ProtoMessage() {}
 
 func (x *SettingsItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1902,7 +2213,7 @@ func (x *SettingsItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsItem.ProtoReflect.Descriptor instead.
 func (*SettingsItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{15}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SettingsItem) GetKey() string {
@@ -1931,7 +2242,7 @@ type HistoryStep struct {
 func (x *HistoryStep) Reset() {
 	*x = HistoryStep{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[16]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1944,7 +2255,7 @@ func (x *HistoryStep) String() string {
 func (*HistoryStep) ProtoMessage() {}
 
 func (x *HistoryStep) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1957,7 +2268,7 @@ func (x *HistoryStep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryStep.ProtoReflect.Descriptor instead.
 func (*HistoryStep) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{16}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *HistoryStep) GetNum() int64 {
@@ -1980,7 +2291,7 @@ type HistoryRecord struct {
 func (x *HistoryRecord) Reset() {
 	*x = HistoryRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[17]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1993,7 +2304,7 @@ func (x *HistoryRecord) String() string {
 func (*HistoryRecord) ProtoMessage() {}
 
 func (x *HistoryRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[17]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2006,7 +2317,7 @@ func (x *HistoryRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryRecord.ProtoReflect.Descriptor instead.
 func (*HistoryRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{17}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *HistoryRecord) GetItem() []*HistoryItem {
@@ -2043,7 +2354,7 @@ type HistoryItem struct {
 func (x *HistoryItem) Reset() {
 	*x = HistoryItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[18]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2056,7 +2367,7 @@ func (x *HistoryItem) String() string {
 func (*HistoryItem) ProtoMessage() {}
 
 func (x *HistoryItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[18]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2069,7 +2380,7 @@ func (x *HistoryItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryItem.ProtoReflect.Descriptor instead.
 func (*HistoryItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{18}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *HistoryItem) GetKey() string {
@@ -2102,7 +2413,7 @@ type HistoryResult struct {
 func (x *HistoryResult) Reset() {
 	*x = HistoryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[19]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2115,7 +2426,7 @@ func (x *HistoryResult) String() string {
 func (*HistoryResult) ProtoMessage() {}
 
 func (x *HistoryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[19]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2128,7 +2439,7 @@ func (x *HistoryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryResult.ProtoReflect.Descriptor instead.
 func (*HistoryResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{19}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{23}
 }
 
 // OutputRecord: console output
@@ -2146,7 +2457,7 @@ type OutputRecord struct {
 func (x *OutputRecord) Reset() {
 	*x = OutputRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[20]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2159,7 +2470,7 @@ func (x *OutputRecord) String() string {
 func (*OutputRecord) ProtoMessage() {}
 
 func (x *OutputRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[20]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2172,7 +2483,7 @@ func (x *OutputRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutputRecord.ProtoReflect.Descriptor instead.
 func (*OutputRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{20}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *OutputRecord) GetOutputType() OutputRecord_OutputType {
@@ -2212,7 +2523,7 @@ type OutputResult struct {
 func (x *OutputResult) Reset() {
 	*x = OutputResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[21]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2225,7 +2536,7 @@ func (x *OutputResult) String() string {
 func (*OutputResult) ProtoMessage() {}
 
 func (x *OutputResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[21]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2238,7 +2549,7 @@ func (x *OutputResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutputResult.ProtoReflect.Descriptor instead.
 func (*OutputResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{21}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{25}
 }
 
 // OutputRawRecord: raw console output
@@ -2256,7 +2567,7 @@ type OutputRawRecord struct {
 func (x *OutputRawRecord) Reset() {
 	*x = OutputRawRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[22]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2269,7 +2580,7 @@ func (x *OutputRawRecord) String() string {
 func (*OutputRawRecord) ProtoMessage() {}
 
 func (x *OutputRawRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[22]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2282,7 +2593,7 @@ func (x *OutputRawRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutputRawRecord.ProtoReflect.Descriptor instead.
 func (*OutputRawRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{22}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *OutputRawRecord) GetOutputType() OutputRawRecord_OutputType {
@@ -2322,7 +2633,7 @@ type OutputRawResult struct {
 func (x *OutputRawResult) Reset() {
 	*x = OutputRawResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[23]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2335,7 +2646,7 @@ func (x *OutputRawResult) String() string {
 func (*OutputRawResult) ProtoMessage() {}
 
 func (x *OutputRawResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[23]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2348,7 +2659,7 @@ func (x *OutputRawResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OutputRawResult.ProtoReflect.Descriptor instead.
 func (*OutputRawResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{23}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{27}
 }
 
 // MetricRecord: wandb/sdk/wandb_metric/Metric
@@ -2374,7 +2685,7 @@ type MetricRecord struct {
 func (x *MetricRecord) Reset() {
 	*x = MetricRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[24]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2387,7 +2698,7 @@ func (x *MetricRecord) String() string {
 func (*MetricRecord) ProtoMessage() {}
 
 func (x *MetricRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[24]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2400,7 +2711,7 @@ func (x *MetricRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricRecord.ProtoReflect.Descriptor instead.
 func (*MetricRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{24}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *MetricRecord) GetName() string {
@@ -2475,7 +2786,7 @@ type MetricResult struct {
 func (x *MetricResult) Reset() {
 	*x = MetricResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[25]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2488,7 +2799,7 @@ func (x *MetricResult) String() string {
 func (*MetricResult) ProtoMessage() {}
 
 func (x *MetricResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[25]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2501,7 +2812,7 @@ func (x *MetricResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricResult.ProtoReflect.Descriptor instead.
 func (*MetricResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{25}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{29}
 }
 
 type MetricOptions struct {
@@ -2517,7 +2828,7 @@ type MetricOptions struct {
 func (x *MetricOptions) Reset() {
 	*x = MetricOptions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[26]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[30]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2530,7 +2841,7 @@ func (x *MetricOptions) String() string {
 func (*MetricOptions) ProtoMessage() {}
 
 func (x *MetricOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[26]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[30]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2543,7 +2854,7 @@ func (x *MetricOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricOptions.ProtoReflect.Descriptor instead.
 func (*MetricOptions) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{26}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *MetricOptions) GetStepSync() bool {
@@ -2578,7 +2889,7 @@ type MetricControl struct {
 func (x *MetricControl) Reset() {
 	*x = MetricControl{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[27]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[31]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2591,7 +2902,7 @@ func (x *MetricControl) String() string {
 func (*MetricControl) ProtoMessage() {}
 
 func (x *MetricControl) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[27]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[31]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2604,7 +2915,7 @@ func (x *MetricControl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricControl.ProtoReflect.Descriptor instead.
 func (*MetricControl) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{27}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *MetricControl) GetOverwrite() bool {
@@ -2631,7 +2942,7 @@ type MetricSummary struct {
 func (x *MetricSummary) Reset() {
 	*x = MetricSummary{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[28]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2644,7 +2955,7 @@ func (x *MetricSummary) String() string {
 func (*MetricSummary) ProtoMessage() {}
 
 func (x *MetricSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[28]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2657,7 +2968,7 @@ func (x *MetricSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricSummary.ProtoReflect.Descriptor instead.
 func (*MetricSummary) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{28}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *MetricSummary) GetMin() bool {
@@ -2723,7 +3034,7 @@ type ConfigRecord struct {
 func (x *ConfigRecord) Reset() {
 	*x = ConfigRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[29]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2736,7 +3047,7 @@ func (x *ConfigRecord) String() string {
 func (*ConfigRecord) ProtoMessage() {}
 
 func (x *ConfigRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[29]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2749,7 +3060,7 @@ func (x *ConfigRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigRecord.ProtoReflect.Descriptor instead.
 func (*ConfigRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{29}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ConfigRecord) GetUpdate() []*ConfigItem {
@@ -2786,7 +3097,7 @@ type ConfigItem struct {
 func (x *ConfigItem) Reset() {
 	*x = ConfigItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[30]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2799,7 +3110,7 @@ func (x *ConfigItem) String() string {
 func (*ConfigItem) ProtoMessage() {}
 
 func (x *ConfigItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[30]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2812,7 +3123,7 @@ func (x *ConfigItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigItem.ProtoReflect.Descriptor instead.
 func (*ConfigItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{30}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ConfigItem) GetKey() string {
@@ -2845,7 +3156,7 @@ type ConfigResult struct {
 func (x *ConfigResult) Reset() {
 	*x = ConfigResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[31]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2858,7 +3169,7 @@ func (x *ConfigResult) String() string {
 func (*ConfigResult) ProtoMessage() {}
 
 func (x *ConfigResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[31]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2871,7 +3182,7 @@ func (x *ConfigResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfigResult.ProtoReflect.Descriptor instead.
 func (*ConfigResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{31}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{35}
 }
 
 // SummaryRecord: wandb/sdk/wandb_summary/Summary
@@ -2888,7 +3199,7 @@ type SummaryRecord struct {
 func (x *SummaryRecord) Reset() {
 	*x = SummaryRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[32]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2901,7 +3212,7 @@ func (x *SummaryRecord) String() string {
 func (*SummaryRecord) ProtoMessage() {}
 
 func (x *SummaryRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[32]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2914,7 +3225,7 @@ func (x *SummaryRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummaryRecord.ProtoReflect.Descriptor instead.
 func (*SummaryRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{32}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SummaryRecord) GetUpdate() []*SummaryItem {
@@ -2951,7 +3262,7 @@ type SummaryItem struct {
 func (x *SummaryItem) Reset() {
 	*x = SummaryItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[33]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2964,7 +3275,7 @@ func (x *SummaryItem) String() string {
 func (*SummaryItem) ProtoMessage() {}
 
 func (x *SummaryItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[33]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2977,7 +3288,7 @@ func (x *SummaryItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummaryItem.ProtoReflect.Descriptor instead.
 func (*SummaryItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{33}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *SummaryItem) GetKey() string {
@@ -3010,7 +3321,7 @@ type SummaryResult struct {
 func (x *SummaryResult) Reset() {
 	*x = SummaryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[34]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[38]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3023,7 +3334,7 @@ func (x *SummaryResult) String() string {
 func (*SummaryResult) ProtoMessage() {}
 
 func (x *SummaryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[34]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[38]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3036,7 +3347,7 @@ func (x *SummaryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummaryResult.ProtoReflect.Descriptor instead.
 func (*SummaryResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{34}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{38}
 }
 
 // FilesRecord: files added to run
@@ -3052,7 +3363,7 @@ type FilesRecord struct {
 func (x *FilesRecord) Reset() {
 	*x = FilesRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[35]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3065,7 +3376,7 @@ func (x *FilesRecord) String() string {
 func (*FilesRecord) ProtoMessage() {}
 
 func (x *FilesRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[35]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3078,7 +3389,7 @@ func (x *FilesRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesRecord.ProtoReflect.Descriptor instead.
 func (*FilesRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{35}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *FilesRecord) GetFiles() []*FilesItem {
@@ -3108,7 +3419,7 @@ type FilesItem struct {
 func (x *FilesItem) Reset() {
 	*x = FilesItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[36]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[40]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3121,7 +3432,7 @@ func (x *FilesItem) String() string {
 func (*FilesItem) ProtoMessage() {}
 
 func (x *FilesItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[36]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[40]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3134,7 +3445,7 @@ func (x *FilesItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesItem.ProtoReflect.Descriptor instead.
 func (*FilesItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{36}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *FilesItem) GetPath() string {
@@ -3167,7 +3478,7 @@ type FilesResult struct {
 func (x *FilesResult) Reset() {
 	*x = FilesResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[37]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3180,7 +3491,7 @@ func (x *FilesResult) String() string {
 func (*FilesResult) ProtoMessage() {}
 
 func (x *FilesResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[37]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3193,7 +3504,7 @@ func (x *FilesResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesResult.ProtoReflect.Descriptor instead.
 func (*FilesResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{37}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{41}
 }
 
 // StatsRecord: system metrics
@@ -3211,7 +3522,7 @@ type StatsRecord struct {
 func (x *StatsRecord) Reset() {
 	*x = StatsRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[38]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[42]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3224,7 +3535,7 @@ func (x *StatsRecord) String() string {
 func (*StatsRecord) ProtoMessage() {}
 
 func (x *StatsRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[38]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[42]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3237,7 +3548,7 @@ func (x *StatsRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatsRecord.ProtoReflect.Descriptor instead.
 func (*StatsRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{38}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *StatsRecord) GetStatsType() StatsRecord_StatsType {
@@ -3280,7 +3591,7 @@ type StatsItem struct {
 func (x *StatsItem) Reset() {
 	*x = StatsItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[39]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[43]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3293,7 +3604,7 @@ func (x *StatsItem) String() string {
 func (*StatsItem) ProtoMessage() {}
 
 func (x *StatsItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[39]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[43]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3306,7 +3617,7 @@ func (x *StatsItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatsItem.ProtoReflect.Descriptor instead.
 func (*StatsItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{39}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *StatsItem) GetKey() string {
@@ -3354,7 +3665,7 @@ type ArtifactRecord struct {
 func (x *ArtifactRecord) Reset() {
 	*x = ArtifactRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[40]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[44]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3367,7 +3678,7 @@ func (x *ArtifactRecord) String() string {
 func (*ArtifactRecord) ProtoMessage() {}
 
 func (x *ArtifactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[40]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[44]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3380,7 +3691,7 @@ func (x *ArtifactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactRecord.ProtoReflect.Descriptor instead.
 func (*ArtifactRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{40}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ArtifactRecord) GetRunId() string {
@@ -3537,7 +3848,7 @@ type ArtifactManifest struct {
 func (x *ArtifactManifest) Reset() {
 	*x = ArtifactManifest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[41]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[45]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3550,7 +3861,7 @@ func (x *ArtifactManifest) String() string {
 func (*ArtifactManifest) ProtoMessage() {}
 
 func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[41]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[45]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3563,7 +3874,7 @@ func (x *ArtifactManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactManifest.ProtoReflect.Descriptor instead.
 func (*ArtifactManifest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{41}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *ArtifactManifest) GetVersion() int32 {
@@ -3612,7 +3923,7 @@ type ArtifactManifestEntry struct {
 func (x *ArtifactManifestEntry) Reset() {
 	*x = ArtifactManifestEntry{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[42]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[46]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3625,7 +3936,7 @@ func (x *ArtifactManifestEntry) String() string {
 func (*ArtifactManifestEntry) ProtoMessage() {}
 
 func (x *ArtifactManifestEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[42]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[46]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3638,7 +3949,7 @@ func (x *ArtifactManifestEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactManifestEntry.ProtoReflect.Descriptor instead.
 func (*ArtifactManifestEntry) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{42}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ArtifactManifestEntry) GetPath() string {
@@ -3709,7 +4020,7 @@ type ExtraItem struct {
 func (x *ExtraItem) Reset() {
 	*x = ExtraItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[43]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3722,7 +4033,7 @@ func (x *ExtraItem) String() string {
 func (*ExtraItem) ProtoMessage() {}
 
 func (x *ExtraItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[43]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3735,7 +4046,7 @@ func (x *ExtraItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtraItem.ProtoReflect.Descriptor instead.
 func (*ExtraItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{43}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ExtraItem) GetKey() string {
@@ -3764,7 +4075,7 @@ type StoragePolicyConfigItem struct {
 func (x *StoragePolicyConfigItem) Reset() {
 	*x = StoragePolicyConfigItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[44]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[48]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3777,7 +4088,7 @@ func (x *StoragePolicyConfigItem) String() string {
 func (*StoragePolicyConfigItem) ProtoMessage() {}
 
 func (x *StoragePolicyConfigItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[44]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[48]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3790,7 +4101,7 @@ func (x *StoragePolicyConfigItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoragePolicyConfigItem.ProtoReflect.Descriptor instead.
 func (*StoragePolicyConfigItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{44}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *StoragePolicyConfigItem) GetKey() string {
@@ -3816,7 +4127,7 @@ type ArtifactResult struct {
 func (x *ArtifactResult) Reset() {
 	*x = ArtifactResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[45]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[49]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3829,7 +4140,7 @@ func (x *ArtifactResult) String() string {
 func (*ArtifactResult) ProtoMessage() {}
 
 func (x *ArtifactResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[45]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[49]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3842,7 +4153,7 @@ func (x *ArtifactResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactResult.ProtoReflect.Descriptor instead.
 func (*ArtifactResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{45}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{49}
 }
 
 type LinkArtifactResult struct {
@@ -3854,7 +4165,7 @@ type LinkArtifactResult struct {
 func (x *LinkArtifactResult) Reset() {
 	*x = LinkArtifactResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[46]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[50]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3867,7 +4178,7 @@ func (x *LinkArtifactResult) String() string {
 func (*LinkArtifactResult) ProtoMessage() {}
 
 func (x *LinkArtifactResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[46]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[50]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3880,7 +4191,7 @@ func (x *LinkArtifactResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkArtifactResult.ProtoReflect.Descriptor instead.
 func (*LinkArtifactResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{46}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{50}
 }
 
 // LinkArtifactRecord: link artifact to portfolio
@@ -3901,7 +4212,7 @@ type LinkArtifactRecord struct {
 func (x *LinkArtifactRecord) Reset() {
 	*x = LinkArtifactRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[47]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[51]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3914,7 +4225,7 @@ func (x *LinkArtifactRecord) String() string {
 func (*LinkArtifactRecord) ProtoMessage() {}
 
 func (x *LinkArtifactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[47]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[51]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3927,7 +4238,7 @@ func (x *LinkArtifactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkArtifactRecord.ProtoReflect.Descriptor instead.
 func (*LinkArtifactRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{47}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *LinkArtifactRecord) GetClientId() string {
@@ -3994,7 +4305,7 @@ type TBRecord struct {
 func (x *TBRecord) Reset() {
 	*x = TBRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[48]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[52]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4007,7 +4318,7 @@ func (x *TBRecord) String() string {
 func (*TBRecord) ProtoMessage() {}
 
 func (x *TBRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[48]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[52]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4020,7 +4331,7 @@ func (x *TBRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TBRecord.ProtoReflect.Descriptor instead.
 func (*TBRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{48}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *TBRecord) GetLogDir() string {
@@ -4060,7 +4371,7 @@ type TBResult struct {
 func (x *TBResult) Reset() {
 	*x = TBResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[49]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4073,7 +4384,7 @@ func (x *TBResult) String() string {
 func (*TBResult) ProtoMessage() {}
 
 func (x *TBResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[49]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4086,7 +4397,7 @@ func (x *TBResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TBResult.ProtoReflect.Descriptor instead.
 func (*TBResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{49}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{53}
 }
 
 // AlertRecord: store alert notifications
@@ -4105,7 +4416,7 @@ type AlertRecord struct {
 func (x *AlertRecord) Reset() {
 	*x = AlertRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[50]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[54]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4118,7 +4429,7 @@ func (x *AlertRecord) String() string {
 func (*AlertRecord) ProtoMessage() {}
 
 func (x *AlertRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[50]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[54]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4131,7 +4442,7 @@ func (x *AlertRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertRecord.ProtoReflect.Descriptor instead.
 func (*AlertRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{50}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *AlertRecord) GetTitle() string {
@@ -4178,7 +4489,7 @@ type AlertResult struct {
 func (x *AlertResult) Reset() {
 	*x = AlertResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[51]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4191,7 +4502,7 @@ func (x *AlertResult) String() string {
 func (*AlertResult) ProtoMessage() {}
 
 func (x *AlertResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[51]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4204,7 +4515,7 @@ func (x *AlertResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertResult.ProtoReflect.Descriptor instead.
 func (*AlertResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{51}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{55}
 }
 
 // Request: all non persistent messages
@@ -4253,7 +4564,7 @@ type Request struct {
 func (x *Request) Reset() {
 	*x = Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[52]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4266,7 +4577,7 @@ func (x *Request) String() string {
 func (*Request) ProtoMessage() {}
 
 func (x *Request) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[52]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4279,7 +4590,7 @@ func (x *Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Request.ProtoReflect.Descriptor instead.
 func (*Request) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{52}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{56}
 }
 
 func (m *Request) GetRequestType() isRequest_RequestType {
@@ -4744,7 +5055,7 @@ type Response struct {
 func (x *Response) Reset() {
 	*x = Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[53]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4757,7 +5068,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[53]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4770,7 +5081,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{53}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{57}
 }
 
 func (m *Response) GetResponseType() isResponse_ResponseType {
@@ -5069,7 +5380,7 @@ type DeferRequest struct {
 func (x *DeferRequest) Reset() {
 	*x = DeferRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[54]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5082,7 +5393,7 @@ func (x *DeferRequest) String() string {
 func (*DeferRequest) ProtoMessage() {}
 
 func (x *DeferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[54]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5095,7 +5406,7 @@ func (x *DeferRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeferRequest.ProtoReflect.Descriptor instead.
 func (*DeferRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{54}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *DeferRequest) GetState() DeferRequest_DeferState {
@@ -5117,7 +5428,7 @@ type PauseRequest struct {
 func (x *PauseRequest) Reset() {
 	*x = PauseRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[55]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5130,7 +5441,7 @@ func (x *PauseRequest) String() string {
 func (*PauseRequest) ProtoMessage() {}
 
 func (x *PauseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[55]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5143,7 +5454,7 @@ func (x *PauseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PauseRequest.ProtoReflect.Descriptor instead.
 func (*PauseRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{55}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *PauseRequest) GetXInfo() *XRequestInfo {
@@ -5162,7 +5473,7 @@ type PauseResponse struct {
 func (x *PauseResponse) Reset() {
 	*x = PauseResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[56]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5175,7 +5486,7 @@ func (x *PauseResponse) String() string {
 func (*PauseResponse) ProtoMessage() {}
 
 func (x *PauseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[56]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5188,7 +5499,7 @@ func (x *PauseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PauseResponse.ProtoReflect.Descriptor instead.
 func (*PauseResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{56}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{60}
 }
 
 // ResumeRequest: internal message to resume the heartbeat
@@ -5203,7 +5514,7 @@ type ResumeRequest struct {
 func (x *ResumeRequest) Reset() {
 	*x = ResumeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[57]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5216,7 +5527,7 @@ func (x *ResumeRequest) String() string {
 func (*ResumeRequest) ProtoMessage() {}
 
 func (x *ResumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[57]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5229,7 +5540,7 @@ func (x *ResumeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResumeRequest.ProtoReflect.Descriptor instead.
 func (*ResumeRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{57}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ResumeRequest) GetXInfo() *XRequestInfo {
@@ -5248,7 +5559,7 @@ type ResumeResponse struct {
 func (x *ResumeResponse) Reset() {
 	*x = ResumeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[58]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5261,7 +5572,7 @@ func (x *ResumeResponse) String() string {
 func (*ResumeResponse) ProtoMessage() {}
 
 func (x *ResumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[58]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5274,7 +5585,7 @@ func (x *ResumeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResumeResponse.ProtoReflect.Descriptor instead.
 func (*ResumeResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{58}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{62}
 }
 
 // LoginRequest: wandb/sdk/wandb_login
@@ -5290,7 +5601,7 @@ type LoginRequest struct {
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[59]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5303,7 +5614,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[59]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5316,7 +5627,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{59}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *LoginRequest) GetApiKey() string {
@@ -5344,7 +5655,7 @@ type LoginResponse struct {
 func (x *LoginResponse) Reset() {
 	*x = LoginResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[60]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5357,7 +5668,7 @@ func (x *LoginResponse) String() string {
 func (*LoginResponse) ProtoMessage() {}
 
 func (x *LoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[60]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5370,7 +5681,7 @@ func (x *LoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
 func (*LoginResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{60}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *LoginResponse) GetActiveEntity() string {
@@ -5392,7 +5703,7 @@ type GetSummaryRequest struct {
 func (x *GetSummaryRequest) Reset() {
 	*x = GetSummaryRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[61]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5405,7 +5716,7 @@ func (x *GetSummaryRequest) String() string {
 func (*GetSummaryRequest) ProtoMessage() {}
 
 func (x *GetSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[61]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5418,7 +5729,7 @@ func (x *GetSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{61}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *GetSummaryRequest) GetXInfo() *XRequestInfo {
@@ -5439,7 +5750,7 @@ type GetSummaryResponse struct {
 func (x *GetSummaryResponse) Reset() {
 	*x = GetSummaryResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[62]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[66]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5452,7 +5763,7 @@ func (x *GetSummaryResponse) String() string {
 func (*GetSummaryResponse) ProtoMessage() {}
 
 func (x *GetSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[62]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[66]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5465,7 +5776,7 @@ func (x *GetSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSummaryResponse.ProtoReflect.Descriptor instead.
 func (*GetSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{62}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *GetSummaryResponse) GetItem() []*SummaryItem {
@@ -5487,7 +5798,7 @@ type GetSystemMetricsRequest struct {
 func (x *GetSystemMetricsRequest) Reset() {
 	*x = GetSystemMetricsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[63]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5500,7 +5811,7 @@ func (x *GetSystemMetricsRequest) String() string {
 func (*GetSystemMetricsRequest) ProtoMessage() {}
 
 func (x *GetSystemMetricsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[63]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5513,7 +5824,7 @@ func (x *GetSystemMetricsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemMetricsRequest.ProtoReflect.Descriptor instead.
 func (*GetSystemMetricsRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{63}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *GetSystemMetricsRequest) GetXInfo() *XRequestInfo {
@@ -5535,7 +5846,7 @@ type SystemMetricSample struct {
 func (x *SystemMetricSample) Reset() {
 	*x = SystemMetricSample{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[64]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5548,7 +5859,7 @@ func (x *SystemMetricSample) String() string {
 func (*SystemMetricSample) ProtoMessage() {}
 
 func (x *SystemMetricSample) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[64]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5561,7 +5872,7 @@ func (x *SystemMetricSample) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemMetricSample.ProtoReflect.Descriptor instead.
 func (*SystemMetricSample) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{64}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *SystemMetricSample) GetTimestamp() *timestamppb.Timestamp {
@@ -5589,7 +5900,7 @@ type SystemMetricsBuffer struct {
 func (x *SystemMetricsBuffer) Reset() {
 	*x = SystemMetricsBuffer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[65]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[69]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5602,7 +5913,7 @@ func (x *SystemMetricsBuffer) String() string {
 func (*SystemMetricsBuffer) ProtoMessage() {}
 
 func (x *SystemMetricsBuffer) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[65]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[69]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5615,7 +5926,7 @@ func (x *SystemMetricsBuffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemMetricsBuffer.ProtoReflect.Descriptor instead.
 func (*SystemMetricsBuffer) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{65}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *SystemMetricsBuffer) GetRecord() []*SystemMetricSample {
@@ -5636,7 +5947,7 @@ type GetSystemMetricsResponse struct {
 func (x *GetSystemMetricsResponse) Reset() {
 	*x = GetSystemMetricsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[66]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[70]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5649,7 +5960,7 @@ func (x *GetSystemMetricsResponse) String() string {
 func (*GetSystemMetricsResponse) ProtoMessage() {}
 
 func (x *GetSystemMetricsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[66]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[70]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5662,7 +5973,7 @@ func (x *GetSystemMetricsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemMetricsResponse.ProtoReflect.Descriptor instead.
 func (*GetSystemMetricsResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{66}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *GetSystemMetricsResponse) GetSystemMetrics() map[string]*SystemMetricsBuffer {
@@ -5684,7 +5995,7 @@ type StatusRequest struct {
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[67]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[71]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5697,7 +6008,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[67]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[71]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5710,7 +6021,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{67}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *StatusRequest) GetXInfo() *XRequestInfo {
@@ -5731,7 +6042,7 @@ type StatusResponse struct {
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[68]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[72]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5744,7 +6055,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[68]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[72]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5757,7 +6068,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{68}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *StatusResponse) GetRunShouldStop() bool {
@@ -5778,7 +6089,7 @@ type StopStatusRequest struct {
 func (x *StopStatusRequest) Reset() {
 	*x = StopStatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[69]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[73]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5791,7 +6102,7 @@ func (x *StopStatusRequest) String() string {
 func (*StopStatusRequest) ProtoMessage() {}
 
 func (x *StopStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[69]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[73]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5804,7 +6115,7 @@ func (x *StopStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopStatusRequest.ProtoReflect.Descriptor instead.
 func (*StopStatusRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{69}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *StopStatusRequest) GetXInfo() *XRequestInfo {
@@ -5825,7 +6136,7 @@ type StopStatusResponse struct {
 func (x *StopStatusResponse) Reset() {
 	*x = StopStatusResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[70]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[74]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5838,7 +6149,7 @@ func (x *StopStatusResponse) String() string {
 func (*StopStatusResponse) ProtoMessage() {}
 
 func (x *StopStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[70]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[74]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5851,7 +6162,7 @@ func (x *StopStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopStatusResponse.ProtoReflect.Descriptor instead.
 func (*StopStatusResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{70}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *StopStatusResponse) GetRunShouldStop() bool {
@@ -5872,7 +6183,7 @@ type NetworkStatusRequest struct {
 func (x *NetworkStatusRequest) Reset() {
 	*x = NetworkStatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[71]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[75]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5885,7 +6196,7 @@ func (x *NetworkStatusRequest) String() string {
 func (*NetworkStatusRequest) ProtoMessage() {}
 
 func (x *NetworkStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[71]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[75]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5898,7 +6209,7 @@ func (x *NetworkStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkStatusRequest.ProtoReflect.Descriptor instead.
 func (*NetworkStatusRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{71}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *NetworkStatusRequest) GetXInfo() *XRequestInfo {
@@ -5919,7 +6230,7 @@ type NetworkStatusResponse struct {
 func (x *NetworkStatusResponse) Reset() {
 	*x = NetworkStatusResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[72]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[76]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5932,7 +6243,7 @@ func (x *NetworkStatusResponse) String() string {
 func (*NetworkStatusResponse) ProtoMessage() {}
 
 func (x *NetworkStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[72]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[76]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5945,7 +6256,7 @@ func (x *NetworkStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkStatusResponse.ProtoReflect.Descriptor instead.
 func (*NetworkStatusResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{72}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *NetworkStatusResponse) GetNetworkResponses() []*HttpResponse {
@@ -5967,7 +6278,7 @@ type HttpResponse struct {
 func (x *HttpResponse) Reset() {
 	*x = HttpResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[73]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[77]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5980,7 +6291,7 @@ func (x *HttpResponse) String() string {
 func (*HttpResponse) ProtoMessage() {}
 
 func (x *HttpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[73]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[77]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5993,7 +6304,7 @@ func (x *HttpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpResponse.ProtoReflect.Descriptor instead.
 func (*HttpResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{73}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *HttpResponse) GetHttpStatusCode() int32 {
@@ -6022,7 +6333,7 @@ type InternalMessagesRequest struct {
 func (x *InternalMessagesRequest) Reset() {
 	*x = InternalMessagesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[74]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[78]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6035,7 +6346,7 @@ func (x *InternalMessagesRequest) String() string {
 func (*InternalMessagesRequest) ProtoMessage() {}
 
 func (x *InternalMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[74]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[78]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6048,7 +6359,7 @@ func (x *InternalMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InternalMessagesRequest.ProtoReflect.Descriptor instead.
 func (*InternalMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{74}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *InternalMessagesRequest) GetXInfo() *XRequestInfo {
@@ -6069,7 +6380,7 @@ type InternalMessagesResponse struct {
 func (x *InternalMessagesResponse) Reset() {
 	*x = InternalMessagesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[75]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[79]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6082,7 +6393,7 @@ func (x *InternalMessagesResponse) String() string {
 func (*InternalMessagesResponse) ProtoMessage() {}
 
 func (x *InternalMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[75]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[79]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6095,7 +6406,7 @@ func (x *InternalMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InternalMessagesResponse.ProtoReflect.Descriptor instead.
 func (*InternalMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{75}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *InternalMessagesResponse) GetMessages() *InternalMessages {
@@ -6116,7 +6427,7 @@ type InternalMessages struct {
 func (x *InternalMessages) Reset() {
 	*x = InternalMessages{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[76]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[80]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6129,7 +6440,7 @@ func (x *InternalMessages) String() string {
 func (*InternalMessages) ProtoMessage() {}
 
 func (x *InternalMessages) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[76]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[80]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6142,7 +6453,7 @@ func (x *InternalMessages) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InternalMessages.ProtoReflect.Descriptor instead.
 func (*InternalMessages) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{76}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *InternalMessages) GetWarning() []string {
@@ -6164,7 +6475,7 @@ type PollExitRequest struct {
 func (x *PollExitRequest) Reset() {
 	*x = PollExitRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[77]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[81]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6177,7 +6488,7 @@ func (x *PollExitRequest) String() string {
 func (*PollExitRequest) ProtoMessage() {}
 
 func (x *PollExitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[77]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[81]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6190,7 +6501,7 @@ func (x *PollExitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollExitRequest.ProtoReflect.Descriptor instead.
 func (*PollExitRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{77}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *PollExitRequest) GetXInfo() *XRequestInfo {
@@ -6214,7 +6525,7 @@ type PollExitResponse struct {
 func (x *PollExitResponse) Reset() {
 	*x = PollExitResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[78]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[82]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6227,7 +6538,7 @@ func (x *PollExitResponse) String() string {
 func (*PollExitResponse) ProtoMessage() {}
 
 func (x *PollExitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[78]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[82]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6240,7 +6551,7 @@ func (x *PollExitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollExitResponse.ProtoReflect.Descriptor instead.
 func (*PollExitResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{78}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *PollExitResponse) GetDone() bool {
@@ -6281,7 +6592,7 @@ type SenderMarkRequest struct {
 func (x *SenderMarkRequest) Reset() {
 	*x = SenderMarkRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[79]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[83]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6294,7 +6605,7 @@ func (x *SenderMarkRequest) String() string {
 func (*SenderMarkRequest) ProtoMessage() {}
 
 func (x *SenderMarkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[79]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[83]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6307,7 +6618,7 @@ func (x *SenderMarkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SenderMarkRequest.ProtoReflect.Descriptor instead.
 func (*SenderMarkRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{79}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{83}
 }
 
 type SenderReadRequest struct {
@@ -6322,7 +6633,7 @@ type SenderReadRequest struct {
 func (x *SenderReadRequest) Reset() {
 	*x = SenderReadRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[80]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[84]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6335,7 +6646,7 @@ func (x *SenderReadRequest) String() string {
 func (*SenderReadRequest) ProtoMessage() {}
 
 func (x *SenderReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[80]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[84]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6348,7 +6659,7 @@ func (x *SenderReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SenderReadRequest.ProtoReflect.Descriptor instead.
 func (*SenderReadRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{80}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *SenderReadRequest) GetStartOffset() int64 {
@@ -6378,7 +6689,7 @@ type StatusReportRequest struct {
 func (x *StatusReportRequest) Reset() {
 	*x = StatusReportRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[81]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[85]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6391,7 +6702,7 @@ func (x *StatusReportRequest) String() string {
 func (*StatusReportRequest) ProtoMessage() {}
 
 func (x *StatusReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[81]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[85]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6404,7 +6715,7 @@ func (x *StatusReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusReportRequest.ProtoReflect.Descriptor instead.
 func (*StatusReportRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{81}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *StatusReportRequest) GetRecordNum() int64 {
@@ -6440,7 +6751,7 @@ type SummaryRecordRequest struct {
 func (x *SummaryRecordRequest) Reset() {
 	*x = SummaryRecordRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[82]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[86]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6453,7 +6764,7 @@ func (x *SummaryRecordRequest) String() string {
 func (*SummaryRecordRequest) ProtoMessage() {}
 
 func (x *SummaryRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[82]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[86]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6466,7 +6777,7 @@ func (x *SummaryRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummaryRecordRequest.ProtoReflect.Descriptor instead.
 func (*SummaryRecordRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{82}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *SummaryRecordRequest) GetSummary() *SummaryRecord {
@@ -6487,7 +6798,7 @@ type TelemetryRecordRequest struct {
 func (x *TelemetryRecordRequest) Reset() {
 	*x = TelemetryRecordRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[83]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[87]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6500,7 +6811,7 @@ func (x *TelemetryRecordRequest) String() string {
 func (*TelemetryRecordRequest) ProtoMessage() {}
 
 func (x *TelemetryRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[83]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[87]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6513,7 +6824,7 @@ func (x *TelemetryRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelemetryRecordRequest.ProtoReflect.Descriptor instead.
 func (*TelemetryRecordRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{83}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *TelemetryRecordRequest) GetTelemetry() *TelemetryRecord {
@@ -6535,7 +6846,7 @@ type ServerInfoRequest struct {
 func (x *ServerInfoRequest) Reset() {
 	*x = ServerInfoRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[84]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[88]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6548,7 +6859,7 @@ func (x *ServerInfoRequest) String() string {
 func (*ServerInfoRequest) ProtoMessage() {}
 
 func (x *ServerInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[84]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[88]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6561,7 +6872,7 @@ func (x *ServerInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInfoRequest.ProtoReflect.Descriptor instead.
 func (*ServerInfoRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{84}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *ServerInfoRequest) GetXInfo() *XRequestInfo {
@@ -6583,7 +6894,7 @@ type ServerInfoResponse struct {
 func (x *ServerInfoResponse) Reset() {
 	*x = ServerInfoResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[85]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[89]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6596,7 +6907,7 @@ func (x *ServerInfoResponse) String() string {
 func (*ServerInfoResponse) ProtoMessage() {}
 
 func (x *ServerInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[85]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[89]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6609,7 +6920,7 @@ func (x *ServerInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInfoResponse.ProtoReflect.Descriptor instead.
 func (*ServerInfoResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{85}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *ServerInfoResponse) GetLocalInfo() *LocalInfo {
@@ -6637,7 +6948,7 @@ type ServerMessages struct {
 func (x *ServerMessages) Reset() {
 	*x = ServerMessages{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[86]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[90]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6650,7 +6961,7 @@ func (x *ServerMessages) String() string {
 func (*ServerMessages) ProtoMessage() {}
 
 func (x *ServerMessages) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[86]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[90]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6663,7 +6974,7 @@ func (x *ServerMessages) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessages.ProtoReflect.Descriptor instead.
 func (*ServerMessages) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{86}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ServerMessages) GetItem() []*ServerMessage {
@@ -6688,7 +6999,7 @@ type ServerMessage struct {
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[87]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[91]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6701,7 +7012,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[87]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[91]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6714,7 +7025,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{87}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *ServerMessage) GetPlainText() string {
@@ -6766,7 +7077,7 @@ type FileCounts struct {
 func (x *FileCounts) Reset() {
 	*x = FileCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[88]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[92]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6779,7 +7090,7 @@ func (x *FileCounts) String() string {
 func (*FileCounts) ProtoMessage() {}
 
 func (x *FileCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[88]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[92]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6792,7 +7103,7 @@ func (x *FileCounts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileCounts.ProtoReflect.Descriptor instead.
 func (*FileCounts) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{88}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *FileCounts) GetWandbCount() int32 {
@@ -6836,7 +7147,7 @@ type FilePusherStats struct {
 func (x *FilePusherStats) Reset() {
 	*x = FilePusherStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[89]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[93]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6849,7 +7160,7 @@ func (x *FilePusherStats) String() string {
 func (*FilePusherStats) ProtoMessage() {}
 
 func (x *FilePusherStats) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[89]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[93]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6862,7 +7173,7 @@ func (x *FilePusherStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilePusherStats.ProtoReflect.Descriptor instead.
 func (*FilePusherStats) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{89}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *FilePusherStats) GetUploadedBytes() int64 {
@@ -6897,7 +7208,7 @@ type FilesUploaded struct {
 func (x *FilesUploaded) Reset() {
 	*x = FilesUploaded{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[90]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[94]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6910,7 +7221,7 @@ func (x *FilesUploaded) String() string {
 func (*FilesUploaded) ProtoMessage() {}
 
 func (x *FilesUploaded) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[90]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[94]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6923,7 +7234,7 @@ func (x *FilesUploaded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesUploaded.ProtoReflect.Descriptor instead.
 func (*FilesUploaded) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{90}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *FilesUploaded) GetFiles() []string {
@@ -6949,7 +7260,7 @@ type FileTransferInfoRequest struct {
 func (x *FileTransferInfoRequest) Reset() {
 	*x = FileTransferInfoRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[91]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[95]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6962,7 +7273,7 @@ func (x *FileTransferInfoRequest) String() string {
 func (*FileTransferInfoRequest) ProtoMessage() {}
 
 func (x *FileTransferInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[91]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[95]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6975,7 +7286,7 @@ func (x *FileTransferInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileTransferInfoRequest.ProtoReflect.Descriptor instead.
 func (*FileTransferInfoRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{91}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *FileTransferInfoRequest) GetType() FileTransferInfoRequest_TransferType {
@@ -7032,7 +7343,7 @@ type LocalInfo struct {
 func (x *LocalInfo) Reset() {
 	*x = LocalInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[92]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[96]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7045,7 +7356,7 @@ func (x *LocalInfo) String() string {
 func (*LocalInfo) ProtoMessage() {}
 
 func (x *LocalInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[92]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[96]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7058,7 +7369,7 @@ func (x *LocalInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocalInfo.ProtoReflect.Descriptor instead.
 func (*LocalInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{92}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *LocalInfo) GetVersion() string {
@@ -7087,7 +7398,7 @@ type ShutdownRequest struct {
 func (x *ShutdownRequest) Reset() {
 	*x = ShutdownRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[93]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[97]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7100,7 +7411,7 @@ func (x *ShutdownRequest) String() string {
 func (*ShutdownRequest) ProtoMessage() {}
 
 func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[93]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[97]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7113,7 +7424,7 @@ func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownRequest.ProtoReflect.Descriptor instead.
 func (*ShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{93}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *ShutdownRequest) GetXInfo() *XRequestInfo {
@@ -7132,7 +7443,7 @@ type ShutdownResponse struct {
 func (x *ShutdownResponse) Reset() {
 	*x = ShutdownResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[94]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[98]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7145,7 +7456,7 @@ func (x *ShutdownResponse) String() string {
 func (*ShutdownResponse) ProtoMessage() {}
 
 func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[94]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[98]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7158,7 +7469,7 @@ func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownResponse.ProtoReflect.Descriptor instead.
 func (*ShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{94}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{98}
 }
 
 // AttachRequest:
@@ -7174,7 +7485,7 @@ type AttachRequest struct {
 func (x *AttachRequest) Reset() {
 	*x = AttachRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[95]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[99]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7187,7 +7498,7 @@ func (x *AttachRequest) String() string {
 func (*AttachRequest) ProtoMessage() {}
 
 func (x *AttachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[95]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[99]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7200,7 +7511,7 @@ func (x *AttachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachRequest.ProtoReflect.Descriptor instead.
 func (*AttachRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{95}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *AttachRequest) GetAttachId() string {
@@ -7229,7 +7540,7 @@ type AttachResponse struct {
 func (x *AttachResponse) Reset() {
 	*x = AttachResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[96]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[100]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7242,7 +7553,7 @@ func (x *AttachResponse) String() string {
 func (*AttachResponse) ProtoMessage() {}
 
 func (x *AttachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[96]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[100]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7255,7 +7566,7 @@ func (x *AttachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachResponse.ProtoReflect.Descriptor instead.
 func (*AttachResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{96}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *AttachResponse) GetRun() *RunRecord {
@@ -7298,7 +7609,7 @@ type TestInjectRequest struct {
 func (x *TestInjectRequest) Reset() {
 	*x = TestInjectRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[97]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[101]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7311,7 +7622,7 @@ func (x *TestInjectRequest) String() string {
 func (*TestInjectRequest) ProtoMessage() {}
 
 func (x *TestInjectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[97]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[101]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7324,7 +7635,7 @@ func (x *TestInjectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestInjectRequest.ProtoReflect.Descriptor instead.
 func (*TestInjectRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{97}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *TestInjectRequest) GetHandlerExc() bool {
@@ -7441,7 +7752,7 @@ type TestInjectResponse struct {
 func (x *TestInjectResponse) Reset() {
 	*x = TestInjectResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[98]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[102]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7454,7 +7765,7 @@ func (x *TestInjectResponse) String() string {
 func (*TestInjectResponse) ProtoMessage() {}
 
 func (x *TestInjectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[98]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[102]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7467,7 +7778,7 @@ func (x *TestInjectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TestInjectResponse.ProtoReflect.Descriptor instead.
 func (*TestInjectResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{98}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{102}
 }
 
 // PartialHistoryRequest:
@@ -7482,7 +7793,7 @@ type HistoryAction struct {
 func (x *HistoryAction) Reset() {
 	*x = HistoryAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[99]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[103]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7495,7 +7806,7 @@ func (x *HistoryAction) String() string {
 func (*HistoryAction) ProtoMessage() {}
 
 func (x *HistoryAction) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[99]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[103]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7508,7 +7819,7 @@ func (x *HistoryAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryAction.ProtoReflect.Descriptor instead.
 func (*HistoryAction) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{99}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *HistoryAction) GetFlush() bool {
@@ -7532,7 +7843,7 @@ type PartialHistoryRequest struct {
 func (x *PartialHistoryRequest) Reset() {
 	*x = PartialHistoryRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[100]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[104]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7545,7 +7856,7 @@ func (x *PartialHistoryRequest) String() string {
 func (*PartialHistoryRequest) ProtoMessage() {}
 
 func (x *PartialHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[100]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[104]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7558,7 +7869,7 @@ func (x *PartialHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartialHistoryRequest.ProtoReflect.Descriptor instead.
 func (*PartialHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{100}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *PartialHistoryRequest) GetItem() []*HistoryItem {
@@ -7598,7 +7909,7 @@ type PartialHistoryResponse struct {
 func (x *PartialHistoryResponse) Reset() {
 	*x = PartialHistoryResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[101]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[105]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7611,7 +7922,7 @@ func (x *PartialHistoryResponse) String() string {
 func (*PartialHistoryResponse) ProtoMessage() {}
 
 func (x *PartialHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[101]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[105]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7624,7 +7935,7 @@ func (x *PartialHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartialHistoryResponse.ProtoReflect.Descriptor instead.
 func (*PartialHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{101}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{105}
 }
 
 // SampledHistoryRequest:
@@ -7639,7 +7950,7 @@ type SampledHistoryRequest struct {
 func (x *SampledHistoryRequest) Reset() {
 	*x = SampledHistoryRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[102]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[106]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7652,7 +7963,7 @@ func (x *SampledHistoryRequest) String() string {
 func (*SampledHistoryRequest) ProtoMessage() {}
 
 func (x *SampledHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[102]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[106]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7665,7 +7976,7 @@ func (x *SampledHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SampledHistoryRequest.ProtoReflect.Descriptor instead.
 func (*SampledHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{102}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *SampledHistoryRequest) GetXInfo() *XRequestInfo {
@@ -7689,7 +8000,7 @@ type SampledHistoryItem struct {
 func (x *SampledHistoryItem) Reset() {
 	*x = SampledHistoryItem{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[103]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[107]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7702,7 +8013,7 @@ func (x *SampledHistoryItem) String() string {
 func (*SampledHistoryItem) ProtoMessage() {}
 
 func (x *SampledHistoryItem) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[103]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[107]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7715,7 +8026,7 @@ func (x *SampledHistoryItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SampledHistoryItem.ProtoReflect.Descriptor instead.
 func (*SampledHistoryItem) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{103}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SampledHistoryItem) GetKey() string {
@@ -7757,7 +8068,7 @@ type SampledHistoryResponse struct {
 func (x *SampledHistoryResponse) Reset() {
 	*x = SampledHistoryResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[104]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[108]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7770,7 +8081,7 @@ func (x *SampledHistoryResponse) String() string {
 func (*SampledHistoryResponse) ProtoMessage() {}
 
 func (x *SampledHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[104]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[108]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7783,7 +8094,7 @@ func (x *SampledHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SampledHistoryResponse.ProtoReflect.Descriptor instead.
 func (*SampledHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{104}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *SampledHistoryResponse) GetItem() []*SampledHistoryItem {
@@ -7805,7 +8116,7 @@ type RunStatusRequest struct {
 func (x *RunStatusRequest) Reset() {
 	*x = RunStatusRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[105]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[109]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7818,7 +8129,7 @@ func (x *RunStatusRequest) String() string {
 func (*RunStatusRequest) ProtoMessage() {}
 
 func (x *RunStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[105]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[109]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7831,7 +8142,7 @@ func (x *RunStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunStatusRequest.ProtoReflect.Descriptor instead.
 func (*RunStatusRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{105}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *RunStatusRequest) GetXInfo() *XRequestInfo {
@@ -7854,7 +8165,7 @@ type RunStatusResponse struct {
 func (x *RunStatusResponse) Reset() {
 	*x = RunStatusResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[106]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[110]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7867,7 +8178,7 @@ func (x *RunStatusResponse) String() string {
 func (*RunStatusResponse) ProtoMessage() {}
 
 func (x *RunStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[106]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[110]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7880,7 +8191,7 @@ func (x *RunStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunStatusResponse.ProtoReflect.Descriptor instead.
 func (*RunStatusResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{106}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *RunStatusResponse) GetSyncItemsTotal() int64 {
@@ -7917,7 +8228,7 @@ type RunStartRequest struct {
 func (x *RunStartRequest) Reset() {
 	*x = RunStartRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[107]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[111]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7930,7 +8241,7 @@ func (x *RunStartRequest) String() string {
 func (*RunStartRequest) ProtoMessage() {}
 
 func (x *RunStartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[107]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[111]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7943,7 +8254,7 @@ func (x *RunStartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunStartRequest.ProtoReflect.Descriptor instead.
 func (*RunStartRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{107}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *RunStartRequest) GetRun() *RunRecord {
@@ -7969,7 +8280,7 @@ type RunStartResponse struct {
 func (x *RunStartResponse) Reset() {
 	*x = RunStartResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[108]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[112]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -7982,7 +8293,7 @@ func (x *RunStartResponse) String() string {
 func (*RunStartResponse) ProtoMessage() {}
 
 func (x *RunStartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[108]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[112]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7995,7 +8306,7 @@ func (x *RunStartResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunStartResponse.ProtoReflect.Descriptor instead.
 func (*RunStartResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{108}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{112}
 }
 
 // CheckVersion:
@@ -8011,7 +8322,7 @@ type CheckVersionRequest struct {
 func (x *CheckVersionRequest) Reset() {
 	*x = CheckVersionRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[109]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[113]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8024,7 +8335,7 @@ func (x *CheckVersionRequest) String() string {
 func (*CheckVersionRequest) ProtoMessage() {}
 
 func (x *CheckVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[109]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[113]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8037,7 +8348,7 @@ func (x *CheckVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckVersionRequest.ProtoReflect.Descriptor instead.
 func (*CheckVersionRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{109}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *CheckVersionRequest) GetCurrentVersion() string {
@@ -8067,7 +8378,7 @@ type CheckVersionResponse struct {
 func (x *CheckVersionResponse) Reset() {
 	*x = CheckVersionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[110]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[114]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8080,7 +8391,7 @@ func (x *CheckVersionResponse) String() string {
 func (*CheckVersionResponse) ProtoMessage() {}
 
 func (x *CheckVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[110]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[114]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8093,7 +8404,7 @@ func (x *CheckVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckVersionResponse.ProtoReflect.Descriptor instead.
 func (*CheckVersionResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{110}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *CheckVersionResponse) GetUpgradeMessage() string {
@@ -8129,7 +8440,7 @@ type JobInfoRequest struct {
 func (x *JobInfoRequest) Reset() {
 	*x = JobInfoRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[111]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[115]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8142,7 +8453,7 @@ func (x *JobInfoRequest) String() string {
 func (*JobInfoRequest) ProtoMessage() {}
 
 func (x *JobInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[111]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[115]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8155,7 +8466,7 @@ func (x *JobInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInfoRequest.ProtoReflect.Descriptor instead.
 func (*JobInfoRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{111}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *JobInfoRequest) GetXInfo() *XRequestInfo {
@@ -8177,7 +8488,7 @@ type JobInfoResponse struct {
 func (x *JobInfoResponse) Reset() {
 	*x = JobInfoResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[112]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[116]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8190,7 +8501,7 @@ func (x *JobInfoResponse) String() string {
 func (*JobInfoResponse) ProtoMessage() {}
 
 func (x *JobInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[112]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[116]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8203,7 +8514,7 @@ func (x *JobInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobInfoResponse.ProtoReflect.Descriptor instead.
 func (*JobInfoResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{112}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *JobInfoResponse) GetSequenceId() string {
@@ -8235,7 +8546,7 @@ type LogArtifactRequest struct {
 func (x *LogArtifactRequest) Reset() {
 	*x = LogArtifactRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[113]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[117]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8248,7 +8559,7 @@ func (x *LogArtifactRequest) String() string {
 func (*LogArtifactRequest) ProtoMessage() {}
 
 func (x *LogArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[113]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[117]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8261,7 +8572,7 @@ func (x *LogArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogArtifactRequest.ProtoReflect.Descriptor instead.
 func (*LogArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{113}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *LogArtifactRequest) GetArtifact() *ArtifactRecord {
@@ -8304,7 +8615,7 @@ type LogArtifactResponse struct {
 func (x *LogArtifactResponse) Reset() {
 	*x = LogArtifactResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[114]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8317,7 +8628,7 @@ func (x *LogArtifactResponse) String() string {
 func (*LogArtifactResponse) ProtoMessage() {}
 
 func (x *LogArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[114]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8330,7 +8641,7 @@ func (x *LogArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogArtifactResponse.ProtoReflect.Descriptor instead.
 func (*LogArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{114}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *LogArtifactResponse) GetArtifactId() string {
@@ -8362,7 +8673,7 @@ type DownloadArtifactRequest struct {
 func (x *DownloadArtifactRequest) Reset() {
 	*x = DownloadArtifactRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[115]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8375,7 +8686,7 @@ func (x *DownloadArtifactRequest) String() string {
 func (*DownloadArtifactRequest) ProtoMessage() {}
 
 func (x *DownloadArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[115]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8388,7 +8699,7 @@ func (x *DownloadArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadArtifactRequest.ProtoReflect.Descriptor instead.
 func (*DownloadArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{115}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *DownloadArtifactRequest) GetArtifactId() string {
@@ -8430,7 +8741,7 @@ type DownloadArtifactResponse struct {
 func (x *DownloadArtifactResponse) Reset() {
 	*x = DownloadArtifactResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[116]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8443,7 +8754,7 @@ func (x *DownloadArtifactResponse) String() string {
 func (*DownloadArtifactResponse) ProtoMessage() {}
 
 func (x *DownloadArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[116]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8456,7 +8767,7 @@ func (x *DownloadArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadArtifactResponse.ProtoReflect.Descriptor instead.
 func (*DownloadArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{116}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *DownloadArtifactResponse) GetErrorMessage() string {
@@ -8478,7 +8789,7 @@ type KeepaliveRequest struct {
 func (x *KeepaliveRequest) Reset() {
 	*x = KeepaliveRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[117]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8491,7 +8802,7 @@ func (x *KeepaliveRequest) String() string {
 func (*KeepaliveRequest) ProtoMessage() {}
 
 func (x *KeepaliveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[117]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8504,7 +8815,7 @@ func (x *KeepaliveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeepaliveRequest.ProtoReflect.Descriptor instead.
 func (*KeepaliveRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{117}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *KeepaliveRequest) GetXInfo() *XRequestInfo {
@@ -8523,7 +8834,7 @@ type KeepaliveResponse struct {
 func (x *KeepaliveResponse) Reset() {
 	*x = KeepaliveResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8536,7 +8847,7 @@ func (x *KeepaliveResponse) String() string {
 func (*KeepaliveResponse) ProtoMessage() {}
 
 func (x *KeepaliveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[118]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8549,7 +8860,7 @@ func (x *KeepaliveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KeepaliveResponse.ProtoReflect.Descriptor instead.
 func (*KeepaliveResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{118}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{122}
 }
 
 // Job info specific for Partial -> Job upgrade
@@ -8566,7 +8877,7 @@ type ArtifactInfo struct {
 func (x *ArtifactInfo) Reset() {
 	*x = ArtifactInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8579,7 +8890,7 @@ func (x *ArtifactInfo) String() string {
 func (*ArtifactInfo) ProtoMessage() {}
 
 func (x *ArtifactInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[119]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8592,7 +8903,7 @@ func (x *ArtifactInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ArtifactInfo.ProtoReflect.Descriptor instead.
 func (*ArtifactInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{119}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *ArtifactInfo) GetArtifact() string {
@@ -8628,7 +8939,7 @@ type GitInfo struct {
 func (x *GitInfo) Reset() {
 	*x = GitInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8641,7 +8952,7 @@ func (x *GitInfo) String() string {
 func (*GitInfo) ProtoMessage() {}
 
 func (x *GitInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[120]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8654,7 +8965,7 @@ func (x *GitInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitInfo.ProtoReflect.Descriptor instead.
 func (*GitInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{120}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *GitInfo) GetRemote() string {
@@ -8684,7 +8995,7 @@ type GitSource struct {
 func (x *GitSource) Reset() {
 	*x = GitSource{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8697,7 +9008,7 @@ func (x *GitSource) String() string {
 func (*GitSource) ProtoMessage() {}
 
 func (x *GitSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[121]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8710,7 +9021,7 @@ func (x *GitSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitSource.ProtoReflect.Descriptor instead.
 func (*GitSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{121}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *GitSource) GetGitInfo() *GitInfo {
@@ -8745,7 +9056,7 @@ type ImageSource struct {
 func (x *ImageSource) Reset() {
 	*x = ImageSource{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8758,7 +9069,7 @@ func (x *ImageSource) String() string {
 func (*ImageSource) ProtoMessage() {}
 
 func (x *ImageSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[122]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8771,7 +9082,7 @@ func (x *ImageSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageSource.ProtoReflect.Descriptor instead.
 func (*ImageSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{122}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *ImageSource) GetImage() string {
@@ -8794,7 +9105,7 @@ type Source struct {
 func (x *Source) Reset() {
 	*x = Source{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8807,7 +9118,7 @@ func (x *Source) String() string {
 func (*Source) ProtoMessage() {}
 
 func (x *Source) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[123]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8820,7 +9131,7 @@ func (x *Source) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Source.ProtoReflect.Descriptor instead.
 func (*Source) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{123}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *Source) GetGit() *GitSource {
@@ -8859,7 +9170,7 @@ type JobSource struct {
 func (x *JobSource) Reset() {
 	*x = JobSource{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8872,7 +9183,7 @@ func (x *JobSource) String() string {
 func (*JobSource) ProtoMessage() {}
 
 func (x *JobSource) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[124]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8885,7 +9196,7 @@ func (x *JobSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobSource.ProtoReflect.Descriptor instead.
 func (*JobSource) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{124}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *JobSource) GetXVersion() string {
@@ -8928,7 +9239,7 @@ type PartialJobArtifact struct {
 func (x *PartialJobArtifact) Reset() {
 	*x = PartialJobArtifact{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -8941,7 +9252,7 @@ func (x *PartialJobArtifact) String() string {
 func (*PartialJobArtifact) ProtoMessage() {}
 
 func (x *PartialJobArtifact) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[125]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8954,7 +9265,7 @@ func (x *PartialJobArtifact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PartialJobArtifact.ProtoReflect.Descriptor instead.
 func (*PartialJobArtifact) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{125}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *PartialJobArtifact) GetJobName() string {
@@ -8987,7 +9298,7 @@ type UseArtifactRecord struct {
 func (x *UseArtifactRecord) Reset() {
 	*x = UseArtifactRecord{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9000,7 +9311,7 @@ func (x *UseArtifactRecord) String() string {
 func (*UseArtifactRecord) ProtoMessage() {}
 
 func (x *UseArtifactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[126]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9013,7 +9324,7 @@ func (x *UseArtifactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseArtifactRecord.ProtoReflect.Descriptor instead.
 func (*UseArtifactRecord) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{126}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *UseArtifactRecord) GetId() string {
@@ -9060,7 +9371,7 @@ type UseArtifactResult struct {
 func (x *UseArtifactResult) Reset() {
 	*x = UseArtifactResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9073,7 +9384,7 @@ func (x *UseArtifactResult) String() string {
 func (*UseArtifactResult) ProtoMessage() {}
 
 func (x *UseArtifactResult) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[127]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9086,7 +9397,7 @@ func (x *UseArtifactResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UseArtifactResult.ProtoReflect.Descriptor instead.
 func (*UseArtifactResult) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{127}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{131}
 }
 
 // Cancel:
@@ -9102,7 +9413,7 @@ type CancelRequest struct {
 func (x *CancelRequest) Reset() {
 	*x = CancelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9115,7 +9426,7 @@ func (x *CancelRequest) String() string {
 func (*CancelRequest) ProtoMessage() {}
 
 func (x *CancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[128]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9128,7 +9439,7 @@ func (x *CancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRequest.ProtoReflect.Descriptor instead.
 func (*CancelRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{128}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *CancelRequest) GetCancelSlot() string {
@@ -9154,7 +9465,7 @@ type CancelResponse struct {
 func (x *CancelResponse) Reset() {
 	*x = CancelResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9167,7 +9478,7 @@ func (x *CancelResponse) String() string {
 func (*CancelResponse) ProtoMessage() {}
 
 func (x *CancelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[129]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9180,7 +9491,7 @@ func (x *CancelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelResponse.ProtoReflect.Descriptor instead.
 func (*CancelResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{129}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{133}
 }
 
 // MetadataRequest
@@ -9196,7 +9507,7 @@ type DiskInfo struct {
 func (x *DiskInfo) Reset() {
 	*x = DiskInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9209,7 +9520,7 @@ func (x *DiskInfo) String() string {
 func (*DiskInfo) ProtoMessage() {}
 
 func (x *DiskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[130]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9222,7 +9533,7 @@ func (x *DiskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiskInfo.ProtoReflect.Descriptor instead.
 func (*DiskInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{130}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *DiskInfo) GetTotal() uint64 {
@@ -9250,7 +9561,7 @@ type MemoryInfo struct {
 func (x *MemoryInfo) Reset() {
 	*x = MemoryInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9263,7 +9574,7 @@ func (x *MemoryInfo) String() string {
 func (*MemoryInfo) ProtoMessage() {}
 
 func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[131]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9276,7 +9587,7 @@ func (x *MemoryInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryInfo.ProtoReflect.Descriptor instead.
 func (*MemoryInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{131}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *MemoryInfo) GetTotal() uint64 {
@@ -9298,7 +9609,7 @@ type CpuInfo struct {
 func (x *CpuInfo) Reset() {
 	*x = CpuInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9311,7 +9622,7 @@ func (x *CpuInfo) String() string {
 func (*CpuInfo) ProtoMessage() {}
 
 func (x *CpuInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[132]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[136]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9324,7 +9635,7 @@ func (x *CpuInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CpuInfo.ProtoReflect.Descriptor instead.
 func (*CpuInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{132}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *CpuInfo) GetCount() uint32 {
@@ -9353,7 +9664,7 @@ type GpuAppleInfo struct {
 func (x *GpuAppleInfo) Reset() {
 	*x = GpuAppleInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9366,7 +9677,7 @@ func (x *GpuAppleInfo) String() string {
 func (*GpuAppleInfo) ProtoMessage() {}
 
 func (x *GpuAppleInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[133]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[137]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9379,7 +9690,7 @@ func (x *GpuAppleInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GpuAppleInfo.ProtoReflect.Descriptor instead.
 func (*GpuAppleInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{133}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *GpuAppleInfo) GetGpuType() string {
@@ -9408,7 +9719,7 @@ type GpuNvidiaInfo struct {
 func (x *GpuNvidiaInfo) Reset() {
 	*x = GpuNvidiaInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9421,7 +9732,7 @@ func (x *GpuNvidiaInfo) String() string {
 func (*GpuNvidiaInfo) ProtoMessage() {}
 
 func (x *GpuNvidiaInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[134]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[138]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9434,7 +9745,7 @@ func (x *GpuNvidiaInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GpuNvidiaInfo.ProtoReflect.Descriptor instead.
 func (*GpuNvidiaInfo) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{134}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *GpuNvidiaInfo) GetName() string {
@@ -9488,7 +9799,7 @@ type MetadataRequest struct {
 func (x *MetadataRequest) Reset() {
 	*x = MetadataRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
+		mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -9501,7 +9812,7 @@ func (x *MetadataRequest) String() string {
 func (*MetadataRequest) ProtoMessage() {}
 
 func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[135]
+	mi := &file_wandb_proto_wandb_internal_proto_msgTypes[139]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9514,7 +9825,7 @@ func (x *MetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetadataRequest.ProtoReflect.Descriptor instead.
 func (*MetadataRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{135}
+	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *MetadataRequest) GetOs() string {
@@ -9718,7 +10029,7 @@ var file_wandb_proto_wandb_internal_proto_rawDesc = []byte{
 	0x2f, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x62, 0x61, 0x73, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
 	0x6f, 0x1a, 0x21, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x77,
 	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x74, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72, 0x79, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x22, 0xf1, 0x0a, 0x0a, 0x06, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12,
+	0x72, 0x6f, 0x74, 0x6f, 0x22, 0xfe, 0x0b, 0x0a, 0x06, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12,
 	0x10, 0x0a, 0x03, 0x6e, 0x75, 0x6d, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x03, 0x6e, 0x75,
 	0x6d, 0x12, 0x39, 0x0a, 0x07, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x02, 0x20, 0x01,
 	0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
@@ -9793,158 +10104,207 @@ var file_wandb_proto_wandb_internal_proto_rawDesc = []byte{
 	0x63, 0x74, 0x18, 0x19, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x21, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
 	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x55, 0x73, 0x65, 0x41, 0x72, 0x74,
 	0x69, 0x66, 0x61, 0x63, 0x74, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x48, 0x00, 0x52, 0x0b, 0x75,
-	0x73, 0x65, 0x41, 0x72, 0x74, 0x69, 0x66, 0x61, 0x63, 0x74, 0x12, 0x33, 0x0a, 0x07, 0x72, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x64, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x77, 0x61,
-	0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x48, 0x00, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12,
-	0x31, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0b,
-	0x32, 0x17, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
-	0x6c, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72,
-	0x6f, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18, 0x13, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18,
-	0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69,
-	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49,
-	0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x0d, 0x0a, 0x0b, 0x72, 0x65, 0x63,
-	0x6f, 0x72, 0x64, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x22, 0x80, 0x02, 0x0a, 0x07, 0x43, 0x6f, 0x6e,
-	0x74, 0x72, 0x6f, 0x6c, 0x12, 0x19, 0x0a, 0x08, 0x72, 0x65, 0x71, 0x5f, 0x72, 0x65, 0x73, 0x70,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x72, 0x65, 0x71, 0x52, 0x65, 0x73, 0x70, 0x12,
-	0x14, 0x0a, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05,
-	0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x12, 0x19, 0x0a, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x79, 0x5f, 0x69,
-	0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x72, 0x65, 0x6c, 0x61, 0x79, 0x49, 0x64,
-	0x12, 0x21, 0x0a, 0x0c, 0x6d, 0x61, 0x69, 0x6c, 0x62, 0x6f, 0x78, 0x5f, 0x73, 0x6c, 0x6f, 0x74,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x6d, 0x61, 0x69, 0x6c, 0x62, 0x6f, 0x78, 0x53,
-	0x6c, 0x6f, 0x74, 0x12, 0x1f, 0x0a, 0x0b, 0x61, 0x6c, 0x77, 0x61, 0x79, 0x73, 0x5f, 0x73, 0x65,
-	0x6e, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x61, 0x6c, 0x77, 0x61, 0x79, 0x73,
-	0x53, 0x65, 0x6e, 0x64, 0x12, 0x21, 0x0a, 0x0c, 0x66, 0x6c, 0x6f, 0x77, 0x5f, 0x63, 0x6f, 0x6e,
-	0x74, 0x72, 0x6f, 0x6c, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x66, 0x6c, 0x6f, 0x77,
-	0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x12, 0x1d, 0x0a, 0x0a, 0x65, 0x6e, 0x64, 0x5f, 0x6f,
-	0x66, 0x66, 0x73, 0x65, 0x74, 0x18, 0x07, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x65, 0x6e, 0x64,
-	0x4f, 0x66, 0x66, 0x73, 0x65, 0x74, 0x12, 0x23, 0x0a, 0x0d, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63,
-	0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x63,
-	0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x22, 0xdf, 0x04, 0x0a, 0x06,
-	0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x40, 0x0a, 0x0a, 0x72, 0x75, 0x6e, 0x5f, 0x72, 0x65,
-	0x73, 0x75, 0x6c, 0x74, 0x18, 0x11, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x77, 0x61, 0x6e,
-	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x55,
-	0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x09, 0x72,
-	0x75, 0x6e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x40, 0x0a, 0x0b, 0x65, 0x78, 0x69, 0x74,
-	0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x12, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e,
-	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52,
-	0x75, 0x6e, 0x45, 0x78, 0x69, 0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0a,
-	0x65, 0x78, 0x69, 0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x3e, 0x0a, 0x0a, 0x6c, 0x6f,
-	0x67, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x14, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d,
-	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
-	0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52,
-	0x09, 0x6c, 0x6f, 0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x46, 0x0a, 0x0e, 0x73, 0x75,
-	0x6d, 0x6d, 0x61, 0x72, 0x79, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x15, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c,
-	0x74, 0x48, 0x00, 0x52, 0x0d, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75,
-	0x6c, 0x74, 0x12, 0x43, 0x0a, 0x0d, 0x6f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x5f, 0x72, 0x65, 0x73,
-	0x75, 0x6c, 0x74, 0x18, 0x16, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77, 0x61, 0x6e, 0x64,
-	0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4f, 0x75, 0x74, 0x70, 0x75,
-	0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0c, 0x6f, 0x75, 0x74, 0x70, 0x75,
-	0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x43, 0x0a, 0x0d, 0x63, 0x6f, 0x6e, 0x66, 0x69,
-	0x67, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x17, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c,
-	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
-	0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0c,
-	0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x36, 0x0a, 0x08,
-	0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x64, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x18,
-	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x08, 0x72, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x31, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x18,
-	0x10, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e,
-	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x52, 0x07,
-	0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18,
-	0x18, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f,
-	0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61,
-	0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65,
-	0x73, 0x75, 0x6c, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x0d,
-	0x0a, 0x0b, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x22, 0x40, 0x0a,
-	0x0b, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x31, 0x0a, 0x05,
-	0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77,
-	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52,
-	0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22,
-	0x41, 0x0a, 0x0c, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12,
-	0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
-	0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e,
-	0x66, 0x6f, 0x22, 0x41, 0x0a, 0x0c, 0x46, 0x6f, 0x6f, 0x74, 0x65, 0x72, 0x52, 0x65, 0x63, 0x6f,
-	0x72, 0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52,
-	0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x89, 0x06, 0x0a, 0x09, 0x52, 0x75, 0x6e, 0x52, 0x65, 0x63,
-	0x6f, 0x72, 0x64, 0x12, 0x15, 0x0a, 0x06, 0x72, 0x75, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x05, 0x72, 0x75, 0x6e, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x65, 0x6e,
-	0x74, 0x69, 0x74, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x65, 0x6e, 0x74, 0x69,
-	0x74, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x18, 0x03, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x34, 0x0a, 0x06,
-	0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77,
-	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43, 0x6f,
-	0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66,
-	0x69, 0x67, 0x12, 0x37, 0x0a, 0x07, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x18, 0x05, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65,
-	0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x63, 0x6f,
-	0x72, 0x64, 0x52, 0x07, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x12, 0x1b, 0x0a, 0x09, 0x72,
-	0x75, 0x6e, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08,
-	0x72, 0x75, 0x6e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x19, 0x0a, 0x08, 0x6a, 0x6f, 0x62, 0x5f,
-	0x74, 0x79, 0x70, 0x65, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6a, 0x6f, 0x62, 0x54,
-	0x79, 0x70, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x69, 0x73, 0x70, 0x6c, 0x61, 0x79, 0x5f, 0x6e,
-	0x61, 0x6d, 0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x69, 0x73, 0x70, 0x6c,
-	0x61, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x6e, 0x6f, 0x74, 0x65, 0x73, 0x18,
-	0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6e, 0x6f, 0x74, 0x65, 0x73, 0x12, 0x12, 0x0a, 0x04,
-	0x74, 0x61, 0x67, 0x73, 0x18, 0x0a, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x74, 0x61, 0x67, 0x73,
-	0x12, 0x3a, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x18, 0x0b, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65, 0x63, 0x6f,
-	0x72, 0x64, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x19, 0x0a, 0x08,
-	0x73, 0x77, 0x65, 0x65, 0x70, 0x5f, 0x69, 0x64, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07,
-	0x73, 0x77, 0x65, 0x65, 0x70, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x18,
-	0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12, 0x23, 0x0a, 0x0d, 0x73,
-	0x74, 0x61, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x73, 0x74, 0x65, 0x70, 0x18, 0x0e, 0x20, 0x01,
-	0x28, 0x03, 0x52, 0x0c, 0x73, 0x74, 0x61, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x53, 0x74, 0x65, 0x70,
-	0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x10,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x49, 0x64, 0x12,
-	0x39, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x11, 0x20,
-	0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52,
-	0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x65,
-	0x73, 0x75, 0x6d, 0x65, 0x64, 0x18, 0x12, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x72, 0x65, 0x73,
-	0x75, 0x6d, 0x65, 0x64, 0x12, 0x3d, 0x0a, 0x09, 0x74, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74, 0x72,
-	0x79, 0x18, 0x13, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
-	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d, 0x65, 0x74,
-	0x72, 0x79, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x09, 0x74, 0x65, 0x6c, 0x65, 0x6d, 0x65,
-	0x74, 0x72, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x14,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x12, 0x2f, 0x0a,
-	0x03, 0x67, 0x69, 0x74, 0x18, 0x15, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e,
-	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x47, 0x69, 0x74, 0x52,
-	0x65, 0x70, 0x6f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x03, 0x67, 0x69, 0x74, 0x12, 0x31,
+	0x73, 0x65, 0x41, 0x72, 0x74, 0x69, 0x66, 0x61, 0x63, 0x74, 0x12, 0x46, 0x0a, 0x0c, 0x73, 0x74,
+	0x72, 0x65, 0x61, 0x6d, 0x5f, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x1a, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x21, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65, 0x63,
+	0x6f, 0x72, 0x64, 0x48, 0x00, 0x52, 0x0b, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x54, 0x61, 0x62,
+	0x6c, 0x65, 0x12, 0x43, 0x0a, 0x0b, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x64, 0x61, 0x74,
+	0x61, 0x18, 0x1b, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44,
+	0x61, 0x74, 0x61, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x48, 0x00, 0x52, 0x0a, 0x73, 0x74, 0x72,
+	0x65, 0x61, 0x6d, 0x44, 0x61, 0x74, 0x61, 0x12, 0x33, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x18, 0x64, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
+	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x48, 0x00, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x31, 0x0a, 0x07,
+	0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43,
+	0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x12,
+	0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18, 0x13, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75,
+	0x75, 0x69, 0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20,
+	0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f,
+	0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x42, 0x0d, 0x0a, 0x0b, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64,
+	0x5f, 0x74, 0x79, 0x70, 0x65, 0x22, 0x80, 0x02, 0x0a, 0x07, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f,
+	0x6c, 0x12, 0x19, 0x0a, 0x08, 0x72, 0x65, 0x71, 0x5f, 0x72, 0x65, 0x73, 0x70, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x08, 0x52, 0x07, 0x72, 0x65, 0x71, 0x52, 0x65, 0x73, 0x70, 0x12, 0x14, 0x0a, 0x05,
+	0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x6c, 0x6f, 0x63,
+	0x61, 0x6c, 0x12, 0x19, 0x0a, 0x08, 0x72, 0x65, 0x6c, 0x61, 0x79, 0x5f, 0x69, 0x64, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x72, 0x65, 0x6c, 0x61, 0x79, 0x49, 0x64, 0x12, 0x21, 0x0a,
+	0x0c, 0x6d, 0x61, 0x69, 0x6c, 0x62, 0x6f, 0x78, 0x5f, 0x73, 0x6c, 0x6f, 0x74, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x0b, 0x6d, 0x61, 0x69, 0x6c, 0x62, 0x6f, 0x78, 0x53, 0x6c, 0x6f, 0x74,
+	0x12, 0x1f, 0x0a, 0x0b, 0x61, 0x6c, 0x77, 0x61, 0x79, 0x73, 0x5f, 0x73, 0x65, 0x6e, 0x64, 0x18,
+	0x05, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x61, 0x6c, 0x77, 0x61, 0x79, 0x73, 0x53, 0x65, 0x6e,
+	0x64, 0x12, 0x21, 0x0a, 0x0c, 0x66, 0x6c, 0x6f, 0x77, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f,
+	0x6c, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x66, 0x6c, 0x6f, 0x77, 0x43, 0x6f, 0x6e,
+	0x74, 0x72, 0x6f, 0x6c, 0x12, 0x1d, 0x0a, 0x0a, 0x65, 0x6e, 0x64, 0x5f, 0x6f, 0x66, 0x66, 0x73,
+	0x65, 0x74, 0x18, 0x07, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x65, 0x6e, 0x64, 0x4f, 0x66, 0x66,
+	0x73, 0x65, 0x74, 0x12, 0x23, 0x0a, 0x0d, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x5f, 0x69, 0x64, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x63, 0x6f, 0x6e, 0x6e,
+	0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x22, 0xb4, 0x05, 0x0a, 0x06, 0x52, 0x65, 0x73,
+	0x75, 0x6c, 0x74, 0x12, 0x40, 0x0a, 0x0a, 0x72, 0x75, 0x6e, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c,
+	0x74, 0x18, 0x11, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x55, 0x70, 0x64, 0x61,
+	0x74, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x09, 0x72, 0x75, 0x6e, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x40, 0x0a, 0x0b, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x72, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x18, 0x12, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e,
+	0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x45,
+	0x78, 0x69, 0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0a, 0x65, 0x78, 0x69,
+	0x74, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x3e, 0x0a, 0x0a, 0x6c, 0x6f, 0x67, 0x5f, 0x72,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x14, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61,
+	0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x48, 0x69, 0x73,
+	0x74, 0x6f, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x09, 0x6c, 0x6f,
+	0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x46, 0x0a, 0x0e, 0x73, 0x75, 0x6d, 0x6d, 0x61,
+	0x72, 0x79, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x15, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
+	0x2e, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00,
+	0x52, 0x0d, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12,
+	0x43, 0x0a, 0x0d, 0x6f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74,
+	0x18, 0x16, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69,
+	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x52, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0c, 0x6f, 0x75, 0x74, 0x70, 0x75, 0x74, 0x52, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x12, 0x43, 0x0a, 0x0d, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x72,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x18, 0x17, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x77, 0x61,
+	0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x0c, 0x63, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x53, 0x0a, 0x13, 0x73, 0x74, 0x72,
+	0x65, 0x61, 0x6d, 0x5f, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x5f, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74,
+	0x18, 0x19, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x21, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69,
+	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x54, 0x61,
+	0x62, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x48, 0x00, 0x52, 0x11, 0x73, 0x74, 0x72,
+	0x65, 0x61, 0x6d, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x36,
+	0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x64, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x18, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x48, 0x00, 0x52, 0x08, 0x72, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x31, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f,
+	0x6c, 0x18, 0x10, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c,
+	0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69,
+	0x64, 0x18, 0x18, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x31, 0x0a,
+	0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e,
+	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f,
+	0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f,
+	0x42, 0x0d, 0x0a, 0x0b, 0x72, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x22,
+	0x40, 0x0a, 0x0b, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x31,
 	0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b,
 	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
 	0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66,
-	0x6f, 0x22, 0x43, 0x0a, 0x0d, 0x47, 0x69, 0x74, 0x52, 0x65, 0x70, 0x6f, 0x52, 0x65, 0x63, 0x6f,
-	0x72, 0x64, 0x12, 0x1a, 0x0a, 0x0a, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x5f, 0x75, 0x72, 0x6c,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x12, 0x16,
-	0x0a, 0x06, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
-	0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x22, 0x6f, 0x0a, 0x0f, 0x52, 0x75, 0x6e, 0x55, 0x70, 0x64,
-	0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x2b, 0x0a, 0x03, 0x72, 0x75, 0x6e,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69,
-	0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x52, 0x65, 0x63, 0x6f, 0x72,
-	0x64, 0x52, 0x03, 0x72, 0x75, 0x6e, 0x12, 0x2f, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e,
-	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x49, 0x6e, 0x66, 0x6f,
-	0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0xbb, 0x01, 0x0a, 0x09, 0x45, 0x72, 0x72, 0x6f,
-	0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12,
-	0x37, 0x0a, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x23, 0x2e,
-	0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x45,
-	0x72, 0x72, 0x6f, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x43, 0x6f,
-	0x64, 0x65, 0x52, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x22, 0x5b, 0x0a, 0x09, 0x45, 0x72, 0x72, 0x6f,
-	0x72, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e,
-	0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x43, 0x4f, 0x4d, 0x4d, 0x55, 0x4e, 0x49, 0x43, 0x41, 0x54,
-	0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12, 0x12, 0x0a, 0x0e, 0x41, 0x55, 0x54, 0x48, 0x45, 0x4e, 0x54,
-	0x49, 0x43, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x09, 0x0a, 0x05, 0x55, 0x53, 0x41,
-	0x47, 0x45, 0x10, 0x03, 0x12, 0x0f, 0x0a, 0x0b, 0x55, 0x4e, 0x53, 0x55, 0x50, 0x50, 0x4f, 0x52,
-	0x54, 0x45, 0x44, 0x10, 0x04, 0x22, 0x79, 0x0a, 0x0d, 0x52, 0x75, 0x6e, 0x45, 0x78, 0x69, 0x74,
+	0x6f, 0x22, 0x41, 0x0a, 0x0c, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x52, 0x65, 0x63, 0x6f, 0x72,
+	0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e,
+	0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04,
+	0x49, 0x6e, 0x66, 0x6f, 0x22, 0x41, 0x0a, 0x0c, 0x46, 0x6f, 0x6f, 0x74, 0x65, 0x72, 0x52, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66,
+	0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x89, 0x06, 0x0a, 0x09, 0x52, 0x75, 0x6e, 0x52,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x15, 0x0a, 0x06, 0x72, 0x75, 0x6e, 0x5f, 0x69, 0x64, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x72, 0x75, 0x6e, 0x49, 0x64, 0x12, 0x16, 0x0a, 0x06,
+	0x65, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x65, 0x6e,
+	0x74, 0x69, 0x74, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x34,
+	0x0a, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c,
+	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
+	0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x06, 0x63, 0x6f,
+	0x6e, 0x66, 0x69, 0x67, 0x12, 0x37, 0x0a, 0x07, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x18,
+	0x05, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e,
+	0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x52, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x52, 0x07, 0x73, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x12, 0x1b, 0x0a,
+	0x09, 0x72, 0x75, 0x6e, 0x5f, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x08, 0x72, 0x75, 0x6e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x19, 0x0a, 0x08, 0x6a, 0x6f,
+	0x62, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6a, 0x6f,
+	0x62, 0x54, 0x79, 0x70, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x64, 0x69, 0x73, 0x70, 0x6c, 0x61, 0x79,
+	0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x69, 0x73,
+	0x70, 0x6c, 0x61, 0x79, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x6e, 0x6f, 0x74, 0x65,
+	0x73, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6e, 0x6f, 0x74, 0x65, 0x73, 0x12, 0x12,
+	0x0a, 0x04, 0x74, 0x61, 0x67, 0x73, 0x18, 0x0a, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x74, 0x61,
+	0x67, 0x73, 0x12, 0x3a, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x18, 0x0b,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x52, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x19,
+	0x0a, 0x08, 0x73, 0x77, 0x65, 0x65, 0x70, 0x5f, 0x69, 0x64, 0x18, 0x0c, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x07, 0x73, 0x77, 0x65, 0x65, 0x70, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73,
+	0x74, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12, 0x23, 0x0a,
+	0x0d, 0x73, 0x74, 0x61, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x73, 0x74, 0x65, 0x70, 0x18, 0x0e,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x0c, 0x73, 0x74, 0x61, 0x72, 0x74, 0x69, 0x6e, 0x67, 0x53, 0x74,
+	0x65, 0x70, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x5f, 0x69, 0x64,
+	0x18, 0x10, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x49,
+	0x64, 0x12, 0x39, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f, 0x74, 0x69, 0x6d, 0x65, 0x18,
+	0x11, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d,
+	0x70, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07,
+	0x72, 0x65, 0x73, 0x75, 0x6d, 0x65, 0x64, 0x18, 0x12, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x72,
+	0x65, 0x73, 0x75, 0x6d, 0x65, 0x64, 0x12, 0x3d, 0x0a, 0x09, 0x74, 0x65, 0x6c, 0x65, 0x6d, 0x65,
+	0x74, 0x72, 0x79, 0x18, 0x13, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x77, 0x61, 0x6e, 0x64,
+	0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x54, 0x65, 0x6c, 0x65, 0x6d,
+	0x65, 0x74, 0x72, 0x79, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x09, 0x74, 0x65, 0x6c, 0x65,
+	0x6d, 0x65, 0x74, 0x72, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65,
+	0x18, 0x14, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x12,
+	0x2f, 0x0a, 0x03, 0x67, 0x69, 0x74, 0x18, 0x15, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x77,
+	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x47, 0x69,
+	0x74, 0x52, 0x65, 0x70, 0x6f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x52, 0x03, 0x67, 0x69, 0x74,
+	0x12, 0x31, 0x0a, 0x05, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x1b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x2e, 0x5f, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49,
+	0x6e, 0x66, 0x6f, 0x22, 0x43, 0x0a, 0x0d, 0x47, 0x69, 0x74, 0x52, 0x65, 0x70, 0x6f, 0x52, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x12, 0x1a, 0x0a, 0x0a, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x5f, 0x75,
+	0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65,
+	0x12, 0x16, 0x0a, 0x06, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x22, 0x6f, 0x0a, 0x0f, 0x52, 0x75, 0x6e, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x2b, 0x0a, 0x03, 0x72,
+	0x75, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
+	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x52, 0x75, 0x6e, 0x52, 0x65, 0x63,
+	0x6f, 0x72, 0x64, 0x52, 0x03, 0x72, 0x75, 0x6e, 0x12, 0x2f, 0x0a, 0x05, 0x65, 0x72, 0x72, 0x6f,
+	0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x49, 0x6e,
+	0x66, 0x6f, 0x52, 0x05, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x22, 0xbb, 0x01, 0x0a, 0x09, 0x45, 0x72,
+	0x72, 0x6f, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61,
+	0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x12, 0x37, 0x0a, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32,
+	0x23, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c,
+	0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x2e, 0x45, 0x72, 0x72, 0x6f, 0x72,
+	0x43, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x22, 0x5b, 0x0a, 0x09, 0x45, 0x72,
+	0x72, 0x6f, 0x72, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x55, 0x4e, 0x4b, 0x4e, 0x4f,
+	0x57, 0x4e, 0x10, 0x00, 0x12, 0x11, 0x0a, 0x0d, 0x43, 0x4f, 0x4d, 0x4d, 0x55, 0x4e, 0x49, 0x43,
+	0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x01, 0x12, 0x12, 0x0a, 0x0e, 0x41, 0x55, 0x54, 0x48, 0x45,
+	0x4e, 0x54, 0x49, 0x43, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x02, 0x12, 0x09, 0x0a, 0x05, 0x55,
+	0x53, 0x41, 0x47, 0x45, 0x10, 0x03, 0x12, 0x0f, 0x0a, 0x0b, 0x55, 0x4e, 0x53, 0x55, 0x50, 0x50,
+	0x4f, 0x52, 0x54, 0x45, 0x44, 0x10, 0x04, 0x22, 0xa5, 0x01, 0x0a, 0x11, 0x53, 0x74, 0x72, 0x65,
+	0x61, 0x6d, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x15, 0x0a,
+	0x06, 0x72, 0x75, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x72,
+	0x75, 0x6e, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x65, 0x6e,
+	0x74, 0x69, 0x74, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x65, 0x6e, 0x74, 0x69,
+	0x74, 0x79, 0x12, 0x18, 0x0a, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x72, 0x6f, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x31, 0x0a, 0x05,
+	0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77,
+	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x22,
+	0x13, 0x0a, 0x11, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x54, 0x61, 0x62, 0x6c, 0x65, 0x52, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x22, 0xdf, 0x01, 0x0a, 0x10, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x44,
+	0x61, 0x74, 0x61, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x41, 0x0a, 0x05, 0x69, 0x74, 0x65,
+	0x6d, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x2b, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62,
+	0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d,
+	0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x2e, 0x49, 0x74, 0x65, 0x6d, 0x73,
+	0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x05, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x12, 0x31, 0x0a, 0x05,
+	0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x18, 0xc8, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x77,
+	0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x5f, 0x52,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x49, 0x6e, 0x66, 0x6f, 0x1a,
+	0x55, 0x0a, 0x0a, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a,
+	0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12,
+	0x31, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b,
+	0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e,
+	0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x8c, 0x01, 0x0a, 0x0b, 0x53, 0x74, 0x72, 0x65, 0x61,
+	0x6d, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x20, 0x0a, 0x0a, 0x49, 0x6e, 0x74, 0x36, 0x34, 0x56,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x48, 0x00, 0x52, 0x0a, 0x49, 0x6e,
+	0x74, 0x36, 0x34, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x22, 0x0a, 0x0b, 0x44, 0x6f, 0x75, 0x62,
+	0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x48, 0x00, 0x52,
+	0x0b, 0x44, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x22, 0x0a, 0x0b,
+	0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x48, 0x00, 0x52, 0x0b, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65,
+	0x42, 0x13, 0x0a, 0x11, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x5f, 0x74, 0x79, 0x70, 0x65, 0x22, 0x79, 0x0a, 0x0d, 0x52, 0x75, 0x6e, 0x45, 0x78, 0x69, 0x74,
 	0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x65, 0x78, 0x69, 0x74, 0x5f, 0x63,
 	0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x65, 0x78, 0x69, 0x74, 0x43,
 	0x6f, 0x64, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x18, 0x02,
@@ -11126,7 +11486,7 @@ func file_wandb_proto_wandb_internal_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_internal_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 138)
+var file_wandb_proto_wandb_internal_proto_msgTypes = make([]protoimpl.MessageInfo, 143)
 var file_wandb_proto_wandb_internal_proto_goTypes = []interface{}{
 	(ErrorInfo_ErrorCode)(0),                  // 0: wandb_internal.ErrorInfo.ErrorCode
 	(OutputRecord_OutputType)(0),              // 1: wandb_internal.OutputRecord.OutputType
@@ -11146,352 +11506,364 @@ var file_wandb_proto_wandb_internal_proto_goTypes = []interface{}{
 	(*GitRepoRecord)(nil),                     // 15: wandb_internal.GitRepoRecord
 	(*RunUpdateResult)(nil),                   // 16: wandb_internal.RunUpdateResult
 	(*ErrorInfo)(nil),                         // 17: wandb_internal.ErrorInfo
-	(*RunExitRecord)(nil),                     // 18: wandb_internal.RunExitRecord
-	(*RunExitResult)(nil),                     // 19: wandb_internal.RunExitResult
-	(*RunPreemptingRecord)(nil),               // 20: wandb_internal.RunPreemptingRecord
-	(*RunPreemptingResult)(nil),               // 21: wandb_internal.RunPreemptingResult
-	(*SettingsRecord)(nil),                    // 22: wandb_internal.SettingsRecord
-	(*SettingsItem)(nil),                      // 23: wandb_internal.SettingsItem
-	(*HistoryStep)(nil),                       // 24: wandb_internal.HistoryStep
-	(*HistoryRecord)(nil),                     // 25: wandb_internal.HistoryRecord
-	(*HistoryItem)(nil),                       // 26: wandb_internal.HistoryItem
-	(*HistoryResult)(nil),                     // 27: wandb_internal.HistoryResult
-	(*OutputRecord)(nil),                      // 28: wandb_internal.OutputRecord
-	(*OutputResult)(nil),                      // 29: wandb_internal.OutputResult
-	(*OutputRawRecord)(nil),                   // 30: wandb_internal.OutputRawRecord
-	(*OutputRawResult)(nil),                   // 31: wandb_internal.OutputRawResult
-	(*MetricRecord)(nil),                      // 32: wandb_internal.MetricRecord
-	(*MetricResult)(nil),                      // 33: wandb_internal.MetricResult
-	(*MetricOptions)(nil),                     // 34: wandb_internal.MetricOptions
-	(*MetricControl)(nil),                     // 35: wandb_internal.MetricControl
-	(*MetricSummary)(nil),                     // 36: wandb_internal.MetricSummary
-	(*ConfigRecord)(nil),                      // 37: wandb_internal.ConfigRecord
-	(*ConfigItem)(nil),                        // 38: wandb_internal.ConfigItem
-	(*ConfigResult)(nil),                      // 39: wandb_internal.ConfigResult
-	(*SummaryRecord)(nil),                     // 40: wandb_internal.SummaryRecord
-	(*SummaryItem)(nil),                       // 41: wandb_internal.SummaryItem
-	(*SummaryResult)(nil),                     // 42: wandb_internal.SummaryResult
-	(*FilesRecord)(nil),                       // 43: wandb_internal.FilesRecord
-	(*FilesItem)(nil),                         // 44: wandb_internal.FilesItem
-	(*FilesResult)(nil),                       // 45: wandb_internal.FilesResult
-	(*StatsRecord)(nil),                       // 46: wandb_internal.StatsRecord
-	(*StatsItem)(nil),                         // 47: wandb_internal.StatsItem
-	(*ArtifactRecord)(nil),                    // 48: wandb_internal.ArtifactRecord
-	(*ArtifactManifest)(nil),                  // 49: wandb_internal.ArtifactManifest
-	(*ArtifactManifestEntry)(nil),             // 50: wandb_internal.ArtifactManifestEntry
-	(*ExtraItem)(nil),                         // 51: wandb_internal.ExtraItem
-	(*StoragePolicyConfigItem)(nil),           // 52: wandb_internal.StoragePolicyConfigItem
-	(*ArtifactResult)(nil),                    // 53: wandb_internal.ArtifactResult
-	(*LinkArtifactResult)(nil),                // 54: wandb_internal.LinkArtifactResult
-	(*LinkArtifactRecord)(nil),                // 55: wandb_internal.LinkArtifactRecord
-	(*TBRecord)(nil),                          // 56: wandb_internal.TBRecord
-	(*TBResult)(nil),                          // 57: wandb_internal.TBResult
-	(*AlertRecord)(nil),                       // 58: wandb_internal.AlertRecord
-	(*AlertResult)(nil),                       // 59: wandb_internal.AlertResult
-	(*Request)(nil),                           // 60: wandb_internal.Request
-	(*Response)(nil),                          // 61: wandb_internal.Response
-	(*DeferRequest)(nil),                      // 62: wandb_internal.DeferRequest
-	(*PauseRequest)(nil),                      // 63: wandb_internal.PauseRequest
-	(*PauseResponse)(nil),                     // 64: wandb_internal.PauseResponse
-	(*ResumeRequest)(nil),                     // 65: wandb_internal.ResumeRequest
-	(*ResumeResponse)(nil),                    // 66: wandb_internal.ResumeResponse
-	(*LoginRequest)(nil),                      // 67: wandb_internal.LoginRequest
-	(*LoginResponse)(nil),                     // 68: wandb_internal.LoginResponse
-	(*GetSummaryRequest)(nil),                 // 69: wandb_internal.GetSummaryRequest
-	(*GetSummaryResponse)(nil),                // 70: wandb_internal.GetSummaryResponse
-	(*GetSystemMetricsRequest)(nil),           // 71: wandb_internal.GetSystemMetricsRequest
-	(*SystemMetricSample)(nil),                // 72: wandb_internal.SystemMetricSample
-	(*SystemMetricsBuffer)(nil),               // 73: wandb_internal.SystemMetricsBuffer
-	(*GetSystemMetricsResponse)(nil),          // 74: wandb_internal.GetSystemMetricsResponse
-	(*StatusRequest)(nil),                     // 75: wandb_internal.StatusRequest
-	(*StatusResponse)(nil),                    // 76: wandb_internal.StatusResponse
-	(*StopStatusRequest)(nil),                 // 77: wandb_internal.StopStatusRequest
-	(*StopStatusResponse)(nil),                // 78: wandb_internal.StopStatusResponse
-	(*NetworkStatusRequest)(nil),              // 79: wandb_internal.NetworkStatusRequest
-	(*NetworkStatusResponse)(nil),             // 80: wandb_internal.NetworkStatusResponse
-	(*HttpResponse)(nil),                      // 81: wandb_internal.HttpResponse
-	(*InternalMessagesRequest)(nil),           // 82: wandb_internal.InternalMessagesRequest
-	(*InternalMessagesResponse)(nil),          // 83: wandb_internal.InternalMessagesResponse
-	(*InternalMessages)(nil),                  // 84: wandb_internal.InternalMessages
-	(*PollExitRequest)(nil),                   // 85: wandb_internal.PollExitRequest
-	(*PollExitResponse)(nil),                  // 86: wandb_internal.PollExitResponse
-	(*SenderMarkRequest)(nil),                 // 87: wandb_internal.SenderMarkRequest
-	(*SenderReadRequest)(nil),                 // 88: wandb_internal.SenderReadRequest
-	(*StatusReportRequest)(nil),               // 89: wandb_internal.StatusReportRequest
-	(*SummaryRecordRequest)(nil),              // 90: wandb_internal.SummaryRecordRequest
-	(*TelemetryRecordRequest)(nil),            // 91: wandb_internal.TelemetryRecordRequest
-	(*ServerInfoRequest)(nil),                 // 92: wandb_internal.ServerInfoRequest
-	(*ServerInfoResponse)(nil),                // 93: wandb_internal.ServerInfoResponse
-	(*ServerMessages)(nil),                    // 94: wandb_internal.ServerMessages
-	(*ServerMessage)(nil),                     // 95: wandb_internal.ServerMessage
-	(*FileCounts)(nil),                        // 96: wandb_internal.FileCounts
-	(*FilePusherStats)(nil),                   // 97: wandb_internal.FilePusherStats
-	(*FilesUploaded)(nil),                     // 98: wandb_internal.FilesUploaded
-	(*FileTransferInfoRequest)(nil),           // 99: wandb_internal.FileTransferInfoRequest
-	(*LocalInfo)(nil),                         // 100: wandb_internal.LocalInfo
-	(*ShutdownRequest)(nil),                   // 101: wandb_internal.ShutdownRequest
-	(*ShutdownResponse)(nil),                  // 102: wandb_internal.ShutdownResponse
-	(*AttachRequest)(nil),                     // 103: wandb_internal.AttachRequest
-	(*AttachResponse)(nil),                    // 104: wandb_internal.AttachResponse
-	(*TestInjectRequest)(nil),                 // 105: wandb_internal.TestInjectRequest
-	(*TestInjectResponse)(nil),                // 106: wandb_internal.TestInjectResponse
-	(*HistoryAction)(nil),                     // 107: wandb_internal.HistoryAction
-	(*PartialHistoryRequest)(nil),             // 108: wandb_internal.PartialHistoryRequest
-	(*PartialHistoryResponse)(nil),            // 109: wandb_internal.PartialHistoryResponse
-	(*SampledHistoryRequest)(nil),             // 110: wandb_internal.SampledHistoryRequest
-	(*SampledHistoryItem)(nil),                // 111: wandb_internal.SampledHistoryItem
-	(*SampledHistoryResponse)(nil),            // 112: wandb_internal.SampledHistoryResponse
-	(*RunStatusRequest)(nil),                  // 113: wandb_internal.RunStatusRequest
-	(*RunStatusResponse)(nil),                 // 114: wandb_internal.RunStatusResponse
-	(*RunStartRequest)(nil),                   // 115: wandb_internal.RunStartRequest
-	(*RunStartResponse)(nil),                  // 116: wandb_internal.RunStartResponse
-	(*CheckVersionRequest)(nil),               // 117: wandb_internal.CheckVersionRequest
-	(*CheckVersionResponse)(nil),              // 118: wandb_internal.CheckVersionResponse
-	(*JobInfoRequest)(nil),                    // 119: wandb_internal.JobInfoRequest
-	(*JobInfoResponse)(nil),                   // 120: wandb_internal.JobInfoResponse
-	(*LogArtifactRequest)(nil),                // 121: wandb_internal.LogArtifactRequest
-	(*LogArtifactResponse)(nil),               // 122: wandb_internal.LogArtifactResponse
-	(*DownloadArtifactRequest)(nil),           // 123: wandb_internal.DownloadArtifactRequest
-	(*DownloadArtifactResponse)(nil),          // 124: wandb_internal.DownloadArtifactResponse
-	(*KeepaliveRequest)(nil),                  // 125: wandb_internal.KeepaliveRequest
-	(*KeepaliveResponse)(nil),                 // 126: wandb_internal.KeepaliveResponse
-	(*ArtifactInfo)(nil),                      // 127: wandb_internal.ArtifactInfo
-	(*GitInfo)(nil),                           // 128: wandb_internal.GitInfo
-	(*GitSource)(nil),                         // 129: wandb_internal.GitSource
-	(*ImageSource)(nil),                       // 130: wandb_internal.ImageSource
-	(*Source)(nil),                            // 131: wandb_internal.Source
-	(*JobSource)(nil),                         // 132: wandb_internal.JobSource
-	(*PartialJobArtifact)(nil),                // 133: wandb_internal.PartialJobArtifact
-	(*UseArtifactRecord)(nil),                 // 134: wandb_internal.UseArtifactRecord
-	(*UseArtifactResult)(nil),                 // 135: wandb_internal.UseArtifactResult
-	(*CancelRequest)(nil),                     // 136: wandb_internal.CancelRequest
-	(*CancelResponse)(nil),                    // 137: wandb_internal.CancelResponse
-	(*DiskInfo)(nil),                          // 138: wandb_internal.DiskInfo
-	(*MemoryInfo)(nil),                        // 139: wandb_internal.MemoryInfo
-	(*CpuInfo)(nil),                           // 140: wandb_internal.CpuInfo
-	(*GpuAppleInfo)(nil),                      // 141: wandb_internal.GpuAppleInfo
-	(*GpuNvidiaInfo)(nil),                     // 142: wandb_internal.GpuNvidiaInfo
-	(*MetadataRequest)(nil),                   // 143: wandb_internal.MetadataRequest
-	nil,                                       // 144: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
-	nil,                                       // 145: wandb_internal.MetadataRequest.DiskEntry
-	(*TelemetryRecord)(nil),                   // 146: wandb_internal.TelemetryRecord
-	(*XRecordInfo)(nil),                       // 147: wandb_internal._RecordInfo
-	(*XResultInfo)(nil),                       // 148: wandb_internal._ResultInfo
-	(*timestamppb.Timestamp)(nil),             // 149: google.protobuf.Timestamp
-	(*XRequestInfo)(nil),                      // 150: wandb_internal._RequestInfo
+	(*StreamTableRecord)(nil),                 // 18: wandb_internal.StreamTableRecord
+	(*StreamTableResult)(nil),                 // 19: wandb_internal.StreamTableResult
+	(*StreamDataRecord)(nil),                  // 20: wandb_internal.StreamDataRecord
+	(*StreamValue)(nil),                       // 21: wandb_internal.StreamValue
+	(*RunExitRecord)(nil),                     // 22: wandb_internal.RunExitRecord
+	(*RunExitResult)(nil),                     // 23: wandb_internal.RunExitResult
+	(*RunPreemptingRecord)(nil),               // 24: wandb_internal.RunPreemptingRecord
+	(*RunPreemptingResult)(nil),               // 25: wandb_internal.RunPreemptingResult
+	(*SettingsRecord)(nil),                    // 26: wandb_internal.SettingsRecord
+	(*SettingsItem)(nil),                      // 27: wandb_internal.SettingsItem
+	(*HistoryStep)(nil),                       // 28: wandb_internal.HistoryStep
+	(*HistoryRecord)(nil),                     // 29: wandb_internal.HistoryRecord
+	(*HistoryItem)(nil),                       // 30: wandb_internal.HistoryItem
+	(*HistoryResult)(nil),                     // 31: wandb_internal.HistoryResult
+	(*OutputRecord)(nil),                      // 32: wandb_internal.OutputRecord
+	(*OutputResult)(nil),                      // 33: wandb_internal.OutputResult
+	(*OutputRawRecord)(nil),                   // 34: wandb_internal.OutputRawRecord
+	(*OutputRawResult)(nil),                   // 35: wandb_internal.OutputRawResult
+	(*MetricRecord)(nil),                      // 36: wandb_internal.MetricRecord
+	(*MetricResult)(nil),                      // 37: wandb_internal.MetricResult
+	(*MetricOptions)(nil),                     // 38: wandb_internal.MetricOptions
+	(*MetricControl)(nil),                     // 39: wandb_internal.MetricControl
+	(*MetricSummary)(nil),                     // 40: wandb_internal.MetricSummary
+	(*ConfigRecord)(nil),                      // 41: wandb_internal.ConfigRecord
+	(*ConfigItem)(nil),                        // 42: wandb_internal.ConfigItem
+	(*ConfigResult)(nil),                      // 43: wandb_internal.ConfigResult
+	(*SummaryRecord)(nil),                     // 44: wandb_internal.SummaryRecord
+	(*SummaryItem)(nil),                       // 45: wandb_internal.SummaryItem
+	(*SummaryResult)(nil),                     // 46: wandb_internal.SummaryResult
+	(*FilesRecord)(nil),                       // 47: wandb_internal.FilesRecord
+	(*FilesItem)(nil),                         // 48: wandb_internal.FilesItem
+	(*FilesResult)(nil),                       // 49: wandb_internal.FilesResult
+	(*StatsRecord)(nil),                       // 50: wandb_internal.StatsRecord
+	(*StatsItem)(nil),                         // 51: wandb_internal.StatsItem
+	(*ArtifactRecord)(nil),                    // 52: wandb_internal.ArtifactRecord
+	(*ArtifactManifest)(nil),                  // 53: wandb_internal.ArtifactManifest
+	(*ArtifactManifestEntry)(nil),             // 54: wandb_internal.ArtifactManifestEntry
+	(*ExtraItem)(nil),                         // 55: wandb_internal.ExtraItem
+	(*StoragePolicyConfigItem)(nil),           // 56: wandb_internal.StoragePolicyConfigItem
+	(*ArtifactResult)(nil),                    // 57: wandb_internal.ArtifactResult
+	(*LinkArtifactResult)(nil),                // 58: wandb_internal.LinkArtifactResult
+	(*LinkArtifactRecord)(nil),                // 59: wandb_internal.LinkArtifactRecord
+	(*TBRecord)(nil),                          // 60: wandb_internal.TBRecord
+	(*TBResult)(nil),                          // 61: wandb_internal.TBResult
+	(*AlertRecord)(nil),                       // 62: wandb_internal.AlertRecord
+	(*AlertResult)(nil),                       // 63: wandb_internal.AlertResult
+	(*Request)(nil),                           // 64: wandb_internal.Request
+	(*Response)(nil),                          // 65: wandb_internal.Response
+	(*DeferRequest)(nil),                      // 66: wandb_internal.DeferRequest
+	(*PauseRequest)(nil),                      // 67: wandb_internal.PauseRequest
+	(*PauseResponse)(nil),                     // 68: wandb_internal.PauseResponse
+	(*ResumeRequest)(nil),                     // 69: wandb_internal.ResumeRequest
+	(*ResumeResponse)(nil),                    // 70: wandb_internal.ResumeResponse
+	(*LoginRequest)(nil),                      // 71: wandb_internal.LoginRequest
+	(*LoginResponse)(nil),                     // 72: wandb_internal.LoginResponse
+	(*GetSummaryRequest)(nil),                 // 73: wandb_internal.GetSummaryRequest
+	(*GetSummaryResponse)(nil),                // 74: wandb_internal.GetSummaryResponse
+	(*GetSystemMetricsRequest)(nil),           // 75: wandb_internal.GetSystemMetricsRequest
+	(*SystemMetricSample)(nil),                // 76: wandb_internal.SystemMetricSample
+	(*SystemMetricsBuffer)(nil),               // 77: wandb_internal.SystemMetricsBuffer
+	(*GetSystemMetricsResponse)(nil),          // 78: wandb_internal.GetSystemMetricsResponse
+	(*StatusRequest)(nil),                     // 79: wandb_internal.StatusRequest
+	(*StatusResponse)(nil),                    // 80: wandb_internal.StatusResponse
+	(*StopStatusRequest)(nil),                 // 81: wandb_internal.StopStatusRequest
+	(*StopStatusResponse)(nil),                // 82: wandb_internal.StopStatusResponse
+	(*NetworkStatusRequest)(nil),              // 83: wandb_internal.NetworkStatusRequest
+	(*NetworkStatusResponse)(nil),             // 84: wandb_internal.NetworkStatusResponse
+	(*HttpResponse)(nil),                      // 85: wandb_internal.HttpResponse
+	(*InternalMessagesRequest)(nil),           // 86: wandb_internal.InternalMessagesRequest
+	(*InternalMessagesResponse)(nil),          // 87: wandb_internal.InternalMessagesResponse
+	(*InternalMessages)(nil),                  // 88: wandb_internal.InternalMessages
+	(*PollExitRequest)(nil),                   // 89: wandb_internal.PollExitRequest
+	(*PollExitResponse)(nil),                  // 90: wandb_internal.PollExitResponse
+	(*SenderMarkRequest)(nil),                 // 91: wandb_internal.SenderMarkRequest
+	(*SenderReadRequest)(nil),                 // 92: wandb_internal.SenderReadRequest
+	(*StatusReportRequest)(nil),               // 93: wandb_internal.StatusReportRequest
+	(*SummaryRecordRequest)(nil),              // 94: wandb_internal.SummaryRecordRequest
+	(*TelemetryRecordRequest)(nil),            // 95: wandb_internal.TelemetryRecordRequest
+	(*ServerInfoRequest)(nil),                 // 96: wandb_internal.ServerInfoRequest
+	(*ServerInfoResponse)(nil),                // 97: wandb_internal.ServerInfoResponse
+	(*ServerMessages)(nil),                    // 98: wandb_internal.ServerMessages
+	(*ServerMessage)(nil),                     // 99: wandb_internal.ServerMessage
+	(*FileCounts)(nil),                        // 100: wandb_internal.FileCounts
+	(*FilePusherStats)(nil),                   // 101: wandb_internal.FilePusherStats
+	(*FilesUploaded)(nil),                     // 102: wandb_internal.FilesUploaded
+	(*FileTransferInfoRequest)(nil),           // 103: wandb_internal.FileTransferInfoRequest
+	(*LocalInfo)(nil),                         // 104: wandb_internal.LocalInfo
+	(*ShutdownRequest)(nil),                   // 105: wandb_internal.ShutdownRequest
+	(*ShutdownResponse)(nil),                  // 106: wandb_internal.ShutdownResponse
+	(*AttachRequest)(nil),                     // 107: wandb_internal.AttachRequest
+	(*AttachResponse)(nil),                    // 108: wandb_internal.AttachResponse
+	(*TestInjectRequest)(nil),                 // 109: wandb_internal.TestInjectRequest
+	(*TestInjectResponse)(nil),                // 110: wandb_internal.TestInjectResponse
+	(*HistoryAction)(nil),                     // 111: wandb_internal.HistoryAction
+	(*PartialHistoryRequest)(nil),             // 112: wandb_internal.PartialHistoryRequest
+	(*PartialHistoryResponse)(nil),            // 113: wandb_internal.PartialHistoryResponse
+	(*SampledHistoryRequest)(nil),             // 114: wandb_internal.SampledHistoryRequest
+	(*SampledHistoryItem)(nil),                // 115: wandb_internal.SampledHistoryItem
+	(*SampledHistoryResponse)(nil),            // 116: wandb_internal.SampledHistoryResponse
+	(*RunStatusRequest)(nil),                  // 117: wandb_internal.RunStatusRequest
+	(*RunStatusResponse)(nil),                 // 118: wandb_internal.RunStatusResponse
+	(*RunStartRequest)(nil),                   // 119: wandb_internal.RunStartRequest
+	(*RunStartResponse)(nil),                  // 120: wandb_internal.RunStartResponse
+	(*CheckVersionRequest)(nil),               // 121: wandb_internal.CheckVersionRequest
+	(*CheckVersionResponse)(nil),              // 122: wandb_internal.CheckVersionResponse
+	(*JobInfoRequest)(nil),                    // 123: wandb_internal.JobInfoRequest
+	(*JobInfoResponse)(nil),                   // 124: wandb_internal.JobInfoResponse
+	(*LogArtifactRequest)(nil),                // 125: wandb_internal.LogArtifactRequest
+	(*LogArtifactResponse)(nil),               // 126: wandb_internal.LogArtifactResponse
+	(*DownloadArtifactRequest)(nil),           // 127: wandb_internal.DownloadArtifactRequest
+	(*DownloadArtifactResponse)(nil),          // 128: wandb_internal.DownloadArtifactResponse
+	(*KeepaliveRequest)(nil),                  // 129: wandb_internal.KeepaliveRequest
+	(*KeepaliveResponse)(nil),                 // 130: wandb_internal.KeepaliveResponse
+	(*ArtifactInfo)(nil),                      // 131: wandb_internal.ArtifactInfo
+	(*GitInfo)(nil),                           // 132: wandb_internal.GitInfo
+	(*GitSource)(nil),                         // 133: wandb_internal.GitSource
+	(*ImageSource)(nil),                       // 134: wandb_internal.ImageSource
+	(*Source)(nil),                            // 135: wandb_internal.Source
+	(*JobSource)(nil),                         // 136: wandb_internal.JobSource
+	(*PartialJobArtifact)(nil),                // 137: wandb_internal.PartialJobArtifact
+	(*UseArtifactRecord)(nil),                 // 138: wandb_internal.UseArtifactRecord
+	(*UseArtifactResult)(nil),                 // 139: wandb_internal.UseArtifactResult
+	(*CancelRequest)(nil),                     // 140: wandb_internal.CancelRequest
+	(*CancelResponse)(nil),                    // 141: wandb_internal.CancelResponse
+	(*DiskInfo)(nil),                          // 142: wandb_internal.DiskInfo
+	(*MemoryInfo)(nil),                        // 143: wandb_internal.MemoryInfo
+	(*CpuInfo)(nil),                           // 144: wandb_internal.CpuInfo
+	(*GpuAppleInfo)(nil),                      // 145: wandb_internal.GpuAppleInfo
+	(*GpuNvidiaInfo)(nil),                     // 146: wandb_internal.GpuNvidiaInfo
+	(*MetadataRequest)(nil),                   // 147: wandb_internal.MetadataRequest
+	nil,                                       // 148: wandb_internal.StreamDataRecord.ItemsEntry
+	nil,                                       // 149: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
+	nil,                                       // 150: wandb_internal.MetadataRequest.DiskEntry
+	(*TelemetryRecord)(nil),                   // 151: wandb_internal.TelemetryRecord
+	(*XRecordInfo)(nil),                       // 152: wandb_internal._RecordInfo
+	(*XResultInfo)(nil),                       // 153: wandb_internal._ResultInfo
+	(*timestamppb.Timestamp)(nil),             // 154: google.protobuf.Timestamp
+	(*XRequestInfo)(nil),                      // 155: wandb_internal._RequestInfo
 }
 var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
-	25,  // 0: wandb_internal.Record.history:type_name -> wandb_internal.HistoryRecord
-	40,  // 1: wandb_internal.Record.summary:type_name -> wandb_internal.SummaryRecord
-	28,  // 2: wandb_internal.Record.output:type_name -> wandb_internal.OutputRecord
-	37,  // 3: wandb_internal.Record.config:type_name -> wandb_internal.ConfigRecord
-	43,  // 4: wandb_internal.Record.files:type_name -> wandb_internal.FilesRecord
-	46,  // 5: wandb_internal.Record.stats:type_name -> wandb_internal.StatsRecord
-	48,  // 6: wandb_internal.Record.artifact:type_name -> wandb_internal.ArtifactRecord
-	56,  // 7: wandb_internal.Record.tbrecord:type_name -> wandb_internal.TBRecord
-	58,  // 8: wandb_internal.Record.alert:type_name -> wandb_internal.AlertRecord
-	146, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
-	32,  // 10: wandb_internal.Record.metric:type_name -> wandb_internal.MetricRecord
-	30,  // 11: wandb_internal.Record.output_raw:type_name -> wandb_internal.OutputRawRecord
+	29,  // 0: wandb_internal.Record.history:type_name -> wandb_internal.HistoryRecord
+	44,  // 1: wandb_internal.Record.summary:type_name -> wandb_internal.SummaryRecord
+	32,  // 2: wandb_internal.Record.output:type_name -> wandb_internal.OutputRecord
+	41,  // 3: wandb_internal.Record.config:type_name -> wandb_internal.ConfigRecord
+	47,  // 4: wandb_internal.Record.files:type_name -> wandb_internal.FilesRecord
+	50,  // 5: wandb_internal.Record.stats:type_name -> wandb_internal.StatsRecord
+	52,  // 6: wandb_internal.Record.artifact:type_name -> wandb_internal.ArtifactRecord
+	60,  // 7: wandb_internal.Record.tbrecord:type_name -> wandb_internal.TBRecord
+	62,  // 8: wandb_internal.Record.alert:type_name -> wandb_internal.AlertRecord
+	151, // 9: wandb_internal.Record.telemetry:type_name -> wandb_internal.TelemetryRecord
+	36,  // 10: wandb_internal.Record.metric:type_name -> wandb_internal.MetricRecord
+	34,  // 11: wandb_internal.Record.output_raw:type_name -> wandb_internal.OutputRawRecord
 	14,  // 12: wandb_internal.Record.run:type_name -> wandb_internal.RunRecord
-	18,  // 13: wandb_internal.Record.exit:type_name -> wandb_internal.RunExitRecord
+	22,  // 13: wandb_internal.Record.exit:type_name -> wandb_internal.RunExitRecord
 	11,  // 14: wandb_internal.Record.final:type_name -> wandb_internal.FinalRecord
 	12,  // 15: wandb_internal.Record.header:type_name -> wandb_internal.HeaderRecord
 	13,  // 16: wandb_internal.Record.footer:type_name -> wandb_internal.FooterRecord
-	20,  // 17: wandb_internal.Record.preempting:type_name -> wandb_internal.RunPreemptingRecord
-	55,  // 18: wandb_internal.Record.link_artifact:type_name -> wandb_internal.LinkArtifactRecord
-	134, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
-	60,  // 20: wandb_internal.Record.request:type_name -> wandb_internal.Request
-	9,   // 21: wandb_internal.Record.control:type_name -> wandb_internal.Control
-	147, // 22: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
-	16,  // 23: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
-	19,  // 24: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
-	27,  // 25: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
-	42,  // 26: wandb_internal.Result.summary_result:type_name -> wandb_internal.SummaryResult
-	29,  // 27: wandb_internal.Result.output_result:type_name -> wandb_internal.OutputResult
-	39,  // 28: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
-	61,  // 29: wandb_internal.Result.response:type_name -> wandb_internal.Response
-	9,   // 30: wandb_internal.Result.control:type_name -> wandb_internal.Control
-	148, // 31: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
-	147, // 32: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
-	147, // 33: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
-	147, // 34: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
-	37,  // 35: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
-	40,  // 36: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
-	22,  // 37: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
-	149, // 38: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
-	146, // 39: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
-	15,  // 40: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
-	147, // 41: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
-	14,  // 42: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
-	17,  // 43: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
-	0,   // 44: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
-	147, // 45: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
-	147, // 46: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
-	23,  // 47: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
-	147, // 48: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
-	26,  // 49: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
-	24,  // 50: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
-	147, // 51: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
-	1,   // 52: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
-	149, // 53: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
-	147, // 54: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
-	2,   // 55: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
-	149, // 56: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
-	147, // 57: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
-	34,  // 58: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
-	36,  // 59: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
-	3,   // 60: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
-	35,  // 61: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
-	147, // 62: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
-	38,  // 63: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
-	38,  // 64: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
-	147, // 65: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
-	41,  // 66: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
-	41,  // 67: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
-	147, // 68: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
-	44,  // 69: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
-	147, // 70: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
-	4,   // 71: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
-	5,   // 72: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
-	149, // 73: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
-	47,  // 74: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
-	147, // 75: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
-	49,  // 76: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
-	147, // 77: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	52,  // 78: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
-	50,  // 79: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
-	51,  // 80: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
-	147, // 81: wandb_internal.LinkArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	147, // 82: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
-	147, // 83: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
-	77,  // 84: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
-	79,  // 85: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
-	62,  // 86: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
-	69,  // 87: wandb_internal.Request.get_summary:type_name -> wandb_internal.GetSummaryRequest
-	67,  // 88: wandb_internal.Request.login:type_name -> wandb_internal.LoginRequest
-	63,  // 89: wandb_internal.Request.pause:type_name -> wandb_internal.PauseRequest
-	65,  // 90: wandb_internal.Request.resume:type_name -> wandb_internal.ResumeRequest
-	85,  // 91: wandb_internal.Request.poll_exit:type_name -> wandb_internal.PollExitRequest
-	110, // 92: wandb_internal.Request.sampled_history:type_name -> wandb_internal.SampledHistoryRequest
-	108, // 93: wandb_internal.Request.partial_history:type_name -> wandb_internal.PartialHistoryRequest
-	115, // 94: wandb_internal.Request.run_start:type_name -> wandb_internal.RunStartRequest
-	117, // 95: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
-	121, // 96: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
-	123, // 97: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
-	125, // 98: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
-	113, // 99: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
-	136, // 100: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
-	143, // 101: wandb_internal.Request.metadata:type_name -> wandb_internal.MetadataRequest
-	82,  // 102: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
-	101, // 103: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
-	103, // 104: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
-	75,  // 105: wandb_internal.Request.status:type_name -> wandb_internal.StatusRequest
-	92,  // 106: wandb_internal.Request.server_info:type_name -> wandb_internal.ServerInfoRequest
-	87,  // 107: wandb_internal.Request.sender_mark:type_name -> wandb_internal.SenderMarkRequest
-	88,  // 108: wandb_internal.Request.sender_read:type_name -> wandb_internal.SenderReadRequest
-	89,  // 109: wandb_internal.Request.status_report:type_name -> wandb_internal.StatusReportRequest
-	90,  // 110: wandb_internal.Request.summary_record:type_name -> wandb_internal.SummaryRecordRequest
-	91,  // 111: wandb_internal.Request.telemetry_record:type_name -> wandb_internal.TelemetryRecordRequest
-	119, // 112: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
-	71,  // 113: wandb_internal.Request.get_system_metrics:type_name -> wandb_internal.GetSystemMetricsRequest
-	99,  // 114: wandb_internal.Request.file_transfer_info:type_name -> wandb_internal.FileTransferInfoRequest
-	105, // 115: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
-	126, // 116: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
-	78,  // 117: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
-	80,  // 118: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
-	68,  // 119: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
-	70,  // 120: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
-	86,  // 121: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
-	112, // 122: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
-	116, // 123: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
-	118, // 124: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
-	122, // 125: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
-	124, // 126: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
-	114, // 127: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
-	137, // 128: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
-	83,  // 129: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
-	102, // 130: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
-	104, // 131: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
-	76,  // 132: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
-	93,  // 133: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
-	120, // 134: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
-	74,  // 135: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
-	106, // 136: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
-	6,   // 137: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
-	150, // 138: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 139: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 140: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 141: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
-	41,  // 142: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
-	150, // 143: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
-	149, // 144: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
-	72,  // 145: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
-	144, // 146: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
-	150, // 147: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 148: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 149: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	81,  // 150: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
-	150, // 151: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
-	84,  // 152: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
-	150, // 153: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
-	19,  // 154: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
-	97,  // 155: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
-	96,  // 156: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
-	149, // 157: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
-	40,  // 158: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
-	146, // 159: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
-	150, // 160: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	100, // 161: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
-	94,  // 162: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
-	95,  // 163: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
-	7,   // 164: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
-	96,  // 165: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
-	150, // 166: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 167: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
-	14,  // 168: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
-	17,  // 169: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
-	150, // 170: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
-	26,  // 171: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
-	24,  // 172: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
-	107, // 173: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
-	150, // 174: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 175: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	111, // 176: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
-	150, // 177: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	149, // 178: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
-	14,  // 179: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
-	150, // 180: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 181: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 182: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	48,  // 183: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
-	150, // 184: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 185: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	150, // 186: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
-	128, // 187: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
-	129, // 188: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
-	127, // 189: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
-	130, // 190: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
-	131, // 191: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
-	132, // 192: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
-	133, // 193: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	147, // 194: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	150, // 195: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	149, // 196: wandb_internal.MetadataRequest.heartbeatAt:type_name -> google.protobuf.Timestamp
-	149, // 197: wandb_internal.MetadataRequest.startedAt:type_name -> google.protobuf.Timestamp
-	15,  // 198: wandb_internal.MetadataRequest.git:type_name -> wandb_internal.GitRepoRecord
-	145, // 199: wandb_internal.MetadataRequest.disk:type_name -> wandb_internal.MetadataRequest.DiskEntry
-	139, // 200: wandb_internal.MetadataRequest.memory:type_name -> wandb_internal.MemoryInfo
-	140, // 201: wandb_internal.MetadataRequest.cpu:type_name -> wandb_internal.CpuInfo
-	141, // 202: wandb_internal.MetadataRequest.gpu_apple:type_name -> wandb_internal.GpuAppleInfo
-	142, // 203: wandb_internal.MetadataRequest.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
-	73,  // 204: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
-	138, // 205: wandb_internal.MetadataRequest.DiskEntry.value:type_name -> wandb_internal.DiskInfo
-	206, // [206:206] is the sub-list for method output_type
-	206, // [206:206] is the sub-list for method input_type
-	206, // [206:206] is the sub-list for extension type_name
-	206, // [206:206] is the sub-list for extension extendee
-	0,   // [0:206] is the sub-list for field type_name
+	24,  // 17: wandb_internal.Record.preempting:type_name -> wandb_internal.RunPreemptingRecord
+	59,  // 18: wandb_internal.Record.link_artifact:type_name -> wandb_internal.LinkArtifactRecord
+	138, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
+	18,  // 20: wandb_internal.Record.stream_table:type_name -> wandb_internal.StreamTableRecord
+	20,  // 21: wandb_internal.Record.stream_data:type_name -> wandb_internal.StreamDataRecord
+	64,  // 22: wandb_internal.Record.request:type_name -> wandb_internal.Request
+	9,   // 23: wandb_internal.Record.control:type_name -> wandb_internal.Control
+	152, // 24: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
+	16,  // 25: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
+	23,  // 26: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
+	31,  // 27: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
+	46,  // 28: wandb_internal.Result.summary_result:type_name -> wandb_internal.SummaryResult
+	33,  // 29: wandb_internal.Result.output_result:type_name -> wandb_internal.OutputResult
+	43,  // 30: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
+	19,  // 31: wandb_internal.Result.stream_table_result:type_name -> wandb_internal.StreamTableResult
+	65,  // 32: wandb_internal.Result.response:type_name -> wandb_internal.Response
+	9,   // 33: wandb_internal.Result.control:type_name -> wandb_internal.Control
+	153, // 34: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
+	152, // 35: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 36: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 37: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
+	41,  // 38: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
+	44,  // 39: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
+	26,  // 40: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
+	154, // 41: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
+	151, // 42: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
+	15,  // 43: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
+	152, // 44: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
+	14,  // 45: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
+	17,  // 46: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
+	0,   // 47: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
+	152, // 48: wandb_internal.StreamTableRecord._info:type_name -> wandb_internal._RecordInfo
+	148, // 49: wandb_internal.StreamDataRecord.items:type_name -> wandb_internal.StreamDataRecord.ItemsEntry
+	152, // 50: wandb_internal.StreamDataRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 51: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 52: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
+	27,  // 53: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
+	152, // 54: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
+	30,  // 55: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
+	28,  // 56: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
+	152, // 57: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
+	1,   // 58: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
+	154, // 59: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
+	152, // 60: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
+	2,   // 61: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
+	154, // 62: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
+	152, // 63: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
+	38,  // 64: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
+	40,  // 65: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
+	3,   // 66: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
+	39,  // 67: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
+	152, // 68: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
+	42,  // 69: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
+	42,  // 70: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
+	152, // 71: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
+	45,  // 72: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
+	45,  // 73: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
+	152, // 74: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
+	48,  // 75: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
+	152, // 76: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
+	4,   // 77: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
+	5,   // 78: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
+	154, // 79: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
+	51,  // 80: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
+	152, // 81: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
+	53,  // 82: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
+	152, // 83: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	56,  // 84: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
+	54,  // 85: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
+	55,  // 86: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
+	152, // 87: wandb_internal.LinkArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 88: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
+	152, // 89: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
+	81,  // 90: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
+	83,  // 91: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
+	66,  // 92: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
+	73,  // 93: wandb_internal.Request.get_summary:type_name -> wandb_internal.GetSummaryRequest
+	71,  // 94: wandb_internal.Request.login:type_name -> wandb_internal.LoginRequest
+	67,  // 95: wandb_internal.Request.pause:type_name -> wandb_internal.PauseRequest
+	69,  // 96: wandb_internal.Request.resume:type_name -> wandb_internal.ResumeRequest
+	89,  // 97: wandb_internal.Request.poll_exit:type_name -> wandb_internal.PollExitRequest
+	114, // 98: wandb_internal.Request.sampled_history:type_name -> wandb_internal.SampledHistoryRequest
+	112, // 99: wandb_internal.Request.partial_history:type_name -> wandb_internal.PartialHistoryRequest
+	119, // 100: wandb_internal.Request.run_start:type_name -> wandb_internal.RunStartRequest
+	121, // 101: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
+	125, // 102: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
+	127, // 103: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
+	129, // 104: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
+	117, // 105: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
+	140, // 106: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
+	147, // 107: wandb_internal.Request.metadata:type_name -> wandb_internal.MetadataRequest
+	86,  // 108: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
+	105, // 109: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
+	107, // 110: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
+	79,  // 111: wandb_internal.Request.status:type_name -> wandb_internal.StatusRequest
+	96,  // 112: wandb_internal.Request.server_info:type_name -> wandb_internal.ServerInfoRequest
+	91,  // 113: wandb_internal.Request.sender_mark:type_name -> wandb_internal.SenderMarkRequest
+	92,  // 114: wandb_internal.Request.sender_read:type_name -> wandb_internal.SenderReadRequest
+	93,  // 115: wandb_internal.Request.status_report:type_name -> wandb_internal.StatusReportRequest
+	94,  // 116: wandb_internal.Request.summary_record:type_name -> wandb_internal.SummaryRecordRequest
+	95,  // 117: wandb_internal.Request.telemetry_record:type_name -> wandb_internal.TelemetryRecordRequest
+	123, // 118: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
+	75,  // 119: wandb_internal.Request.get_system_metrics:type_name -> wandb_internal.GetSystemMetricsRequest
+	103, // 120: wandb_internal.Request.file_transfer_info:type_name -> wandb_internal.FileTransferInfoRequest
+	109, // 121: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
+	130, // 122: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
+	82,  // 123: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
+	84,  // 124: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
+	72,  // 125: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
+	74,  // 126: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
+	90,  // 127: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
+	116, // 128: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
+	120, // 129: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
+	122, // 130: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
+	126, // 131: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
+	128, // 132: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
+	118, // 133: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
+	141, // 134: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
+	87,  // 135: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
+	106, // 136: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
+	108, // 137: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
+	80,  // 138: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
+	97,  // 139: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
+	124, // 140: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
+	78,  // 141: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
+	110, // 142: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
+	6,   // 143: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
+	155, // 144: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 145: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 146: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 147: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
+	45,  // 148: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
+	155, // 149: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
+	154, // 150: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
+	76,  // 151: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
+	149, // 152: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
+	155, // 153: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 154: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 155: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	85,  // 156: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
+	155, // 157: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
+	88,  // 158: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
+	155, // 159: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
+	23,  // 160: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
+	101, // 161: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
+	100, // 162: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
+	154, // 163: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
+	44,  // 164: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
+	151, // 165: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
+	155, // 166: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	104, // 167: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
+	98,  // 168: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
+	99,  // 169: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
+	7,   // 170: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
+	100, // 171: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
+	155, // 172: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 173: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
+	14,  // 174: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
+	17,  // 175: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
+	155, // 176: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
+	30,  // 177: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
+	28,  // 178: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
+	111, // 179: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
+	155, // 180: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 181: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	115, // 182: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
+	155, // 183: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	154, // 184: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
+	14,  // 185: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
+	155, // 186: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 187: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 188: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	52,  // 189: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
+	155, // 190: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 191: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	155, // 192: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	132, // 193: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
+	133, // 194: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
+	131, // 195: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
+	134, // 196: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
+	135, // 197: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
+	136, // 198: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
+	137, // 199: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
+	152, // 200: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	155, // 201: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	154, // 202: wandb_internal.MetadataRequest.heartbeatAt:type_name -> google.protobuf.Timestamp
+	154, // 203: wandb_internal.MetadataRequest.startedAt:type_name -> google.protobuf.Timestamp
+	15,  // 204: wandb_internal.MetadataRequest.git:type_name -> wandb_internal.GitRepoRecord
+	150, // 205: wandb_internal.MetadataRequest.disk:type_name -> wandb_internal.MetadataRequest.DiskEntry
+	143, // 206: wandb_internal.MetadataRequest.memory:type_name -> wandb_internal.MemoryInfo
+	144, // 207: wandb_internal.MetadataRequest.cpu:type_name -> wandb_internal.CpuInfo
+	145, // 208: wandb_internal.MetadataRequest.gpu_apple:type_name -> wandb_internal.GpuAppleInfo
+	146, // 209: wandb_internal.MetadataRequest.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	21,  // 210: wandb_internal.StreamDataRecord.ItemsEntry.value:type_name -> wandb_internal.StreamValue
+	77,  // 211: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
+	142, // 212: wandb_internal.MetadataRequest.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	213, // [213:213] is the sub-list for method output_type
+	213, // [213:213] is the sub-list for method input_type
+	213, // [213:213] is the sub-list for extension type_name
+	213, // [213:213] is the sub-list for extension extendee
+	0,   // [0:213] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }
@@ -11623,7 +11995,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunExitRecord); i {
+			switch v := v.(*StreamTableRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11635,7 +12007,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunExitResult); i {
+			switch v := v.(*StreamTableResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11647,7 +12019,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunPreemptingRecord); i {
+			switch v := v.(*StreamDataRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11659,7 +12031,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunPreemptingResult); i {
+			switch v := v.(*StreamValue); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11671,7 +12043,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsRecord); i {
+			switch v := v.(*RunExitRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11683,7 +12055,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsItem); i {
+			switch v := v.(*RunExitResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11695,7 +12067,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryStep); i {
+			switch v := v.(*RunPreemptingRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11707,7 +12079,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryRecord); i {
+			switch v := v.(*RunPreemptingResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11719,7 +12091,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryItem); i {
+			switch v := v.(*SettingsRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11731,7 +12103,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryResult); i {
+			switch v := v.(*SettingsItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11743,7 +12115,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*OutputRecord); i {
+			switch v := v.(*HistoryStep); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11755,7 +12127,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*OutputResult); i {
+			switch v := v.(*HistoryRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11767,7 +12139,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*OutputRawRecord); i {
+			switch v := v.(*HistoryItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11779,7 +12151,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*OutputRawResult); i {
+			switch v := v.(*HistoryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11791,7 +12163,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetricRecord); i {
+			switch v := v.(*OutputRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11803,7 +12175,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetricResult); i {
+			switch v := v.(*OutputResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11815,7 +12187,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetricOptions); i {
+			switch v := v.(*OutputRawRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11827,7 +12199,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetricControl); i {
+			switch v := v.(*OutputRawResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11839,7 +12211,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MetricSummary); i {
+			switch v := v.(*MetricRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11851,7 +12223,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ConfigRecord); i {
+			switch v := v.(*MetricResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11863,7 +12235,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ConfigItem); i {
+			switch v := v.(*MetricOptions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11875,7 +12247,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ConfigResult); i {
+			switch v := v.(*MetricControl); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11887,7 +12259,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SummaryRecord); i {
+			switch v := v.(*MetricSummary); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11899,7 +12271,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SummaryItem); i {
+			switch v := v.(*ConfigRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11911,7 +12283,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SummaryResult); i {
+			switch v := v.(*ConfigItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11923,7 +12295,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesRecord); i {
+			switch v := v.(*ConfigResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11935,7 +12307,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesItem); i {
+			switch v := v.(*SummaryRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11947,7 +12319,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesResult); i {
+			switch v := v.(*SummaryItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11959,7 +12331,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatsRecord); i {
+			switch v := v.(*SummaryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11971,7 +12343,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatsItem); i {
+			switch v := v.(*FilesRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11983,7 +12355,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ArtifactRecord); i {
+			switch v := v.(*FilesItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -11995,7 +12367,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ArtifactManifest); i {
+			switch v := v.(*FilesResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12007,7 +12379,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ArtifactManifestEntry); i {
+			switch v := v.(*StatsRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12019,7 +12391,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ExtraItem); i {
+			switch v := v.(*StatsItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12031,7 +12403,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StoragePolicyConfigItem); i {
+			switch v := v.(*ArtifactRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12043,7 +12415,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ArtifactResult); i {
+			switch v := v.(*ArtifactManifest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12055,7 +12427,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LinkArtifactResult); i {
+			switch v := v.(*ArtifactManifestEntry); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12067,7 +12439,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LinkArtifactRecord); i {
+			switch v := v.(*ExtraItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12079,7 +12451,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TBRecord); i {
+			switch v := v.(*StoragePolicyConfigItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12091,7 +12463,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TBResult); i {
+			switch v := v.(*ArtifactResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12103,7 +12475,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AlertRecord); i {
+			switch v := v.(*LinkArtifactResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12115,7 +12487,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AlertResult); i {
+			switch v := v.(*LinkArtifactRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12127,7 +12499,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Request); i {
+			switch v := v.(*TBRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12139,7 +12511,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Response); i {
+			switch v := v.(*TBResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12151,7 +12523,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeferRequest); i {
+			switch v := v.(*AlertRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12163,7 +12535,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PauseRequest); i {
+			switch v := v.(*AlertResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12175,7 +12547,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PauseResponse); i {
+			switch v := v.(*Request); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12187,7 +12559,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResumeRequest); i {
+			switch v := v.(*Response); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12199,7 +12571,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ResumeResponse); i {
+			switch v := v.(*DeferRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12211,7 +12583,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LoginRequest); i {
+			switch v := v.(*PauseRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12223,7 +12595,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LoginResponse); i {
+			switch v := v.(*PauseResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12235,7 +12607,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSummaryRequest); i {
+			switch v := v.(*ResumeRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12247,7 +12619,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSummaryResponse); i {
+			switch v := v.(*ResumeResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12259,7 +12631,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSystemMetricsRequest); i {
+			switch v := v.(*LoginRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12271,7 +12643,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SystemMetricSample); i {
+			switch v := v.(*LoginResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12283,7 +12655,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SystemMetricsBuffer); i {
+			switch v := v.(*GetSummaryRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12295,7 +12667,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetSystemMetricsResponse); i {
+			switch v := v.(*GetSummaryResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12307,7 +12679,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatusRequest); i {
+			switch v := v.(*GetSystemMetricsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12319,7 +12691,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatusResponse); i {
+			switch v := v.(*SystemMetricSample); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12331,7 +12703,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[69].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StopStatusRequest); i {
+			switch v := v.(*SystemMetricsBuffer); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12343,7 +12715,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[70].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StopStatusResponse); i {
+			switch v := v.(*GetSystemMetricsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12355,7 +12727,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[71].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetworkStatusRequest); i {
+			switch v := v.(*StatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12367,7 +12739,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[72].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetworkStatusResponse); i {
+			switch v := v.(*StatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12379,7 +12751,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[73].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HttpResponse); i {
+			switch v := v.(*StopStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12391,7 +12763,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[74].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InternalMessagesRequest); i {
+			switch v := v.(*StopStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12403,7 +12775,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[75].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InternalMessagesResponse); i {
+			switch v := v.(*NetworkStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12415,7 +12787,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[76].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*InternalMessages); i {
+			switch v := v.(*NetworkStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12427,7 +12799,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[77].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PollExitRequest); i {
+			switch v := v.(*HttpResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12439,7 +12811,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[78].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PollExitResponse); i {
+			switch v := v.(*InternalMessagesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12451,7 +12823,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[79].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SenderMarkRequest); i {
+			switch v := v.(*InternalMessagesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12463,7 +12835,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[80].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SenderReadRequest); i {
+			switch v := v.(*InternalMessages); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12475,7 +12847,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[81].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatusReportRequest); i {
+			switch v := v.(*PollExitRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12487,7 +12859,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[82].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SummaryRecordRequest); i {
+			switch v := v.(*PollExitResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12499,7 +12871,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[83].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TelemetryRecordRequest); i {
+			switch v := v.(*SenderMarkRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12511,7 +12883,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[84].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ServerInfoRequest); i {
+			switch v := v.(*SenderReadRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12523,7 +12895,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ServerInfoResponse); i {
+			switch v := v.(*StatusReportRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12535,7 +12907,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ServerMessages); i {
+			switch v := v.(*SummaryRecordRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12547,7 +12919,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[87].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ServerMessage); i {
+			switch v := v.(*TelemetryRecordRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12559,7 +12931,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[88].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FileCounts); i {
+			switch v := v.(*ServerInfoRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12571,7 +12943,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[89].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilePusherStats); i {
+			switch v := v.(*ServerInfoResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12583,7 +12955,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[90].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesUploaded); i {
+			switch v := v.(*ServerMessages); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12595,7 +12967,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[91].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FileTransferInfoRequest); i {
+			switch v := v.(*ServerMessage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12607,7 +12979,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[92].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LocalInfo); i {
+			switch v := v.(*FileCounts); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12619,7 +12991,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[93].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ShutdownRequest); i {
+			switch v := v.(*FilePusherStats); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12631,7 +13003,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[94].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ShutdownResponse); i {
+			switch v := v.(*FilesUploaded); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12643,7 +13015,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[95].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AttachRequest); i {
+			switch v := v.(*FileTransferInfoRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12655,7 +13027,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[96].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AttachResponse); i {
+			switch v := v.(*LocalInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12667,7 +13039,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[97].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TestInjectRequest); i {
+			switch v := v.(*ShutdownRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12679,7 +13051,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[98].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TestInjectResponse); i {
+			switch v := v.(*ShutdownResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12691,7 +13063,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[99].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HistoryAction); i {
+			switch v := v.(*AttachRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12703,7 +13075,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[100].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PartialHistoryRequest); i {
+			switch v := v.(*AttachResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12715,7 +13087,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[101].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PartialHistoryResponse); i {
+			switch v := v.(*TestInjectRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12727,7 +13099,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[102].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SampledHistoryRequest); i {
+			switch v := v.(*TestInjectResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12739,7 +13111,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[103].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SampledHistoryItem); i {
+			switch v := v.(*HistoryAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12751,7 +13123,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[104].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SampledHistoryResponse); i {
+			switch v := v.(*PartialHistoryRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12763,7 +13135,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[105].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunStatusRequest); i {
+			switch v := v.(*PartialHistoryResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12775,7 +13147,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[106].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunStatusResponse); i {
+			switch v := v.(*SampledHistoryRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12787,7 +13159,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[107].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunStartRequest); i {
+			switch v := v.(*SampledHistoryItem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12799,7 +13171,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[108].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RunStartResponse); i {
+			switch v := v.(*SampledHistoryResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12811,7 +13183,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[109].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CheckVersionRequest); i {
+			switch v := v.(*RunStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12823,7 +13195,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[110].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CheckVersionResponse); i {
+			switch v := v.(*RunStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12835,7 +13207,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[111].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*JobInfoRequest); i {
+			switch v := v.(*RunStartRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12847,7 +13219,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[112].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*JobInfoResponse); i {
+			switch v := v.(*RunStartResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12859,7 +13231,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[113].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LogArtifactRequest); i {
+			switch v := v.(*CheckVersionRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12871,7 +13243,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[114].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*LogArtifactResponse); i {
+			switch v := v.(*CheckVersionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12883,7 +13255,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[115].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DownloadArtifactRequest); i {
+			switch v := v.(*JobInfoRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12895,7 +13267,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[116].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DownloadArtifactResponse); i {
+			switch v := v.(*JobInfoResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12907,7 +13279,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[117].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*KeepaliveRequest); i {
+			switch v := v.(*LogArtifactRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12919,7 +13291,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[118].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*KeepaliveResponse); i {
+			switch v := v.(*LogArtifactResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12931,7 +13303,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[119].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ArtifactInfo); i {
+			switch v := v.(*DownloadArtifactRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12943,7 +13315,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[120].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GitInfo); i {
+			switch v := v.(*DownloadArtifactResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12955,7 +13327,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[121].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GitSource); i {
+			switch v := v.(*KeepaliveRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12967,7 +13339,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[122].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ImageSource); i {
+			switch v := v.(*KeepaliveResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12979,7 +13351,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[123].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Source); i {
+			switch v := v.(*ArtifactInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -12991,7 +13363,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[124].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*JobSource); i {
+			switch v := v.(*GitInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13003,7 +13375,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[125].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PartialJobArtifact); i {
+			switch v := v.(*GitSource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13015,7 +13387,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[126].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UseArtifactRecord); i {
+			switch v := v.(*ImageSource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13027,7 +13399,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[127].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UseArtifactResult); i {
+			switch v := v.(*Source); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13039,7 +13411,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[128].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CancelRequest); i {
+			switch v := v.(*JobSource); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13051,7 +13423,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[129].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CancelResponse); i {
+			switch v := v.(*PartialJobArtifact); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13063,7 +13435,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[130].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DiskInfo); i {
+			switch v := v.(*UseArtifactRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13075,7 +13447,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[131].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*MemoryInfo); i {
+			switch v := v.(*UseArtifactResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13087,7 +13459,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[132].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CpuInfo); i {
+			switch v := v.(*CancelRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13099,7 +13471,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[133].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GpuAppleInfo); i {
+			switch v := v.(*CancelResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13111,7 +13483,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[134].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GpuNvidiaInfo); i {
+			switch v := v.(*DiskInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -13123,6 +13495,54 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			}
 		}
 		file_wandb_proto_wandb_internal_proto_msgTypes[135].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*MemoryInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[136].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CpuInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[137].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GpuAppleInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[138].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GpuNvidiaInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_wandb_proto_wandb_internal_proto_msgTypes[139].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*MetadataRequest); i {
 			case 0:
 				return &v.state
@@ -13156,6 +13576,8 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Record_Preempting)(nil),
 		(*Record_LinkArtifact)(nil),
 		(*Record_UseArtifact)(nil),
+		(*Record_StreamTable)(nil),
+		(*Record_StreamData)(nil),
 		(*Record_Request)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[2].OneofWrappers = []interface{}{
@@ -13165,9 +13587,15 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_SummaryResult)(nil),
 		(*Result_OutputResult)(nil),
 		(*Result_ConfigResult)(nil),
+		(*Result_StreamTableResult)(nil),
 		(*Result_Response)(nil),
 	}
-	file_wandb_proto_wandb_internal_proto_msgTypes[52].OneofWrappers = []interface{}{
+	file_wandb_proto_wandb_internal_proto_msgTypes[13].OneofWrappers = []interface{}{
+		(*StreamValue_Int64Value)(nil),
+		(*StreamValue_DoubleValue)(nil),
+		(*StreamValue_StringValue)(nil),
+	}
+	file_wandb_proto_wandb_internal_proto_msgTypes[56].OneofWrappers = []interface{}{
 		(*Request_StopStatus)(nil),
 		(*Request_NetworkStatus)(nil),
 		(*Request_Defer)(nil),
@@ -13201,7 +13629,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Request_FileTransferInfo)(nil),
 		(*Request_TestInject)(nil),
 	}
-	file_wandb_proto_wandb_internal_proto_msgTypes[53].OneofWrappers = []interface{}{
+	file_wandb_proto_wandb_internal_proto_msgTypes[57].OneofWrappers = []interface{}{
 		(*Response_KeepaliveResponse)(nil),
 		(*Response_StopStatusResponse)(nil),
 		(*Response_NetworkStatusResponse)(nil),
@@ -13230,7 +13658,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_wandb_proto_wandb_internal_proto_rawDesc,
 			NumEnums:      8,
-			NumMessages:   138,
+			NumMessages:   143,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
