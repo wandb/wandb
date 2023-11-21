@@ -48,5 +48,5 @@ nox -s list-failing-tests-nexus
 To run the tests excluding the failing ones locally, you will need to run the following
 commands in your active Python environment (assuming you are in the root of the repository):
 ```bash
-WANDB_REQUIRE_NEXUS=true pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
+pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
 ```

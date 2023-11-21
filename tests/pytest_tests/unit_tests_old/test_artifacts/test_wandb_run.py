@@ -4,6 +4,7 @@ import pytest
 import wandb
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
 
@@ -168,6 +169,7 @@ def test_artifact_string_run_config_update(
     }
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_wandb_artifact_config_update(
     runner, live_mock_server, test_settings, parse_ctx
 ):
@@ -199,6 +201,7 @@ def test_wandb_artifact_config_update(
             assert run.config.test_reference_download.id == artifact.id
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_wandb_artifact_config_set_item(
     runner, live_mock_server, test_settings, parse_ctx
 ):
@@ -224,6 +227,7 @@ def test_wandb_artifact_config_set_item(
         }
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_use_artifact(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact("arti", type="dataset")
@@ -291,6 +295,7 @@ def test_public_artifact_run_config_update(
     }
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_wandb_artifact_init_config(runner, live_mock_server, test_settings, parse_ctx):
     with runner.isolated_filesystem():
         open("file1.txt", "w").write("hello")
@@ -314,6 +319,7 @@ def test_wandb_artifact_init_config(runner, live_mock_server, test_settings, par
         }
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
@@ -330,6 +336,7 @@ def test_log_code_settings(live_mock_server, test_settings):
 
 
 @pytest.mark.parametrize("save_code", [True, False])
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_log_code_env(live_mock_server, test_settings, save_code):
     # test for WB-7468
     with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):

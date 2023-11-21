@@ -2,13 +2,14 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -862,13 +863,11 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.QualifiedName, utils.NilIfZero(msg.DownloadRoot), &msg.AllowMissingReferences)
-	fileDownloadPath, err := downloader.Download()
+	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
+	err := downloader.Download()
 	if err != nil {
-		fmt.Printf("senderError: downloadArtifact: failed to download artifact: %v", err)
+		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
 		response.ErrorMessage = err.Error()
-	} else {
-		response.FileDownloadPath = fileDownloadPath
 	}
 
 	result := &service.Result{

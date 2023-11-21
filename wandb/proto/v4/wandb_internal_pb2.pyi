@@ -3054,11 +3054,11 @@ class DownloadArtifactRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    QUALIFIED_NAME_FIELD_NUMBER: builtins.int
+    ARTIFACT_ID_FIELD_NUMBER: builtins.int
     DOWNLOAD_ROOT_FIELD_NUMBER: builtins.int
     ALLOW_MISSING_REFERENCES_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    qualified_name: builtins.str
+    artifact_id: builtins.str
     download_root: builtins.str
     allow_missing_references: builtins.bool
     @property
@@ -3066,13 +3066,13 @@ class DownloadArtifactRequest(google.protobuf.message.Message):
     def __init__(
         self,
         *,
-        qualified_name: builtins.str = ...,
+        artifact_id: builtins.str = ...,
         download_root: builtins.str = ...,
         allow_missing_references: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "allow_missing_references", b"allow_missing_references", "download_root", b"download_root", "qualified_name", b"qualified_name"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "allow_missing_references", b"allow_missing_references", "artifact_id", b"artifact_id", "download_root", b"download_root"]) -> None: ...
 
 global___DownloadArtifactRequest = DownloadArtifactRequest
 
@@ -3080,17 +3080,14 @@ global___DownloadArtifactRequest = DownloadArtifactRequest
 class DownloadArtifactResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    FILE_DOWNLOAD_PATH_FIELD_NUMBER: builtins.int
     ERROR_MESSAGE_FIELD_NUMBER: builtins.int
-    file_download_path: builtins.str
     error_message: builtins.str
     def __init__(
         self,
         *,
-        file_download_path: builtins.str = ...,
         error_message: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message", "file_download_path", b"file_download_path"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error_message", b"error_message"]) -> None: ...
 
 global___DownloadArtifactResponse = DownloadArtifactResponse
 
