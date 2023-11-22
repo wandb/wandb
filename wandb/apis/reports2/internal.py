@@ -371,7 +371,7 @@ class List(Block):
 
 class CalloutLine(ReportAPIBaseModel):
     type: Literal["callout-line"] = "callout-line"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
 
 class CalloutBlock(Block):

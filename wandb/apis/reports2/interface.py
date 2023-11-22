@@ -362,17 +362,18 @@ class Image(Block):
 
 @dataclass(config=dataclass_config)
 class CalloutBlock(Block):
-    text: str = ""
+    text: TextLikeField = ""
 
     def to_model(self):
         return internal.CalloutBlock(
-            children=[internal.CalloutLine(children=[internal.Text(text=self.text)])]
+            children=[
+                internal.CalloutLine(children=_text_to_internal_children(self.text))
+            ]
         )
 
     @classmethod
     def from_model(cls, model: internal.CalloutBlock):
-        texts = [text.text for line in model.children for text in line.children]
-        text = "\n".join(texts)
+        text = _internal_children_to_text(model.children[0].children)
         return cls(text=text)
 
 
