@@ -15,6 +15,8 @@ type Network struct {
 	mutex    sync.RWMutex
 	sentInit int
 	recvInit int
+	lastSent int
+	lastRecv int
 }
 
 func NewNetwork(settings *service.Settings) *Network {
@@ -28,6 +30,8 @@ func NewNetwork(settings *service.Settings) *Network {
 	if err == nil {
 		nw.sentInit = int(netIOCounters[0].BytesSent)
 		nw.recvInit = int(netIOCounters[0].BytesRecv)
+		nw.lastSent = int(netIOCounters[0].BytesSent)
+		nw.lastRecv = int(netIOCounters[0].BytesRecv)
 	}
 
 	return nw
@@ -51,12 +55,14 @@ func (n *Network) SampleMetrics() {
 		)
 		n.metrics["network.upload_speed"] = append(
 			n.metrics["network.upload_speed"],
-			float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
+			float64((int(netIOCounters[0].BytesSent)-n.lastSent)/2),
 		)
+		n.lastSent = int(netIOCounters[0].BytesSent)
 		n.metrics["network.download_speed"] = append(
 			n.metrics["network.download_speed"],
-			float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
+			float64((int(netIOCounters[0].BytesRecv)-n.lastRecv)/2),
 		)
+		n.lastRecv = int(netIOCounters[0].BytesRecv)
 	}
 
 }
