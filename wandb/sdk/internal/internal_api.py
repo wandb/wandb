@@ -881,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
