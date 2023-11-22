@@ -26,20 +26,16 @@ func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 	return logger
 }
 
-func SetupDefaultLogger() *slog.Logger {
-	var writers []io.Writer
+type BufferWriter struct {
+	buffer []byte
+}
 
-	// todo: discover system temp lib
-	name := "/tmp/logs.txt"
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		fmt.Println("FATAL Problem", err)
-	} else {
-		writers = append(writers, file)
-	}
-	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
-		writers = append(writers, os.Stderr)
-	}
+func (w *BufferWriter) Write(p []byte) (n int, err error) {
+	w.buffer = append(w.buffer, p...)
+	return len(p), nil
+}
+
+func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 
 	logger := setupLogger(nil, writers...)
 	slog.SetDefault(logger)

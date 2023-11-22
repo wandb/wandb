@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"io"
 	"log/slog"
 	_ "net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/trace"
+	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -35,7 +39,26 @@ func main() {
 
 	flag.Parse()
 
-	logger := server.SetupDefaultLogger()
+	var writers []io.Writer
+	var loggerPath string
+	if cacheDir, err := os.UserCacheDir(); err != nil {
+		fmt.Println("Unable to get user cache dir", err)
+	} else {
+		// Create a unique file name using a timestamp
+		timestamp := time.Now().Format("20060102_150405")
+		loggerPath = filepath.Join(cacheDir, "wandb", fmt.Sprintf("core-debug-%s.log", timestamp))
+
+		file, err := os.OpenFile(loggerPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if err != nil {
+			fmt.Println("Unable to create log file", err)
+		} else {
+			writers = append(writers, file)
+		}
+	}
+	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+		writers = append(writers, os.Stderr)
+	}
+	logger := server.SetupDefaultLogger(writers...)
 	ctx := context.Background()
 
 	// set up sentry reporting
@@ -72,7 +95,7 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-
 	nexus := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	nexus.SetDefaultLoggerPath(loggerPath)
 	nexus.Close()
 }
