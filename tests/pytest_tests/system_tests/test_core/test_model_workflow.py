@@ -98,7 +98,7 @@ def test_link_model_error_artifact_type(
     logged_artifact = run.log_artifact(local_path, name="test-model", type="dataset")
     logged_artifact.wait()
     with pytest.raises(AssertionError):
-        _ = run.link_model(local_path, "test_portfolio", "test_model")
+        run.link_model(local_path, "test_portfolio", "test_model")
     run.finish()
 
 
