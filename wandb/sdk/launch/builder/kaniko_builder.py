@@ -12,6 +12,7 @@ from typing import Optional
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -162,7 +163,12 @@ class KanikoBuilder(AbstractBuilder):
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
-        image = config.get("kaniko-image", "gcr.io/kaniko-project/executor:v1.11.0")
+        kaniko_image = config.get(
+            "kaniko-image", "gcr.io/kaniko-project/executor:v1.11.0"
+        )
+        image_uri = config.get("destination")
+        if image_uri is not None:
+            registry = registry_from_uri(image_uri)
         return cls(
             environment,
             registry,
@@ -170,7 +176,7 @@ class KanikoBuilder(AbstractBuilder):
             build_job_name=build_job_name,
             secret_name=secret_name,
             secret_key=secret_key,
-            image=image,
+            image=kaniko_image,
         )
 
     async def verify(self) -> None:
