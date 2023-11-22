@@ -26,15 +26,6 @@ func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 	return logger
 }
 
-type BufferWriter struct {
-	buffer []byte
-}
-
-func (w *BufferWriter) Write(p []byte) (n int, err error) {
-	w.buffer = append(w.buffer, p...)
-	return len(p), nil
-}
-
 func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 
 	logger := setupLogger(nil, writers...)
