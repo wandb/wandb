@@ -72,6 +72,7 @@ class NetworkTrafficSent:
     """Network traffic sent."""
 
     name = "network.traffic_sent"
+    name = "network.traffic_sent"
     samples: "Deque[float]"
     last_value: float
     last_sample: float
@@ -103,12 +104,10 @@ class NetworkTrafficSent:
 
 
 class NetworkTrafficReceived:
-    name = "network.traffic_received"
-    samples: "Deque[float]"
-    last_value: float
-    last_sample: float
-
     """Network traffic received."""
+    
+    name = "network.traffic_recv"
+    samples: "Deque[float]"
 
     def __init__(self) -> None:
         self.network_received = NetworkRecv()
