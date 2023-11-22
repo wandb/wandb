@@ -1,6 +1,6 @@
+"""Public interfaces for the Report API."""
 import os
 import re
-from dataclasses import fields, is_dataclass
 from typing import Iterable, Literal, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
@@ -24,73 +24,50 @@ from .internal import (
     SmoothingType,
 )
 
+TextLike = Union[str, "Link", "InlineLatex"]
+TextLikeField = Union[str, list[TextLike]]
+
+
 _api = wandb.Api()
 DEFAULT_ENTITY = _api.default_entity
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
-dataclass_settings = {"config": dataclass_config, "repr": False}
 
 
-def _format_attr(name, value, indent, max_line_length, is_list_item=False):
-    formatted_value = repr(value)
-    if len(formatted_value) <= max_line_length:
-        prefix = f"{indent}{name}=" if not is_list_item else indent
-        return f"{prefix}{formatted_value}"
-
-    if isinstance(value, list) and all(is_dataclass(item) for item in value):
-        nested_indent = indent + "    "
-        nested_reprs = [
-            nested_indent + repr(item).replace("\n", "\n" + nested_indent)
-            for item in value
-        ]
-        return f"{indent}{name}=[\n" + ",\n".join(nested_reprs) + "\n" + indent + "]"
-    else:
-        prefix = f"{indent}{name}=" if not is_list_item else indent
-        return f"{prefix}{formatted_value}"
-
-
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Base:
-    def __repr__(self):
-        max_line_length = 80
-        indent = "    "
-        field_strings = []
-        single_line = self.__class__.__name__ + "("
-
-        for f in fields(self):
-            value = getattr(self, f.name)
-            if _should_show_attr(f.name, value):
-                field_str = _format_attr(f.name, value, indent, max_line_length)
-                single_line += field_str[len(indent) :] + ", "
-
-                if len(single_line) > max_line_length:
-                    field_strings = [
-                        _format_attr(
-                            f.name, getattr(self, f.name), indent, max_line_length
-                        )
-                        for f in fields(self)
-                        if _should_show_attr(f.name, getattr(self, f.name))
-                    ]
-                    return (
-                        f"{self.__class__.__name__}(\n"
-                        + "\n".join(field_strings)
-                        + "\n)"
-                    )
-
-        if single_line.endswith("("):
-            return single_line + ")"
-        else:
-            return single_line[:-2] + ")"  # Remove the last comma and space
+    ...
+    # TODO: Add __repr__ that hides Nones
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Auto:
     """This value will be defined when the report is saved."""
 
     ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
+class Metric(Base):
+    ...
+
+
+@dataclass(config=dataclass_config)
+class SummaryMetric(Metric):
+    ...
+
+
+@dataclass(config=dataclass_config)
+class LoggedMetric(Metric):
+    ...
+
+
+@dataclass(config=dataclass_config)
+class LoggedMetric(Metric):
+    ...
+
+
+@dataclass(config=dataclass_config)
 class Layout(Base):
     x: int = 0
     y: int = 0
@@ -105,7 +82,7 @@ class Layout(Base):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Block(Base):
     ...
 
@@ -116,17 +93,16 @@ class Block(Base):
     # return cls.from_model(model)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class UnknownBlock(Block):
     ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Heading(Block):
     @classmethod
     def from_model(cls, model: internal.Heading):
-        texts = [text.text for text in model.children]
-        text = "\n".join(texts)
+        text = _internal_children_to_text(model.children)
 
         blocks = None
         if model.collapsed_children:
@@ -140,48 +116,9 @@ class Heading(Block):
             return H3(text=text, collapsed_blocks=blocks)
 
 
-@dataclass(**dataclass_settings)
-class List(Block):
-    @classmethod
-    def from_model(cls, model: internal.List):
-        if not model.children:
-            return UnorderedList()
-
-        item = model.children[0]
-        if item.ordered is not None:
-            list_items = []
-            for item in model.children:
-                for p in item.children:
-                    texts = [text.text for text in p.children]
-                text = "".join(texts)
-                list_item = OrderedListItem(text=text)
-                list_items.append(list_item)
-            return OrderedList(items=list_items)
-
-        if item.checked is not None:
-            list_items = []
-            for item in model.children:
-                for p in item.children:
-                    texts = [text.text for text in p.children]
-                text = "".join(texts)
-                checked = item.checked
-                list_item = CheckedListItem(text=text, checked=checked)
-                list_items.append(list_item)
-            return CheckedList(items=list_items)
-
-        list_items = []
-        for item in model.children:
-            for p in item.children:
-                texts = [text.text for text in p.children]
-            text = "".join(texts)
-            list_item = UnorderedListItem(text=text)
-            list_items.append(list_item)
-        return UnorderedList(items=list_items)
-
-
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class H1(Heading):
-    text: str = ""
+    text: TextLikeField = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -190,14 +127,14 @@ class H1(Heading):
 
         return internal.Heading(
             level=1,
-            children=[internal.Text(text=self.text)],
+            children=_text_to_internal_children(self.text),
             collapsed_children=collapsed_children,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class H2(Block):
-    text: str = ""
+    text: TextLikeField = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -206,14 +143,14 @@ class H2(Block):
 
         return internal.Heading(
             level=2,
-            children=[internal.Text(text=self.text)],
+            children=_text_to_internal_children(self.text),
             collapsed_children=collapsed_children,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class H3(Block):
-    text: str = ""
+    text: TextLikeField = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
@@ -222,101 +159,107 @@ class H3(Block):
 
         return internal.Heading(
             level=3,
-            children=[internal.Text(text=self.text)],
+            children=_text_to_internal_children(self.text),
             collapsed_children=collapsed_children,
         )
 
 
-@dataclass(**dataclass_settings)
-class Link:
+@dataclass(config=dataclass_config)
+class Link(Base):
     text: str
     url: AnyUrl
 
 
-@dataclass(**dataclass_settings)
-class InlineLatex:
+@dataclass(config=dataclass_config)
+class InlineLatex(Base):
     text: str
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class P(Block):
-    text: Union[str, list[Union[str, Link, InlineLatex]]] = ""
+    text: TextLikeField = ""
 
     def to_model(self):
-        if isinstance(text := self.text, str):
-            text = [text]
-
-        texts = []
-        for x in text:
-            if isinstance(x, str):
-                thing = internal.Text(text=x)
-            elif isinstance(x, Link):
-                thing = internal.InlineLink(
-                    url=x.url,
-                    children=internal.Text(text=x.text),
-                )
-            elif isinstance(x, InlineLatex):
-                thing = internal.InlineLatex(content=x.text)
-            texts.append(thing)
-
-        if not all(isinstance(x, str) for x in texts):
-            texts = [internal.Text()] + texts + [internal.Text()]
-
-        return internal.Paragraph(children=texts)
+        children = _text_to_internal_children(self.text)
+        return internal.Paragraph(children=children)
 
     @classmethod
     def from_model(cls, model: internal.Paragraph):
-        pieces = []
-        for x in model.children:
-            if isinstance(x, internal.Text):
-                thing = x.text
-            elif isinstance(x, internal.InlineLink):
-                thing = Link(url=x.url, text=x.children[0].text)
-            elif isinstance(x, internal.InlineLatex):
-                thing = InlineLatex(text=x.content)
-            pieces.append(thing)
-
-        pieces = pieces[1:-1]
-
-        if len(pieces) == 1 and isinstance(pieces[0], str):
-            return cls(text=pieces[0])
+        pieces = _internal_children_to_text(model.children)
         return cls(text=pieces)
 
 
-@dataclass(**dataclass_settings)
-class CheckedListItem:
-    text: str = ""
+@dataclass(config=dataclass_config)
+class ListItem(Base):
+    @classmethod
+    def from_model(cls, model: internal.ListItem):
+        text = _internal_children_to_text(model.children)
+        if model.checked is not None:
+            return CheckedListItem(text=text, checked=model.checked)
+        if model.ordered is not None:
+            return OrderedListItem(text=text)
+        return UnorderedListItem(text=text)
+
+
+@dataclass(config=dataclass_config)
+class CheckedListItem(Base):
+    text: TextLikeField = ""
     checked: bool = False
 
     def to_model(self):
         return internal.ListItem(
-            children=[internal.Paragraph(children=[internal.Text(text=self.text)])],
+            children=[
+                internal.Paragraph(children=_text_to_internal_children(self.text))
+            ],
             checked=self.checked,
         )
 
 
-@dataclass(**dataclass_settings)
-class OrderedListItem:
-    text: str = ""
+@dataclass(config=dataclass_config)
+class OrderedListItem(Base):
+    text: TextLikeField = ""
 
     def to_model(self):
         return internal.ListItem(
-            children=[internal.Paragraph(children=[internal.Text(text=self.text)])],
+            children=[
+                internal.Paragraph(children=_text_to_internal_children(self.text))
+            ],
             ordered=True,
         )
 
 
-@dataclass(**dataclass_settings)
-class UnorderedListItem:
-    text: str = ""
+@dataclass(config=dataclass_config)
+class UnorderedListItem(Base):
+    text: TextLikeField = ""
 
     def to_model(self):
         return internal.ListItem(
-            children=[internal.Paragraph(children=[internal.Text(text=self.text)])],
+            children=[
+                internal.Paragraph(children=_text_to_internal_children(self.text))
+            ],
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
+class List(Block):
+    @classmethod
+    def from_model(cls, model: internal.List):
+        if not model.children:
+            return UnorderedList()
+
+        item = model.children[0]
+        items = [ListItem.from_model(x) for x in model.children]
+        if item.checked:
+            return CheckedList(items=items)
+
+        if item.ordered:
+            return OrderedList(items=items)
+
+        # else unordered
+        return UnorderedList(items=items)
+
+
+@dataclass(config=dataclass_config)
 class CheckedList(List):
     items: list[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
@@ -325,36 +268,48 @@ class CheckedList(List):
         return internal.List(children=items)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class OrderedList(List):
-    items: list[str] = Field(default_factory=lambda: [""])
+    items: list[OrderedListItem] = Field(default_factory=lambda: [OrderedListItem()])
 
     def to_model(self):
-        items = [OrderedListItem(x) for x in self.items]
-        children = [li.to_model() for li in items]
+        children = [li.to_model() for li in self.items]
         return internal.List(children=children, ordered=True)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class UnorderedList(List):
-    items: list[str] = Field(default_factory=lambda: [""])
+    items: list[UnorderedListItem] = Field(
+        default_factory=lambda: [UnorderedListItem()]
+    )
 
     def to_model(self):
-        items = [UnorderedListItem(x) for x in self.items]
-        children = [li.to_model() for li in items]
+        children = [li.to_model() for li in self.items]
         return internal.List(children=children)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
+class BlockQuote(Block):
+    text: TextLikeField = ""
+
+    def to_model(self):
+        return internal.BlockQuote(children=_text_to_internal_children(self.text))
+
+    @classmethod
+    def from_model(cls, model: internal.BlockQuote):
+        return cls(text=_internal_children_to_text(model.children))
+
+
+@dataclass(config=dataclass_config)
 class CodeBlock(Block):
-    code: str = ""
+    code: TextLikeField = ""
     language: Optional[Language] = "python"
 
     def to_model(self):
         return internal.CodeBlock(
             children=[
                 internal.CodeLine(
-                    children=[internal.Text(text=self.code)],
+                    children=_text_to_internal_children(self.code),
                     language=self.language,
                 )
             ],
@@ -363,12 +318,11 @@ class CodeBlock(Block):
 
     @classmethod
     def from_model(cls, model: internal.CodeBlock):
-        texts = [text.text for line in model.children for text in line.children]
-        text = "\n".join(texts)
-        return cls(code=text, language=model.language)
+        code = _internal_children_to_text(model.children[0].children)
+        return cls(code=code, language=model.language)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class MarkdownBlock(Block):
     text: str = ""
 
@@ -380,7 +334,7 @@ class MarkdownBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class LatexBlock(Block):
     text: str = ""
 
@@ -392,24 +346,26 @@ class LatexBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Image(Block):
-    # TODO: fix captions
     url: AnyUrl
-    caption: Optional[str]
+    caption: TextLikeField = ""
 
     def to_model(self):
-        return internal.Image(
-            children=[internal.Text(text=self.caption)],
-            url=self.url,
-        )
+        has_caption = False
+        if children := self.caption:
+            children = _text_to_internal_children(self.caption)
+            has_caption = True
+
+        return internal.Image(children=children, url=self.url, has_caption=has_caption)
 
     @classmethod
     def from_model(cls, model: internal.Image):
-        return internal.Image(url=model.url)
+        caption = _internal_children_to_text(model.children)
+        return cls(url=model.url, caption=caption)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class CalloutBlock(Block):
     text: str = ""
 
@@ -425,7 +381,7 @@ class CalloutBlock(Block):
         return cls(text=text)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class HorizontalRule(Block):
     def to_model(self):
         return internal.HorizontalRule()
@@ -435,7 +391,7 @@ class HorizontalRule(Block):
         return cls()
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Video(Block):
     url: AnyUrl
 
@@ -447,7 +403,7 @@ class Video(Block):
         return cls(url=model.url)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Spotify(Block):
     spotify_id: str
 
@@ -459,7 +415,7 @@ class Spotify(Block):
         return cls(spotify_id=model.spotify_id)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class SoundCloud(Block):
     html: str
 
@@ -471,24 +427,66 @@ class SoundCloud(Block):
         return cls(html=model.html)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
+class GalleryReport(Base):
+    report_id: str
+
+
+@dataclass(config=dataclass_config)
+class GalleryURL(Base):
+    url: str  # app accepts non-standard URL unfortunately
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+@dataclass(config=dataclass_config)
 class Gallery(Block):
-    ids: list[str] = Field(default_factory=list)
+    items: list[Union[GalleryReport, GalleryURL]] = Field(default_factory=list)
 
     def to_model(self):
-        return internal.Gallery(ids=self.ids)
+        links = []
+        for x in self.items:
+            if isinstance(x, GalleryReport):
+                thing = internal.GalleryLinkReport(id=x.report_id)
+            elif isinstance(x, GalleryURL):
+                thing = internal.GalleryLinkURL(
+                    url=x.url,
+                    title=x.title,
+                    description=x.description,
+                    image_url=x.image_url,
+                )
+            links.append(thing)
+
+        return internal.Gallery(links=links)
 
     @classmethod
     def from_model(cls, model: internal.Gallery):
-        return cls(ids=model.ids)
+        items = []
+        if model.ids:
+            items = [GalleryReport(x) for x in model.ids]
+        elif model.links:
+            for x in model.links:
+                if isinstance(x, internal.GalleryLinkReport):
+                    item = GalleryReport(report_id=x.id)
+                elif isinstance(x, internal.GalleryLinkURL):
+                    item = GalleryURL(
+                        url=x.url,
+                        title=x.title,
+                        description=x.description,
+                        image_url=x.image_url,
+                    )
+                items.append(item)
+
+        return cls(items=items)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class CustomRunColors(Base):
     ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Order(Base):
     name: str
     ascending: bool = False
@@ -507,7 +505,7 @@ class Order(Base):
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Runset(Base):
     entity: Union[ReportEntity, str] = Field(default_factory=ReportEntity)
     project: Union[ReportProject, str] = Field(default_factory=ReportProject)
@@ -548,12 +546,13 @@ class Runset(Base):
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Panel(Base):
-    layout: Layout = Field(default_factory=Layout)
+    id: str = Field(default_factory=internal._generate_name, kw_only=True)
+    layout: Layout = Field(default_factory=Layout, kw_only=True)
 
 
-# @dataclass(**dataclass_settings)
+# @dataclass(config=dataclass_config)
 # class PanelGridColumn(Base):
 #     name: str
 #     visible: bool = True
@@ -561,7 +560,7 @@ class Panel(Base):
 #     width: int = 100
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class PanelGrid(Block):
     runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
     panels: list["PanelTypes"] = Field(default_factory=list)
@@ -599,7 +598,7 @@ class PanelGrid(Block):
         return v
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class TableOfContents(Block):
     def to_model(self):
         return internal.TableOfContents()
@@ -609,12 +608,12 @@ class TableOfContents(Block):
         return cls()
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Twitter(Block):
     ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class WeaveBlock(Block):
     ...
 
@@ -638,6 +637,7 @@ BlockTypes = Union[
     PanelGrid,
     Block,
     TableOfContents,
+    BlockQuote,
 ]
 
 
@@ -655,6 +655,7 @@ block_mapping = {
     internal.PanelGrid: PanelGrid,
     internal.TableOfContents: TableOfContents,
     internal.Video: Video,
+    internal.BlockQuote: BlockQuote,
     internal.Spotify: Spotify,
     internal.Twitter: Twitter,
     internal.SoundCloud: SoundCloud,
@@ -662,7 +663,7 @@ block_mapping = {
 }
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -720,6 +721,7 @@ class LinePlot(Panel):
                 x_expression=self.xaxis_expression,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -750,10 +752,11 @@ class LinePlot(Panel):
             aggregate=model.config.aggregate,
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class CustomGradientPoint:
     offset: int
     color: str
@@ -772,7 +775,7 @@ class CustomGradientPoint:
         return cls(offset=model.offset, color=model.color)
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ScatterPlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
@@ -820,6 +823,7 @@ class ScatterPlot(Panel):
                 show_linear_regression=self.regression,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -845,10 +849,11 @@ class ScatterPlot(Panel):
             font_size=model.config.font_size,
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class BarPlot(Panel):
     title: Optional[str] = None
     metrics: list[str] = Field(default_factory=list)
@@ -889,6 +894,7 @@ class BarPlot(Panel):
                 override_colors=self.line_colors,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -911,10 +917,11 @@ class BarPlot(Panel):
             line_titles=model.config.override_series_titles,
             line_colors=model.config.override_colors,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ScalarChart(Panel):
     title: Optional[str] = None
     metric: str = ""
@@ -936,6 +943,7 @@ class ScalarChart(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -949,10 +957,11 @@ class ScalarChart(Panel):
             legend_template=model.config.legend_template,
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class CodeComparer(Panel):
     diff: CodeCompareDiff = "split"
 
@@ -960,6 +969,7 @@ class CodeComparer(Panel):
         return internal.CodeComparer(
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -967,10 +977,11 @@ class CodeComparer(Panel):
         return cls(
             diff=model.config.diff,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlotColumn(Base):
     accessor: str
     display_name: Optional[str] = None
@@ -995,7 +1006,7 @@ class ParallelCoordinatesPlotColumn(Base):
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlot(Panel):
     columns: list[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
@@ -1011,6 +1022,7 @@ class ParallelCoordinatesPlot(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1024,10 +1036,11 @@ class ParallelCoordinatesPlot(Panel):
             gradient=model.config.custom_gradient,
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
@@ -1037,6 +1050,7 @@ class ParameterImportancePlot(Panel):
                 target_key=self.with_respect_to
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1044,10 +1058,11 @@ class ParameterImportancePlot(Panel):
         return cls(
             with_respect_to=model.config.target_key,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class RunComparer(Panel):
     diff_only: Optional[Literal["split"]] = None
 
@@ -1055,6 +1070,7 @@ class RunComparer(Panel):
         return internal.RunComparer(
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1062,10 +1078,11 @@ class RunComparer(Panel):
         return cls(
             diff_only=model.config.diff_only,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class MediaBrowser(Panel):
     num_columns: Optional[int] = None
     media_keys: list[str] = Field(default_factory=list)
@@ -1077,6 +1094,7 @@ class MediaBrowser(Panel):
                 media_keys=self.media_keys,
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1085,10 +1103,11 @@ class MediaBrowser(Panel):
             num_columns=model.config.column_count,
             media_keys=model.config.media_keys,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class MarkdownPanel(Panel):
     markdown: str = ""
 
@@ -1096,6 +1115,7 @@ class MarkdownPanel(Panel):
         return internal.MarkdownPanel(
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1103,10 +1123,11 @@ class MarkdownPanel(Panel):
         return cls(
             markdown=model.config.value,
             layout=Layout.from_model(model.layout),
+            id=model.id,
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class ConfusionMatrix(Panel):
     def to_model(self):
         ...
@@ -1116,7 +1137,7 @@ class ConfusionMatrix(Panel):
         ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class DataFrames(Panel):
     def to_model(self):
         ...
@@ -1126,7 +1147,7 @@ class DataFrames(Panel):
         ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class MultiRunTable(Panel):
     def to_model(self):
         ...
@@ -1136,7 +1157,7 @@ class MultiRunTable(Panel):
         ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Vega(Panel):
     def to_model(self):
         ...
@@ -1146,7 +1167,7 @@ class Vega(Panel):
         ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class CustomChart(Panel):
     query: dict = Field(default_factory=dict)
     chart_name: str = Field(default_factory=dict)
@@ -1167,6 +1188,7 @@ class CustomChart(Panel):
                 # )
             ),
             layout=self.layout.to_model(),
+            id=self.id,
         )
 
     @classmethod
@@ -1179,7 +1201,7 @@ class CustomChart(Panel):
         )
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Vega3(Panel):
     def to_model(self):
         ...
@@ -1189,19 +1211,20 @@ class Vega3(Panel):
         ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class WeavePanel(Panel):
     ...
 
 
-@dataclass(**dataclass_settings)
+@dataclass(config=dataclass_config)
 class Report(Base):
     project: str
     entity: str = DEFAULT_ENTITY
     title: str = "Untitled Report"
     description: str = ""
-    id: Union[str, Auto] = Auto()
     blocks: list[BlockTypes] = Field(default_factory=list)
+
+    id: Union[str, Auto] = Field(default_factory=Auto, kw_only=True)
 
     def to_model(self):
         blocks_with_padding = [P()] + self.blocks + [P()]
@@ -1342,6 +1365,8 @@ def _lookup(block):
 def _should_show_attr(k, v):
     if k.startswith("_"):
         return False
+    if k == "id":
+        return False
     if v is None:
         return False
     if isinstance(v, Iterable) and not isinstance(v, (str, bytes, bytearray)):
@@ -1361,6 +1386,16 @@ def _listify(x):
 def _lookup_panel(panel):
     cls = panel_mapping.get(panel.__class__)
     return cls.from_model(panel)
+
+
+def _load_spec_from_url(url, as_model=False):
+    import json
+
+    vs = _url_to_viewspec(url)
+    spec = vs["spec"]
+    if as_model:
+        return internal.Spec.model_validate(spec)
+    return json.loads(spec)
 
 
 panel_mapping = {
@@ -1394,11 +1429,50 @@ PanelTypes = Union[
 ]
 
 
-def _load_spec_from_url(url, as_model=False):
-    import json
+def _text_to_internal_children(text_field):
+    if (text := text_field) == []:
+        text = ""
+    if isinstance(text, str):
+        text = [text]
 
-    vs = _url_to_viewspec(url)
-    spec = vs["spec"]
-    if as_model:
-        return internal.Spec.model_validate(spec)
-    return json.loads(spec)
+    texts = []
+    for x in text:
+        thing = None
+        if isinstance(x, str):
+            thing = internal.Text(text=x)
+        elif isinstance(x, Link):
+            thing = internal.InlineLink(
+                url=x.url,
+                children=[internal.Text(text=x.text)],
+            )
+        elif isinstance(x, InlineLatex):
+            thing = internal.InlineLatex(content=x.text)
+        texts.append(thing)
+    if not all(isinstance(x, str) for x in texts):
+        texts = [internal.Text()] + texts + [internal.Text()]
+
+    return texts
+
+
+def _internal_children_to_text(children):
+    pieces = []
+    for x in children:
+        thing = None
+        if isinstance(x, internal.Paragraph):
+            thing = _internal_children_to_text(x.children)
+        elif isinstance(x, internal.Text):
+            thing = x.text
+        elif isinstance(x, internal.InlineLink):
+            thing = Link(url=x.url, text=x.children[0].text)
+        elif isinstance(x, internal.InlineLatex):
+            thing = InlineLatex(text=x.content)
+
+        if isinstance(thing, list):
+            for x in thing:
+                pieces.append(x)
+        else:
+            pieces.append(thing)
+
+    if len(pieces) == 1 and isinstance(pieces[0], str):
+        return pieces[0]
+    return pieces

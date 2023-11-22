@@ -1,4 +1,4 @@
-"""All of the serde stuff lives here."""
+"""JSONSchema for internal types.  Hopefully this is auto-generated one day!"""
 import ast
 import json
 import random
@@ -53,9 +53,11 @@ Mark = Literal["solid", "dashed", "dotted", "dotdash", "dotdotdash"]
 Timestep = Literal["seconds", "minutes", "hours", "days"]
 SmoothingType = Literal["exponential", "gaussian", "average", "none"]
 CodeCompareDiff = Literal["split", "unified"]
-Range = Union[list[Optional[float]], tuple[Optional[float], Optional[float]]]
+Range = tuple[Optional[float], Optional[float]]
 Language = Literal["javascript", "python", "css", "json", "html", "markdown", "yaml"]
 Ops = Literal["OR", "AND", "=", "!=", "<=", ">=", "IN", "NIN", "=="]
+TextLikeInternal = Union["InlineLatex", "InlineLink", "Paragraph", "Text"]
+GalleryLink = Union["GalleryLinkReport", "GalleryLinkURL"]
 
 
 class Sentinel(BaseModel):
@@ -78,6 +80,19 @@ class ReportAPIBaseModel(BaseModel):
         validate_assignment=True,
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        # extra="forbid",
+    )
+
+
+class InlineModel(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        # loc_by_alias=False,
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="forbid",
     )
 
 
@@ -261,24 +276,24 @@ class Runset(ReportAPIBaseModel):
 
 class CodeLine(ReportAPIBaseModel):
     type: Literal["code-line"] = "code-line"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     language: Optional[Language] = "python"
 
 
 class Heading(Block):
     type: Literal["heading"] = "heading"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     collapsed_children: Optional[list["BlockTypes"]] = None
     level: int = 1
 
 
-class InlineLatex(ReportAPIBaseModel):
+class InlineLatex(InlineModel):
     type: Literal["latex"] = "latex"
     children: list[Text] = Field(default_factory=lambda: [Text()])
     content: str = ""
 
 
-class InlineLink(ReportAPIBaseModel):
+class InlineLink(InlineModel):
     type: Literal["link"] = "link"
     url: AnyUrl = "https://"
     children: list[Text] = Field(default_factory=lambda: [Text()])
@@ -286,8 +301,16 @@ class InlineLink(ReportAPIBaseModel):
 
 class Paragraph(Block):
     type: Literal["paragraph"] = "paragraph"
-    children: list[Union[InlineLatex, InlineLink, Text]] = Field(
-        default_factory=lambda: [Text()]
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        # loc_by_alias=False,
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="forbid",
     )
 
     @validator("children", pre=True, each_item=True)
@@ -300,6 +323,11 @@ class Paragraph(Block):
             elif v.get("type") == "link":
                 return InlineLink(**v)
         return Text(**v)
+
+
+class BlockQuote(Block):
+    type: Literal["block-quote"] = "block-quote"
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
 
 class CodeBlock(Block):
@@ -323,14 +351,14 @@ class LatexBlock(Block):
 
 class Image(Block):
     type: Literal["image"] = "image"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     url: AnyUrl
     has_caption: bool
 
 
 class ListItem(ReportAPIBaseModel):
     type: Literal["list-item"] = "list-item"
-    children: list[Paragraph]
+    children: list[TextLikeInternal]
     ordered: Optional[Literal[True]] = None
     checked: Optional[bool] = None
 
@@ -375,10 +403,24 @@ class SoundCloud(Block):
     children: list[Text] = Field(default_factory=lambda: [Text()])
 
 
+class GalleryLinkReport(ReportAPIBaseModel):
+    type: Literal["report"] = "report"
+    id: str = ""
+
+
+class GalleryLinkURL(ReportAPIBaseModel):
+    type: Literal["url"] = "url"
+    url: str = ""
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = Field(..., alias="imageURL")
+
+
 class Gallery(Block):
     type: Literal["gallery"] = "gallery"
     children: list[Text] = Field(default_factory=lambda: [Text()])
-    ids: list[str]
+    links: Optional[list[GalleryLink]] = None
+    ids: Optional[list[str]] = None
 
 
 class TableOfContents(ReportAPIBaseModel):
@@ -480,13 +522,18 @@ class LinePlotConfig(ReportAPIBaseModel):
     smoothing_type: Optional[SmoothingType] = None
     show_original_after_smoothing: Optional[Literal[True]] = None
     limit: Optional[int] = None
-    expressions: Optional[str] = None
+    expressions: Optional[list[str]] = None
     plot_type: Optional[LinePlotStyle] = None
     font_size: Optional[FontSize] = None
     legend_position: Optional[LegendPosition] = None
     legend_template: Optional[str] = None
     aggregate: Optional[bool] = None
     x_expression: Optional[str] = None
+
+    override_line_widths: Optional[dict] = None
+    override_colors: Optional[dict] = None
+    override_series_titles: Optional[dict] = None
+    legend_fields: Optional[list] = None
 
     # there are more here...
 
@@ -849,8 +896,28 @@ BlockTypes = Union[
     Gallery,
     PanelGrid,
     TableOfContents,
+    BlockQuote,
     # Block,
 ]
+
+block_type_mapping = {
+    "heading": Heading,
+    "paragraph": Paragraph,
+    "code-block": CodeBlock,
+    "markdown-block": MarkdownBlock,
+    "latex-block": LatexBlock,
+    "image": Image,
+    "list": List,
+    "callout-block": CalloutBlock,
+    "video": Video,
+    "horziontal-rule": HorizontalRule,
+    "spotify": Spotify,
+    "soundcloud": SoundCloud,
+    "gallery": Gallery,
+    "panel-grid": PanelGrid,
+    "table-of-contents": TableOfContents,
+    "block-quote": BlockQuote,
+}
 
 
 def get_frontend_name(name):

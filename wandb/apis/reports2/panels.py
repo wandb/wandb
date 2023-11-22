@@ -1,15 +1,15 @@
 # flake8: noqa
 from .interface import (
-    LinePlot,
-    ScatterPlot,
-    ScalarChart,
     BarPlot,
     CodeComparer,
+    CustomChart,
+    LinePlot,
+    MarkdownPanel,
+    MediaBrowser,
     ParallelCoordinatesPlot,
     ParameterImportancePlot,
     RunComparer,
-    MediaBrowser,
-    MarkdownPanel,
-    CustomChart,
+    ScalarChart,
+    ScatterPlot,
     WeavePanel,
 )
