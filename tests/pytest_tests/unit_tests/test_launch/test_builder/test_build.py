@@ -1,7 +1,53 @@
 import hashlib
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.sdk.launch.builder import build
+from wandb.sdk.launch.builder.build import registry_from_uri
+from wandb.sdk.launch.errors import LaunchError
+
+
+def test_registry_from_uri(mocker):
+    def mock_class_with_from_config(return_value):
+        def _mock_from_config(*args, **kwargs):
+            return return_value
+
+        mock = MagicMock(name="ello")
+        mock.from_config = _mock_from_config
+        return mock
+
+    mocker.patch(
+        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry",
+        mock_class_with_from_config("azure_container_registry"),
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.azure_environment.AzureEnvironment", MagicMock()
+    )
+    registry = registry_from_uri("https://test.azurecr.io")
+    assert registry == "azure_container_registry"
+
+    mocker.patch(
+        "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistry",
+        mock_class_with_from_config("google_artifact_registry"),
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.gcp_environment.GcpEnvironment", MagicMock()
+    )
+    registry = registry_from_uri("us-central1-docker.pkg.dev/my-gcp-project/my-repo")
+    assert registry == "google_artifact_registry"
+
+    mocker.patch(
+        "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistry",
+        mock_class_with_from_config("elastic_container_registry"),
+    )
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment", MagicMock()
+    )
+    registry = registry_from_uri("123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo")
+    assert registry == "elastic_container_registry"
+
+    with pytest.raises(LaunchError):
+        registry_from_uri("unsupported_registry.com/my-repo")
 
 
 def test_get_env_vars_dict(mocker):
