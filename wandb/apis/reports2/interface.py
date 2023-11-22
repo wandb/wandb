@@ -63,11 +63,6 @@ class LoggedMetric(Metric):
 
 
 @dataclass(config=dataclass_config)
-class LoggedMetric(Metric):
-    ...
-
-
-@dataclass(config=dataclass_config)
 class Layout(Base):
     x: int = 0
     y: int = 0
