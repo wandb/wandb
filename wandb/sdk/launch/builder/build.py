@@ -97,7 +97,7 @@ def registry_from_uri(uri: str) -> Optional[AbstractRegistry]:
             GoogleArtifactRegistry,
         )
 
-        gcp_environment = GcpEnvironment.from_config({})
+        gcp_environment = GcpEnvironment.from_default()
         return GoogleArtifactRegistry.from_config({"uri": uri}, gcp_environment)
 
     elif "dkr.ecr." in uri:
@@ -106,7 +106,7 @@ def registry_from_uri(uri: str) -> Optional[AbstractRegistry]:
             ElasticContainerRegistry,
         )
 
-        aws_environment = AwsEnvironment.from_config({})
+        aws_environment = AwsEnvironment.from_default()
         return ElasticContainerRegistry.from_config({"uri": uri}, aws_environment)
 
     else:

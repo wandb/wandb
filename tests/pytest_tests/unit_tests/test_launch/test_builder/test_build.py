@@ -14,6 +14,7 @@ def test_registry_from_uri(mocker):
 
         mock = MagicMock(name="ello")
         mock.from_config = _mock_from_config
+        mock.from_default = _mock_from_config
         return mock
 
     mocker.patch(
