@@ -53,10 +53,12 @@ func (n *Network) SampleMetrics() {
 			n.metrics["network.recv"],
 			float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
 		)
+
 		n.metrics["network.upload_speed"] = append(
 			n.metrics["network.upload_speed"],
 			float64((int(netIOCounters[0].BytesSent)-n.lastSent)/2),
 		)
+
 		n.lastSent = int(netIOCounters[0].BytesSent)
 		n.metrics["network.download_speed"] = append(
 			n.metrics["network.download_speed"],
