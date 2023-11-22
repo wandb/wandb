@@ -24,9 +24,17 @@ def test_network_metrics(test_settings):
 
     assert network.is_available()
 
-
+from google.cloud import storage
+import os
 def test_network_traffic_sent():
     network_traffic_sent = NetworkTrafficSent()
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket("public-raph-bucket")
+    blob = bucket.blob("images")
+    blob.upload_from_filename("/Users/raphael/Downloads/dog.png")
+
     network_traffic_sent.clear()
     network_traffic_sent.sample()
     print(network_traffic_sent.samples)
+    print(network_traffic_sent.last_sample)
