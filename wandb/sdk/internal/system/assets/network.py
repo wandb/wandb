@@ -84,7 +84,6 @@ class NetworkTrafficSent:
     def sample(self) -> None:
         self.network_sent.sample()
         current_sample = self.network_sent.samples[-1]
-        print("current sample is this:" + str(current_sample))
         delta_sent = (current_sample - self.last_sample) / 2
         self.samples.append(delta_sent)
         self.last_sample = current_sample
@@ -111,7 +110,7 @@ class NetworkTrafficReceived:
         self.network_received = NetworkRecv()
         self.samples = deque([])
         self.last_value = 0.0
-        self.last_sample = self.network_received.recv_init
+        self.last_sample = self.network_received.sample()
 
     def sample(self) -> None:
         self.network_received.sample()
