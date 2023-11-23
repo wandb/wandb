@@ -368,18 +368,68 @@ def test_image_type(assets_path):
     )
 
 def test_image_file_type(assets_path):
-    # to make sure that meta dat is reflected
-    # if just works then might not be 
-    # value in cross porducet
-    formats = ["bmp", "jpg", "png","gif"]
-    jpg_img = wandb.Image(np.random.rand(10, 10), file_type="jpg")
-    png_img = wandb.Image(np.random.rand(10, 10), file_type="png")
-    gif_img = wandb.Image(np.random.rand(10, 10), file_type="gif")
-    bmp_img = wandb.Image(np.random.rand(10, 10), file_type="bmp")
-    #images = [wandb.Image(np.random.rand(10, 10), file_type=typ) for typ in formats]
+    # to make sure that meta data is preserved when we assign to a new image
+    # file type 
+    im_path = assets_path("test.png")
+    formats = ['png', 'jpg', 'jpeg', 'bmp']
+    jpg_img = wandb.Image(np.random.rand(10, 10), file_type=formats[0])
+    png_img = wandb.Image(np.random.rand(10, 10), file_type=formats[1])
+    gif_img = wandb.Image(np.random.rand(10, 10), file_type=formats[2])
+    bmp_img = wandb.Image(np.random.rand(10, 10), file_type=formats[3])
     images = [jpg_img, png_img, gif_img, bmp_img]
     images_back_types = [im.format for im in images]
-    print(images_back_types)
+    assert images_back_types == formats
+    class_labels = {1: "tree", 2: "car", 3: "road"}
+    box_annotation = {
+            "box_predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+            "box_ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                        "box_caption": "minMax(pixel)",
+                        "scores": {"acc": 0.1, "loss": 1.2},
+                    },
+                ],
+                "class_labels": class_labels,
+            },
+        }
+    mask_annotation = {
+        "mask_predictions": {
+            "mask_data": np.random.randint(0, 4, size=(30, 30)),
+            "class_labels": class_labels,
+        },
+        "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
+    }
+    for filetype in formats:
+        img = wandb.Image(
+            np.random.rand(10, 10),
+            boxes=box_annotation,
+            masks=mask_annotation,
+            file_type=filetype
+        )
+        assert img.format == filetype
+        # check that the meta data is preserved when we assign to a new image
 
 def test_classes_type():
     wb_classes = data_types.Classes(
