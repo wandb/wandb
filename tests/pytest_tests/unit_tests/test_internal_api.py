@@ -7,16 +7,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import (
-    Callable,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import httpx
