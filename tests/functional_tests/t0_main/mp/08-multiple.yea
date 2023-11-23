@@ -2,7 +2,6 @@ id: 0.mp.08-multiple
 plugin:
   - wandb
 tag:
-  shard: service
   skip: true
 assert:
   - :wandb:runs_len: 2

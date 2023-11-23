@@ -476,6 +476,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
 def sync(
     ctx,
@@ -499,6 +500,7 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
     append=None,
+    skip_console=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -568,6 +570,7 @@ def sync(
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
             append=append,
+            skip_console=skip_console,
         )
         for p in _path:
             sm.add(p)
@@ -1373,6 +1376,7 @@ def launch(
                     uri,
                     job,
                     config,
+                    None,
                     project,
                     entity,
                     queue,
@@ -1421,6 +1425,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1445,6 +1459,7 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1455,6 +1470,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
@@ -1705,6 +1723,12 @@ def create(
     if not project:
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
+
+    if entrypoint is None and job_type in ["git", "code"]:
+        wandb.termwarn(
+            f"No entrypoint provided for {job_type} job, defaulting to main.py"
+        )
+        entrypoint = "main.py"
 
     artifact, action, aliases = _create_job(
         api=api,

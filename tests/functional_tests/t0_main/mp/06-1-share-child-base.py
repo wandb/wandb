@@ -38,8 +38,6 @@ def share_run():
 
 
 def main():
-    wandb.require("service")
-
     reference_run()
     share_run()
 

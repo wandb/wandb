@@ -18,7 +18,7 @@ _is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 # Nexus version
 # -------------
-NEXUS_VERSION = "0.17.0b1"
+NEXUS_VERSION = "0.17.0b2"
 
 
 PACKAGE: str = "wandb_core"
@@ -50,6 +50,9 @@ class NexusBase:
         elif goarch == "armv7l":
             goarch = "armv6l"
 
+        # build a binary for coverage profiling if the GOCOVERDIR env var is set
+        gocover = True if os.environ.get("GOCOVERDIR") else False
+
         # cgo is needed on:
         #  - arm macs to build the gopsutil dependency,
         #    otherwise several system metrics will be unavailable.
@@ -68,14 +71,16 @@ class NexusBase:
         if f"{goos}-{goarch}" == "linux-amd64":
             # todo: try llvm's lld linker
             ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
-        cmd = (
+        cmd = [
             "go",
             "build",
             f"-ldflags={ldflags}",
             "-o",
             str(nexus_path / "wandb-nexus"),
             "cmd/nexus/main.go",
-        )
+        ]
+        if gocover:
+            cmd.insert(2, "-cover")
         log.info("Building for current platform")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
