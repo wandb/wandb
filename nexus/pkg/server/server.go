@@ -5,12 +5,9 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-	"sync/atomic"
 )
 
 const BufferSize = 32
-
-var defaultLoggerPath atomic.Value
 
 // Server is the nexus server
 type Server struct {
@@ -51,10 +48,6 @@ func NewServer(ctx context.Context, addr string, portFile string) *Server {
 	s.wg.Add(1)
 	go s.Serve()
 	return s
-}
-
-func (s *Server) SetDefaultLoggerPath(path string) {
-	defaultLoggerPath.Store(path)
 }
 
 // Serve serves the server
