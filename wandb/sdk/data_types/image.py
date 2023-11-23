@@ -278,7 +278,7 @@ class Image(BatchableMedia):
         self,
         data: "ImageDataType",
         mode: Optional[str] = None,
-        file_type: Optional[str] = None
+        file_type: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -310,12 +310,14 @@ class Image(BatchableMedia):
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
-        accepted_formats = ['png', 'jpg', 'jpeg', 'bmp']
+        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
         if file_type is None:
-            self.format = 'png'
+            self.format = "png"
         else:
             self.format = file_type
-        assert self.format in accepted_formats, f"file_type must be one of {accepted_formats}"
+        assert (
+            self.format in accepted_formats
+        ), f"file_type must be one of {accepted_formats}"
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
