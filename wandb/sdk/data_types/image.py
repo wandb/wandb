@@ -230,8 +230,8 @@ class Image(BatchableMedia):
         self._free_ram()
         if file_type is None:
             self.format = 'png'
-        accepted_formats = ['png', 'jpg', 'jpeg', 'gif', 'bmp']
-        assert self.format is not None and self.format in accepted_formats
+        else:
+            self.format = file_type
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -310,13 +310,15 @@ class Image(BatchableMedia):
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
-
+        accepted_formats = ['png', 'jpg', 'jpeg', 'bmp']
         if file_type is None:
             self.format = 'png'
         else:
             self.format = file_type
+        assert self.format in accepted_formats, f"file_type must be one of {accepted_formats}"
         tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
         assert self._image is not None
+        print(tmp_path)
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
 
