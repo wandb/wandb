@@ -3,7 +3,6 @@
 import asyncio
 import dataclasses
 import datetime
-import sys
 from typing import Iterator
 from unittest import mock
 
