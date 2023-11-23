@@ -10,13 +10,6 @@ from unittest import mock
 import pytest
 from wandb.sdk.lib import retry
 
-if sys.version_info >= (3, 10):
-    asyncio_run = asyncio.run
-else:
-
-    def asyncio_run(coro):
-        return asyncio.new_event_loop().run_until_complete(coro)
-
 
 @dataclasses.dataclass
 class MockTime:
@@ -223,7 +216,7 @@ class TestRetryAsync:
     def test_follows_backoff_schedule(self, mock_time: MockTime):
         fn = mock.Mock(side_effect=MyError("oh no"))
         with pytest.raises(MyError):
-            asyncio_run(
+            asyncio.run(
                 retry.retry_async(
                     mock.Mock(
                         spec=retry.Backoff,
@@ -277,7 +270,7 @@ class TestRetryAsync:
             return fn_sync()
 
         on_exc = mock.Mock()
-        asyncio_run(retry.retry_async(backoff, fn, on_exc=on_exc))
+        asyncio.run(retry.retry_async(backoff, fn, on_exc=on_exc))
 
         on_exc.assert_has_calls(
             [
