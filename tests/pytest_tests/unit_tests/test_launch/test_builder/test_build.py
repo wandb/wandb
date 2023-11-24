@@ -8,41 +8,23 @@ from wandb.sdk.launch.errors import LaunchError
 
 
 def test_registry_from_uri(mocker):
-    def mock_class_with_from_config(return_value):
-        def _mock_from_config(*args, **kwargs):
-            return return_value
-
-        mock = MagicMock(name="ello")
-        mock.from_config = _mock_from_config
-        mock.from_default = _mock_from_config
-        return mock
-
     mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry",
-        mock_class_with_from_config("azure_container_registry"),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.environment.azure_environment.AzureEnvironment", MagicMock()
+        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistryHelper",
+        MagicMock(return_value="azure_container_registry"),
     )
     registry = registry_from_uri("https://test.azurecr.io")
     assert registry == "azure_container_registry"
 
     mocker.patch(
-        "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistry",
-        mock_class_with_from_config("google_artifact_registry"),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.environment.gcp_environment.GcpEnvironment", MagicMock()
+        "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistryHelper",
+        MagicMock(return_value="google_artifact_registry"),
     )
     registry = registry_from_uri("us-central1-docker.pkg.dev/my-gcp-project/my-repo")
     assert registry == "google_artifact_registry"
 
     mocker.patch(
-        "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistry",
-        mock_class_with_from_config("elastic_container_registry"),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment", MagicMock()
+        "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistryHelper",
+        MagicMock(return_value="elastic_container_registry"),
     )
     registry = registry_from_uri("123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo")
     assert registry == "elastic_container_registry"
