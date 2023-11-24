@@ -123,10 +123,7 @@ class GcpEnvironment(AbstractEnvironment):
 
     @property
     def project(self) -> str:
-        """Get the name of the gcp project.
-
-        The project name is determined by the credentials, so this method
-        verifies the credentials if they have not already been verified.
+        """Get the name of the gcp project associated with the credentials.
 
         Returns:
             str: The name of the gcp project.
@@ -134,11 +131,6 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the launch environment cannot be verified.
         """
-        if not self._project:
-            raise LaunchError(
-                "This GcpEnvironment has not been verified. Please call verify() "
-                "before accessing the project."
-            )
         return self._project
 
     async def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
@@ -156,12 +148,9 @@ class GcpEnvironment(AbstractEnvironment):
         """
         _logger.debug("Getting GCP credentials")
         # TODO: Figure out a minimal set of scopes.
-        scopes = [
-            "https://www.googleapis.com/auth/cloud-platform",
-        ]
         try:
             google_auth_default = event_loop_thread_exec(google.auth.default)
-            creds, project = await google_auth_default(scopes=scopes)
+            creds, project = await google_auth_default()
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")

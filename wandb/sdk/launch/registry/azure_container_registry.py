@@ -1,13 +1,12 @@
 """Implementation of AzureContainerRegistry class."""
 import re
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
+from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
+from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..environment.abstract import AbstractEnvironment
-from ..environment.azure_environment import AzureEnvironment
-from ..errors import LaunchError
-from .abstract import AbstractRegistry
+from .abstract import AbstractRegistryHelper
 
 if TYPE_CHECKING:
     from azure.containerregistry import ContainerRegistryClient  # type: ignore
@@ -25,26 +24,50 @@ ResourceNotFoundError = get_module(  # noqa: F811
 ).ResourceNotFoundError
 
 
-class AzureContainerRegistry(AbstractRegistry):
+AZURE_CONTAINER_REGISTRY_URI_REGEX = (
+    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+)
+
+
+class AzureContainerRegistryHelper(AbstractRegistryHelper):
     """Helper for accessing Azure Container Registry resources."""
 
     def __init__(
         self,
-        environment: AzureEnvironment,
-        uri: str,
+        uri: Optional[str] = None,
+        registry_name: Optional[str] = None,
+        repo_name: Optional[str] = None,
     ):
         """Initialize an AzureContainerRegistry."""
-        self.environment = environment
-        self.uri = uri
-        if self.uri.startswith("https://"):
-            self.uri = self.uri[len("https://") :]
+        if uri is not None:
+            self.uri = uri
+            if any(x is not None for x in (registry_name, repo_name)):
+                raise LaunchError(
+                    "Please specify either a registry name and repo name or a registry URI."
+                )
+            if self.uri.startswith("https://"):
+                self.uri = self.uri[len("https://") :]
+            match = re.match(AZURE_CONTAINER_REGISTRY_URI_REGEX, self.uri)
+            if match is None:
+                raise LaunchError(
+                    f"Unable to parse Azure Container Registry URI: {self.uri}"
+                )
+            self.registry_name = match.group(1)
+            self.repo_name = match.group(2)
+        else:
+            if any(x is None for x in (registry_name, repo_name)):
+                raise LaunchError(
+                    "Please specify both a registry name and repo name or a registry URI."
+                )
+            self.registry_name = registry_name
+            self.repo_name = repo_name
+            self.uri = f"{self.registry_name}.azurecr.io/{self.repo_name}"
 
     @classmethod
     def from_config(
         cls,
         config: dict,
-        environment: AbstractEnvironment,
-    ) -> "AzureContainerRegistry":
+    ) -> "AzureContainerRegistryHelper":
         """Create an AzureContainerRegistry from a config dict.
 
         Args:
@@ -58,10 +81,6 @@ class AzureContainerRegistry(AbstractRegistry):
         Raises:
             LaunchError: If the config is invalid.
         """
-        if not isinstance(environment, AzureEnvironment):
-            raise LaunchError(
-                "AzureContainerRegistry requires an AzureEnvironment to be passed in."
-            )
         uri = config.get("uri")
         if uri is None:
             raise LaunchError(
@@ -69,7 +88,6 @@ class AzureContainerRegistry(AbstractRegistry):
             )
         return cls(
             uri=uri,
-            environment=environment,
         )
 
     async def get_username_password(self) -> Tuple[str, str]:
@@ -85,8 +103,15 @@ class AzureContainerRegistry(AbstractRegistry):
         Returns:
             bool: True if image exists, False otherwise.
         """
-        credential = self.environment.get_credentials()
-        registry, repository, tag = self.parse_azurecr_uri(image_uri)
+        match = re.match(AZURE_CONTAINER_REGISTRY_URI_REGEX, image_uri)
+        if match is None:
+            raise LaunchError(
+                f"Unable to parse Azure Container Registry URI: {image_uri}"
+            )
+        registry = match.group(1)
+        repository = match.group(2)
+        tag = match.group(3)
+        credential = AzureEnvironment.get_credentials()
         client = ContainerRegistryClient(f"https://{registry}.azurecr.io", credential)
         try:
             client.get_manifest_properties(repository, tag)
@@ -99,34 +124,4 @@ class AzureContainerRegistry(AbstractRegistry):
             ) from e
 
     async def get_repo_uri(self) -> str:
-        return self.uri
-
-    async def verify(self) -> None:
-        try:
-            _ = self.registry_name
-        except Exception as e:
-            raise LaunchError(f"Unable to verify Azure Container Registry: {e}") from e
-
-    @property
-    def registry_name(self) -> str:
-        """Get registry name."""
-        return self.parse_azurecr_uri(self.uri)[0]
-
-    @staticmethod
-    def parse_azurecr_uri(uri: str) -> Tuple[str, str, str]:
-        """Parse an Azure Container Registry URI.
-
-        Args:
-            uri (str): URI to parse.
-
-        Returns:
-            Tuple[str, str, str]: Tuple of registry name, repository name, and tag.
-
-        Raises:
-            LaunchError: If unable to parse URI.
-        """
-        regex = r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
-        match = re.match(regex, uri)
-        if match is None:
-            raise LaunchError(f"Unable to parse Azure Container Registry URI: {uri}")
-        return match.group(1), match.group(2), match.group(3)
+        return f"https://{self.registry_name}.azurecr.io/{self.repo_name}"

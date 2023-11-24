@@ -9,7 +9,9 @@ from google.cloud import storage
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
-from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
+from wandb.sdk.launch.registry.azure_container_registry import (
+    AzureContainerRegistryHelper,
+)
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
@@ -47,7 +49,7 @@ def azure_container_registry(mocker, azure_environment):
     config = {
         "uri": "https://registry.azurecr.io/test-repo",
     }
-    return AzureContainerRegistry.from_config(config, azure_environment)
+    return AzureContainerRegistryHelper.from_config(config, azure_environment)
 
 
 @pytest.mark.asyncio

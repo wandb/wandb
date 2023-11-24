@@ -12,9 +12,11 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistry
-from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
-from wandb.sdk.launch.registry.local_registry import LocalRegistry
+from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.azure_container_registry import (
+    AzureContainerRegistryHelper,
+)
+from wandb.sdk.launch.registry.local_registry import LocalRegistryHelper
 from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AGENT,
@@ -258,7 +260,7 @@ class KubernetesRunner(AbstractRunner):
         api: Api,
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
-        registry: AbstractRegistry,
+        registry: AbstractRegistryHelper,
     ) -> None:
         """Create a Kubernetes runner.
 
@@ -595,7 +597,7 @@ def inject_entrypoint_and_args(
 
 async def maybe_create_imagepull_secret(
     core_api: "CoreV1Api",
-    registry: AbstractRegistry,
+    registry: AbstractRegistryHelper,
     run_id: str,
     namespace: str,
 ) -> Optional["V1Secret"]:
@@ -611,8 +613,8 @@ async def maybe_create_imagepull_secret(
         A secret if one was created, otherwise None.
     """
     secret = None
-    if isinstance(registry, LocalRegistry) or isinstance(
-        registry, AzureContainerRegistry
+    if isinstance(registry, LocalRegistryHelper) or isinstance(
+        registry, AzureContainerRegistryHelper
     ):
         # Secret not required
         return None

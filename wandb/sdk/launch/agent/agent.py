@@ -654,8 +654,6 @@ class LaunchAgent:
         if environment is not None and not isinstance(environment, LocalEnvironment):
             await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
-        if registry is not None:
-            await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
         if builder is not None and not isinstance(builder, NoOpBuilder):
             await builder.verify()

@@ -1,98 +1,86 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.azure_container_registry import (
-    AzureContainerRegistry,
+    AzureContainerRegistryHelper,
     ResourceNotFoundError,
 )
 
 
-def test_acr_from_config(mocker):
+@pytest.fixture
+def mock_default_azure_credential(monkeypatch):
+    mock = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential", mock
+    )
+    return mock
+
+
+@pytest.fixture
+def mock_container_registry_client(monkeypatch):
+    mock = MagicMock()
+    (
+        monkeypatch.setattr(
+            "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
+            MagicMock(return_value=mock),
+        ),
+    )
+    return mock
+
+
+def test_acr_from_config(mock_default_azure_credential, monkeypatch):
     """Test AzureContainerRegistry class."""
-    mocker.patch(
-        "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
-        MagicMock(),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry.verify",
-        MagicMock(),
-    )
-    config = {"uri": "test"}
-    acr = AzureContainerRegistry.from_config(config, AzureEnvironment.from_config({}))
-    assert acr.uri == "test"
+    config = {"uri": "https://test.azurecr.io/repository"}
+    acr = AzureContainerRegistryHelper.from_config(config)
+    assert acr.uri == "test.azurecr.io/repository"
+    assert acr.registry_name == "test"
+    assert acr.repo_name == "repository"
 
 
 @pytest.mark.asyncio
-async def test_acr_get_repo_uri(mocker):
+async def test_acr_get_repo_uri(mock_default_azure_credential, monkeypatch):
     """Test AzureContainerRegistry class."""
-    mocker.patch(
-        "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
-        MagicMock(),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry.verify",
-        MagicMock(),
-    )
-    config = {"uri": "test"}
-    registry = AzureContainerRegistry.from_config(
-        config, AzureEnvironment.from_config({})
-    )
-    assert await registry.get_repo_uri() == "test"
+    config = {"uri": "https://test.azurecr.io/repository"}
+    registry = AzureContainerRegistryHelper.from_config(config)
+    assert await registry.get_repo_uri() == "https://test.azurecr.io/repository"
 
 
 @pytest.mark.asyncio
-async def test_acr_check_image_exists(mocker):
+async def test_acr_check_image_exists(
+    mock_default_azure_credential,
+    mock_container_registry_client,
+):
     """Test AzureContainerRegistry class."""
-    mocker.patch(
-        "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
-        MagicMock(),
-    )
-    mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry.verify",
-        MagicMock(),
-    )
-
     # Make the mock client return a digest when get_manifest_properties is called and
     # check that the method returns True.
-    mock_client = MagicMock()
-    mock_client.get_manifest_properties.return_value = {"digest": "test"}
-    mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
-        MagicMock(return_value=mock_client),
-    )
-    config = {"uri": "test"}
-    registry = AzureContainerRegistry.from_config(
-        config, AzureEnvironment.from_config({})
-    )
+    mock_container_registry_client.get_manifest_properties.return_value = {
+        "digest": "test"
+    }
+    config = {"uri": "https://test.azurecr.io/repository"}
+    registry = AzureContainerRegistryHelper.from_config(config)
     assert await registry.check_image_exists("test.azurecr.io/launch-images:tag")
 
-    # Make the mock client raise an error when get_manifest_properties is called and
-    # check that the method returns False.
-    mock_client.get_manifest_properties.side_effect = ResourceNotFoundError()
-    mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.ContainerRegistryClient",
-        MagicMock(return_value=mock_client),
+
+@pytest.mark.asyncio
+async def test_acr_check_image_exists_not_found(
+    mock_default_azure_credential,
+    mock_container_registry_client,
+):
+    mock_container_registry_client.get_manifest_properties = MagicMock(
+        side_effect=(ResourceNotFoundError())
     )
+    registry = AzureContainerRegistryHelper(uri="https://test.azurecr.io/repository")
     assert not await registry.check_image_exists(
-        "https://test.azurecr.io/launch-images:tag"
+        "https://test.azurecr.io/repository:tag"
     )
 
 
-def test_acr_registry_name(mocker):
+def test_acr_registry_name(mock_default_azure_credential):
     """Test if repository name is parsed correctly."""
-    mocker.patch(
-        "wandb.sdk.launch.environment.azure_environment.DefaultAzureCredential",
-        MagicMock(),
-    )
     config = {"uri": "https://test.azurecr.io/repository"}
-    registry = AzureContainerRegistry.from_config(
-        config, AzureEnvironment.from_config({})
-    )
+    registry = AzureContainerRegistryHelper.from_config(config)
     assert registry.registry_name == "test"
     # Same thing but without https
     config = {"uri": "test.azurecr.io/repository"}
-    registry = AzureContainerRegistry.from_config(
-        config, AzureEnvironment.from_config({})
-    )
+    registry = AzureContainerRegistryHelper.from_config(config)
     assert registry.registry_name == "test"
