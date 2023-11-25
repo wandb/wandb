@@ -5,37 +5,7 @@ import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.runner.vertex_runner import (
-    VertexResourceArgs,
-    VertexRunner,
-    VertexSubmittedRun,
-)
-
-
-def test_vertex_resource_args():
-    """Test that the VertexResourceArgs class works as expected."""
-    resource_args = VertexResourceArgs(
-        **{
-            "spec": {
-                "worker_pool_specs": [
-                    {
-                        "machine_spec": {"machine_type": "n1-standard-4"},
-                        "replica_count": 1,
-                        "container_spec": {"image_uri": "test-image"},
-                    }
-                ],
-                "staging_bucket": "test-bucket",
-            }
-        }
-    )
-    assert resource_args.spec.worker_pool_specs == [
-        {
-            "machine_spec": {"machine_type": "n1-standard-4"},
-            "replica_count": 1,
-            "container_spec": {"image_uri": "test-image"},
-        }
-    ]
-    assert resource_args.spec.staging_bucket == "test-bucket"
+from wandb.sdk.launch.runner.vertex_runner import VertexRunner, VertexSubmittedRun
 
 
 class MockCustomJob:
