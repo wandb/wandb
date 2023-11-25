@@ -126,7 +126,9 @@ async def test_get_username_password(mock_gcp_default_credentials):
 
 
 @pytest.mark.asyncio
-async def test_check_image_exists(mock_gcp_artifact_registry_client):
+async def test_check_image_exists(
+    mock_gcp_default_credentials, mock_gcp_artifact_registry_client
+):
     """Test that the GoogleArtifactRegistryHelper.check_image_exists method works as expected."""
     mock_gcp_artifact_registry_client.list_docker_images.return_value = [
         MagicMock(tags=["hello", "world", "foo"]),
