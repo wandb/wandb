@@ -651,12 +651,8 @@ class LaunchAgent:
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
-        if environment is not None and not isinstance(environment, LocalEnvironment):
-            await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
         builder = loader.builder_from_config(build_config, environment, registry)
-        if builder is not None and not isinstance(builder, NoOpBuilder):
-            await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
