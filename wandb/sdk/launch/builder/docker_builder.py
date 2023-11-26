@@ -94,16 +94,7 @@ class DockerBuilder(AbstractBuilder):
                     f"{LOG_PREFIX}Overriding registry from registry config"
                     f" with {image_uri} from builder config."
                 )
-            uri_reg = registry_from_uri(image_uri)
-            if uri_reg is None:
-                raise LaunchError(
-                    f"Could not create DockerBuilder from config. Invalid registry URI: {image_uri}"
-                )
-            registry = uri_reg
-            if not registry:
-                raise LaunchError(
-                    f"Could not create DockerBuilder from config. Invalid registry URI: {image_uri}"
-                )
+            registry = registry_from_uri(image_uri)
 
         return cls(environment, registry, config)
 
