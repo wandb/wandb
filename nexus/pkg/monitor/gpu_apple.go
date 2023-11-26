@@ -3,7 +3,10 @@ package monitor
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+
+	"github.com/segmentio/encoding/json"
 )
 
 // // #cgo LDFLAGS: -L. -lapple
@@ -41,5 +44,16 @@ func callSwift() {
 		panic(err)
 	}
 	exPath := filepath.Dir(ex)
-	fmt.Println(exPath)
+
+	// execute exPath + "/AppleStats", get the output, and parse it as JSON into a map
+	rawStats, err := exec.Command(exPath + "/AppleStats").Output()
+	if err != nil {
+		return
+	}
+	stats := make(map[string]interface{})
+	err = json.Unmarshal(rawStats, &stats)
+	if err != nil {
+		return
+	}
+	fmt.Println(stats)
 }

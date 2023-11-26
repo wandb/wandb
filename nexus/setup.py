@@ -12,9 +12,6 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 # --------------
 #   wandb-core:         Package containing architecture specific code
 #   wandb-core-nightly: Package created every night based on main branch
-#   wandb-core-alpha:   Package used during early development
-_WANDB_CORE_ALPHA_ENV = "WANDB_CORE_ALPHA"
-_is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 # Nexus version
 # -------------
@@ -32,6 +29,7 @@ class NexusBase:
     @staticmethod
     def _get_package_path():
         base = Path(__file__).parent / PACKAGE
+        print(f"Package path: {base}")
         return base
 
     def _build_nexus(self):
@@ -85,6 +83,18 @@ class NexusBase:
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
 
+        # on macs, copy over the stats monitor binary, if available
+        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
+
+        if goos == "darwin":
+            monitor_path = (
+                src_dir
+                / f"pkg/monitor/apple/.build/{platform.machine().lower()}-apple-macosx/release/AppleStats"
+            )
+            if monitor_path.exists():
+                log.info("Copying AppleStats binary")
+                subprocess.check_call(["cp", str(monitor_path), str(nexus_path)])
+
 
 class WrapDevelop(develop, NexusBase):
     def run(self):
@@ -110,7 +120,7 @@ if __name__ == "__main__":
     log.set_verbosity(log.INFO)
 
     setup(
-        name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
+        name="wandb-core",
         version=NEXUS_VERSION,
         description="W&B Core Library",
         long_description=open("README.md", encoding="utf-8").read(),

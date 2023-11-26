@@ -134,3 +134,22 @@ def run_codecov(session):
 def codecov(session):
     session.notify("download-codecov")
     session.notify("run-codecov", posargs=session.posargs)
+
+
+@nox.session(python=False, name="build-apple-stats-monitor")
+def build_apple_stats_monitor(session):
+    """Builds the apple stats monitor binary for the current platform.
+
+    The binary will be located in
+    nexus/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
+    """
+    session.cd("nexus/pkg/monitor/apple")
+    session.run(
+        "swift",
+        "build",
+        "--configuration",
+        "release",
+        "-Xswiftc",
+        "-cross-module-optimization",
+        external=True,
+    )

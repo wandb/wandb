@@ -2,7 +2,7 @@ import Foundation
 
 public func getGPUStats() -> [String: Any] {
     var GPUStats: [String: Any] = [:]
-    // TODO: this assumes that there is only one GPU
+    // TODO: this assumes that there is at most only one GPU
     if let gpus = SystemKit.shared.device.info.gpu {
         for gpu in gpus {
             GPUStats["name"] = gpu.name ?? "Unknown"
@@ -89,15 +89,15 @@ public func getGPUStats() -> [String: Any] {
 }
 
 public func gpuStats() {
-    let dictionary: [String: Any] = getGPUStats()
+    let stats: [String: Any] = getGPUStats()
 
     do {
-        let jsonData = try JSONSerialization.data(withJSONObject: dictionary, options: [])
+        let jsonData = try JSONSerialization.data(withJSONObject: stats, options: [])
         if let jsonString = String(data: jsonData, encoding: .utf8) {
             print(jsonString)
         }
     } catch {
-        print("Error serializing dictionary: \(error)")
+        print("Error serializing stats: \(error)")
     }
 }
 
@@ -105,16 +105,16 @@ gpuStats()
 
 // @_cdecl("gpuStats")
 // public func gpuStats() -> UnsafePointer<CChar> {
-//     let dictionary: [String: Any] = getGPUStats()
+//     let stats: [String: Any] = getGPUStats()
 
 //     do {
-//         let jsonData = try JSONSerialization.data(withJSONObject: dictionary, options: [])
+//         let jsonData = try JSONSerialization.data(withJSONObject: stats, options: [])
 //         if let jsonString = String(data: jsonData, encoding: .utf8),
 //            let cString = strdup(jsonString) {
 //             return UnsafePointer(cString)
 //         }
 //     } catch {
-//         print("Error serializing dictionary: \(error)")
+//         print("Error serializing stats: \(error)")
 //     }
 
 //     // Fallback for an empty JSON object if serialization fails
