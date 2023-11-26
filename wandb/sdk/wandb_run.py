@@ -1459,50 +1459,27 @@ class Run:
         commit: Optional[bool] = None,
     ) -> None:
         row = row.copy()
-        # print(f"before{row}")
+        def nestedCustomChartScenario(d):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    nestedCustomChartScenario(v)
+                else:
+                    if v:
+                        # print("{0} : {1}".format(k, v))
 
-        # check if we have a custom chart in our nested dictionary
-        datatype_to_check = CustomChart  
-        result = any(isinstance(value, datatype_to_check) for d in row.values() for value in d.values())
+                        row = self._visualization_hack({k:v})
+                        # print(row)
+                        if self._backend and self._backend.interface:
+                            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
 
-        if result:
-            print("oh no we have a nested custom chart!")
-            def nestedCustomChartScenario(d):
-                for k, v in d.items():
-                    if isinstance(v, dict):
-                        nestedCustomChartScenario(v)
-                    else:
-                        if v:
-                            # print("{0} : {1}".format(k, v))
-
-                            row = self._visualization_hack({k:v})
-                            # print(row)
-                            if self._backend and self._backend.interface:
-                                not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-                                self._backend.interface.publish_partial_history(
-                                    row,
-                                    user_step=self._step,
-                                    step=step,
-                                    flush=commit,
-                                    publish_step=not_using_tensorboard,
-                                )
-            nestedCustomChartScenario(row)
-        else:
-            if row:
-                row = self._visualization_hack(row)
-            # print(row)
-            if self._backend and self._backend.interface:
-                not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-                self._backend.interface.publish_partial_history(
-                    row,
-                    user_step=self._step,
-                    step=step,
-                    flush=commit,
-                    publish_step=not_using_tensorboard,
-                )
-
+                            self._backend.interface.publish_partial_history(
+                                row,
+                                user_step=self._step,
+                                step=step,
+                                flush=commit,
+                                publish_step=not_using_tensorboard,
+                            )
+        nestedCustomChartScenario(row)
     # def _partial_history_callback(
     #     self,
     #     row: Dict[str, Any],
