@@ -548,6 +548,8 @@ class InterfaceBase:
 
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
+        # print(data)
+
 
         # add timestamp to the history request, if not already present
         # the timestamp might come from the tensorboard log logic
@@ -555,11 +557,14 @@ class InterfaceBase:
             data["_timestamp"] = time.time()
 
         partial_history = pb.PartialHistoryRequest()
+        # print("test")
         for k, v in data.items():
+            # print(k)
+            # print(v)
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)
 
+            item.value_json = json_dumps_safer_history(v)
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
