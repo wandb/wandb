@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.azure_container_registry import (
     AzureContainerRegistryHelper,
     ResourceNotFoundError,
@@ -35,6 +36,18 @@ def test_acr_from_config(mock_default_azure_credential, monkeypatch):
     assert acr.uri == "test.azurecr.io/repository"
     assert acr.registry_name == "test"
     assert acr.repo_name == "repository"
+
+
+def test_acr_init_missing_params(mock_default_azure_credential, monkeypatch):
+    """Test AzureContainerRegistry class."""
+    with pytest.raises(LaunchError):
+        AzureContainerRegistryHelper()
+    with pytest.raises(LaunchError):
+        AzureContainerRegistryHelper(
+            uri="https://test.azurecr.io/repo", repo_name="repo"
+        )
+    with pytest.raises(LaunchError):
+        AzureContainerRegistryHelper(repo_name="repo")
 
 
 @pytest.mark.asyncio
@@ -73,6 +86,16 @@ async def test_acr_check_image_exists_not_found(
     assert not await registry.check_image_exists(
         "https://test.azurecr.io/repository:tag"
     )
+
+
+@pytest.mark.asyncio
+async def test_acr_check_image_exists_bad_uri(
+    mock_default_azure_credential,
+    mock_container_registry_client,
+):
+    registry = AzureContainerRegistryHelper(uri="https://test.azurecr.io/repository")
+    with pytest.raises(LaunchError):
+        await registry.check_image_exists("1234567890.dkr.ecr.us-east-1.amazonaws.com")
 
 
 def test_acr_registry_name(mock_default_azure_credential):
