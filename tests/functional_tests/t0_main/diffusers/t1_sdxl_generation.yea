@@ -24,7 +24,7 @@ assert:
     - :wandb:runs[0][config][workflow][0][params][seed]: 100
     - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "stabilityai/stable-diffusion-xl-base-1.0"
     - :wandb:runs[0][config][workflow][0][pipeline][force_zeros_for_empty_prompt]: true
-    - :wandb:runs[0][config][workflow][0][pipeline-name][pipeline-name]: "StableDiffusionXLPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "StableDiffusionXLPipeline"
     - :wandb:runs[0][config][workflow][0][scheduler][0]: "diffusers"
     - :wandb:runs[0][config][workflow][0][scheduler][1]: "EulerDiscreteScheduler"
     - :wandb:runs[0][config][workflow][0][text_encoder][0]: "transformers"
@@ -72,3 +72,13 @@ assert:
     - :wandb:runs[0][summary][Base][Result-Table][nrows]: 1
     - :wandb:runs[0][summary][Refiner][Result-Table][_type]: table-file
     - :wandb:runs[0][summary][Refiner][Result-Table][nrows]: 1
+    - :wandb:runs[0][summary][Base][Generated-Image][_type]: image-file
+    - :wandb:runs[0][summary][Base][Generated-Image][caption]: "Prompt-1: A small cactus with a happy face in the Sahara desert.\nPrompt-2: None"
+    - :wandb:runs[0][summary][Base][Generated-Image][format]: "png"
+    - :wandb:runs[0][summary][Base][Generated-Image][height]: 1024
+    - :wandb:runs[0][summary][Base][Generated-Image][width]: 1024
+    - :wandb:runs[0][summary][Refiner][Generated-Image][_type]: image-file
+    - :wandb:runs[0][summary][Refiner][Generated-Image][caption]: "Prompt-1: A small cactus with a happy face in the Sahara desert.\nPrompt-2: None"
+    - :wandb:runs[0][summary][Refiner][Generated-Image][format]: "png"
+    - :wandb:runs[0][summary][Refiner][Generated-Image][height]: 1024
+    - :wandb:runs[0][summary][Refiner][Generated-Image][width]: 1024
