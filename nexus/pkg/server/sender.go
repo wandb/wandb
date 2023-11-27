@@ -904,7 +904,7 @@ func (s *Sender) getServerInfo() {
 	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
 }
 
-// TODO: use this function when deciding which GraphQL query/mutation versions to use
+// TODO: this function is for deciding which GraphQL query/mutation versions to use
 // func (s *Sender) getServerVersion() string {
 // 	if s.serverInfo == nil {
 // 		return ""
