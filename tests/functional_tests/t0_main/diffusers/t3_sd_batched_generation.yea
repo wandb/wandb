@@ -6,7 +6,7 @@ tag:
   platforms:
     - linux
 command:
-    program: t2_pixart_alpha_generation.py
+    program: t3_sd_batched_generation.py
 depend:
     requirements:
         - "diffusers>=0.23.1"

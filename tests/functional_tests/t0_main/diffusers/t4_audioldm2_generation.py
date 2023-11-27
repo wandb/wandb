@@ -4,9 +4,7 @@ from wandb.integration.diffusers import autolog
 
 autolog(init=dict(project="diffusers_logging", job_type="audio-ldm-2"))
 
-pipe = AudioLDM2Pipeline.from_pretrained(
-    "cvssp/audioldm2", torch_dtype=torch.float16
-)
+pipe = AudioLDM2Pipeline.from_pretrained("cvssp/audioldm2", torch_dtype=torch.float16)
 pipe = pipe.to("cuda")
 
 # define the prompts
