@@ -41,20 +41,25 @@ func main() {
 
 	var writers []io.Writer
 	var loggerPath string
-	if cacheDir, err := os.UserCacheDir(); err != nil {
-		fmt.Println("Unable to get user cache dir", err)
+
+	var cacheDir string
+	var err error
+	if dir := os.Getenv("WANDB_CACHE_DIR"); dir != "" {
+		cacheDir = dir
 	} else {
+		cacheDir, err = os.UserCacheDir()
+	}
+	if err != nil {
 		// Create a unique file name using a timestamp
 		timestamp := time.Now().Format("20060102_150405")
 		loggerPath = filepath.Join(cacheDir, "wandb", fmt.Sprintf("core-debug-%s.log", timestamp))
 
 		file, err := os.OpenFile(loggerPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if err != nil {
-			fmt.Println("Unable to create log file", err)
-		} else {
+		if err == nil {
 			writers = append(writers, file)
 		}
 	}
+
 	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
 		writers = append(writers, os.Stderr)
 	}

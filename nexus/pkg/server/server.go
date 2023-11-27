@@ -54,6 +54,9 @@ func NewServer(ctx context.Context, addr string, portFile string) *Server {
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
+	if path == "" {
+		return
+	}
 	defaultLoggerPath.Store(path)
 }
 
