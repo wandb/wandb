@@ -26,7 +26,6 @@ def test_network_metrics(test_settings):
 
 
 from google.cloud import storage
-import os
 
 
 def test_network_traffic_sent():
