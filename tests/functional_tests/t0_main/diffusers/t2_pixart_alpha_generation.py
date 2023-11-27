@@ -3,7 +3,6 @@ import torch
 from diffusers import PixArtAlphaPipeline
 from wandb.integration.diffusers import autolog
 
-
 autolog(init=dict(project="diffusers_logging", job_type="pixart-alpha"))
 
 pipe = PixArtAlphaPipeline.from_pretrained(
