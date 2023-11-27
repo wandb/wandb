@@ -1,6 +1,6 @@
 import torch
-from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline
 
+from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline
 from wandb.integration.diffusers import autolog
 
 
