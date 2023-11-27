@@ -900,6 +900,8 @@ func (s *Sender) getServerInfo() {
 		return
 	}
 	s.serverInfo = data.GetServerInfo()
+
+	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
 }
 
 // TODO: use this function when deciding which GraphQL query/mutation versions to use
