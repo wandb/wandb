@@ -290,7 +290,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -306,7 +306,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -315,7 +315,7 @@ def test_image_type(assets_path):
             "mask_predictions": {
                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
                 "class_labels": class_labels,
-                },
+            },
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
@@ -335,7 +335,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -348,7 +348,6 @@ def test_image_type(assets_path):
             "mask_ground_truth_2": {"path": im_path, "class_labels": class_labels},
         },
     )
-
     assert wb_type.assign(image_simple) == wb_type_simple
     assert wb_type.assign(image_annotated) == wb_type_annotated
     # OK to assign Images with disjoint class set
@@ -366,6 +365,7 @@ def test_image_type(assets_path):
         },
         class_map={"1": "tree", "2": "car", "3": "road"},
     )
+
 
 def test_image_file_type(assets_path):
     # to make sure that meta data is preserved when we assign to a new image
