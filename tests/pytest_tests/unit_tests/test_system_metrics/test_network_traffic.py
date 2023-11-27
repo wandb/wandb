@@ -1,5 +1,4 @@
 import threading
-
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Network
 from wandb.sdk.internal.system.assets.network import NetworkTrafficSent
