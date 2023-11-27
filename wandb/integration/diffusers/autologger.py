@@ -66,5 +66,5 @@ autolog = AutologAPI(
         "TextToVideoZeroPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
-    # telemetry_feature="diffusers_autolog",
+    telemetry_feature="diffusers_autolog",
 )
