@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
+from wandb.sdk.launch.errors import LaunchError
 
 
 def test_azure_environment_from_config(mocker):
@@ -45,6 +46,10 @@ async def test_azure_upload_file(mocker, runner):
         )
         await azure.upload_file("source", destination)
         blob_client.upload_blob.assert_called_once()
+
+        blob_client.upload_blob.side_effect = Exception("test")
+        with pytest.raises(LaunchError):
+            await azure.upload_file("source", destination)
 
 
 @pytest.mark.parametrize(
