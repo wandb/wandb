@@ -369,7 +369,7 @@ def test_image_type(assets_path):
 
 def test_image_file_type(assets_path):
     # to make sure that meta data is preserved when we assign to a new image
-    # file type 
+    # file type
     im_path = assets_path("test.png")
     formats = ['png', 'jpg', 'jpeg', 'bmp']
     jpg_img = wandb.Image(np.random.rand(10, 10), file_type=formats[0])
