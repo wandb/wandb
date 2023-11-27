@@ -24,8 +24,11 @@ def test_network_metrics(test_settings):
 
     assert network.is_available()
 
+
 from google.cloud import storage
 import os
+
+
 def test_network_traffic_sent():
     network_traffic_sent = NetworkTrafficSent()
 
