@@ -21,7 +21,7 @@ let package = Package(
             name: "AppleStats"
         ),
         // .target(
-        //     name: "apple",
+        //     name: "AppleStats",
         //     dependencies: []),
     ]
 )
