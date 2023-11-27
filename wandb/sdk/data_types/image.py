@@ -228,10 +228,6 @@ class Image(BatchableMedia):
         if self.image is not None:
             self._width, self._height = self.image.size
         self._free_ram()
-        if file_type is None:
-            self.format = 'png'
-        else:
-            self.format = file_type
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
