@@ -45,7 +45,7 @@ google.cloud.storage = get_module(
 
 _logger = logging.getLogger(__name__)
 
-GCS_URI_RE = re.compile(r"gs://([^/]+)/(.+)")
+GCS_URI_RE = re.compile(r"gs://([^/]+)(?:/(.*))?")
 GCP_REGION_ENV_VAR = "GOOGLE_CLOUD_REGION"
 
 
@@ -224,8 +224,14 @@ class GcpEnvironment(AbstractEnvironment):
             credentials = await self.get_credentials()
             storage_client = await cloud_storage_client(credentials=credentials)
             bucket = await event_loop_thread_exec(storage_client.get_bucket)(bucket)
-        except google.api_core.exceptions.NotFound as e:
-            raise LaunchError(f"Bucket {bucket} does not exist.") from e
+        except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(
+                f"Failed verifying storage uri {uri}: bucket {bucket} does not exist."
+            ) from e
+        except google.api_core.exceptions.Forbidden as e:
+            raise LaunchError(
+                f"Failed verifying storage uri {uri}: bucket {bucket} is not accessible. Please check your permissions and try again."
+            ) from e
 
     async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
@@ -238,11 +244,12 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the file cannot be uploaded.
         """
         _logger.debug(f"Uploading file {source} to {destination}")
+        _err_prefix = f"Could not upload file {source} to GCS destination {destination}"
         if not os.path.isfile(source):
-            raise LaunchError(f"File {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: File {source} does not exist.")
         match = GCS_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Invalid GCS URI: {destination}")
+            raise LaunchError(f"{_err_prefix}: Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
         google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
@@ -253,7 +260,13 @@ class GcpEnvironment(AbstractEnvironment):
             blob = await event_loop_thread_exec(bucket.blob)(key)
             await event_loop_thread_exec(blob.upload_from_filename)(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload file to GCS: {e}") from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
 
     async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
@@ -266,11 +279,14 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the directory cannot be uploaded.
         """
         _logger.debug(f"Uploading directory {source} to {destination}")
+        _err_prefix = (
+            f"Could not upload directory {source} to GCS destination {destination}"
+        )
         if not os.path.isdir(source):
-            raise LaunchError(f"Directory {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: Directory {source} does not exist.")
         match = GCS_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Invalid GCS URI: {destination}")
+            raise LaunchError(f"{_err_prefix}: Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
         google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
@@ -287,7 +303,15 @@ class GcpEnvironment(AbstractEnvironment):
                     blob = await event_loop_thread_exec(bucket.blob)(gcs_path)
                     await event_loop_thread_exec(blob.upload_from_filename)(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
+        except Exception as e:
+            raise LaunchError(f"{_err_prefix}: GCS upload failed: {e}") from e
 
 
 def get_gcloud_config_value(config_name: str) -> Optional[str]:

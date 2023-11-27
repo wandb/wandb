@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
+from google.api_core.exceptions import Forbidden, GoogleAPICallError, NotFound
 from google.auth.exceptions import DefaultCredentialsError, RefreshError
 from wandb.sdk.launch.environment.gcp_environment import (
     GCP_REGION_ENV_VAR,
@@ -69,6 +70,12 @@ async def test_upload_file(mocker):
     mock_bucket.blob.assert_called_once_with("key")
     mock_blob.upload_from_filename.assert_called_once_with("source")
 
+    mock_blob.upload_from_filename.side_effect = GoogleAPICallError(
+        "error", response={}
+    )
+    with pytest.raises(LaunchError):
+        await environment.upload_file("source", "gs://bucket/key")
+
 
 @pytest.mark.asyncio
 async def test_upload_dir(mocker):
@@ -120,6 +127,12 @@ async def test_upload_dir(mocker):
         ],
     )
 
+    # Magic mock that will be caught s GoogleAPICallError
+    mock_bucket.blob.side_effect = GoogleAPICallError("error", response={})
+
+    with pytest.raises(LaunchError):
+        await environment.upload_dir("source", "gs://bucket/key")
+
 
 @pytest.mark.asyncio
 async def test_verify_storage_uri(mocker):
@@ -142,6 +155,22 @@ async def test_verify_storage_uri(mocker):
     environment = GcpEnvironment("region")
     await environment.verify_storage_uri("gs://bucket/key")
     mock_storage_client.get_bucket.assert_called_once_with("bucket")
+
+    with pytest.raises(LaunchError):
+        mock_storage_client.get_bucket.side_effect = GoogleAPICallError("error")
+        await environment.verify_storage_uri("gs://bucket/key")
+
+    with pytest.raises(LaunchError):
+        mock_storage_client.get_bucket.side_effect = NotFound("error")
+        await environment.verify_storage_uri("gs://bucket/key")
+
+    with pytest.raises(LaunchError):
+        mock_storage_client.get_bucket.side_effect = Forbidden("error")
+        await environment.verify_storage_uri("gs://bucket/key")
+
+    with pytest.raises(LaunchError):
+        mock_storage_client.get_bucket.side_effect = None
+        await environment.verify_storage_uri("gss://bucket/key")
 
 
 @pytest.mark.parametrize(
