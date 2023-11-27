@@ -132,6 +132,7 @@ message Imports {
   bool lightning_fabric = 103;      // lightning-fabric
   bool curated_transformers = 104;  // curated-transformers
   bool orjson = 105;
+  bool diffusers_autolog = 106;     // diffusers-autolog integration
 }
 
 message Feature {
