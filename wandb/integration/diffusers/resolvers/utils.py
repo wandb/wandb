@@ -1,12 +1,10 @@
 import inspect
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from wandb.util import get_module
 
-np = get_module(
-    "numpy",
-    required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
-)
+if TYPE_CHECKING:
+    np = get_module("numpy")
 
 
 def chunkify(input_list, chunk_size) -> List:
@@ -38,6 +36,10 @@ def get_updated_kwargs(
 
 
 def postprocess_pils_to_np(image: List) -> np.array:
+    np = get_module(
+        "numpy",
+        required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
+    )
     return np.stack(
         [np.transpose(np.array(img).astype("uint8"), axes=(2, 0, 1)) for img in image],
         axis=0,
@@ -47,5 +49,9 @@ def postprocess_pils_to_np(image: List) -> np.array:
 def postprocess_np_arrays_for_video(
     images: List[np.array], normalize: Optional[bool] = False
 ):
+    np = get_module(
+        "numpy",
+        required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
+    )
     images = [(img * 255).astype("uint8") for img in images] if normalize else images
     return np.transpose(np.stack((images), axis=0), axes=(0, 3, 1, 2))
