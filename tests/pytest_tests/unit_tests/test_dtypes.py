@@ -48,8 +48,9 @@ def test_timestamp_type():
     datetime64_obj = np.datetime64("2000-12-01")
 
     assert TypeRegistry.type_of(datetime_obj) == TimestampType()
-    assert (TypeRegistry.type_of(datetime_obj).assign(date_obj).assign(datetime64_obj)
-            == TimestampType()
+    assert (
+        TypeRegistry.type_of(datetime_obj).assign(date_obj).assign(datetime64_obj)
+        == TimestampType()
             )
     assert TypeRegistry.type_of(datetime_obj).assign(None) == InvalidType()
     assert TypeRegistry.type_of(datetime_obj).assign(1) == InvalidType()
@@ -355,7 +356,7 @@ def test_image_type(assets_path):
     assert wb_type_annotated.assign(
         image_annotated_differently
     ) == data_types._ImageFileType(
-        box_layers={"box_predictions": {1, 2, 3},"box_ground_truth": {1, 2, 3}},
+        box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
         box_score_keys={"loss", "acc"},
         mask_layers={
             "mask_ground_truth_2": set(),
@@ -960,15 +961,12 @@ def test_artifact_type():
         type_of_nested_artifact_dict.assign(nested_artifact_config_dict)
         == nested_target_type
     )
-    assert type_of_nested_artifact_dict.assign(
-        nested_artifact) == nested_target_type
-    assert (
-        type_of_nested_artifact_dict.assign(nested_artifact_string)
+    assert type_of_nested_artifact_dict.assign(nested_artifact) == nested_target_type
+    assert (type_of_nested_artifact_dict.assign(nested_artifact_string)
         == nested_target_type
     )
     assert (
         type_of_nested_artifact_string.assign(nested_artifact_config_dict)
         == nested_target_type
     )
-    assert type_of_nested_artifact_string.assign(
-        nested_artifact) == nested_target_type
+    assert type_of_nested_artifact_string.assign(nested_artifact) == nested_target_type

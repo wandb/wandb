@@ -133,7 +133,7 @@ class Image(BatchableMedia):
         caption: Optional[str] = None,
         grouping: Optional[int] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"],Dict[str, dict]]] = None,
+        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
     ) -> None:
@@ -214,10 +214,11 @@ class Image(BatchableMedia):
 
         if classes is not None:
             if isinstance(classes, Classes):
-                total_classes.update({val["id"]: val["name"] for val in classes._class_set})
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                    )
             else:
-                total_classes.update({val["id"]: val["name"]
-                                     for val in classes})
+                total_classes.update({val["id"]: val["name"] for val in classes})
 
         if len(total_classes.keys()) > 0:
             self._classes = Classes(
@@ -650,7 +651,7 @@ class Image(BatchableMedia):
         if self.image is not None:
             data = list(self.image.getdata())
             for i in range(self.image.height):
-                res.append(data[i * self.image.width: (i + 1) * self.image.width])
+                res.append(data[i * self.image.width : (i + 1) * self.image.width])
         self._free_ram()
         return res
 
