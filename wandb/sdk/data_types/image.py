@@ -107,7 +107,7 @@ class Image(BatchableMedia):
             run.log({"examples": examples})
         ```
 
-        ### log .jpg rather than .png (default) 
+        ### log .jpg rather than .png (default)
         <!--yeadoc-test:log-image-format-->
         ```python
         import numpy as np
