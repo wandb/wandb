@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -59,7 +60,8 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}

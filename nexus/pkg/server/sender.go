@@ -894,7 +894,8 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 
 func (s *Sender) sendSenderRead(_ *service.Record, request *service.SenderReadRequest) {
 	if s.store == nil {
-		store, err := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		err := store.Open(os.O_RDONLY)
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
 			return
