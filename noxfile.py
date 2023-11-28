@@ -136,6 +136,31 @@ def codecov(session):
     session.notify("run-codecov", posargs=session.posargs)
 
 
+@nox.session(python=False, name="build-apple-stats-monitor")
+def build_apple_stats_monitor(session):
+    """Builds the apple stats monitor binary for the current platform.
+
+    The binary will be located in
+    nexus/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
+    """
+    session.cd("nexus/pkg/monitor/apple")
+    session.run(
+        "swift",
+        "build",
+        "--configuration",
+        "release",
+        "-Xswiftc",
+        "-cross-module-optimization",
+        external=True,
+    )
+    # copy the binary to nexus/pkg/monitor/apple/AppleStats
+    session.run(
+        "cp",
+        f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
+        "AppleStats",
+    )
+
+
 @nox.session(python=False, name="graphql-codegen-schema-change")
 def graphql_codegen_schema_change(session):
     """Runs the GraphQL codegen script and saves the previous api version.
