@@ -213,13 +213,15 @@ class TorchHistory:
         # Anecdotally, this can somehow happen sometimes. Maybe a precision error
         # in min()/max() above. Swap here to prevent a runtime error.
         # If all values are equal, just return a single bin.
+        if tmin > tmax:
+            tmin, tmax = tmax, tmin
         if tmin == tmax:
             tensor = torch.Tensor([flat.numel()])
             tensor = tensor.cpu().clone().detach()
             bins = torch.Tensor([tmin, tmax])
         else:
             tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
-            tensor = tensor.cpu().clone().detach()
+            tensor = tensor.cpu().detach().clone()
             bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
         # Add back zeroes from a sparse tensor.
