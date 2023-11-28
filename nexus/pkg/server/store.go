@@ -73,25 +73,6 @@ func (sr *Store) Open(flag int) error {
 		return err
 	}
 	return nil
-
-	// f, err := os.Create(fileName)
-	// if err != nil {
-	// 	logger.CaptureError("can't write header", err)
-	// 	return nil, err
-	// }
-	// writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
-	// sr := &Store{ctx: ctx,
-	// 	writer: writer,
-	// 	db:     f,
-	// 	logger: logger,
-	// }
-	// if err = sr.addHeader(); err != nil {
-	// 	sr.logger.CaptureError("can't write header", err)
-	// 	return nil, err
-	// }
-	// return sr, nil
-
-	// return nil
 }
 
 func (sr *Store) addHeader() error {
