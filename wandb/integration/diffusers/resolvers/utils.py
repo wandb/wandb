@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 from wandb.util import get_module
 
 if TYPE_CHECKING:
-    np = get_module("numpy")
+    np_array = get_module("numpy.array")
 
 
 def chunkify(input_list, chunk_size) -> List:
@@ -35,7 +35,7 @@ def get_updated_kwargs(
     return kwargs
 
 
-def postprocess_pils_to_np(image: List) -> np.array:
+def postprocess_pils_to_np(image: List) -> "np_array":
     np = get_module(
         "numpy",
         required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
@@ -47,8 +47,8 @@ def postprocess_pils_to_np(image: List) -> np.array:
 
 
 def postprocess_np_arrays_for_video(
-    images: List[np.array], normalize: Optional[bool] = False
-):
+    images: List["np_array"], normalize: Optional[bool] = False
+) -> "np_array":
     np = get_module(
         "numpy",
         required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
