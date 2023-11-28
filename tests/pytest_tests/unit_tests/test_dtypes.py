@@ -355,8 +355,7 @@ def test_image_type(assets_path):
     assert wb_type_annotated.assign(
         image_annotated_differently
     ) == data_types._ImageFileType(
-        box_layers={"box_predictions": {1, 2, 3},
-                    "box_ground_truth": {1, 2, 3}},
+        box_layers={"box_predictions": {1, 2, 3},"box_ground_truth": {1, 2, 3}},
         box_score_keys={"loss", "acc"},
         mask_layers={
             "mask_ground_truth_2": set(),
@@ -479,8 +478,7 @@ def test_table_allow_mixed_types():
     table.add_data(1)
     table.add_data("a")  # No error with allow_mixed_types
 
-    table = wandb.Table(
-        columns=["col"], optional=False, allow_mixed_types=True)
+    table = wandb.Table(columns=["col"], optional=False, allow_mixed_types=True)
     with pytest.raises(TypeError):
         table.add_data(None)  # Still errors since optional is false
     table.add_data(1)
@@ -589,8 +587,7 @@ def test_table_explicit_types():
     with pytest.raises(TypeError):
         table.add_data("a", "a")
 
-    table = wandb.Table(columns=["a", "b"], optional=[
-                        False, True], dtype=[int, str])
+    table = wandb.Table(columns=["a", "b"], optional=[False, True], dtype=[int, str])
     with pytest.raises(TypeError):
         table.add_data(None, None)
     with pytest.raises(TypeError):
@@ -842,32 +839,25 @@ def test_table_typing_pandas():
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uint))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.longlong))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.longlong))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.ulonglong))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.ulonglong))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.half))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.float16))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float16))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.single))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.double))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.longdouble))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.longdouble))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.csingle))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.csingle))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.cdouble))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.cdouble))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.clongdouble))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.clongdouble))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.int8))
     table.add_data(42)
@@ -889,27 +879,21 @@ def test_table_typing_pandas():
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.uintp))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.float32))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float32))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.float64))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float64))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float_))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.complex64))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex64))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.complex128))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex128))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[42], [42]]).astype(np.complex_))
+    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex_))
     table.add_data(42)
 
     # Boolean
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[True], [False]]).astype(np.bool_))
+    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype(np.bool_))
     table.add_data(True)
 
     # String aliased
@@ -930,11 +914,9 @@ def test_table_typing_pandas():
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype("UInt64"))
     table.add_data(42)
 
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [["42"], ["42"]]).astype("string"))
+    table = wandb.Table(dataframe=pd.DataFrame([["42"], ["42"]]).astype("string"))
     table.add_data("42")
-    table = wandb.Table(dataframe=pd.DataFrame(
-        [[True], [False]]).astype("boolean"))
+    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
     table.add_data(True)
 
 
@@ -967,16 +949,13 @@ def test_artifact_type():
     nested_artifact = {"nested_artifact": artifact}
     type_of_nested_artifact = TypeRegistry.type_of(nested_artifact)
     nested_artifact_string = {"nested_artifact": artifact_string}
-    type_of_nested_artifact_string = TypeRegistry.type_of(
-        nested_artifact_string)
+    type_of_nested_artifact_string = TypeRegistry.type_of(nested_artifact_string)
     nested_artifact_config_dict = {"nested_artifact": artifact_config_shape}
-    type_of_nested_artifact_dict = TypeRegistry.type_of(
-        nested_artifact_config_dict)
+    type_of_nested_artifact_dict = TypeRegistry.type_of(nested_artifact_config_dict)
     nested_target_type = TypedDictType(
         {"nested_artifact": TypeRegistry.types_by_name().get("artifactVersion")()}
     )
-    assert type_of_nested_artifact.assign(
-        nested_artifact_string) == nested_target_type
+    assert type_of_nested_artifact.assign(nested_artifact_string) == nested_target_type
     assert (
         type_of_nested_artifact_dict.assign(nested_artifact_config_dict)
         == nested_target_type
