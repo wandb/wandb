@@ -803,7 +803,9 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if manager:
-            manager._inform_start(settings=self.settings.to_proto(), run_id=self.settings.run_id)
+            manager._inform_start(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         assert backend.interface
         assert run._run_obj
