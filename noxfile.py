@@ -182,4 +182,3 @@ def graphql_codegen_schema_change(session):
         "--schema-change",
         external=True,
     )
-
