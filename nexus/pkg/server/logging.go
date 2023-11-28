@@ -39,9 +39,15 @@ func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 func SetupStreamLogger(settings *service.Settings) *observability.NexusLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "core-debug.log")
-	err := os.Symlink(defaultLoggerPath.Load().(string), targetPath)
-	if err != nil {
-		slog.Error("error creating symlink", "error", err)
+	if path := defaultLoggerPath.Load(); path != nil {
+		path := path.(string)
+		// check path exists
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			err := os.Symlink(path, targetPath)
+			if err != nil {
+				slog.Error("error creating symlink", "error", err)
+			}
+		}
 	}
 
 	var writers []io.Writer
