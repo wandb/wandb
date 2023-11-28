@@ -1,14 +1,14 @@
 import logging
 from typing import Any, Dict, List, Sequence
 
-import torch
-
 import wandb
 from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.util import get_module
 
 from .utils import chunkify, get_updated_kwargs
 
 logger = logging.getLogger(__name__)
+torch = get_module("torch")
 
 
 SUPPORTED_SDXL_PIPELINES = [

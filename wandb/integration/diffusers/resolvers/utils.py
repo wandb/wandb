@@ -1,7 +1,9 @@
 import inspect
 from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
+from wandb.util import get_module
+
+np = get_module("numpy")
 
 
 def chunkify(input_list, chunk_size) -> List:
