@@ -45,7 +45,8 @@ func NewStore(ctx context.Context, fileName string, logger *observability.NexusL
 }
 
 func (sr *Store) Open(flag int) error {
-	if flag == os.O_RDONLY {
+	switch flag {
+	case os.O_RDONLY:
 		f, err := os.Open(sr.name)
 		if err != nil {
 			sr.logger.CaptureError("can't open file", err)
@@ -53,7 +54,7 @@ func (sr *Store) Open(flag int) error {
 		}
 		sr.db = f
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
-	} else if flag == os.O_WRONLY {
+	case os.O_WRONLY:
 		f, err := os.Create(sr.name)
 		if err != nil {
 			sr.logger.CaptureError("can't open file", err)
@@ -65,7 +66,7 @@ func (sr *Store) Open(flag int) error {
 			sr.logger.CaptureError("can't write header", err)
 			return err
 		}
-	} else {
+	default:
 		// TODO: generalize this?
 		err := fmt.Errorf("invalid flag %d", flag)
 		sr.logger.CaptureError("can't open file", err)
