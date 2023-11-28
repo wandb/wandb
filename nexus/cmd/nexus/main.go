@@ -3,15 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log/slog"
 	_ "net/http/pprof"
 	"os"
-	"path/filepath"
 	"runtime"
 	"runtime/trace"
-	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -23,39 +20,6 @@ var commit string
 
 func init() {
 	runtime.SetBlockProfileRate(1)
-}
-
-func getLoggerPath() (*os.File, error) {
-
-	dir := os.Getenv("WANDB_CACHE_DIR")
-	if dir == "" {
-		dir, _ = os.UserCacheDir()
-	}
-
-	if dir == "" {
-		return nil, fmt.Errorf("failed to get logger path")
-	}
-
-	// get absolute path
-	dir, err := filepath.Abs(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get logger path: %s", err)
-	}
-
-	// Create a unique file name using a timestamp
-	timestamp := time.Now().Format("20060102_150405")
-	path := filepath.Join(dir, ".wandb", fmt.Sprintf("core-debug-%s.log", timestamp))
-	// create the directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return nil, fmt.Errorf("error creating log directory: %s", err)
-	}
-
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("error opening log file: %s", err)
-	}
-
-	return file, nil
 }
 
 func main() {
@@ -75,12 +39,14 @@ func main() {
 	var writers []io.Writer
 
 	var loggerPath string
-	file, err := getLoggerPath()
+	file, err := observability.GetLoggerPath()
 	if err == nil {
 		writers = append(writers, file)
 		loggerPath = file.Name()
 	}
-	defer file.Close()
+	if file != nil {
+		defer file.Close()
+	}
 
 	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
 		writers = append(writers, os.Stderr)
