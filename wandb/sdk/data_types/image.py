@@ -81,7 +81,7 @@ class Image(BatchableMedia):
         import numpy as np
         import wandb
 
-        with wandb.init() as run: 
+        with wandb.init() as run:
             examples = []
             for i in range(3):
                 pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
@@ -96,6 +96,7 @@ class Image(BatchableMedia):
         import numpy as np
         from PIL import Image as PILImage
         import wandb
+
         with wandb.init() as run:
             examples = []
             for i in range(3):
@@ -111,7 +112,8 @@ class Image(BatchableMedia):
         ```python
         import numpy as np
         import wandb
-        with wandb.init() as run: 
+
+        with wandb.init() as run:
             examples = []
             for i in range(3):
                 pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
