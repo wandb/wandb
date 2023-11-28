@@ -48,11 +48,9 @@ def test_timestamp_type():
     datetime64_obj = np.datetime64("2000-12-01")
 
     assert TypeRegistry.type_of(datetime_obj) == TimestampType()
-    assert (
-        TypeRegistry.type_of(datetime_obj).assign(
-            date_obj).assign(datetime64_obj)
-        == TimestampType()
-    )
+    assert (TypeRegistry.type_of(datetime_obj).assign(date_obj).assign(datetime64_obj)
+            == TimestampType()
+            )
     assert TypeRegistry.type_of(datetime_obj).assign(None) == InvalidType()
     assert TypeRegistry.type_of(datetime_obj).assign(1) == InvalidType()
 
