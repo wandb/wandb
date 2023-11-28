@@ -70,6 +70,9 @@ public func getGPUStats() -> [String: Any] {
         let gpuPower = SMC.shared.getValue("PMVR")
         // print(gpuPower)
 
+        // System total power
+        let systemPower = SMC.shared.getValue("PSTR")
+
         GPUStats["utilization"] = utilization ?? 0
         GPUStats["renderUtilization"] = renderUtilization ?? 0
         GPUStats["tilerUtilization"] = tilerUtilization ?? 0
@@ -83,6 +86,7 @@ public func getGPUStats() -> [String: Any] {
         GPUStats["m2Gpu1"] = m2Gpu1 ?? 0
         GPUStats["m2Gpu2"] = m2Gpu2 ?? 0
         GPUStats["gpuPower"] = gpuPower ?? 0
+        GPUStats["systemPower"] = systemPower ?? 0
     }
 
     return GPUStats

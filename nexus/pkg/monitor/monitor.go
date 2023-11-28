@@ -174,10 +174,8 @@ func NewSystemMonitor(
 		NewDisk(settings),
 		NewNetwork(settings),
 		NewGPUNvidia(settings),
+		NewGPUApple(settings),
 	}
-
-	// TODO:
-	callSwift()
 
 	// if asset is available, add it to the list of assets to monitor
 	for _, asset := range assets {

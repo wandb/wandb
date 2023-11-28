@@ -85,6 +85,7 @@ class NexusBase:
 
         # on macs, copy over the stats monitor binary, if available
         # it is built separately with `nox -s build-apple-stats-monitor` to avoid
+        # having to wait for that to build on every run.
 
         if goos == "darwin":
             monitor_path = (

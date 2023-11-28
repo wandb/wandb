@@ -3420,15 +3420,18 @@ class GpuAppleInfo(google.protobuf.message.Message):
 
     GPUTYPE_FIELD_NUMBER: builtins.int
     VENDOR_FIELD_NUMBER: builtins.int
+    CORES_FIELD_NUMBER: builtins.int
     gpuType: builtins.str
     vendor: builtins.str
+    cores: builtins.int
     def __init__(
         self,
         *,
         gpuType: builtins.str = ...,
         vendor: builtins.str = ...,
+        cores: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cores", b"cores", "gpuType", b"gpuType", "vendor", b"vendor"]) -> None: ...
 
 global___GpuAppleInfo = GpuAppleInfo
 
