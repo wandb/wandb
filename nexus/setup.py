@@ -83,15 +83,11 @@ class NexusBase:
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
 
-        # on macs, copy over the stats monitor binary, if available
+        # on arm macs, copy over the stats monitor binary, if available
         # it is built separately with `nox -s build-apple-stats-monitor` to avoid
         # having to wait for that to build on every run.
-
-        if goos == "darwin":
-            monitor_path = (
-                src_dir
-                / f"pkg/monitor/apple/.build/{platform.machine().lower()}-apple-macosx/release/AppleStats"
-            )
+        if goos == "darwin" and goarch == "arm64":
+            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
             if monitor_path.exists():
                 log.info("Copying AppleStats binary")
                 subprocess.check_call(["cp", str(monitor_path), str(nexus_path)])

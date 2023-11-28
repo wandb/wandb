@@ -153,3 +153,9 @@ def build_apple_stats_monitor(session):
         "-cross-module-optimization",
         external=True,
     )
+    # copy the binary to nexus/pkg/monitor/apple/AppleStats
+    session.run(
+        "cp",
+        f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
+        "AppleStats",
+    )

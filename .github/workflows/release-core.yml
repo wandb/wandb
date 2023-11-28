@@ -59,7 +59,9 @@ jobs:
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
 
-# todo: build sdist
+# TODO: build swift library for ARM macs GPU stats collection
+
+# TODO: build sdist
 #      - name: Build sdist
 #        if: runner.os == 'Linux'
 #        run: |
