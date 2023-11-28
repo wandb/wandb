@@ -133,7 +133,8 @@ class Image(BatchableMedia):
         caption: Optional[str] = None,
         grouping: Optional[int] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
+        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"],
+                              Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
     ) -> None:
@@ -162,14 +163,17 @@ class Image(BatchableMedia):
                 self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode, file_type)
-        self._set_initialization_meta(grouping, caption, classes, boxes, masks, file_type)
+        self._set_initialization_meta(
+            grouping, caption, classes, boxes, masks, file_type
+        )
 
     def _set_initialization_meta(
         self,
         grouping: Optional[int] = None,
         caption: Optional[str] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
-        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
+        boxes: Optional[Union[Dict[str, "BoundingBoxes2D"],
+                              Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
         file_type: Optional[str] = None,
     ) -> None:
@@ -183,7 +187,8 @@ class Image(BatchableMedia):
 
         if boxes:
             if not isinstance(boxes, dict):
-                raise ValueError('Images "boxes" argument must be a dictionary')
+                raise ValueError(
+                    'Images "boxes" argument must be a dictionary')
             boxes_final: Dict[str, BoundingBoxes2D] = {}
             for key in boxes:
                 box_item = boxes[key]
@@ -197,7 +202,8 @@ class Image(BatchableMedia):
 
         if masks:
             if not isinstance(masks, dict):
-                raise ValueError('Images "masks" argument must be a dictionary')
+                raise ValueError(
+                    'Images "masks" argument must be a dictionary')
             masks_final: Dict[str, ImageMask] = {}
             for key in masks:
                 mask_item = masks[key]
@@ -216,7 +222,8 @@ class Image(BatchableMedia):
                     {val["id"]: val["name"] for val in classes._class_set}
                 )
             else:
-                total_classes.update({val["id"]: val["name"] for val in classes})
+                total_classes.update({val["id"]: val["name"]
+                                     for val in classes})
 
         if len(total_classes.keys()) > 0:
             self._classes = Classes(
@@ -296,7 +303,8 @@ class Image(BatchableMedia):
                 data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
             self._image = pil_image.fromarray(
-                data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
+                data.mul(255).clamp(0, 255).byte().permute(
+                    1, 2, 0).cpu().numpy()
             )
         else:
             if hasattr(data, "numpy"):  # TF data eager tensors
@@ -314,7 +322,8 @@ class Image(BatchableMedia):
         assert (
             self.format in accepted_formats
         ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+        tmp_path = os.path.join(
+            MEDIA_TMP.name, runid.generate_id() + "." + self.format)
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -343,7 +352,8 @@ class Image(BatchableMedia):
         if boxes:
             _boxes = {}
             for key in boxes:
-                _boxes[key] = BoundingBoxes2D.from_json(boxes[key], source_artifact)
+                _boxes[key] = BoundingBoxes2D.from_json(
+                    boxes[key], source_artifact)
                 _boxes[key]._key = key
 
         return cls(
@@ -440,7 +450,8 @@ class Image(BatchableMedia):
                 }
 
         elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError(
+                "to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
             json_dict["boxes"] = {
@@ -649,7 +660,8 @@ class Image(BatchableMedia):
         if self.image is not None:
             data = list(self.image.getdata())
             for i in range(self.image.height):
-                res.append(data[i * self.image.width : (i + 1) * self.image.width])
+                res.append(
+                    data[i * self.image.width: (i + 1) * self.image.width])
         self._free_ram()
         return res
 
