@@ -193,11 +193,15 @@ class _Manager:
         assert svc_iface
         return svc_iface
 
-    def _inform_init(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
+    def _inform_init(
+        self, settings: "wandb_settings_pb2.Settings", run_id: str
+    ) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_init(settings=settings, run_id=run_id)
 
-    def _inform_start(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
+    def _inform_start(
+        self, settings: "wandb_settings_pb2.Settings", run_id: str
+    ) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 

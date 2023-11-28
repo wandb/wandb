@@ -29,14 +29,18 @@ class ServiceSockInterface(ServiceInterface):
     def _svc_connect(self, port: int) -> None:
         self._sock_client.connect(port=port)
 
-    def _svc_inform_init(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
+    def _svc_inform_init(
+        self, settings: "wandb_settings_pb2.Settings", run_id: str
+    ) -> None:
         inform_init = spb.ServerInformInitRequest()
         inform_init.settings.CopyFrom(settings)
         inform_init._info.stream_id = run_id
         assert self._sock_client
         self._sock_client.send(inform_init=inform_init)
 
-    def _svc_inform_start(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
+    def _svc_inform_start(
+        self, settings: "wandb_settings_pb2.Settings", run_id: str
+    ) -> None:
         inform_start = spb.ServerInformStartRequest()
         inform_start.settings.CopyFrom(settings)
         inform_start._info.stream_id = run_id

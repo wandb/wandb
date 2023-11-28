@@ -616,7 +616,9 @@ class _WandbInit:
         manager = self._wl._get_manager()
         if manager:
             logger.info("setting up manager")
-            manager._inform_init(settings=self.settings.to_proto(), run_id=self.settings.run_id)
+            manager._inform_init(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
