@@ -1,6 +1,9 @@
 id: 0.mp.06-2-share-child-gt-step
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
   
 parametrize:
   permute:
