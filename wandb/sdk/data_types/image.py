@@ -216,7 +216,7 @@ class Image(BatchableMedia):
             if isinstance(classes, Classes):
                 total_classes.update(
                     {val["id"]: val["name"] for val in classes._class_set}
-                    )
+                )
             else:
                 total_classes.update({val["id"]: val["name"] for val in classes})
 

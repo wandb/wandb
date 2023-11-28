@@ -51,7 +51,7 @@ def test_timestamp_type():
     assert (
         TypeRegistry.type_of(datetime_obj).assign(date_obj).assign(datetime64_obj)
         == TimestampType()
-            )
+    )
     assert TypeRegistry.type_of(datetime_obj).assign(None) == InvalidType()
     assert TypeRegistry.type_of(datetime_obj).assign(1) == InvalidType()
 
@@ -962,7 +962,8 @@ def test_artifact_type():
         == nested_target_type
     )
     assert type_of_nested_artifact_dict.assign(nested_artifact) == nested_target_type
-    assert (type_of_nested_artifact_dict.assign(nested_artifact_string)
+    assert (
+        type_of_nested_artifact_dict.assign(nested_artifact_string)
         == nested_target_type
     )
     assert (
