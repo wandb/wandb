@@ -159,3 +159,27 @@ def build_apple_stats_monitor(session):
         f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
         "AppleStats",
     )
+
+
+@nox.session(python=False, name="graphql-codegen-schema-change")
+def graphql_codegen_schema_change(session):
+    """Runs the GraphQL codegen script and saves the previous api version.
+
+    This will save the current generated go graphql code gql_gen.go
+    in nexus/internal/gql/v[n+1]/gql_gen.go, run the graphql codegen script,
+    and save the new generated go graphql code as nexus/internal/gql/gql_gen.go.
+    The latter will always point to the latest api version, while the versioned
+    gql_gen.go files can be used in versioning your GraphQL API requests,
+    for example when communicating with an older server.
+
+    Should use whenether there is a schema change on the Server side that
+    affects your GraphQL API. Do not use this if there is no schema change
+    and you are e.g. just adding a new query or mutation
+    against the schema that already supports it.
+    """
+    session.run(
+        "./nexus/scripts/generate-graphql.sh",
+        "--schema-change",
+        external=True,
+    )
+
