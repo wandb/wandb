@@ -11,42 +11,25 @@ public func getGPUStats() -> [String: Any] {
             GPUStats["cores"] = gpu.cores ?? 0
         }
     } else {
-        // print("No GPU information available")
         return [:]
     }
-
-    // let displays = SystemKit.shared.device.info.gpu!
-    // print(displays)
 
     guard let accelerators = fetchIOService(kIOAcceleratorClassName) else {
         return [:]
     }
     for (_, accelerator) in accelerators.enumerated() {
-        // print("Accelerator \(index): \(accelerator)")
-
-        // guard let IOClass = accelerator.object(forKey: "IOClass") as? String else {
-        //     print("IOClass not found")
-        //     return
-        // }
-
         guard let stats = accelerator["PerformanceStatistics"] as? [String: Any] else {
             // print("PerformanceStatistics not found")
             return [:]
         }
 
-        // print(stats)
-
         let utilization: Int? = stats["Device Utilization %"] as? Int ?? stats["GPU Activity(%)"] as? Int ?? nil
         let renderUtilization: Int? = stats["Renderer Utilization %"] as? Int ?? nil
         let tilerUtilization: Int? = stats["Tiler Utilization %"] as? Int ?? nil
 
-        // print(utilization, renderUtilization, tilerUtilization)
-
         let allocatedSystemMemory: Int? = stats["Alloc system memory"] as? Int ?? nil
         let inUseSystemMemory: Int? = stats["In use system memory"] as? Int ?? nil
         let recoveryCount: Int? = stats["recoveryCount"] as? Int ?? nil
-
-        // print(allocatedSystemMemory, inUseSystemMemory, recoveryCount)
 
         // TODO: Add more stats, such as the CPU, battery temperatures
 
@@ -64,11 +47,8 @@ public func getGPUStats() -> [String: Any] {
 
         // TODO: add M3 GPU temperature
 
-        // print(m1Gpu1, m1Gpu2, m1Gpu3, m1Gpu4, m2Gpu1, m2Gpu2)
-
         // GPU / Neural Engine Total Power
         let gpuPower = SMC.shared.getValue("PMVR")
-        // print(gpuPower)
 
         // System total power
         let systemPower = SMC.shared.getValue("PSTR")
@@ -106,32 +86,3 @@ public func gpuStats() {
 }
 
 gpuStats()
-
-// @_cdecl("gpuStats")
-// public func gpuStats() -> UnsafePointer<CChar> {
-//     let stats: [String: Any] = getGPUStats()
-
-//     do {
-//         let jsonData = try JSONSerialization.data(withJSONObject: stats, options: [])
-//         if let jsonString = String(data: jsonData, encoding: .utf8),
-//            let cString = strdup(jsonString) {
-//             return UnsafePointer(cString)
-//         }
-//     } catch {
-//         print("Error serializing stats: \(error)")
-//     }
-
-//     // Fallback for an empty JSON object if serialization fails
-//     let fallbackString = "{}"
-//     let cString = strdup(fallbackString)!
-//     return UnsafePointer(cString)
-// }
-
-// Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-//     printGPUStats()
-// }
-
-// RunLoop.current.run()
-
-// let stats = getGPUStats()
-// print(stats)
