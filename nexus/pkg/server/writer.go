@@ -50,10 +50,11 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 	return w
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
-	defer w.logger.Reraise()
-	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
+func (w *Writer) startStore() {
+	if w.settings.GetXSync().GetValue() {
+		// do not set up store if we are syncing an offline run
+		return
+	}
 
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
@@ -77,6 +78,14 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 		}
 		w.wg.Done()
 	}()
+}
+
+// do is the main loop of the writer to process incoming messages
+func (w *Writer) do(inChan <-chan *service.Record) {
+	defer w.logger.Reraise()
+	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
+
+	w.startStore()
 
 	for record := range inChan {
 		w.handleRecord(record)

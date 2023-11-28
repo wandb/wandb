@@ -16,6 +16,7 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.import_hooks import unregister_all_post_import_hooks
 
 if TYPE_CHECKING:
+    from wandb.proto import wandb_settings_pb2
     from wandb.sdk.service import service
     from wandb.sdk.service.service_base import ServiceInterface
     from wandb.sdk.wandb_settings import Settings
@@ -192,11 +193,11 @@ class _Manager:
         assert svc_iface
         return svc_iface
 
-    def _inform_init(self, settings: "Settings", run_id: str) -> None:
+    def _inform_init(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_init(settings=settings, run_id=run_id)
 
-    def _inform_start(self, settings: "Settings", run_id: str) -> None:
+    def _inform_start(self, settings: "wandb_settings_pb2.Settings", run_id: str) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 

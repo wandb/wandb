@@ -422,6 +422,48 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
+@display_error
+def nexync(
+    ctx,
+    path=None,
+):
+    import pathlib
+
+    from wandb.sdk.backend.backend import Backend
+    from wandb.sdk.lib.mailbox import Mailbox
+    from wandb.sdk.lib.runid import generate_id
+
+    p = pathlib.Path(path[0])
+    p.parent.absolute()
+
+    singleton = wandb.setup()
+
+    settings = singleton.settings.to_proto()
+    # update sync_file setting to point to the passed path
+    settings.sync_file.value = str(p.absolute())
+    settings.sync_dir.value = str(p.parent.absolute())
+    settings._sync.value = True
+    # print(settings)
+
+    stream_id = generate_id()
+    settings.run_id.value = stream_id  # TODO: remove this
+    print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
+    manager = singleton._get_manager()
+    manager._inform_init(settings=settings, run_id=stream_id)
+
+    mailbox = Mailbox()
+    backend = Backend(settings=singleton.settings, manager=manager, mailbox=mailbox)
+    backend.ensure_launched()
+
+    assert backend.interface
+    mailbox.enable_keepalive()
+
+
+@cli.command(
+    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
+)
+@click.pass_context
+@click.argument("path", nargs=-1, type=click.Path(exists=True))
 @click.option("--view", is_flag=True, default=False, help="View runs", hidden=True)
 @click.option("--verbose", is_flag=True, default=False, help="Verbose", hidden=True)
 @click.option("--id", "run_id", help="The run you want to upload to.")
