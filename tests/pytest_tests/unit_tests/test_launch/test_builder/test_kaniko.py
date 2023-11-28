@@ -10,11 +10,9 @@ from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
-from wandb.sdk.launch.registry.azure_container_registry import (
-    AzureContainerRegistryHelper,
-)
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
-    ElasticContainerRegistryHelper,
+    ElasticContainerRegistry,
 )
 
 
@@ -61,7 +59,7 @@ def azure_container_registry(mocker, azure_environment):
     config = {
         "uri": "https://registry.azurecr.io/test-repo",
     }
-    return AzureContainerRegistryHelper.from_config(config)
+    return AzureContainerRegistry.from_config(config)
 
 
 @pytest.fixture
@@ -70,7 +68,7 @@ def elastic_container_registry(mocker):
     config = {
         "uri": "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo",
     }
-    return ElasticContainerRegistryHelper.from_config(config)
+    return ElasticContainerRegistry.from_config(config)
 
 
 @pytest.mark.asyncio

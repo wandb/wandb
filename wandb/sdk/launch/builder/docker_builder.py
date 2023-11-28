@@ -9,7 +9,7 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import (
     EntryPoint,
@@ -18,7 +18,7 @@ from .._project_spec import (
     get_entry_point_command,
 )
 from ..errors import LaunchDockerError, LaunchError
-from ..registry.local_registry import LocalRegistryHelper
+from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     event_loop_thread_exec,
@@ -51,7 +51,7 @@ class DockerBuilder(AbstractBuilder):
     def __init__(
         self,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
         config: Dict[str, Any],
     ):
         """Initialize a DockerBuilder.
@@ -72,7 +72,7 @@ class DockerBuilder(AbstractBuilder):
         cls,
         config: Dict[str, Any],
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
@@ -104,7 +104,7 @@ class DockerBuilder(AbstractBuilder):
 
     async def login(self) -> None:
         """Login to the registry."""
-        if isinstance(self.registry, LocalRegistryHelper):
+        if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         else:
             username, password = await self.registry.get_username_password()

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 
-class AbstractRegistryHelper(ABC):
+class AbstractRegistry(ABC):
     """Abstract base class for registries."""
 
     uri: str
@@ -42,6 +42,6 @@ class AbstractRegistryHelper(ABC):
     def from_config(
         cls,
         config: dict,
-    ) -> "AbstractRegistryHelper":
+    ) -> "AbstractRegistry":
         """Create a registry from a config."""
         raise NotImplementedError

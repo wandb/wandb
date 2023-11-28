@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 
@@ -16,14 +16,14 @@ class AbstractBuilder(ABC):
 
     builder_type: str
     environment: AbstractEnvironment
-    registry: AbstractRegistryHelper
+    registry: AbstractRegistry
     builder_config: Dict[str, Any]
 
     @abstractmethod
     def __init__(
         self,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
         verify: bool = True,
     ) -> None:
         """Initialize a builder.
@@ -44,7 +44,7 @@ class AbstractBuilder(ABC):
         cls,
         config: dict,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
     ) -> "AbstractBuilder":
         """Create a builder from a config dictionary.
 

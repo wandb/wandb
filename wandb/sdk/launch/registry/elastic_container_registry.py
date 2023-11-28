@@ -5,7 +5,7 @@ import re
 from typing import Dict, Optional, Tuple
 
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.utils import event_loop_thread_exec
 from wandb.util import get_module
 
@@ -21,7 +21,7 @@ boto3 = get_module(  # noqa: F811
 )
 
 
-class ElasticContainerRegistryHelper(AbstractRegistryHelper):
+class ElasticContainerRegistry(AbstractRegistry):
     """Elastic Container Registry class."""
 
     def __init__(
@@ -91,7 +91,7 @@ class ElasticContainerRegistryHelper(AbstractRegistryHelper):
     def from_config(
         cls,
         config: Dict[str, str],
-    ) -> "ElasticContainerRegistryHelper":
+    ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
         Arguments:

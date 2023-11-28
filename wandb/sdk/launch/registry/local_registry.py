@@ -5,12 +5,12 @@ from typing import Tuple
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import docker_image_exists
 
-from .abstract import AbstractRegistryHelper
+from .abstract import AbstractRegistry
 
 _logger = logging.getLogger(__name__)
 
 
-class LocalRegistryHelper(AbstractRegistryHelper):
+class LocalRegistry(AbstractRegistry):
     """A local registry.
 
     This is a dummy registry that is used when no registry is configured.
@@ -24,7 +24,7 @@ class LocalRegistryHelper(AbstractRegistryHelper):
     def from_config(
         cls,
         config: dict,
-    ) -> "LocalRegistryHelper":
+    ) -> "LocalRegistry":
         """Create a local registry from a config.
 
         Arguments:

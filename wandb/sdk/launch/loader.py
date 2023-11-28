@@ -7,8 +7,8 @@ from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment
-from .registry.abstract import AbstractRegistryHelper
-from .registry.local_registry import LocalRegistryHelper
+from .registry.abstract import AbstractRegistry
+from .registry.local_registry import LocalRegistry
 from .runner.abstract import AbstractRunner
 
 WANDB_RUNNERS = {
@@ -66,7 +66,7 @@ def environment_from_config(config: Optional[Dict[str, Any]]) -> AbstractEnviron
 
 def registry_from_config(
     config: Optional[Dict[str, Any]], environment: AbstractEnvironment
-) -> AbstractRegistryHelper:
+) -> AbstractRegistry:
     """Create a registry from a config.
 
     This helper function is used to create a registry from a config. The
@@ -85,26 +85,26 @@ def registry_from_config(
         LaunchError: If the registry is not configured correctly.
     """
     if not config:
-        from .registry.local_registry import LocalRegistryHelper
+        from .registry.local_registry import LocalRegistry
 
-        return LocalRegistryHelper()  # This is the default, dummy registry.
+        return LocalRegistry()  # This is the default, dummy registry.
     registry_type = config.get("type")
     if registry_type is None or registry_type == "local":
-        from .registry.local_registry import LocalRegistryHelper
+        from .registry.local_registry import LocalRegistry
 
-        return LocalRegistryHelper()  # This is the default, dummy registry.
+        return LocalRegistry()  # This is the default, dummy registry.
     if registry_type == "ecr":
-        from .registry.elastic_container_registry import ElasticContainerRegistryHelper
+        from .registry.elastic_container_registry import ElasticContainerRegistry
 
-        return ElasticContainerRegistryHelper.from_config(config)
+        return ElasticContainerRegistry.from_config(config)
     if registry_type == "gcr":
-        from .registry.google_artifact_registry import GoogleArtifactRegistryHelper
+        from .registry.google_artifact_registry import GoogleArtifactRegistry
 
-        return GoogleArtifactRegistryHelper.from_config(config)
+        return GoogleArtifactRegistry.from_config(config)
     if registry_type == "acr":
-        from .registry.azure_container_registry import AzureContainerRegistryHelper
+        from .registry.azure_container_registry import AzureContainerRegistry
 
-        return AzureContainerRegistryHelper.from_config(config)
+        return AzureContainerRegistry.from_config(config)
     raise LaunchError(
         f"Could not create registry from config. Invalid registry type: {registry_type}"
     )
@@ -113,7 +113,7 @@ def registry_from_config(
 def builder_from_config(
     config: Optional[Dict[str, Any]],
     environment: AbstractEnvironment,
-    registry: AbstractRegistryHelper,
+    registry: AbstractRegistry,
 ) -> AbstractBuilder:
     """Create a builder from a config.
 
@@ -157,7 +157,7 @@ def builder_from_config(
 
         return DockerBuilder.from_config(config, environment, registry)
     if builder_type == "kaniko":
-        if isinstance(registry, LocalRegistryHelper):
+        if isinstance(registry, LocalRegistry):
             raise LaunchError(
                 "Could not create Kaniko builder. "
                 "Registry must be a remote registry."
@@ -179,7 +179,7 @@ def runner_from_config(
     api: Api,
     runner_config: Dict[str, Any],
     environment: AbstractEnvironment,
-    registry: AbstractRegistryHelper,
+    registry: AbstractRegistry,
 ) -> AbstractRunner:
     """Create a runner from a config.
 

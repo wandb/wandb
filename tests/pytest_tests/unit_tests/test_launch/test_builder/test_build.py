@@ -9,21 +9,21 @@ from wandb.sdk.launch.errors import LaunchError
 
 def test_registry_from_uri(mocker):
     mocker.patch(
-        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistryHelper",
+        "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry",
         MagicMock(return_value="azure_container_registry"),
     )
     registry = registry_from_uri("https://test.azurecr.io")
     assert registry == "azure_container_registry"
 
     mocker.patch(
-        "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistryHelper",
+        "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistry",
         MagicMock(return_value="google_artifact_registry"),
     )
     registry = registry_from_uri("us-central1-docker.pkg.dev/my-gcp-project/my-repo")
     assert registry == "google_artifact_registry"
 
     mocker.patch(
-        "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistryHelper",
+        "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistry",
         MagicMock(return_value="elastic_container_registry"),
     )
     registry = registry_from_uri("123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo")

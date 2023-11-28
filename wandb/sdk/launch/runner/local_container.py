@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
@@ -103,7 +103,7 @@ class LocalContainerRunner(AbstractRunner):
         api: "Api",
         backend_config: Dict[str, Any],
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
     ) -> None:
         super().__init__(api, backend_config)
         self.environment = environment

@@ -13,7 +13,7 @@ from wandb.sdk.launch.errors import LaunchError
 
 from .._project_spec import EntryPoint, LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
-from ..registry.abstract import AbstractRegistryHelper
+from ..registry.abstract import AbstractRegistry
 from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
@@ -125,7 +125,7 @@ class SageMakerRunner(AbstractRunner):
         api: Api,
         backend_config: Dict[str, Any],
         environment: AwsEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize the SagemakerRunner.
 

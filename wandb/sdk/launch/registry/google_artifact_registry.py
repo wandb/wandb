@@ -10,7 +10,7 @@ from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import event_loop_thread_exec
 from wandb.util import get_module
 
-from .abstract import AbstractRegistryHelper
+from .abstract import AbstractRegistry
 
 _logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ google.cloud.artifactregistry = get_module(  # noqa: F811
 )
 
 
-class GoogleArtifactRegistryHelper(AbstractRegistryHelper):
+class GoogleArtifactRegistry(AbstractRegistry):
     """Google Artifact Registry helper for interacting with the registry.
 
     This helper should be constructed from either a uri or a repository,
@@ -126,7 +126,7 @@ class GoogleArtifactRegistryHelper(AbstractRegistryHelper):
     def from_config(
         cls,
         config: dict,
-    ) -> "GoogleArtifactRegistryHelper":
+    ) -> "GoogleArtifactRegistry":
         """Create a Google Artifact Registry from a config.
 
         Arguments:

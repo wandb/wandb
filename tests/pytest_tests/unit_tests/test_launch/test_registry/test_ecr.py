@@ -4,7 +4,7 @@ import botocore.exceptions
 import pytest
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.elastic_container_registry import (
-    ElasticContainerRegistryHelper,
+    ElasticContainerRegistry,
 )
 
 
@@ -48,15 +48,15 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ],
 )
 def test_ecr_init(uri, account_id, region, repo_name, expected_uri):
-    """This tests how we initialize the ElasticContainerRegistryHelper.
+    """This tests how we initialize the ElasticContainerRegistry.
 
     It basically just checks that we alway set the arguments correctly.
     """
     if expected_uri is None:
         with pytest.raises(LaunchError):
-            ecr = ElasticContainerRegistryHelper(uri, account_id, region, repo_name)
+            ecr = ElasticContainerRegistry(uri, account_id, region, repo_name)
     else:
-        ecr = ElasticContainerRegistryHelper(uri, account_id, region, repo_name)
+        ecr = ElasticContainerRegistry(uri, account_id, region, repo_name)
         assert ecr.uri == expected_uri
         assert ecr.account_id == "123456789012"
         assert ecr.region == "us-east-1"
@@ -97,7 +97,7 @@ async def test_check_image_exists_success(mock_ecr_client):
             }
         ]
     }
-    ecr = ElasticContainerRegistryHelper(
+    ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
     assert await ecr.check_image_exists("my-image")
@@ -110,7 +110,7 @@ async def test_check_image_exists_success(mock_ecr_client):
 @pytest.mark.asyncio
 async def test_check_image_exists_doesnt_exist(mock_ecr_client):
     """Check that we return False if the image doesn't exist."""
-    ecr = ElasticContainerRegistryHelper(
+    ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
     mock_ecr_client.describe_images.side_effect = botocore.exceptions.ClientError(
@@ -128,7 +128,7 @@ async def test_check_image_exists_doesnt_exist(mock_ecr_client):
 @pytest.mark.asyncio
 async def test_check_image_exists_other_error(mock_ecr_client):
     """This tests that we raise a LaunchError if we get receive an error response."""
-    ecr = ElasticContainerRegistryHelper(
+    ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
     mock_ecr_client.describe_images.side_effect = botocore.exceptions.ClientError(
@@ -159,7 +159,7 @@ async def test_get_username_password_success(mock_ecr_client):
             }
         ]
     }
-    ecr = ElasticContainerRegistryHelper(
+    ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
     assert await ecr.get_username_password() == ("username", "password")
@@ -168,7 +168,7 @@ async def test_get_username_password_success(mock_ecr_client):
 @pytest.mark.asyncio
 async def test_get_username_password_fails(mock_ecr_client):
     """This tests that we raise a LaunchError if we get receive an error response."""
-    ecr = ElasticContainerRegistryHelper(
+    ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
     mock_ecr_client.get_authorization_token.side_effect = (

@@ -6,7 +6,7 @@ from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from .abstract import AbstractRegistryHelper
+from .abstract import AbstractRegistry
 
 if TYPE_CHECKING:
     from azure.containerregistry import ContainerRegistryClient  # type: ignore
@@ -29,7 +29,7 @@ AZURE_CONTAINER_REGISTRY_URI_REGEX = (
 )
 
 
-class AzureContainerRegistryHelper(AbstractRegistryHelper):
+class AzureContainerRegistry(AbstractRegistry):
     """Helper for accessing Azure Container Registry resources."""
 
     def __init__(
@@ -67,7 +67,7 @@ class AzureContainerRegistryHelper(AbstractRegistryHelper):
     def from_config(
         cls,
         config: dict,
-    ) -> "AzureContainerRegistryHelper":
+    ) -> "AzureContainerRegistry":
         """Create an AzureContainerRegistry from a config dict.
 
         Args:

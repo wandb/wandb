@@ -15,16 +15,12 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
-from wandb.sdk.launch.registry.azure_container_registry import (
-    AzureContainerRegistryHelper,
-)
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
-    ElasticContainerRegistryHelper,
+    ElasticContainerRegistry,
 )
-from wandb.sdk.launch.registry.google_artifact_registry import (
-    GoogleArtifactRegistryHelper,
-)
+from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.util import get_module
 
 from .._project_spec import (
@@ -99,7 +95,7 @@ class KanikoBuilder(AbstractBuilder):
     def __init__(
         self,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
         build_job_name: str = "wandb-launch-container-build",
         build_context_store: str = "",
         secret_name: str = "",
@@ -137,7 +133,7 @@ class KanikoBuilder(AbstractBuilder):
         cls,
         config: dict,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
         verify: bool = True,
         login: bool = True,
     ) -> "AbstractBuilder":
@@ -302,7 +298,7 @@ class KanikoBuilder(AbstractBuilder):
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         try:
-            if isinstance(self.registry, AzureContainerRegistryHelper):
+            if isinstance(self.registry, AzureContainerRegistry):
                 dockerfile_config_map = client.V1ConfigMap(
                     metadata=client.V1ObjectMeta(
                         name=f"docker-config-{build_job_name}"
@@ -358,7 +354,7 @@ class KanikoBuilder(AbstractBuilder):
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
-                if isinstance(self.registry, AzureContainerRegistryHelper):
+                if isinstance(self.registry, AzureContainerRegistry):
                     await core_v1.delete_namespaced_config_map(
                         f"docker-config-{build_job_name}", "wandb"
                     )
@@ -388,7 +384,7 @@ class KanikoBuilder(AbstractBuilder):
                 "Both secret_name and secret_key or neither must be specified "
                 "for kaniko build. You provided only one of them."
             )
-        if isinstance(self.registry, ElasticContainerRegistryHelper):
+        if isinstance(self.registry, ElasticContainerRegistry):
             env += [
                 client.V1EnvVar(
                     name="AWS_REGION",
@@ -444,10 +440,10 @@ class KanikoBuilder(AbstractBuilder):
             # for pushing the image. This way we can have separate secrets for
             # each and support build contexts and registries that require
             # different credentials.
-            if isinstance(self.registry, ElasticContainerRegistryHelper):
+            if isinstance(self.registry, ElasticContainerRegistry):
                 mount_path = "/root/.aws"
                 key = "credentials"
-            elif isinstance(self.registry, GoogleArtifactRegistryHelper):
+            elif isinstance(self.registry, GoogleArtifactRegistry):
                 mount_path = "/kaniko/.config/gcloud"
                 key = "config.json"
                 env += [
@@ -476,7 +472,7 @@ class KanikoBuilder(AbstractBuilder):
                     ),
                 )
             ]
-        if isinstance(self.registry, AzureContainerRegistryHelper):
+        if isinstance(self.registry, AzureContainerRegistry):
             # ADd the docker config map
             volume_mounts += [
                 client.V1VolumeMount(
@@ -514,7 +510,7 @@ class KanikoBuilder(AbstractBuilder):
         # Create and configure a spec section
         labels = {"wandb": "launch"}
         # This annotation is required to enable azure workload identity.
-        if isinstance(self.registry, AzureContainerRegistryHelper):
+        if isinstance(self.registry, AzureContainerRegistry):
             labels["azure.workload.identity/use"] = "true"
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels=labels),

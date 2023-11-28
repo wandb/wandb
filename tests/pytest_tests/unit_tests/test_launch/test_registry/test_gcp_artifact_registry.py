@@ -2,9 +2,7 @@ from unittest.mock import MagicMock
 
 import google.api_core.exceptions
 import pytest
-from wandb.sdk.launch.registry.google_artifact_registry import (
-    GoogleArtifactRegistryHelper,
-)
+from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.sdk.launch.utils import LaunchError
 
 
@@ -77,7 +75,7 @@ def mock_gcp_artifact_registry_client(monkeypatch):
 async def test_google_artifact_registry_helper_constructor(
     uri, repository, image_name, project, region, expected, mock_gcp_default_credentials
 ):
-    """Test that the GoogleArtifactRegistryHelper constructor works as expected.
+    """Test that the GoogleArtifactRegistry constructor works as expected.
 
     This test is parameterized by the following variables:
 
@@ -94,7 +92,7 @@ async def test_google_artifact_registry_helper_constructor(
     """
     if expected is None:
         with pytest.raises(LaunchError):
-            GoogleArtifactRegistryHelper(
+            GoogleArtifactRegistry(
                 uri=uri,
                 repository=repository,
                 image_name=image_name,
@@ -102,7 +100,7 @@ async def test_google_artifact_registry_helper_constructor(
                 region=region,
             )
     else:
-        helper = GoogleArtifactRegistryHelper(
+        helper = GoogleArtifactRegistry(
             uri=uri,
             repository=repository,
             image_name=image_name,
@@ -114,9 +112,9 @@ async def test_google_artifact_registry_helper_constructor(
 
 @pytest.mark.asyncio
 async def test_get_username_password(mock_gcp_default_credentials):
-    """Test that the GoogleArtifactRegistryHelper.get_username_password method works as expected."""
+    """Test that the GoogleArtifactRegistry.get_username_password method works as expected."""
     mock_gcp_default_credentials.token = "token"
-    helper = GoogleArtifactRegistryHelper(
+    helper = GoogleArtifactRegistry(
         uri="us-central1-docker.pkg.dev/wandb-ml/vertex-ai/wandb-ml",
     )
     assert (await helper.get_username_password()) == (
@@ -129,11 +127,11 @@ async def test_get_username_password(mock_gcp_default_credentials):
 async def test_check_image_exists(
     mock_gcp_default_credentials, mock_gcp_artifact_registry_client
 ):
-    """Test that the GoogleArtifactRegistryHelper.check_image_exists method works as expected."""
+    """Test that the GoogleArtifactRegistry.check_image_exists method works as expected."""
     mock_gcp_artifact_registry_client.list_docker_images.return_value = [
         MagicMock(tags=["hello", "world", "foo"]),
     ]
-    helper = GoogleArtifactRegistryHelper(
+    helper = GoogleArtifactRegistry(
         uri="us-central1-docker.pkg.dev/wandb-ml/vertex-ai/wandb-ml",
     )
     assert await helper.check_image_exists(

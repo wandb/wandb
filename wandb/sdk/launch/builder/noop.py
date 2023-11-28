@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.registry.abstract import AbstractRegistryHelper
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..agent.job_status_tracker import JobAndRunStatusTracker
@@ -19,7 +19,7 @@ class NoOpBuilder(AbstractBuilder):
         self,
         builder_config: Dict[str, Any],
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
     ) -> None:
         """Initialize a NoOpBuilder."""
         self.environment = environment
@@ -30,7 +30,7 @@ class NoOpBuilder(AbstractBuilder):
         cls,
         config: dict,
         environment: AbstractEnvironment,
-        registry: AbstractRegistryHelper,
+        registry: AbstractRegistry,
         verify: bool = True,
     ) -> "AbstractBuilder":
         """Create a noop builder from a config."""
