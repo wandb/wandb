@@ -3,7 +3,10 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from wandb.util import get_module
 
-np = get_module("numpy")
+np = get_module(
+    "numpy",
+    required="Please ensure NumPy is installed. You can run `pip install numpy` to install it.",
+)
 
 
 def chunkify(input_list, chunk_size) -> List:

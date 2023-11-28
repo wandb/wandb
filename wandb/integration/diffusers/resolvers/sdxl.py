@@ -8,7 +8,10 @@ from wandb.util import get_module
 from .utils import chunkify, get_updated_kwargs
 
 logger = logging.getLogger(__name__)
-torch = get_module("torch")
+np = get_module(
+    "orch",
+    required="Please ensure PyTorch is installed. You can check out https://pytorch.org/get-started/locally/#start-locally for installation instructions.",
+)
 
 
 SUPPORTED_SDXL_PIPELINES = [
