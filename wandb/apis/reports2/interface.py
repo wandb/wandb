@@ -6,6 +6,7 @@ from urllib.parse import urlparse, urlunparse
 
 from pydantic import AnyUrl, ConfigDict, Field, validator
 from pydantic.dataclasses import dataclass
+from pydantic_core import Url
 
 import wandb
 
@@ -19,8 +20,6 @@ from .internal import (
     LegendPosition,
     LinePlotStyle,
     Range,
-    ReportEntity,
-    ReportProject,
     SmoothingType,
 )
 
@@ -28,7 +27,16 @@ TextLike = Union[str, "Link", "InlineLatex"]
 TextLikeField = Union[str, list[TextLike]]
 
 
-_api = wandb.Api()
+def get_api():
+    try:
+        return wandb.Api()
+    except wandb.errors.UsageError:
+        raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
+
+
+_api = get_api()
+
+
 DEFAULT_ENTITY = _api.default_entity
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
@@ -128,7 +136,7 @@ class H1(Heading):
 
 
 @dataclass(config=dataclass_config)
-class H2(Block):
+class H2(Heading):
     text: TextLikeField = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
@@ -144,7 +152,7 @@ class H2(Block):
 
 
 @dataclass(config=dataclass_config)
-class H3(Block):
+class H3(Heading):
     text: TextLikeField = ""
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
@@ -244,10 +252,10 @@ class List(Block):
 
         item = model.children[0]
         items = [ListItem.from_model(x) for x in model.children]
-        if item.checked:
+        if item.checked is not None:
             return CheckedList(items=items)
 
-        if item.ordered:
+        if item.ordered is not None:
             return OrderedList(items=items)
 
         # else unordered
@@ -343,13 +351,14 @@ class LatexBlock(Block):
 
 @dataclass(config=dataclass_config)
 class Image(Block):
-    url: AnyUrl
+    url: AnyUrl = Url(
+        "https://raw.githubusercontent.com/wandb/assets/main/wandb-logo-yellow-dots-black-wb.svg"
+    )
     caption: TextLikeField = ""
 
     def to_model(self):
         has_caption = False
-        if children := self.caption:
-            children = _text_to_internal_children(self.caption)
+        if children := _text_to_internal_children(self.caption):
             has_caption = True
 
         return internal.Image(children=children, url=self.url, has_caption=has_caption)
@@ -389,7 +398,7 @@ class HorizontalRule(Block):
 
 @dataclass(config=dataclass_config)
 class Video(Block):
-    url: AnyUrl
+    url: AnyUrl = Url("https://www.youtube.com/watch?v=krWjJcW80_A")
 
     def to_model(self):
         return internal.Video(url=self.url)
@@ -503,21 +512,19 @@ class Order(Base):
 
 @dataclass(config=dataclass_config)
 class Runset(Base):
-    entity: Union[ReportEntity, str] = Field(default_factory=ReportEntity)
-    project: Union[ReportProject, str] = Field(default_factory=ReportProject)
+    entity: str = ""
+    project: str = ""
     name: str = "Run set"
     query: str = ""
-    filters: Optional[str] = None
+    filters: Optional[str] = ""
     groupby: list[str] = Field(default_factory=list)
     order: list[Order] = Field(
         default_factory=lambda: [Order("CreatedTimestamp", ascending=False)]
     )
 
     def to_model(self):
-        entity = "" if isinstance(self.entity, ReportEntity) else self.entity
-        project = "" if isinstance(self.project, ReportProject) else self.project
-        # entity = self.entity
-        # project = self.project
+        entity = self.entity
+        project = self.project
 
         return internal.Runset(
             project=internal.Project(entity_name=entity, name=project),
@@ -561,7 +568,7 @@ class PanelGrid(Block):
     runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
     panels: list["PanelTypes"] = Field(default_factory=list)
     # custom_run_colors: Optional[CustomRunColors] = None
-    active_runset: Optional[int] = None
+    active_runset: int = 0
 
     # columns: list[str] = Field(default_factory=list)
 
@@ -663,7 +670,7 @@ block_mapping = {
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[str] = None
-    y: Union[list[str], str] = ""
+    y: Union[list[str], str] = Field(default_factory=list)
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     log_x: Optional[Literal[True]] = None
@@ -1184,7 +1191,7 @@ class CustomChart(Panel):
                 # )
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            # id=self.id,
         )
 
     @classmethod
@@ -1469,6 +1476,19 @@ def _internal_children_to_text(children):
         else:
             pieces.append(thing)
 
+    if not pieces:
+        return ""
+
     if len(pieces) == 1 and isinstance(pieces[0], str):
         return pieces[0]
+
+    if len(pieces) == 3 and pieces[0] == "" and pieces[-1] == "":
+        return pieces[1]
+
+    if len(pieces) >= 3 and pieces[0] == "" and pieces[-1] == "":
+        return pieces[1:-1]
+
+    if all(x == "" for x in pieces):
+        return ""
+
     return pieces
