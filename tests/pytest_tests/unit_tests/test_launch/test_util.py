@@ -1,4 +1,44 @@
-from wandb.sdk.launch.utils import macro_sub, recursive_macro_sub
+import pytest
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.utils import load_wandb_config, macro_sub, recursive_macro_sub
+
+
+@pytest.mark.parametrize(
+    "env, desired",
+    [
+        # Case 1; single key in single env var
+        ({"WANDB_CONFIG": '{"foo": "bar"}'}, {"foo": "bar"}),
+        # Case 2: multiple keys in single env var
+        (
+            {"WANDB_CONFIG": '{"foo": "bar", "baz": {"qux": "quux"}}'},
+            {"foo": "bar", "baz": {"qux": "quux"}},
+        ),
+        # Case 3: multiple env vars, single key
+        (
+            {"WANDB_CONFIG_0": '{"foo":', "WANDB_CONFIG_1": '"bar"}'},
+            {"foo": "bar"},
+        ),
+        # Case 4: nested, multiple config keys in multiple env vars
+        (
+            {
+                "WANDB_CONFIG_0": '{"foo":',
+                "WANDB_CONFIG_1": '"bar",',
+                "WANDB_CONFIG_2": '"baz": {"qux": "quux"}}',
+            },
+            {"foo": "bar", "baz": {"qux": "quux"}},
+        ),
+    ],
+)
+def test_load_wandb_config(monkeypatch, env, desired):
+    """Test that the wandb config is loaded correctly."""
+    with monkeypatch.context() as m:
+        for k, v in env.items():
+            m.setenv(k, v)
+        if desired is None:
+            with pytest.raises(LaunchError):
+                load_wandb_config()
+        result = load_wandb_config()
+        assert result.as_dict() == desired
 
 
 def test_macro_sub():
