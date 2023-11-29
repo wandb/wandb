@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -68,7 +70,12 @@ func (d *Dispatcher) handleRespond(result *service.Result) {
 			ResultCommunicate: result,
 		},
 	}
-	d.responders[responderId].Respond(response)
+	if responder, ok := d.responders[responderId]; ok {
+		responder.Respond(response)
+	} else {
+		err := fmt.Errorf("dispatch: no responder found: %s", responderId)
+		d.logger.CaptureFatalAndPanic("dispatch: no responder found", err)
+	}
 }
 
 func NewDispatcher(logger *observability.NexusLogger) *Dispatcher {

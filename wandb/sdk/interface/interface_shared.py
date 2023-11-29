@@ -352,6 +352,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_request(resume=resume)
         self._publish(rec)
 
+    def _publish_sender_read(self, sender_read: pb.SenderReadRequest) -> None:
+        rec = self._make_request(sender_read=sender_read)
+        self._publish(rec)
+
     def _publish_run(self, run: pb.RunRecord) -> None:
         rec = self._make_record(run=run)
         self._publish(rec)

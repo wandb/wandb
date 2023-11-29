@@ -456,6 +456,11 @@ def nexync(
     backend.ensure_launched()
 
     assert backend.interface
+    backend.interface._stream_id = stream_id
+    backend.interface.publish_sender_read(
+        start_offset=0,
+        final_offset=-1,
+    )
     mailbox.enable_keepalive()
 
 

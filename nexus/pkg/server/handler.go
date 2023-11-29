@@ -317,6 +317,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+	case *service.Request_SenderRead:
+		h.handleSenderRead(record)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -691,6 +693,10 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	info := record.GetRequest().GetFileTransferInfo()
 	h.ft.Handle(info)
+}
+
+func (h *Handler) handleSenderRead(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {

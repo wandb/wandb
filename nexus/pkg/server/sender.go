@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -902,11 +903,29 @@ func (s *Sender) sendSenderRead(_ *service.Record, request *service.SenderReadRe
 		}
 		s.store = store
 	}
-	if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
-		s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
-		return
+	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
+	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
+	// 	return
+	// }
+	// TODO:
+	// 1. seek to startOffset
+	// 2. read records
+	// 3. send records
+	// 4. repeat 2-3 until finalOffset
+	// re-think this reading path... how should it work with parallel sends?
+	fmt.Println("sender: sendSenderRead: startOffset", request.GetStartOffset())
+	for {
+		record, err := s.store.Read()
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			return
+		}
+		fmt.Println(record)
+		// s.sendRecord(record)
 	}
-	// TODO
 }
 
 func (s *Sender) getServerInfo() {
@@ -936,7 +955,7 @@ func (s *Sender) getServerInfo() {
 func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
 
 	localInfo := &service.LocalInfo{}
-	if s.serverInfo != nil {
+	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
 		localInfo = &service.LocalInfo{
 			Version:   s.serverInfo.GetLatestLocalVersionInfo().GetLatestVersionString(),
 			OutOfDate: s.serverInfo.GetLatestLocalVersionInfo().GetOutOfDate(),
