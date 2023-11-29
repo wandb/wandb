@@ -70,7 +70,7 @@ func (w *Writer) startStore() {
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
-			if err = w.store.storeRecord(record); err != nil {
+			if err = w.store.Write(record); err != nil {
 				w.logger.Error("writer: error storing record", "error", err)
 			}
 		}
