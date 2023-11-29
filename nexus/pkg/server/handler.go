@@ -275,6 +275,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	switch x := request.RequestType.(type) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
+		fmt.Println("handler: got defer", record)
 		h.handleDefer(record, x.Defer)
 		return
 	case *service.Request_GetSummary:
@@ -319,6 +320,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_InternalMessages:
 	case *service.Request_SenderRead:
 		h.handleSenderRead(record)
+		response = nil
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -423,6 +425,10 @@ func (h *Handler) handleHeader(record *service.Record) {
 }
 
 func (h *Handler) handleFinal() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 	record := &service.Record{
 		RecordType: &service.Record_Final{
 			Final: &service.FinalRecord{},
@@ -437,6 +443,10 @@ func (h *Handler) handleFinal() {
 }
 
 func (h *Handler) handleFooter() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 	record := &service.Record{
 		RecordType: &service.Record_Footer{
 			Footer: &service.FooterRecord{},
@@ -611,6 +621,7 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
+	fmt.Println(">>> handler: got exit", exit)
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
 	h.systemMonitor.Stop()
@@ -735,6 +746,10 @@ func (h *Handler) sendSummary() {
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 
 	runtime := int32(h.timer.Elapsed().Seconds())
 

@@ -527,6 +527,7 @@ message Response {
     ServerInfoResponse server_info_response = 67;
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
+    SenderReadResponse sender_read_response = 70;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -688,6 +689,11 @@ message SenderReadRequest {
   int64 final_offset = 2;
   // TODO: implement cancel for paused ops
   // repeated string cancel_list = 3;
+}
+
+message SenderReadResponse {
+  bool done = 1;
+  ErrorInfo error = 2;
 }
 
 message StatusReportRequest {

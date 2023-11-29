@@ -150,21 +150,6 @@ class InterfaceBase:
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
-    def publish_sender_read(
-        self,
-        start_offset: int,
-        final_offset: int,
-    ) -> None:
-        sender_read = pb.SenderReadRequest(
-            start_offset=start_offset,
-            final_offset=final_offset,
-        )
-        self._publish_sender_read(sender_read)
-
-    @abstractmethod
-    def _publish_sender_read(self, sender_read: pb.SenderReadRequest) -> None:
-        raise NotImplementedError
-
     def publish_cancel(self, cancel_slot: str) -> None:
         cancel = pb.CancelRequest(cancel_slot=cancel_slot)
         self._publish_cancel(cancel)
@@ -722,6 +707,21 @@ class InterfaceBase:
     def deliver_run(self, run: "Run") -> MailboxHandle:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
+
+    def deliver_sender_read(
+        self,
+        start_offset: int,
+        final_offset: int,
+    ) -> MailboxHandle:
+        sender_read = pb.SenderReadRequest(
+            start_offset=start_offset,
+            final_offset=final_offset,
+        )
+        return self._deliver_sender_read(sender_read)
+
+    @abstractmethod
+    def _deliver_sender_read(self, sender_read: pb.SenderReadRequest) -> MailboxHandle:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:

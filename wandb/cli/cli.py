@@ -428,6 +428,7 @@ def nexync(
     path=None,
 ):
     import pathlib
+    import time
 
     from wandb.sdk.backend.backend import Backend
     from wandb.sdk.lib.mailbox import Mailbox
@@ -452,16 +453,20 @@ def nexync(
     manager._inform_init(settings=settings, run_id=stream_id)
 
     mailbox = Mailbox()
+    mailbox.enable_keepalive()
     backend = Backend(settings=singleton.settings, manager=manager, mailbox=mailbox)
     backend.ensure_launched()
 
     assert backend.interface
     backend.interface._stream_id = stream_id
-    backend.interface.publish_sender_read(
+    handle = backend.interface.deliver_sender_read(
         start_offset=0,
         final_offset=-1,
     )
-    mailbox.enable_keepalive()
+    result = handle.wait(timeout=-1)
+    print(result)
+
+    # time.sleep(100000)
 
 
 @cli.command(

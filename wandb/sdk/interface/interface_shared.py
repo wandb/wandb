@@ -352,10 +352,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_request(resume=resume)
         self._publish(rec)
 
-    def _publish_sender_read(self, sender_read: pb.SenderReadRequest) -> None:
-        rec = self._make_request(sender_read=sender_read)
-        self._publish(rec)
-
     def _publish_run(self, run: pb.RunRecord) -> None:
         rec = self._make_record(run=run)
         self._publish(rec)
@@ -443,6 +439,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         record = self._make_record(run=run)
+        return self._deliver_record(record)
+
+    def _deliver_sender_read(self, sender_read: pb.SenderReadRequest) -> MailboxHandle:
+        record = self._make_request(sender_read=sender_read)
         return self._deliver_record(record)
 
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

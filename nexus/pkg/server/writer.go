@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -90,9 +91,11 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	w.startStore()
 
 	for record := range inChan {
+		fmt.Println("write: got a message", "record", record, "stream_id", w.settings.RunId)
 		w.handleRecord(record)
 	}
 	w.wg.Wait()
+	fmt.Println("writer: done", "stream_id", w.settings.RunId)
 }
 
 // Close closes the writer and all its resources

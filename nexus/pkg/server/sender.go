@@ -293,6 +293,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
+	fmt.Println("sender: sendDefer", request.State)
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 		request.State++
@@ -544,7 +545,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
 	}
 
-	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 		runResult := s.RunRecord
 		if runResult == nil {
 			runResult = run
@@ -727,11 +728,16 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	request := &service.Request{RequestType: &service.Request_Defer{
 		Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}},
 	}
+	if record.Control == nil {
+		record.Control = &service.Control{AlwaysSend: true}
+	}
+
 	rec := &service.Record{
 		RecordType: &service.Record_Request{Request: request},
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
+	fmt.Println("sender: sendExit: sending defer request", rec)
 	s.loopbackChan <- rec
 }
 
@@ -755,6 +761,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 // sendFiles iterates over the files in the FilesRecord and sends them to
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
+	fmt.Println("sender: sendFiles", files)
 	for _, file := range files {
 		if strings.HasPrefix(file.GetPath(), "media") {
 			s.sendFile(file.GetPath(), filetransfer.MediaFile)
@@ -893,7 +900,29 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 	s.outChan <- result
 }
 
-func (s *Sender) sendSenderRead(_ *service.Record, request *service.SenderReadRequest) {
+func (s *Sender) processStore() (bool, error) {
+	for {
+		record, err := s.store.Read()
+		if err == io.EOF {
+			return true, nil
+		}
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			return false, err
+		}
+
+		// TODO: we remove the control from the record because we don't want to try to
+		// respond to a non-existing connection when syncing an offline run. if this is
+		// is used for something else, we should re-evaluate this.
+		// remove the control from the record:
+		record.Control = nil
+
+		fmt.Println(record)
+		s.sendRecord(record)
+	}
+}
+
+func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
 	if s.store == nil {
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
@@ -914,18 +943,32 @@ func (s *Sender) sendSenderRead(_ *service.Record, request *service.SenderReadRe
 	// 4. repeat 2-3 until finalOffset
 	// re-think this reading path... how should it work with parallel sends?
 	fmt.Println("sender: sendSenderRead: startOffset", request.GetStartOffset())
-	for {
-		record, err := s.store.Read()
-		if err == io.EOF {
-			return
+
+	ok, err := s.processStore()
+
+	var errorInfo *service.ErrorInfo
+	if err != nil {
+		errorInfo = &service.ErrorInfo{
+			Message: err.Error(),
+			Code:    service.ErrorInfo_UNKNOWN, // TODO: be more specific
 		}
-		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
-			return
-		}
-		fmt.Println(record)
-		// s.sendRecord(record)
 	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_SenderReadResponse{
+					SenderReadResponse: &service.SenderReadResponse{
+						Done:  ok,
+						Error: errorInfo,
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
 }
 
 func (s *Sender) getServerInfo() {
