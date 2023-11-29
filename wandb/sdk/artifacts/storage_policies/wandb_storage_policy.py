@@ -216,6 +216,9 @@ class WandbStoragePolicy(StoragePolicy):
                         "content-type": extra_headers.get("Content-Type"),
                     },
                 )
+
+                print(f"{upload_resp=}")
+
                 etags.append(
                     {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
                 )
@@ -296,6 +299,8 @@ class WandbStoragePolicy(StoragePolicy):
             }
         ).get()
 
+        print(f"{resp=}")
+
         entry.birth_artifact_id = resp.birth_artifact_id
 
         multipart_urls = resp.multipart_upload_urls
@@ -325,9 +330,10 @@ class WandbStoragePolicy(StoragePolicy):
                 multipart_urls,
                 extra_headers,
             )
-            self._api.complete_multipart_upload_artifact(
+            complete_multipart_upload = self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
+            print(f"{complete_multipart_upload=}")
 
         if cache:
             self._write_cache(entry)
