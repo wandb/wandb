@@ -3569,6 +3569,17 @@ class Api:
             },
         )
         digest: Optional[str] = response["completeMultipartUploadArtifact"]["digest"]
+
+        print("-------------------------")
+        print(f"{artifact_id=}")
+        print(f"{storage_path=}")
+        print(f"{completed_parts=}")
+        print(f"{upload_id=}")
+        print(f"{complete_multipart_action=}")
+        print(f"{digest=}")
+        print(f"{response=}")
+        print(f"{response['completeMultipartUploadArtifact']=}")
+
         return digest
 
     def create_artifact_manifest(
