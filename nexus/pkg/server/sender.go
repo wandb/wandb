@@ -88,6 +88,9 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
 
+	// Result of offline sync to pass to the client when syncing is done
+	syncResult *service.Result
+
 	store *Store
 }
 
@@ -342,6 +345,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
+		s.respondSync(s.syncResult)
 		s.respondExit(s.exitRecord)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -703,7 +707,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
-	if record == nil {
+	if record == nil || s.settings.GetXSync().GetValue() {
 		return
 	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
@@ -714,6 +718,19 @@ func (s *Sender) respondExit(record *service.Record) {
 		}
 		s.outChan <- result
 	}
+}
+
+// respondSync called from the end of the defer state machine
+// to send the offlien sync result to the client
+func (s *Sender) respondSync(result *service.Result) {
+	if result == nil {
+		return
+	}
+	s.outChan <- result
+
+	baseUrl := s.settings.GetBaseUrl().GetValue()
+	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
@@ -954,7 +971,7 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 		}
 	}
 
-	result := &service.Result{
+	s.syncResult = &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_SenderReadResponse{
@@ -968,7 +985,6 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.outChan <- result
 }
 
 func (s *Sender) getServerInfo() {

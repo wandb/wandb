@@ -632,18 +632,24 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// update summary with runtime
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
-		{
-			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-		},
-	})
-	// h.sendRecord(summaryRecord)
-	h.updateSummaryDelta(summaryRecord)
+	if !h.settings.GetXSync().GetValue() {
+		summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+			{
+				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+			},
+		})
+		// h.sendRecord(summaryRecord)
+		h.updateSummaryDelta(summaryRecord)
+	}
 
 	// send the exit record
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
+			// do not write to the transaction log when syncing an offline run
+			if h.settings.GetXSync().GetValue() {
+				control.Local = true
+			}
 		},
 	)
 }

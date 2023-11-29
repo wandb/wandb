@@ -449,6 +449,7 @@ def nexync(
     settings.run_id.value = stream_id  # TODO: remove this
     print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
     manager = singleton._get_manager()
+    # this really means inform_create_stream
     manager._inform_init(settings=settings, run_id=stream_id)
 
     mailbox = Mailbox()
@@ -458,6 +459,7 @@ def nexync(
 
     assert backend.interface
     backend.interface._stream_id = stream_id
+
     handle = backend.interface.deliver_sender_read(
         start_offset=0,
         final_offset=-1,
@@ -465,6 +467,8 @@ def nexync(
     result = handle.wait(timeout=-1)
     print(result)
 
+    # manager._inform_teardown(exit_code=0)
+    # breakpoint()
     # time.sleep(100000)
 
 

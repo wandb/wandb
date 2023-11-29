@@ -102,7 +102,9 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 // which includes the store
 func (w *Writer) Close() {
 	close(w.fwdChan)
-	close(w.storeChan)
+	if w.storeChan != nil {
+		close(w.storeChan)
+	}
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 }
 
