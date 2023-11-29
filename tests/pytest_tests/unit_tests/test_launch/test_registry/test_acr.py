@@ -53,7 +53,7 @@ async def test_acr_get_repo_uri(mock_default_azure_credential, monkeypatch):
     """Test AzureContainerRegistry class."""
     config = {"uri": "https://test.azurecr.io/repository"}
     registry = AzureContainerRegistry.from_config(config)
-    assert await registry.get_repo_uri() == "https://test.azurecr.io/repository"
+    assert await registry.get_repo_uri() == "test.azurecr.io/repository"
 
 
 @pytest.mark.asyncio

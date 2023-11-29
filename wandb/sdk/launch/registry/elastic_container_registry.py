@@ -153,7 +153,7 @@ class ElasticContainerRegistry(AbstractRegistry):
         Returns:
             str: The uri of the repository.
         """
-        return self.uri
+        return f"{self.account_id}.dkr.ecr.{self.region}.amazonaws.com/{self.repo_name}"
 
     async def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image tag exists.

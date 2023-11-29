@@ -124,4 +124,4 @@ class AzureContainerRegistry(AbstractRegistry):
             ) from e
 
     async def get_repo_uri(self) -> str:
-        return f"https://{self.registry_name}.azurecr.io/{self.repo_name}"
+        return f"{self.registry_name}.azurecr.io/{self.repo_name}"
