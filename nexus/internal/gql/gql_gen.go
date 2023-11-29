@@ -603,6 +603,48 @@ type RunResumeStatusResponse struct {
 // GetModel returns RunResumeStatusResponse.Model, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
 
+// ServerInfoResponse is returned by ServerInfo on success.
+type ServerInfoResponse struct {
+	ServerInfo *ServerInfoServerInfo `json:"serverInfo"`
+}
+
+// GetServerInfo returns ServerInfoResponse.ServerInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoResponse) GetServerInfo() *ServerInfoServerInfo { return v.ServerInfo }
+
+// ServerInfoServerInfo includes the requested fields of the GraphQL type ServerInfo.
+type ServerInfoServerInfo struct {
+	CliVersionInfo         interface{}                                 `json:"cliVersionInfo"`
+	LatestLocalVersionInfo *ServerInfoServerInfoLatestLocalVersionInfo `json:"latestLocalVersionInfo"`
+}
+
+// GetCliVersionInfo returns ServerInfoServerInfo.CliVersionInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfo) GetCliVersionInfo() interface{} { return v.CliVersionInfo }
+
+// GetLatestLocalVersionInfo returns ServerInfoServerInfo.LatestLocalVersionInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfo) GetLatestLocalVersionInfo() *ServerInfoServerInfoLatestLocalVersionInfo {
+	return v.LatestLocalVersionInfo
+}
+
+// ServerInfoServerInfoLatestLocalVersionInfo includes the requested fields of the GraphQL type LocalVersionInfo.
+type ServerInfoServerInfoLatestLocalVersionInfo struct {
+	OutOfDate                   bool   `json:"outOfDate"`
+	LatestVersionString         string `json:"latestVersionString"`
+	VersionOnThisInstanceString string `json:"versionOnThisInstanceString"`
+}
+
+// GetOutOfDate returns ServerInfoServerInfoLatestLocalVersionInfo.OutOfDate, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetOutOfDate() bool { return v.OutOfDate }
+
+// GetLatestVersionString returns ServerInfoServerInfoLatestLocalVersionInfo.LatestVersionString, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetLatestVersionString() string {
+	return v.LatestVersionString
+}
+
+// GetVersionOnThisInstanceString returns ServerInfoServerInfoLatestLocalVersionInfo.VersionOnThisInstanceString, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceString() string {
+	return v.VersionOnThisInstanceString
+}
+
 type UploadPartsInput struct {
 	PartNumber int64  `json:"partNumber"`
 	HexMD5     string `json:"hexMD5"`
@@ -1667,6 +1709,42 @@ func RunResumeStatus(
 	var err error
 
 	var data RunResumeStatusResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by ServerInfo.
+const ServerInfo_Operation = `
+query ServerInfo {
+	serverInfo {
+		cliVersionInfo
+		latestLocalVersionInfo {
+			outOfDate
+			latestVersionString
+			versionOnThisInstanceString
+		}
+	}
+}
+`
+
+func ServerInfo(
+	ctx context.Context,
+	client graphql.Client,
+) (*ServerInfoResponse, error) {
+	req := &graphql.Request{
+		OpName: "ServerInfo",
+		Query:  ServerInfo_Operation,
+	}
+	var err error
+
+	var data ServerInfoResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
