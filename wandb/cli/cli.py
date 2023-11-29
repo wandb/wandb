@@ -428,7 +428,6 @@ def nexync(
     path=None,
 ):
     import pathlib
-    import time
 
     from wandb.sdk.backend.backend import Backend
     from wandb.sdk.lib.mailbox import Mailbox
