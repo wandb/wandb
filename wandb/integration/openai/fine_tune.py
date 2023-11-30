@@ -1,10 +1,11 @@
 import datetime
 import io
 import json
-import os
 import re
 import time
 from typing import Any, Dict, Optional, Tuple
+
+from pkg_resources import parse_version
 
 import wandb
 from wandb import util
@@ -19,11 +20,9 @@ openai = util.get_module(
 )
 openai_version = openai.__version__
 
-from openai import OpenAI
-from openai.types.fine_tuning import FineTuningJob
-from openai.types.fine_tuning.fine_tuning_job import Hyperparameters
-
-from pkg_resources import parse_version
+from openai import OpenAI  # noqa: E402
+from openai.types.fine_tuning import FineTuningJob  # noqa: E402
+from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E402
 
 if parse_version(openai_version) < parse_version("1.0.1"):
     raise wandb.Error(
@@ -311,7 +310,7 @@ class WandbLogger:
             hyperparams[
                 "learning_rate_multiplier"
             ] = hyperparameters.learning_rate_multiplier
-        except:
+        except Exception:
             # If unpacking fails, return the object to be logged as config
             return None
 
