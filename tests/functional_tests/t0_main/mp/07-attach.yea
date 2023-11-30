@@ -1,7 +1,9 @@
 id: 0.mp.07-attach
 plugin:
   - wandb
-
+tag:
+  skips:
+    - platform: win
 parametrize:
   permute:
     - :yea:start_method:
