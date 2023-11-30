@@ -1459,35 +1459,27 @@ class Run:
         commit: Optional[bool] = None,
     ) -> None:
         row = row.copy()
-        def nestedCustomChartScenario(d):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    nestedCustomChartScenario(v)
-                else:
-                    if v:
-                        # print("{0} : {1}".format(k, v))
 
-                        row = self._visualization_hack({k:v})
-                        # print(row)
+        # go through the dictionary we are logging and check recursively if it's nested
+        def nested_row_check(row_dict, key=""):
+            for dict_key, dict_val in row_dict.items():
+                full_key_path = key + ("/" if key else "") + dict_key  # Add "/" only if key is not empty 
+                if isinstance(dict_val, dict):
+                    nested_row_check(dict_val,full_key_path)
+                else:
+                    if dict_val:                        
+                        row_to_publish = self._visualization_hack({full_key_path:dict_val})
                         if self._backend and self._backend.interface:
                             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
 
                             self._backend.interface.publish_partial_history(
-                                row,
+                                row_to_publish,
                                 user_step=self._step,
                                 step=step,
                                 flush=commit,
                                 publish_step=not_using_tensorboard,
                             )
-        nestedCustomChartScenario(row)
-    # def _partial_history_callback(
-    #     self,
-    #     row: Dict[str, Any],
-    #     step: Optional[int] = None,
-    #     commit: Optional[bool] = None,
-    # ) -> None:
-    #     row = row.copy()
-    #     print(f"before{row}")
+        nested_row_check(row)
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
