@@ -4,6 +4,7 @@ import json
 import re
 import time
 from typing import Any, Dict, Optional, Tuple
+
 from pkg_resources import parse_version
 
 import wandb
@@ -15,12 +16,12 @@ from wandb.sdk.wandb_run import Run
 openai = util.get_module(
     name="openai",
     required="Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`",
-    lazy="False"
+    lazy="False",
 )
 
 if parse_version(openai.__version__) < parse_version("1.0.1"):
     raise wandb.Error(
-        f"This integration requires openai version 1.0.1 and above. Your current version is {openai_version} "
+        f"This integration requires openai version 1.0.1 and above. Your current version is {openai.__version__} "
         "To fix, please `pip install -U openai`"
     )
 
