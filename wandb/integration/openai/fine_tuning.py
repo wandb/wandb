@@ -31,13 +31,13 @@ from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E4
 
 np = util.get_module(
     name="numpy",
-    required="Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
+    required="`numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
     lazy="False",
 )
 
 pd = util.get_module(
     name="pandas",
-    required="Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
+    required="`pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
     lazy="False",
 )
 
