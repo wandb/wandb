@@ -12,22 +12,23 @@ from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
-try:
-    import openai
-    from openai import OpenAI
-    from pkg_resources import parse_version
+openai = util.get_module(
+    name="openai",
+    required="Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`",
+    lazy="False",
+)
+openai_version = openai.__version__
 
-    openai_version = openai.__version__
-    if parse_version(openai_version) < parse_version("1.0.1"):
-        raise wandb.Error(
-            f"This integration requires openai version 1.0.1 and above. Your current version is {openai_version}"
-        )
+from openai import OpenAI
+from openai.types.fine_tuning import FineTuningJob
+from openai.types.fine_tuning.fine_tuning_job import Hyperparameters
 
-    from openai.types.fine_tuning import FineTuningJob
-except ImportError as e:
-    raise Exception(
-        "Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`"
-    ) from e
+from pkg_resources import parse_version
+
+if parse_version(openai_version) < parse_version("1.0.1"):
+    raise wandb.Error(
+        f"This integration requires openai version 1.0.1 and above. Your current version is {openai_version}"
+    )
 
 np = util.get_module(
     name="numpy",
@@ -73,9 +74,7 @@ class WandbLogger:
         :param wait_for_job_success: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
         """
         if openai_client is None:
-            openai_client = OpenAI(
-                api_key=os.environ["OPENAI_API_KEY"],
-            )
+            openai_client = OpenAI()
         cls.openai_client = openai_client
 
         if fine_tune_job_id:
@@ -123,7 +122,7 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termlog("Waiting for the Fine-tuning job to be finished...")
+        wandb.termlog("Waiting for the OpenAI fine-tuning job to be finished...")
         while True:
             if fine_tune.status == "succeeded":
                 wandb.termlog(
@@ -140,7 +139,7 @@ class WandbLogger:
                     f"Fine-tune {fine_tune.id} has was cancelled and will not be logged"
                 )
                 return fine_tune
-            time.sleep(60)
+            time.sleep(10)
             fine_tune = cls.openai_client.fine_tuning.jobs.retrieve(
                 fine_tuning_job_id=fine_tune.id
             )
@@ -177,7 +176,7 @@ class WandbLogger:
                 )
             return
 
-        # check run has not been logged already
+        # check run with the given `fine_tune_id` has not been logged already
         run_path = f"{project}/{fine_tune_id}"
         if entity is not None:
             run_path = f"{entity}/{run_path}"
@@ -204,16 +203,22 @@ class WandbLogger:
             if wandb_status == "succeeded" and not overwrite:
                 return
 
-        # start a wandb run
-        cls._run = wandb.init(
-            job_type="fine-tune",
-            config=cls._get_config(fine_tune),
-            project=project,
-            entity=entity,
-            name=fine_tune_id,
-            id=fine_tune_id,
-            **kwargs_wandb_init,
-        )
+        # check if the user has not created a wandb run externally
+        if wandb.run is None:
+            cls._run = wandb.init(
+                job_type="fine-tune",
+                config=cls._get_config(fine_tune),
+                project=project,
+                entity=entity,
+                name=fine_tune_id,
+                id=fine_tune_id,
+                **kwargs_wandb_init,
+            )
+        else:
+            # if a run exits - created externally
+            cls._run = wandb.run
+            # update the config
+            cls._run.config.update(cls._get_config(fine_tune))
 
         with telemetry.context(run=cls._run) as tel:
             tel.feature.openai_finetuning = True
@@ -276,8 +281,41 @@ class WandbLogger:
         config = dict(fine_tune)
         config["result_files"] = config["result_files"][0]
         if config.get("created_at"):
-            config["created_at"] = datetime.datetime.fromtimestamp(config["created_at"])
+            config["created_at"] = datetime.datetime.fromtimestamp(
+                config["created_at"]
+            ).strftime("%Y-%m-%d %H:%M:%S")
+        if config.get("finished_at"):
+            config["finished_at"] = datetime.datetime.fromtimestamp(
+                config["finished_at"]
+            ).strftime("%Y-%m-%d %H:%M:%S")
+        if config.get("hyperparameters"):
+            hyperparameters = config.pop("hyperparameters")
+            hyperparams = cls._unpack_hyperparameters(hyperparameters)
+            if hyperparams is None:
+                # If unpacking fails, log the object which will render as string
+                config["hyperparameters"] = hyperparameters
+            else:
+                # nested rendering on hyperparameters
+                config["hyperparameters"] = hyperparams
+
         return config
+
+    @classmethod
+    def _unpack_hyperparameters(cls, hyperparameters: Hyperparameters):
+        # `Hyperparameters` object is not unpacking properly using `vars` or `__dict__`,
+        # vars(hyperparameters) return {n_epochs: n} only.
+        hyperparams = {}
+        try:
+            hyperparams["n_epochs"] = hyperparameters.n_epochs
+            hyperparams["batch_size"] = hyperparameters.batch_size
+            hyperparams[
+                "learning_rate_multiplier"
+            ] = hyperparameters.learning_rate_multiplier
+        except:
+            # If unpacking fails, return the object to be logged as config
+            return None
+
+        return hyperparams
 
     @classmethod
     def _log_artifacts(
