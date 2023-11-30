@@ -262,6 +262,16 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         "kwarg-actions": [None, None, None],
         "output-type": "video",
     },
+    "StableVideoDiffusionPipeline": {
+        "table-schema": [
+            "Input-Image",
+            "Frames-Per-Second",
+            "Generated-Video",
+        ],
+        "kwarg-logging": ["image", "fps"],
+        "kwarg-actions": [wandb.Image, None],
+        "output-type": "video",
+    },
     "AudioLDMPipeline": {
         "table-schema": [
             "Prompt",
