@@ -5,7 +5,7 @@ import re
 import time
 from typing import Any, Dict, Optional, Tuple
 
-import openai
+from pkg_resources import parse_version
 
 import wandb
 from wandb import util
@@ -13,7 +13,17 @@ from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
-openai_version = openai.__version__
+openai = util.get_module(
+    name="openai",
+    required="`openai` not installed. This integration requires `openai`. To fix, please `pip install openai`",
+    lazy="False",
+)
+
+if parse_version(openai.__version__) < parse_version("1.0.1"):
+    raise wandb.Error(
+        f"This integration requires openai version 1.0.1 and above. Your current version is {openai.__version__} "
+        "To fix, please `pip install -U openai`"
+    )
 
 from openai import OpenAI  # noqa: E402
 from openai.types.fine_tuning import FineTuningJob  # noqa: E402
@@ -21,13 +31,13 @@ from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E4
 
 np = util.get_module(
     name="numpy",
-    required="Error: `numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
+    required="`numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
     lazy="False",
 )
 
 pd = util.get_module(
     name="pandas",
-    required="Error: `pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
+    required="`pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
     lazy="False",
 )
 
