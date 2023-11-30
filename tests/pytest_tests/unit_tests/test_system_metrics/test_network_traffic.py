@@ -1,4 +1,5 @@
 import threading
+import time
 
 from google.cloud import storage
 from wandb.sdk.internal.settings_static import SettingsStatic
@@ -28,12 +29,7 @@ def test_network_metrics(test_settings):
 
 def test_network_traffic_sent():
     network_traffic_sent = NetworkTrafficSent()
-
-    storage_client = storage.Client()
-    bucket = storage_client.bucket("public-raph-bucket")
-    blob = bucket.blob("images")
-    blob.upload_from_filename("/Users/raphael/Downloads/dog.png")
-
+    time.sleep(1)
     network_traffic_sent.clear()
     network_traffic_sent.sample()
     print(network_traffic_sent.samples)
