@@ -1,6 +1,9 @@
 import inspect
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
+from PIL import Image
+
+import wandb
 from wandb.util import get_module
 
 if TYPE_CHECKING:
@@ -32,6 +35,9 @@ def get_updated_kwargs(
             if generator is not None
             else None
         )
+    if "ip_adapter_image" in kwargs:
+        if kwargs["ip_adapter_image"] is not None:
+            wandb.log({"IP-Adapter-Image": wandb.Image(kwargs["ip_adapter_image"])})
     return kwargs
 
 
