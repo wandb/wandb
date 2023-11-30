@@ -127,7 +127,7 @@ class WandbLogger:
                         overwrite = True
                 if wandb_status == "succeeded" and not overwrite:
                     return
-            
+
             # check if the user has not created a wandb run externally
             if wandb.run is None:
                 cls._run = wandb.init(
