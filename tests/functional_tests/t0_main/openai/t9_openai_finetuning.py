@@ -1,7 +1,7 @@
 import os
 
 from openai import OpenAI
-from wandb.integration.openai import WandbLogger
+from wandb.integration.openai.fine_tuning import WandbLogger
 
 
 def main():
