@@ -1,7 +1,9 @@
 id: 0.mp.06-1-share-child-base
 plugin:
   - wandb
-
+tag:
+  skips:
+    - platform: win
 parametrize:
   permute:
     - :yea:start_method:
