@@ -1467,18 +1467,17 @@ class Run:
                 if isinstance(dict_val, dict):
                     nested_row_check(dict_val,full_key_path)
                 else:
-                    if dict_val:                        
-                        row_to_publish = self._visualization_hack({full_key_path:dict_val})
-                        if self._backend and self._backend.interface:
-                            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+                    row_to_publish = self._visualization_hack({full_key_path:dict_val})
+                    if self._backend and self._backend.interface:
+                        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
 
-                            self._backend.interface.publish_partial_history(
-                                row_to_publish,
-                                user_step=self._step,
-                                step=step,
-                                flush=commit,
-                                publish_step=not_using_tensorboard,
-                            )
+                        self._backend.interface.publish_partial_history(
+                            row_to_publish,
+                            user_step=self._step,
+                            step=step,
+                            flush=commit,
+                            publish_step=not_using_tensorboard,
+                        )
         nested_row_check(row)
 
     def _console_callback(self, name: str, data: str) -> None:
