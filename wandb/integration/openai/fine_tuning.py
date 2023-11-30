@@ -15,7 +15,7 @@ from wandb.sdk.wandb_run import Run
 
 openai = util.get_module(
     name="openai",
-    required="Error: `openai` not installed >> This integration requires openai!  To fix, please `pip install openai`",
+    required="`openai` not installed. This integration requires `openai`. To fix, please `pip install openai`",
     lazy="False",
 )
 
