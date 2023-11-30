@@ -275,7 +275,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 	switch x := request.RequestType.(type) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
-		fmt.Println("handler: got defer", record)
 		h.handleDefer(record, x.Defer)
 		return
 	case *service.Request_GetSummary:
@@ -621,7 +620,6 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
-	fmt.Println(">>> handler: got exit", exit)
 	// stop the system monitor to ensure that we don't send any more system metrics
 	// after the run has exited
 	h.systemMonitor.Stop()

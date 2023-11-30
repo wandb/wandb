@@ -296,7 +296,6 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
-	fmt.Println("sender: sendDefer", request.State)
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 		request.State++
@@ -754,7 +753,6 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	fmt.Println("sender: sendExit: sending defer request", rec)
 	s.loopbackChan <- rec
 }
 
@@ -778,7 +776,6 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 // sendFiles iterates over the files in the FilesRecord and sends them to
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
 	files := filesRecord.GetFiles()
-	fmt.Println("sender: sendFiles", files)
 	for _, file := range files {
 		if strings.HasPrefix(file.GetPath(), "media") {
 			s.sendFile(file.GetPath(), filetransfer.MediaFile)
@@ -918,10 +915,19 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 }
 
 func (s *Sender) processStore() (bool, error) {
+	// TODO: work through failure cases. use context to do graceful shutdowns.
+	// var runSeen bool
+	var exitSeen bool
 	for {
 		record, err := s.store.Read()
+
 		if err == io.EOF {
-			return true, nil
+			fmt.Println("EOF")
+			if exitSeen {
+				return true, nil
+			}
+			err = fmt.Errorf("sender: sendSenderRead: reached end of file without seeing an exit record")
+			return true, err
 		}
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
@@ -934,8 +940,21 @@ func (s *Sender) processStore() (bool, error) {
 		// remove the control from the record:
 		record.Control = nil
 
-		fmt.Println(record)
-		s.sendRecord(record)
+		// get type of record
+		switch record.RecordType.(type) {
+		case *service.Record_Run:
+			// runSeen = true
+			s.sendRecord(record)
+			s.sendRunStart(&service.RunStartRequest{})
+		case *service.Record_Exit:
+			exitSeen = true
+			s.sendRecord(record)
+		default:
+			// recType := reflect.TypeOf(record.RecordType)
+			// fmt.Println(recType)
+			s.sendRecord(record)
+		}
+
 	}
 }
 
@@ -959,9 +978,9 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 	// 3. send records
 	// 4. repeat 2-3 until finalOffset
 	// re-think this reading path... how should it work with parallel sends?
-	fmt.Println("sender: sendSenderRead: startOffset", request.GetStartOffset())
 
 	ok, err := s.processStore()
+	fmt.Println("ok", ok, "err", err)
 
 	var errorInfo *service.ErrorInfo
 	if err != nil {
