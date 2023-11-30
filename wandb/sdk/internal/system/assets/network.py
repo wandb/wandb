@@ -109,20 +109,19 @@ class NetworkTrafficReceived:
     def __init__(self) -> None:
         self.network_received = NetworkRecv()
         self.samples = deque([])
-        self.last_value = 0.0
-        self.last_sample = self.network_received.sample()
+        self.network_received.sample()
+        self.last_sample = self.network_received.samples[-1]
 
     def sample(self) -> None:
         self.network_received.sample()
         current_sample = self.network_received.samples[-1]
-        delta_sent = current_sample - self.last_sample
+        delta_sent = (current_sample - self.last_sample) / 2
         self.samples.append(delta_sent)
         self.last_sample = current_sample
 
     def clear(self) -> None:
         self.network_received.clear()
         self.samples.clear()
-        self.last_value = 0.0
 
     def aggregate(self) -> dict:
         return (
