@@ -102,6 +102,46 @@ class WandbLogger:
         )
         fine_tune_logged = []
         for fine_tune in fine_tunes:
+            fine_tune_id = fine_tune.id
+            # check run with the given `fine_tune_id` has not been logged already
+            run_path = f"{project}/{fine_tune_id}"
+            if entity is not None:
+                run_path = f"{entity}/{run_path}"
+            wandb_run = cls._get_wandb_run(run_path)
+            if wandb_run:
+                wandb_status = wandb_run.summary.get("status")
+                if show_individual_warnings:
+                    if wandb_status == "succeeded" and not overwrite:
+                        wandb.termwarn(
+                            f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}. "
+                            "Use `overwrite=True` if you want to overwrite previous run"
+                        )
+                    elif wandb_status != "succeeded" or overwrite:
+                        if wandb_status != "succeeded":
+                            wandb.termwarn(
+                                f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
+                            )
+                        wandb.termlog(
+                            f"A new wandb run will be created for fine-tune {fine_tune_id} and previous run will be overwritten"
+                        )
+                        overwrite = True
+                if wandb_status == "succeeded" and not overwrite:
+                    return
+            
+            # check if the user has not created a wandb run externally
+            if wandb.run is None:
+                cls._run = wandb.init(
+                    job_type="fine-tune",
+                    project=project,
+                    entity=entity,
+                    name=fine_tune_id,
+                    id=fine_tune_id,
+                    **kwargs_wandb_init,
+                )
+            else:
+                # if a run exits - created externally
+                cls._run = wandb.run
+
             if wait_for_job_success:
                 fine_tune = cls._wait_for_job_success(fine_tune)
 
@@ -130,12 +170,12 @@ class WandbLogger:
                 return fine_tune
             if fine_tune.status == "failed":
                 wandb.termwarn(
-                    f"Fine-tune {fine_tune.id} has has failed and will not be logged"
+                    f"Fine-tune {fine_tune.id} has failed and will not be logged"
                 )
                 return fine_tune
             if fine_tune.status == "cancelled":
                 wandb.termwarn(
-                    f"Fine-tune {fine_tune.id} has was cancelled and will not be logged"
+                    f"Fine-tune {fine_tune.id} was cancelled and will not be logged"
                 )
                 return fine_tune
             time.sleep(10)
@@ -156,6 +196,9 @@ class WandbLogger:
         fine_tune_id = fine_tune.id
         status = fine_tune.status
 
+        with telemetry.context(run=cls._run) as tel:
+            tel.feature.openai_finetuning = True
+
         # check run completed successfully
         if status != "succeeded":
             if show_individual_warnings:
@@ -175,52 +218,8 @@ class WandbLogger:
                 )
             return
 
-        # check run with the given `fine_tune_id` has not been logged already
-        run_path = f"{project}/{fine_tune_id}"
-        if entity is not None:
-            run_path = f"{entity}/{run_path}"
-        wandb_run = cls._get_wandb_run(run_path)
-        if wandb_run:
-            wandb_status = wandb_run.summary.get("status")
-            if show_individual_warnings:
-                if wandb_status == "succeeded":
-                    wandb.termwarn(
-                        f"Fine-tune {fine_tune_id} has already been logged successfully at {wandb_run.url}"
-                    )
-                    if not overwrite:
-                        wandb.termlog(
-                            "Use `overwrite=True` if you want to overwrite previous run"
-                        )
-                else:
-                    wandb.termwarn(
-                        f"A run for fine-tune {fine_tune_id} was previously created but didn't end successfully"
-                    )
-                if wandb_status != "succeeded" or overwrite:
-                    wandb.termlog(
-                        f"A new wandb run will be created for fine-tune {fine_tune_id} and previous run will be overwritten"
-                    )
-            if wandb_status == "succeeded" and not overwrite:
-                return
-
-        # check if the user has not created a wandb run externally
-        if wandb.run is None:
-            cls._run = wandb.init(
-                job_type="fine-tune",
-                config=cls._get_config(fine_tune),
-                project=project,
-                entity=entity,
-                name=fine_tune_id,
-                id=fine_tune_id,
-                **kwargs_wandb_init,
-            )
-        else:
-            # if a run exits - created externally
-            cls._run = wandb.run
-            # update the config
-            cls._run.config.update(cls._get_config(fine_tune))
-
-        with telemetry.context(run=cls._run) as tel:
-            tel.feature.openai_finetuning = True
+        # update the config
+        cls._run.config.update(cls._get_config(fine_tune))
 
         # log results
         df_results = pd.read_csv(io.StringIO(results))
