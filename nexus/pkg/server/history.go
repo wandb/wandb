@@ -398,10 +398,13 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	}
 }
 
-func (h *Handler) handleSampledHistory(record *service.Record, response *service.Response) {
+func (h *Handler) handleSampledHistory(record *service.Record) {
+	response := &service.Response{}
 	if h.sampledHistory == nil {
+		h.sendResponse(record, response)
 		return
 	}
+
 	var items []*service.SampledHistoryItem
 
 	for key, sampler := range h.sampledHistory {
@@ -418,4 +421,5 @@ func (h *Handler) handleSampledHistory(record *service.Record, response *service
 			Item: items,
 		},
 	}
+	h.sendResponse(record, response)
 }

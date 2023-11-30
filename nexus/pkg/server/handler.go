@@ -269,43 +269,38 @@ func (h *Handler) handleRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
-	shutdown := false
-	request := record.GetRequest()
-	response := &service.Response{}
-	switch x := request.RequestType.(type) {
+	switch x := record.GetRequest().RequestType.(type) {
 	case *service.Request_CheckVersion:
+		h.handleCheckVersion(record)
 	case *service.Request_Defer:
 		h.handleDefer(record, x.Defer)
-		return
 	case *service.Request_GetSummary:
-		h.handleGetSummary(record, response)
+		h.handleGetSummary(record)
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
+		h.handleNetworkStatus(record)
 	case *service.Request_PartialHistory:
 		h.handlePartialHistory(record, x.PartialHistory)
-		return
 	case *service.Request_PollExit:
 		h.handlePollExit(record)
-		return
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
-		h.handleSampledHistory(record, response)
+		h.handleSampledHistory(record)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
-		response = nil
 	case *service.Request_Shutdown:
-		shutdown = true
+		h.handleShutdown(record)
 	case *service.Request_StopStatus:
+		h.handleStopStatus(record)
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record)
-		response = nil
 	case *service.Request_DownloadArtifact:
 		h.handleDownloadArtifact(record)
-		response = nil
 	case *service.Request_JobInfo:
+		h.handleJobInfo(record)
 	case *service.Request_Attach:
-		h.handleAttach(record, response)
+		h.handleAttach(record)
 	case *service.Request_Pause:
 		h.handlePause()
 	case *service.Request_Resume:
@@ -313,26 +308,16 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Cancel:
 		h.handleCancel(record)
 	case *service.Request_GetSystemMetrics:
-		h.handleGetSystemMetrics(record, response)
+		h.handleGetSystemMetrics(record)
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+		h.handleInternalMessages(record)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
-	if response != nil {
-		h.sendResponse(record, response)
-	}
 
-	// shutdown request indicates that we have gone through the exit path and
-	// have sent all the requests needed to extract the final bits of information
-	// from the stream.  At this point we close the loopback channel as a trigger
-	// to stop processing new incoming messages.
-	// TODO(beta): assess whether this would be better shutdown with a context
-	if shutdown {
-		close(h.loopbackChan)
-	}
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
@@ -386,6 +371,11 @@ func (h *Handler) handleDownloadArtifact(record *service.Record) {
 
 func (h *Handler) handleLinkArtifact(record *service.Record) {
 	h.sendRecord(record)
+}
+
+func (h *Handler) handleJobInfo(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
@@ -456,6 +446,22 @@ func (h *Handler) handleServerInfo(record *service.Record) {
 	)
 }
 
+func (h *Handler) handleShutdown(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
+	// shutdown request indicates that we have gone through the exit path and
+	// have sent all the requests needed to extract the final bits of information
+	// from the stream.  At this point we close the loopback channel as a trigger
+	// to stop processing new incoming messages.
+	// TODO(beta): assess whether this would be better shutdown with a context
+	close(h.loopbackChan)
+}
+
+func (h *Handler) handleStopStatus(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
+}
+
 func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
 	run := request.Run
@@ -495,15 +501,21 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 
 	h.handleMetadata()
+
+	// TODO: review this one!
+	response := &service.Response{}
+	h.sendResponse(record, response)
 }
 
-func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
+func (h *Handler) handleAttach(record *service.Record) {
+	response := &service.Response{}
 
 	response.ResponseType = &service.Response_AttachResponse{
 		AttachResponse: &service.AttachResponse{
 			Run: h.runRecord,
 		},
 	}
+	h.sendResponse(record, response)
 }
 
 func (h *Handler) handleCancel(record *service.Record) {
@@ -649,8 +661,19 @@ func (h *Handler) handleFiles(record *service.Record) {
 	h.sendRecord(rec)
 }
 
-func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
+func (h *Handler) handleCheckVersion(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
+}
+
+func (h *Handler) handleNetworkStatus(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
+}
+
+func (h *Handler) handleGetSummary(record *service.Record) {
 	var items []*service.SummaryItem
+	response := &service.Response{}
 
 	for key, element := range h.consolidatedSummary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
@@ -660,11 +683,13 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 			Item: items,
 		},
 	}
+	h.sendResponse(record, response)
+
 }
 
-func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+func (h *Handler) handleGetSystemMetrics(record *service.Record) {
 	sm := h.systemMonitor.GetBuffer()
-
+	response := &service.Response{}
 	response.ResponseType = &service.Response_GetSystemMetricsResponse{
 		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
 			SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
@@ -686,11 +711,17 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 			Record: buffer,
 		}
 	}
+	h.sendResponse(record, response)
 }
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	info := record.GetRequest().GetFileTransferInfo()
 	h.ft.Handle(info)
+}
+
+func (h *Handler) handleInternalMessages(record *service.Record) {
+	response := &service.Response{}
+	h.sendResponse(record, response)
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {
