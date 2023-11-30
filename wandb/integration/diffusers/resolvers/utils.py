@@ -1,8 +1,6 @@
 import inspect
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
-from PIL import Image
-
 import wandb
 from wandb.util import get_module
 
