@@ -13,8 +13,6 @@ from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
-openai_version = openai.__version__
-
 from openai import OpenAI  # noqa: E402
 from openai.types.fine_tuning import FineTuningJob  # noqa: E402
 from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E402
