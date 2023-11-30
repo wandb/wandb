@@ -5,13 +5,14 @@ import re
 import time
 from typing import Any, Dict, Optional, Tuple
 
+import openai
+
 import wandb
 from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
-import openai
 openai_version = openai.__version__
 
 from openai import OpenAI  # noqa: E402
