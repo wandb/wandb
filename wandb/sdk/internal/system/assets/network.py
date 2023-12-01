@@ -77,6 +77,7 @@ class NetworkTrafficSent:
 
     def __init__(self) -> None:
         self.network_sent = NetworkSent()
+        self.network = Network()
         self.samples = deque([])
         self.network_sent.sample()
         self.last_sample = self.network_sent.samples[-1]
@@ -84,7 +85,7 @@ class NetworkTrafficSent:
     def sample(self) -> None:
         self.network_sent.sample()
         current_sample = self.network_sent.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / 2
+        delta_sent = (current_sample - self.last_sample) / self.network.settings.GetXStatsSampleRateSeconds().GetValue()
         self.samples.append(delta_sent)
         self.last_sample = current_sample
 
@@ -108,6 +109,7 @@ class NetworkTrafficReceived:
 
     def __init__(self) -> None:
         self.network_received = NetworkRecv()
+        self.network = Network()
         self.samples = deque([])
         self.network_received.sample()
         self.last_sample = self.network_received.samples[-1]
@@ -115,7 +117,7 @@ class NetworkTrafficReceived:
     def sample(self) -> None:
         self.network_received.sample()
         current_sample = self.network_received.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / 2
+        delta_sent = (current_sample - self.last_sample) / self.network.settings.GetXStatsSampleRateSeconds().GetValue()
         self.samples.append(delta_sent)
         self.last_sample = current_sample
 
