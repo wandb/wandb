@@ -427,49 +427,7 @@ def nexync(
     ctx,
     path=None,
 ):
-    import pathlib
-
-    from wandb.sdk.backend.backend import Backend
-    from wandb.sdk.lib.mailbox import Mailbox
-    from wandb.sdk.lib.runid import generate_id
-
-    p = pathlib.Path(path[0])
-    p.parent.absolute()
-
-    singleton = wandb.setup()
-
-    settings = singleton.settings.to_proto()
-    # update sync_file setting to point to the passed path
-    settings.sync_file.value = str(p.absolute())
-    settings.sync_dir.value = str(p.parent.absolute())
-    settings._sync.value = True
-    # print(settings)
-
-    stream_id = generate_id()
-    settings.run_id.value = stream_id  # TODO: remove this
-    print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
-    manager = singleton._get_manager()
-    # this really means inform_create_stream
-    manager._inform_init(settings=settings, run_id=stream_id)
-
-    mailbox = Mailbox()
-    mailbox.enable_keepalive()
-    backend = Backend(settings=singleton.settings, manager=manager, mailbox=mailbox)
-    backend.ensure_launched()
-
-    assert backend.interface
-    backend.interface._stream_id = stream_id
-
-    handle = backend.interface.deliver_sender_read(
-        start_offset=0,
-        final_offset=-1,
-    )
-    result = handle.wait(timeout=-1)
-    print(result)
-
-    # manager._inform_teardown(exit_code=0)
-    # breakpoint()
-    # time.sleep(100000)
+    wandb._sync(path[0])
 
 
 @cli.command(

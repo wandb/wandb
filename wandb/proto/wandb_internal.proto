@@ -692,7 +692,7 @@ message SenderReadRequest {
 }
 
 message SenderReadResponse {
-  bool done = 1;
+  string url = 1;
   ErrorInfo error = 2;
 }
 

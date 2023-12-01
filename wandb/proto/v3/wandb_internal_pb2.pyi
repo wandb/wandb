@@ -2214,19 +2214,19 @@ global___SenderReadRequest = SenderReadRequest
 class SenderReadResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    DONE_FIELD_NUMBER: builtins.int
+    URL_FIELD_NUMBER: builtins.int
     ERROR_FIELD_NUMBER: builtins.int
-    done: builtins.bool
+    url: builtins.str
     @property
     def error(self) -> global___ErrorInfo: ...
     def __init__(
         self,
         *,
-        done: builtins.bool = ...,
+        url: builtins.str = ...,
         error: global___ErrorInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["error", b"error"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["done", b"done", "error", b"error"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["error", b"error", "url", b"url"]) -> None: ...
 
 global___SenderReadResponse = SenderReadResponse
 

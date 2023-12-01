@@ -725,11 +725,16 @@ func (s *Sender) respondSync(result *service.Result) {
 	if result == nil {
 		return
 	}
+
 	s.outChan <- result
 
-	baseUrl := s.settings.GetBaseUrl().GetValue()
-	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+	// if s.RunRecord != nil {
+	// 	baseUrl := s.settings.GetBaseUrl().GetValue()
+	// 	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+	// 	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+	// } else {
+	// 	fmt.Println("No run found")
+	// }
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
@@ -916,22 +921,19 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 
 func (s *Sender) processStore() (bool, error) {
 	// TODO: work through failure cases. use context to do graceful shutdowns.
-	// var runSeen bool
 	var exitSeen bool
 	for {
 		record, err := s.store.Read()
 
 		if err == io.EOF {
-			fmt.Println("EOF")
 			if exitSeen {
 				return true, nil
 			}
-			err = fmt.Errorf("sender: sendSenderRead: reached end of file without seeing an exit record")
-			return true, err
-		}
-		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			err = fmt.Errorf("transaction log was corrupted, some data may be lost")
 			return false, err
+		} else if err != nil {
+			s.logger.CaptureError("failed to process transaction log, some data may be lost", err)
+			return exitSeen, err
 		}
 
 		// TODO: we remove the control from the record because we don't want to try to
@@ -943,18 +945,14 @@ func (s *Sender) processStore() (bool, error) {
 		// get type of record
 		switch record.RecordType.(type) {
 		case *service.Record_Run:
-			// runSeen = true
 			s.sendRecord(record)
 			s.sendRunStart(&service.RunStartRequest{})
 		case *service.Record_Exit:
 			exitSeen = true
 			s.sendRecord(record)
 		default:
-			// recType := reflect.TypeOf(record.RecordType)
-			// fmt.Println(recType)
 			s.sendRecord(record)
 		}
-
 	}
 }
 
@@ -980,7 +978,6 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 	// re-think this reading path... how should it work with parallel sends?
 
 	ok, err := s.processStore()
-	fmt.Println("ok", ok, "err", err)
 
 	var errorInfo *service.ErrorInfo
 	if err != nil {
@@ -989,13 +986,19 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			Code:    service.ErrorInfo_UNKNOWN, // TODO: be more specific
 		}
 	}
+	var url string
+	if s.RunRecord != nil {
+		baseUrl := s.settings.GetBaseUrl().GetValue()
+		baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+		url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+	}
 
 	s.syncResult = &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_SenderReadResponse{
 					SenderReadResponse: &service.SenderReadResponse{
-						Done:  ok,
+						Url:   url,
 						Error: errorInfo,
 					},
 				},
@@ -1003,6 +1006,16 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 		},
 		Control: record.Control,
 		Uuid:    record.Uuid,
+	}
+	if !ok {
+		record := &service.Record{
+			RecordType: &service.Record_Exit{
+				Exit: &service.RunExitRecord{
+					ExitCode: 1,
+				},
+			},
+		}
+		s.sendExit(record, record.GetExit())
 	}
 }
 
