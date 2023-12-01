@@ -42,6 +42,9 @@ type Sender struct {
 	// ctx is the context for the handler
 	ctx context.Context
 
+	// cancel is the cancel function for the handler
+	cancel context.CancelFunc
+
 	// logger is the logger for the sender
 	logger *observability.NexusLogger
 
@@ -89,10 +92,17 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
+func NewSender(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	settings *service.Settings,
+	logger *observability.NexusLogger,
+	loopbackChan chan *service.Record,
+) *Sender {
 
 	sender := &Sender{
 		ctx:          ctx,
+		cancel:       cancel,
 		settings:     settings,
 		logger:       logger,
 		summaryMap:   make(map[string]*service.SummaryItem),
@@ -175,8 +185,8 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 	return sender
 }
 
-// do sending of messages to the server
-func (s *Sender) do(inChan <-chan *service.Record) {
+// Run takes care of sending of messages to the server
+func (s *Sender) Run(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 

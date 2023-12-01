@@ -23,6 +23,9 @@ type Stream struct {
 	// ctx is the context for the stream
 	ctx context.Context
 
+	// cancel is the cancel function for the stream
+	cancel context.CancelFunc
+
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
@@ -58,8 +61,11 @@ type Stream struct {
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
 	logger := SetupStreamLogger(settings)
 
+	ctx, cancel := context.WithCancel(ctx)
+
 	s := &Stream{
 		ctx:      ctx,
+		cancel:   cancel,
 		wg:       sync.WaitGroup{},
 		settings: settings,
 		logger:   logger,
@@ -68,9 +74,9 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 	}
 
 	s.loopbackChan = make(chan *service.Record, BufferSize)
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
-	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
+	s.handler = NewHandler(s.ctx, s.cancel, s.settings, s.logger)
+	s.writer = NewWriter(s.ctx, s.cancel, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.cancel, s.settings, s.logger, s.loopbackChan)
 	s.dispatcher = NewDispatcher(s.logger)
 
 	s.logger.Info("created new stream", "id", s.settings.RunId)
@@ -97,29 +103,37 @@ func (s *Stream) Start() {
 	s.handler.SetOutboundChannels(handlerFwdChan, handlerOutChan)
 	s.wg.Add(1)
 	go func() {
-		s.handler.Handle()
+		s.handler.Run()
 		s.wg.Done()
 	}()
 
 	// write the data to a transaction log
 	s.wg.Add(1)
 	go func() {
-		s.writer.do(handlerFwdChan)
+		s.writer.Run(handlerFwdChan)
 		s.wg.Done()
 	}()
 
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.do(s.writer.fwdChan)
+		s.sender.Run(s.writer.fwdChan)
 		s.wg.Done()
 	}()
 
 	// handle dispatching between components
 	s.wg.Add(1)
 	go func() {
-		s.dispatcher.do(handlerOutChan, s.sender.outChan)
+		s.dispatcher.Run(handlerOutChan, s.sender.outChan)
 		s.wg.Done()
+	}()
+
+	// listen for the shutdown signal
+	s.wg.Add(1)
+	go func() {
+		<-s.ctx.Done()
+		s.wg.Done()
+		s.Close()
 	}()
 
 	s.logger.Debug("starting stream", "id", s.settings.RunId)
@@ -178,7 +192,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.HandleRecord(shutdownRecord)
 	<-s.respChan
 
-	s.Close()
+	s.cancel()
 
 	s.PrintFooter()
 	s.logger.Info("closed stream", "id", s.settings.RunId)

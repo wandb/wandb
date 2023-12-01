@@ -16,6 +16,9 @@ type Writer struct {
 	// ctx is the context for the writer
 	ctx context.Context
 
+	// cancel is the cancel function for the writer
+	cancel context.CancelFunc
+
 	// settings is the settings for the writer
 	settings *service.Settings
 
@@ -39,10 +42,16 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
+func NewWriter(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	settings *service.Settings,
+	logger *observability.NexusLogger,
+) *Writer {
 
 	w := &Writer{
 		ctx:      ctx,
+		cancel:   cancel,
 		settings: settings,
 		logger:   logger,
 		fwdChan:  make(chan *service.Record, BufferSize),
@@ -50,8 +59,8 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 	return w
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
+// Run is the main loop of the writer to process incoming messages
+func (w *Writer) Run(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 

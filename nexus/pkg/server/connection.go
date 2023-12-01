@@ -344,7 +344,8 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 	if stream, err := streamMux.RemoveStream(streamId); err != nil {
 		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
 	} else {
-		stream.Close()
+		// tell the Stream to start shutting down
+		stream.cancel()
 	}
 }
 
