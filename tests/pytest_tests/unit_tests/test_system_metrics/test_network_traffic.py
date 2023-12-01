@@ -1,12 +1,14 @@
 import threading
+import time
 
 from google.cloud import storage
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Network
-from wandb.sdk.internal.system.assets.network import NetworkTrafficSent
-from wandb.sdk.internal.system.assets.network import NetworkTrafficReceived
+from wandb.sdk.internal.system.assets.network import (
+    NetworkTrafficReceived,
+    NetworkTrafficSent,
+)
 from wandb.sdk.internal.system.system_monitor import AssetInterface
-import time
 
 
 def test_network_metrics(test_settings):
@@ -48,8 +50,3 @@ def test_network_traffic_received():
     network_traffic_received.sample()
     print(network_traffic_received.samples)
     print(network_traffic_received.last_sample)
-    
-    
-    
-  
-
