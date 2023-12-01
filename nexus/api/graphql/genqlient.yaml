@@ -3,7 +3,7 @@
 schema: schemas/schema-latest.graphql
 operations:
 - "*.graphql"
-generated: ../../internal/gql/gql_gen.go
+generated: ../../internal/gql/gql_gen.latest.go
 package: gql
 # optional: value
 optional: pointer
@@ -16,3 +16,5 @@ bindings:
     type: int64
   JSONString:
     type: string
+  JSON:
+    type: interface{}

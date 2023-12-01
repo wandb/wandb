@@ -1,15 +1,15 @@
 # @genqlient(omitempty: true)
 query Viewer{
-            viewer {
-                id
-                entity
-                flags
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
+    viewer {
+        id
+        entity
+        flags
+        teams {
+            edges {
+                node {
+                    name
                 }
             }
+        }
+    }
 }
