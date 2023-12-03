@@ -3,10 +3,11 @@ import ast
 import json
 import random
 import re
+from copy import deepcopy
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 from pydantic.alias_generators import to_camel
 
 
@@ -58,6 +59,33 @@ Language = Literal["javascript", "python", "css", "json", "html", "markdown", "y
 Ops = Literal["OR", "AND", "=", "!=", "<=", ">=", "IN", "NIN", "=="]
 TextLikeInternal = Union["InlineLatex", "InlineLink", "Paragraph", "Text"]
 GalleryLink = Union["GalleryLinkReport", "GalleryLinkURL"]
+ReportWidth = Literal["readable", "fixed", "fluid"]
+
+
+class TextLikeMixin:
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        data["children"] = [c.model_dump() for c in self.children]
+        return data
+
+    @classmethod
+    def model_validate(cls, data):
+        d = deepcopy(data)
+        children = []
+        for c in d.get("children"):
+            if (_type := c.get("type")) == "link":
+                child = InlineLink.model_validate(c)
+            elif _type == "latex":
+                child = InlineLatex.model_validate(c)
+            elif _type == "paragraph":
+                child = Paragraph.model_validate(c)
+            else:
+                child = Text.model_validate(c)
+            children.append(child)
+
+        d["children"] = children
+        obj = cls(**d)
+        return obj
 
 
 class Sentinel(BaseModel):
@@ -97,13 +125,38 @@ class InlineModel(BaseModel):
 
 
 class Ref(ReportAPIBaseModel):
-    type: str = "panel"
+    type: str = ""
     view_id: str = ""
     id: str = ""
 
 
 class Text(ReportAPIBaseModel):
     text: str = ""
+
+    inline_comments: Optional[list["InlineComment"]] = None
+
+    def model_dump(self, **kwargs):
+        data = super().model_dump(**kwargs)
+        if (comments := self.inline_comments) is None:
+            comments = []
+        for comment in comments:
+            ref_id = comment.ref_id
+            data[f"inlineComment_{ref_id}"] = comment.model_dump()
+        data.pop("inline_comments", None)
+        return data
+
+    @classmethod
+    def model_validate(cls, data):
+        d = deepcopy(data)
+        obj = cls(**d)
+
+        inline_comments = []
+        for k, v in d.items():
+            if k.startswith("inlineComment"):
+                comment = InlineComment.model_validate(v)
+                inline_comments.append(comment)
+        obj.inline_comments = inline_comments
+        return obj
 
 
 class Project(ReportAPIBaseModel):
@@ -144,7 +197,7 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     type: str = "flow"
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
-    # local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
+    local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
     panels: list = Field(default_factory=list)
     # local_panel_settings_ref: dict = Field(default_factory=dict)
     # panel_refs: list = Field(default_factory=list)
@@ -280,11 +333,37 @@ class CodeLine(ReportAPIBaseModel):
     language: Optional[Language] = "python"
 
 
-class Heading(Block):
+class Heading(TextLikeMixin, Block):
     type: Literal["heading"] = "heading"
     children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     collapsed_children: Optional[list["BlockTypes"]] = None
     level: int = 1
+
+    # _inline_comments: Optional[list["InlineComment"]] = None
+
+    # def model_dump(self, **kwargs):
+    #     data = super().model_dump(**kwargs)
+    #     for comment in self._inline_comments:
+    #         ref_id = comment.ref_id
+    #         data[f"inlineComment_{ref_id}"] = comment.model_dump()
+    #     return data
+
+    # @classmethod
+    # def model_validate(cls, data):
+    #     print(data)
+    #     obj = cls(**data)
+
+    #     inline_comments = []
+    #     children = data.get("children", {})
+    #     for child in children:
+    #         for k, v in child.items():
+    #             print(k, v)
+    #             if k.startswith("inlineComment"):
+    #                 comment = InlineComment.model_validate(v)
+    #                 inline_comments.append(comment)
+    #         obj._inline_comments = inline_comments
+    #     print(inline_comments)
+    #     return obj
 
 
 class InlineLatex(InlineModel):
@@ -293,13 +372,13 @@ class InlineLatex(InlineModel):
     content: str = ""
 
 
-class InlineLink(InlineModel):
+class InlineLink(TextLikeMixin, InlineModel):
     type: Literal["link"] = "link"
-    url: AnyUrl = "https://"
+    url: str = "https://"
     children: list[Text] = Field(default_factory=lambda: [Text()])
 
 
-class Paragraph(Block):
+class Paragraph(TextLikeMixin, Block):
     type: Literal["paragraph"] = "paragraph"
     children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
@@ -352,7 +431,7 @@ class LatexBlock(Block):
 class Image(Block):
     type: Literal["image"] = "image"
     children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
-    url: AnyUrl
+    url: str
     has_caption: bool
 
 
@@ -386,7 +465,7 @@ class HorizontalRule(Block):
 
 class Video(Block):
     type: Literal["video"] = "video"
-    url: AnyUrl
+    url: str
     children: list[Text] = Field(default_factory=lambda: [Text()])
 
 
@@ -440,6 +519,12 @@ class WeaveBlock(ReportAPIBaseModel):
     config: dict = Field(default_factory=dict)
 
 
+class InlineComment(ReportAPIBaseModel):
+    ref_id: str = Field(..., alias="refID")
+    thread_id: str = Field(..., alias="threadID")
+    comment_id: str = Field(..., alias="commentID")
+
+
 class Spec(ReportAPIBaseModel):
     version: int = 5
     panel_settings: dict = Field(default_factory=dict)
@@ -480,7 +565,7 @@ class Layout(ReportAPIBaseModel):
 class Panel(ReportAPIBaseModel):
     id: str = Field("", alias="__id__")
     layout: Layout = Field(default_factory=Layout)
-    ref: Ref = Field(default_factory=Ref)
+    ref: Ref = Field(default_factory=lambda: Ref(type="panel"))
 
 
 class MediaBrowserConfig(ReportAPIBaseModel):
@@ -737,7 +822,9 @@ class Weave(Panel):
 
 def expr_to_filters(expr: str) -> Filters:
     if not expr:
-        return Filters(op="OR", filters=[Filters(op="AND", filters=[])])
+        return Filters(
+            op="OR", filters=[Filters(op="AND", filters=[])], ref=Ref(type="filters")
+        )
     parsed_expr = ast.parse(expr, mode="eval")
     return _parse_node(parsed_expr.body)
 

@@ -1,12 +1,15 @@
 """Public interfaces for the Report API."""
 import os
 import re
+from dataclasses import field
+from datetime import datetime
+from functools import partial
 from typing import Iterable, Literal, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
-from pydantic import AnyUrl, ConfigDict, Field, validator
+import pydantic_core
+from pydantic import ConfigDict, Field, computed_field, root_validator, validator
 from pydantic.dataclasses import dataclass
-from pydantic_core import Url
 
 import wandb
 
@@ -20,18 +23,24 @@ from .internal import (
     LegendPosition,
     LinePlotStyle,
     Range,
+    ReportWidth,
     SmoothingType,
+    _generate_name,
 )
 
-TextLike = Union[str, "Link", "InlineLatex"]
-TextLikeField = Union[str, list[TextLike]]
+TextLike = Union[str, "TextWithInlineComments", "Link", "Latex"]
+TextLikeField = Union[TextLike, list[TextLike]]
+FilterExpr = str
 
 
 def get_api():
     try:
         return wandb.Api()
-    except wandb.errors.UsageError:
+    except wandb.errors.UsageError as e:
         raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
+
+
+internal_field = partial(field, init=False, repr=False)
 
 
 _api = get_api()
@@ -44,6 +53,12 @@ dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=Tr
 
 @dataclass(config=dataclass_config)
 class Base:
+    ...
+    # TODO: Add __repr__ that hides Nones
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class FrozenBase:
     ...
     # TODO: Add __repr__ that hides Nones
 
@@ -68,6 +83,45 @@ class SummaryMetric(Metric):
 @dataclass(config=dataclass_config)
 class LoggedMetric(Metric):
     ...
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class InlineComment(FrozenBase):
+    ref_id: str
+    thread_id: str
+    comment_id: str
+    comments: dict
+
+    def to_model(self):
+        return internal.InlineComment(
+            ref_id=self.ref_id,
+            thread_id=self.thread_id,
+            comment_id=self.comment_id,
+            comments=self.comments,
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.InlineComment):
+        return cls(
+            ref_id=model.ref_id,
+            thread_id=model.thread_id,
+            comment_id=model.comment_id,
+            comments=model.comments,
+        )
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class Ref(FrozenBase):
+    type: str = ""
+    view_id: str = ""
+    id: str = ""
+
+    def to_model(self):
+        return internal.Ref(type=self.type, view_id=self.view_id, id=self.id)
+
+    @classmethod
+    def from_model(cls, model: internal.Ref):
+        return cls(type=model.type, view_id=model.view_id, id=model.id)
 
 
 @dataclass(config=dataclass_config)
@@ -99,6 +153,15 @@ class Block(Base):
 @dataclass(config=dataclass_config)
 class UnknownBlock(Block):
     ...
+
+
+@dataclass(config=dataclass_config)
+class TextWithInlineComments(Base):
+    text: str
+
+    _inline_comments: Optional[list[internal.InlineComment]] = field(
+        default_factory=lambda: None, repr=False
+    )
 
 
 @dataclass(config=dataclass_config)
@@ -169,12 +232,16 @@ class H3(Heading):
 
 @dataclass(config=dataclass_config)
 class Link(Base):
-    text: str
-    url: AnyUrl
+    text: Union[str, TextWithInlineComments]
+    url: str
+
+    _inline_comments: Optional[list[internal.InlineComment]] = internal_field(
+        default_factory=lambda: None
+    )
 
 
 @dataclass(config=dataclass_config)
-class InlineLatex(Base):
+class Latex(Base):
     text: str
 
 
@@ -351,9 +418,7 @@ class LatexBlock(Block):
 
 @dataclass(config=dataclass_config)
 class Image(Block):
-    url: AnyUrl = Url(
-        "https://raw.githubusercontent.com/wandb/assets/main/wandb-logo-yellow-dots-black-wb.svg"
-    )
+    url: str = "https://raw.githubusercontent.com/wandb/assets/main/wandb-logo-yellow-dots-black-wb.svg"
     caption: TextLikeField = ""
 
     def to_model(self):
@@ -398,7 +463,7 @@ class HorizontalRule(Block):
 
 @dataclass(config=dataclass_config)
 class Video(Block):
-    url: AnyUrl = Url("https://www.youtube.com/watch?v=krWjJcW80_A")
+    url: str = "https://www.youtube.com/watch?v=krWjJcW80_A"
 
     def to_model(self):
         return internal.Video(url=self.url)
@@ -511,16 +576,53 @@ class Order(Base):
 
 
 @dataclass(config=dataclass_config)
+class MissingFilter(Base):
+    ...
+
+
+@dataclass(config=dataclass_config)
 class Runset(Base):
     entity: str = ""
     project: str = ""
     name: str = "Run set"
     query: str = ""
-    filters: Optional[str] = ""
+    filters: Optional[Union[FilterExpr, MissingFilter]] = Field(
+        default_factory=MissingFilter
+    )
     groupby: list[str] = Field(default_factory=list)
     order: list[Order] = Field(
         default_factory=lambda: [Order("CreatedTimestamp", ascending=False)]
     )
+
+    _id: str = internal_field(default_factory=_generate_name)
+    _filters: internal.Filters = internal_field(default_factory=internal.Filters)
+
+    def set_filter_expr(self, expr):
+        self._filters = internal.expr_to_filters(expr)
+
+    @computed_field
+    @property
+    def filters(self) -> str:
+        return internal.filters_to_expr(self._filters)
+
+    @root_validator(pre=True)
+    def special_filters_assignment(cls, values):
+        # This preserves the Refs for filters that are not modified.
+        if isinstance(values, pydantic_core._pydantic_core.ArgsKwargs):
+            kwargs = values.kwargs
+        elif isinstance(values, dict):
+            kwargs = values
+        else:
+            # if not special case, just return early
+            return values
+
+        filters = kwargs.get("filters", MissingFilter())
+        if not isinstance(filters, MissingFilter):
+            if isinstance(values, pydantic_core.ArgsKwargs):
+                values.kwargs["_filters"] = internal.expr_to_filters(filters)
+            elif isinstance(values, dict):
+                values["filters"] = internal.expr_to_filters(filters)
+        return values
 
     def to_model(self):
         entity = self.entity
@@ -529,12 +631,12 @@ class Runset(Base):
         return internal.Runset(
             project=internal.Project(entity_name=entity, name=project),
             name=self.name,
-            filters=internal.expr_to_filters(self.filters),
-            # TODO: Fix the groupings
+            filters=self._filters,
             grouping=[
                 internal.Key(name=internal.get_frontend_name(g)) for g in self.groupby
             ],
             sort=internal.Sort(keys=[o.to_model() for o in self.order]),
+            id=self._id,
         )
 
     @classmethod
@@ -543,9 +645,10 @@ class Runset(Base):
             entity=model.project.entity_name,
             project=model.project.name,
             name=model.name,
-            filters=internal.filters_to_expr(model.filters),
+            _filters=model.filters,
             groupby=[internal.get_backend_name(k.name) for k in model.grouping],
             order=[Order.from_model(s) for s in model.sort.keys],
+            _id=model.id,
         )
 
 
@@ -553,6 +656,8 @@ class Runset(Base):
 class Panel(Base):
     id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
+
+    _ref: Optional[Ref] = internal_field(default_factory=Ref)
 
 
 # @dataclass(config=dataclass_config)
@@ -572,6 +677,12 @@ class PanelGrid(Block):
 
     # columns: list[str] = Field(default_factory=list)
 
+    _ref: Optional[Ref] = field(default_factory=lambda: None, init=False, repr=False)
+    _open_viz: bool = field(default_factory=lambda: True, init=False, repr=False)
+    _panel_bank_sections: list[dict] = field(
+        default_factory=list, init=False, repr=False
+    )
+
     def to_model(self):
         return internal.PanelGrid(
             metadata=internal.PanelGridMetadata(
@@ -579,6 +690,19 @@ class PanelGrid(Block):
                 panel_bank_section_config=internal.PanelBankSectionConfig(
                     panels=[p.to_model() for p in self.panels],
                 ),
+                panels=internal.PanelGridMetadataPanels(
+                    ref=internal.Ref(**self._ref.to_model().model_dump())
+                    if self._ref
+                    else internal.Ref(),
+                ),
+                panel_bank_config=internal.PanelBankConfig(
+                    # sections=[
+                    #     internal.PanelBankConfigSectionsItem(x.model_dump())
+                    #     for x in self._panel_bank_sections
+                    # ]
+                    local_panel_settings=...
+                ),
+                open_viz=self._open_viz,
                 # custom_run_colors=custom_run_colors,
             )
         )
@@ -592,6 +716,9 @@ class PanelGrid(Block):
                 for p in model.metadata.panel_bank_section_config.panels
             ],
             active_runset=model.metadata.open_run_set,
+            _ref=Ref.from_model(model.metadata.panels.ref),
+            _open_viz=model.metadata.open_viz,
+            # _panel_bank_sections=model.metadata.panel_bank_config.sections,
         )
 
     @validator("runsets")
@@ -723,8 +850,11 @@ class LinePlot(Panel):
                 aggregate=self.aggregate,
                 x_expression=self.xaxis_expression,
             ),
-            layout=self.layout.to_model(),
             id=self.id,
+            layout=self.layout.to_model(),
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -756,6 +886,7 @@ class LinePlot(Panel):
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -827,6 +958,9 @@ class ScatterPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -853,6 +987,7 @@ class ScatterPlot(Panel):
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -898,6 +1033,9 @@ class BarPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -921,6 +1059,7 @@ class BarPlot(Panel):
             line_colors=model.config.override_colors,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -947,6 +1086,9 @@ class ScalarChart(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -961,6 +1103,7 @@ class ScalarChart(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -973,6 +1116,9 @@ class CodeComparer(Panel):
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -981,6 +1127,7 @@ class CodeComparer(Panel):
             diff=model.config.diff,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -991,12 +1138,17 @@ class ParallelCoordinatesPlotColumn(Base):
     inverted: Optional[Literal[True]] = None
     log: Optional[Literal[True]] = None
 
+    _ref: Ref = internal_field(default_factory=Ref)
+
     def to_model(self):
         return internal.Column(
             accessor=self.accessor,
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1006,6 +1158,7 @@ class ParallelCoordinatesPlotColumn(Base):
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1026,6 +1179,9 @@ class ParallelCoordinatesPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1040,6 +1196,7 @@ class ParallelCoordinatesPlot(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1054,6 +1211,9 @@ class ParameterImportancePlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1062,6 +1222,7 @@ class ParameterImportancePlot(Panel):
             with_respect_to=model.config.target_key,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1074,6 +1235,9 @@ class RunComparer(Panel):
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1082,6 +1246,7 @@ class RunComparer(Panel):
             diff_only=model.config.diff_only,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1098,6 +1263,9 @@ class MediaBrowser(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1107,6 +1275,7 @@ class MediaBrowser(Panel):
             media_keys=model.config.media_keys,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1119,6 +1288,9 @@ class MarkdownPanel(Panel):
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
             id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump())
+            if self._ref
+            else internal.Ref(),
         )
 
     @classmethod
@@ -1127,6 +1299,7 @@ class MarkdownPanel(Panel):
             markdown=model.config.value,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1192,6 +1365,7 @@ class CustomChart(Panel):
             ),
             layout=self.layout.to_model(),
             # id=self.id,
+            ref=internal.Ref(**self._ref.to_model().model_dump()),
         )
 
     @classmethod
@@ -1201,6 +1375,7 @@ class CustomChart(Panel):
             # chart_name=model.config.panel_def_id,
             # chart_fields=model.config.field_settings,
             # chart_strings=model.config.string_settings,
+            _ref=Ref.from_model(model.ref),
         )
 
 
@@ -1224,37 +1399,60 @@ class Report(Base):
     project: str
     entity: str = DEFAULT_ENTITY
     title: str = "Untitled Report"
+    width: ReportWidth = "readable"
     description: str = ""
     blocks: list[BlockTypes] = Field(default_factory=list)
 
-    id: Union[str, Auto] = Field(default_factory=Auto, kw_only=True)
+    # id: str = Field("", kw_only=True)
+    id: str = field(default_factory=lambda: "", init=False, repr=False)
+
+    # this is field because of a bug in pydantic https://github.com/pydantic/pydantic/issues/7078
+    _discussion_threads: list = field(default_factory=list, init=False, repr=False)
+    _ref: dict = field(default_factory=dict, init=False, repr=False)
+    _panel_settings: dict = field(default_factory=dict, init=False, repr=False)
+    _authors: list[dict] = field(default_factory=list, init=False, repr=False)
+    _created_at: Optional[datetime] = field(
+        default_factory=lambda: None, init=False, repr=False
+    )
+    _updated_at: Optional[datetime] = field(
+        default_factory=lambda: None, init=False, repr=False
+    )
 
     def to_model(self):
         blocks_with_padding = [P()] + self.blocks + [P()]
-        if isinstance((id := self.id), Auto):
-            id = ""
-
         return internal.ReportViewspec(
             display_name=self.title,
             description=self.description,
             project=internal.Project(name=self.project, entity_name=self.entity),
-            id=id,
-            spec=internal.Spec(blocks=[b.to_model() for b in blocks_with_padding]),
+            id=self.id,
+            created_at=self._created_at,
+            updated_at=self._updated_at,
+            spec=internal.Spec(
+                panel_settings=self._panel_settings,
+                blocks=[b.to_model() for b in blocks_with_padding],
+                width=self.width,
+                authors=self._authors,
+                discussion_threads=self._discussion_threads,
+                ref=self._ref,
+            ),
         )
 
     @classmethod
     def from_model(cls, model: internal.ReportViewspec):
         blocks = model.spec.blocks[1:-1]
-        if not (id := model.id):
-            id = Auto()
-
         return cls(
             title=model.display_name,
             description=model.description,
             entity=model.project.entity_name,
             project=model.project.name,
-            id=id,
+            id=model.id,
             blocks=[_lookup(b) for b in blocks],
+            _discussion_threads=model.spec.discussion_threads,
+            _panel_settings=model.spec.panel_settings,
+            _ref=model.spec.ref,
+            _authors=model.spec.authors,
+            _created_at=model.created_at,
+            _updated_at=model.updated_at,
         )
 
     @property
@@ -1397,7 +1595,7 @@ def _load_spec_from_url(url, as_model=False):
     vs = _url_to_viewspec(url)
     spec = vs["spec"]
     if as_model:
-        return internal.Spec.model_validate(spec)
+        return internal.Spec.model_validate_json(spec)
     return json.loads(spec)
 
 
@@ -1435,7 +1633,8 @@ PanelTypes = Union[
 def _text_to_internal_children(text_field):
     if (text := text_field) == []:
         text = ""
-    if isinstance(text, str):
+    # if isinstance(text, str):
+    if not isinstance(text, list):
         text = [text]
 
     texts = []
@@ -1443,33 +1642,52 @@ def _text_to_internal_children(text_field):
         thing = None
         if isinstance(x, str):
             thing = internal.Text(text=x)
+        elif isinstance(x, TextWithInlineComments):
+            thing = internal.Text(text=x.text, inline_comments=x._inline_comments)
         elif isinstance(x, Link):
-            thing = internal.InlineLink(
-                url=x.url,
-                children=[internal.Text(text=x.text)],
-            )
-        elif isinstance(x, InlineLatex):
+            txt = x.text
+            if isinstance(txt, str):
+                children = [internal.Text(text=txt)]
+            elif isinstance(txt, TextWithInlineComments):
+                children = [
+                    internal.Text(text=txt.text, inline_comments=txt._inline_comments)
+                ]
+            thing = internal.InlineLink(url=x.url, children=children)
+        elif isinstance(x, Latex):
             thing = internal.InlineLatex(content=x.text)
         texts.append(thing)
     if not all(isinstance(x, str) for x in texts):
-        texts = [internal.Text()] + texts + [internal.Text()]
-
+        pass
+        # texts = [internal.Text()] + texts + [internal.Text()]
     return texts
+
+
+def _generate_thing(x):
+    if isinstance(x, internal.Paragraph):
+        return _internal_children_to_text(x.children)
+    elif isinstance(x, internal.Text):
+        if x.inline_comments:
+            return TextWithInlineComments(
+                text=x.text, _inline_comments=x.inline_comments
+            )
+        return x.text
+    elif isinstance(x, internal.InlineLink):
+        text_obj = x.children[0]
+        if text_obj.inline_comments:
+            text = TextWithInlineComments(
+                text=text_obj.text, _inline_comments=text_obj.inline_comments
+            )
+        else:
+            text = text_obj.text
+        return Link(url=x.url, text=text)
+    elif isinstance(x, internal.InlineLatex):
+        return Latex(text=x.content)
 
 
 def _internal_children_to_text(children):
     pieces = []
     for x in children:
-        thing = None
-        if isinstance(x, internal.Paragraph):
-            thing = _internal_children_to_text(x.children)
-        elif isinstance(x, internal.Text):
-            thing = x.text
-        elif isinstance(x, internal.InlineLink):
-            thing = Link(url=x.url, text=x.children[0].text)
-        elif isinstance(x, internal.InlineLatex):
-            thing = InlineLatex(text=x.content)
-
+        thing = _generate_thing(x)
         if isinstance(thing, list):
             for x in thing:
                 pieces.append(x)

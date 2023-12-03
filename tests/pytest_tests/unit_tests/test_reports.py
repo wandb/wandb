@@ -24,6 +24,7 @@ class CustomDataclassFactory(Generic[T], DataclassFactory[T]):
             "TextLikeField": lambda: "",
             "BlockTypes": lambda: wr2.H1(),
             "PanelTypes": lambda: wr2.LinePlot(),
+            "FilterExpr": lambda: "a > 1",
             AnyUrl: lambda: "https://link.com",
             **providers_map,
         }
@@ -119,7 +120,7 @@ class VideoFactory(CustomDataclassFactory[wr2.Video]):
     __model__ = wr2.Video
 
 
-factory_names = [
+block_factory_names = [
     "h1_factory",
     "h2_factory",
     "h3_factory",
@@ -138,6 +139,80 @@ factory_names = [
     "table_of_contents_factory",
     "unordered_list_factory",
     "video_factory",
+]
+
+
+@register_fixture
+class BarPlotFactory(CustomDataclassFactory[wr2.BarPlot]):
+    __model__ = wr2.BarPlot
+
+
+@register_fixture
+class CodeComparerFactory(CustomDataclassFactory[wr2.CodeComparer]):
+    __model__ = wr2.CodeComparer
+
+
+@register_fixture
+class CustomChartFactory(CustomDataclassFactory[wr2.CustomChart]):
+    __model__ = wr2.CustomChart
+
+
+@register_fixture
+class LinePlotFactory(CustomDataclassFactory[wr2.LinePlot]):
+    __model__ = wr2.LinePlot
+
+
+@register_fixture
+class MarkdownPanelFactory(CustomDataclassFactory[wr2.MarkdownPanel]):
+    __model__ = wr2.MarkdownPanel
+
+
+@register_fixture
+class MediaBrowserFactory(CustomDataclassFactory[wr2.MediaBrowser]):
+    __model__ = wr2.MediaBrowser
+
+
+@register_fixture
+class ParallelCoordinatesPlotFactory(
+    CustomDataclassFactory[wr2.ParallelCoordinatesPlot]
+):
+    __model__ = wr2.ParallelCoordinatesPlot
+
+
+@register_fixture
+class ParameterImportancePlotFactory(
+    CustomDataclassFactory[wr2.ParameterImportancePlot]
+):
+    __model__ = wr2.ParameterImportancePlot
+
+
+@register_fixture
+class RunComparerFactory(CustomDataclassFactory[wr2.RunComparer]):
+    __model__ = wr2.RunComparer
+
+
+@register_fixture
+class ScalarChartFactory(CustomDataclassFactory[wr2.ScalarChart]):
+    __model__ = wr2.ScalarChart
+
+
+@register_fixture
+class ScatterPlotFactory(CustomDataclassFactory[wr2.ScatterPlot]):
+    __model__ = wr2.ScatterPlot
+
+
+panel_factory_names = [
+    "bar_plot_factory",
+    "code_comparer_factory",
+    "custom_chart_factory",
+    "line_plot_factory",
+    "markdown_panel_factory",
+    "media_browser_factory",
+    "parallel_coordinates_plot_factory",
+    "parameter_importance_plot_factory",
+    "run_comparer_factory",
+    "scalar_chart_factory",
+    "scatter_plot_factory",
 ]
 
 
@@ -180,6 +255,9 @@ def compare_dataclasses(dc1: Any, dc2: Any) -> bool:
     return True
 
 
+factory_names = block_factory_names + panel_factory_names
+
+
 @pytest.mark.parametrize("factory_name", factory_names)
 def test_idempotency(request, factory_name) -> None:
     factory = request.getfixturevalue(factory_name)
@@ -189,8 +267,21 @@ def test_idempotency(request, factory_name) -> None:
     assert isinstance(instance, cls)
 
     model = instance.to_model()
-    instance2 = cls.from_model(model)
-    assert compare_dataclasses(instance, instance2)
+    model2 = cls.from_model(model).to_model()
+
+    assert model.dict() == model2.dict()
+
+
+def test_idempotency_from_real_reports():
+    url = "https://wandb.ai/megatruong/report-api-testing/reports/Copy-of-megatruong-s-Copy-of-megatruong-s-Copy-of-megatruong-s-Copy-of-megatruong-s-Copy-of-megatruong-s-Untitled-Report--Vmlldzo2MDQyNzgw"
+    vs = wr2.interface._url_to_viewspec(url)
+    report = wr2.Report.from_url(url)
+
+    assert report.to_model().dict() == vs
+
+    # model = instance.to_model()
+    # instance2 = cls.from_model(model)
+    # assert compare_dataclasses(instance, instance2)
 
 
 # blocks = [
@@ -215,20 +306,20 @@ def test_idempotency(request, factory_name) -> None:
 #     # wr2.WeaveBlock,
 # ]
 
-# panels = [
-#     wr2.BarPlot,
-#     wr2.CodeComparer,
-#     wr2.CustomChart,
-#     wr2.LinePlot,
-#     wr2.MarkdownPanel,
-#     wr2.MediaBrowser,
-#     wr2.ParallelCoordinatesPlot,
-#     wr2.ParameterImportancePlot,
-#     wr2.RunComparer,
-#     wr2.ScalarChart,
-#     wr2.ScatterPlot,
-#     # wr2.WeavePanel,
-# ]
+panels = [
+    wr2.BarPlot,
+    wr2.CodeComparer,
+    wr2.CustomChart,
+    wr2.LinePlot,
+    wr2.MarkdownPanel,
+    wr2.MediaBrowser,
+    wr2.ParallelCoordinatesPlot,
+    wr2.ParameterImportancePlot,
+    wr2.RunComparer,
+    wr2.ScalarChart,
+    wr2.ScatterPlot,
+    # wr2.WeavePanel,
+]
 
 # classes = blocks + panels
 
