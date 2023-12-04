@@ -193,6 +193,8 @@ message Feature {
   bool nexus = 55;                       // Using wandb nexus internal process
   bool lib_c = 56;                       // Using c wandb library
   bool lib_cpp = 57;                     // Using cpp wandb library
+  bool openai_finetuning = 58;           // Using openai finetuning WandbLogger
+  bool diffusers_autolog = 59;           // Using Diffusers autologger
 }
 
 message Env {

@@ -193,6 +193,7 @@ class RetryingClient:
                 latestLocalVersionInfo {
                     outOfDate
                     latestVersionString
+                    versionOnThisInstanceString
                 }
             }
         }

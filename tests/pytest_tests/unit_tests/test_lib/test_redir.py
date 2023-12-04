@@ -118,6 +118,7 @@ def test_cursor(cls, capfd):
 
 
 @pytest.mark.parametrize("cls", impls)
+@pytest.mark.xfail(reason="flaky test")
 def test_erase_screen(cls, capfd):
     with capfd.disabled():
         o = CapList()

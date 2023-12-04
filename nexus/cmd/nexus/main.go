@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"io"
 	"log/slog"
 	_ "net/http/pprof"
 	"os"
@@ -35,7 +36,22 @@ func main() {
 
 	flag.Parse()
 
-	logger := server.SetupDefaultLogger()
+	var writers []io.Writer
+
+	var loggerPath string
+	file, err := observability.GetLoggerPath()
+	if err == nil {
+		writers = append(writers, file)
+		loggerPath = file.Name()
+	}
+	if file != nil {
+		defer file.Close()
+	}
+
+	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+		writers = append(writers, os.Stderr)
+	}
+	logger := server.SetupDefaultLogger(writers...)
 	ctx := context.Background()
 
 	// set up sentry reporting
@@ -72,7 +88,7 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-
 	nexus := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	nexus.SetDefaultLoggerPath(loggerPath)
 	nexus.Close()
 }
