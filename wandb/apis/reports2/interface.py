@@ -692,7 +692,7 @@ class PanelGrid(Block):
         )
 
     @validator("panels")
-    def _resolve_collisions(cls, v):
+    def _resolve_collisions(cls, v):  # noqa: N805
         v2 = resolve_collisions(v)
         return v2
 
@@ -879,7 +879,7 @@ class CustomGradientPoint:
     offset: float = Field(ge=0, le=100)
 
     @validator("color")
-    def validate_color(cls, v):
+    def validate_color(cls, v):  # noqa: N805
         if not internal.is_valid_color(v):
             raise ValueError("invalid color, value should be hex, rgb, or rgba")
         return v
