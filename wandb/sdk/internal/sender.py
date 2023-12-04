@@ -764,9 +764,9 @@ class SendManager:
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity,
+            entity=entity,  # type: ignore
             project_name=run.project,
-            name=run.run_id,  # type: ignore
+            name=run.run_id,
         )
 
         if not resume_status:
