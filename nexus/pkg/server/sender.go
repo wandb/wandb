@@ -2,13 +2,14 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -79,6 +80,9 @@ type Sender struct {
 
 	// Keep track of config which is being updated incrementally
 	configMap map[string]interface{}
+
+	// Info about the (local) server we are talking to
+	serverInfo *gql.ServerInfoServerInfo
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
@@ -160,6 +164,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
 		)
 
+		sender.getServerInfo()
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
@@ -883,15 +888,48 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 	s.outChan <- result
 }
 
-func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+func (s *Sender) getServerInfo() {
 	if s.graphqlClient == nil {
 		return
+	}
+
+	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
+	if err != nil {
+		err = fmt.Errorf("sender: getServerInfo: failed to get server info: %s", err)
+		s.logger.CaptureError("sender received error", err)
+		return
+	}
+	s.serverInfo = data.GetServerInfo()
+
+	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
+}
+
+// TODO: this function is for deciding which GraphQL query/mutation versions to use
+// func (s *Sender) getServerVersion() string {
+// 	if s.serverInfo == nil {
+// 		return ""
+// 	}
+// 	return s.serverInfo.GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
+// }
+
+func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+
+	localInfo := &service.LocalInfo{}
+	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
+		localInfo = &service.LocalInfo{
+			Version:   s.serverInfo.GetLatestLocalVersionInfo().GetLatestVersionString(),
+			OutOfDate: s.serverInfo.GetLatestLocalVersionInfo().GetOutOfDate(),
+		}
 	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
-				ResponseType: &service.Response_ServerInfoResponse{}, // todo: fill in
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{
+						LocalInfo: localInfo,
+					},
+				},
 			},
 		},
 		Control: record.Control,

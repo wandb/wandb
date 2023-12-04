@@ -1,6 +1,5 @@
 id: 0.mp.18-multiple-crash
-tag:
-  shard: service
+
 plugin:
   - wandb
 var:

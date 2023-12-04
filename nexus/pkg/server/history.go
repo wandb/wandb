@@ -2,13 +2,14 @@ package server
 
 import (
 	"container/heap"
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/nexuslib"
 	"github.com/wandb/wandb/nexus/pkg/service"

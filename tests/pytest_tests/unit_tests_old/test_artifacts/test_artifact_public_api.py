@@ -83,6 +83,8 @@ def test_artifact_files(runner, mock_server, api):
         assert "storagePath" not in file._attrs.keys()
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
+@pytest.mark.skipif(platform.system() == "Windows", reason="TODO: fix on windows")
 def test_artifact_download(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
     with runner.isolated_filesystem():
@@ -108,6 +110,7 @@ def test_artifact_delete(runner, mock_server, api):
         art.delete(delete_aliases=True)
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifact_checkout(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
     with runner.isolated_filesystem():
@@ -152,6 +155,7 @@ def test_artifact_manual_use(runner, mock_server, api):
     assert True
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifact_bracket_accessor(runner, live_mock_server, api):
     art = api.artifact("entity/project/dummy:v0", type="dataset")
     assert art["t"].__class__ == wandb.Table
@@ -184,6 +188,7 @@ def test_artifact_manual_error(runner, mock_server, api):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="Verify is broken on Windows"
 )
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_artifact_verify(runner, mock_server, api, mocked_run):
     wandb.run = mocked_run
     art = api.artifact("entity/project/mnist:v0", type="dataset")

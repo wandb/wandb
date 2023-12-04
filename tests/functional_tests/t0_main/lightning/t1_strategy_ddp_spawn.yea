@@ -1,8 +1,6 @@
 id: 1.lightning.strategy.ddp.spawn
 plugin:
   - wandb
-tag:
-  shard: service
 depend:
   requirements:
     - torch

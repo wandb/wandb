@@ -13,10 +13,10 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _minimum_nexus_version, _sentry, termlog
+from wandb import _sentry, termlog
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
-from wandb.util import get_module
+from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -42,17 +42,6 @@ class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
     pass
-
-
-def _check_nexus_version_compatibility(nexus_version: str) -> None:
-    """Checks if the installed nexus version is compatible with the wandb version."""
-    from pkg_resources import parse_version
-
-    if parse_version(nexus_version) < parse_version(_minimum_nexus_version):
-        raise ImportError(
-            f"Requires wandb-core version {_minimum_nexus_version} or later, "
-            f"but you have {nexus_version}. Run `pip install --upgrade wandb[nexus]` to upgrade."
-        )
 
 
 class _Service:
@@ -171,24 +160,14 @@ class _Service:
                 exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
-            if self._settings._require_nexus:
-                # NOTE: The wandb_core module will be distributed at first as an alpha
-                #       package as "wandb-core-alpha" to avoid polluting the pypi namespace.
-                #
-                #       When the package reaches compatibility milestones, it will be released
-                #       as "wandb-core".
-                #
-                #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
-                #       to assist in running the nexus service from a live development directory.
-                nexus_path: str = os.environ.get("_WANDB_NEXUS_PATH") or ""
-                if not nexus_path:
-                    wandb_nexus = get_module(
-                        "wandb_core",
-                        required="The nexus experiment requires the wandb_core module.",
-                    )
-                    _check_nexus_version_compatibility(wandb_nexus.__version__)
-                    nexus_path = wandb_nexus.get_nexus_path()
-                service_args.extend([nexus_path])
+            # NOTE: "wandb-core" is the name of the package that will be distributed
+            #       as the stable version of the wandb core library.
+            #
+            #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
+            #       to assist in running the nexus service from a live development directory.
+            core_path = get_core_path()
+            if core_path:
+                service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []

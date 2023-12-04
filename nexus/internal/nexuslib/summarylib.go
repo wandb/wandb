@@ -1,8 +1,9 @@
 package nexuslib
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 )

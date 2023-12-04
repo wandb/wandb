@@ -1,6 +1,4 @@
 id: 0.mp.17-service-crash
-tag:
-  shard: service
 plugin:
   - wandb
 assert:

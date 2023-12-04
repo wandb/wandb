@@ -193,6 +193,7 @@ class RetryingClient:
                 latestLocalVersionInfo {
                     outOfDate
                     latestVersionString
+                    versionOnThisInstanceString
                 }
             }
         }
@@ -447,20 +448,31 @@ class Api:
         self,
         name: str,
         type: "RunQueueResourceType",
-        access: "RunQueueAccessType",
         entity: Optional[str] = None,
         prioritization_mode: Optional["RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
+        template_variables: Optional[dict] = None,
     ) -> "RunQueue":
         """Create a new run queue (launch).
 
         Arguments:
             name: (str) Name of the queue to create
             type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
-            access: (str) Access level for the queue. Either "project" or "user".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
-            config: (dict) Optional default resource configuration to be used for the queue.
+            config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
+            template_variables (dict): A dictionary of template variable schemas to be used with the config. Expected format of:
+                {
+                    "var-name": {
+                        "schema": {
+                            "type": "<string | number | integer>",
+                            "default": <optional value>,
+                            "minimum": <optional minimum>,
+                            "maximum": <optional maximum>,
+                            "enum": [..."<options>"]
+                        }
+                    }
+                }
 
         Returns:
             The newly created `RunQueue`
@@ -482,10 +494,6 @@ class Api:
             raise ValueError("name must be non-empty")
         if len(name) > 64:
             raise ValueError("name must be less than 64 characters")
-
-        access = access.upper()
-        if access not in ["PROJECT", "USER"]:
-            raise ValueError("access must be one of 'project' or 'user'")
 
         if type not in [
             "local-container",
@@ -520,7 +528,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         create_config_result = api.create_default_resource_config(
-            entity, type, config_json
+            entity, type, config_json, template_variables
         )
         if not create_config_result["success"]:
             raise wandb.Error("failed to create default resource config")
@@ -528,7 +536,12 @@ class Api:
 
         # 3. create run queue
         create_queue_result = api.create_run_queue(
-            entity, LAUNCH_DEFAULT_PROJECT, name, access, prioritization_mode, config_id
+            entity,
+            LAUNCH_DEFAULT_PROJECT,
+            name,
+            "PROJECT",
+            prioritization_mode,
+            config_id,
         )
         if not create_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
@@ -538,7 +551,7 @@ class Api:
             name=name,
             entity=entity,
             prioritization_mode=prioritization_mode,
-            _access=access,
+            _access="PROJECT",
             _default_resource_config_id=config_id,
             _default_resource_config=config,
         )
@@ -970,8 +983,8 @@ class Api:
         project,
         queue_name,
         run_queue_item_id,
-        container_job=False,
         project_queue=None,
+        priority=None,
     ):
         """Return a single queued run based on the path.
 
@@ -983,8 +996,8 @@ class Api:
             project,
             queue_name,
             run_queue_item_id,
-            container_job=container_job,
             project_queue=project_queue,
+            priority=priority,
         )
 
     def run_queue(
@@ -2481,8 +2494,8 @@ class QueuedRun:
         project,
         queue_name,
         run_queue_item_id,
-        container_job=False,
         project_queue=LAUNCH_DEFAULT_PROJECT,
+        priority=None,
     ):
         self.client = client
         self._entity = entity
@@ -2491,8 +2504,8 @@ class QueuedRun:
         self._run_queue_item_id = run_queue_item_id
         self.sweep = None
         self._run = None
-        self.container_job = container_job
         self.project_queue = project_queue
+        self.priority = priority
 
     @property
     def queue_name(self):
@@ -2874,17 +2887,14 @@ class RunQueue:
         cls,
         name: str,
         resource: "RunQueueResourceType",
-        access: "RunQueueAccessType",
         entity: Optional[str] = None,
+        prioritization_mode: Optional["RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
+        template_variables: Optional[dict] = None,
     ) -> "RunQueue":
         public_api = Api()
         return public_api.create_run_queue(
-            name,
-            resource,
-            access,
-            entity,
-            config,
+            name, resource, entity, prioritization_mode, config, template_variables
         )
 
 
@@ -4897,7 +4907,9 @@ class Job:
         queue=None,
         resource="local-container",
         resource_args=None,
+        template_variables=None,
         project_queue=None,
+        priority=None,
     ):
         from wandb.sdk.launch import _launch_add
 
@@ -4922,11 +4934,13 @@ class Job:
         queued_run = _launch_add.launch_add(
             job=self._name,
             config={"overrides": {"run_config": run_config}},
+            template_variables=template_variables,
             project=project or self._project,
             entity=entity or self._entity,
             queue_name=queue,
             resource=resource,
             project_queue=project_queue,
             resource_args=resource_args,
+            priority=priority,
         )
         return queued_run
