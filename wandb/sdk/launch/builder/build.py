@@ -7,7 +7,6 @@ import shutil
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
 
 import pkg_resources
 import yaml
