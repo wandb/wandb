@@ -560,7 +560,7 @@ class Runset(Base):
         return internal.filters_to_expr(self._filters)
 
     @root_validator(pre=True)
-    def special_filters_assignment(cls, values):
+    def special_filters_assignment(cls, values):  # noqa: N805
         # This preserves the Refs for filters that are not modified.
         if isinstance(values, pydantic_core._pydantic_core.ArgsKwargs):
             kwargs = values.kwargs
