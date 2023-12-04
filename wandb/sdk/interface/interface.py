@@ -708,19 +708,19 @@ class InterfaceBase:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
 
-    def deliver_sender_read(
+    def deliver_sync(
         self,
         start_offset: int,
         final_offset: int,
     ) -> MailboxHandle:
-        sender_read = pb.SenderReadRequest(
+        sync = pb.SyncRequest(
             start_offset=start_offset,
             final_offset=final_offset,
         )
-        return self._deliver_sender_read(sender_read)
+        return self._deliver_sync(sync)
 
     @abstractmethod
-    def _deliver_sender_read(self, sender_read: pb.SenderReadRequest) -> MailboxHandle:
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
         raise NotImplementedError
 
     @abstractmethod

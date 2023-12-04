@@ -498,6 +498,7 @@ message Request {
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
+    SyncRequest sync = 76;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -527,7 +528,7 @@ message Response {
     ServerInfoResponse server_info_response = 67;
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
-    SenderReadResponse sender_read_response = 70;
+    SyncResponse sync_response = 70;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -684,16 +685,21 @@ message PollExitResponse {
  */
 message SenderMarkRequest {}
 
+message SyncRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+}
+
+message SyncResponse {
+  string url = 1;
+  ErrorInfo error = 2;
+}
+
 message SenderReadRequest {
   int64 start_offset = 1;
   int64 final_offset = 2;
   // TODO: implement cancel for paused ops
   // repeated string cancel_list = 3;
-}
-
-message SenderReadResponse {
-  string url = 1;
-  ErrorInfo error = 2;
 }
 
 message StatusReportRequest {

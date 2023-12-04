@@ -317,6 +317,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+	case *service.Request_Sync:
+		h.handleSync(record)
+		response = nil
 	case *service.Request_SenderRead:
 		h.handleSenderRead(record)
 		response = nil
@@ -708,6 +711,10 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	info := record.GetRequest().GetFileTransferInfo()
 	h.ft.Handle(info)
+}
+
+func (h *Handler) handleSync(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleSenderRead(record *service.Record) {

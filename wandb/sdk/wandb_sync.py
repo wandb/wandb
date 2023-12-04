@@ -36,12 +36,13 @@ def _sync(path):
 
     mailbox.enable_keepalive()
 
-    handle = backend.interface.deliver_sender_read(
+    # TODO: let's add extra sync messages here so we get the url in the beginning
+    handle = backend.interface.deliver_sync(
         start_offset=0,
         final_offset=-1,
     )
     result = handle.wait(timeout=-1)
-    response = result.response.sender_read_response
+    response = result.response.sync_response
     if response.url:
         termlog(f"Syncing {p} to {response.url}")
     else:

@@ -263,6 +263,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case *service.Request_Sync:
+		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
 	default:
@@ -919,19 +921,38 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 	s.outChan <- result
 }
 
+func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
+
+	rec := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_SenderRead{
+					SenderRead: &service.SenderReadRequest{
+						StartOffset: request.GetStartOffset(),
+						FinalOffset: request.GetFinalOffset(),
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.loopbackChan <- rec
+}
+
 func (s *Sender) processStore() (bool, error) {
 	// TODO: work through failure cases. use context to do graceful shutdowns.
 	var exitSeen bool
 	for {
 		record, err := s.store.Read()
-
 		if err == io.EOF {
 			if exitSeen {
 				return true, nil
 			}
 			err = fmt.Errorf("transaction log was corrupted, some data may be lost")
 			return false, err
-		} else if err != nil {
+		}
+		if err != nil {
 			s.logger.CaptureError("failed to process transaction log, some data may be lost", err)
 			return exitSeen, err
 		}
@@ -966,16 +987,13 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 		}
 		s.store = store
 	}
+	// TODO:
+	// 1. seek to startOffset
+	//
 	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
 	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
 	// 	return
 	// }
-	// TODO:
-	// 1. seek to startOffset
-	// 2. read records
-	// 3. send records
-	// 4. repeat 2-3 until finalOffset
-	// re-think this reading path... how should it work with parallel sends?
 
 	ok, err := s.processStore()
 
@@ -996,8 +1014,8 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 	s.syncResult = &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
-				ResponseType: &service.Response_SenderReadResponse{
-					SenderReadResponse: &service.SenderReadResponse{
+				ResponseType: &service.Response_SyncResponse{
+					SyncResponse: &service.SyncResponse{
 						Url:   url,
 						Error: errorInfo,
 					},
@@ -1015,7 +1033,7 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 				},
 			},
 		}
-		s.sendExit(record, record.GetExit())
+		s.sendRecord(record)
 	}
 }
 
