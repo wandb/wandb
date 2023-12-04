@@ -645,7 +645,7 @@ class CustomGradientPoint(ReportAPIBaseModel):
     offset: float = Field(0, ge=0, le=100)
 
     @validator("color")
-    def validate_color(cls, v):
+    def validate_color(cls, v):  # noqa: N805
         if not is_valid_color(v):
             raise ValueError("invalid color, value should be hex, rgb, or rgba")
         return v
