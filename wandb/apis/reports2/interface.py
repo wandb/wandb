@@ -3,7 +3,6 @@ import os
 import re
 from dataclasses import field
 from datetime import datetime
-from functools import partial
 from typing import Iterable, Literal, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
@@ -31,6 +30,7 @@ from .internal import (
 TextLike = Union[str, "TextWithInlineComments", "Link", "Latex"]
 TextLikeField = Union[TextLike, list[TextLike]]
 FilterExpr = str
+Color = str
 
 
 def get_api():
@@ -38,9 +38,6 @@ def get_api():
         return wandb.Api()
     except wandb.errors.UsageError as e:
         raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
-
-
-internal_field = partial(field, init=False, repr=False)
 
 
 _api = get_api()
@@ -53,12 +50,6 @@ dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=Tr
 
 @dataclass(config=dataclass_config)
 class Base:
-    ...
-    # TODO: Add __repr__ that hides Nones
-
-
-@dataclass(config=dataclass_config, frozen=True)
-class FrozenBase:
     ...
     # TODO: Add __repr__ that hides Nones
 
@@ -83,45 +74,6 @@ class SummaryMetric(Metric):
 @dataclass(config=dataclass_config)
 class LoggedMetric(Metric):
     ...
-
-
-@dataclass(config=dataclass_config, frozen=True)
-class InlineComment(FrozenBase):
-    ref_id: str
-    thread_id: str
-    comment_id: str
-    comments: dict
-
-    def to_model(self):
-        return internal.InlineComment(
-            ref_id=self.ref_id,
-            thread_id=self.thread_id,
-            comment_id=self.comment_id,
-            comments=self.comments,
-        )
-
-    @classmethod
-    def from_model(cls, model: internal.InlineComment):
-        return cls(
-            ref_id=model.ref_id,
-            thread_id=model.thread_id,
-            comment_id=model.comment_id,
-            comments=model.comments,
-        )
-
-
-@dataclass(config=dataclass_config, frozen=True)
-class Ref(FrozenBase):
-    type: str = ""
-    view_id: str = ""
-    id: str = ""
-
-    def to_model(self):
-        return internal.Ref(type=self.type, view_id=self.view_id, id=self.id)
-
-    @classmethod
-    def from_model(cls, model: internal.Ref):
-        return cls(type=model.type, view_id=model.view_id, id=model.id)
 
 
 @dataclass(config=dataclass_config)
@@ -235,8 +187,8 @@ class Link(Base):
     text: Union[str, TextWithInlineComments]
     url: str
 
-    _inline_comments: Optional[list[internal.InlineComment]] = internal_field(
-        default_factory=lambda: None
+    _inline_comments: Optional[list[internal.InlineComment]] = field(
+        default_factory=lambda: None, init=False, repr=False
     )
 
 
@@ -557,7 +509,7 @@ class CustomRunColors(Base):
 
 
 @dataclass(config=dataclass_config)
-class Order(Base):
+class OrderBy(Base):
     name: str
     ascending: bool = False
 
@@ -590,12 +542,14 @@ class Runset(Base):
         default_factory=MissingFilter
     )
     groupby: list[str] = Field(default_factory=list)
-    order: list[Order] = Field(
-        default_factory=lambda: [Order("CreatedTimestamp", ascending=False)]
+    order: list[OrderBy] = Field(
+        default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
     )
 
-    _id: str = internal_field(default_factory=_generate_name)
-    _filters: internal.Filters = internal_field(default_factory=internal.Filters)
+    _id: str = field(default_factory=_generate_name, init=False, repr=False)
+    _filters: internal.Filters = field(
+        default_factory=internal.Filters, init=False, repr=False
+    )
 
     def set_filter_expr(self, expr):
         self._filters = internal.expr_to_filters(expr)
@@ -647,7 +601,7 @@ class Runset(Base):
             name=model.name,
             _filters=model.filters,
             groupby=[internal.get_backend_name(k.name) for k in model.grouping],
-            order=[Order.from_model(s) for s in model.sort.keys],
+            order=[OrderBy.from_model(s) for s in model.sort.keys],
             _id=model.id,
         )
 
@@ -657,7 +611,9 @@ class Panel(Base):
     id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
 
-    _ref: Optional[Ref] = internal_field(default_factory=Ref)
+    _ref: Optional[internal.Ref] = field(
+        default_factory=lambda: None, init=False, repr=False
+    )
 
 
 # @dataclass(config=dataclass_config)
@@ -670,17 +626,22 @@ class Panel(Base):
 
 @dataclass(config=dataclass_config)
 class PanelGrid(Block):
-    runsets: list[Runset] = Field(default_factory=lambda: [Runset()])
+    runsets: list["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: list["PanelTypes"] = Field(default_factory=list)
     # custom_run_colors: Optional[CustomRunColors] = None
     active_runset: int = 0
 
     # columns: list[str] = Field(default_factory=list)
 
-    _ref: Optional[Ref] = field(default_factory=lambda: None, init=False, repr=False)
+    _ref: Optional[internal.Ref] = field(
+        default_factory=lambda: None, init=False, repr=False
+    )
     _open_viz: bool = field(default_factory=lambda: True, init=False, repr=False)
     _panel_bank_sections: list[dict] = field(
         default_factory=list, init=False, repr=False
+    )
+    _panel_grid_metadata_ref: Optional[internal.Ref] = field(
+        default_factory=lambda: None, init=False, repr=False
     )
 
     def to_model(self):
@@ -691,19 +652,10 @@ class PanelGrid(Block):
                     panels=[p.to_model() for p in self.panels],
                 ),
                 panels=internal.PanelGridMetadataPanels(
-                    ref=internal.Ref(**self._ref.to_model().model_dump())
-                    if self._ref
-                    else internal.Ref(),
+                    ref=self._panel_grid_metadata_ref,
+                    panel_bank_config=internal.PanelBankConfig(),
+                    open_viz=self._open_viz,
                 ),
-                panel_bank_config=internal.PanelBankConfig(
-                    # sections=[
-                    #     internal.PanelBankConfigSectionsItem(x.model_dump())
-                    #     for x in self._panel_bank_sections
-                    # ]
-                    local_panel_settings=...
-                ),
-                open_viz=self._open_viz,
-                # custom_run_colors=custom_run_colors,
             )
         )
 
@@ -716,7 +668,7 @@ class PanelGrid(Block):
                 for p in model.metadata.panel_bank_section_config.panels
             ],
             active_runset=model.metadata.open_run_set,
-            _ref=Ref.from_model(model.metadata.panels.ref),
+            _ref=model.metadata.panels.ref,
             _open_viz=model.metadata.open_viz,
             # _panel_bank_sections=model.metadata.panel_bank_config.sections,
         )
@@ -810,9 +762,9 @@ class LinePlot(Panel):
     groupby_rangefunc: Optional[GroupArea] = None
     smoothing_factor: Optional[float] = None
     smoothing_type: Optional[SmoothingType] = None
-    smoothing_show_original: Optional[bool] = None
+    smoothing_show_original: Optional[Literal[True]] = None
     max_runs_to_show: Optional[int] = None
-    custom_expressions: Optional[str] = None
+    custom_expressions: Optional[list[str]] = None
     plot_type: Optional[LinePlotStyle] = None
     font_size: Optional[FontSize] = None
     legend_position: Optional[LegendPosition] = None
@@ -852,9 +804,7 @@ class LinePlot(Panel):
             ),
             id=self.id,
             layout=self.layout.to_model(),
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -886,14 +836,14 @@ class LinePlot(Panel):
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
 @dataclass(config=dataclass_config)
 class CustomGradientPoint:
-    offset: int
-    color: str
+    color: Color
+    offset: int = Field(ge=0, le=100)
 
     @validator("color")
     def validate_hex_color(cls, v):  # noqa: N805
@@ -918,16 +868,16 @@ class ScatterPlot(Panel):
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     range_z: Range = Field(default_factory=lambda: (None, None))
-    log_x: Optional[bool] = None
-    log_y: Optional[bool] = None
-    log_z: Optional[bool] = None
-    running_ymin: Optional[bool] = None
-    running_ymax: Optional[bool] = None
-    running_ymean: Optional[bool] = None
+    log_x: Optional[Literal[True]] = None
+    log_y: Optional[Literal[True]] = None
+    log_z: Optional[Literal[True]] = None
+    running_ymin: Optional[Literal[True]] = None
+    running_ymax: Optional[Literal[True]] = None
+    running_ymean: Optional[Literal[True]] = None
     legend_template: Optional[str] = None
     gradient: Optional[list[CustomGradientPoint]] = None
     font_size: Optional[FontSize] = None
-    regression: Optional[bool] = None
+    regression: Optional[Literal[True]] = None
 
     def to_model(self):
         if (custom_gradient := self.gradient) is not None:
@@ -958,9 +908,7 @@ class ScatterPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -987,7 +935,7 @@ class ScatterPlot(Panel):
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1033,9 +981,7 @@ class BarPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1059,7 +1005,7 @@ class BarPlot(Panel):
             line_colors=model.config.override_colors,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1086,9 +1032,7 @@ class ScalarChart(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1103,7 +1047,7 @@ class ScalarChart(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1116,9 +1060,7 @@ class CodeComparer(Panel):
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1127,7 +1069,7 @@ class CodeComparer(Panel):
             diff=model.config.diff,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1138,7 +1080,9 @@ class ParallelCoordinatesPlotColumn(Base):
     inverted: Optional[Literal[True]] = None
     log: Optional[Literal[True]] = None
 
-    _ref: Ref = internal_field(default_factory=Ref)
+    _ref: Optional[internal.Ref] = field(
+        default_factory=lambda: None, init=False, repr=False
+    )
 
     def to_model(self):
         return internal.Column(
@@ -1146,9 +1090,7 @@ class ParallelCoordinatesPlotColumn(Base):
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1158,7 +1100,7 @@ class ParallelCoordinatesPlotColumn(Base):
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1179,9 +1121,7 @@ class ParallelCoordinatesPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1196,7 +1136,7 @@ class ParallelCoordinatesPlot(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1211,9 +1151,7 @@ class ParameterImportancePlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1222,7 +1160,7 @@ class ParameterImportancePlot(Panel):
             with_respect_to=model.config.target_key,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1235,9 +1173,7 @@ class RunComparer(Panel):
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1246,7 +1182,7 @@ class RunComparer(Panel):
             diff_only=model.config.diff_only,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1263,9 +1199,7 @@ class MediaBrowser(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1275,7 +1209,7 @@ class MediaBrowser(Panel):
             media_keys=model.config.media_keys,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1288,9 +1222,7 @@ class MarkdownPanel(Panel):
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump())
-            if self._ref
-            else internal.Ref(),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1299,7 +1231,7 @@ class MarkdownPanel(Panel):
             markdown=model.config.value,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=Ref.from_model(model.ref),
+            _ref=model.ref,
         )
 
 
@@ -1365,7 +1297,7 @@ class CustomChart(Panel):
             ),
             layout=self.layout.to_model(),
             # id=self.id,
-            ref=internal.Ref(**self._ref.to_model().model_dump()),
+            ref=self._ref,
         )
 
     @classmethod
@@ -1375,7 +1307,8 @@ class CustomChart(Panel):
             # chart_name=model.config.panel_def_id,
             # chart_fields=model.config.field_settings,
             # chart_strings=model.config.string_settings,
-            _ref=Ref.from_model(model.ref),
+            layout=Layout.from_model(model.layout),
+            _ref=model.ref,
         )
 
 

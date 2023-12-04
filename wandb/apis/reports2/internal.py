@@ -565,7 +565,7 @@ class Layout(ReportAPIBaseModel):
 class Panel(ReportAPIBaseModel):
     id: str = Field("", alias="__id__")
     layout: Layout = Field(default_factory=Layout)
-    ref: Ref = Field(default_factory=lambda: Ref(type="panel"))
+    ref: Optional[Ref] = None
 
 
 class MediaBrowserConfig(ReportAPIBaseModel):
@@ -683,8 +683,8 @@ class BarPlotConfig(ReportAPIBaseModel):
     expressions: Optional[str] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
-    override_series_titles: Optional[str] = None
-    override_colors: Optional[str] = None
+    override_series_titles: Optional[dict] = None
+    override_colors: Optional[dict] = None
 
 
 class BarPlot(Panel):
@@ -721,6 +721,7 @@ class Column(ReportAPIBaseModel):
     display_name: Optional[str] = None
     inverted: Optional[Literal[True]] = None
     log: Optional[Literal[True]] = None
+    ref: Optional[Ref] = None
 
 
 class ParallelCoordinatesPlotConfig(ReportAPIBaseModel):
