@@ -303,6 +303,7 @@ def test_artifact_upload_succeeds_with_async(
         assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
     """Don't re-download an artifact if it's already in the desired location."""
     cache_dir = tmp_path / "cache"
@@ -337,6 +338,7 @@ def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypat
         assert file1.read_text() == "hello"
 
 
+@pytest.mark.nexus_failure(feature="artifacts")
 def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch):
     """*Do* re-download an artifact if it's been modified in place."""
     cache_dir = tmp_path / "cache"

@@ -56,8 +56,7 @@ type Stream struct {
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
-	logFile := settings.GetLogInternal().GetValue()
-	logger := SetupStreamLogger(logFile, settings)
+	logger := SetupStreamLogger(settings)
 
 	s := &Stream{
 		ctx:      ctx,
@@ -75,7 +74,6 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 	s.dispatcher = NewDispatcher(s.logger)
 
 	s.logger.Info("created new stream", "id", s.settings.RunId)
-
 	return s
 }
 

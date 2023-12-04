@@ -69,7 +69,7 @@ class Image(BatchableMedia):
             image data, or a PIL image. The class attempts to infer
             the data format and converts it.
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
-            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes.
+            "RGBA". Full explanation at https://pillow.readthedocs.io/en/stable/handbook/concepts.html#modes
         caption: (string) Label for display of image.
 
     Note : When logging a `torch.Tensor` as a `wandb.Image`, images are normalized. If you do not want to normalize your images, please convert your tensors to a PIL Image.
@@ -81,13 +81,13 @@ class Image(BatchableMedia):
         import numpy as np
         import wandb
 
-        wandb.init()
-        examples = []
-        for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
-            image = wandb.Image(pixels, caption=f"random field {i}")
-            examples.append(image)
-        wandb.log({"examples": examples})
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
         ```
 
         ### Create a wandb.Image from a PILImage
@@ -97,14 +97,29 @@ class Image(BatchableMedia):
         from PIL import Image as PILImage
         import wandb
 
-        wandb.init()
-        examples = []
-        for i in range(3):
-            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
-            pil_image = PILImage.fromarray(pixels, mode="RGB")
-            image = wandb.Image(pil_image, caption=f"random field {i}")
-            examples.append(image)
-        wandb.log({"examples": examples})
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            run.log({"examples": examples})
+        ```
+
+        ### log .jpg rather than .png (default)
+        <!--yeadoc-test:log-image-format-->
+        ```python
+        import numpy as np
+        import wandb
+
+        with wandb.init() as run:
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}", file_type="jpg")
+                examples.append(image)
+            run.log({"examples": examples})
         ```
     """
 
@@ -124,6 +139,7 @@ class Image(BatchableMedia):
     _classes: Optional["Classes"]
     _boxes: Optional[Dict[str, "BoundingBoxes2D"]]
     _masks: Optional[Dict[str, "ImageMask"]]
+    _file_type: Optional[str]
 
     def __init__(
         self,
@@ -134,6 +150,7 @@ class Image(BatchableMedia):
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        file_type: Optional[str] = None,
     ) -> None:
         super().__init__()
         # TODO: We should remove grouping, it's a terrible name and I don't
@@ -147,6 +164,7 @@ class Image(BatchableMedia):
         self._classes = None
         self._boxes = None
         self._masks = None
+        self._file_type = None
 
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
@@ -158,9 +176,10 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            self._initialize_from_data(data_or_path, mode)
-
-        self._set_initialization_meta(grouping, caption, classes, boxes, masks)
+            self._initialize_from_data(data_or_path, mode, file_type)
+        self._set_initialization_meta(
+            grouping, caption, classes, boxes, masks, file_type
+        )
 
     def _set_initialization_meta(
         self,
@@ -169,6 +188,7 @@ class Image(BatchableMedia):
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
+        file_type: Optional[str] = None,
     ) -> None:
         if grouping is not None:
             self._grouping = grouping
@@ -239,6 +259,7 @@ class Image(BatchableMedia):
         self._sha256 = wbimage._sha256
         self._size = wbimage._size
         self.format = wbimage.format
+        self._file_type = wbimage._file_type
         self._artifact_source = wbimage._artifact_source
         self._artifact_target = wbimage._artifact_target
 
@@ -270,6 +291,7 @@ class Image(BatchableMedia):
         self,
         data: "ImageDataType",
         mode: Optional[str] = None,
+        file_type: Optional[str] = None,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -301,9 +323,15 @@ class Image(BatchableMedia):
             self._image = pil_image.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
-
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".png")
-        self.format = "png"
+        accepted_formats = ["png", "jpg", "jpeg", "bmp"]
+        if file_type is None:
+            self.format = "png"
+        else:
+            self.format = file_type
+        assert (
+            self.format in accepted_formats
+        ), f"file_type must be one of {accepted_formats}"
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)

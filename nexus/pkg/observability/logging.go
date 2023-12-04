@@ -16,7 +16,9 @@ type NexusLogger struct {
 }
 
 func NewNexusLogger(logger *slog.Logger, tags Tags) *NexusLogger {
-
+	if tags == nil {
+		tags = make(Tags)
+	}
 	nl := &NexusLogger{
 		tags: tags,
 	}

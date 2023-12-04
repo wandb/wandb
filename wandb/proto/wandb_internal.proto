@@ -1024,6 +1024,7 @@ message CpuInfo {
 message GpuAppleInfo {
   string gpuType = 1;
   string vendor = 2;
+  uint32 cores = 3;
 }
 
 message GpuNvidiaInfo {
