@@ -112,6 +112,18 @@ class ReportAPIBaseModel(BaseModel):
     )
 
 
+class UnknownBlock(ReportAPIBaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        # loc_by_alias=False,
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
 class InlineModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -595,8 +607,8 @@ class LinePlotConfig(ReportAPIBaseModel):
     x_axis_max: Optional[float] = None
     y_axis_min: Optional[float] = None
     y_axis_max: Optional[float] = None
-    x_log_scale: Optional[Literal[True]] = None
-    y_log_scale: Optional[Literal[True]] = None
+    x_log_scale: Optional[bool] = None
+    y_log_scale: Optional[bool] = None
     x_axis_title: Optional[str] = None
     y_axis_title: Optional[str] = None
     ignore_outliers: Optional[Literal[True]] = None
@@ -629,13 +641,13 @@ class LinePlot(Panel):
 
 
 class CustomGradientPoint(ReportAPIBaseModel):
-    offset: int = Field(0, ge=0, le=100)
     color: str
+    offset: float = Field(0, ge=0, le=100)
 
     @validator("color")
-    def validate_hex_color(cls, v):  # noqa: N805
-        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", v):
-            raise ValueError("Invalid hex color code")
+    def validate_color(cls, v):
+        if not is_valid_color(v):
+            raise ValueError("invalid color, value should be hex, rgb, or rgba")
         return v
 
 
@@ -697,7 +709,7 @@ class ScalarChartConfig(ReportAPIBaseModel):
     metrics: list[str] = Field(default_factory=list)
     group_agg: Optional[GroupAgg] = None
     group_area: Optional[GroupArea] = None
-    expressions: Optional[str] = None
+    expressions: Optional[list[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
 
@@ -759,7 +771,7 @@ class ParameterImportancePlot(Panel):
 
 
 class RunComparerConfig(ReportAPIBaseModel):
-    diff_only: Optional[Literal["split"]] = None
+    diff_only: Optional[Literal["split", True]] = None
 
 
 class RunComparer(Panel):
@@ -816,7 +828,19 @@ class Vega2(Panel):
     config: Vega2Config = Field(default_factory=Vega2Config)
 
 
-class Weave(Panel):
+class UnknownPanel(ReportAPIBaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        # loc_by_alias=False,
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
+class WeavePanel(Panel):
     view_type: Literal["Weave"] = "Weave"
     config: dict
 
@@ -965,7 +989,8 @@ PanelTypes = Union[
     MediaBrowser,
     MarkdownPanel,
     Vega2,
-    # WeavePanel,
+    WeavePanel,
+    UnknownPanel,
 ]
 
 BlockTypes = Union[
@@ -985,10 +1010,13 @@ BlockTypes = Union[
     PanelGrid,
     TableOfContents,
     BlockQuote,
+    Twitter,
+    UnknownBlock,
     # Block,
 ]
 
 block_type_mapping = {
+    "twitter": Twitter,
     "heading": Heading,
     "paragraph": Paragraph,
     "code-block": CodeBlock,
@@ -1016,45 +1044,36 @@ def get_backend_name(name):
     return reversed_fe_name_mapping.get(name, name)
 
 
-# def fix_collisions(panels: List[Panel]) -> List[Panel]:
-#     x_max = 24
+def is_valid_color(color_str: str) -> bool:
+    # Regular expression for hex color validation
+    hex_color_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
 
-#     for i, p1 in enumerate(panels):
-#         for p2 in panels[i:]:
-#             if collides(p1, p2):
-#                 # try to move right
-#                 x, y = shift(p1, p2)
-#                 if p2.layout.x + p2.layout.w + x <= x_max:
-#                     p2.layout.x += x
+    # Check if it's a valid hex color
+    if re.match(hex_color_pattern, color_str):
+        return True
 
-#                 # if you hit right right bound, move down
-#                 else:
-#                     p2.layout.y += y
+    # Try parsing it as an RGB or RGBA tuple
+    try:
+        # Strip 'rgb(' or 'rgba(' and the closing ')'
+        if color_str.startswith("rgb(") and color_str.endswith(")"):
+            parts = color_str[4:-1].split(",")
+        elif color_str.startswith("rgba(") and color_str.endswith(")"):
+            parts = color_str[5:-1].split(",")
+        else:
+            return False
 
-#                     # then check if you can move left again to cleanup layout
-#                     p2.layout.x = 0
-#     return panels
+        # Convert parts to integers and validate ranges
+        parts = [int(p.strip()) for p in parts]
+        if len(parts) == 3 and all(0 <= p <= 255 for p in parts):
+            return True  # Valid RGB
+        if (
+            len(parts) == 4
+            and all(0 <= p <= 255 for p in parts[:-1])
+            and 0 <= parts[-1] <= 1
+        ):
+            return True  # Valid RGBA
 
+    except ValueError:
+        pass
 
-# def collides(p1: Panel, p2: Panel) -> bool:
-#     l1, l2 = p1.layout, p2.layout
-
-#     if (
-#         (p1.spec["__id__"] == p2.spec["__id__"])
-#         or (l1.x + l1.w <= l2.x)
-#         or (l1.x >= l2.w + l2.x)
-#         or (l1.y + l1.h <= l2.y)
-#         or (l1.y >= l2.y + l2.h)
-#     ):
-#         return False
-
-#     return True
-
-
-# def shift(p1: Panel, p2: Panel) -> Tuple[Panel, Panel]:
-#     l1, l2 = p1.layout, p2.layout
-
-#     x = l1.x + l1.w - l2.x
-#     y = l1.y + l1.h - l2.y
-
-#     return x, y
+    return False

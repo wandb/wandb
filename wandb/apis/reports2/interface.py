@@ -1,6 +1,5 @@
 """Public interfaces for the Report API."""
 import os
-import re
 from dataclasses import field
 from datetime import datetime
 from typing import Iterable, Literal, Optional, Union
@@ -90,21 +89,37 @@ class Layout(Base):
     def from_model(cls, model: internal.Layout):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
 
+    def collides_with(self, other: "Layout"):
+        return not (
+            self.x + self.w <= other.x
+            or self.x >= other.x + other.w
+            or self.y + self.h <= other.y
+            or self.y >= other.y + other.h
+        )
+
 
 @dataclass(config=dataclass_config)
 class Block(Base):
     ...
 
-    # @classmethod
-    # def from_model(cls, model: internal.BlockTypes):
-    #     return None
-    # cls = block_mapping.get(model.__class__)
-    # return cls.from_model(model)
 
-
-@dataclass(config=dataclass_config)
+@dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
 class UnknownBlock(Block):
-    ...
+    def __repr__(self) -> str:
+        class_name = self.__class__.__name__
+        attributes = ", ".join(
+            f"{key}={value!r}" for key, value in self.__dict__.items()
+        )
+        return f"{class_name}({attributes})"
+
+    def to_model(self):
+        d = self.__dict__
+        return internal.UnknownBlock.model_validate(d)
+
+    @classmethod
+    def from_model(cls, model: internal.UnknownBlock):
+        d = model.model_dump()
+        return cls(**d)
 
 
 @dataclass(config=dataclass_config)
@@ -570,6 +585,9 @@ class Runset(Base):
             # if not special case, just return early
             return values
 
+        if kwargs is None:
+            kwargs = {}
+
         filters = kwargs.get("filters", MissingFilter())
         if not isinstance(filters, MissingFilter):
             if isinstance(values, pydantic_core.ArgsKwargs):
@@ -673,6 +691,11 @@ class PanelGrid(Block):
             # _panel_bank_sections=model.metadata.panel_bank_config.sections,
         )
 
+    @validator("panels")
+    def _resolve_collisions(cls, v):
+        v2 = resolve_collisions(v)
+        return v2
+
     @validator("runsets")
     def _validate_list_not_empty(cls, v):  # noqa: N805
         if len(v) < 1:
@@ -692,7 +715,14 @@ class TableOfContents(Block):
 
 @dataclass(config=dataclass_config)
 class Twitter(Block):
-    ...
+    html: str
+
+    def to_model(self):
+        return internal.Twitter(html=self.html)
+
+    @classmethod
+    def from_model(cls, model: internal.Twitter):
+        return cls(html=model.html)
 
 
 @dataclass(config=dataclass_config)
@@ -720,6 +750,8 @@ BlockTypes = Union[
     Block,
     TableOfContents,
     BlockQuote,
+    Twitter,
+    UnknownBlock,
 ]
 
 
@@ -742,6 +774,7 @@ block_mapping = {
     internal.Twitter: Twitter,
     internal.SoundCloud: SoundCloud,
     internal.Block: Block,
+    internal.UnknownBlock: UnknownBlock,
 }
 
 
@@ -752,8 +785,8 @@ class LinePlot(Panel):
     y: Union[list[str], str] = Field(default_factory=list)
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
-    log_x: Optional[Literal[True]] = None
-    log_y: Optional[Literal[True]] = None
+    log_x: Optional[bool] = None
+    log_y: Optional[bool] = None
     title_x: Optional[str] = None
     title_y: Optional[str] = None
     ignore_outliers: Optional[Literal[True]] = None
@@ -842,13 +875,13 @@ class LinePlot(Panel):
 
 @dataclass(config=dataclass_config)
 class CustomGradientPoint:
-    color: Color
-    offset: int = Field(ge=0, le=100)
+    color: str
+    offset: float = Field(ge=0, le=100)
 
     @validator("color")
-    def validate_hex_color(cls, v):  # noqa: N805
-        if not re.match(r"^#(?:[0-9a-fA-F]{3}){1,2}$", v):
-            raise ValueError("Invalid hex color code")
+    def validate_color(cls, v):
+        if not internal.is_valid_color(v):
+            raise ValueError("invalid color, value should be hex, rgb, or rgba")
         return v
 
     def to_model(self):
@@ -952,7 +985,7 @@ class BarPlot(Panel):
     groupby_rangefunc: Optional[GroupArea] = None
     max_runs_to_show: Optional[int] = None
     max_bars_to_show: Optional[int] = None
-    custom_expressions: Optional[str] = None
+    custom_expressions: Optional[list[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
     line_titles: Optional[dict] = None
@@ -1015,7 +1048,7 @@ class ScalarChart(Panel):
     metric: str = ""
     groupby_aggfunc: Optional[GroupAgg] = None
     groupby_rangefunc: Optional[GroupArea] = None
-    custom_expressions: Optional[str] = None
+    custom_expressions: Optional[list[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
 
@@ -1166,7 +1199,7 @@ class ParameterImportancePlot(Panel):
 
 @dataclass(config=dataclass_config)
 class RunComparer(Panel):
-    diff_only: Optional[Literal["split"]] = None
+    diff_only: Optional[Literal["split", True]] = None
 
     def to_model(self):
         return internal.RunComparer(
@@ -1282,6 +1315,16 @@ class CustomChart(Panel):
     chart_fields: dict = Field(default_factory=dict)
     chart_strings: dict = Field(default_factory=dict)
 
+    @classmethod
+    def from_table(
+        cls, table_name: str, chart_fields: dict = None, chart_strings: dict = None
+    ):
+        return cls(
+            query={"summaryTable": {"tableKey": table_name}},
+            chart_fields=chart_fields,
+            chart_strings=chart_strings,
+        )
+
     def to_model(self):
         return internal.Vega2(
             config=internal.Vega2Config(
@@ -1322,9 +1365,36 @@ class Vega3(Panel):
         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
+class UnknownPanel(Base):
+    def __repr__(self) -> str:
+        class_name = self.__class__.__name__
+        attributes = ", ".join(
+            f"{key}={value!r}" for key, value in self.__dict__.items()
+        )
+        return f"{class_name}({attributes})"
+
+    def to_model(self):
+        d = self.__dict__
+        print(d)
+        return internal.UnknownPanel.model_validate(d)
+
+    @classmethod
+    def from_model(cls, model: internal.UnknownPanel):
+        d = model.model_dump()
+        return cls(**d)
+
+
+@dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
 class WeavePanel(Panel):
-    ...
+    config: dict = Field(default_factory=dict)
+
+    def to_model(self):
+        return internal.WeavePanel(config=self.config)
+
+    @classmethod
+    def from_model(cls, model: internal.WeavePanel):
+        return cls(config=model.config)
 
 
 @dataclass(config=dataclass_config)
@@ -1492,7 +1562,7 @@ def _url_to_report_id(url):
 
 
 def _lookup(block):
-    cls = block_mapping.get(block.__class__)
+    cls = block_mapping.get(block.__class__, UnknownBlock)
     return cls.from_model(block)
 
 
@@ -1518,7 +1588,7 @@ def _listify(x):
 
 
 def _lookup_panel(panel):
-    cls = panel_mapping.get(panel.__class__)
+    cls = panel_mapping.get(panel.__class__, UnknownPanel)
     return cls.from_model(panel)
 
 
@@ -1542,7 +1612,7 @@ panel_mapping = {
     internal.ParameterImportancePlot: ParameterImportancePlot,
     internal.RunComparer: RunComparer,
     internal.Vega2: CustomChart,
-    # internal.Weave: Weave,
+    internal.WeavePanel: WeavePanel,
     internal.MediaBrowser: MediaBrowser,
     internal.MarkdownPanel: MarkdownPanel,
 }
@@ -1560,6 +1630,7 @@ PanelTypes = Union[
     MarkdownPanel,
     CustomChart,
     WeavePanel,
+    UnknownPanel,
 ]
 
 
@@ -1643,3 +1714,21 @@ def _internal_children_to_text(children):
         return ""
 
     return pieces
+
+
+def resolve_collisions(panels: list[Panel], x_max: int = 24):
+    for i, p1 in enumerate(panels):
+        for p2 in panels[i + 1 :]:
+            l1, l2 = p1.layout, p2.layout
+
+            if l1.collides_with(l2):
+                x = l2.x + l2.w
+                y = l2.y + l2.h
+
+                if l1.x + l2.w + x <= x_max:
+                    l2.x += x
+
+                else:
+                    l2.y += y
+                    l2.x = 0
+    return panels
