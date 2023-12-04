@@ -149,6 +149,7 @@ class ResumeState:
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
+    tags: Optional[List[str]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -161,6 +162,7 @@ class ResumeState:
         self.wandb_runtime = None
         self.summary = None
         self.config = None
+        self.tags = None
 
     def __str__(self) -> str:
         obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
@@ -542,7 +544,9 @@ class SendManager:
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
+                name=self._run.run_id,
+                config=config_value_dict,
+                **self._api_settings,  # type: ignore
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
@@ -760,7 +764,9 @@ class SendManager:
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
+            entity=entity,  # type: ignore
+            project_name=run.project,
+            name=run.run_id,
         )
 
         if not resume_status:
@@ -809,6 +815,7 @@ class SendManager:
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
                 self._resume_state.wandb_runtime = new_runtime
+            tags = resume_status.get("tags") or []
 
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
@@ -829,6 +836,7 @@ class SendManager:
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
         self._resume_state.summary = summary
+        self._resume_state.tags = tags
         self._resume_state.resumed = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
@@ -1012,6 +1020,10 @@ class SendManager:
         ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
+
+        if self._resume_state and self._resume_state.tags and not run.tags:
+            run.tags.extend(self._resume_state.tags)
+
         server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
