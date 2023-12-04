@@ -83,23 +83,21 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
     if uri.startswith("https://"):
         uri = uri[len("https://") :]
 
-    parsed_uri = urlparse(uri)
-
-    if "azurecr.io" in parsed_uri.netloc:
+    if "azurecr.io" in uri:
         from wandb.sdk.launch.registry.azure_container_registry import (
             AzureContainerRegistry,
         )
 
         return AzureContainerRegistry(uri=uri)
 
-    elif "docker.pkg.dev" in parsed_uri.netloc:
+    elif "docker.pkg.dev" in uri:
         from wandb.sdk.launch.registry.google_artifact_registry import (
             GoogleArtifactRegistry,
         )
 
         return GoogleArtifactRegistry(uri=uri)
 
-    elif "dkr.ecr" in parsed_uri.netloc:
+    elif "dkr.ecr" in uri:
         from wandb.sdk.launch.registry.elastic_container_registry import (
             ElasticContainerRegistry,
         )
