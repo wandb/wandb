@@ -1451,21 +1451,21 @@ class Report(Base):
             return model
         return cls.from_model(model)
 
-    # def to_html(self, height: int = 1024, hidden: bool = False) -> str:
-    #     """Generate HTML containing an iframe displaying this report."""
-    #     try:
-    #         url = self.url + "?jupyter=true"
-    #         style = f"border:none;width:100%;height:{height}px;"
-    #         prefix = ""
-    #         if hidden:
-    #             style += "display:none;"
-    #             prefix = wandb.sdk.lib.ipython.toggle_button("report")
-    #         return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
-    #     except AttributeError:
-    #         wandb.termlog("HTML repr will be available after you save the report!")
+    def to_html(self, height: int = 1024, hidden: bool = False) -> str:
+        """Generate HTML containing an iframe displaying this report."""
+        try:
+            url = self.url + "?jupyter=true"
+            style = f"border:none;width:100%;height:{height}px;"
+            prefix = ""
+            if hidden:
+                style += "display:none;"
+                prefix = wandb.sdk.lib.ipython.toggle_button("report")
+            return prefix + f"<iframe src={url!r} style={style!r}></iframe>"
+        except AttributeError:
+            wandb.termlog("HTML repr will be available after you save the report!")
 
-    # def _repr_html_(self) -> str:
-    #     return self.to_html()
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
 
 def _get_api():
