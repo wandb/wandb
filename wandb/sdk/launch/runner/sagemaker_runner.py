@@ -416,6 +416,6 @@ def get_role_arn(
             "field of resource_args"
         )
     if role_arn.startswith("arn:aws:iam::"):
-        return role_arn
+        return role_arn  # type: ignore
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"
