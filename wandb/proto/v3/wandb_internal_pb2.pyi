@@ -2182,11 +2182,45 @@ class PollExitResponse(google.protobuf.message.Message):
 
 global___PollExitResponse = PollExitResponse
 
-class SenderMarkRequest(google.protobuf.message.Message):
+class SyncOverwrite(google.protobuf.message.Message):
     """
     Sender requests
     """
 
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    RUN_ID_FIELD_NUMBER: builtins.int
+    ENTITY_FIELD_NUMBER: builtins.int
+    PROJECT_FIELD_NUMBER: builtins.int
+    run_id: builtins.str
+    entity: builtins.str
+    project: builtins.str
+    def __init__(
+        self,
+        *,
+        run_id: builtins.str = ...,
+        entity: builtins.str = ...,
+        project: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["entity", b"entity", "project", b"project", "run_id", b"run_id"]) -> None: ...
+
+global___SyncOverwrite = SyncOverwrite
+
+class SyncSkip(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    OUTPUT_RAW_FIELD_NUMBER: builtins.int
+    output_raw: builtins.bool
+    def __init__(
+        self,
+        *,
+        output_raw: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["output_raw", b"output_raw"]) -> None: ...
+
+global___SyncSkip = SyncSkip
+
+class SenderMarkRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     def __init__(
@@ -2200,15 +2234,24 @@ class SyncRequest(google.protobuf.message.Message):
 
     START_OFFSET_FIELD_NUMBER: builtins.int
     FINAL_OFFSET_FIELD_NUMBER: builtins.int
+    OVERWRITE_FIELD_NUMBER: builtins.int
+    SKIP_FIELD_NUMBER: builtins.int
     start_offset: builtins.int
     final_offset: builtins.int
+    @property
+    def overwrite(self) -> global___SyncOverwrite: ...
+    @property
+    def skip(self) -> global___SyncSkip: ...
     def __init__(
         self,
         *,
         start_offset: builtins.int = ...,
         final_offset: builtins.int = ...,
+        overwrite: global___SyncOverwrite | None = ...,
+        skip: global___SyncSkip | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["final_offset", b"final_offset", "start_offset", b"start_offset"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["overwrite", b"overwrite", "skip", b"skip"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["final_offset", b"final_offset", "overwrite", b"overwrite", "skip", b"skip", "start_offset", b"start_offset"]) -> None: ...
 
 global___SyncRequest = SyncRequest
 

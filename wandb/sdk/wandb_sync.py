@@ -8,7 +8,14 @@ from .lib.mailbox import Mailbox
 from .lib.runid import generate_id
 
 
-def _sync(path):
+def _sync(
+    path,
+    entity=None,
+    project=None,
+    run_id=None,
+    console=None,
+    append=None,
+):
     p = pathlib.Path(path)
 
     wl = wandb_setup.setup()
@@ -22,6 +29,8 @@ def _sync(path):
     settings.sync_dir.value = str(p.parent.absolute())
     settings._sync.value = True
     settings.run_id.value = stream_id  # TODO: remove this
+    settings.resume.value = "allow" if append else False
+    # settings.console.value = "off" if console else "auto"
 
     print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
     manager = wl._get_manager()
@@ -40,6 +49,10 @@ def _sync(path):
     handle = backend.interface.deliver_sync(
         start_offset=0,
         final_offset=-1,
+        entity=entity,
+        project=project,
+        run_id=run_id,
+        output_raw=console,
     )
     result = handle.wait(timeout=-1)
     response = result.response.sync_response

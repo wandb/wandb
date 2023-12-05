@@ -683,11 +683,23 @@ message PollExitResponse {
 /*
  * Sender requests
  */
+message SyncOverwrite {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+}
+
+message SyncSkip {
+  bool output_raw = 1;
+}
+
 message SenderMarkRequest {}
 
 message SyncRequest {
   int64 start_offset = 1;
   int64 final_offset = 2;
+  SyncOverwrite overwrite = 3;
+  SyncSkip skip = 4;
 }
 
 message SyncResponse {

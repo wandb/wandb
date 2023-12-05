@@ -712,11 +712,23 @@ class InterfaceBase:
         self,
         start_offset: int,
         final_offset: int,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run_id: Optional[str] = None,
+        output_raw: Optional[bool] = None,
     ) -> MailboxHandle:
         sync = pb.SyncRequest(
             start_offset=start_offset,
             final_offset=final_offset,
         )
+        if entity:
+            sync.overwrite.entity = entity
+        if project:
+            sync.overwrite.project = project
+        if run_id:
+            sync.overwrite.run_id = run_id
+        if output_raw:
+            sync.skip.output_raw = output_raw
         return self._deliver_sync(sync)
 
     @abstractmethod
