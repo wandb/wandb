@@ -18,7 +18,11 @@ def test__global_path_default_does_not_exist_and_is_not_writable():
         "getpass.getuser", return_value="testuser"
     ):
         mock_makedirs.side_effect = [OSError, True]
-        assert Settings._global_path() == "/tmp/.config/wandb/settings"
+        assert Settings._global_path() == os.path.join(
+            "/tmp", ".config", "wandb", "settings"
+        )
 
         mock_makedirs.side_effect = OSError
-        assert Settings._global_path() == "/tmp/testuser/.config/wandb/settings"
+        assert Settings._global_path() == os.path.join(
+            "/tmp", "testuser", ".config", "wandb", "settings"
+        )
