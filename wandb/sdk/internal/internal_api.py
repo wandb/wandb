@@ -881,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
@@ -1230,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }

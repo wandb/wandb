@@ -1,3 +1,41 @@
+# 0.16.1 (Dec 5, 2023)
+
+## What's Changed
+### :magic_wand: Enhancements
+* perf(artifacts): remove recursive download by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6544
+* feat(nexus): add debounce summary in handler by @kptkin in https://github.com/wandb/wandb/pull/6570
+* feat(integrations): fix bug in ultralytics import and version pinning by @soumik12345 in https://github.com/wandb/wandb/pull/6605
+* feat(launch): Support template variables when queueing launch runs by @KyleGoyette in https://github.com/wandb/wandb/pull/6602
+* feat(cli): add --skip-console option to offline sync cli command by @kptkin in https://github.com/wandb/wandb/pull/6557
+* feat(nexus): add basic graphql versioning mechanism by @dmitryduev in https://github.com/wandb/wandb/pull/6624
+* feat(nexus): add Apple M* GPU stats monitoring by @dmitryduev in https://github.com/wandb/wandb/pull/6619
+* feat(launch): add helper to load wandb.Config from env vars by @bcsherma in https://github.com/wandb/wandb/pull/6644
+* feat(integrations): port OpenAI WandbLogger for openai-python v1.0 by @ayulockin in https://github.com/wandb/wandb/pull/6498
+* feat(integrations): fix version check for openAI WandbLogger by @ayulockin in https://github.com/wandb/wandb/pull/6648
+* feat(integrations): Diffusers autologger by @soumik12345 in https://github.com/wandb/wandb/pull/6561
+* feat(sdk): Adding parameter to image to specify file type jpg, png, bmp, gif by @fdsig in https://github.com/wandb/wandb/pull/6280
+### :hammer: Fixes
+* fix(nexus): make offline sync work properly by @dmitryduev in https://github.com/wandb/wandb/pull/6569
+* fix(launch): Fix run existence check to not depend on files being uploaded in the run by @KyleGoyette in https://github.com/wandb/wandb/pull/6548
+* fix(launch): gcp storage uri verifaction failed due to improper async wrapping by @bcsherma in https://github.com/wandb/wandb/pull/6581
+* fix(sdk): updating summary with nested dicts now doesn't throw an error by @ArtsiomWB in https://github.com/wandb/wandb/pull/6578
+* fix(launch): Add prioritization mode to RunQueue create by @TimH98 in https://github.com/wandb/wandb/pull/6610
+* fix(nexus): create symlink to the server logs in the runs folder by @kptkin in https://github.com/wandb/wandb/pull/6628
+* fix(integrations): single value problem in wandb/wandb_torch.py::log_tensor_stats by @gmongaras in https://github.com/wandb/wandb/pull/6640
+* fix(integrations): tmin vs tmax in wandb/wandb_torch.py::log_tensor_stats by @dmitryduev in https://github.com/wandb/wandb/pull/6641
+* fix(nexus): minor fix up for non server cases by @kptkin in https://github.com/wandb/wandb/pull/6645
+* fix(sdk): make old settings more robust by @dmitryduev in https://github.com/wandb/wandb/pull/6654
+* fix(sdk): handle tags when resuming a run by @dmitryduev in https://github.com/wandb/wandb/pull/6660
+### :books: Docs
+* docs(integrations): fix doc-string typo in a keras callback by @evilpegasus in https://github.com/wandb/wandb/pull/6586
+
+## New Contributors
+* @evilpegasus made their first contribution in https://github.com/wandb/wandb/pull/6586
+* @yogeshg made their first contribution in https://github.com/wandb/wandb/pull/6573
+* @gmongaras made their first contribution in https://github.com/wandb/wandb/pull/6640
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.16.0...v0.16.1
+
 # 0.16.0 (Nov 7, 2023)
 
 ## What's Changed

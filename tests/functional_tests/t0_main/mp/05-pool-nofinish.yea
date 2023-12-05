@@ -1,6 +1,9 @@
 id: 0.mp.05-pool-nofinish
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 parametrize:
   permute:
     - :yea:start_method:

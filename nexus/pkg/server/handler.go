@@ -297,6 +297,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleSampledHistory(record, response)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
+		response = nil
 	case *service.Request_Shutdown:
 		shutdown = true
 	case *service.Request_StopStatus:

@@ -18,6 +18,7 @@ query RunResumeStatus($project: String, $entity: String, $name: String!) {
             historyTail
             eventsTail
             config
+            tags
         }
     }
 }
