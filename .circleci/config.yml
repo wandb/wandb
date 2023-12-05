@@ -1206,9 +1206,9 @@ workflows:
                 - yolov5
                 - huggingface
                 - keras
-                - tensorflow
+                # - tensorflow
                 # - pytorch
-                - wandb-sdk-standalone
+                # - wandb-sdk-standalone
                 - wandb-sdk-examples
                 - wandb-sdk-other
                 - s3
