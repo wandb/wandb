@@ -181,7 +181,7 @@ def _create_job(
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
-        run_name=run.id,  # run will be deleted after creation
+        run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
         is_user_created=True,
@@ -197,12 +197,12 @@ def _create_job(
         # is the same as latestArtifact, so no changes detected
         action = "Updated"
 
-    run.log_artifact(artifact, aliases=aliases)
+    run.log_artifact(artifact, aliases=aliases)  # type: ignore
     artifact.wait()
-    run.finish()
+    run.finish()  # type: ignore
 
     # fetch, then delete hidden run
-    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
+    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")  # type: ignore
     _run.delete()
 
     return artifact, action, aliases
