@@ -245,8 +245,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleOutputRaw(record)
 	case *service.Record_Preempting:
 		h.handlePreempting(record)
-	case *service.Record_PublicApi:
-		h.handleAlert(record)
+	// case *service.Record_PublicApi:
+	// 	h.handlePublicApi(record)
 	case *service.Record_Request:
 		h.handleRequest(record)
 	case *service.Record_Run:
