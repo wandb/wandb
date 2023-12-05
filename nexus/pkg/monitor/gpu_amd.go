@@ -1,4 +1,4 @@
-//go:build linux && !libwandb_core
+// go:build linux && !libwandb_core
 
 package monitor
 
@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
 // TODO: this is a port of the python code
@@ -31,19 +33,30 @@ type Stats map[StatsKeys]float64
 type InfoDict map[string]interface{}
 
 type GPUAMD struct {
-	name    string
-	samples []Stats
-	mutex   sync.Mutex
+	name     string
+	settings *service.Settings
+	samples  []Stats
+	mutex    sync.Mutex
 }
 
-func NewGPUAMD() *GPUAMD {
+func NewGPUAMD(settings *service.Settings) *GPUAMD {
 	return &GPUAMD{
-		name:    "gpu",
-		samples: make([]Stats, 0),
+		name:     "gpu",
+		settings: settings,
+		samples:  make([]Stats, 0),
 	}
 }
 
 func (g *GPUAMD) Name() string { return g.name }
+
+func (g *GPUAMD) IsAvailable() bool {
+	_, err := exec.LookPath(rocmSMICmd)
+	return err == nil
+}
+
+func (g *GPUAMD) Probe() *service.MetadataRequest {
+	return nil
+}
 
 func getROCMSMIStats() (InfoDict, error) {
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
@@ -123,6 +136,8 @@ func (g *GPUAMD) SampleMetrics() {
 	if len(cards) > 0 {
 		g.samples = append(g.samples, cards...)
 	}
+
+	fmt.Printf("GPUAMD: %+v\n", g.samples)
 }
 
 func (g *GPUAMD) ClearMetrics() {
