@@ -1177,7 +1177,7 @@ def server_path_to_key(path):
 
 
 class CustomNodeVisitor(ast.NodeVisitor):
-    def visit_Compare(self, node):
+    def visit_Compare(self, node):  # noqa: N802
         left = self.handle_expression(node.left)
         print(f"Expression type: {left}")
         # Continue to handle the comparison operators and right side as needed
