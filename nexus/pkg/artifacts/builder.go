@@ -2,9 +2,7 @@ package artifacts
 
 import (
 	"crypto/md5"
-	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
@@ -42,7 +40,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
-	filename, digest, err := b.writeDataToFile(dataMap)
+	filename, digest, err := utils.WriteJsonToFileWithDigest(dataMap)
 	if err != nil {
 		return err
 	}
@@ -72,28 +70,6 @@ func (b *ArtifactBuilder) updateManifestDigest() {
 func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
 	b.updateManifestDigest()
 	return b.artifactRecord
-}
-
-func (b *ArtifactBuilder) writeDataToFile(dataMap map[string]interface{}) (filename string, digest string, rerr error) {
-	// TODO: consolidate writeDataToFile with manifest.go WriteToFile
-	data, rerr := json.Marshal(dataMap)
-	if rerr != nil {
-		return
-	}
-
-	f, rerr := os.CreateTemp("", "tmpfile-")
-	if rerr != nil {
-		return
-	}
-	defer f.Close()
-	_, rerr = f.Write(data)
-	if rerr != nil {
-		return
-	}
-	filename = f.Name()
-
-	digest, rerr = utils.ComputeB64MD5(data)
-	return
 }
 
 func computeManifestDigest(manifest *Manifest) string {
