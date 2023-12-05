@@ -28,7 +28,7 @@ const (
 	PowerPercent    StatsKeys = "powerPercent"
 )
 
-type Stats map[StatsKeys]float64
+type Stats map[StatsKeys]interface{}
 
 type InfoDict map[string]interface{}
 
@@ -73,33 +73,33 @@ func getROCMSMIStats() (InfoDict, error) {
 	return stats, nil
 }
 
-func (g *GPUAMD) parseStats(stats map[string]string) Stats {
+func (g *GPUAMD) parseStats(stats map[string]interface{}) Stats {
 	parsedStats := make(Stats)
 
-	gpuUsage, err := parseFloat(stats["GPU use (%)"])
-	if err == nil {
+	gpuUsage, ok := stats["GPU use (%)"]
+	if ok {
 		parsedStats[GPU] = gpuUsage
 	}
 
-	memoryUsage, err := parseFloat(stats["GPU memory use (%)"])
-	if err == nil {
-		parsedStats[MemoryAllocated] = memoryUsage
-	}
+	// memoryUsage, err := parseFloat(stats["GPU memory use (%)"])
+	// if err == nil {
+	// 	parsedStats[MemoryAllocated] = memoryUsage
+	// }
 
-	temp, err := parseFloat(stats["Temperature (Sensor memory) (C)"])
-	if err == nil {
-		parsedStats[Temp] = temp
-	}
+	// temp, err := parseFloat(stats["Temperature (Sensor memory) (C)"])
+	// if err == nil {
+	// 	parsedStats[Temp] = temp
+	// }
 
-	powerWatts, err := parseFloat(stats["Average Graphics Package Power (W)"])
-	if err == nil {
-		parsedStats[PowerWatts] = powerWatts
-	}
+	// powerWatts, err := parseFloat(stats["Average Graphics Package Power (W)"])
+	// if err == nil {
+	// 	parsedStats[PowerWatts] = powerWatts
+	// }
 
-	maxPower, errMax := parseFloat(stats["Max Graphics Package Power (W)"])
-	if err == nil && errMax == nil && maxPower != 0 {
-		parsedStats[PowerPercent] = (powerWatts / maxPower) * 100
-	}
+	// maxPower, errMax := parseFloat(stats["Max Graphics Package Power (W)"])
+	// if err == nil && errMax == nil && maxPower != 0 {
+	// 	parsedStats[PowerPercent] = (powerWatts / maxPower) * 100
+	// }
 	return parsedStats
 }
 
@@ -130,7 +130,7 @@ func (g *GPUAMD) SampleMetrics() {
 			if !ok {
 				continue
 			}
-			stats := g.parseStats(cardStats)
+			stats := g.parseStats(value.(map[string]interface{}))
 			cards = append(cards, stats)
 		}
 	}
@@ -155,15 +155,15 @@ func (g *GPUAMD) AggregateMetrics() map[string]float64 {
 	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
-	for _, sample := range g.samples {
-		for key, value := range sample {
-			aggregates[string(key)] += value
-		}
-	}
+	// for _, sample := range g.samples {
+	// 	for key, value := range sample {
+	// 		aggregates[string(key)] += value
+	// 	}
+	// }
 
-	for key := range aggregates {
-		aggregates[key] /= float64(len(g.samples))
-	}
+	// for key := range aggregates {
+	// 	aggregates[key] /= float64(len(g.samples))
+	// }
 
 	return aggregates
 }
