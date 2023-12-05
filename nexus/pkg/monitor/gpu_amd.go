@@ -28,7 +28,7 @@ const (
 	PowerPercent    StatsKeys = "powerPercent"
 )
 
-type Stats map[StatsKeys]interface{}
+type Stats map[StatsKeys]float64
 
 type InfoDict map[string]interface{}
 
@@ -76,45 +76,53 @@ func getROCMSMIStats() (InfoDict, error) {
 func (g *GPUAMD) parseStats(stats map[string]interface{}) Stats {
 	parsedStats := make(Stats)
 
-	gpuUsage, ok := stats["GPU use (%)"]
-	if ok {
-		parsedStats[GPU] = gpuUsage
+	for key, val := range stats {
+		strVal, ok := val.(string)
+		if !ok {
+			// Optionally handle the error if the value is not a string
+			log.Printf("Value for key %s is not a string", key)
+			continue
+		}
+
+		var err error
+		var floatValue float64
+
+		// Process the string value based on the key
+		switch key {
+		case "GPU use (%)":
+			floatValue, err = parseFloat(strVal)
+			if err == nil {
+				parsedStats[GPU] = floatValue
+			}
+		case "GPU memory use (%)":
+			floatValue, err = parseFloat(strVal)
+			if err == nil {
+				parsedStats[MemoryAllocated] = floatValue
+			}
+		case "Temperature (Sensor memory) (C)":
+			floatValue, err = parseFloat(strVal)
+			if err == nil {
+				parsedStats[Temp] = floatValue
+			}
+		case "Average Graphics Package Power (W)":
+			powerWatts, err := parseFloat(strVal)
+			if err == nil {
+				parsedStats[PowerWatts] = powerWatts
+			}
+			// Add other cases as needed
+		}
+
+		// You can add more complex processing here, such as handling the "Max Graphics Package Power (W)" case
 	}
 
-	// memoryUsage, err := parseFloat(stats["GPU memory use (%)"])
-	// if err == nil {
-	// 	parsedStats[MemoryAllocated] = memoryUsage
-	// }
-
-	// temp, err := parseFloat(stats["Temperature (Sensor memory) (C)"])
-	// if err == nil {
-	// 	parsedStats[Temp] = temp
-	// }
-
-	// powerWatts, err := parseFloat(stats["Average Graphics Package Power (W)"])
-	// if err == nil {
-	// 	parsedStats[PowerWatts] = powerWatts
-	// }
-
-	// maxPower, errMax := parseFloat(stats["Max Graphics Package Power (W)"])
-	// if err == nil && errMax == nil && maxPower != 0 {
-	// 	parsedStats[PowerPercent] = (powerWatts / maxPower) * 100
-	// }
 	return parsedStats
 }
-
-// func parseFloat(s string) (float64, error) {
-// 	var f float64
-// 	_, err := fmt.Sscanf(s, "%f", &f)
-// 	return f, err
-// }
 
 func (g *GPUAMD) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	rawStats, err := getROCMSMIStats()
-	fmt.Println("rawStats: ", rawStats)
 	if err != nil {
 		log.Printf("Error getting ROCm SMI stats: %v", err)
 		return
@@ -122,25 +130,26 @@ func (g *GPUAMD) SampleMetrics() {
 
 	var cards []Stats
 	for key, value := range rawStats {
-		fmt.Println("key: ", key, strings.HasPrefix(key, "card"))
 		if strings.HasPrefix(key, "card") {
-			fmt.Println("value: ", value)
-			cardStats, ok := value.(map[string]string)
-			fmt.Println(ok, "cardStats: ", cardStats)
+			cardStats, ok := value.(map[string]interface{})
 			if !ok {
+				log.Printf("Type assertion failed for key %s", key)
 				continue
 			}
-			stats := g.parseStats(value.(map[string]interface{}))
+			stats := g.parseStats(cardStats)
 			cards = append(cards, stats)
 		}
 	}
-	fmt.Println("cards: ", cards)
 
 	if len(cards) > 0 {
 		g.samples = append(g.samples, cards...)
 	}
+}
 
-	fmt.Printf("GPUAMD: %+v\n", g.samples)
+func parseFloat(s string) (float64, error) {
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	return f, err
 }
 
 func (g *GPUAMD) ClearMetrics() {
@@ -155,15 +164,15 @@ func (g *GPUAMD) AggregateMetrics() map[string]float64 {
 	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
-	// for _, sample := range g.samples {
-	// 	for key, value := range sample {
-	// 		aggregates[string(key)] += value
-	// 	}
-	// }
+	for _, sample := range g.samples {
+		for key, value := range sample {
+			aggregates[string(key)] += value
+		}
+	}
 
-	// for key := range aggregates {
-	// 	aggregates[key] /= float64(len(g.samples))
-	// }
+	for key := range aggregates {
+		aggregates[key] /= float64(len(g.samples))
+	}
 
 	return aggregates
 }
