@@ -103,11 +103,11 @@ func (g *GPUAMD) parseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func parseFloat(s string) (float64, error) {
-	var f float64
-	_, err := fmt.Sscanf(s, "%f", &f)
-	return f, err
-}
+// func parseFloat(s string) (float64, error) {
+// 	var f float64
+// 	_, err := fmt.Sscanf(s, "%f", &f)
+// 	return f, err
+// }
 
 func (g *GPUAMD) SampleMetrics() {
 	g.mutex.Lock()
