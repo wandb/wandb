@@ -2,6 +2,7 @@ package utils
 
 import (
 	"os"
+
 	"github.com/segmentio/encoding/json"
 )
 
