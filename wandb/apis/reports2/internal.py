@@ -860,13 +860,55 @@ def expr_to_filters(expr: str) -> Filters:
     return Filters(op="OR", filters=[Filters(op="AND", filters=filters)])
 
 
+FUNCTION_TO_SECTION = {
+    "Config": "config",
+    "SummaryMetric": "summary",
+    "KeysInfo": "keys_info",
+    "Tags": "tags",
+    "Metric": "runs",  # Adjust the actual section names as needed
+}
+SECTION_TO_FUNCTION = {v: k for k, v in FUNCTION_TO_SECTION.items()}
+
+
 def _parse_node(node) -> Filters:
     if isinstance(node, ast.Compare):
-        return _handle_comparison(node)
+        # Check if left side is a function call
+        if isinstance(node.left, ast.Call):
+            func_call_data = _handle_function_call(node.left)
+            # Process the function call data
+            if func_call_data:
+                section = FUNCTION_TO_SECTION.get(
+                    func_call_data["type"], "default_section"
+                )
+                key = Key(section=section, name=func_call_data["value"])
+                # Construct the Filters object
+                operation = _map_op(node.ops[0])
+                right_operand = _extract_value(node.comparators[0])
+                return Filters(
+                    op=operation, key=key, value=right_operand, disabled=False
+                )
+        else:
+            # Handle other cases, e.g., when left side is not a function call
+            return _handle_comparison(node)
     elif isinstance(node, ast.BoolOp):
         return _handle_logical_op(node)
     else:
         raise ValueError(f"Unsupported expression type: {type(node)}")
+
+
+def _map_op(op_node) -> str:
+    # Map the AST operation node to a string representation
+    op_map = {
+        ast.Gt: ">",
+        ast.Lt: "<",
+        ast.Eq: "==",
+        ast.NotEq: "!=",
+        ast.GtE: ">=",
+        ast.LtE: "<=",
+        ast.In: "IN",
+        ast.NotIn: "NIN",
+    }
+    return op_map[type(op_node)]
 
 
 def _handle_comparison(node) -> Filters:
@@ -888,12 +930,25 @@ def _handle_comparison(node) -> Filters:
 
     return Filters(
         op=op_map.get(operation),
-        key=Key(section="summary", name=left_operand_mapped)
-        if left_operand_mapped
-        else None,
+        # key=Key(section="summary", name=left_operand_mapped)
+        key=server_path_to_key(left_operand) if left_operand_mapped else None,
         value=right_operand,
         disabled=False,
     )
+
+
+def _handle_function_call(node) -> dict:
+    if isinstance(node.func, ast.Name):
+        func_name = node.func.id
+        if func_name in ["Config", "SummaryMetric", "KeysInfo", "Tags", "Metric"]:
+            if len(node.args) == 1 and isinstance(node.args[0], ast.Str):
+                arg_value = node.args[0].s
+                # Return a dictionary with the function name and argument value
+                return {"type": func_name, "value": arg_value}
+            else:
+                raise ValueError(f"Invalid arguments for {func_name}")
+    else:
+        raise ValueError("Unsupported function call")
 
 
 def _extract_value(node) -> Any:
@@ -947,7 +1002,14 @@ def filters_to_expr(filter_obj: Any, is_root=True) -> str:
                 # Skip filters with empty key names
                 return ""
 
-            key = to_backend_name(filter.key.name)
+            key_name = filter.key.name
+            section = filter.key.section
+
+            # Prepend the function name if the section matches
+            if section in SECTION_TO_FUNCTION:
+                function_name = SECTION_TO_FUNCTION[section]
+                key_name = f'{function_name}("{key_name}")'
+
             value = filter.value
             if value is None:
                 value = "None"
@@ -956,7 +1018,7 @@ def filters_to_expr(filter_obj: Any, is_root=True) -> str:
             elif isinstance(value, str):
                 value = f"'{value}'"
 
-            return f"{key} {op_map[filter.op]} {value}"
+            return f"{key_name} {op_map[filter.op]} {value}"
 
     return _convert_filter(filter_obj, is_root)
 
@@ -1083,3 +1145,57 @@ def is_valid_color(color_str: str) -> bool:
         pass
 
     return False
+
+
+def key_to_server_path(key: Key):
+    name = key.name
+    if (section := key.section) == "config":
+        return f"config.{name}"
+    elif section == "summary":
+        return f"summary_metrics.{name}"
+    elif section == "keys_info":
+        return f"keys_info.keys.{name}"
+    elif section == "tags":
+        return f"tags.{name}"
+    elif section == "runs":
+        return name
+    raise ValueError(f"Invalid {key=}")
+
+
+def server_path_to_key(path):
+    print(path)
+    if path.startswith("config."):
+        return Key(section="config", name=path.split("config.", 1)[1])
+    elif path.startswith("summary_metrics."):
+        return Key(section="summary", name=path.split("summary_metrics.", 1)[1])
+    elif path.startswith("keys_info.keys."):
+        return Key(section="keys_info", name=path.split("keys_info.keys.", 1)[1])
+    elif path.startswith("tags."):
+        return Key(section="tags", name=path.split("tags.", 1)[1])
+    else:
+        return Key(section="run", name=path)
+
+
+class CustomNodeVisitor(ast.NodeVisitor):
+    def visit_Compare(self, node):
+        left = self.handle_expression(node.left)
+        print(f"Expression type: {left}")
+        # Continue to handle the comparison operators and right side as needed
+        self.generic_visit(node)
+
+    def handle_expression(self, node):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            if func_name in ["Config", "SummaryMetric", "KeysInfo", "Tags", "Metric"]:
+                if len(node.args) == 1 and isinstance(node.args[0], ast.Str):
+                    arg_value = node.args[0].s
+                    return func_name, arg_value
+        return self.get_full_expression(node)
+
+    def get_full_expression(self, node):
+        if isinstance(node, ast.Attribute):
+            return self.get_full_expression(node.value) + "." + node.attr
+        elif isinstance(node, ast.Name):
+            return node.id
+        else:
+            return "ArbitraryExpression"
