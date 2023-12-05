@@ -351,7 +351,7 @@ class _run_decorator:  # noqa: N801
                     raise RuntimeError(message)
                 cls._is_attaching = func.__name__
                 try:
-                    wandb._attach(run=self)
+                    wandb._attach(run=self)  # type: ignore
                 except Exception as e:
                     # In case the attach fails we will raise the exception that caused the issue.
                     # This exception should be caught and fail the execution of the program.
@@ -3087,11 +3087,11 @@ class Run:
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
-                artifact.add_file(artifact_or_path)
+                artifact.add_file(str(artifact_or_path))
             elif os.path.isdir(artifact_or_path):
-                artifact.add_dir(artifact_or_path)
+                artifact.add_dir(str(artifact_or_path))
             elif "://" in str(artifact_or_path):
-                artifact.add_reference(artifact_or_path)
+                artifact.add_reference(str(artifact_or_path))
             else:
                 raise ValueError(
                     "path must be a file, directory or external"
