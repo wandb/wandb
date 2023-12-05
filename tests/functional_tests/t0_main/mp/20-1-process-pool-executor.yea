@@ -1,5 +1,9 @@
 id: 0.mp.20-1-process-pool-executor  
 
+tag:
+  skips:
+    - platform: win
+
 var:
   - history_len:
       :fn:len: :wandb:runs[0][history]
