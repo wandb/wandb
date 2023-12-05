@@ -9,7 +9,6 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.utils import _is_git_uri
@@ -143,8 +142,6 @@ def _create_job(
     except Exception:
         # Error printed by wandb.init
         return None, "", []
-
-    assert run is not None
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
@@ -417,7 +414,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
-        settings=SettingsStatic(settings.to_proto()),
+        settings=settings,  # type: ignore
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
