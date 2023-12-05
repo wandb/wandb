@@ -322,7 +322,7 @@ class Runset(ReportAPIBaseModel):
     id: str = _generate_name()
     run_feed: RunFeed = Field(default_factory=RunFeed)
     enabled: bool = True
-    project: Project = Field(default_factory=Project)
+    project: Optional[Project] = None
     name: str = "Run set"
     search: RunsetSearch = Field(default_factory=RunsetSearch)
     filters: Filters = Field(
@@ -640,7 +640,7 @@ class LinePlot(Panel):
     config: LinePlotConfig = Field(default_factory=LinePlotConfig)
 
 
-class CustomGradientPoint(ReportAPIBaseModel):
+class GradientPoint(ReportAPIBaseModel):
     color: str
     offset: float = Field(0, ge=0, le=100)
 
@@ -669,7 +669,7 @@ class ScatterPlotConfig(ReportAPIBaseModel):
     show_max_y_axis_line: Optional[Literal[True]] = None
     show_avg_y_axis_line: Optional[Literal[True]] = None
     legend_template: Optional[str] = None
-    custom_gradient: Optional[list[CustomGradientPoint]] = None
+    custom_gradient: Optional[list[GradientPoint]] = None
     font_size: Optional[FontSize] = None
     show_linear_regression: Optional[Literal[True]] = None
 
@@ -739,7 +739,7 @@ class Column(ReportAPIBaseModel):
 class ParallelCoordinatesPlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
     columns: list[Column] = Field(default_factory=list)
-    custom_gradient: Optional[list] = None
+    custom_gradient: Optional[list[GradientPoint]] = None
     font_size: Optional[FontSize] = None
 
 
@@ -847,9 +847,7 @@ class WeavePanel(Panel):
 
 def expr_to_filters(expr: str) -> Filters:
     if not expr:
-        return Filters(
-            op="OR", filters=[Filters(op="AND", filters=[])], ref=Ref(type="filters")
-        )
+        return Filters(op="OR", filters=[Filters(op="AND", filters=[])])
     parsed_expr = ast.parse(expr, mode="eval")
     return _parse_node(parsed_expr.body)
 
@@ -865,7 +863,7 @@ def _parse_node(node) -> Filters:
 
 def _handle_comparison(node) -> Filters:
     left_operand = node.left.id if isinstance(node.left, ast.Name) else None
-    left_operand_mapped = get_frontend_name(left_operand)
+    left_operand_mapped = to_frontend_name(left_operand)
     right_operand = _extract_value(node.comparators[0])
     operation = type(node.ops[0]).__name__
 
@@ -941,7 +939,7 @@ def filters_to_expr(filter_obj: Any, is_root=True) -> str:
                 # Skip filters with empty key names
                 return ""
 
-            key = get_backend_name(filter.key.name)
+            key = to_backend_name(filter.key.name)
             value = filter.value
             if value is None:
                 value = "None"
@@ -1036,12 +1034,12 @@ block_type_mapping = {
 }
 
 
-def get_frontend_name(name):
-    return fe_name_mapping.get(name, name)
-
-
-def get_backend_name(name):
+def to_frontend_name(name):
     return reversed_fe_name_mapping.get(name, name)
+
+
+def to_backend_name(name):
+    return fe_name_mapping.get(name, name)
 
 
 def is_valid_color(color_str: str) -> bool:

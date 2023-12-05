@@ -30,6 +30,8 @@ TextLike = Union[str, "TextWithInlineComments", "Link", "Latex"]
 TextLikeField = Union[TextLike, list[TextLike]]
 FilterExpr = str
 Color = str
+SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
+MetricType = Union[str, SpecialMetricType]
 
 
 def get_api():
@@ -62,17 +64,44 @@ class Auto:
 
 @dataclass(config=dataclass_config)
 class Metric(Base):
-    ...
+    name: str
+
+    def to_backend(self):
+        return internal.to_backend_name(self.name)
+
+    @classmethod
+    def from_backend(cls, v):
+        name = internal.to_frontend_name(v)
+        return cls(name)
 
 
 @dataclass(config=dataclass_config)
-class SummaryMetric(Metric):
-    ...
+class Config(Base):
+    name: str
+
+    def to_backend(self):
+        name, *rest = self.name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        return f"config.{name}.value{rest}"
+
+    @classmethod
+    def from_backend(cls, v):
+        name = v.replace("config.", "").replace(".value", "")
+        return cls(name)
 
 
 @dataclass(config=dataclass_config)
-class LoggedMetric(Metric):
-    ...
+class SummaryMetric(Base):
+    name: str
+
+    def to_backend(self):
+        name = self.name
+        return f"summary_metrics.{name}"
+
+    @classmethod
+    def from_backend(cls, v):
+        name = v.replace("summary_metrics.", "")
+        return cls(name)
 
 
 @dataclass(config=dataclass_config)
@@ -88,14 +117,6 @@ class Layout(Base):
     @classmethod
     def from_model(cls, model: internal.Layout):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
-
-    def collides_with(self, other: "Layout"):
-        return not (
-            self.x + self.w <= other.x
-            or self.x >= other.x + other.w
-            or self.y + self.h <= other.y
-            or self.y >= other.y + other.h
-        )
 
 
 @dataclass(config=dataclass_config)
@@ -233,9 +254,10 @@ class ListItem(Base):
         text = _internal_children_to_text(model.children)
         if model.checked is not None:
             return CheckedListItem(text=text, checked=model.checked)
-        if model.ordered is not None:
-            return OrderedListItem(text=text)
-        return UnorderedListItem(text=text)
+        return text
+        # if model.ordered is not None:
+        #     return OrderedListItem(text=text)
+        # return UnorderedListItem(text=text)
 
 
 @dataclass(config=dataclass_config)
@@ -307,21 +329,19 @@ class CheckedList(List):
 
 @dataclass(config=dataclass_config)
 class OrderedList(List):
-    items: list[OrderedListItem] = Field(default_factory=lambda: [OrderedListItem()])
+    items: list[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
-        children = [li.to_model() for li in self.items]
+        children = [OrderedListItem(li).to_model() for li in self.items]
         return internal.List(children=children, ordered=True)
 
 
 @dataclass(config=dataclass_config)
 class UnorderedList(List):
-    items: list[UnorderedListItem] = Field(
-        default_factory=lambda: [UnorderedListItem()]
-    )
+    items: list[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
-        children = [li.to_model() for li in self.items]
+        children = [UnorderedListItem(li).to_model() for li in self.items]
         return internal.List(children=children)
 
 
@@ -530,14 +550,14 @@ class OrderBy(Base):
 
     def to_model(self):
         return internal.SortKey(
-            key=internal.SortKeyKey(name=internal.get_frontend_name(self.name)),
+            key=internal.SortKeyKey(name=internal.to_backend_name(self.name)),
             ascending=self.ascending,
         )
 
     @classmethod
     def from_model(cls, model: internal.SortKey):
         return cls(
-            name=internal.get_backend_name(model.key.name),
+            name=internal.to_frontend_name(model.key.name),
             ascending=model.ascending,
         )
 
@@ -553,15 +573,17 @@ class Runset(Base):
     project: str = ""
     name: str = "Run set"
     query: str = ""
-    filters: Optional[Union[FilterExpr, MissingFilter]] = Field(
-        default_factory=MissingFilter
-    )
+    # filters: Optional[Union[FilterExpr, MissingFilter]] = Field(
+    #     default_factory=MissingFilter
+    # )
+    filters: Optional[str] = ""
     groupby: list[str] = Field(default_factory=list)
     order: list[OrderBy] = Field(
         default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
     )
 
     _id: str = field(default_factory=_generate_name, init=False, repr=False)
+    # _id: str = field(default_factory=lambda: "", init=False, repr=False)
     _filters: internal.Filters = field(
         default_factory=internal.Filters, init=False, repr=False
     )
@@ -578,34 +600,32 @@ class Runset(Base):
     def special_filters_assignment(cls, values):  # noqa: N805
         # This preserves the Refs for filters that are not modified.
         if isinstance(values, pydantic_core._pydantic_core.ArgsKwargs):
-            kwargs = values.kwargs
+            d = values.kwargs if values.kwargs is not None else {}
+            d.setdefault("_filters", "")
+            d.setdefault("filters", "")
+            d["_filters"] = internal.expr_to_filters(d["filters"])
+            values = pydantic_core.ArgsKwargs(values.args, d)
+
         elif isinstance(values, dict):
-            kwargs = values
-        else:
-            # if not special case, just return early
-            return values
+            d = values if values is not None else {}
+            d.setdefault("_filters", "")
+            d.setdefault("filters", "")
+            d["_filters"] = internal.expr_to_filters(d["filters"])
+            values = d
 
-        if kwargs is None:
-            kwargs = {}
-
-        filters = kwargs.get("filters", MissingFilter())
-        if not isinstance(filters, MissingFilter):
-            if isinstance(values, pydantic_core.ArgsKwargs):
-                values.kwargs["_filters"] = internal.expr_to_filters(filters)
-            elif isinstance(values, dict):
-                values["filters"] = internal.expr_to_filters(filters)
         return values
 
     def to_model(self):
-        entity = self.entity
-        project = self.project
+        project = None
+        if self.entity or self.project:
+            project = internal.Project(entity_name=self.entity, name=self.project)
 
         return internal.Runset(
-            project=internal.Project(entity_name=entity, name=project),
+            project=project,
             name=self.name,
             filters=self._filters,
             grouping=[
-                internal.Key(name=internal.get_frontend_name(g)) for g in self.groupby
+                internal.Key(name=internal.to_backend_name(g)) for g in self.groupby
             ],
             sort=internal.Sort(keys=[o.to_model() for o in self.order]),
             id=self._id,
@@ -613,12 +633,21 @@ class Runset(Base):
 
     @classmethod
     def from_model(cls, model: internal.Runset):
+        entity = ""
+        project = ""
+
+        if (p := model.project) is not None:
+            if p.entity_name:
+                entity = p.entity_name
+            if p.name:
+                project = p.name
+
         return cls(
-            entity=model.project.entity_name,
-            project=model.project.name,
+            entity=entity,
+            project=project,
             name=model.name,
             _filters=model.filters,
-            groupby=[internal.get_backend_name(k.name) for k in model.grouping],
+            groupby=[internal.to_frontend_name(k.name) for k in model.grouping],
             order=[OrderBy.from_model(s) for s in model.sort.keys],
             _id=model.id,
         )
@@ -781,8 +810,8 @@ block_mapping = {
 @dataclass(config=dataclass_config)
 class LinePlot(Panel):
     title: Optional[str] = None
-    x: Optional[str] = None
-    y: Union[list[str], str] = Field(default_factory=list)
+    x: Optional[MetricType] = None
+    y: Union[list[MetricType], MetricType] = Field(default_factory=list)
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     log_x: Optional[bool] = None
@@ -809,8 +838,8 @@ class LinePlot(Panel):
         return internal.LinePlot(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
-                x_axis=self.x,
-                metrics=_listify(self.y),
+                x_axis=metric_to_backend(self.x),
+                metrics=[metric_to_backend(name) for name in _listify(self.y)],
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_x[0],
@@ -844,8 +873,8 @@ class LinePlot(Panel):
     def from_model(cls, model: internal.LinePlot):
         return cls(
             title=model.config.chart_title,
-            x=model.config.x_axis,
-            y=model.config.metrics,
+            x=metric_to_frontend(model.config.x_axis),
+            y=[metric_to_frontend(name) for name in model.config.metrics],
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             range_y=(model.config.y_axis_min, model.config.y_axis_max),
             log_x=model.config.x_log_scale,
@@ -885,25 +914,25 @@ class CustomGradientPoint:
         return v
 
     def to_model(self):
-        return internal.CustomGradientPoint(offset=self.offset, color=self.color)
+        return internal.GradientPoint(offset=self.offset, color=self.color)
 
     @classmethod
-    def from_model(cls, model: internal.CustomGradientPoint):
+    def from_model(cls, model: internal.GradientPoint):
         return cls(offset=model.offset, color=model.color)
 
 
 @dataclass(config=dataclass_config)
 class ScatterPlot(Panel):
     title: Optional[str] = None
-    x: Optional[str] = None
-    y: Optional[str] = None
-    z: Optional[str] = None
+    x: Optional[MetricType] = None
+    y: Optional[MetricType] = None
+    z: Optional[MetricType] = None
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     range_z: Range = Field(default_factory=lambda: (None, None))
-    log_x: Optional[Literal[True]] = None
-    log_y: Optional[Literal[True]] = None
-    log_z: Optional[Literal[True]] = None
+    log_x: Optional[bool] = None
+    log_y: Optional[bool] = None
+    log_z: Optional[bool] = None
     running_ymin: Optional[Literal[True]] = None
     running_ymax: Optional[Literal[True]] = None
     running_ymean: Optional[Literal[True]] = None
@@ -919,9 +948,9 @@ class ScatterPlot(Panel):
         return internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
-                x_axis=self.x,
-                y_axis=self.y,
-                z_axis=self.z,
+                x_axis=metric_to_backend(self.x),
+                y_axis=metric_to_backend(self.y),
+                z_axis=metric_to_backend(self.z),
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_y[0],
@@ -948,11 +977,12 @@ class ScatterPlot(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         if (gradient := model.config.custom_gradient) is not None:
             gradient = [CustomGradientPoint.from_model(cgp) for cgp in gradient]
+
         return cls(
             title=model.config.chart_title,
-            x=model.config.x_axis,
-            y=model.config.y_axis,
-            z=model.config.z_axis,
+            x=metric_to_frontend(model.config.x_axis),
+            y=metric_to_frontend(model.config.y_axis),
+            z=metric_to_frontend(model.config.z_axis),
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             range_y=(model.config.y_axis_min, model.config.y_axis_max),
             range_z=(model.config.z_axis_min, model.config.z_axis_max),
@@ -975,7 +1005,7 @@ class ScatterPlot(Panel):
 @dataclass(config=dataclass_config)
 class BarPlot(Panel):
     title: Optional[str] = None
-    metrics: list[str] = Field(default_factory=list)
+    metrics: list[MetricType] = Field(default_factory=list)
     orientation: str = "v"
     range_x: Range = Field(default_factory=lambda: (None, None))
     title_x: Optional[str] = None
@@ -995,7 +1025,7 @@ class BarPlot(Panel):
         return internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
-                metric=self.metrics,
+                metric=[metric_to_backend(name) for name in _listify(self.metrics)],
                 vertical=self.orientation == "v",
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
@@ -1021,7 +1051,7 @@ class BarPlot(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metrics=model.config.metric,
+            metrics=[metric_to_frontend(name) for name in model.config.metric],
             orientation="v" if model.config.vertical else "h",
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             title_x=model.config.x_axis_title,
@@ -1056,7 +1086,7 @@ class ScalarChart(Panel):
         return internal.ScalarChart(
             config=internal.ScalarChartConfig(
                 chart_title=self.title,
-                metrics=[self.metric],
+                metrics=[metric_to_backend(self.metric)],
                 group_agg=self.groupby_aggfunc,
                 group_area=self.groupby_rangefunc,
                 expressions=self.custom_expressions,
@@ -1072,7 +1102,7 @@ class ScalarChart(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metric=model.config.metrics[0],
+            metric=metric_to_frontend(model.config.metrics[0]),
             groupby_aggfunc=model.config.group_agg,
             groupby_rangefunc=model.config.group_area,
             custom_expressions=model.config.expressions,
@@ -1107,6 +1137,19 @@ class CodeComparer(Panel):
 
 
 @dataclass(config=dataclass_config)
+class GradientPoint(Base):
+    color: str
+    offset: float = Field(0, ge=0, le=100)
+
+    def to_model(self):
+        return internal.GradientPoint(color=self.color, offset=self.offset)
+
+    @classmethod
+    def from_model(cls, model: internal.GradientPoint):
+        return cls(color=model.color, offset=model.offset)
+
+
+@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlotColumn(Base):
     accessor: str
     display_name: Optional[str] = None
@@ -1118,8 +1161,11 @@ class ParallelCoordinatesPlotColumn(Base):
     )
 
     def to_model(self):
+        if name := internal.to_backend_name(self.accessor):
+            name = "summary:" + name
+
         return internal.Column(
-            accessor=self.accessor,
+            accessor=name,
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
@@ -1128,8 +1174,10 @@ class ParallelCoordinatesPlotColumn(Base):
 
     @classmethod
     def from_model(cls, model: internal.Column):
+        name = model.accessor.replace("summary:", "")
+
         return cls(
-            accessor=model.accessor,
+            accessor=name,
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
@@ -1141,15 +1189,18 @@ class ParallelCoordinatesPlotColumn(Base):
 class ParallelCoordinatesPlot(Panel):
     columns: list[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
-    gradient: Optional[list] = None
+    gradient: Optional[list[GradientPoint]] = None
     font_size: Optional[FontSize] = None
 
     def to_model(self):
+        if (gradient := self.gradient) is not None:
+            gradient = [x.to_model() for x in self.gradient]
+
         return internal.ParallelCoordinatesPlot(
             config=internal.ParallelCoordinatesPlotConfig(
                 chart_title=self.title,
                 columns=[c.to_model() for c in self.columns],
-                custom_gradient=self.gradient,
+                custom_gradient=gradient,
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
@@ -1159,13 +1210,16 @@ class ParallelCoordinatesPlot(Panel):
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
+        if (gradient := model.config.custom_gradient) is not None:
+            gradient = [GradientPoint.from_model(x) for x in gradient]
+
         return cls(
             columns=[
                 ParallelCoordinatesPlotColumn.from_model(c)
                 for c in model.config.columns
             ],
             title=model.config.chart_title,
-            gradient=model.config.custom_gradient,
+            gradient=gradient,
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
@@ -1721,14 +1775,45 @@ def resolve_collisions(panels: list[Panel], x_max: int = 24):
         for p2 in panels[i + 1 :]:
             l1, l2 = p1.layout, p2.layout
 
-            if l1.collides_with(l2):
-                x = l2.x + l2.w
-                y = l2.y + l2.h
+            if collides(p1, p2):
+                x = l1.x + l1.w - l2.x
+                y = l1.y + l1.h - l2.y
 
-                if l1.x + l2.w + x <= x_max:
+                if l2.x + l2.w + x <= x_max:
                     l2.x += x
 
                 else:
                     l2.y += y
                     l2.x = 0
     return panels
+
+
+def collides(p1: Panel, p2: Panel) -> bool:
+    l1, l2 = p1.layout, p2.layout
+
+    if (
+        (p1.id == p2.id)
+        or (l1.x + l1.w <= l2.x)
+        or (l1.x >= l2.w + l2.x)
+        or (l1.y + l1.h <= l2.y)
+        or (l1.y >= l2.y + l2.h)
+    ):
+        return False
+
+    return True
+
+
+def metric_to_backend(x: MetricType):
+    if isinstance(x, str):
+        return internal.to_backend_name(x)
+    elif x is None:
+        return x
+    return x.to_backend()
+
+
+def metric_to_frontend(x: str):
+    if x.startswith("config.") and ".value" in x:
+        return Config.from_backend(x)
+    if x.startswith("summary_metrics."):
+        return SummaryMetric.from_backend(x)
+    return Metric.from_backend(x)
