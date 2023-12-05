@@ -1502,12 +1502,12 @@ workflows:
       - win:
           requires:
             - "unit-tests-legacy"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1538,12 +1538,12 @@ workflows:
       - win:
           requires:
             - "unit-tests"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
@@ -1682,12 +1682,12 @@ workflows:
       - win:
           requires:
             - "functional-tests"
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
