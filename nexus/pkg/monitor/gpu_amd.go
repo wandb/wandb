@@ -22,10 +22,10 @@ type StatsKeys string
 
 const (
 	GPU             StatsKeys = "gpu"
-	MemoryAllocated           = "memoryAllocated"
-	Temp                      = "temp"
-	PowerWatts                = "powerWatts"
-	PowerPercent              = "powerPercent"
+	MemoryAllocated StatsKeys = "memoryAllocated"
+	Temp            StatsKeys = "temp"
+	PowerWatts      StatsKeys = "powerWatts"
+	PowerPercent    StatsKeys = "powerPercent"
 )
 
 type Stats map[StatsKeys]float64
