@@ -332,13 +332,12 @@ class SendManager:
             _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(settings.to_proto())
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=settings,
+            settings=SettingsStatic(settings.to_proto()),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,

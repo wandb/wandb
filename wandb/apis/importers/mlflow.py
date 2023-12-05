@@ -76,7 +76,7 @@ class MlflowRun:
         }
         return [f"{k}={v}" for k, v in mlflow_tags.items()]
 
-    def artifacts(self) -> Optional[Iterable[Artifact]]:
+    def artifacts(self) -> Optional[Iterable[Artifact]]:  # type: ignore
         if mlflow_version < Version("2.0.0"):
             dir_path = self.mlflow_client.download_artifacts(
                 run_id=self.run.info.run_id, path=""
@@ -90,7 +90,7 @@ class MlflowRun:
 
         return [art]
 
-    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
+    def used_artifacts(self) -> Optional[Iterable[Artifact]]:  # type: ignore
         ...
 
     def os_version(self) -> Optional[str]:
