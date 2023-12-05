@@ -59,5 +59,6 @@ func TestArtifactBuilder(t *testing.T) {
 	err = builder.AddData("obj.type.json", weaveTypeData)
 	assert.Nil(t, err)
 	art := builder.GetArtifact()
+	assert.Equal(t, art.Digest, "62103abbae3f3d159ba71d1ffe37f2b1")
 	fmt.Printf("ART %+v\n", art)
 }

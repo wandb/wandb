@@ -56,22 +56,21 @@ func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) e
 	return nil
 }
 
-func (b *ArtifactBuilder) updateManifestDigest() error {
+func (b *ArtifactBuilder) updateManifestDigest() {
 	if b.isDigestUpToDate {
-		return nil
+		return
 	}
 	manifest, err := NewManifestFromProto(b.artifactRecord.Manifest)
 	if err != nil {
-		return err
+		panic("unable to create manifest (unexpected)")
 	}
 	manifestDigest := computeManifestDigest(&manifest)
 	b.artifactRecord.Digest = manifestDigest
 	b.isDigestUpToDate = true
-	return nil
 }
 
 func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
-	_ = b.updateManifestDigest()
+	b.updateManifestDigest()
 	return b.artifactRecord
 }
 
