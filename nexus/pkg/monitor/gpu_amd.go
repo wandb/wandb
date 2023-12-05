@@ -2,6 +2,10 @@
 
 package monitor
 
+/*
+{"card0": {"GPU ID": "0x740c", "Unique ID": "0x719d230578348e8c", "VBIOS version": "113-D65209-073", "Temperature (Sensor edge) (C)": "32.0", "Temperature (Sensor junction) (C)": "35.0", "Temperature (Sensor memory) (C)": "43.0", "Temperature (Sensor HBM 0) (C)": "43.0", "Temperature (Sensor HBM 1) (C)": "39.0", "Temperature (Sensor HBM 2) (C)": "42.0", "Temperature (Sensor HBM 3) (C)": "43.0", "fclk clock speed:": "(400Mhz)", "fclk clock level:": "0", "mclk clock speed:": "(1600Mhz)", "mclk clock level:": "3", "sclk clock speed:": "(800Mhz)", "sclk clock level:": "1", "socclk clock speed:": "(1090Mhz)", "socclk clock level:": "3", "Performance Level": "auto", "GPU OverDrive value (%)": "0", "GPU Memory OverDrive value (%)": "0", "Max Graphics Package Power (W)": "560.0", "Average Graphics Package Power (W)": "89.0", "GPU use (%)": "0", "GFX Activity": "2469071528", "GPU memory use (%)": "0", "Memory Activity": "2189510857", "GPU memory vendor": "hynix", "PCIe Replay Count": "147", "Serial Number": "PCB052715-0065", "Voltage (mV)": "818", "PCI Bus": "0000:2F:00.0", "ASD firmware version": "0x00000000", "CE firmware version": "0", "DMCU firmware version": "0", "MC firmware version": "0", "ME firmware version": "0", "MEC firmware version": "78", "MEC2 firmware version": "78", "PFP firmware version": "0", "RLC firmware version": "17", "RLC SRLC firmware version": "0", "RLC SRLG firmware version": "0", "RLC SRLS firmware version": "0", "SDMA firmware version": "8", "SDMA2 firmware version": "8", "SMC firmware version": "00.68.59.00", "SOS firmware version": "0x00270082", "TA RAS firmware version": "27.00.01.60", "TA XGMI firmware version": "32.00.00.15", "UVD firmware version": "0x00000000", "VCE firmware version": "0x00000000", "VCN firmware version": "0x0110101b", "Card series": "AMD INSTINCT MI250 (MCM) OAM AC MBA", "Card model": "0x0b0c", "Card vendor": "Advanced Micro Devices, Inc. [AMD/ATI]", "Card SKU": "D65209", "Valid sclk range": "500Mhz - 1700Mhz", "Valid mclk range": "400Mhz - 1600Mhz", "Voltage point 0": "0Mhz 0mV", "Voltage point 1": "0Mhz 0mV", "Voltage point 2": "0Mhz 0mV", "Energy counter": "62929744071539", "Accumulated Energy (uJ)": "962825096297442.9"}, "system": {"Driver version": "6.2.4"}}
+*/
+
 import (
 	"encoding/json"
 	"fmt"
@@ -163,15 +167,34 @@ func (g *GPUAMD) AggregateMetrics() map[string]float64 {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	aggregates := make(map[string]float64)
-	for _, sample := range g.samples {
-		for key, value := range sample {
-			aggregates[string(key)] += value
-		}
+	if len(g.samples) == 0 {
+		return nil
 	}
 
+	aggregates := make(map[string]float64)
+	sampleCount := len(g.samples)
+
+	// Iterate over each sample.
+	for _, sample := range g.samples {
+		// Iterate over each GPU in the sample.
+		for gpuKey, gpuStats := range sample {
+			// gpuKey is like "card0", "card1", etc.
+			// gpuStats is a map of stats for this GPU.
+			fmt.Println(gpuKey, gpuStats)
+			// Iterate over each stat for this GPU.
+			// for statKey, value := range gpuStats {
+			// 	// statKey is the specific stat name.
+			// 	// value is the value of this stat.
+
+			// 	formattedKey := fmt.Sprintf("%s.%s", gpuKey, statKey)
+			// 	aggregates[formattedKey] += value
+			// }
+		}
+	}
+	fmt.Println()
+	// Calculate the averages.
 	for key := range aggregates {
-		aggregates[key] /= float64(len(g.samples))
+		aggregates[key] /= float64(sampleCount)
 	}
 
 	return aggregates
