@@ -15,6 +15,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/debounce"
@@ -278,6 +279,12 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	// Update run start time in the settings if it is not set
+	if s.settings.XStartTime == nil {
+		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+	}
 
 	s.fileStream.Start()
 	s.fileTransferManager.Start()

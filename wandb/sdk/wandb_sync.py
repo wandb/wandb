@@ -30,7 +30,8 @@ def _sync(
     settings.sync_dir.value = str(p.parent.absolute())
     settings._sync.value = True
     settings.run_id.value = stream_id  # TODO: remove this
-    settings.resume.value = "allow" if append else False
+    if append:
+        settings.resume.value = "allow"
     # settings.console.value = "off" if console else "auto"
 
     print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
