@@ -10,7 +10,7 @@ NEXUS_VERSION = "0.17.0b2"
 def build_nexus(session: nox.Session) -> None:
     """Builds the nexus binary for the current platform."""
     session.run(
-        "python",
+        "python3",
         "-m",
         "build",
         "-w",  # only build the wheel
