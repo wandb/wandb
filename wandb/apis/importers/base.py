@@ -84,10 +84,10 @@ class ImporterRun(Protocol):
     def tags(self) -> Optional[List[str]]:
         ...
 
-    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:  # type: ignore
         ...
 
-    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:  # type: ignore
         ...
 
     def os_version(self) -> Optional[str]:

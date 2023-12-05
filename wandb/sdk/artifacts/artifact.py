@@ -737,7 +737,7 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=project or self._source_project,
                 job_type="auto",
@@ -1691,7 +1691,7 @@ class Artifact:
         self._add_download_root(root)
 
         if wandb.run is None:
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
@@ -2074,7 +2074,7 @@ class Artifact:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
         if wandb.run is None:
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
