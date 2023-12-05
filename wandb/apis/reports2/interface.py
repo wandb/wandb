@@ -32,6 +32,7 @@ FilterExpr = str
 Color = str
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
+ParallelCoordinatesMetric = Union["Config", "SummaryMetric"]
 
 
 def get_api():
@@ -89,6 +90,15 @@ class Config(Base):
         name = v.replace("config.", "").replace(".value", "")
         return cls(name)
 
+    def to_backend_pc(self):
+        name = self.name
+        return f"c::{name}"
+
+    @classmethod
+    def from_backend_pc(cls, v):
+        name = v.replace("c::", "")
+        return cls(name)
+
 
 @dataclass(config=dataclass_config)
 class SummaryMetric(Base):
@@ -101,6 +111,15 @@ class SummaryMetric(Base):
     @classmethod
     def from_backend(cls, v):
         name = v.replace("summary_metrics.", "")
+        return cls(name)
+
+    def to_backend_pc(self):
+        name = self.name
+        return f"summary:{name}"
+
+    @classmethod
+    def from_backend_pc(cls, v):
+        name = v.replace("summary:", "")
         return cls(name)
 
 
@@ -550,26 +569,21 @@ class CustomRunColors(Base):
 
 @dataclass(config=dataclass_config)
 class OrderBy(Base):
-    name: str
+    name: MetricType
     ascending: bool = False
 
     def to_model(self):
         return internal.SortKey(
-            key=internal.SortKeyKey(name=internal.to_backend_name(self.name)),
+            key=internal.SortKeyKey(name=metric_to_backend(self.name)),
             ascending=self.ascending,
         )
 
     @classmethod
     def from_model(cls, model: internal.SortKey):
         return cls(
-            name=internal.to_frontend_name(model.key.name),
+            name=metric_to_frontend(model.key.name),
             ascending=model.ascending,
         )
-
-
-@dataclass(config=dataclass_config)
-class MissingFilter(Base):
-    ...
 
 
 @dataclass(config=dataclass_config)
@@ -578,9 +592,6 @@ class Runset(Base):
     project: str = ""
     name: str = "Run set"
     query: str = ""
-    # filters: Optional[Union[FilterExpr, MissingFilter]] = Field(
-    #     default_factory=MissingFilter
-    # )
     filters: Optional[str] = ""
     groupby: list[str] = Field(default_factory=list)
     order: list[OrderBy] = Field(
@@ -642,6 +653,7 @@ class Runset(Base):
         project = ""
 
         if (p := model.project) is not None:
+            print(type(p), p)
             if p.entity_name:
                 entity = p.entity_name
             if p.name:
@@ -813,6 +825,25 @@ block_mapping = {
 
 
 @dataclass(config=dataclass_config)
+class GradientPoint(Base):
+    color: str
+    offset: float = Field(0, ge=0, le=100)
+
+    @validator("color")
+    def validate_color(cls, v):  # noqa: N805
+        if not internal.is_valid_color(v):
+            raise ValueError("invalid color, value should be hex, rgb, or rgba")
+        return v
+
+    def to_model(self):
+        return internal.GradientPoint(color=self.color, offset=self.offset)
+
+    @classmethod
+    def from_model(cls, model: internal.GradientPoint):
+        return cls(color=model.color, offset=model.offset)
+
+
+@dataclass(config=dataclass_config)
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[MetricType] = None
@@ -823,13 +854,13 @@ class LinePlot(Panel):
     log_y: Optional[bool] = None
     title_x: Optional[str] = None
     title_y: Optional[str] = None
-    ignore_outliers: Optional[Literal[True]] = None
+    ignore_outliers: Optional[bool] = None
     groupby: Optional[str] = None
     groupby_aggfunc: Optional[GroupAgg] = None
     groupby_rangefunc: Optional[GroupArea] = None
     smoothing_factor: Optional[float] = None
     smoothing_type: Optional[SmoothingType] = None
-    smoothing_show_original: Optional[Literal[True]] = None
+    smoothing_show_original: Optional[bool] = None
     max_runs_to_show: Optional[int] = None
     custom_expressions: Optional[list[str]] = None
     plot_type: Optional[LinePlotStyle] = None
@@ -908,25 +939,6 @@ class LinePlot(Panel):
 
 
 @dataclass(config=dataclass_config)
-class CustomGradientPoint:
-    color: str
-    offset: float = Field(ge=0, le=100)
-
-    @validator("color")
-    def validate_color(cls, v):  # noqa: N805
-        if not internal.is_valid_color(v):
-            raise ValueError("invalid color, value should be hex, rgb, or rgba")
-        return v
-
-    def to_model(self):
-        return internal.GradientPoint(offset=self.offset, color=self.color)
-
-    @classmethod
-    def from_model(cls, model: internal.GradientPoint):
-        return cls(offset=model.offset, color=model.color)
-
-
-@dataclass(config=dataclass_config)
 class ScatterPlot(Panel):
     title: Optional[str] = None
     x: Optional[MetricType] = None
@@ -938,13 +950,13 @@ class ScatterPlot(Panel):
     log_x: Optional[bool] = None
     log_y: Optional[bool] = None
     log_z: Optional[bool] = None
-    running_ymin: Optional[Literal[True]] = None
-    running_ymax: Optional[Literal[True]] = None
-    running_ymean: Optional[Literal[True]] = None
+    running_ymin: Optional[bool] = None
+    running_ymax: Optional[bool] = None
+    running_ymean: Optional[bool] = None
     legend_template: Optional[str] = None
-    gradient: Optional[list[CustomGradientPoint]] = None
+    gradient: Optional[list[GradientPoint]] = None
     font_size: Optional[FontSize] = None
-    regression: Optional[Literal[True]] = None
+    regression: Optional[bool] = None
 
     def to_model(self):
         if (custom_gradient := self.gradient) is not None:
@@ -981,7 +993,7 @@ class ScatterPlot(Panel):
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         if (gradient := model.config.custom_gradient) is not None:
-            gradient = [CustomGradientPoint.from_model(cgp) for cgp in gradient]
+            gradient = [GradientPoint.from_model(cgp) for cgp in gradient]
 
         return cls(
             title=model.config.chart_title,
@@ -1080,7 +1092,7 @@ class BarPlot(Panel):
 @dataclass(config=dataclass_config)
 class ScalarChart(Panel):
     title: Optional[str] = None
-    metric: str = ""
+    metric: MetricType = ""
     groupby_aggfunc: Optional[GroupAgg] = None
     groupby_rangefunc: Optional[GroupArea] = None
     custom_expressions: Optional[list[str]] = None
@@ -1142,35 +1154,19 @@ class CodeComparer(Panel):
 
 
 @dataclass(config=dataclass_config)
-class GradientPoint(Base):
-    color: str
-    offset: float = Field(0, ge=0, le=100)
-
-    def to_model(self):
-        return internal.GradientPoint(color=self.color, offset=self.offset)
-
-    @classmethod
-    def from_model(cls, model: internal.GradientPoint):
-        return cls(color=model.color, offset=model.offset)
-
-
-@dataclass(config=dataclass_config)
 class ParallelCoordinatesPlotColumn(Base):
-    metric: MetricType
+    metric: ParallelCoordinatesMetric
     display_name: Optional[str] = None
-    inverted: Optional[Literal[True]] = None
-    log: Optional[Literal[True]] = None
+    inverted: Optional[bool] = None
+    log: Optional[bool] = None
 
     _ref: Optional[internal.Ref] = field(
         default_factory=lambda: None, init=False, repr=False
     )
 
     def to_model(self):
-        if name := internal.to_backend_name(self.metric):
-            name = "summary:" + name
-
         return internal.Column(
-            accessor=name,
+            accessor=metric_to_backend_pc(self.metric),
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
@@ -1179,10 +1175,8 @@ class ParallelCoordinatesPlotColumn(Base):
 
     @classmethod
     def from_model(cls, model: internal.Column):
-        name = model.accessor.replace("summary:", "")
-
         return cls(
-            accessor=name,
+            metric=metric_to_frontend_pc(model.accessor),
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
@@ -1482,10 +1476,10 @@ class Report(Base):
 
     def to_model(self):
         blocks = self.blocks
-        if blocks[0] != P():
+        if len(blocks) > 0 and blocks[0] != P():
             blocks = [P()] + blocks
 
-        if blocks[-1] != P():
+        if len(blocks) > 0 and blocks[-1] != P():
             blocks = blocks + [P()]
 
         return internal.ReportViewspec(
@@ -1824,7 +1818,7 @@ def collides(p1: Panel, p2: Panel) -> bool:
     return True
 
 
-def metric_to_backend(x: MetricType):
+def metric_to_backend(x: Optional[MetricType]):
     if isinstance(x, str):
         return internal.to_backend_name(x)
     elif x is None:
@@ -1833,8 +1827,26 @@ def metric_to_backend(x: MetricType):
 
 
 def metric_to_frontend(x: str):
+    if x is None:
+        return x
     if x.startswith("config.") and ".value" in x:
         return Config.from_backend(x)
     if x.startswith("summary_metrics."):
         return SummaryMetric.from_backend(x)
     return Metric.from_backend(x)
+
+
+def metric_to_backend_pc(x: Optional[ParallelCoordinatesMetric]):
+    if x is None:
+        return x
+    return x.to_backend_pc()
+
+
+def metric_to_frontend_pc(x: str):
+    if x is None:
+        return x
+    if x.startswith("c::"):
+        return Config.from_backend_pc(x)
+    if x.startswith("summary:"):
+        return SummaryMetric.from_backend_pc(x)
+    return Metric.from_backend_pc(x)

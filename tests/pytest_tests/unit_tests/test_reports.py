@@ -27,6 +27,28 @@ class CustomDataclassFactory(Generic[T], DataclassFactory[T]):
         }
 
 
+class GradientPointFactory(CustomDataclassFactory[wr2.GradientPoint]):
+    __model__ = wr2.GradientPoint
+
+    @classmethod
+    def offset(cls):
+        return cls.__random__.uniform(0, 100)
+
+    @classmethod
+    def color(cls):
+        return "#FFFFFF"
+
+
+class ParallelCoordinatesPlotColumnFactory(
+    CustomDataclassFactory[wr2.ParallelCoordinatesPlotColumn]
+):
+    __model__ = wr2.ParallelCoordinatesPlotColumn
+
+    @classmethod
+    def metric(cls):
+        return wr2.Config("test")
+
+
 @register_fixture
 class H1Factory(CustomDataclassFactory[wr2.H1]):
     __model__ = wr2.H1
@@ -157,6 +179,16 @@ class ParallelCoordinatesPlotFactory(
 ):
     __model__ = wr2.ParallelCoordinatesPlot
 
+    @classmethod
+    def columns(cls):
+        column = ParallelCoordinatesPlotColumnFactory.build()
+        return [column]
+
+    @classmethod
+    def gradient(cls):
+        gradient_point = GradientPointFactory.build()
+        return [gradient_point]
+
 
 @register_fixture
 class ParameterImportancePlotFactory(
@@ -181,7 +213,12 @@ class ScatterPlotFactory(CustomDataclassFactory[wr2.ScatterPlot]):
 
     @classmethod
     def gradient(cls):
-        return [wr2.interface.CustomGradientPoint(color="#FFFFFF", offset=0)]
+        gradient_point = GradientPointFactory.build()
+        return [gradient_point]
+
+    # @classmethod
+    # def gradient(cls):
+    #     return [wr2.interface.GradientPoint(color="#FFFFFF", offset=0)]
 
 
 block_factory_names = [
@@ -234,3 +271,16 @@ def test_idempotency(request, factory_name) -> None:
     model2 = cls.from_model(model).to_model()
 
     assert model.dict() == model2.dict()
+
+
+def test_fix_panel_collisions():
+    p1 = wr2.interface.Panel(layout=wr2.Layout(0, 0, 8, 6))
+    p2 = wr2.interface.Panel(layout=wr2.Layout(1, 1, 8, 6))
+    p3 = wr2.interface.Panel(layout=wr2.Layout(2, 1, 8, 6))
+
+    panels = [p1, p2, p3]
+    panels = wr2.interface.resolve_collisions(panels)
+
+    for p1 in panels:
+        for p2 in panels[1:]:
+            assert not wr2.interface.collides(p1, p2)

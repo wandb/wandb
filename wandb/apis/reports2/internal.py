@@ -144,7 +144,7 @@ class Ref(ReportAPIBaseModel):
 
 class Text(ReportAPIBaseModel):
     text: str = ""
-    inline_code: Optional[Literal[True]] = None
+    inline_code: Optional[bool] = None
 
     inline_comments: Optional[list["InlineComment"]] = None
 
@@ -451,14 +451,14 @@ class Image(Block):
 class ListItem(ReportAPIBaseModel):
     type: Literal["list-item"] = "list-item"
     children: list[TextLikeInternal]
-    ordered: Optional[Literal[True]] = None
+    ordered: Optional[bool] = None
     checked: Optional[bool] = None
 
 
 class List(Block):
     type: Literal["list"] = "list"
     children: list[ListItem] = Field(default_factory=lambda: [ListItem()])
-    ordered: Optional[Literal[True]] = None
+    ordered: Optional[bool] = None
 
 
 class CalloutLine(ReportAPIBaseModel):
@@ -612,13 +612,13 @@ class LinePlotConfig(ReportAPIBaseModel):
     y_log_scale: Optional[bool] = None
     x_axis_title: Optional[str] = None
     y_axis_title: Optional[str] = None
-    ignore_outliers: Optional[Literal[True]] = None
+    ignore_outliers: Optional[bool] = None
     group_by: Optional[str] = None
     group_agg: Optional[GroupAgg] = None
     group_area: Optional[GroupArea] = None
     smoothing_weight: Optional[float] = None
     smoothing_type: Optional[SmoothingType] = None
-    show_original_after_smoothing: Optional[Literal[True]] = None
+    show_original_after_smoothing: Optional[bool] = None
     limit: Optional[int] = None
     expressions: Optional[list[str]] = None
     plot_type: Optional[LinePlotStyle] = None
@@ -663,16 +663,16 @@ class ScatterPlotConfig(ReportAPIBaseModel):
     y_axis_max: Optional[float] = None
     z_axis_min: Optional[float] = None
     z_axis_max: Optional[float] = None
-    x_axis_log_scale: Optional[Literal[True]] = None
-    y_axis_log_scale: Optional[Literal[True]] = None
-    z_axis_log_scale: Optional[Literal[True]] = None
-    show_min_y_axis_line: Optional[Literal[True]] = None
-    show_max_y_axis_line: Optional[Literal[True]] = None
-    show_avg_y_axis_line: Optional[Literal[True]] = None
+    x_axis_log_scale: Optional[bool] = None
+    y_axis_log_scale: Optional[bool] = None
+    z_axis_log_scale: Optional[bool] = None
+    show_min_y_axis_line: Optional[bool] = None
+    show_max_y_axis_line: Optional[bool] = None
+    show_avg_y_axis_line: Optional[bool] = None
     legend_template: Optional[str] = None
     custom_gradient: Optional[list[GradientPoint]] = None
     font_size: Optional[FontSize] = None
-    show_linear_regression: Optional[Literal[True]] = None
+    show_linear_regression: Optional[bool] = None
 
 
 class ScatterPlot(Panel):
@@ -693,7 +693,7 @@ class BarPlotConfig(ReportAPIBaseModel):
     group_area: Optional[GroupArea] = None
     limit: Optional[int] = None
     bar_limit: Optional[int] = None
-    expressions: Optional[str] = None
+    expressions: Optional[list[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
     override_series_titles: Optional[dict] = None
@@ -732,8 +732,8 @@ class CodeComparer(Panel):
 class Column(ReportAPIBaseModel):
     accessor: str
     display_name: Optional[str] = None
-    inverted: Optional[Literal[True]] = None
-    log: Optional[Literal[True]] = None
+    inverted: Optional[bool] = None
+    log: Optional[bool] = None
     ref: Optional[Ref] = None
 
 
@@ -847,10 +847,17 @@ class WeavePanel(Panel):
 
 
 def expr_to_filters(expr: str) -> Filters:
+    # if not expr:
+    #     return Filters(op="OR", filters=[Filters(op="AND", filters=[])])
+    # parsed_expr = ast.parse(expr, mode="eval")
+    # return _parse_node(parsed_expr.body)
     if not expr:
-        return Filters(op="OR", filters=[Filters(op="AND", filters=[])])
-    parsed_expr = ast.parse(expr, mode="eval")
-    return _parse_node(parsed_expr.body)
+        filters = []
+    else:
+        parsed_expr = ast.parse(expr, mode="eval")
+        filters = [_parse_node(parsed_expr.body)]
+
+    return Filters(op="OR", filters=[Filters(op="AND", filters=filters)])
 
 
 def _parse_node(node) -> Filters:
@@ -881,7 +888,7 @@ def _handle_comparison(node) -> Filters:
 
     return Filters(
         op=op_map.get(operation),
-        key=Key(section="run", name=left_operand_mapped)
+        key=Key(section="summary", name=left_operand_mapped)
         if left_operand_mapped
         else None,
         value=right_operand,
@@ -905,7 +912,7 @@ def _handle_logical_op(node) -> Filters:
     op = "AND" if isinstance(node.op, ast.And) else "OR"
     filters = [_parse_node(n) for n in node.values]
 
-    return Filters(op=op, filters=filters, disabled=False)
+    return Filters(op=op, filters=filters)
 
 
 def filters_to_expr(filter_obj: Any, is_root=True) -> str:
