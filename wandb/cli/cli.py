@@ -422,12 +422,23 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.pass_context
 @click.argument("path", nargs=-1, type=click.Path(exists=True))
+# @click.option("--id", "run_id", help="The run you want to upload to.")
+# @click.option("--project", "-p", help="The project you want to upload to.")
+# @click.option("--entity", "-e", help="The entity to scope to.")
 @display_error
 def nexync(
     ctx,
     path=None,
+    # run_id=None,
+    # project=None,
+    # entity=None,
 ):
-    wandb._sync(path[0])
+    wandb._sync(
+        path[0],
+        # run_id=None,
+        # project=None,
+        # entity=None,
+    )
 
 
 @cli.command(

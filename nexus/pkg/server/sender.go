@@ -88,8 +88,7 @@ type Sender struct {
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
 
-	// Result of offline sync to pass to the client when syncing is done
-	syncResult *service.Result
+	syncService *SyncService
 
 	store *Store
 }
@@ -346,7 +345,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
-		s.respondSync(s.syncResult)
+		s.syncService.Flush()
 		s.respondExit(s.exitRecord)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -721,23 +720,23 @@ func (s *Sender) respondExit(record *service.Record) {
 	}
 }
 
-// respondSync called from the end of the defer state machine
-// to send the offlien sync result to the client
-func (s *Sender) respondSync(result *service.Result) {
-	if result == nil {
-		return
-	}
+// // respondSync called from the end of the defer state machine
+// // to send the offlien sync result to the client
+// func (s *Sender) respondSync(result *service.Result) {
+// 	if result == nil {
+// 		return
+// 	}
 
-	s.outChan <- result
+// 	s.outChan <- result
 
-	// if s.RunRecord != nil {
-	// 	baseUrl := s.settings.GetBaseUrl().GetValue()
-	// 	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-	// 	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-	// } else {
-	// 	fmt.Println("No run found")
-	// }
-}
+// 	// if s.RunRecord != nil {
+// 	// 	baseUrl := s.settings.GetBaseUrl().GetValue()
+// 	// 	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+// 	// 	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+// 	// } else {
+// 	// 	fmt.Println("No run found")
+// 	// }
+// }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
@@ -923,6 +922,43 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 
 func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
 
+	s.syncService = NewSyncService(s.ctx,
+		WithLogger(s.logger),
+		WithSenderFunc(s.sendRecord),
+		WithFlushCallback(func(err error) {
+			var errorInfo *service.ErrorInfo
+			if err != nil {
+				errorInfo = &service.ErrorInfo{
+					Message: err.Error(),
+					Code:    service.ErrorInfo_UNKNOWN,
+				}
+			}
+
+			var url string
+			if s.RunRecord != nil {
+				baseUrl := s.settings.GetBaseUrl().GetValue()
+				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+				url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+			}
+			result := &service.Result{
+				ResultType: &service.Result_Response{
+					Response: &service.Response{
+						ResponseType: &service.Response_SyncResponse{
+							SyncResponse: &service.SyncResponse{
+								Url:   url,
+								Error: errorInfo,
+							},
+						},
+					},
+				},
+				Control: record.Control,
+				Uuid:    record.Uuid,
+			}
+			s.outChan <- result
+		}),
+	)
+	s.syncService.Start()
+
 	rec := &service.Record{
 		RecordType: &service.Record_Request{
 			Request: &service.Request{
@@ -938,43 +974,6 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Uuid:    record.Uuid,
 	}
 	s.loopbackChan <- rec
-}
-
-func (s *Sender) processStore() (bool, error) {
-	// TODO: work through failure cases. use context to do graceful shutdowns.
-	var exitSeen bool
-	for {
-		record, err := s.store.Read()
-		if err == io.EOF {
-			if exitSeen {
-				return true, nil
-			}
-			err = fmt.Errorf("transaction log was corrupted, some data may be lost")
-			return false, err
-		}
-		if err != nil {
-			s.logger.CaptureError("failed to process transaction log, some data may be lost", err)
-			return exitSeen, err
-		}
-
-		// TODO: we remove the control from the record because we don't want to try to
-		// respond to a non-existing connection when syncing an offline run. if this is
-		// is used for something else, we should re-evaluate this.
-		// remove the control from the record:
-		record.Control = nil
-
-		// get type of record
-		switch record.RecordType.(type) {
-		case *service.Record_Run:
-			s.sendRecord(record)
-			s.sendRunStart(&service.RunStartRequest{})
-		case *service.Record_Exit:
-			exitSeen = true
-			s.sendRecord(record)
-		default:
-			s.sendRecord(record)
-		}
-	}
 }
 
 func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
@@ -994,46 +993,22 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
 	// 	return
 	// }
-
-	ok, err := s.processStore()
-
-	var errorInfo *service.ErrorInfo
-	if err != nil {
-		errorInfo = &service.ErrorInfo{
-			Message: err.Error(),
-			Code:    service.ErrorInfo_UNKNOWN, // TODO: be more specific
+	// 2. read records until finalOffset
+	//
+	for {
+		record, err := s.store.Read()
+		if s.settings.GetXSync().GetValue() {
+			s.syncService.SyncRecord(record, err)
+		} else if record != nil {
+			s.sendRecord(record)
 		}
-	}
-	var url string
-	if s.RunRecord != nil {
-		baseUrl := s.settings.GetBaseUrl().GetValue()
-		baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-		url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-	}
-
-	s.syncResult = &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_SyncResponse{
-					SyncResponse: &service.SyncResponse{
-						Url:   url,
-						Error: errorInfo,
-					},
-				},
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	if !ok {
-		record := &service.Record{
-			RecordType: &service.Record_Exit{
-				Exit: &service.RunExitRecord{
-					ExitCode: 1,
-				},
-			},
+		if err == io.EOF {
+			return
 		}
-		s.sendRecord(record)
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			return
+		}
 	}
 }
 
