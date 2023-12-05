@@ -120,6 +120,15 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record, run *service.
 		return err
 	}
 
+	// handle tags
+	// - when resuming a run, its tags will be overwritten by the tags
+	//   passed to `wandb.init()`.
+	// - to add tags to a resumed run without overwriting its existing tags
+	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
+	if run.Tags == nil {
+		run.Tags = append(run.Tags, bucket.GetTags()...)
+	}
+
 	s.resumeState.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
 	s.resumeState.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
 	s.resumeState.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
