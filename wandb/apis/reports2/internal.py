@@ -144,6 +144,7 @@ class Ref(ReportAPIBaseModel):
 
 class Text(ReportAPIBaseModel):
     text: str = ""
+    inline_code: Optional[Literal[True]] = None
 
     inline_comments: Optional[list["InlineComment"]] = None
 

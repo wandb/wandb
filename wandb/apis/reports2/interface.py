@@ -26,7 +26,7 @@ from .internal import (
     _generate_name,
 )
 
-TextLike = Union[str, "TextWithInlineComments", "Link", "Latex"]
+TextLike = Union[str, "TextWithInlineComments", "Link", "InlineLatex", "InlineCode"]
 TextLikeField = Union[TextLike, list[TextLike]]
 FilterExpr = str
 Color = str
@@ -229,7 +229,12 @@ class Link(Base):
 
 
 @dataclass(config=dataclass_config)
-class Latex(Base):
+class InlineLatex(Base):
+    text: str
+
+
+@dataclass(config=dataclass_config)
+class InlineCode(Base):
     text: str
 
 
@@ -588,7 +593,7 @@ class Runset(Base):
         default_factory=internal.Filters, init=False, repr=False
     )
 
-    def set_filter_expr(self, expr):
+    def set_filters_with_python_expr(self, expr):
         self._filters = internal.expr_to_filters(expr)
 
     @computed_field
@@ -1151,7 +1156,7 @@ class GradientPoint(Base):
 
 @dataclass(config=dataclass_config)
 class ParallelCoordinatesPlotColumn(Base):
-    accessor: str
+    metric: MetricType
     display_name: Optional[str] = None
     inverted: Optional[Literal[True]] = None
     log: Optional[Literal[True]] = None
@@ -1161,7 +1166,7 @@ class ParallelCoordinatesPlotColumn(Base):
     )
 
     def to_model(self):
-        if name := internal.to_backend_name(self.accessor):
+        if name := internal.to_backend_name(self.metric):
             name = "summary:" + name
 
         return internal.Column(
@@ -1476,7 +1481,13 @@ class Report(Base):
     )
 
     def to_model(self):
-        blocks_with_padding = [P()] + self.blocks + [P()]
+        blocks = self.blocks
+        if blocks[0] != P():
+            blocks = [P()] + blocks
+
+        if blocks[-1] != P():
+            blocks = blocks + [P()]
+
         return internal.ReportViewspec(
             display_name=self.title,
             description=self.description,
@@ -1486,7 +1497,7 @@ class Report(Base):
             updated_at=self._updated_at,
             spec=internal.Spec(
                 panel_settings=self._panel_settings,
-                blocks=[b.to_model() for b in blocks_with_padding],
+                blocks=[b.to_model() for b in blocks],
                 width=self.width,
                 authors=self._authors,
                 discussion_threads=self._discussion_threads,
@@ -1496,7 +1507,14 @@ class Report(Base):
 
     @classmethod
     def from_model(cls, model: internal.ReportViewspec):
-        blocks = model.spec.blocks[1:-1]
+        blocks = model.spec.blocks
+
+        if blocks[0] == internal.Paragraph():
+            blocks = blocks[1:]
+
+        if blocks[-1] == internal.Paragraph():
+            blocks = blocks[:-1]
+
         return cls(
             title=model.display_name,
             description=model.description,
@@ -1711,12 +1729,13 @@ def _text_to_internal_children(text_field):
                     internal.Text(text=txt.text, inline_comments=txt._inline_comments)
                 ]
             thing = internal.InlineLink(url=x.url, children=children)
-        elif isinstance(x, Latex):
+        elif isinstance(x, InlineLatex):
             thing = internal.InlineLatex(content=x.text)
+        elif isinstance(x, InlineCode):
+            thing = internal.Text(text=x.text, inline_code=True)
         texts.append(thing)
     if not all(isinstance(x, str) for x in texts):
         pass
-        # texts = [internal.Text()] + texts + [internal.Text()]
     return texts
 
 
@@ -1724,7 +1743,9 @@ def _generate_thing(x):
     if isinstance(x, internal.Paragraph):
         return _internal_children_to_text(x.children)
     elif isinstance(x, internal.Text):
-        if x.inline_comments:
+        if x.inline_code:
+            return InlineCode(x.text)
+        elif x.inline_comments:
             return TextWithInlineComments(
                 text=x.text, _inline_comments=x.inline_comments
             )
@@ -1739,7 +1760,7 @@ def _generate_thing(x):
             text = text_obj.text
         return Link(url=x.url, text=text)
     elif isinstance(x, internal.InlineLatex):
-        return Latex(text=x.content)
+        return InlineLatex(text=x.content)
 
 
 def _internal_children_to_text(children):
