@@ -1855,5 +1855,5 @@ def _check_wandb_core_version_compatibility(core_version: str) -> None:
     if parse_version(core_version) < parse_version(wandb._minimum_core_version):
         raise ImportError(
             f"Requires wandb-core version {wandb._minimum_core_version} or later, "
-            f"but you have {core_version}. Run `pip install --upgrade wandb[core]` to upgrade."
+            f"but you have {core_version}. Run `pip install wandb-core>={wandb._minimum_core_version}` to upgrade."
         )
