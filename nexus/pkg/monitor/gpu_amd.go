@@ -122,8 +122,10 @@ func (g *GPUAMD) SampleMetrics() {
 
 	var cards []Stats
 	for key, value := range rawStats {
+		fmt.Println("key: ", key, strings.HasPrefix(key, "card"))
 		if strings.HasPrefix(key, "card") {
 			cardStats, ok := value.(map[string]string)
+			fmt.Println(ok, "cardStats: ", cardStats)
 			if !ok {
 				continue
 			}
