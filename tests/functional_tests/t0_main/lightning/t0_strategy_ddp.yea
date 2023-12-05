@@ -3,6 +3,7 @@ plugin:
   - wandb
 depend:
   requirements:
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
     - pytorch-lightning
 assert:
   - :wandb:runs_len: 1
