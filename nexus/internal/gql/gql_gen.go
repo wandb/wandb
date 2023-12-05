@@ -541,16 +541,17 @@ func (v *RunResumeStatusModelProject) GetBucket() *RunResumeStatusModelProjectBu
 
 // RunResumeStatusModelProjectBucketRun includes the requested fields of the GraphQL type Run.
 type RunResumeStatusModelProjectBucketRun struct {
-	Id               string  `json:"id"`
-	Name             string  `json:"name"`
-	SummaryMetrics   *string `json:"summaryMetrics"`
-	DisplayName      *string `json:"displayName"`
-	LogLineCount     *int    `json:"logLineCount"`
-	HistoryLineCount *int    `json:"historyLineCount"`
-	EventsLineCount  *int    `json:"eventsLineCount"`
-	HistoryTail      *string `json:"historyTail"`
-	EventsTail       *string `json:"eventsTail"`
-	Config           *string `json:"config"`
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	SummaryMetrics   *string  `json:"summaryMetrics"`
+	DisplayName      *string  `json:"displayName"`
+	LogLineCount     *int     `json:"logLineCount"`
+	HistoryLineCount *int     `json:"historyLineCount"`
+	EventsLineCount  *int     `json:"eventsLineCount"`
+	HistoryTail      *string  `json:"historyTail"`
+	EventsTail       *string  `json:"eventsTail"`
+	Config           *string  `json:"config"`
+	Tags             []string `json:"tags"`
 }
 
 // GetId returns RunResumeStatusModelProjectBucketRun.Id, and is useful for accessing the field via an interface.
@@ -582,6 +583,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetEventsTail() *string { return 
 
 // GetConfig returns RunResumeStatusModelProjectBucketRun.Config, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Config }
+
+// GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
 
 // RunResumeStatusModelProjectEntity includes the requested fields of the GraphQL type Entity.
 type RunResumeStatusModelProjectEntity struct {
@@ -1685,6 +1689,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			historyTail
 			eventsTail
 			config
+			tags
 		}
 	}
 }

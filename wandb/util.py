@@ -1711,7 +1711,7 @@ def _get_max_cli_version() -> Union[str, None]:
 def _is_offline() -> bool:
     return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline
+    ) or wandb.setup().settings._offline  # type: ignore
 
 
 def ensure_text(
@@ -1855,5 +1855,5 @@ def _check_wandb_core_version_compatibility(core_version: str) -> None:
     if parse_version(core_version) < parse_version(wandb._minimum_core_version):
         raise ImportError(
             f"Requires wandb-core version {wandb._minimum_core_version} or later, "
-            f"but you have {core_version}. Run `pip install --upgrade wandb[core]` to upgrade."
+            f"but you have {core_version}. Run `pip install --upgrade wandb-core` to upgrade."
         )
