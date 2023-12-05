@@ -1,5 +1,6 @@
 import os
 import pathlib
+from typing import Optional
 
 from ..errors.term import termerror, termlog
 from . import wandb_setup
@@ -9,13 +10,13 @@ from .lib.runid import generate_id
 
 
 def _sync(
-    path,
-    entity=None,
-    project=None,
-    run_id=None,
-    console=None,
-    append=None,
-):
+    path: str,
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
+    run_id: Optional[str] = None,
+    console: Optional[bool] = None,
+    append: Optional[bool] = None,
+) -> None:
     p = pathlib.Path(path)
 
     wl = wandb_setup.setup()
@@ -41,7 +42,7 @@ def _sync(
     backend.ensure_launched()
 
     assert backend.interface
-    backend.interface._stream_id = stream_id
+    backend.interface._stream_id = stream_id  # type: ignore
 
     mailbox.enable_keepalive()
 
@@ -55,6 +56,7 @@ def _sync(
         output_raw=console,
     )
     result = handle.wait(timeout=-1)
+    assert result and result.response
     response = result.response.sync_response
     if response.url:
         termlog(f"Syncing {p} to {response.url}")
