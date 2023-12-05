@@ -61,6 +61,7 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 func getROCMSMIStats() (InfoDict, error) {
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
 	output, err := cmd.Output()
+	fmt.Printf("output: %s\n", output)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func getROCMSMIStats() (InfoDict, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Printf("stats: %s\n", stats)
 	return stats, nil
 }
 
@@ -101,7 +102,7 @@ func (g *GPUAMD) parseStats(stats map[string]string) Stats {
 	if err == nil && errMax == nil && maxPower != 0 {
 		parsedStats[PowerPercent] = (powerWatts / maxPower) * 100
 	}
-
+	fmt.Println("parsedStats: ", parsedStats)
 	return parsedStats
 }
 
@@ -116,6 +117,7 @@ func (g *GPUAMD) SampleMetrics() {
 	defer g.mutex.Unlock()
 
 	rawStats, err := getROCMSMIStats()
+	fmt.Println("rawStats: ", rawStats)
 	if err != nil {
 		log.Printf("Error getting ROCm SMI stats: %v", err)
 		return
