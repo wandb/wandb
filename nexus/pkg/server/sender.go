@@ -915,7 +915,7 @@ func (s *Sender) getServerInfo() {
 func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
 
 	localInfo := &service.LocalInfo{}
-	if s.serverInfo != nil {
+	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
 		localInfo = &service.LocalInfo{
 			Version:   s.serverInfo.GetLatestLocalVersionInfo().GetLatestVersionString(),
 			OutOfDate: s.serverInfo.GetLatestLocalVersionInfo().GetOutOfDate(),

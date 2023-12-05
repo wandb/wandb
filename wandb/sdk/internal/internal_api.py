@@ -1231,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }

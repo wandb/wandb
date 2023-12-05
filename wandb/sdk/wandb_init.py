@@ -1039,6 +1039,10 @@ def init(
             together, or applying temporary labels like "baseline" or
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
+            If you are resuming a run, its tags will be overwritten by the tags
+            you pass to `wandb.init()`. If you want to add tags to a resumed run
+            without overwriting its existing tags, use `run.tags += ["new_tag"]`
+            after `wandb.init()`.
         name: (str, optional) A short display name for this run, which is how
             you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the
