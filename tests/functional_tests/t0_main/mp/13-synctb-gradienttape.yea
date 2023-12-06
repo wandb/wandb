@@ -1,6 +1,9 @@
 id: 0.mp.13-synctb-gradienttape
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
   
 depend:
   requirements:
