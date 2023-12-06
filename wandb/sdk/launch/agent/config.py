@@ -3,7 +3,16 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator  # type: ignore
+
+from wandb.sdk.launch.utils import (
+    AZURE_BLOB_REGEX,
+    AZURE_CONTAINER_REGISTRY_URI_REGEX,
+    ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+    GCP_ARTIFACT_REGISTRY_URI_REGEX,
+    GCS_URI_RE,
+    S3_URI_RE,
+)
 
 
 class EnvironmentType(str, Enum):
@@ -67,11 +76,21 @@ class BuilderConfig(BaseModel):
         "the image will be pushed to the registry.",
     )
 
+    @validator("destination")  # type: ignore
     @classmethod
-    @validator("destination")
-    def validate_destination(cls, destination) -> str:
+    def validate_destination(cls, destination: str) -> str:
         """Validate that the destination is a valid container registry URI."""
-        return destination
+        for regex in [
+            GCP_ARTIFACT_REGISTRY_URI_REGEX,
+            AZURE_CONTAINER_REGISTRY_URI_REGEX,
+            ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+        ]:
+            if regex.match(destination):
+                return destination
+        raise ValueError(
+            "Invalid destination. Destination must be a repository URI for an "
+            "ECR, ACR, or GCP Artifact Registry."
+        )
 
 
 class DockerBuilderConfig(BuilderConfig):
@@ -111,11 +130,21 @@ class KanikoBuilderConfig(BuilderConfig):
     class Config:
         extra = "forbid"
 
+    @validator("build_context_store")  # type: ignore
     @classmethod
-    @validator("build_context_store")
-    def validate_build_context_store(cls, build_context_store) -> str:
+    def validate_build_context_store(cls, build_context_store: str) -> str:
         """Validate that the build context store is a valid container registry URI."""
-        return build_context_store
+        for regex in [
+            S3_URI_RE,
+            GCS_URI_RE,
+            AZURE_BLOB_REGEX,
+        ]:
+            if regex.match(build_context_store):
+                return build_context_store
+        raise ValueError(
+            "Invalid build context store. Build context store must be a URI for an "
+            "S3 bucket, GCS bucket, or Azure blob."
+        )
 
 
 class AgentConfig(BaseModel):

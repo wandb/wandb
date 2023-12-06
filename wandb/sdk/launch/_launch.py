@@ -5,7 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-from pydantic import ValidationError
+from pydantic import ValidationError  # type: ignore
 
 import wandb
 from wandb.apis.internal import Api
