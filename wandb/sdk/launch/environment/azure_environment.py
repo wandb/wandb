@@ -1,6 +1,5 @@
 """Implementation of AzureEnvironment class."""
 
-import re
 from typing import Tuple
 
 from azure.core.exceptions import HttpResponseError  # type: ignore
@@ -8,11 +7,8 @@ from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.storage.blob import BlobClient, BlobServiceClient  # type: ignore
 
 from ..errors import LaunchError
+from ..utils import AZURE_BLOB_REGEX
 from .abstract import AbstractEnvironment
-
-AZURE_BLOB_REGEX = re.compile(
-    r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
-)
 
 
 class AzureEnvironment(AbstractEnvironment):
