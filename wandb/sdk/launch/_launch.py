@@ -216,8 +216,6 @@ async def _launch(
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
     builder = loader.builder_from_config(build_config, environment, registry)
-    if builder is not None and not isinstance(builder, NoOpBuilder):
-        await builder.verify()
     if not launch_project.docker_image:
         assert entrypoint
         image_uri = await builder.build_image(launch_project, entrypoint, None)

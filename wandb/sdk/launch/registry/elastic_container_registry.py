@@ -108,11 +108,11 @@ class ElasticContainerRegistry(AbstractRegistry):
             "region",
             "repo_name",
         }
-        unacceptable_keys = set(config.keys()) - acceptable_keys
-        if unacceptable_keys:
+        unsupported_keys = set(config.keys()) - acceptable_keys
+        if unsupported_keys:
             raise LaunchError(
-                f"The Elastic Container Registry config contains unacceptable keys: "
-                f"{unacceptable_keys}. Please remove these keys. The acceptable "
+                f"The Elastic Container Registry config contains unsupported keys: "
+                f"{unsupported_keys}. Please remove these keys. The acceptable "
                 f"keys are: {acceptable_keys}."
             )
         return cls(

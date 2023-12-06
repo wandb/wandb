@@ -90,7 +90,7 @@ class DockerBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri:
             if registry is not None:
-                _logger.warning(
+                wandb.termwarn(
                     f"{LOG_PREFIX}Overriding registry from registry config"
                     f" with {image_uri} from builder config."
                 )

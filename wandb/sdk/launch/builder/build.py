@@ -58,7 +58,7 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
     The format of the URI is as follows:
     - Azure Container Registry: <registry-name>.azurecr.io/<repo-name>/<image-name>
     - Google Container Registry: <location>-docker.pkg.dev/<project-id>/<repo-name>/<image-name>
-    - AWS Elastic Container Registry: <registry-name>.dkr.ecr.<region>.amazonaws.com/<repo-name>/<image-name>
+    - AWS Elastic Container Registry: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>/<image-name>
 
     Our classification of the registry is based on the domain name. For example,
     if the uri contains `.azurecr.io`, we classify it as an Azure
