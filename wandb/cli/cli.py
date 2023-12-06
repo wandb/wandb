@@ -621,7 +621,7 @@ def sync(
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
-def sync(
+def sync(  # noqa: F811
     ctx,
     path=None,
     view=None,
