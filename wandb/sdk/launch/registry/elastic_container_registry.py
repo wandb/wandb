@@ -1,12 +1,14 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
 import base64
 import logging
-import re
 from typing import Dict, Optional, Tuple
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
-from wandb.sdk.launch.utils import event_loop_thread_exec
+from wandb.sdk.launch.utils import (
+    ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+    event_loop_thread_exec,
+)
 from wandb.util import get_module
 
 _logger = logging.getLogger(__name__)
@@ -49,8 +51,7 @@ class ElasticContainerRegistry(AbstractRegistry):
                     "Could not create ElasticContainerRegistry from config. Either 'uri' or "
                     "'account_id', 'region', and 'repo_name' are required."
                 )
-            match = re.match(
-                r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$",
+            match = ELASTIC_CONTAINER_REGISTRY_URI_REGEX.match(
                 self.uri,
             )
             if not match:

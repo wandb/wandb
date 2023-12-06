@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.utils import AZURE_CONTAINER_REGISTRY_URI_REGEX
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry
@@ -24,11 +25,6 @@ ResourceNotFoundError = get_module(  # noqa: F811
 ).ResourceNotFoundError
 
 
-AZURE_CONTAINER_REGISTRY_URI_REGEX = (
-    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
-)
-
-
 class AzureContainerRegistry(AbstractRegistry):
     """Helper for accessing Azure Container Registry resources."""
 
@@ -47,7 +43,7 @@ class AzureContainerRegistry(AbstractRegistry):
                 )
             if self.uri.startswith("https://"):
                 self.uri = self.uri[len("https://") :]
-            match = re.match(AZURE_CONTAINER_REGISTRY_URI_REGEX, self.uri)
+            match = AZURE_CONTAINER_REGISTRY_URI_REGEX.match(self.uri)
             if match is None:
                 raise LaunchError(
                     f"Unable to parse Azure Container Registry URI: {self.uri}"

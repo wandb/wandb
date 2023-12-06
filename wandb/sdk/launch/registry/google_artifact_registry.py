@@ -1,23 +1,20 @@
 """Implementation of Google Artifact Registry for wandb launch."""
 import logging
-import re
 from typing import Optional, Tuple
 
 import google.auth  # type: ignore
 import google.cloud.artifactregistry  # type: ignore
 
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.utils import event_loop_thread_exec
+from wandb.sdk.launch.utils import (
+    GCP_ARTIFACT_REGISTRY_URI_REGEX,
+    event_loop_thread_exec,
+)
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry
 
 _logger = logging.getLogger(__name__)
-
-GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
-    re.IGNORECASE,
-)
 
 google = get_module(  # noqa: F811
     "google",

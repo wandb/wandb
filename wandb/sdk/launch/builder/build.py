@@ -32,6 +32,9 @@ from .._project_spec import (
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
+    AZURE_CONTAINER_REGISTRY_URI_REGEX,
+    ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+    GCP_ARTIFACT_REGISTRY_URI_REGEX,
     LAUNCH_CONFIG_FILE,
     LOG_PREFIX,
     event_loop_thread_exec,
@@ -82,21 +85,21 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
     if uri.startswith("https://"):
         uri = uri[len("https://") :]
 
-    if "azurecr.io" in uri:
+    if AZURE_CONTAINER_REGISTRY_URI_REGEX.match(uri) is not None:
         from wandb.sdk.launch.registry.azure_container_registry import (
             AzureContainerRegistry,
         )
 
         return AzureContainerRegistry(uri=uri)
 
-    elif "docker.pkg.dev" in uri:
+    elif GCP_ARTIFACT_REGISTRY_URI_REGEX.match(uri) is not None:
         from wandb.sdk.launch.registry.google_artifact_registry import (
             GoogleArtifactRegistry,
         )
 
         return GoogleArtifactRegistry(uri=uri)
 
-    elif "dkr.ecr" in uri:
+    elif ELASTIC_CONTAINER_REGISTRY_URI_REGEX.match(uri) is not None:
         from wandb.sdk.launch.registry.elastic_container_registry import (
             ElasticContainerRegistry,
         )
