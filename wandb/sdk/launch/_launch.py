@@ -154,7 +154,7 @@ def create_and_run_agent(
     config: Dict[str, Any],
 ) -> None:
     try:
-        config.pop("runner")
+        config.pop("runner", None)
         AgentConfig(**config)
     except ValidationError as e:
         errors = e.errors()
