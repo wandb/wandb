@@ -32,7 +32,7 @@ class FsspecFileHandler(StorageHandler):
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
-        return parsed_url.scheme in self._schemes
+        return parsed_url.scheme in self._scheme
 
     def load_path(
         self,
