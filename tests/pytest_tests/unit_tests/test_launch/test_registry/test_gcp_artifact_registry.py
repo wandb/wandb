@@ -123,6 +123,22 @@ async def test_get_username_password(mock_gcp_default_credentials):
     )
 
 
+def test_from_config(mock_gcp_default_credentials, mock_gcp_artifact_registry_client):
+    """Test that the GoogleArtifactRegistry.from_config method works as expected."""
+    config = {
+        "uri": "us-central1-docker.pkg.dev/wandb-ml/vertex-ai/wandb-ml",
+    }
+    helper = GoogleArtifactRegistry.from_config(config)
+    assert helper.uri == "us-central1-docker.pkg.dev/wandb-ml/vertex-ai/wandb-ml"
+    assert helper.project == "wandb-ml"
+    assert helper.region == "us-central1"
+    assert helper.repository == "vertex-ai"
+    # Test that we raise a LaunchError if we have unsupported keys.
+    config["unsupported"] = "unsupported"
+    with pytest.raises(LaunchError):
+        GoogleArtifactRegistry.from_config(config)
+
+
 @pytest.mark.asyncio
 async def test_check_image_exists(
     mock_gcp_default_credentials, mock_gcp_artifact_registry_client
