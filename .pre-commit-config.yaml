@@ -125,7 +125,7 @@ repos:
         language: 'script'
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:
-          - -over=21
+          - -over=22
       - id: go-mod-tidy
         name: 'go-mod-tidy'
         entry: nexus/scripts/pre-commit-hooks/run-go-mod-tidy.sh

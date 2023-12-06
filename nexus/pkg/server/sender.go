@@ -198,7 +198,6 @@ func (s *Sender) Close() {
 }
 
 // sendRecord sends a record
-//nolint:gocyclo
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
