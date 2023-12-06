@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/segmentio/encoding/json"
+	"gopkg.in/yaml.v2"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -30,6 +31,9 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
+	OutputFile   = "output.log"
+	ConfigFile   = "config.yaml"
+	SummaryFile  = "wandb-summary.json"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -309,9 +313,11 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
+		s.sendFile(ConfigFile, filetransfer.WandbFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		s.sendFile(OutputFile, filetransfer.WandbFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -444,6 +450,7 @@ func (s *Sender) serializeConfig() string {
 	for key, elem := range s.configMap {
 		valueConfig[key] = make(map[string]interface{})
 		valueConfig[key]["value"] = elem
+		valueConfig[key]["desc"] = nil
 	}
 	configJson, err := json.Marshal(valueConfig)
 	if err != nil {
@@ -591,13 +598,28 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 }
 
 func (s *Sender) upsertConfig() {
+	yamlData, err := yaml.Marshal(&s.configMap)
+	if err != nil {
+		s.logger.Error("sender: sendConfig: failed to marshal config", "error", err)
+	}
+	f, err := os.OpenFile(filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFile), os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		s.logger.Error("sender: sendConfig: failed to open config file", "error", err)
+	}
+	if _, err = f.WriteString(string(yamlData)); err != nil {
+		s.logger.Error("sender: sendConfig: failed to write to config file", "error", err)
+	}
+	defer func() {
+		f.Close()
+	}()
+
 	if s.graphqlClient == nil {
 		return
 	}
 
 	config := s.serializeConfig()
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-	_, err := gql.UpsertBucket(
+	_, err = gql.UpsertBucket(
 		ctx,                                  // ctx
 		s.graphqlClient,                      // client
 		nil,                                  // id
@@ -653,13 +675,28 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
+
+	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFile)
+	// append line to file
+	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		s.logger.Error("sender: sendOutputRaw: failed to open output file", "error", err)
+	}
+	if _, err := f.WriteString(outputRaw.Line + "\n"); err != nil {
+		s.logger.Error("sender: sendOutputRaw: failed to write to output file", "error", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.logger.Error("sender: sendOutputRaw: failed to close output file", "error", err)
+		}
+	}()
+
 	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
-
 	s.fileStream.StreamRecord(recordCopy)
 }
 
