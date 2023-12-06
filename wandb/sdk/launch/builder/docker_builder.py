@@ -123,6 +123,7 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
+        await self.verify()
         await self.login()
 
         dockerfile_str = generate_dockerfile(

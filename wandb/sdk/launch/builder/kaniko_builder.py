@@ -246,6 +246,7 @@ class KanikoBuilder(AbstractBuilder):
         entrypoint: EntryPoint,
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
+        await self.verify()
         # TODO: this should probably throw an error if the registry is a local registry
         if not self.registry:
             raise LaunchError("No registry specified for Kaniko build.")
