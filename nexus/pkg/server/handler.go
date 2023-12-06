@@ -23,7 +23,7 @@ const (
 type HandlerInterface interface {
 	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
 	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
-	Handle()
+	Run()
 	Close()
 	GetRun() *service.RunRecord
 }
@@ -34,6 +34,9 @@ type HandlerInterface interface {
 type Handler struct {
 	// ctx is the context for the handler
 	ctx context.Context
+
+	// cancel is the cancel function for the handler
+	cancel context.CancelFunc
 
 	// settings is the settings for the handler
 	settings *service.Settings
@@ -97,12 +100,14 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
+	cancel context.CancelFunc,
 	settings *service.Settings,
 	logger *observability.NexusLogger,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{
 		ctx:                 ctx,
+		cancel:              cancel,
 		settings:            settings,
 		logger:              logger,
 		consolidatedSummary: make(map[string]string),
@@ -151,8 +156,8 @@ func (h *Handler) DisableSummaryDebouncer() {
 	h.summaryDebouncer = nil
 }
 
-// Handle starts the handler
-func (h *Handler) Handle() {
+// Run starts the handler
+func (h *Handler) Run() {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 loop:

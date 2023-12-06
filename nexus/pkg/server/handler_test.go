@@ -26,7 +26,8 @@ func makeHandler(
 	debounce bool,
 ) *server.Handler {
 	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
-	h := server.NewHandler(context.Background(), &service.Settings{}, logger)
+	ctx, cancel := context.WithCancel(context.Background())
+	h := server.NewHandler(ctx, cancel, &service.Settings{}, logger)
 
 	h.SetInboundChannels(inChan, loopbackChan)
 	h.SetOutboundChannels(fwdChan, outChan)
@@ -35,7 +36,7 @@ func makeHandler(
 		h.DisableSummaryDebouncer()
 	}
 
-	go h.Handle()
+	go h.Run()
 
 	return h
 }

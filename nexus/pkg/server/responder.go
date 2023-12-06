@@ -19,8 +19,8 @@ type Dispatcher struct {
 	logger     *observability.NexusLogger
 }
 
-// do is the main loop of the dispatcher to process incoming messages
-func (d *Dispatcher) do(hChan, sChan <-chan *service.Result) {
+// Run is the main loop of the dispatcher to process incoming messages
+func (d *Dispatcher) Run(hChan, sChan <-chan *service.Result) {
 	defer d.logger.Reraise()
 	for hChan != nil || sChan != nil {
 		select {
