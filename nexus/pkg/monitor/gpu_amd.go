@@ -58,59 +58,60 @@ func (g *GPUAMD) IsAvailable() bool {
 	return err == nil
 }
 
-func (g *GPUAMD) Probe() map[string]interface{} {
-	info := make(map[string]interface{})
+func (g *GPUAMD) Probe() *service.MetadataRequest {
+	// info := make(map[string]interface{})
 
-	rawStats, err := getROCMSMIStats()
-	if err != nil {
-		log.Printf("GPUAMD probe error: %v", err)
-		return info
-	}
+	// rawStats, err := getROCMSMIStats()
+	// if err != nil {
+	// 	log.Printf("GPUAMD probe error: %v", err)
+	// 	return info
+	// }
 
-	gpuCount := 0
-	for key := range rawStats {
-		if strings.HasPrefix(key, "card") {
-			gpuCount++
-		}
-	}
-	info["gpu_count"] = gpuCount
+	// gpuCount := 0
+	// for key := range rawStats {
+	// 	if strings.HasPrefix(key, "card") {
+	// 		gpuCount++
+	// 	}
+	// }
+	// info["gpu_count"] = gpuCount
 
-	keyMapping := map[string]string{
-		"id":                   "GPU ID",
-		"unique_id":            "Unique ID",
-		"vbios_version":        "VBIOS version",
-		"performance_level":    "Performance Level",
-		"gpu_overdrive":        "GPU OverDrive value (%)",
-		"gpu_memory_overdrive": "GPU Memory OverDrive value (%)",
-		"max_power":            "Max Graphics Package Power (W)",
-		"series":               "Card series",
-		"model":                "Card model",
-		"vendor":               "Card vendor",
-		"sku":                  "Card SKU",
-		"sclk_range":           "Valid sclk range",
-		"mclk_range":           "Valid mclk range",
-	}
+	// keyMapping := map[string]string{
+	// 	"id":                   "GPU ID",
+	// 	"unique_id":            "Unique ID",
+	// 	"vbios_version":        "VBIOS version",
+	// 	"performance_level":    "Performance Level",
+	// 	"gpu_overdrive":        "GPU OverDrive value (%)",
+	// 	"gpu_memory_overdrive": "GPU Memory OverDrive value (%)",
+	// 	"max_power":            "Max Graphics Package Power (W)",
+	// 	"series":               "Card series",
+	// 	"model":                "Card model",
+	// 	"vendor":               "Card vendor",
+	// 	"sku":                  "Card SKU",
+	// 	"sclk_range":           "Valid sclk range",
+	// 	"mclk_range":           "Valid mclk range",
+	// }
 
-	gpuDevices := make([]map[string]string, 0)
-	for key, cardStats := range rawStats {
-		if strings.HasPrefix(key, "card") {
-			card, ok := cardStats.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			mapped := make(map[string]string)
-			for k, v := range keyMapping {
-				if value, exists := card[v]; exists {
-					mapped[k] = value.(string)
-				}
-			}
-			gpuDevices = append(gpuDevices, mapped)
-		}
-	}
+	// gpuDevices := make([]map[string]string, 0)
+	// for key, cardStats := range rawStats {
+	// 	if strings.HasPrefix(key, "card") {
+	// 		card, ok := cardStats.(map[string]interface{})
+	// 		if !ok {
+	// 			continue
+	// 		}
+	// 		mapped := make(map[string]string)
+	// 		for k, v := range keyMapping {
+	// 			if value, exists := card[v]; exists {
+	// 				mapped[k] = value.(string)
+	// 			}
+	// 		}
+	// 		gpuDevices = append(gpuDevices, mapped)
+	// 	}
+	// }
 
-	info["gpu_devices"] = gpuDevices
+	// info["gpu_devices"] = gpuDevices
 
-	return info
+	// return info
+	return nil
 }
 
 func (g *GPUAMD) Samples() []Stats {
