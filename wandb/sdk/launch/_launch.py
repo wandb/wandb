@@ -5,13 +5,14 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+from pydantic import ValidationError
 
 import wandb
 from wandb.apis.internal import Api
 
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
-from .agent import LaunchAgent
+from .agent import AgentConfig, LaunchAgent
 from .builder.build import construct_agent_configs
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
@@ -152,6 +153,19 @@ def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
 ) -> None:
+    try:
+        config.pop("runner")
+        AgentConfig(**config)
+    except ValidationError as e:
+        errors = e.errors()
+        for error in errors:
+            value = config
+            for loc in error["loc"]:
+                value = value[loc]
+            wandb.termerror(
+                f"Invalid value {value} given for {'.'.join(error['loc'])}: {error['msg']}"
+            )
+        raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
     try:
         asyncio.run(agent.loop())
