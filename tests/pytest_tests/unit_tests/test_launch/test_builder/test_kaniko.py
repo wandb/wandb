@@ -380,3 +380,16 @@ async def test_build_image_success(
             in capsys.readouterr().err
         )
         assert "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo" in image_uri
+
+
+def test_kaniko_builder_from_config(aws_environment, elastic_container_registry):
+    """Test that the kaniko builder correctly constructs the job spec for Azure."""
+    config = {
+        "type": "kaniko",
+        "build-context-store": "s3://test-bucket/test-prefix",
+        "destination": "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo",
+    }
+    builder = KanikoBuilder.from_config(
+        config, aws_environment, elastic_container_registry
+    )
+    assert builder.build_context_store == "s3://test-bucket/test-prefix"

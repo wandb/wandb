@@ -100,7 +100,9 @@ async def test_check_image_exists_success(mock_ecr_client):
     ecr = ElasticContainerRegistry(
         uri="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"
     )
-    assert await ecr.check_image_exists("my-image")
+    assert await ecr.check_image_exists(
+        "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:my-image"
+    )
     assert mock_ecr_client.describe_images.call_args[1] == {
         "repositoryName": "my-repo",
         "imageIds": [{"imageTag": "my-image"}],
