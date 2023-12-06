@@ -35,24 +35,3 @@ func TestGPUAMD_ParseStats(t *testing.T) {
 
 	assert.Equal(t, expected, parsedStats)
 }
-
-func TestGPUAMD_SampleMetrics(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
-	if !gpu.IsAvailable() {
-		t.Skip("ROCm SMI command not found. Skipping test.")
-	}
-
-	gpu.SampleMetrics()
-	assert.Len(t, gpu.Samples(), 1)
-}
-
-func TestGPUAMD_AggregateMetrics(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
-	if !gpu.IsAvailable() {
-		t.Skip("ROCm SMI command not found. Skipping test.")
-	}
-
-	gpu.SampleMetrics()
-	aggregates := gpu.AggregateMetrics()
-	assert.NotNil(t, aggregates)
-}

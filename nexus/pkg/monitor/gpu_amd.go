@@ -58,8 +58,59 @@ func (g *GPUAMD) IsAvailable() bool {
 	return err == nil
 }
 
-func (g *GPUAMD) Probe() *service.MetadataRequest {
-	return nil
+func (g *GPUAMD) Probe() map[string]interface{} {
+	info := make(map[string]interface{})
+
+	rawStats, err := getROCMSMIStats()
+	if err != nil {
+		log.Printf("GPUAMD probe error: %v", err)
+		return info
+	}
+
+	gpuCount := 0
+	for key := range rawStats {
+		if strings.HasPrefix(key, "card") {
+			gpuCount++
+		}
+	}
+	info["gpu_count"] = gpuCount
+
+	keyMapping := map[string]string{
+		"id":                   "GPU ID",
+		"unique_id":            "Unique ID",
+		"vbios_version":        "VBIOS version",
+		"performance_level":    "Performance Level",
+		"gpu_overdrive":        "GPU OverDrive value (%)",
+		"gpu_memory_overdrive": "GPU Memory OverDrive value (%)",
+		"max_power":            "Max Graphics Package Power (W)",
+		"series":               "Card series",
+		"model":                "Card model",
+		"vendor":               "Card vendor",
+		"sku":                  "Card SKU",
+		"sclk_range":           "Valid sclk range",
+		"mclk_range":           "Valid mclk range",
+	}
+
+	gpuDevices := make([]map[string]string, 0)
+	for key, cardStats := range rawStats {
+		if strings.HasPrefix(key, "card") {
+			card, ok := cardStats.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			mapped := make(map[string]string)
+			for k, v := range keyMapping {
+				if value, exists := card[v]; exists {
+					mapped[k] = value.(string)
+				}
+			}
+			gpuDevices = append(gpuDevices, mapped)
+		}
+	}
+
+	info["gpu_devices"] = gpuDevices
+
+	return info
 }
 
 func (g *GPUAMD) Samples() []Stats {
@@ -87,43 +138,49 @@ func getROCMSMIStats() (InfoDict, error) {
 func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	parsedStats := make(Stats)
 
-	for key, val := range stats {
-		strVal, ok := val.(string)
-		if !ok {
-			// Optionally handle the error if the value is not a string
-			log.Printf("Value for key %s is not a string", key)
-			continue
+	for key, statFunc := range map[string]func(string) *Stats{
+		"GPU use (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{GPU: f}
+			}
+			return nil
+		},
+		"GPU memory use (%)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{MemoryAllocated: f}
+			}
+			return nil
+		},
+		"Temperature (Sensor memory) (C)": func(s string) *Stats {
+			if f, err := parseFloat(s); err == nil {
+				return &Stats{Temp: f}
+			}
+			return nil
+		},
+		"Average Graphics Package Power (W)": func(s string) *Stats {
+			maxPowerWatts, ok := stats["Max Graphics Package Power (W)"].(string)
+			if !ok {
+				return nil
+			}
+			mp, err1 := parseFloat(maxPowerWatts)
+			ap, err2 := parseFloat(s)
+
+			if err1 == nil && err2 == nil && mp != 0 {
+				powerStats := Stats{PowerWatts: ap, PowerPercent: (ap / mp) * 100}
+				return &powerStats
+			}
+			return nil
+		},
+	} {
+		strVal, ok := stats[key].(string)
+		if ok {
+			partialStats := statFunc(strVal)
+			if partialStats != nil {
+				for k, v := range *partialStats {
+					parsedStats[k] = v
+				}
+			}
 		}
-
-		var err error
-		var floatValue float64
-
-		// Process the string value based on the key
-		switch key {
-		case "GPU use (%)":
-			floatValue, err = parseFloat(strVal)
-			if err == nil {
-				parsedStats[GPU] = floatValue
-			}
-		case "GPU memory use (%)":
-			floatValue, err = parseFloat(strVal)
-			if err == nil {
-				parsedStats[MemoryAllocated] = floatValue
-			}
-		case "Temperature (Sensor memory) (C)":
-			floatValue, err = parseFloat(strVal)
-			if err == nil {
-				parsedStats[Temp] = floatValue
-			}
-		case "Average Graphics Package Power (W)":
-			powerWatts, err := parseFloat(strVal)
-			if err == nil {
-				parsedStats[PowerWatts] = powerWatts
-			}
-			// Add other cases as needed
-		}
-
-		// You can add more complex processing here, such as handling the "Max Graphics Package Power (W)" case
 	}
 
 	return parsedStats
