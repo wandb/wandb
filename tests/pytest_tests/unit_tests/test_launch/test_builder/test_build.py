@@ -7,30 +7,40 @@ from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.errors import LaunchError
 
 
-def test_registry_from_uri(mocker):
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://test.azurecr.io/my-repo", "azure_container_registry"),
+        (
+            "us-central1-docker.pkg.dev/my-gcp-project/my-repo/image-name",
+            "google_artifact_registry",
+        ),
+        (
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo",
+            "elastic_container_registry",
+        ),
+        ("unsupported_format.com/my_repo", None),
+    ],
+)
+def test_registry_from_uri(url, expected, mocker):
     mocker.patch(
         "wandb.sdk.launch.registry.azure_container_registry.AzureContainerRegistry",
         MagicMock(return_value="azure_container_registry"),
     )
-    registry = registry_from_uri("https://test.azurecr.io")
-    assert registry == "azure_container_registry"
-
     mocker.patch(
         "wandb.sdk.launch.registry.google_artifact_registry.GoogleArtifactRegistry",
         MagicMock(return_value="google_artifact_registry"),
     )
-    registry = registry_from_uri("us-central1-docker.pkg.dev/my-gcp-project/my-repo")
-    assert registry == "google_artifact_registry"
-
     mocker.patch(
         "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistry",
         MagicMock(return_value="elastic_container_registry"),
     )
-    registry = registry_from_uri("123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo")
-    assert registry == "elastic_container_registry"
 
-    with pytest.raises(LaunchError):
-        registry_from_uri("unsupported_registry.com/my-repo")
+    if expected is None:
+        with pytest.raises(LaunchError):
+            registry_from_uri(url)
+    else:
+        assert registry_from_uri(url) == expected
 
 
 def test_get_env_vars_dict(mocker):
