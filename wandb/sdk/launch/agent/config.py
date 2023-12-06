@@ -1,8 +1,33 @@
 """Definition of the config object used by the Launch agent."""
 
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, validator
+
+
+class EnvironmentType(str, Enum):
+    """Enum of valid environment types."""
+
+    aws = "aws"
+    gcp = "gcp"
+    azure = "azure"
+
+
+class RegistryType(str, Enum):
+    """Enum of valid registry types."""
+
+    ecr = "ecr"
+    acr = "acr"
+    gcr = "gcr"
+
+
+class BuilderType(str, Enum):
+    """Enum of valid builder types."""
+
+    docker = "docker"
+    kaniko = "kaniko"
+    noop = "noop"
 
 
 class RegistryConfig(BaseModel):
@@ -14,19 +39,17 @@ class RegistryConfig(BaseModel):
     - Registry block is being deprecated in favor of destination field in builder
     """
 
-    type: str = Field(
-        ..., description="The type of registry to use.", values=["ecr", "acr", "gcr"]
+    type: Optional[RegistryType] = Field(
+        description="The type of registry to use.",
     )
-    uri: str = Field(..., description="The URI of the registry.")
+    uri: Optional[str] = Field(description="The URI of the registry.")
 
 
 class EnvironmentConfig(BaseModel):
     """Configuration for the environment block."""
 
-    type: str = Field(
-        ...,
+    type: Optional[EnvironmentType] = Field(
         description="The type of environment to use.",
-        values=["azure", "aws", "gcp"],
     )
     region: Optional[str] = Field(..., description="The region to use.")
 
@@ -35,8 +58,7 @@ class EnvironmentConfig(BaseModel):
 
 
 class BuilderConfig(BaseModel):
-    type: Optional[str] = Field(
-        ...,
+    type: Optional[BuilderType] = Field(
         description="The type of builder to use.",
         values=["docker", "kaniko", "noop"],
     )
@@ -100,8 +122,11 @@ class AgentConfig(BaseModel):
     """Configuration for the Launch agent."""
 
     queues: List[str] = Field(
-        ...,
+        default=[],
         description="The queues to use for this agent.",
+    )
+    project: Optional[str] = Field(
+        description="The W&B project to use for this agent.",
     )
     entity: Optional[str] = Field(
         description="The W&B entity to use for this agent.",
