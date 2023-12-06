@@ -23,6 +23,10 @@ func B64ToHex(data string) (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+func EncodeBytesAsHex(contents []byte) string {
+	return hex.EncodeToString(contents)
+}
+
 func HexToB64(data string) (string, error) {
 	buf, err := hex.DecodeString(data)
 	if err != nil {

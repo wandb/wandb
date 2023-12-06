@@ -70,3 +70,15 @@ func (s *Session) NewRun(opts ...runopts.RunOption) (*Run, error) {
 	run.start()
 	return run, nil
 }
+
+func (s *Session) NewStream(opts ...runopts.RunOption) (*Stream, error) {
+	runParams := &runopts.RunParams{}
+	for _, opt := range opts {
+		opt(runParams)
+	}
+	stream := s.manager.NewStream(runParams)
+	stream.setup()
+	stream.init()
+	stream.start()
+	return stream, nil
+}

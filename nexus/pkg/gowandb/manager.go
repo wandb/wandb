@@ -44,6 +44,19 @@ func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	return run
 }
 
+func (m *Manager) NewStream(runParams *runopts.RunParams) *Stream {
+	conn := m.Connect(m.ctx)
+	// make a copy of the base manager settings
+	runSettings := m.settings.Copy()
+	if runParams.RunID != nil {
+		runSettings.SetRunID(*runParams.RunID)
+	} else if runSettings.RunId == nil {
+		runSettings.SetRunID(shared.ShortID(8))
+	}
+	stream := NewStream(m.ctx, runSettings.Settings, conn, runParams)
+	return stream
+}
+
 func (m *Manager) Connect(ctx context.Context) *Connection {
 	conn, err := NewConnection(ctx, m.addr)
 	// slog.Info("Connecting to server", "conn", conn.Conn.RemoteAddr().String())

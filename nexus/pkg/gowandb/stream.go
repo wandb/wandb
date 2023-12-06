@@ -2,11 +2,11 @@ package gowandb
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
-
-	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/shared"
 	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
@@ -14,23 +14,18 @@ import (
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
 
-type Settings map[string]interface{}
-
-type Run struct {
-	// ctx is the context for the run
-	ctx            context.Context
-	settings       *service.Settings
-	config         *runconfig.Config
-	conn           *Connection
-	wg             sync.WaitGroup
-	run            *service.RunRecord
-	params         *runopts.RunParams
-	partialHistory History
+type Stream struct {
+	ctx      context.Context
+	settings *service.Settings
+	config   *runconfig.Config
+	conn     *Connection
+	wg       sync.WaitGroup
+	run      *service.RunRecord
+	params   *runopts.RunParams
 }
 
-// NewRun creates a new run with the given settings and responders.
-func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Run {
-	run := &Run{
+func NewStream(ctx context.Context, settings *service.Settings, conn *Connection, runParams *runopts.RunParams) *Stream {
+	run := &Stream{
 		ctx:      ctx,
 		settings: settings,
 		conn:     conn,
@@ -38,11 +33,10 @@ func NewRun(ctx context.Context, settings *service.Settings, conn *Connection, r
 		config:   runParams.Config,
 		params:   runParams,
 	}
-	run.resetPartialHistory()
 	return run
 }
 
-func (r *Run) setup() {
+func (r *Stream) setup() {
 	err := os.MkdirAll(r.settings.GetLogDir().GetValue(), os.ModePerm)
 	if err != nil {
 		slog.Error("error creating log dir", "err", err)
@@ -58,7 +52,7 @@ func (r *Run) setup() {
 	}()
 }
 
-func (r *Run) init() {
+func (r *Stream) init() {
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformInit{InformInit: &service.ServerInformInitRequest{
 			Settings: r.settings,
@@ -84,20 +78,26 @@ func (r *Run) init() {
 			ValueJson: string(data),
 		})
 	}
-	var DisplayName string
-	if r.params.Name != nil {
-		DisplayName = *r.params.Name
-	}
-	runRecord := service.Record_Run{Run: &service.RunRecord{
-		RunId:       r.settings.GetRunId().GetValue(),
-		DisplayName: DisplayName,
-		Config:      config,
-		Telemetry:   r.params.Telemetry,
-		XInfo:       &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	/*
+		if r.params.Name != nil {
+			DisplayName = *r.params.Name
+		}
+	*/
+	parts := strings.SplitN(*r.params.Path, "/", 3)
+	// runId := r.settings.GetRunId().GetValue(),
+	runId := parts[2]
+	runRecord := service.Record_StreamTable{StreamTable: &service.StreamTableRecord{
+		RunId:   runId,
+		Entity:  parts[0],
+		Project: parts[1],
+		Table:   parts[2],
+		XInfo:   &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}}
-	if r.params.Project != nil {
-		runRecord.Run.Project = *r.params.Project
-	}
+	/*
+		if r.params.Project != nil {
+			runRecord.Run.Project = *r.params.Project
+		}
+	*/
 	record := service.Record{
 		RecordType: &runRecord,
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
@@ -116,7 +116,7 @@ func (r *Run) init() {
 	shared.PrintHeadFoot(r.run, r.settings, false)
 }
 
-func (r *Run) start() {
+func (r *Stream) start() {
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformStart{InformStart: &service.ServerInformStartRequest{
 			Settings: r.settings,
@@ -127,47 +127,28 @@ func (r *Run) start() {
 	if err != nil {
 		return
 	}
-
-	request := service.Request{RequestType: &service.Request_RunStart{
-		RunStart: &service.RunStartRequest{Run: &service.RunRecord{
-			RunId: r.settings.GetRunId().GetValue(),
-		}}}}
-	record := service.Record{
-		RecordType: &service.Record_Request{Request: &request},
-		Control:    &service.Control{Local: true},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-
-	serverRecord = service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordCommunicate{RecordCommunicate: &record},
-	}
-
-	handle := r.conn.Mbox.Deliver(&record)
-	err = r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-	handle.wait()
 }
 
-func (r *Run) logCommit(data map[string]interface{}) {
-	history := service.PartialHistoryRequest{}
+func (r *Stream) Log(data map[string]interface{}) {
+	streamData := service.StreamDataRecord{Items: make(map[string]*service.StreamValue)}
 	for key, value := range data {
-		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
-		data, err := json.Marshal(value)
-		if err != nil {
-			panic(err)
+		switch v := value.(type) {
+		case int64:
+			streamData.Items[key] = &service.StreamValue{
+				StreamValueType: &service.StreamValue_Int64Value{Int64Value: v},
+			}
+		case float64:
+			streamData.Items[key] = &service.StreamValue{
+				StreamValueType: &service.StreamValue_DoubleValue{DoubleValue: v},
+			}
+		case string:
+			streamData.Items[key] = &service.StreamValue{
+				StreamValueType: &service.StreamValue_StringValue{StringValue: v},
+			}
 		}
-		history.Item = append(history.Item, &service.HistoryItem{
-			Key:       key,
-			ValueJson: string(data),
-		})
-	}
-	request := service.Request{
-		RequestType: &service.Request_PartialHistory{PartialHistory: &history},
 	}
 	record := service.Record{
-		RecordType: &service.Record_Request{Request: &request},
+		RecordType: &service.Record_StreamData{StreamData: &streamData},
 		Control:    &service.Control{Local: true},
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
@@ -182,29 +163,7 @@ func (r *Run) logCommit(data map[string]interface{}) {
 	}
 }
 
-func (r *Run) resetPartialHistory() {
-	r.partialHistory = make(map[string]interface{})
-}
-
-func (r *Run) LogPartial(data map[string]interface{}, commit bool) {
-	for k, v := range data {
-		r.partialHistory[k] = v
-	}
-	if commit {
-		r.LogPartialCommit()
-	}
-}
-
-func (r *Run) LogPartialCommit() {
-	r.logCommit(r.partialHistory)
-	r.resetPartialHistory()
-}
-
-func (r *Run) Log(data map[string]interface{}) {
-	r.LogPartial(data, true)
-}
-
-func (r *Run) sendExit() {
+func (r *Stream) sendExit() {
 	record := service.Record{
 		RecordType: &service.Record_Exit{
 			Exit: &service.RunExitRecord{
@@ -222,7 +181,7 @@ func (r *Run) sendExit() {
 	handle.wait()
 }
 
-func (r *Run) sendShutdown() {
+func (r *Stream) sendShutdown() {
 	record := &service.Record{
 		RecordType: &service.Record_Request{
 			Request: &service.Request{
@@ -243,7 +202,7 @@ func (r *Run) sendShutdown() {
 	handle.wait()
 }
 
-func (r *Run) sendInformFinish() {
+func (r *Stream) sendInformFinish() {
 	serverRecord := service.ServerRequest{
 		ServerRequestType: &service.ServerRequest_InformFinish{InformFinish: &service.ServerInformFinishRequest{
 			XInfo: &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
@@ -255,7 +214,7 @@ func (r *Run) sendInformFinish() {
 	}
 }
 
-func (r *Run) Finish() {
+func (r *Stream) Finish() {
 	r.sendExit()
 	r.sendShutdown()
 	r.sendInformFinish()
