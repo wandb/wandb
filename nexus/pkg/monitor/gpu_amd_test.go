@@ -30,7 +30,7 @@ func TestGPUAMD_ParseStats(t *testing.T) {
 		monitor.MemoryAllocated: 0,
 		monitor.Temp:            43,
 		monitor.PowerWatts:      89,
-		// monitor.PowerPercent:    0,
+		monitor.PowerPercent:    15.892857142857142,
 	}
 
 	assert.Equal(t, expected, parsedStats)
