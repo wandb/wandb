@@ -81,4 +81,6 @@ def _sync(
     if response.error and response.error.message:
         termerror(response.error.message)
 
-    # print(result)
+    # TODO: create a .synced file in the directory if mark_synced is true
+
+    return response

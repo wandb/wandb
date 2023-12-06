@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 import asyncio
+import concurrent.futures
 import configparser
 import datetime
 import getpass
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import subprocess
@@ -175,7 +177,6 @@ class RunGroup(click.Group):
 @click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
-    # wandb.try_to_set_up_global_logging()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -417,72 +418,146 @@ def init(ctx, project, entity, reset, mode):
     )
 
 
-@cli.command(
-    context_settings=CONTEXT, help="Upload an offline training directory to W&B"
-)
+@cli.group()
+def beta():
+    """Beta versions of wandb CLI commands. Requires wandb-core."""
+    pass
+    # TODO: this is the future that requires wandb-core!
+    #  do the check here, similar to the one in wandb_service
+
+
+@beta.command(context_settings=CONTEXT, help="Upload a training run to W&B")
 @click.pass_context
-@click.argument("path", nargs=-1, type=click.Path(exists=True))
+@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True))
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @click.option("--append", is_flag=True, default=False, help="Append run")
-@click.option("--include-globs", help="Comma seperated list of globs to include.")
-@click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
 @click.option(
-    "--include-online/--no-include-online",
-    is_flag=True,
-    default=True,
-    help="Include online runs",
+    "--include",
+    "-i",
+    help="Glob to include. Can be used multiple times.",
+    multiple=True,
 )
 @click.option(
-    "--include-offline/--no-include-offline",
-    is_flag=True,
-    default=True,
-    help="Include offline runs",
+    "--exclude",
+    "-e",
+    help="Glob to exclude. Can be used multiple times.",
+    multiple=True,
 )
 @click.option(
-    "--include-synced/--no-include-synced",
+    "--skip-synced/--no-skip-synced",
     is_flag=True,
-    default=False,
-    help="Include synced runs",
+    default=True,
+    help="Skip synced runs",
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Perform a dry run without uploading anything."
 )
 @display_error
-def nexync(
+def sync(
     ctx,
-    path=None,
-    run_id=None,
-    project=None,
-    entity=None,
-    skip_console=None,
-    append=None,
-    include_globs: Optional[str] = None,
-    exclude_globs: Optional[str] = None,
-    include_online: bool = True,
-    include_offline: bool = True,
-    include_synced: bool = False,
+    wandb_dir=None,
+    run_id: Optional[str] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    skip_console: bool = False,
+    append: bool = False,
+    include: Optional[str] = None,
+    exclude: Optional[str] = None,
+    skip_synced: bool = True,
+    dry_run: bool = False,
 ):
-    include_globs = include_globs.split(",") if include_globs else []
-    exclude_globs = exclude_globs.split(",") if exclude_globs else []
+    # print(wandb_dir)
+    # print()
+    # print(include)
+    # print()
+    # print(exclude)
 
-    run_paths = get_runs(
-        include_online=include_online,
-        include_offline=include_offline,
-        include_synced=include_synced,
-        exclude_globs=exclude_globs,
-        include_globs=include_globs,
-    )
-    print([str(p) for p in run_paths])
+    paths = set()
 
-    # wandb.sdk.wandb_setup.setup()
-    # wandb._sync(
-    #     path[0],
-    #     run_id=run_id,
-    #     project=project,
-    #     entity=entity,
-    #     skip_console=skip_console,
-    #     append=append,
-    # )
+    # include and exclude globs are evaluated relative to the provided base_path
+    if include:
+        for pattern in include:
+            matching_dirs = list(pathlib.Path(wandb_dir).glob(pattern))
+            for d in matching_dirs:
+                if not d.is_dir():
+                    continue
+                wandb_files = [p for p in d.glob("*.wandb") if p.is_file()]
+                if len(wandb_files) > 1:
+                    print(f"Multiple wandb files found in directory {d}, skipping")
+                elif len(wandb_files) == 1:
+                    paths.add(d)
+    else:
+        paths.update({p.parent for p in pathlib.Path(wandb_dir).glob("**/*.wandb")})
+
+    for pattern in exclude:
+        matching_dirs = list(pathlib.Path(wandb_dir).glob(pattern))
+        for d in matching_dirs:
+            if not d.is_dir():
+                continue
+            if d in paths:
+                paths.remove(d)
+
+    # print()
+    # print(paths)
+
+    # remove paths that are already synced, if requested
+    if skip_synced:
+        synced_paths = set()
+        for path in paths:
+            wandb_synced_files = [p for p in path.glob("*.wandb.synced") if p.is_file()]
+            if len(wandb_synced_files) > 1:
+                print(
+                    f"Multiple wandb.synced files found in directory {path}, skipping"
+                )
+            elif len(wandb_synced_files) == 1:
+                synced_paths.add(path)
+        paths -= synced_paths
+
+    # print()
+    # print(paths)
+
+    if run_id and len(paths) > 1:
+        # TODO: handle this more gracefully
+        # wandb.termerror("id can only be set for a single run.")
+        click.echo("id can only be set for a single run.", err=True)
+        sys.exit(1)
+
+    if not paths:
+        click.echo("No runs to sync.")
+        return
+
+    if dry_run:
+        click.echo("Found the following runs to sync:")
+        for path in paths:
+            click.echo(f"  {path}")
+        return
+
+    wandb.sdk.wandb_setup.setup()
+
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=min(len(paths), 64)
+    ) as executor:
+        futures = []
+        for path in paths:
+            # we already know there is only one wandb file in the directory
+            wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
+            future = executor.submit(
+                wandb._sync,
+                wandb_file,
+                run_id=run_id,
+                project=project,
+                entity=entity,
+                skip_console=skip_console,
+                append=append,
+            )
+            futures.append(future)
+
+        # Retrieve results as tasks complete
+        for future in concurrent.futures.as_completed(futures):
+            print(future.result())
 
 
 @cli.command(
@@ -2353,7 +2428,7 @@ def pull(run, project, entity):
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
-@click.option("--no-git", is_flag=True, default=False, help="Skupp")
+@click.option("--no-git", is_flag=True, default=False, help="Don't restore git state")
 @click.option(
     "--branch/--no-branch",
     default=True,
