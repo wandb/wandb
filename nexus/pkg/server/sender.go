@@ -598,7 +598,10 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 }
 
 func (s *Sender) upsertConfig() {
-	yamlData, err := yaml.Marshal(&s.configMap)
+
+	config := s.serializeConfig()
+
+	yamlData, err := yaml.Marshal(&config)
 	if err != nil {
 		s.logger.Error("sender: sendConfig: failed to marshal config", "error", err)
 	}
@@ -616,8 +619,6 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-
-	config := s.serializeConfig()
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err = gql.UpsertBucket(
 		ctx,                                  // ctx
