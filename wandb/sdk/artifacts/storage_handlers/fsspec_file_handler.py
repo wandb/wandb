@@ -1,9 +1,7 @@
 """Storage handler utilizing fsspec."""
-import fsspec
 import os
 import time
-from fsspec.registry import available_protocols
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 from urllib.parse import ParseResult
 
 from wandb.errors.term import termlog
@@ -15,19 +13,22 @@ from wandb.sdk.lib.hashutil import B64MD5, md5_string
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
+    import fsspec  # type: ignore
+
     from wandb.sdk.artifacts.artifact import Artifact
 
 
 class FsspecFileHandler(StorageHandler):
     """Handles a variety of different storage solutions."""
 
-    def __init__(self) -> None:
+    def __init__(self, scheme: Optional[str] = None) -> None:
         """Track files or directories on a variety of filesystem.
 
+        For now, this handler supports oss (Alibaba Object Storage System)
         A list of all available options can be found under the following link:
         https://github.com/fsspec/filesystem_spec/blob/master/fsspec/registry.py
         """
-        self._schemes = available_protocols()
+        self._scheme = scheme or "oss"
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
@@ -92,7 +93,7 @@ class FsspecFileHandler(StorageHandler):
         entries = []
         fs, fs_path = fsspec.core.url_to_fs(path)
 
-        def md5(path: str) -> B64MD5:
+        def md5(path: str) -> Any:
             return (
                 fs.checksum(path)
                 if checksum
