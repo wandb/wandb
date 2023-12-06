@@ -11,11 +11,26 @@ from .lib.runid import generate_id
 
 def _sync(
     path: str,
-    entity: Optional[str] = None,
-    project: Optional[str] = None,
+    view=None,
+    verbose=None,
     run_id: Optional[str] = None,
-    console: Optional[bool] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    sync_tensorboard=None,
+    include_globs=None,
+    exclude_globs=None,
+    include_online=None,
+    include_offline=None,
+    include_synced=None,
+    mark_synced=None,
+    sync_all=None,
+    ignore=None,
+    show=None,
+    clean=None,
+    clean_old_hours=24,
+    clean_force=None,
     append: Optional[bool] = None,
+    skip_console: Optional[bool] = None,
 ) -> None:
     p = pathlib.Path(path)
 
@@ -54,7 +69,7 @@ def _sync(
         entity=entity,
         project=project,
         run_id=run_id,
-        output_raw=console,
+        skip_output_raw=skip_console,
     )
     result = handle.wait(timeout=-1)
     assert result and result.response

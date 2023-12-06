@@ -427,6 +427,26 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--entity", "-e", help="The entity to scope to.")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--include-globs", help="Comma seperated list of globs to include.")
+@click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
+@click.option(
+    "--include-online/--no-include-online",
+    is_flag=True,
+    default=True,
+    help="Include online runs",
+)
+@click.option(
+    "--include-offline/--no-include-offline",
+    is_flag=True,
+    default=True,
+    help="Include offline runs",
+)
+@click.option(
+    "--include-synced/--no-include-synced",
+    is_flag=True,
+    default=False,
+    help="Include synced runs",
+)
 @display_error
 def nexync(
     ctx,
@@ -436,15 +456,33 @@ def nexync(
     entity=None,
     skip_console=None,
     append=None,
+    include_globs: Optional[str] = None,
+    exclude_globs: Optional[str] = None,
+    include_online: bool = True,
+    include_offline: bool = True,
+    include_synced: bool = False,
 ):
-    wandb._sync(
-        path[0],
-        run_id=run_id,
-        project=project,
-        entity=entity,
-        console=skip_console,
-        append=append,
+    include_globs = include_globs.split(",") if include_globs else []
+    exclude_globs = exclude_globs.split(",") if exclude_globs else []
+
+    run_paths = get_runs(
+        include_online=include_online,
+        include_offline=include_offline,
+        include_synced=include_synced,
+        exclude_globs=exclude_globs,
+        include_globs=include_globs,
     )
+    print([str(p) for p in run_paths])
+
+    # wandb.sdk.wandb_setup.setup()
+    # wandb._sync(
+    #     path[0],
+    #     run_id=run_id,
+    #     project=project,
+    #     entity=entity,
+    #     skip_console=skip_console,
+    #     append=append,
+    # )
 
 
 @cli.command(

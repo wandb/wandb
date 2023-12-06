@@ -715,7 +715,7 @@ class InterfaceBase:
         entity: Optional[str] = None,
         project: Optional[str] = None,
         run_id: Optional[str] = None,
-        output_raw: Optional[bool] = None,
+        skip_output_raw: Optional[bool] = None,
     ) -> MailboxHandle:
         sync = pb.SyncRequest(
             start_offset=start_offset,
@@ -727,8 +727,8 @@ class InterfaceBase:
             sync.overwrite.project = project
         if run_id:
             sync.overwrite.run_id = run_id
-        if output_raw:
-            sync.skip.output_raw = output_raw
+        if skip_output_raw:
+            sync.skip.output_raw = skip_output_raw
         return self._deliver_sync(sync)
 
     @abstractmethod
