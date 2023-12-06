@@ -62,6 +62,13 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	return nil
 }
 
+func (g *GPUAMD) Samples() []Stats {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	return g.samples
+}
+
 func getROCMSMIStats() (InfoDict, error) {
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
 	output, err := cmd.Output()
@@ -77,7 +84,7 @@ func getROCMSMIStats() (InfoDict, error) {
 	return stats, nil
 }
 
-func (g *GPUAMD) parseStats(stats map[string]interface{}) Stats {
+func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	parsedStats := make(Stats)
 
 	for key, val := range stats {
@@ -140,7 +147,7 @@ func (g *GPUAMD) SampleMetrics() {
 				log.Printf("Type assertion failed for key %s", key)
 				continue
 			}
-			stats := g.parseStats(cardStats)
+			stats := g.ParseStats(cardStats)
 			cards = append(cards, stats)
 		}
 	}
