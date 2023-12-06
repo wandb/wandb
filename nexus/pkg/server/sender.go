@@ -305,7 +305,6 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 	s.startFileStream(fsPath, false)
-	s.uploadManager.Start()
 	s.fileTransferManager.Start()
 }
 
@@ -1073,7 +1072,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave type", err)
 	}
 
-	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.uploadManager, builder.GetArtifact(), 0)
+	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.fileTransferManager, builder.GetArtifact(), 0, "")
 	_, err = saver.Save()
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
@@ -1085,7 +1084,7 @@ func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
 		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
 	s.streamTableClientId = shared.ShortID(32)
 	s.startFileStream(fsPath, true)
-	s.uploadManager.Start()
+	s.fileTransferManager.Start()
 }
 
 func (s *Sender) sendStreamData(record *service.Record) {
