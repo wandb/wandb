@@ -426,7 +426,11 @@ def beta():
     #  do the check here, similar to the one in wandb_service
 
 
-@beta.command(context_settings=CONTEXT, help="Upload a training run to W&B")
+@beta.command(
+    name="sync",
+    context_settings=CONTEXT,
+    help="Upload a training run to W&B",
+)
 @click.pass_context
 @click.argument("wandb_dir", nargs=1, type=click.Path(exists=True))
 @click.option("--id", "run_id", help="The run you want to upload to.")
@@ -456,7 +460,7 @@ def beta():
     "--dry-run", is_flag=True, help="Perform a dry run without uploading anything."
 )
 @display_error
-def sync(
+def sync_beta(
     ctx,
     wandb_dir=None,
     run_id: Optional[str] = None,
@@ -621,7 +625,7 @@ def sync(
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
-def sync(  # noqa: F811
+def sync(
     ctx,
     path=None,
     view=None,
