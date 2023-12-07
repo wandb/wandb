@@ -8,7 +8,6 @@ from wandb.sdk.launch.errors import LaunchError
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment
 from .registry.abstract import AbstractRegistry
-from .registry.local_registry import LocalRegistry
 from .runner.abstract import AbstractRunner
 
 WANDB_RUNNERS = {
