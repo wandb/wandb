@@ -56,15 +56,20 @@ class RegistryConfig(BaseModel):
     """
 
     type: Optional[RegistryType] = Field(
+        None,
         description="The type of registry to use.",
     )
-    uri: Optional[str] = Field(description="The URI of the registry.")
+    uri: Optional[str] = Field(
+        None,
+        description="The URI of the registry.",
+    )
 
 
 class EnvironmentConfig(BaseModel):
     """Configuration for the environment block."""
 
     type: Optional[EnvironmentType] = Field(
+        None,
         description="The type of environment to use.",
     )
     region: Optional[str] = Field(..., description="The region to use.")
@@ -181,12 +186,15 @@ class AgentConfig(BaseModel):
         "agent will reject runs that attempt to override the entrypoint or image.",
     )
     registry: Optional[RegistryConfig] = Field(
+        None,
         description="The registry to use.",
     )
     environment: Optional[EnvironmentConfig] = Field(
+        None,
         description="The environment to use.",
     )
     builder: Optional[BuilderConfig] = Field(
+        None,
         description="The builder to use.",
     )
 

@@ -94,6 +94,8 @@ def resolve_agent_config(  # noqa: C901
         with open(config_path) as f:
             try:
                 launch_config = yaml.safe_load(f)
+                if launch_config is None:
+                    launch_config = {}
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if launch_config.get("project") is not None:
@@ -159,9 +161,13 @@ def create_and_run_agent(
     except ValidationError as e:
         errors = e.errors()
         for error in errors:
-            wandb.termerror(
-                f"Validation error on agent config for {'.'.join(error['loc'])}: {error['msg']}"
-            )
+            loc = ".".join(str(link) for link in error["loc"])
+            msg = f"Agent config error in field {loc}"
+            value = error.get("input")
+            if value is not None:
+                msg += f" (value: {value})"
+            msg += f": {error['msg']}"
+            wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
     try:
