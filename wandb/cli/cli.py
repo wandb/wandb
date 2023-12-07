@@ -18,6 +18,7 @@ import textwrap
 import time
 import traceback
 from functools import wraps
+from multiprocessing import cpu_count
 from typing import Any, Dict, Optional
 
 import click
@@ -541,8 +542,9 @@ def sync_beta(
 
     wandb.sdk.wandb_setup.setup()
 
+    # TODO: make it thread-safe in the Rust code
     with concurrent.futures.ProcessPoolExecutor(
-        max_workers=min(len(paths), 64)
+        max_workers=min(len(paths), cpu_count())
     ) as executor:
         futures = []
         for path in paths:
