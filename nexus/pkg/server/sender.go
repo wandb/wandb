@@ -268,8 +268,12 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 
