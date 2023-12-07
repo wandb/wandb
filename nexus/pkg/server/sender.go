@@ -287,6 +287,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 
 	// Update run start time in the settings if it is not set
 	if s.settings.XStartTime == nil {
+		// TODO: rewrite in a more robust way
 		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
 		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
@@ -305,7 +306,6 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	// s.sendFile(MetaFilename, filetransfer.WandbFile)
 	s.loopbackChan <- &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
