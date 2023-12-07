@@ -235,6 +235,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -267,8 +268,12 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 
@@ -300,7 +305,16 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename, filetransfer.WandbFile)
+	// s.sendFile(MetaFilename, filetransfer.WandbFile)
+	s.loopbackChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: MetaFilename},
+				},
+			},
+		},
+	}
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {

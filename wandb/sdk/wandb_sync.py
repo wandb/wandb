@@ -44,6 +44,7 @@ def _sync(
     # update sync_file setting to point to the passed path
     settings.sync_file.value = str(p.absolute())
     settings.sync_dir.value = str(p.parent.absolute())
+    settings.files_dir.value = str(p.parent.absolute() / "files")
     settings._sync.value = True
     settings.run_id.value = stream_id  # TODO: remove this
     if append:

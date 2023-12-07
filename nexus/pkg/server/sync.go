@@ -150,8 +150,10 @@ func (s *SyncService) Flush() {
 		return
 	}
 	close(s.inChan)
-	if s.flushCallback != nil {
+	if s.flushCallback == nil {
 		s.logger.CaptureError("Flush without callback", fmt.Errorf("flushing sync service"))
+		return
 	}
 	s.flushCallback(s.syncErr)
+
 }
