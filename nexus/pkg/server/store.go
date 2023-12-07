@@ -14,6 +14,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	HeaderIdent   = ":W&B"
+	HeaderMagic   = 0xBEE1
+	HeaderVersion = 0
+)
+
 type StoreHeader struct {
 	ident   [4]byte
 	magic   uint16
@@ -24,9 +30,16 @@ func (sh *StoreHeader) String() string {
 	return fmt.Sprintf("ident: %s, magic: %x, version: %d", sh.ident, sh.magic, sh.version)
 }
 
+func IdentToByteSlice() [4]byte {
+	byteSlice := []byte(HeaderIdent)
+	var ident [4]byte
+	copy(ident[:], byteSlice)
+	return ident
+}
+
 func (sh *StoreHeader) Write(w io.Writer) error {
-	ident := [4]byte{byte(':'), byte('W'), byte('&'), byte('B')}
-	head := StoreHeader{ident: ident, magic: 0xBEE1, version: 0}
+
+	head := StoreHeader{ident: IdentToByteSlice(), magic: HeaderMagic, version: HeaderVersion}
 	if err := binary.Write(w, binary.LittleEndian, &head); err != nil {
 		return err
 	}
@@ -42,19 +55,31 @@ func (sh *StoreHeader) Read(r io.Reader) error {
 	sh.magic = binary.LittleEndian.Uint16(buf[4:6])
 	sh.version = buf[6]
 
-	if sh.ident != [4]byte{byte(':'), byte('W'), byte('&'), byte('B')} {
+	if sh.ident != IdentToByteSlice() {
 		err := fmt.Errorf("invalid header")
 		return err
 	}
-	if sh.magic != 0xBEE1 {
+	if sh.magic != HeaderMagic {
 		err := fmt.Errorf("invalid header")
 		return err
 	}
-	if sh.version != 0 {
+	if sh.version != HeaderVersion {
 		err := fmt.Errorf("invalid header")
 		return err
 	}
 	return nil
+}
+
+func (sh *StoreHeader) GetIdent() [4]byte {
+	return sh.ident
+}
+
+func (sh *StoreHeader) GetMagic() uint16 {
+	return sh.magic
+}
+
+func (sh *StoreHeader) GetVersion() byte {
+	return sh.version
 }
 
 // Store is the persistent store for a stream
@@ -85,6 +110,10 @@ func NewStore(ctx context.Context, fileName string, logger *observability.NexusL
 		logger: logger,
 	}
 	return sr
+}
+
+func (sr *Store) IsClosed() bool {
+	return sr.db == nil
 }
 
 func (sr *Store) Open(flag int) error {
@@ -126,11 +155,14 @@ func (sr *Store) Open(flag int) error {
 }
 
 func (sr *Store) Close() error {
-	err := sr.writer.Close()
-	if err != nil {
-		sr.logger.CaptureError("can't close file", err)
+	if sr.writer != nil {
+		err := sr.writer.Close()
+		if err != nil {
+			sr.logger.CaptureError("can't close file", err)
+		}
 	}
-	err = sr.db.Close()
+
+	err := sr.db.Close()
 	if err != nil {
 		sr.logger.CaptureError("can't close file", err)
 	}
@@ -154,6 +186,11 @@ func (sr *Store) Write(msg *service.Record) error {
 		return err
 	}
 	return nil
+}
+
+func (sr *Store) WriteDirectlyToDB(data []byte) (int, error) {
+	// this is for testing purposes only
+	return sr.db.Write(data)
 }
 
 func (sr *Store) Read() (*service.Record, error) {

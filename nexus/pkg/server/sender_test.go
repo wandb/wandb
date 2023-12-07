@@ -1,4 +1,4 @@
-package server
+package server // TODO: rename to sender_test
 
 import (
 	"context"
