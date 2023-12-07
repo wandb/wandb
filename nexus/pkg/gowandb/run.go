@@ -71,6 +71,9 @@ func (r *Run) init() {
 	}
 
 	config := &service.ConfigRecord{}
+	if r.config == nil {
+		r.config = &runconfig.Config{}
+	}
 	for key, value := range *r.config {
 		data, err := json.Marshal(value)
 		if err != nil {
