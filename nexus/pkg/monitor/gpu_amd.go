@@ -198,16 +198,23 @@ func (g *GPUAMD) SampleMetrics() {
 		return
 	}
 
-	var cards []Stats
+	cards := make(map[int]Stats)
 	for key, value := range rawStats {
 		if strings.HasPrefix(key, "card") {
+			// get card id and convert it to int
+			var cardID int
+			s := strings.TrimPrefix(key, "card")
+			_, err := fmt.Sscanf(s, "%d", &cardID)
+			if err != nil {
+				continue
+			}
 			cardStats, ok := value.(map[string]interface{})
 			if !ok {
 				log.Printf("Type assertion failed for key %s", key)
 				continue
 			}
 			stats := g.ParseStats(cardStats)
-			cards = append(cards, stats)
+			cards[cardID] = stats
 		}
 	}
 
