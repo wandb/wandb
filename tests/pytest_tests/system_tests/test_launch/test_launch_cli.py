@@ -550,3 +550,63 @@ def test_launch_supplied_logfile(
                 assert "Internal agent logs printing to agent.logs" in logs
 
             assert result.exit_code == 0  # Do at the end so we get maximum printing
+
+
+def test_launch_template_vars(runner, monkeypatch):
+    mock_template_variables = [
+        {"name": "test_str", "schema": json.dumps({"type": "string"})},
+        {"name": "test_int", "schema": json.dumps({"type": "integer"})},
+        {"name": "test_num", "schema": json.dumps({"type": "number"})},
+    ]
+    command_inputs = [
+        "--queue=default",
+        "--fields",
+        "test_str=str1",
+        "--fields",
+        "test_int=2",
+        "--fields",
+        "test_num=2.5",
+    ]
+    expected_template_variables = {'test_str': 'str1', 'test_int': 2, 'test_num': 2.5}
+
+    async def patched_launch_add(*args, **kwargs):
+        # Assert template variables are as expected
+        if not isinstance(args[4], dict) or args[4] != expected_template_variables:
+            raise Exception(args)
+
+    monkeypatch.setattr( 
+        "wandb.cli.cli._launch_add",
+        patched_launch_add,
+    )
+
+    def patched_public_api(*args, **kwargs):
+        return Mock()
+
+    monkeypatch.setattr(
+        "wandb.cli.cli.PublicApi",
+        patched_public_api,
+    )
+
+    monkeypatch.setattr(
+        "wandb.cli.cli.launch_utils.check_logged_in",
+        lambda _: None
+    )
+
+    def patched_run_queue(*args, **kwargs):
+        mock_rq = Mock()
+        mock_rq.template_variables = mock_template_variables
+        return mock_rq
+
+    monkeypatch.setattr(
+        "wandb.cli.cli.RunQueue",
+        patched_run_queue,
+    )
+
+    result = "none"
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            command_inputs,
+            catch_exceptions=False
+        )
+    assert result.exit_code == 0
