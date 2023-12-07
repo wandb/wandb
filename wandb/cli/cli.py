@@ -26,6 +26,7 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
+from wandb.apis.public import RunQueue
 import wandb.env
 
 # from wandb.old.core import wandb_dir
@@ -1192,6 +1193,13 @@ def launch_sweep(
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
+    "--fields",
+    "-f",
+    default=None,
+    multiple=True,
+    help="""Fields for queues with allowlisting enabled, as a path to a JSON file or as a JSON string e.g. `--fields {'key1':'value1'}`"""
+)
+@click.option(
     "--queue",
     "-q",
     is_flag=False,
@@ -1258,6 +1266,7 @@ def launch(
     project,
     docker_image,
     config,
+    fields,
     queue,
     run_async,
     resource_args,
@@ -1329,6 +1338,37 @@ def launch(
         else:
             config["overrides"] = {"dockerfile": dockerfile}
 
+    template_variables = None
+    # if fields is not None:
+    #     template_variables = launch_utils.fetch_and_validate_template_variables(fields)
+    if fields is not None:
+        template_variables = {}
+        public_api = PublicApi()
+        runqueue = RunQueue(
+            client=public_api.client,
+            name=queue,
+            entity=entity
+        )
+        variable_schemas = {}
+        for tv in runqueue.template_variables:
+            variable_schemas[tv["name"]] = json.loads(tv["schema"])
+
+        for field in fields:
+            key, val = field.split("=")
+            if key not in variable_schemas:
+                raise LaunchError(f"Queue {queue} does not support overriding {key}.")
+            schema = variable_schemas.get(key)
+            field_type = schema.get("type")
+            try:
+                if field_type == "integer":
+                    val = int(val)
+                elif field_type == "number":
+                    val = float(val)
+
+            except ValueError:
+                raise LaunchError(f"Value for {key} must be of type {field_type}.")
+            template_variables[key] = val
+
     if queue is None:
         # direct launch
         try:
@@ -1376,7 +1416,7 @@ def launch(
                     uri,
                     job,
                     config,
-                    None,
+                    template_variables,
                     project,
                     entity,
                     queue,
