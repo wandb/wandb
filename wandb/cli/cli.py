@@ -26,13 +26,13 @@ from click.exceptions import ClickException
 from dockerpycreds.utils import find_executable
 
 import wandb
-from wandb.apis.public import RunQueue
 import wandb.env
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import RunQueue
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -1197,7 +1197,7 @@ def launch_sweep(
     "-f",
     default=None,
     multiple=True,
-    help="""Fields for queues with allowlisting enabled, as key-value pairs e.g. `--fields key1=value1 --fields key2=value2`"""
+    help="""Fields for queues with allowlisting enabled, as key-value pairs e.g. `--fields key1=value1 --fields key2=value2`""",
 )
 @click.option(
     "--queue",
@@ -1341,12 +1341,10 @@ def launch(
     template_variables = None
     if fields is not None:
         public_api = PublicApi()
-        runqueue = RunQueue(
-            client=public_api.client,
-            name=queue,
-            entity=entity
+        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        template_variables = launch_utils.fetch_and_validate_template_variables(
+            runqueue, fields
         )
-        template_variables = launch_utils.fetch_and_validate_template_variables(runqueue, fields)
 
     if queue is None:
         # direct launch

@@ -567,14 +567,14 @@ def test_launch_template_vars(runner, monkeypatch):
         "--fields",
         "test_num=2.5",
     ]
-    expected_template_variables = {'test_str': 'str1', 'test_int': 2, 'test_num': 2.5}
+    expected_template_variables = {"test_str": "str1", "test_int": 2, "test_num": 2.5}
 
     async def patched_launch_add(*args, **kwargs):
         # Assert template variables are as expected
         if not isinstance(args[4], dict) or args[4] != expected_template_variables:
             raise Exception(args)
 
-    monkeypatch.setattr( 
+    monkeypatch.setattr(
         "wandb.cli.cli._launch_add",
         patched_launch_add,
     )
@@ -587,10 +587,7 @@ def test_launch_template_vars(runner, monkeypatch):
         patched_public_api,
     )
 
-    monkeypatch.setattr(
-        "wandb.cli.cli.launch_utils.check_logged_in",
-        lambda _: None
-    )
+    monkeypatch.setattr("wandb.cli.cli.launch_utils.check_logged_in", lambda _: None)
 
     def patched_run_queue(*args, **kwargs):
         mock_rq = Mock()
@@ -604,9 +601,5 @@ def test_launch_template_vars(runner, monkeypatch):
 
     result = "none"
     with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            command_inputs,
-            catch_exceptions=False
-        )
+        result = runner.invoke(cli.launch, command_inputs, catch_exceptions=False)
     assert result.exit_code == 0

@@ -2753,7 +2753,7 @@ class RunQueue:
                 self._get_metadata()
             self._get_default_resource_config()
         return self._default_resource_config
-    
+
     @property
     def template_variables(self):
         if self._template_variables is None:
@@ -2761,7 +2761,6 @@ class RunQueue:
                 self._get_metadata()
             self._get_default_resource_config()
         return self._template_variables
-
 
     @property
     def id(self) -> str:
@@ -2858,7 +2857,9 @@ class RunQueue:
         res = self._client.execute(query, variable_values)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
         self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
-        self._template_variables = res["entity"]["defaultResourceConfig"]["templateVariables"]
+        self._template_variables = res["entity"]["defaultResourceConfig"][
+            "templateVariables"
+        ]
 
     @normalize_exceptions
     def _get_items(self):
