@@ -541,7 +541,7 @@ def sync_beta(
 
     wandb.sdk.wandb_setup.setup()
 
-    with concurrent.futures.ThreadPoolExecutor(
+    with concurrent.futures.ProcessPoolExecutor(
         max_workers=min(len(paths), 64)
     ) as executor:
         futures = []
