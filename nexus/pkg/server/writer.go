@@ -51,11 +51,7 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 	return w
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
-	defer w.logger.Reraise()
-	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
-
+func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
