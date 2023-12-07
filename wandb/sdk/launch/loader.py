@@ -157,11 +157,6 @@ def builder_from_config(
 
         return DockerBuilder.from_config(config, environment, registry)
     if builder_type == "kaniko":
-        if isinstance(registry, LocalRegistry):
-            raise LaunchError(
-                "Could not create Kaniko builder. "
-                "Registry must be a remote registry."
-            )
         from .builder.kaniko_builder import KanikoBuilder
 
         return KanikoBuilder.from_config(config, environment, registry)
