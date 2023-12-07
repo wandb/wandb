@@ -278,6 +278,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 
 	// Update run start time in the settings if it is not set
 	if s.settings.XStartTime == nil {
+		// TODO: rewrite in a more robust way
 		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
 		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
