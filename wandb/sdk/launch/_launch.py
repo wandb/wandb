@@ -161,10 +161,10 @@ def create_and_run_agent(
     except ValidationError as e:
         errors = e.errors()
         for error in errors:
-            loc = ".".join(str(link) for link in error["loc"])
+            loc = ".".join([str(x) for x in error.get("loc", [])])
             msg = f"Agent config error in field {loc}"
             value = error.get("input")
-            if value is not None:
+            if not isinstance(value, dict):
                 msg += f" (value: {value})"
             msg += f": {error['msg']}"
             wandb.termerror(msg)
