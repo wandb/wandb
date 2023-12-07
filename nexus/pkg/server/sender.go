@@ -305,7 +305,16 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename, filetransfer.WandbFile)
+	// s.sendFile(MetaFilename, filetransfer.WandbFile)
+	s.loopbackChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: MetaFilename},
+				},
+			},
+		},
+	}
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
