@@ -39,6 +39,13 @@ class BuilderType(str, Enum):
     noop = "noop"
 
 
+class TargetPlatform(str, Enum):
+    """Enum of valid target platforms."""
+
+    linux_amd64 = "linux/amd64"
+    linux_arm64 = "linux/arm64"
+
+
 class RegistryConfig(BaseModel):
     """Configuration for registry block.
 
@@ -68,10 +75,11 @@ class EnvironmentConfig(BaseModel):
 
 class BuilderConfig(BaseModel):
     type: Optional[BuilderType] = Field(
+        None,
         description="The type of builder to use.",
-        values=["docker", "kaniko", "noop"],
     )
     destination: Optional[str] = Field(
+        None,
         description="The destination to use for the built image. If not provided, "
         "the image will be pushed to the registry.",
     )
@@ -94,10 +102,9 @@ class BuilderConfig(BaseModel):
 
 
 class DockerBuilderConfig(BuilderConfig):
-    platform: Optional[str] = Field(
+    platform: TargetPlatform = Field(
         description="The platform to use for the built image. If not provided, "
         "the platform will be detected automatically.",
-        values=["linux/amd64", "linux/arm64", "linux/arm/v7", "linux/arm/v6", "all"],
     )
 
 

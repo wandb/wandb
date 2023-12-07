@@ -159,11 +159,8 @@ def create_and_run_agent(
     except ValidationError as e:
         errors = e.errors()
         for error in errors:
-            value = config
-            for loc in error["loc"]:
-                value = value[loc]
             wandb.termerror(
-                f"Invalid value {value} given for {'.'.join(error['loc'])}: {error['msg']}"
+                f"Validation error on agent config for {'.'.join(error['loc'])}: {error['msg']}"
             )
         raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
