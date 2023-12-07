@@ -89,6 +89,7 @@ func (g *GPUAMD) getCards() map[int]Stats {
 	return cards
 }
 
+//gocyclo:ignore
 func (g *GPUAMD) Probe() *service.MetadataRequest {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
