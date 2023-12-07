@@ -120,7 +120,7 @@ func main() {
 		offline:            flag.Bool("offline", false, "use offline mode"),
 		numCPUs:            flag.Int("numCPUs", 0, "number of cpus"),
 		numWorkers:         flag.Int("numWorkers", 1, "number of parallel workers"),
-		useStreamTable:     flag.Bool("useStreamTable", true, "create stream table runs"),
+		useStreamTable:     flag.Bool("useStreamTable", false, "create stream table runs"),
 		streamTablePath:    flag.String("streamTablePath", "user/proj/table", "table to use"),
 	}
 	flag.Parse()
