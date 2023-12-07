@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator  # type: ignore
+from pydantic import BaseModel, Field, root_validator, validator  # type: ignore
 
 from wandb.sdk.launch.utils import (
     AZURE_BLOB_REGEX,
@@ -105,19 +105,15 @@ class BuilderConfig(BaseModel):
             "ECR, ACR, or GCP Artifact Registry."
         )
 
-
-class DockerBuilderConfig(BuilderConfig):
-    platform: TargetPlatform = Field(
+    platform: Optional[TargetPlatform] = Field(
+        None,
         description="The platform to use for the built image. If not provided, "
         "the platform will be detected automatically.",
     )
 
-
-class KanikoBuilderConfig(BuilderConfig):
     build_context_store: Optional[str] = Field(
-        ...,
-        description="The build context store to use. If not provided, "
-        "the build context will be uploaded to the registry.",
+        None,
+        description="The build context store to use. Required for kaniko builds.",
         alias="build-context-store",
     )
     build_job_name: Optional[str] = Field(
@@ -126,10 +122,12 @@ class KanikoBuilderConfig(BuilderConfig):
         alias="build-job-name",
     )
     secret_name: Optional[str] = Field(
+        None,
         description="The name of the secret to use for the build job.",
         alias="secret-name",
     )
     secret_key: Optional[str] = Field(
+        None,
         description="The key of the secret to use for the build job.",
         alias="secret-key",
     )
@@ -139,13 +137,12 @@ class KanikoBuilderConfig(BuilderConfig):
         alias="kaniko-image",
     )
 
-    class Config:
-        extra = "forbid"
-
     @validator("build_context_store")  # type: ignore
     @classmethod
     def validate_build_context_store(cls, build_context_store: str) -> str:
         """Validate that the build context store is a valid container registry URI."""
+        if build_context_store is None:
+            return build_context_store
         for regex in [
             S3_URI_RE,
             GCS_URI_RE,
@@ -157,6 +154,23 @@ class KanikoBuilderConfig(BuilderConfig):
             "Invalid build context store. Build context store must be a URI for an "
             "S3 bucket, GCS bucket, or Azure blob."
         )
+
+    @root_validator(pre=True)
+    @classmethod
+    def validate_kaniko(cls, values: dict) -> dict:
+        """Validate that kaniko is configured correctly."""
+        if values.get("type") == BuilderType.kaniko:
+            if values.get("build-context-store") is None:
+                raise ValueError(
+                    "builder.build-context-store is required if builder.type is set to kaniko."
+                )
+        return values
+
+    @root_validator(pre=True)
+    @classmethod
+    def validate_docker(cls, values: dict) -> dict:
+        """Right now there are no required fields for docker builds."""
+        return values
 
 
 class AgentConfig(BaseModel):
