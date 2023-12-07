@@ -1197,7 +1197,7 @@ def launch_sweep(
     "-f",
     default=None,
     multiple=True,
-    help="""Fields for queues with allowlisting enabled, as a path to a JSON file or as a JSON string e.g. `--fields {'key1':'value1'}`"""
+    help="""Fields for queues with allowlisting enabled, as key-value pairs e.g. `--fields key1=value1 --fields key2=value2`"""
 )
 @click.option(
     "--queue",
@@ -1339,35 +1339,14 @@ def launch(
             config["overrides"] = {"dockerfile": dockerfile}
 
     template_variables = None
-    # if fields is not None:
-    #     template_variables = launch_utils.fetch_and_validate_template_variables(fields)
     if fields is not None:
-        template_variables = {}
         public_api = PublicApi()
         runqueue = RunQueue(
             client=public_api.client,
             name=queue,
             entity=entity
         )
-        variable_schemas = {}
-        for tv in runqueue.template_variables:
-            variable_schemas[tv["name"]] = json.loads(tv["schema"])
-
-        for field in fields:
-            key, val = field.split("=")
-            if key not in variable_schemas:
-                raise LaunchError(f"Queue {queue} does not support overriding {key}.")
-            schema = variable_schemas.get(key)
-            field_type = schema.get("type")
-            try:
-                if field_type == "integer":
-                    val = int(val)
-                elif field_type == "number":
-                    val = float(val)
-
-            except ValueError:
-                raise LaunchError(f"Value for {key} must be of type {field_type}.")
-            template_variables[key] = val
+        template_variables = launch_utils.fetch_and_validate_template_variables(runqueue, fields)
 
     if queue is None:
         # direct launch

@@ -774,3 +774,28 @@ def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
         }
     else:
         return source
+
+
+def fetch_and_validate_template_variables(runqueue: Any, fields: dict) -> Dict[str, Any]:
+    template_variables = {}
+
+    variable_schemas = {}
+    for tv in runqueue.template_variables:
+        variable_schemas[tv["name"]] = json.loads(tv["schema"])
+
+    for field in fields:
+        key, val = field.split("=")
+        if key not in variable_schemas:
+            raise LaunchError(f"Queue {runqueue.name} does not support overriding {key}.")
+        schema = variable_schemas.get(key)
+        field_type = schema.get("type")
+        try:
+            if field_type == "integer":
+                val = int(val)
+            elif field_type == "number":
+                val = float(val)
+
+        except ValueError:
+            raise LaunchError(f"Value for {key} must be of type {field_type}.")
+        template_variables[key] = val
+    return template_variables

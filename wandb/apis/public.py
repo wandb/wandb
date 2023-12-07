@@ -2844,7 +2844,6 @@ class RunQueue:
                         resource
                         templateVariables {
                             name
-                            description
                             schema
                         }
                     }
