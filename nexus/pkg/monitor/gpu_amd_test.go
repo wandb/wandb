@@ -1,3 +1,5 @@
+//go:build linux && !libwandb_core
+
 package monitor_test
 
 import (
@@ -65,4 +67,14 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 	assert.Len(t, aggregateMetrics, 10)
 	assert.Equal(t, 10.0, aggregateMetrics["gpu.0.gpu"])
 	assert.Equal(t, 20.0, aggregateMetrics["gpu.1.gpu"])
+	gpu.ClearMetrics()
+	assert.Len(t, gpu.Samples(), 0)
+}
+
+func TestGPUAMD_Probe(t *testing.T) {
+	gpu := monitor.NewGPUAMD(nil)
+	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
+	info := gpu.Probe()
+	assert.Equal(t, info.GpuCount, uint32(2))
+	assert.Len(t, info.GpuAmd, 2)
 }

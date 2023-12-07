@@ -1,4 +1,4 @@
-// go:build linux && !libwandb_core
+//go:build linux && !libwandb_core
 
 package monitor
 
@@ -59,60 +59,123 @@ func (g *GPUAMD) IsAvailable() bool {
 	return err == nil
 }
 
+func (g *GPUAMD) getCards() map[int]Stats {
+
+	rawStats, err := g.GetROCMSMIStatsFunc()
+	if err != nil {
+		log.Printf("Error getting ROCm SMI stats: %v", err)
+		return nil
+	}
+
+	cards := make(map[int]Stats)
+	for key, value := range rawStats {
+		if strings.HasPrefix(key, "card") {
+			// get card id and convert it to int
+			var cardID int
+			s := strings.TrimPrefix(key, "card")
+			_, err := fmt.Sscanf(s, "%d", &cardID)
+			if err != nil {
+				continue
+			}
+			cardStats, ok := value.(map[string]interface{})
+			if !ok {
+				log.Printf("Type assertion failed for key %s", key)
+				continue
+			}
+			stats := g.ParseStats(cardStats)
+			cards[cardID] = stats
+		}
+	}
+	return cards
+}
+
 func (g *GPUAMD) Probe() *service.MetadataRequest {
-	// info := make(map[string]interface{})
 
-	// rawStats, err := getROCMSMIStats()
-	// if err != nil {
-	// 	log.Printf("GPUAMD probe error: %v", err)
-	// 	return info
-	// }
+	rawStats, err := g.GetROCMSMIStatsFunc()
+	if err != nil {
+		log.Printf("Error getting ROCm SMI stats: %v", err)
+		return nil
+	}
 
-	// gpuCount := 0
-	// for key := range rawStats {
-	// 	if strings.HasPrefix(key, "card") {
-	// 		gpuCount++
-	// 	}
-	// }
-	// info["gpu_count"] = gpuCount
+	cards := make(map[int]map[string]interface{})
+	for key, value := range rawStats {
+		if strings.HasPrefix(key, "card") {
+			// get card id and convert it to int
+			var cardID int
+			s := strings.TrimPrefix(key, "card")
+			_, err := fmt.Sscanf(s, "%d", &cardID)
+			if err != nil {
+				continue
+			}
+			stats, ok := value.(map[string]interface{})
+			if !ok {
+				log.Printf("Type assertion failed for key %s", key)
+				continue
+			}
+			cards[cardID] = stats
+		}
+	}
 
-	// keyMapping := map[string]string{
-	// 	"id":                   "GPU ID",
-	// 	"unique_id":            "Unique ID",
-	// 	"vbios_version":        "VBIOS version",
-	// 	"performance_level":    "Performance Level",
-	// 	"gpu_overdrive":        "GPU OverDrive value (%)",
-	// 	"gpu_memory_overdrive": "GPU Memory OverDrive value (%)",
-	// 	"max_power":            "Max Graphics Package Power (W)",
-	// 	"series":               "Card series",
-	// 	"model":                "Card model",
-	// 	"vendor":               "Card vendor",
-	// 	"sku":                  "Card SKU",
-	// 	"sclk_range":           "Valid sclk range",
-	// 	"mclk_range":           "Valid mclk range",
-	// }
+	info := service.MetadataRequest{
+		GpuAmd: []*service.GpuAmdInfo{},
+	}
 
-	// gpuDevices := make([]map[string]string, 0)
-	// for key, cardStats := range rawStats {
-	// 	if strings.HasPrefix(key, "card") {
-	// 		card, ok := cardStats.(map[string]interface{})
-	// 		if !ok {
-	// 			continue
-	// 		}
-	// 		mapped := make(map[string]string)
-	// 		for k, v := range keyMapping {
-	// 			if value, exists := card[v]; exists {
-	// 				mapped[k] = value.(string)
-	// 			}
-	// 		}
-	// 		gpuDevices = append(gpuDevices, mapped)
-	// 	}
-	// }
+	info.GpuCount = uint32(len(cards))
 
-	// info["gpu_devices"] = gpuDevices
+	keyMapping := map[string]string{
+		"Id":                 "GPU ID",
+		"UniqueId":           "Unique ID",
+		"VbiosVersion":       "VBIOS version",
+		"PerformanceLevel":   "Performance Level",
+		"GpuOverdrive":       "GPU OverDrive value (%)",
+		"GpuMemoryOverdrive": "GPU Memory OverDrive value (%)",
+		"MaxPower":           "Max Graphics Package Power (W)",
+		"Series":             "Card series",
+		"Model":              "Card model",
+		"Vendor":             "Card vendor",
+		"Sku":                "Card SKU",
+		"SclkRange":          "Valid sclk range",
+		"MclkRange":          "Valid mclk range",
+	}
 
-	// return info
-	return nil
+	for _, stats := range cards {
+		gpuInfo := service.GpuAmdInfo{}
+		for key, statKey := range keyMapping {
+			if value, ok := stats[statKey].(string); ok {
+				switch key {
+				case "Id":
+					gpuInfo.Id = value
+				case "UniqueId":
+					gpuInfo.UniqueId = value
+				case "VbiosVersion":
+					gpuInfo.VbiosVersion = value
+				case "PerformanceLevel":
+					gpuInfo.PerformanceLevel = value
+				case "GpuOverdrive":
+					gpuInfo.GpuOverdrive = value
+				case "GpuMemoryOverdrive":
+					gpuInfo.GpuMemoryOverdrive = value
+				case "MaxPower":
+					gpuInfo.MaxPower = value
+				case "Series":
+					gpuInfo.Series = value
+				case "Model":
+					gpuInfo.Model = value
+				case "Vendor":
+					gpuInfo.Vendor = value
+				case "Sku":
+					gpuInfo.Sku = value
+				case "SclkRange":
+					gpuInfo.SclkRange = value
+				case "MclkRange":
+					gpuInfo.MclkRange = value
+				}
+			}
+		}
+		info.GpuAmd = append(info.GpuAmd, &gpuInfo)
+	}
+
+	return &info
 }
 
 func (g *GPUAMD) Samples() map[string][]float64 {
@@ -192,31 +255,7 @@ func (g *GPUAMD) SampleMetrics() {
 	g.mutex.RLock()
 	defer g.mutex.RUnlock()
 
-	rawStats, err := g.GetROCMSMIStatsFunc()
-	if err != nil {
-		log.Printf("Error getting ROCm SMI stats: %v", err)
-		return
-	}
-
-	cards := make(map[int]Stats)
-	for key, value := range rawStats {
-		if strings.HasPrefix(key, "card") {
-			// get card id and convert it to int
-			var cardID int
-			s := strings.TrimPrefix(key, "card")
-			_, err := fmt.Sscanf(s, "%d", &cardID)
-			if err != nil {
-				continue
-			}
-			cardStats, ok := value.(map[string]interface{})
-			if !ok {
-				log.Printf("Type assertion failed for key %s", key)
-				continue
-			}
-			stats := g.ParseStats(cardStats)
-			cards[cardID] = stats
-		}
-	}
+	cards := g.getCards()
 
 	if len(cards) > 0 {
 		for gpu_id, stats := range cards {
