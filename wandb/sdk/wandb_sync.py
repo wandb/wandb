@@ -38,6 +38,7 @@ def _sync(
     assert wl is not None
 
     stream_id = generate_id()
+    print(f"stream_id: {stream_id}")
 
     settings = wl.settings.to_proto()
     # update sync_file setting to point to the passed path

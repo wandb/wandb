@@ -215,6 +215,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
+	fmt.Println("handleRecord", record)
 	h.summaryDebouncer.Debounce(h.sendSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
