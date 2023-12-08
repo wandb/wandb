@@ -32,8 +32,8 @@ class NexusBase:
         print(f"Package path: {base}")
         return base
 
-    def _build_nexus(self):
-        nexus_path = self._get_package_path()
+    def _build_core(self):
+        core_path = self._get_package_path()
 
         src_dir = Path(__file__).parent
 
@@ -58,7 +58,7 @@ class NexusBase:
         if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
             env["CGO_ENABLED"] = "1"
 
-        os.makedirs(nexus_path, exist_ok=True)
+        os.makedirs(core_path, exist_ok=True)
         commit = (
             subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
             .decode("utf-8")
@@ -74,7 +74,7 @@ class NexusBase:
             "build",
             f"-ldflags={ldflags}",
             "-o",
-            str(nexus_path / "wandb-nexus"),
+            str(core_path / "wandb-nexus"),
             "cmd/nexus/main.go",
         ]
         if gocover:
@@ -90,13 +90,13 @@ class NexusBase:
             monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
             if monitor_path.exists():
                 log.info("Copying AppleStats binary")
-                subprocess.check_call(["cp", str(monitor_path), str(nexus_path)])
+                subprocess.check_call(["cp", str(monitor_path), str(core_path)])
 
 
 class WrapDevelop(develop, NexusBase):
     def run(self):
         develop.run(self)
-        self._build_nexus()
+        self._build_core()
 
 
 class WrapBdistWheel(bdist_wheel, NexusBase):
@@ -109,7 +109,7 @@ class WrapBdistWheel(bdist_wheel, NexusBase):
         return python, abi, plat_name
 
     def run(self):
-        self._build_nexus()
+        self._build_core()
         bdist_wheel.run(self)
 
 
