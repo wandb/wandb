@@ -20,7 +20,6 @@ from typing import (
     Dict,
     Iterable,
     List,
-    Literal,
     Mapping,
     MutableMapping,
     Optional,
@@ -1477,7 +1476,7 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
-        prioritization_mode: Optional[Literal["DISABLED", "V0"]] = "DISABLED",
+        prioritization_mode: Optional[str] = "DISABLED",
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         (
