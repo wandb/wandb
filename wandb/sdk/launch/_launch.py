@@ -13,7 +13,6 @@ from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_agent_configs
-from .builder.noop import NoOpBuilder
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
@@ -215,11 +214,7 @@ async def _launch(
     if environment is not None and not isinstance(environment, LocalEnvironment):
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
-    if registry:
-        await registry.verify()
     builder = loader.builder_from_config(build_config, environment, registry)
-    if builder is not None and not isinstance(builder, NoOpBuilder):
-        await builder.verify()
     if not launch_project.docker_image:
         assert entrypoint
         image_uri = await builder.build_image(launch_project, entrypoint, None)
