@@ -40,7 +40,7 @@ type FileTransferManager struct {
 	settings *service.Settings
 
 	// logger is the logger for the file transfer
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// wg is the wait group
 	wg *sync.WaitGroup
@@ -48,7 +48,7 @@ type FileTransferManager struct {
 
 type FileTransferManagerOption func(fm *FileTransferManager)
 
-func WithLogger(logger *observability.NexusLogger) FileTransferManagerOption {
+func WithLogger(logger *observability.CoreLogger) FileTransferManagerOption {
 	return func(fm *FileTransferManager) {
 		fm.logger = logger
 	}

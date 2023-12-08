@@ -13,7 +13,7 @@ import (
 func TestDefaultFileTransfer_Download(t *testing.T) {
 	type fields struct {
 		client *retryablehttp.Client
-		logger *observability.NexusLogger
+		logger *observability.CoreLogger
 	}
 	type args struct {
 		task *Task

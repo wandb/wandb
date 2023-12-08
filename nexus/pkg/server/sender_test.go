@@ -16,7 +16,7 @@ import (
 )
 
 func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	sender := server.NewSender(
 		context.Background(),
 		&service.Settings{
