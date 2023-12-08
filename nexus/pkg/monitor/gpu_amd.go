@@ -258,12 +258,10 @@ func (g *GPUAMD) SampleMetrics() {
 
 	cards := g.getCards()
 
-	if len(cards) > 0 {
-		for gpu_id, stats := range cards {
-			for statKey, value := range stats {
-				formattedKey := fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)
-				g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
-			}
+	for gpu_id, stats := range cards {
+		for statKey, value := range stats {
+			formattedKey := fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)
+			g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
 		}
 	}
 }
