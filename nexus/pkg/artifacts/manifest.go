@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/segmentio/encoding/json"
 
@@ -65,24 +64,7 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
-	data, rerr := json.Marshal(m)
-	if rerr != nil {
-		return
-	}
-
-	f, rerr := os.CreateTemp("", "tmpfile-")
-	if rerr != nil {
-		return
-	}
-	defer f.Close()
-	_, rerr = f.Write(data)
-	if rerr != nil {
-		return
-	}
-	filename = f.Name()
-
-	digest, rerr = utils.ComputeB64MD5(data)
-	return
+	return utils.WriteJsonToFileWithDigest(m)
 }
 
 func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {

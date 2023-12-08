@@ -1685,7 +1685,7 @@ workflows:
           filters:
             branches:
               only:
-                - main
+                # - main
                 - /^release-.*/
                 - /^.*-ci-win$/
           matrix:

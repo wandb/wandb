@@ -174,6 +174,7 @@ func NewSystemMonitor(
 		NewDisk(settings),
 		NewNetwork(settings),
 		NewGPUNvidia(settings),
+		NewGPUAMD(settings),
 		NewGPUApple(settings),
 	}
 

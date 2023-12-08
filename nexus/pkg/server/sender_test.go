@@ -1,4 +1,4 @@
-package server
+package server_test
 
 import (
 	"context"
@@ -10,23 +10,23 @@ import (
 	"github.com/wandb/wandb/nexus/internal/gql"
 	"github.com/wandb/wandb/nexus/internal/nexustest"
 	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/nexus/pkg/server"
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func makeSender(client graphql.Client, resultChan chan *service.Result) Sender {
-	logger := observability.NewNexusLogger(SetupDefaultLogger(), nil)
-	sender := Sender{
-		ctx:    context.Background(),
-		logger: logger,
-		settings: &service.Settings{
+func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
+	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	sender := server.NewSender(
+		context.Background(),
+		&service.Settings{
 			RunId: &wrapperspb.StringValue{Value: "run1"},
 		},
-		graphqlClient: client,
-		telemetry:     &service.TelemetryRecord{},
-		outChan:       resultChan,
-		configMap:     make(map[string]interface{}),
-	}
+		logger,
+		make(chan *service.Record, 1),
+	)
+	sender.SetOutboundChannel(resultChan)
+	sender.SetGraphqlClient(client)
 	return sender
 }
 
@@ -77,8 +77,8 @@ func TestSendRun(t *testing.T) {
 		},
 	))
 
-	sender.sendRecord(run)
-	<-sender.outChan
+	sender.SendRecord(run)
+	<-sender.GetOutboundChannel()
 }
 
 func TestSendLinkArtifact(t *testing.T) {
@@ -125,8 +125,8 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	))
 
-	sender.sendRecord(linkArtifact)
-	<-sender.outChan
+	sender.SendRecord(linkArtifact)
+	<-sender.GetOutboundChannel()
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
@@ -158,8 +158,8 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	))
 
-	sender.sendRecord(linkArtifact)
-	<-sender.outChan
+	sender.SendRecord(linkArtifact)
+	<-sender.GetOutboundChannel()
 
 	// 2. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
@@ -191,6 +191,6 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	))
 
-	sender.sendRecord(linkArtifact)
-	<-sender.outChan
+	sender.SendRecord(linkArtifact)
+	<-sender.GetOutboundChannel()
 }

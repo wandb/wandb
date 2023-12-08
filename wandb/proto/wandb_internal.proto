@@ -1032,6 +1032,22 @@ message GpuNvidiaInfo {
   uint64 memory_total = 2;
 }
 
+message GpuAmdInfo {
+  string id = 1;
+  string unique_id = 2;
+  string vbios_version = 3;
+  string performance_level = 4;
+  string gpu_overdrive = 5;
+  string gpu_memory_overdrive = 6;
+  string max_power = 7;
+  string series = 8;
+  string model = 9;
+  string vendor = 10;
+  string sku = 11;
+  string sclk_range = 12;
+  string mclk_range = 13;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1060,4 +1076,5 @@ message MetadataRequest {
   CpuInfo cpu = 25;
   GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
+  repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
 }
