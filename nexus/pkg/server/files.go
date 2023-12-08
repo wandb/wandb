@@ -16,10 +16,10 @@ type FileHandler struct {
 	savedFiles map[string]interface{}
 	final      *service.Record
 	watcher    *watcher.Watcher
-	logger     *observability.NexusLogger
+	logger     *observability.CoreLogger
 }
 
-func NewFileHandler(logger *observability.NexusLogger, watcherOutChan chan *service.Record) *FileHandler {
+func NewFileHandler(logger *observability.CoreLogger, watcherOutChan chan *service.Record) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
 		watcher:    watcher.NewWatcher(logger, watcherOutChan),

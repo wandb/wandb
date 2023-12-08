@@ -118,7 +118,7 @@ markers = [
     "multiclass",
     "wandb_args",
     "flaky",
-    "nexus_failure(feature): test failures on nexus, grouped by feature",
+    "wandb_core_failure(feature): test failures with wandb-core, grouped by feature",
 ]
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"

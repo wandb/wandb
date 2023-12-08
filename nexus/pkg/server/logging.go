@@ -36,7 +36,9 @@ func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 	return logger
 }
 
-func SetupStreamLogger(settings *service.Settings) *observability.NexusLogger {
+// TODO: add a noop logger
+
+func SetupStreamLogger(settings *service.Settings) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "core-debug.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -65,7 +67,7 @@ func SetupStreamLogger(settings *service.Settings) *observability.NexusLogger {
 
 	writer := io.MultiWriter(writers...)
 
-	logger := observability.NewNexusLogger(setupLogger(nil, writer), nil)
+	logger := observability.NewCoreLogger(setupLogger(nil, writer), nil)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 	tags := observability.Tags{

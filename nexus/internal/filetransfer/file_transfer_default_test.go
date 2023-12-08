@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 func TestDefaultFileTransfer_Download(t *testing.T) {
 	type fields struct {
 		client *retryablehttp.Client
-		logger *observability.NexusLogger
+		logger *observability.CoreLogger
 	}
 	type args struct {
 		task *Task
@@ -61,4 +62,6 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 			}
 		})
 	}
+	// clean up test file
+	_ = os.Remove("./test-download-file.txt")
 }
