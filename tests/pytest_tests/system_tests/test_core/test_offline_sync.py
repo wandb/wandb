@@ -29,6 +29,6 @@ def test_beta_sync(wandb_init, relay_server, runner):
         run = wandb_init()
         run.log(dict(a=1))
         run.finish()
-    with relay_server() as relay:
+    with relay_server():
         result = runner.invoke(cli.beta, ["sync", ".wandb"])
         print(result.output)
