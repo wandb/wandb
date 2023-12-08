@@ -21,7 +21,7 @@ type Writer struct {
 	settings *service.Settings
 
 	// logger is the logger for the writer
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the sender
 	fwdChan chan *service.Record
@@ -40,7 +40,7 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
+func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger) *Writer {
 
 	w := &Writer{
 		ctx:      ctx,

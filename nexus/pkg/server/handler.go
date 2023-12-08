@@ -39,7 +39,7 @@ type Handler struct {
 	settings *service.Settings
 
 	// logger is the logger for the handler
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the writer
 	fwdChan chan *service.Record
@@ -98,7 +98,7 @@ type Handler struct {
 func NewHandler(
 	ctx context.Context,
 	settings *service.Settings,
-	logger *observability.NexusLogger,
+	logger *observability.CoreLogger,
 ) *Handler {
 	// init the system monitor if stats are enabled
 	h := &Handler{

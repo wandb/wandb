@@ -137,13 +137,13 @@ type SystemMonitor struct {
 	settings *service.Settings
 
 	// logger is the logger for the system monitor
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 }
 
 // NewSystemMonitor creates a new SystemMonitor with the given settings
 func NewSystemMonitor(
 	settings *service.Settings,
-	logger *observability.NexusLogger,
+	logger *observability.CoreLogger,
 	outChan chan *service.Record,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()

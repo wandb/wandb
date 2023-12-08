@@ -11,26 +11,26 @@ Now when you run `git push` the hooks will run automatically.
 
 This step is not required, but it is highly recommended.
 
-## Installing Nexus
-To install Nexus, you will need to run the following commands (assuming you are in the
+## Installing WandB Core
+To install wandb-core, you will need to run the following commands (assuming you are in the
 root of the repository):
 ```shell
 pip install -r requirements_build.txt  # Install build dependencies, if needed
-nox -s build-nexus install-nexus
+nox -s build-core install-core
 ```
-This will build Nexus for your current platform and install it into your current Python environment.
+This will build wandb-core for your current platform and install it into your current Python environment.
 Note that every time you make a change to the code, you will need to re-run this command to install
 the changes. If you want to make changes to the code and have them immediately available,
-you can install Nexus in development mode.
+you can install wandb-core in development mode.
 
-## Installing Nexus in Development Mode
-To install Nexus in development mode, you will need to run the following commands
+## Installing WandB Core in Development Mode
+To install wandb-core in development mode, you will need to run the following commands
 (assuming you are in the root of the repository):
 ```shell
 ./nexus/scripts/setup-nexus-path.sh
 ```
-This script will also allow you to unset the Nexus path if you no longer want to use
-the development version of Nexus. Follow the instructions in the script to do that.
+This script will also allow you to unset the wandb-core path if you no longer want to use
+the development version of wandb-core. Follow the instructions in the script to do that.
 
 ## Running System Tests Locally
 Install the test requirements into the current Python environment:
@@ -39,16 +39,16 @@ pip install -r requirements_test.txt  # Install test dependencies, if needed
 ```
 
 A number of tests are not currently passing due to feature incompleteness.
-These tests are marked with the `@pytest.mark.nexus_failure` decorator.
+These tests are marked with the `@pytest.mark.wandb_core_failure` decorator.
 To list all tests that are currently failing, run the following command:
 ```shell
-nox -s list-failing-tests-nexus
+nox -s list-failing-tests-wandb-core
 ```
 
 To run the tests excluding the failing ones locally, you will need to run the following
 commands in your active Python environment (assuming you are in the root of the repository):
 ```shell
-pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
+pytest -m "not wandb_core_failure" tests/pytest_tests/system_tests/test_core
 ```
 
 ## Modifying GraphQL Schema

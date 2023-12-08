@@ -38,7 +38,7 @@ func TestOpenCreateStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
@@ -53,7 +53,7 @@ func TestOpenReadStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
@@ -75,7 +75,7 @@ func TestReadWriteRecord(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	defer store.Close()
 
@@ -111,7 +111,7 @@ func TestCorruptFile(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	defer store.Close()
 
@@ -147,7 +147,7 @@ func TestInvalidHeader(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 
 	// Intentionally writing bad header data
@@ -160,7 +160,7 @@ func TestInvalidHeader(t *testing.T) {
 
 // TestStoreHeader_Write_Error is intended to test the error scenario when writing the header
 func TestStoreHeader_Write_Error(t *testing.T) {
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), "non_existent_dir/file", logger)
 	err := store.Open(os.O_WRONLY)
 	assert.Error(t, err)
@@ -173,7 +173,7 @@ func TestInvalidFlag(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	err = store.Open(9999) // 9999 is an invalid flag
 	assert.Errorf(t, err, "invalid flag %d", 9999)
@@ -186,7 +186,7 @@ func TestWriteToClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
@@ -206,7 +206,7 @@ func TestReadFromClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)

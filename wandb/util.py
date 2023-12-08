@@ -1844,7 +1844,7 @@ def get_core_path() -> str:
     wandb_core = get_module("wandb_core")
     if not core_path and wandb_core:
         _check_wandb_core_version_compatibility(wandb_core.__version__)
-        core_path = wandb_core.get_nexus_path()
+        core_path = wandb_core.get_core_path()
     return core_path
 
 

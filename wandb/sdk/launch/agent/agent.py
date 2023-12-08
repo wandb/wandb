@@ -14,7 +14,6 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
-from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -27,7 +26,6 @@ from .._project_spec import (
     fetch_and_validate_project,
 )
 from ..builder.build import construct_agent_configs
-from ..builder.noop import NoOpBuilder
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -651,14 +649,8 @@ class LaunchAgent:
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
-        if environment is not None and not isinstance(environment, LocalEnvironment):
-            await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
-        if registry is not None:
-            await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
-        if builder is not None and not isinstance(builder, NoOpBuilder):
-            await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )

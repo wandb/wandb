@@ -25,7 +25,7 @@ func makeHandler(
 	outChan chan *service.Result,
 	debounce bool,
 ) *server.Handler {
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 	h := server.NewHandler(context.Background(), &service.Settings{}, logger)
 
 	h.SetInboundChannels(inChan, loopbackChan)
