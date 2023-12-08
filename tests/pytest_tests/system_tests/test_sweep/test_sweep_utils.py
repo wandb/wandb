@@ -1,8 +1,9 @@
-from unittest import mock
 import json
+from unittest import mock
 
 import pytest
 import yaml
+
 from wandb.sdk.launch.sweeps import utils
 
 
