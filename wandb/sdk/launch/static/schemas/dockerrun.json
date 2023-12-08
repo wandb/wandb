@@ -1,0 +1,442 @@
+{
+  "type": "object",
+  "properties": {
+    "blkio-weight": {
+      "type": "integer",
+      "description": "Block IO (relative"
+    },
+    "blkio-weight-device": {
+      "type": "array",
+      "description": "Block IO weight"
+    },
+    "cap-add": {
+      "type": "array",
+      "description": "Add Linux capabilities"
+    },
+    "cap-drop": {
+      "type": "array",
+      "description": "Drop Linux capabilities"
+    },
+    "cgroup-parent": {
+      "type": "string",
+      "description": "Optional parent cgroup"
+    },
+    "cgroupns": {
+      "type": "string",
+      "description": "Cgroup namespace to"
+    },
+    "cidfile": {
+      "type": "string",
+      "description": "Write the container ID"
+    },
+    "cpu-period": {
+      "type": "integer",
+      "description": "Limit CPU CFS"
+    },
+    "cpu-quota": {
+      "type": "integer",
+      "description": "Limit CPU CFS"
+    },
+    "cpu-rt-period": {
+      "type": "integer",
+      "description": "Limit CPU real-time"
+    },
+    "cpu-rt-runtime": {
+      "type": "integer",
+      "description": "Limit CPU real-time"
+    },
+    "cpu-shares": {
+      "type": "integer",
+      "description": "CPU shares (relative"
+    },
+    "c": {
+      "type": "integer",
+      "description": "CPU shares (relative"
+    },
+    "cpus": {
+      "type": "string",
+      "description": "Number of CPUs"
+    },
+    "cpuset-cpus": {
+      "type": "string",
+      "description": "CPUs in which to allow"
+    },
+    "cpuset-mems": {
+      "type": "string",
+      "description": "MEMs in which to allow"
+    },
+    "detach": {
+      "type": "string",
+      "description": ""
+    },
+    "d": {
+      "type": "string",
+      "description": ""
+    },
+    "detach-keys": {
+      "type": "string",
+      "description": "Override the key"
+    },
+    "device": {
+      "type": "array",
+      "description": "Add a host device to"
+    },
+    "device-cgroup-rule": {
+      "type": "array",
+      "description": "Add a rule to the"
+    },
+    "device-read-bps": {
+      "type": "array",
+      "description": "Limit read rate (bytes"
+    },
+    "device-read-iops": {
+      "type": "array",
+      "description": "Limit read rate (IO"
+    },
+    "device-write-bps": {
+      "type": "array",
+      "description": "Limit write rate"
+    },
+    "device-write-iops": {
+      "type": "array",
+      "description": "Limit write rate (IO"
+    },
+    "disable-content-trust": {
+      "type": "string",
+      "description": ""
+    },
+    "dns": {
+      "type": "array",
+      "description": "Set custom DNS servers"
+    },
+    "dns-option": {
+      "type": "array",
+      "description": "Set DNS options"
+    },
+    "dns-search": {
+      "type": "array",
+      "description": "Set custom DNS search"
+    },
+    "domainname": {
+      "type": "string",
+      "description": "Container NIS domain name"
+    },
+    "entrypoint": {
+      "type": "string",
+      "description": "Overwrite the default"
+    },
+    "env": {
+      "type": "array",
+      "description": "Set environment variables"
+    },
+    "e": {
+      "type": "array",
+      "description": "Set environment variables"
+    },
+    "env-file": {
+      "type": "array",
+      "description": "Read in a file of"
+    },
+    "expose": {
+      "type": "array",
+      "description": "Expose a port or a"
+    },
+    "gpus": {
+      "type": "string",
+      "description": ""
+    },
+    "group-add": {
+      "type": "array",
+      "description": "Add additional groups"
+    },
+    "health-cmd": {
+      "type": "string",
+      "description": "Command to run to"
+    },
+    "health-interval": {
+      "type": "string",
+      "description": "Time between running"
+    },
+    "health-retries": {
+      "type": "integer",
+      "description": "Consecutive failures"
+    },
+    "health-start-period": {
+      "type": "string",
+      "description": "Start period for the"
+    },
+    "health-timeout": {
+      "type": "string",
+      "description": "Maximum time to allow"
+    },
+    "help": {
+      "type": "string",
+      "description": ""
+    },
+    "hostname": {
+      "type": "string",
+      "description": "Container host name"
+    },
+    "h": {
+      "type": "string",
+      "description": "Container host name"
+    },
+    "init": {
+      "type": "string",
+      "description": ""
+    },
+    "interactive": {
+      "type": "string",
+      "description": ""
+    },
+    "i": {
+      "type": "string",
+      "description": ""
+    },
+    "ip": {
+      "type": "string",
+      "description": "IPv4 address (e.g.,"
+    },
+    "ip6": {
+      "type": "string",
+      "description": "IPv6 address (e.g.,"
+    },
+    "ipc": {
+      "type": "string",
+      "description": "IPC mode to use"
+    },
+    "isolation": {
+      "type": "string",
+      "description": "Container isolation"
+    },
+    "kernel-memory": {
+      "type": "string",
+      "description": "Kernel memory limit"
+    },
+    "label": {
+      "type": "array",
+      "description": "Set meta data on a"
+    },
+    "l": {
+      "type": "array",
+      "description": "Set meta data on a"
+    },
+    "label-file": {
+      "type": "array",
+      "description": "Read in a line"
+    },
+    "link": {
+      "type": "array",
+      "description": "Add link to another"
+    },
+    "link-local-ip": {
+      "type": "array",
+      "description": "Container IPv4/IPv6"
+    },
+    "log-driver": {
+      "type": "string",
+      "description": "Logging driver for the"
+    },
+    "log-opt": {
+      "type": "array",
+      "description": "Log driver options"
+    },
+    "mac-address": {
+      "type": "string",
+      "description": "Container MAC address"
+    },
+    "memory": {
+      "type": "string",
+      "description": "Memory limit"
+    },
+    "m": {
+      "type": "string",
+      "description": "Memory limit"
+    },
+    "memory-reservation": {
+      "type": "string",
+      "description": "Memory soft limit"
+    },
+    "memory-swap": {
+      "type": "string",
+      "description": "Swap limit equal to"
+    },
+    "memory-swappiness": {
+      "type": "integer",
+      "description": "Tune container memory"
+    },
+    "mount": {
+      "type": "string",
+      "description": "Attach a filesystem"
+    },
+    "name": {
+      "type": "string",
+      "description": "Assign a name to the"
+    },
+    "network": {
+      "type": "string",
+      "description": "Connect a container to"
+    },
+    "network-alias": {
+      "type": "array",
+      "description": "Add network-scoped"
+    },
+    "no-healthcheck": {
+      "type": "string",
+      "description": ""
+    },
+    "oom-kill-disable": {
+      "type": "string",
+      "description": ""
+    },
+    "oom-score-adj": {
+      "type": "integer",
+      "description": "Tune host's OOM"
+    },
+    "pid": {
+      "type": "string",
+      "description": "PID namespace to use"
+    },
+    "pids-limit": {
+      "type": "integer",
+      "description": "Tune container pids"
+    },
+    "platform": {
+      "type": "string",
+      "description": "Set platform if server"
+    },
+    "privileged": {
+      "type": "string",
+      "description": ""
+    },
+    "publish": {
+      "type": "array",
+      "description": "Publish a container's"
+    },
+    "p": {
+      "type": "array",
+      "description": "Publish a container's"
+    },
+    "publish-all": {
+      "type": "string",
+      "description": ""
+    },
+    "P": {
+      "type": "string",
+      "description": ""
+    },
+    "pull": {
+      "type": "string",
+      "description": "Pull image before"
+    },
+    "quiet": {
+      "type": "string",
+      "description": ""
+    },
+    "q": {
+      "type": "string",
+      "description": ""
+    },
+    "read-only": {
+      "type": "string",
+      "description": ""
+    },
+    "restart": {
+      "type": "string",
+      "description": "Restart policy to"
+    },
+    "rm": {
+      "type": "string",
+      "description": ""
+    },
+    "runtime": {
+      "type": "string",
+      "description": "Runtime to use for"
+    },
+    "security-opt": {
+      "type": "array",
+      "description": "Security Options"
+    },
+    "shm-size": {
+      "type": "string",
+      "description": "Size of /dev/shm"
+    },
+    "sig-proxy": {
+      "type": "string",
+      "description": ""
+    },
+    "stop-signal": {
+      "type": "string",
+      "description": "Signal to stop the"
+    },
+    "stop-timeout": {
+      "type": "integer",
+      "description": "Timeout (in seconds)"
+    },
+    "storage-opt": {
+      "type": "array",
+      "description": "Storage driver options"
+    },
+    "sysctl": {
+      "type": "object",
+      "description": "Sysctl options"
+    },
+    "tmpfs": {
+      "type": "array",
+      "description": "Mount a tmpfs directory"
+    },
+    "tty": {
+      "type": "string",
+      "description": ""
+    },
+    "t": {
+      "type": "string",
+      "description": ""
+    },
+    "ulimit": {
+      "type": "string",
+      "description": "Ulimit options (default [])"
+    },
+    "user": {
+      "type": "string",
+      "description": "Username or UID"
+    },
+    "u": {
+      "type": "string",
+      "description": "Username or UID"
+    },
+    "userns": {
+      "type": "string",
+      "description": "User namespace to use"
+    },
+    "uts": {
+      "type": "string",
+      "description": "UTS namespace to use"
+    },
+    "volume": {
+      "type": "array",
+      "description": "Bind mount a volume"
+    },
+    "v": {
+      "type": "array",
+      "description": "Bind mount a volume"
+    },
+    "volume-driver": {
+      "type": "string",
+      "description": "Optional volume driver"
+    },
+    "volumes-from": {
+      "type": "array",
+      "description": "Mount volumes from the"
+    },
+    "workdir": {
+      "type": "string",
+      "description": "Working directory"
+    },
+    "w": {
+      "type": "string",
+      "description": "Working directory"
+    }
+  },
+  "additionalProperties": false
+}

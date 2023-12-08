@@ -1,8 +1,7 @@
+"""This script generates a JSON schema for the named arguments of 'docker run' command."""
 import json
 import re
 import subprocess
-
-from sympy import comp
 
 # Step 1: Run 'docker run --help' in a subprocess and capture the output
 result = subprocess.run(["docker", "run", "--help"], stdout=subprocess.PIPE, text=True)
@@ -45,8 +44,6 @@ for line in lines[idx:]:
             "type": json_type,
             "description": description.strip() if description else "",
         }
-        if short_flag:
-            flags[short_flag.lstrip("-")] = flags[long_flag]
 
 
 # Step 3: Construct the JSON schema
