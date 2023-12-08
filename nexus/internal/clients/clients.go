@@ -66,7 +66,7 @@ func NewRetryClient(opts ...RetryClientOption) *retryablehttp.Client {
 
 type RetryClientOption func(rc *retryablehttp.Client)
 
-func WithRetryClientLogger(logger *observability.NexusLogger) RetryClientOption {
+func WithRetryClientLogger(logger *observability.CoreLogger) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
 		rc.Logger = slog.NewLogLogger(logger.Logger.Handler(), slog.LevelDebug)
 	}

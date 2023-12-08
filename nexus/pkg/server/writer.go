@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"github.com/wandb/wandb/nexus/pkg/observability"
@@ -20,7 +21,7 @@ type Writer struct {
 	settings *service.Settings
 
 	// logger is the logger for the writer
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the sender
 	fwdChan chan *service.Record
@@ -39,7 +40,7 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger) *Writer {
+func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger) *Writer {
 
 	w := &Writer{
 		ctx:      ctx,
@@ -50,15 +51,12 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 	return w
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
-	defer w.logger.Reraise()
-	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
-
+func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store, err = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
@@ -67,7 +65,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
-			if err = w.store.storeRecord(record); err != nil {
+			if err = w.store.Write(record); err != nil {
 				w.logger.Error("writer: error storing record", "error", err)
 			}
 		}
@@ -77,6 +75,14 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 		}
 		w.wg.Done()
 	}()
+}
+
+// do is the main loop of the writer to process incoming messages
+func (w *Writer) do(inChan <-chan *service.Record) {
+	defer w.logger.Reraise()
+	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
+
+	w.startStore()
 
 	for record := range inChan {
 		w.handleRecord(record)
@@ -88,7 +94,9 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 // which includes the store
 func (w *Writer) Close() {
 	close(w.fwdChan)
-	close(w.storeChan)
+	if w.storeChan != nil {
+		close(w.storeChan)
+	}
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 }
 

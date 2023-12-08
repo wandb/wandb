@@ -27,7 +27,7 @@ Note: you will need `wandb>=0.16.0`.
 - Windows `amd64`
 
 If you are using a different platform, you can build `wandb-core` from sources by following the
-instructions in the [contributing guide](docs/contributing.md#installing-nexus).
+instructions in the [contributing guide](docs/contributing.md#installing-wandb-core).
 Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
 to let us know that you are interested in using it on
 your platform, and we will prioritize adding support for it.
@@ -46,7 +46,7 @@ Please read our [contributing guide](docs/contributing.md) to learn to set up
 your development environment and how to contribute to the codebase.
 
 ## Feedback
-Please give Nexus a try and let us know what you think, we believe it is worth it!
+Please give our new core a try and let us know what you think, we believe it is worth it!
 
 We are very much looking forward to your feedback, especially bug reports!
 Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)

@@ -83,7 +83,7 @@ type FileStream struct {
 	settings *service.Settings
 
 	// logger is the logger for the filestream
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// httpClient is the http client
 	httpClient *retryablehttp.Client
@@ -101,7 +101,7 @@ func WithSettings(settings *service.Settings) FileStreamOption {
 	}
 }
 
-func WithLogger(logger *observability.NexusLogger) FileStreamOption {
+func WithLogger(logger *observability.CoreLogger) FileStreamOption {
 	return func(fs *FileStream) {
 		fs.logger = logger
 	}

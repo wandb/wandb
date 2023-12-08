@@ -111,13 +111,13 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type testServer struct {
 	hserver  *httptest.Server
 	settings *service.Settings
-	logger   *observability.NexusLogger
+	logger   *observability.CoreLogger
 	mux      *http.ServeMux
 }
 
 func NewTestServer() *testServer {
 	settings := service.Settings{}
-	logger := observability.NewNexusLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
 
 	mux := http.NewServeMux()
 	hserver := httptest.NewServer(mux)

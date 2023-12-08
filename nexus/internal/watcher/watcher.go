@@ -20,10 +20,10 @@ type Watcher struct {
 	pathMap map[string]string
 	outChan chan *service.Record
 	wg      *sync.WaitGroup
-	logger  *observability.NexusLogger
+	logger  *observability.CoreLogger
 }
 
-func NewWatcher(logger *observability.NexusLogger, outChan chan *service.Record) *Watcher {
+func NewWatcher(logger *observability.CoreLogger, outChan chan *service.Record) *Watcher {
 	return &Watcher{
 		watcher: fw.New(),
 		pathMap: make(map[string]string),

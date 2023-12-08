@@ -21,7 +21,7 @@ def test_metric_default(relay_server, wandb_init):
     assert len(summary) == 3
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_copy(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -42,7 +42,7 @@ def test_metric_copy(relay_server, wandb_init):
     assert len(summary) == 3
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_glob_none(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -94,7 +94,7 @@ def test_metric_nosummary(relay_server, wandb_init):
     assert len(summary) == 1
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_none(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -131,7 +131,7 @@ def test_metric_sum_none(relay_server, wandb_init):
     assert len(summary) == 3
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_max(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -150,7 +150,7 @@ def test_metric_max(relay_server, wandb_init):
     assert len(summary) == 2
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_min(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -169,7 +169,7 @@ def test_metric_min(relay_server, wandb_init):
     assert len(summary) == 2
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_last(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -197,7 +197,7 @@ def _gen_metric_sync_step(run):
     # run.finish()
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_no_sync_step(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -224,7 +224,7 @@ def test_metric_no_sync_step(relay_server, wandb_init):
     assert metrics and len(metrics) == 2
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_sync_step(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -284,7 +284,7 @@ def test_metric_goal(relay_server, wandb_init):
     assert metrics and len(metrics) == 3
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nan_mean(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -300,7 +300,7 @@ def test_metric_nan_mean(relay_server, wandb_init):
     assert summary["val"] == {"mean": 3}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nan_min_norm(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -314,7 +314,7 @@ def test_metric_nan_min_norm(relay_server, wandb_init):
     assert "val" not in summary
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nan_min_more(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -343,7 +343,7 @@ def test_metric_nested_default(relay_server, wandb_init):
     assert summary["this"] == {"that": 4}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nested_copy(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -359,7 +359,7 @@ def test_metric_nested_copy(relay_server, wandb_init):
     assert summary["this"] == {"that": 4}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nested_min(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -375,7 +375,7 @@ def test_metric_nested_min(relay_server, wandb_init):
     assert summary["this"] == {"that": {"min": 2}}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nested_mult(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -394,7 +394,7 @@ def test_metric_nested_mult(relay_server, wandb_init):
     assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_dotted(relay_server, wandb_init):
     """Escape dots in metric definitions."""
     with relay_server() as relay:
@@ -414,7 +414,7 @@ def test_metric_dotted(relay_server, wandb_init):
     assert metrics[0] == {"1": "this\\.that", "7": [1], "6": [3]}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_nested_glob(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -433,7 +433,7 @@ def test_metric_nested_glob(relay_server, wandb_init):
     assert metrics[0] == {"1": "this.that", "7": [1, 2]}
 
 
-@pytest.mark.nexus_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_debouncing(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()

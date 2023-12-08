@@ -3317,6 +3317,56 @@ class GpuNvidiaInfo(google.protobuf.message.Message):
 
 global___GpuNvidiaInfo = GpuNvidiaInfo
 
+class GpuAmdInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ID_FIELD_NUMBER: builtins.int
+    UNIQUE_ID_FIELD_NUMBER: builtins.int
+    VBIOS_VERSION_FIELD_NUMBER: builtins.int
+    PERFORMANCE_LEVEL_FIELD_NUMBER: builtins.int
+    GPU_OVERDRIVE_FIELD_NUMBER: builtins.int
+    GPU_MEMORY_OVERDRIVE_FIELD_NUMBER: builtins.int
+    MAX_POWER_FIELD_NUMBER: builtins.int
+    SERIES_FIELD_NUMBER: builtins.int
+    MODEL_FIELD_NUMBER: builtins.int
+    VENDOR_FIELD_NUMBER: builtins.int
+    SKU_FIELD_NUMBER: builtins.int
+    SCLK_RANGE_FIELD_NUMBER: builtins.int
+    MCLK_RANGE_FIELD_NUMBER: builtins.int
+    id: builtins.str
+    unique_id: builtins.str
+    vbios_version: builtins.str
+    performance_level: builtins.str
+    gpu_overdrive: builtins.str
+    gpu_memory_overdrive: builtins.str
+    max_power: builtins.str
+    series: builtins.str
+    model: builtins.str
+    vendor: builtins.str
+    sku: builtins.str
+    sclk_range: builtins.str
+    mclk_range: builtins.str
+    def __init__(
+        self,
+        *,
+        id: builtins.str = ...,
+        unique_id: builtins.str = ...,
+        vbios_version: builtins.str = ...,
+        performance_level: builtins.str = ...,
+        gpu_overdrive: builtins.str = ...,
+        gpu_memory_overdrive: builtins.str = ...,
+        max_power: builtins.str = ...,
+        series: builtins.str = ...,
+        model: builtins.str = ...,
+        vendor: builtins.str = ...,
+        sku: builtins.str = ...,
+        sclk_range: builtins.str = ...,
+        mclk_range: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["gpu_memory_overdrive", b"gpu_memory_overdrive", "gpu_overdrive", b"gpu_overdrive", "id", b"id", "max_power", b"max_power", "mclk_range", b"mclk_range", "model", b"model", "performance_level", b"performance_level", "sclk_range", b"sclk_range", "series", b"series", "sku", b"sku", "unique_id", b"unique_id", "vbios_version", b"vbios_version", "vendor", b"vendor"]) -> None: ...
+
+global___GpuAmdInfo = GpuAmdInfo
+
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -3364,6 +3414,7 @@ class MetadataRequest(google.protobuf.message.Message):
     CPU_FIELD_NUMBER: builtins.int
     GPU_APPLE_FIELD_NUMBER: builtins.int
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
+    GPU_AMD_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3400,6 +3451,8 @@ class MetadataRequest(google.protobuf.message.Message):
     def gpu_apple(self) -> global___GpuAppleInfo: ...
     @property
     def gpu_nvidia(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuNvidiaInfo]: ...
+    @property
+    def gpu_amd(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuAmdInfo]: ...
     def __init__(
         self,
         *,
@@ -3430,8 +3483,9 @@ class MetadataRequest(google.protobuf.message.Message):
         cpu: global___CpuInfo | None = ...,
         gpu_apple: global___GpuAppleInfo | None = ...,
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
+        gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest

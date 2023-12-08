@@ -88,7 +88,7 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-	nexus := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
-	nexus.SetDefaultLoggerPath(loggerPath)
-	nexus.Close()
+	serve := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	serve.SetDefaultLoggerPath(loggerPath)
+	serve.Close()
 }

@@ -3,14 +3,14 @@ import platform
 
 import nox
 
-NEXUS_VERSION = "0.17.0b2"
+CORE_VERSION = "0.17.0b2"
 
 
-@nox.session(python=False, name="build-nexus")
-def build_nexus(session):
-    """Builds the nexus binary for the current platform."""
+@nox.session(python=False, name="build-core")
+def build_core(session: nox.Session) -> None:
+    """Builds the wandb-core binary for the current platform."""
     session.run(
-        "python",
+        "python3",
         "-m",
         "build",
         "-w",  # only build the wheel
@@ -21,14 +21,14 @@ def build_nexus(session):
     )
 
 
-@nox.session(python=False, name="install-nexus")
-def install_nexus(session):
-    """Installs the nexus wheel into the current environment."""
+@nox.session(python=False, name="install-core")
+def install_core(session: nox.Session) -> None:
+    """Installs the wandb-core wheel into the current environment."""
     # get the wheel file in ./nexus/dist/:
     wheel_file = [
         f
         for f in os.listdir("./nexus/dist/")
-        if f.startswith(f"wandb_core-{NEXUS_VERSION}") and f.endswith(".whl")
+        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
     ][0]
     session.run(
         "pip",
@@ -39,8 +39,8 @@ def install_nexus(session):
     )
 
 
-@nox.session(python=False, name="list-failing-tests-nexus")
-def list_failing_tests_nexus(session):
+@nox.session(python=False, name="list-failing-tests-wandb-core")
+def list_failing_tests_wandb_core(session: nox.Session) -> None:
     """Lists the nexus failing tests grouped by feature."""
     import pandas as pd
     import pytest
@@ -54,7 +54,7 @@ def list_failing_tests_nexus(session):
             for item in items:
                 marks = item.own_markers
                 for mark in marks:
-                    if mark.name == "nexus_failure":
+                    if mark.name == "wandb_core_failure":
                         self.collected.append(item.nodeid)
                         self.features.append(
                             {
@@ -75,7 +75,7 @@ def list_failing_tests_nexus(session):
     pytest.main(
         [
             "-m",
-            "nexus_failure",
+            "wandb_core_failure",
             "tests/pytest_tests/system_tests/test_core",
             "--collect-only",
         ],
@@ -84,7 +84,7 @@ def list_failing_tests_nexus(session):
 
 
 @nox.session(python=False, name="download-codecov")
-def download_codecov(session):
+def download_codecov(session: nox.Session) -> None:
     system = platform.system().lower()
     if system == "darwin":
         system = "macos"
@@ -107,7 +107,7 @@ def download_codecov(session):
 
 
 @nox.session(python=False, name="run-codecov")
-def run_codecov(session):
+def run_codecov(session: nox.Session) -> None:
     args = session.posargs or []
 
     system = platform.system().lower()
@@ -131,7 +131,7 @@ def run_codecov(session):
 
 
 @nox.session(python=False, name="codecov")
-def codecov(session):
+def codecov(session: nox.Session) -> None:
     session.notify("download-codecov")
     session.notify("run-codecov", posargs=session.posargs)
 
