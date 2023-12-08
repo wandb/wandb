@@ -76,6 +76,21 @@ class RegistryConfig(BaseModel):
         description="The URI of the registry.",
     )
 
+    @validator("uri")  # type: ignore
+    @classmethod
+    def validate_uri(cls, uri: str) -> str:
+        for regex in [
+            GCP_ARTIFACT_REGISTRY_URI_REGEX,
+            AZURE_CONTAINER_REGISTRY_URI_REGEX,
+            ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+        ]:
+            if regex.match(uri):
+                return uri
+        raise ValueError(
+            "Invalid uri. URI must be a repository URI for an "
+            "ECR, ACR, or GCP Artifact Registry."
+        )
+
 
 class EnvironmentConfig(BaseModel):
     """Configuration for the environment block."""
