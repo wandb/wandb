@@ -250,6 +250,28 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         "args_dict": flags_dict,
     }
 
+def renest_concatted_args(args: Dict[str, Any]) -> Dict[str, Any]:
+    """renest args.
+
+    {'components.base_model': 'roberta'} -> {'components': {'base_model': 'roberta'}}
+
+    Args:
+        args (dict): nested args dict
+
+    Returns:
+        dict: unnested args dict
+    """
+    unnested_args = {}
+    for arg in args:
+        if "." in arg:
+            parts = arg.split(".")
+            if parts[0] not in unnested_args:
+                unnested_args[parts[0]] = {}
+            unnested_args[parts[0]][parts[1]] = args[arg]
+        else:
+            unnested_args[arg] = args[arg]
+    return unnested_args
+
 
 def make_launch_sweep_entrypoint(
     args: Dict[str, Any], command: Optional[List[str]]

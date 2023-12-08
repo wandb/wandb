@@ -23,6 +23,7 @@ from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
+    renest_concatted_args,
 )
 from wandb.sdk.launch.utils import event_loop_thread_exec
 from wandb.sdk.lib.runid import generate_id
@@ -661,7 +662,9 @@ class Scheduler(ABC):
         launch_config = self._wandb_run.config.get("launch", {})
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
-        launch_config["overrides"]["run_config"].update(args["args_dict"])
+        
+        renested_args = renest_concatted_args(args["args_dict"])
+        launch_config["overrides"]["run_config"].update(renested_args)
 
         if macro_args:  # pipe in hyperparam args as params to launch
             launch_config["overrides"]["args"] = macro_args
