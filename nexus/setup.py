@@ -11,10 +11,9 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 # Package naming
 # --------------
 #   wandb-core:         Package containing architecture specific code
-#   wandb-core-nightly: Package created every night based on main branch
 
-# Nexus version
-# -------------
+# wandb-core versioning
+# ---------------------
 CORE_VERSION = "0.17.0b2"
 
 
@@ -25,7 +24,7 @@ PLATFORMS_TO_BUILD_WITH_CGO = (
 )
 
 
-class NexusBase:
+class WBCoreBase:
     @staticmethod
     def _get_package_path():
         base = Path(__file__).parent / PACKAGE
@@ -93,13 +92,13 @@ class NexusBase:
                 subprocess.check_call(["cp", str(monitor_path), str(core_path)])
 
 
-class WrapDevelop(develop, NexusBase):
+class WrapDevelop(develop, WBCoreBase):
     def run(self):
         develop.run(self)
         self._build_core()
 
 
-class WrapBdistWheel(bdist_wheel, NexusBase):
+class WrapBdistWheel(bdist_wheel, WBCoreBase):
     def get_tag(self):
         # Use the default implementation to get python and abi tags
         python, abi = bdist_wheel.get_tag(self)[:2]
