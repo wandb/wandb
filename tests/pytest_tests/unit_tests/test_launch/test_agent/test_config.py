@@ -49,7 +49,7 @@ def mock_agent(monkeypatch):
                     "type": "docker",
                 },
                 "registry": {
-                    type: "ecr",
+                    "type": "ecr",
                 },
             },
             False,
