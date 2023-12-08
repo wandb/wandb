@@ -21,7 +21,6 @@ dependencies = [
     "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
-    "pydantic",
     "PyYAML",
     "setproctitle",
     "setuptools",

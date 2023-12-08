@@ -5,14 +5,13 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
-from pydantic import ValidationError  # type: ignore
 
 import wandb
 from wandb.apis.internal import Api
 
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
-from .agent import AgentConfig, LaunchAgent
+from .agent import LaunchAgent
 from .builder.build import construct_agent_configs
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
@@ -157,9 +156,16 @@ def create_and_run_agent(
     config: Dict[str, Any],
 ) -> None:
     try:
+        from wandb.sdk.launch.agent import config as agent_config
+    except ModuleNotFoundError:
+        raise LaunchError(
+            "wandb launch-agent requires pydantic to be installed. "
+            "Please install with `pip install wandb[launch]`"
+        )
+    try:
         config.pop("runner", None)
-        AgentConfig(**config)
-    except ValidationError as e:
+        agent_config.AgentConfig(**config)
+    except agent_config.ValidationError as e:
         errors = e.errors()
         for error in errors:
             loc = ".".join([str(x) for x in error.get("loc", [])])

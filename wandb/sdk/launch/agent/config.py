@@ -3,7 +3,14 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, root_validator, validator  # type: ignore
+# ValidationError is imported for exception type checking purposes only.
+from pydantic import (  # type: ignore
+    BaseModel,
+    Field,
+    ValidationError,  # noqa: F401
+    root_validator,
+    validator,
+)
 
 from wandb.sdk.launch.utils import (
     AZURE_BLOB_REGEX,
@@ -13,6 +20,11 @@ from wandb.sdk.launch.utils import (
     GCS_URI_RE,
     S3_URI_RE,
 )
+
+__all__ = [
+    "ValidationError",
+    "AgentConfig",
+]
 
 
 class EnvironmentType(str, Enum):
