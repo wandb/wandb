@@ -7,10 +7,10 @@ NEXUS_VERSION = "0.17.0b2"
 
 
 @nox.session(python=False, name="build-nexus")
-def build_nexus(session):
+def build_nexus(session: nox.Session) -> None:
     """Builds the nexus binary for the current platform."""
     session.run(
-        "python",
+        "python3",
         "-m",
         "build",
         "-w",  # only build the wheel
@@ -22,7 +22,7 @@ def build_nexus(session):
 
 
 @nox.session(python=False, name="install-nexus")
-def install_nexus(session):
+def install_nexus(session: nox.Session) -> None:
     """Installs the nexus wheel into the current environment."""
     # get the wheel file in ./nexus/dist/:
     wheel_file = [
@@ -40,7 +40,7 @@ def install_nexus(session):
 
 
 @nox.session(python=False, name="list-failing-tests-nexus")
-def list_failing_tests_nexus(session):
+def list_failing_tests_nexus(session: nox.Session) -> None:
     """Lists the nexus failing tests grouped by feature."""
     import pandas as pd
     import pytest
@@ -84,7 +84,7 @@ def list_failing_tests_nexus(session):
 
 
 @nox.session(python=False, name="download-codecov")
-def download_codecov(session):
+def download_codecov(session: nox.Session) -> None:
     system = platform.system().lower()
     if system == "darwin":
         system = "macos"
@@ -107,7 +107,7 @@ def download_codecov(session):
 
 
 @nox.session(python=False, name="run-codecov")
-def run_codecov(session):
+def run_codecov(session: nox.Session) -> None:
     args = session.posargs or []
 
     system = platform.system().lower()
@@ -131,7 +131,7 @@ def run_codecov(session):
 
 
 @nox.session(python=False, name="codecov")
-def codecov(session):
+def codecov(session: nox.Session) -> None:
     session.notify("download-codecov")
     session.notify("run-codecov", posargs=session.posargs)
 
