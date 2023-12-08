@@ -266,7 +266,7 @@ def test_metric_mult(relay_server, wandb_init):
         run.finish()
 
     metrics = relay.context.get_run_metrics(run_id)
-    # in nexus, we get 4 because we send the first update immediately
+    # in core, we get 4 because we send the first update immediately
     assert metrics and len(metrics) == 3
 
 

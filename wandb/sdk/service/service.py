@@ -163,8 +163,8 @@ class _Service:
             # NOTE: "wandb-core" is the name of the package that will be distributed
             #       as the stable version of the wandb core library.
             #
-            #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
-            #       to assist in running the nexus service from a live development directory.
+            #       Environment variable _WANDB_CORE_PATH is a temporary development feature
+            #       to assist in running the core service from a live development directory.
             core_path = get_core_path()
             if core_path:
                 service_args.extend([core_path])
