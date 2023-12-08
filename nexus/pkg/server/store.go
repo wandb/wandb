@@ -160,6 +160,7 @@ func (sr *Store) Close() error {
 	if err != nil {
 		sr.logger.CaptureError("can't close file", err)
 	}
+	sr.db = nil
 	return err
 }
 
@@ -188,6 +189,13 @@ func (sr *Store) WriteDirectlyToDB(data []byte) (int, error) {
 }
 
 func (sr *Store) Read() (*service.Record, error) {
+	// check if db is closed
+	if sr.db == nil {
+		err := fmt.Errorf("db is closed")
+		sr.logger.CaptureError("can't read record", err)
+		return nil, err
+	}
+
 	reader, err := sr.reader.Next()
 	if err == io.EOF {
 		return nil, err
