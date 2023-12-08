@@ -1476,7 +1476,7 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
-        prioritization_mode: Optional[str] = None,
+        prioritization_mode: Optional[Literal["DISABLED","V0"]] = "DISABLED",
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         (
