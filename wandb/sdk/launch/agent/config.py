@@ -139,10 +139,12 @@ class BuilderConfig(BaseModel):
 
     @validator("build_context_store")  # type: ignore
     @classmethod
-    def validate_build_context_store(cls, build_context_store: str) -> str:
+    def validate_build_context_store(
+        cls, build_context_store: Optional[str]
+    ) -> Optional[str]:
         """Validate that the build context store is a valid container registry URI."""
         if build_context_store is None:
-            return build_context_store
+            return None
         for regex in [
             S3_URI_RE,
             GCS_URI_RE,
@@ -155,7 +157,7 @@ class BuilderConfig(BaseModel):
             "S3 bucket, GCS bucket, or Azure blob."
         )
 
-    @root_validator(pre=True)
+    @root_validator(pre=True)  # type: ignore
     @classmethod
     def validate_kaniko(cls, values: dict) -> dict:
         """Validate that kaniko is configured correctly."""
@@ -166,7 +168,7 @@ class BuilderConfig(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @root_validator(pre=True)  # type: ignore
     @classmethod
     def validate_docker(cls, values: dict) -> dict:
         """Right now there are no required fields for docker builds."""

@@ -94,8 +94,9 @@ def resolve_agent_config(  # noqa: C901
         with open(config_path) as f:
             try:
                 launch_config = yaml.safe_load(f)
+                # This is considered unreachable by mypy, but it's not.
                 if launch_config is None:
-                    launch_config = {}
+                    launch_config = {}  # type: ignore
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if launch_config.get("project") is not None:
