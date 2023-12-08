@@ -36,6 +36,8 @@ func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 	return logger
 }
 
+// TODO: add a noop logger
+
 func SetupStreamLogger(settings *service.Settings) *observability.NexusLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "core-debug.log")

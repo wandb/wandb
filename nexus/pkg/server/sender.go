@@ -194,6 +194,23 @@ func (s *Sender) Close() {
 	close(s.outChan)
 }
 
+func (s *Sender) SetOutboundChannel(out chan *service.Result) {
+	s.outChan = out
+}
+
+func (s *Sender) GetOutboundChannel() chan *service.Result {
+	return s.outChan
+}
+
+func (s *Sender) SetGraphqlClient(client graphql.Client) {
+	s.graphqlClient = client
+}
+
+func (s *Sender) SendRecord(record *service.Record) {
+	// this is for testing purposes only yet
+	s.sendRecord(record)
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
