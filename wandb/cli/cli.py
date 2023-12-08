@@ -1193,11 +1193,12 @@ def launch_sweep(
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
-    "--fields",
-    "-f",
+    "--set",
+    "-s",
+    "cli_template_vars",
     default=None,
     multiple=True,
-    help="""Fields for queues with allowlisting enabled, as key-value pairs e.g. `--fields key1=value1 --fields key2=value2`""",
+    help="""Set template variable values for queues with allow listing enabled, as key-value pairs e.g. `--set key1=value1 --set key2=value2`""",
 )
 @click.option(
     "--queue",
@@ -1266,7 +1267,7 @@ def launch(
     project,
     docker_image,
     config,
-    fields,
+    cli_template_vars,
     queue,
     run_async,
     resource_args,
@@ -1339,11 +1340,13 @@ def launch(
             config["overrides"] = {"dockerfile": dockerfile}
 
     template_variables = None
-    if fields is not None:
+    if cli_template_vars is not None:
+        if queue is None:
+            raise LaunchError("'--set' flag requires queue to be set")
         public_api = PublicApi()
         runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
         template_variables = launch_utils.fetch_and_validate_template_variables(
-            runqueue, fields
+            runqueue, cli_template_vars
         )
 
     if queue is None:
