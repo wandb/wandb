@@ -1,4 +1,4 @@
-# Project Nexus: A New Backend for the W&B SDK
+# `wandb-core`: A New Backend for the W&B SDK
 
 [![PyPI version](https://badge.fury.io/py/wandb-core.svg)](https://badge.fury.io/py/wandb-core)
 [![PyPI - License](https://img.shields.io/pypi/l/wandb-core)]()

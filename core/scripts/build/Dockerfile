@@ -6,7 +6,7 @@ VOLUME /root/.cache/go-build
 ENV PATH $PATH:/usr/local/go/bin
 
 # Create a directory for the project
-WORKDIR /project/nexus
+WORKDIR /project/core
 
 # Install any build dependencies
 RUN apt-get update && \
@@ -17,9 +17,9 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Go
-ARG GO_VERSION=1.21.0
+ARG GO_VERSION=1.21.5
 RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz
 
-CMD go build -ldflags="-s -w -X main.commit=${COMMIT}" -o ${NEXUS_PATH} cmd/nexus/main.go
+CMD go build -ldflags="-s -w -X main.commit=${COMMIT}" -o ${CORE_PATH} cmd/core/main.go
