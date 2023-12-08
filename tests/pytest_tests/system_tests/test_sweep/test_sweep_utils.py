@@ -3,7 +3,6 @@ from unittest import mock
 
 import pytest
 import yaml
-
 from wandb.sdk.launch.sweeps import utils
 
 
