@@ -33,7 +33,7 @@ func requestMatch(t *testing.T, fsd FsTransmitData) func(*http.Request) (*http.R
 }
 
 type testObj struct {
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 	client *retryablehttp.Client
 	m      *clienttest.MockRoundTripper
 }
@@ -42,7 +42,7 @@ func newFsTest(t *testing.T) *testObj {
 	ctrl := gomock.NewController(t)
 
 	slogger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	logger := observability.NewNexusLogger(slogger, nil)
+	logger := observability.NewCoreLogger(slogger, nil)
 	m := clienttest.NewMockRoundTripper(ctrl)
 	client := clienttest.NewMockRetryClient(m)
 	client.Logger = logger

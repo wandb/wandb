@@ -45,7 +45,7 @@ type Sender struct {
 	ctx context.Context
 
 	// logger is the logger for the sender
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// settings is the settings for the sender
 	settings *service.Settings
@@ -91,7 +91,7 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
 		ctx:          ctx,

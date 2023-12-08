@@ -42,7 +42,7 @@ type Stream struct {
 	settings *service.Settings
 
 	// logger is the logger for the stream
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// inChan is the channel for incoming messages
 	inChan chan *service.Record

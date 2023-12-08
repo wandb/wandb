@@ -18,7 +18,7 @@ type ResponderEntry struct {
 
 type Dispatcher struct {
 	responders map[string]Responder
-	logger     *observability.NexusLogger
+	logger     *observability.CoreLogger
 }
 
 // do is the main loop of the dispatcher to process incoming messages
@@ -78,7 +78,7 @@ func (d *Dispatcher) handleRespond(result *service.Result) {
 	}
 }
 
-func NewDispatcher(logger *observability.NexusLogger) *Dispatcher {
+func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
 	return &Dispatcher{
 		logger:     logger,
 		responders: make(map[string]Responder),

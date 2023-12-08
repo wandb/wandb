@@ -68,7 +68,7 @@ def test_include_exclude_config_keys(wandb_init):
         )
 
 
-@pytest.mark.nexus_failure(feature="file_uploader")
+@pytest.mark.wandb_core_failure(feature="file_uploader")
 def test_ignore_globs_wandb_files(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
@@ -184,7 +184,7 @@ def test_dir_on_init_dir(wandb_init):
         ("0.9.0", "ERROR wandb version 0.9.0 has been retired"),
     ],
 )  # TODO should we mock pypi?
-@pytest.mark.nexus_failure(feature="terminal_ui")
+@pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_versions_messages(wandb_init, capsys, version, message):
     with mock.patch("wandb.__version__", version):
         run = wandb_init(settings=dict(console="off"))
@@ -193,7 +193,7 @@ def test_versions_messages(wandb_init, capsys, version, message):
 
 
 # todo(nexus): debug how the record is sent in the file stream
-@pytest.mark.nexus_failure(feature="mark_preempting")
+@pytest.mark.wandb_core_failure(feature="mark_preempting")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
@@ -210,7 +210,7 @@ def test_end_to_end_preempting(relay_server, wandb_init):
         run.finish()
 
 
-@pytest.mark.nexus_failure(feature="mark_preempting")
+@pytest.mark.wandb_core_failure(feature="mark_preempting")
 def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))

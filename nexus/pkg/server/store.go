@@ -96,11 +96,11 @@ type Store struct {
 	db *os.File
 
 	// logger is the logger for the store
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 }
 
 // NewStore creates a new store
-func NewStore(ctx context.Context, fileName string, logger *observability.NexusLogger) *Store {
+func NewStore(ctx context.Context, fileName string, logger *observability.CoreLogger) *Store {
 	sr := &Store{ctx: ctx,
 		name:   fileName,
 		logger: logger,

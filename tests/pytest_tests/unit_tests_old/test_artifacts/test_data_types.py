@@ -46,7 +46,7 @@ def test_wb_value(live_mock_server, test_settings):
     run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
+@pytest.mark.wandb_core_failure(feature="artifacts")
 def test_log_dataframe(live_mock_server, test_settings):
     import pandas as pd
 
@@ -59,7 +59,7 @@ def test_log_dataframe(live_mock_server, test_settings):
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
-@pytest.mark.nexus_failure(feature="artifacts")
+@pytest.mark.wandb_core_failure(feature="artifacts")
 def test_reference_table_logging(
     mocked_run, live_mock_server, test_settings, reinit_internal_api, max_cli_version
 ):

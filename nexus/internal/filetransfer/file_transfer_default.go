@@ -19,11 +19,11 @@ type DefaultFileTransfer struct {
 	client *retryablehttp.Client
 
 	// logger is the logger for the file transfer
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
-func NewDefaultFileTransfer(logger *observability.NexusLogger, client *retryablehttp.Client) *DefaultFileTransfer {
+func NewDefaultFileTransfer(logger *observability.CoreLogger, client *retryablehttp.Client) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
 		logger: logger,
 		client: client,
