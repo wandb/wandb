@@ -10,16 +10,16 @@ type Tags map[string]string
 
 const LevelFatal = slog.Level(12)
 
-type NexusLogger struct {
+type CoreLogger struct {
 	*slog.Logger
 	tags Tags
 }
 
-func NewNexusLogger(logger *slog.Logger, tags Tags) *NexusLogger {
+func NewCoreLogger(logger *slog.Logger, tags Tags) *CoreLogger {
 	if tags == nil {
 		tags = make(Tags)
 	}
-	nl := &NexusLogger{
+	nl := &CoreLogger{
 		tags: tags,
 	}
 
@@ -32,7 +32,7 @@ func NewNexusLogger(logger *slog.Logger, tags Tags) *NexusLogger {
 	return nl
 }
 
-func (nl *NexusLogger) tagsFromArgs(args ...any) Tags {
+func (nl *CoreLogger) tagsFromArgs(args ...any) Tags {
 	tags := make(map[string]string)
 	// add tags from args:
 	for len(args) > 0 {
@@ -58,14 +58,14 @@ func (nl *NexusLogger) tagsFromArgs(args ...any) Tags {
 	return tags
 }
 
-func (nl *NexusLogger) SetTags(tags Tags) {
+func (nl *CoreLogger) SetTags(tags Tags) {
 	for tag := range tags {
 		nl.tags[tag] = tags[tag]
 	}
 }
 
 // CaptureError logs an error and sends it to sentry.
-func (nl *NexusLogger) CaptureError(msg string, err error, args ...interface{}) {
+func (nl *CoreLogger) CaptureError(msg string, err error, args ...interface{}) {
 	nl.Logger.Error(msg, args...)
 	if err != nil {
 		// convert args to tags to pass to sentry:
@@ -76,13 +76,13 @@ func (nl *NexusLogger) CaptureError(msg string, err error, args ...interface{}) 
 }
 
 // Fatal logs an error at the fatal level.
-func (nl *NexusLogger) Fatal(msg string, err error, args ...interface{}) {
+func (nl *CoreLogger) Fatal(msg string, err error, args ...interface{}) {
 	args = append(args, "error", err)
 	nl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 }
 
 // FatalAndPanic logs an error at the fatal level and panics.
-func (nl *NexusLogger) FatalAndPanic(msg string, err error, args ...interface{}) {
+func (nl *CoreLogger) FatalAndPanic(msg string, err error, args ...interface{}) {
 	nl.Fatal(msg, err, args...)
 	if err != nil {
 		panic(err)
@@ -90,7 +90,7 @@ func (nl *NexusLogger) FatalAndPanic(msg string, err error, args ...interface{})
 }
 
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
-func (nl *NexusLogger) CaptureFatal(msg string, err error, args ...interface{}) {
+func (nl *CoreLogger) CaptureFatal(msg string, err error, args ...interface{}) {
 	// todo: make sure this level is printed nicely
 	nl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 
@@ -104,7 +104,7 @@ func (nl *NexusLogger) CaptureFatal(msg string, err error, args ...interface{}) 
 
 // CaptureFatalAndPanic logs an error at the fatal level and sends it to sentry.
 // It then panics.
-func (nl *NexusLogger) CaptureFatalAndPanic(msg string, err error, args ...interface{}) {
+func (nl *CoreLogger) CaptureFatalAndPanic(msg string, err error, args ...interface{}) {
 	nl.CaptureFatal(msg, err, args...)
 	if err != nil {
 		panic(err)
@@ -112,7 +112,7 @@ func (nl *NexusLogger) CaptureFatalAndPanic(msg string, err error, args ...inter
 }
 
 // CaptureWarn logs a warning and sends it to sentry.
-func (nl *NexusLogger) CaptureWarn(msg string, args ...interface{}) {
+func (nl *CoreLogger) CaptureWarn(msg string, args ...interface{}) {
 	nl.Logger.Warn(msg, args...)
 
 	tags := nl.tagsFromArgs(args...)
@@ -121,7 +121,7 @@ func (nl *NexusLogger) CaptureWarn(msg string, args ...interface{}) {
 }
 
 // CaptureInfo logs an info message and sends it to sentry.
-func (nl *NexusLogger) CaptureInfo(msg string, args ...interface{}) {
+func (nl *CoreLogger) CaptureInfo(msg string, args ...interface{}) {
 	nl.Logger.Info(msg, args...)
 
 	tags := nl.tagsFromArgs(args...)
@@ -130,12 +130,12 @@ func (nl *NexusLogger) CaptureInfo(msg string, args ...interface{}) {
 }
 
 // Reraise is used to capture unexpected panics with sentry and reraise them.
-func (nl *NexusLogger) Reraise(args ...any) {
+func (nl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
 		Reraise(err, nl.tagsFromArgs(args...))
 	}
 }
 
-func NewNoOpLogger() *NexusLogger {
-	return NewNexusLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+func NewNoOpLogger() *CoreLogger {
+	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
 }

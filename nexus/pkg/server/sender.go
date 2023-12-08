@@ -31,6 +31,7 @@ import (
 
 const (
 	MetaFilename = "wandb-metadata.json"
+	OutputFile   = "output.log"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -44,7 +45,7 @@ type Sender struct {
 	ctx context.Context
 
 	// logger is the logger for the sender
-	logger *observability.NexusLogger
+	logger *observability.CoreLogger
 
 	// settings is the settings for the sender
 	settings *service.Settings
@@ -90,7 +91,7 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.NexusLogger, loopbackChan chan *service.Record) *Sender {
+func NewSender(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger, loopbackChan chan *service.Record) *Sender {
 
 	sender := &Sender{
 		ctx:          ctx,
@@ -314,15 +315,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.loopbackChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: MetaFilename},
-				},
-			},
-		},
-	}
+	s.sendInternalFile(MetaFilename)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -350,6 +343,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		s.sendInternalFile(OutputFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -632,8 +626,8 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-
 	config := s.serializeConfig()
+
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
 		ctx,                                  // ctx
@@ -691,13 +685,28 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	if outputRaw.Line == "\n" {
 		return
 	}
+
+	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFile)
+	// append line to file
+	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		s.logger.Error("sender: sendOutputRaw: failed to open output file", "error", err)
+	}
+	if _, err := f.WriteString(outputRaw.Line + "\n"); err != nil {
+		s.logger.Error("sender: sendOutputRaw: failed to write to output file", "error", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.logger.Error("sender: sendOutputRaw: failed to close output file", "error", err)
+		}
+	}()
+
 	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
 	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
 	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
 		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
 	}
-
 	s.fileStream.StreamRecord(recordCopy)
 }
 
@@ -798,6 +807,24 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		} else {
 			s.sendFile(file.GetPath(), filetransfer.OtherFile)
 		}
+	}
+}
+
+func (s *Sender) sendInternalFile(path string) {
+	// check if the file exists
+	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		s.logger.Info("sender: sendInternalFile: file does not exist", "path", path)
+		return
+	}
+	s.loopbackChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: path},
+				},
+			},
+		},
 	}
 }
 

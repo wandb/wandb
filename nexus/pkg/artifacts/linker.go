@@ -13,7 +13,7 @@ import (
 
 type ArtifactLinker struct {
 	Ctx           context.Context
-	Logger        *observability.NexusLogger
+	Logger        *observability.CoreLogger
 	LinkArtifact  *service.LinkArtifactRecord
 	GraphqlClient graphql.Client
 }

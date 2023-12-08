@@ -120,7 +120,7 @@ def test_fstream_status_429(
     assert_history(relay_server, run, publish_util, inject=[injected_response])
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     "file_stream", reason="need to implement dropped in file_stream"
 )
 @pytest.mark.skip(reason="need to verify that history is correct and fix dropped count")
