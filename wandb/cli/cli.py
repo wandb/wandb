@@ -542,6 +542,18 @@ def sync_beta(
 
     wandb.sdk.wandb_setup.setup()
 
+    # for path in paths:
+    #     # we already know there is only one wandb file in the directory
+    #     wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
+    #     wandb._sync(
+    #         wandb_file,
+    #         run_id=run_id,
+    #         project=project,
+    #         entity=entity,
+    #         skip_console=skip_console,
+    #         append=append,
+    #     )
+
     # TODO: make it thread-safe in the Rust code
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=min(len(paths), cpu_count())
