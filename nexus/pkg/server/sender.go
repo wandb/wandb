@@ -343,7 +343,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		// s.sendFile(OutputFile, filetransfer.WandbFile)
 		s.sendInternalFile(OutputFile)
 		request.State++
 		s.sendRequestDefer(request)
