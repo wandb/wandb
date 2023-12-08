@@ -758,24 +758,6 @@ func (s *Sender) respondExit(record *service.Record) {
 	}
 }
 
-// // respondSync called from the end of the defer state machine
-// // to send the offlien sync result to the client
-// func (s *Sender) respondSync(result *service.Result) {
-// 	if result == nil {
-// 		return
-// 	}
-
-// 	s.outChan <- result
-
-// 	// if s.RunRecord != nil {
-// 	// 	baseUrl := s.settings.GetBaseUrl().GetValue()
-// 	// 	baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-// 	// 	fmt.Printf("Synced %s/%s/%s/runs/%s\n", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-// 	// } else {
-// 	// 	fmt.Println("No run found")
-// 	// }
-// }
-
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
