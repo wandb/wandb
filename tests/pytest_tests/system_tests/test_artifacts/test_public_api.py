@@ -169,7 +169,7 @@ def test_delete_collection(wandb_init):
 
 @pytest.mark.wandb_core_failure(feature="artifacts")
 def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
-    # todo: logged_artifact does not work with nexus
+    # todo: logged_artifact does not work with core
     entity, project = logged_artifact.entity, logged_artifact.project
 
     draft = logged_artifact.new_draft()
