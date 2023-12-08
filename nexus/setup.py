@@ -74,7 +74,7 @@ class NexusBase:
             "build",
             f"-ldflags={ldflags}",
             "-o",
-            str(core_path / "wandb-nexus"),
+            str(core_path / "wandb-core"),
             "cmd/nexus/main.go",
         ]
         if gocover:
