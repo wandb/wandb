@@ -1,3 +1,4 @@
+from unittest import mock
 import json
 
 import pytest
@@ -125,3 +126,18 @@ def test_sweep_construct_scheduler_args():
             return_job=False,
         )
     )
+
+
+@mock.patch.parametrize(
+    [
+        ({"nonesting": {"value": 1}}, {"nonesting": {"value": 1}}),
+        ({"no.nesting": {"value": 1}}, {"no": {"nesting": {"value": 1}}}),
+        ({"no.nesting.okay.but": 1}, {"no": {"nesting": {"okay": {"but": 1}}}}),
+        (
+            {"no.nesting": {"okay.but": 1}, "no.ugh": {"value": 1}},
+            {"no": {"nesting": {"okay": {"but": 1}}}, "ugh": {"value": 1}},
+        ),
+    ]
+)
+def test_agent_renest_concatted_args(config, gold):
+    assert utils.renest_concatted_args(config) == gold
