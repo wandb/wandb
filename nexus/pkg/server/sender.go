@@ -315,15 +315,7 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.loopbackChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: MetaFilename},
-				},
-			},
-		},
-	}
+	s.sendInternalFile(MetaFilename)
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -351,7 +343,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		s.sendFile(OutputFile, filetransfer.WandbFile)
+		// s.sendFile(OutputFile, filetransfer.WandbFile)
+		s.sendInternalFile(OutputFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -815,6 +808,18 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		} else {
 			s.sendFile(file.GetPath(), filetransfer.OtherFile)
 		}
+	}
+}
+
+func (s *Sender) sendInternalFile(path string) {
+	s.loopbackChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: path},
+				},
+			},
+		},
 	}
 }
 
