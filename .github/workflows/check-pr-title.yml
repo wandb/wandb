@@ -33,7 +33,6 @@ jobs:
           # Product based scopes
           scopes: |
             core
-            core
             sdk
             cli
             public-api

@@ -1643,7 +1643,7 @@ class Settings(SettingsData):
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
-            "WANDB_REQUIRE_core": "_require_core",
+            "WANDB_REQUIRE_CORE": "_require_core",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",
