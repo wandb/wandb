@@ -26,10 +26,6 @@ type StoreHeader struct {
 	version byte
 }
 
-func (sh *StoreHeader) String() string {
-	return fmt.Sprintf("ident: %s, magic: %x, version: %d", sh.ident, sh.magic, sh.version)
-}
-
 func IdentToByteSlice() [4]byte {
 	byteSlice := []byte(HeaderIdent)
 	var ident [4]byte
@@ -112,10 +108,7 @@ func NewStore(ctx context.Context, fileName string, logger *observability.NexusL
 	return sr
 }
 
-func (sr *Store) IsClosed() bool {
-	return sr.db == nil
-}
-
+// Open opens the store
 func (sr *Store) Open(flag int) error {
 	switch flag {
 	case os.O_RDONLY:
@@ -154,6 +147,7 @@ func (sr *Store) Open(flag int) error {
 	}
 }
 
+// Close closes the store
 func (sr *Store) Close() error {
 	if sr.writer != nil {
 		err := sr.writer.Close()
