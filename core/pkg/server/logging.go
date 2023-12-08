@@ -7,14 +7,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandb/wandb/nexus/internal/version"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/version"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 	level := slog.LevelInfo
-	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+	if os.Getenv("WANDB_CORE_DEBUG") != "" {
 		level = slog.LevelDebug
 	}
 
@@ -61,7 +61,7 @@ func SetupStreamLogger(settings *service.Settings) *observability.CoreLogger {
 	} else {
 		writers = append(writers, file)
 	}
-	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
+	if os.Getenv("WANDB_CORE_DEBUG") != "" {
 		writers = append(writers, os.Stderr)
 	}
 

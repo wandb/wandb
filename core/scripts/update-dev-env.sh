@@ -10,7 +10,7 @@ set -e
 INSTALL=("$@")
 DEV_ENV_FILE="scripts/update-dev-env.txt"
 
-# make sure we are running from the nexus dir
+# make sure we are running from the core dir
 BASE=$(dirname $(dirname $(readlink -f $0)))
 cd $BASE
 

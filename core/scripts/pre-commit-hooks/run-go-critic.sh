@@ -9,7 +9,7 @@ if ! command -v gocritic &> /dev/null ; then
     exit 1
 fi
 
-cd nexus
+cd core
 failed=false
 
 gocritic check ./...

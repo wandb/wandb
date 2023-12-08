@@ -5,8 +5,8 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -69,7 +69,7 @@ func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
-	line, err := nexuslib.JsonifyItems(msg.Item)
+	line, err := corelib.JsonifyItems(msg.Item)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
@@ -80,7 +80,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 }
 
 func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
-	line, err := nexuslib.JsonifyItems(msg.Update)
+	line, err := corelib.JsonifyItems(msg.Update)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}

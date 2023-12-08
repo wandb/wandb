@@ -10,7 +10,7 @@ mkdir export/lib
 mkdir export/include
 mkdir export/examples
 
-# build nexus binary
+# build core binary
 rm -rf tmpbuild
 mkdir tmpbuild
 # build binary
@@ -19,10 +19,10 @@ SYSTEM=`uname -s`
 if [ "x$SYSTEM" == "xLinux" ]; then
 CGO_ENABLED=1 go build \
   -ldflags "-extldflags \"-fuse-ld=gold -Wl,--weak-unresolved-symbols\"" \
-  -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+  -o lang/tmpbuild/embed-core.bin cmd/core/main.go
 else
 go build \
-  -o lang/tmpbuild/embed-nexus.bin cmd/nexus/main.go
+  -o lang/tmpbuild/embed-core.bin cmd/core/main.go
 fi
 cd -
 

@@ -11,7 +11,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {

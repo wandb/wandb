@@ -46,11 +46,11 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
         with:
-           package-dir: "nexus"
-           output-dir: "nexus/wheelhouse"
+           package-dir: "core"
+           output-dir: "core/wheelhouse"
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-          CIBW_BEFORE_ALL_LINUX: python nexus/scripts/build/install_go.py
+          CIBW_BEFORE_ALL_LINUX: python core/scripts/build/install_go.py
           CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21
           CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
@@ -66,17 +66,17 @@ jobs:
 #        if: runner.os == 'Linux'
 #        run: |
 #          python -m pip install --upgrade build
-#          python -m build --sdist nexus
+#          python -m build --sdist core
 #
 #      - uses: actions/upload-artifact@v3
 #        if: runner.os == 'Linux'
 #        with:
-#          path: ./nexus/dist/*.tar.gz
+#          path: ./core/dist/*.tar.gz
 
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-core-distributions
-          path: ./nexus/wheelhouse/*.whl
+          path: ./core/wheelhouse/*.whl
 
   test-pypi-publish:
     name: Publish to TestPyPI
@@ -167,6 +167,6 @@ jobs:
           # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
           channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
           # For posting a simple plain text message
-          slack-message: "W&B SDK Core (Nexus) ${{ env.WANDB_CORE_VERSION }} released :tada:: https://pypi.org/project/wandb-core/${{ env.WANDB_CORE_VERSION }}/"
+          slack-message: "W&B SDK Core (core) ${{ env.WANDB_CORE_VERSION }} released :tada:: https://pypi.org/project/wandb-core/${{ env.WANDB_CORE_VERSION }}/"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

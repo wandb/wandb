@@ -8,10 +8,10 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/runconfig"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type Settings map[string]interface{}

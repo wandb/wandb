@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/observability"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
@@ -48,7 +48,7 @@ func getResponseLogHook(logger *slog.Logger, logResponse func(resp *http.Respons
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Authorization", "Basic "+basicAuth("api", t.key))
-	req.Header.Set("User-Agent", "wandb-nexus")
+	req.Header.Set("User-Agent", "wandb-core")
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}

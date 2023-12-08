@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/clients"
+	"github.com/wandb/wandb/core/internal/clients"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/observability"
 
-	"github.com/wandb/wandb/nexus/pkg/filestream"
-	"github.com/wandb/wandb/nexus/pkg/server"
+	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/server"
 
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type captureState struct {

@@ -3,8 +3,8 @@ package gowandb
 import (
 	"strings"
 
-	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type MailboxHandle struct {
@@ -32,7 +32,7 @@ func (mbh *MailboxHandle) wait() *service.Result {
 }
 
 func (mb *Mailbox) Deliver(rec *service.Record) *MailboxHandle {
-	uuid := "nexus:" + shared.ShortID(12)
+	uuid := "core:" + shared.ShortID(12)
 	rec.Control = &service.Control{MailboxSlot: uuid}
 	handle := NewMailboxHandle()
 	mb.handles[uuid] = handle
@@ -41,7 +41,7 @@ func (mb *Mailbox) Deliver(rec *service.Record) *MailboxHandle {
 
 func (mb *Mailbox) Respond(result *service.Result) bool {
 	slot := result.GetControl().MailboxSlot
-	if !strings.HasPrefix(slot, "nexus:") {
+	if !strings.HasPrefix(slot, "core:") {
 		return false
 	}
 	handle, ok := mb.handles[slot]

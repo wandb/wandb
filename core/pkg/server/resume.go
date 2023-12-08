@@ -5,10 +5,10 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/nexus/internal/gql"
-	fs "github.com/wandb/wandb/nexus/pkg/filestream"
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/utils"
+	"github.com/wandb/wandb/core/internal/gql"
+	fs "github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ResumeState struct {

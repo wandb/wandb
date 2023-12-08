@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/nexus/internal/clients"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestDefaultFileTransfer_Download(t *testing.T) {

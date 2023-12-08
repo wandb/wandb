@@ -12,12 +12,12 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/wandb/wandb/nexus/internal/gowandb/internal_runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/runconfig"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/gowandb/internal_runopts"
+	"github.com/wandb/wandb/core/pkg/gowandb"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/runconfig"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // globals to keep track of the wandb session and any runs

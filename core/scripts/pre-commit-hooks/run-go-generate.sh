@@ -6,5 +6,5 @@ set -eu -o pipefail
 # Use passed in directory from arg1, or default to full tree
 DIR=${1:-./...}
 
-cd nexus
+cd core
 go generate $DIR

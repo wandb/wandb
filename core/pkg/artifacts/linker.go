@@ -6,9 +6,9 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
-	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type ArtifactLinker struct {

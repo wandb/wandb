@@ -74,7 +74,7 @@ class WBCoreBase:
             f"-ldflags={ldflags}",
             "-o",
             str(core_path / "wandb-core"),
-            "cmd/nexus/main.go",
+            "cmd/core/main.go",
         ]
         if gocover:
             cmd.insert(2, "-cover")

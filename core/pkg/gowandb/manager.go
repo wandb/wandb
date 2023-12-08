@@ -3,10 +3,10 @@ package gowandb
 import (
 	"context"
 
-	"github.com/wandb/wandb/nexus/internal/shared"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/settings"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // Manager is a collection of components that work together to handle incoming

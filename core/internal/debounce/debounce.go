@@ -1,7 +1,7 @@
 package debounce
 
 import (
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/observability"
 
 	"golang.org/x/time/rate"
 )

@@ -5,8 +5,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // Writer is responsible for writing messages to the append-only log.

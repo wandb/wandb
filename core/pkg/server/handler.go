@@ -6,13 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandb/wandb/nexus/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/monitor"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/nexus/internal/debounce"
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (
@@ -623,7 +623,7 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// update summary with runtime
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+	summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
 		{
 			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 		},
@@ -741,7 +741,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 	})
 
-	summaryRecord := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
+	summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
 	h.updateSummaryDelta(summaryRecord)
 }
 

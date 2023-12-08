@@ -9,5 +9,5 @@ if ! command -v golangci-lint &> /dev/null ; then
     exit 1
 fi
 
-cd nexus
+cd core
 exec golangci-lint run "$@"

@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/wandb/wandb/nexus/pkg/server"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/server"
+	"github.com/wandb/wandb/core/pkg/service"
 
 	"net"
 

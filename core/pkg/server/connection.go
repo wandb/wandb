@@ -11,12 +11,12 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/observability"
 
-	"github.com/wandb/wandb/nexus/pkg/auth"
+	"github.com/wandb/wandb/core/pkg/auth"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -100,7 +100,7 @@ func (nc *Connection) HandleConnection() {
 	// Force shutdown of connections on teardown.
 	// TODO(beta): refactor the connection code so this is not needed
 	// Why this is needed right now:
-	//   - client might have multiple open connections to nexus
+	//   - client might have multiple open connections to core
 	//   - teardown usually is sent on a new connection
 	//   - teardown closes teardownChan but we have nothing to
 	//     force shutdown of other connections
@@ -284,7 +284,7 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 		"entity":  nc.stream.settings.GetEntity().GetValue(),
 	})
 	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("nexus", nil)
+	nc.stream.logger.CaptureInfo("core", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message

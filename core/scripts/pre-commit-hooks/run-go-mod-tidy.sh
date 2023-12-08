@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # From: https://github.com/dnephin/pre-commit-golang/blob/master/run-go-mod-tidy.sh
 
-cd nexus
+cd core
 go mod tidy -v $@
 if [ $? -ne 0 ]; then
   exit 2

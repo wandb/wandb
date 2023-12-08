@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/nexus/internal/clienttest"
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/internal/clienttest"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func requestMatch(t *testing.T, fsd FsTransmitData) func(*http.Request) (*http.Response, error) {

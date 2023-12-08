@@ -8,7 +8,7 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/nexus/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/monitor"
 )
 
 func TestNewGPUAMD(t *testing.T) {

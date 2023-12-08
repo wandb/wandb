@@ -4,8 +4,8 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -157,7 +157,7 @@ func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricReco
 		}
 	}
 
-	encodeMetric := nexuslib.ProtoEncodeToDict(metric)
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
 	if index, ok := s.ms.metricIndex[metric.GetName()]; ok {
 		s.ms.configMetrics[index] = encodeMetric
 	} else {

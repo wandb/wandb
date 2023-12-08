@@ -1,4 +1,4 @@
-module github.com/wandb/wandb/nexus
+module github.com/wandb/wandb/core
 
 go 1.21
 

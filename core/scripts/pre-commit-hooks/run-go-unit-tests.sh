@@ -10,7 +10,7 @@ fail() {
 
 for f in $(echo $@| xargs -n1 dirname | sort -u); do
     # Temporary hack
-    if [ "$f" == "nexus" ]; then
+    if [ "$f" == "core" ]; then
         continue
     fi
     base=$(echo $f | cut -d/ -f1)

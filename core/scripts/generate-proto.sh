@@ -14,17 +14,17 @@
 
 set -e
 
-# make sure we are running from the nexus dir
+# make sure we are running from the core dir
 BASE=$(dirname $(dirname $(dirname $(readlink -f $0))))
 cd $BASE
 
 # hack to make sure we use our local protoc
 export PATH="$HOME/.local/bin:$PATH"
 
-./nexus/scripts/update-dev-env.sh protocolbuffers/protobuf
-./nexus/scripts/update-dev-env.sh protoc-gen-go
+./core/scripts/update-dev-env.sh protocolbuffers/protobuf
+./core/scripts/update-dev-env.sh protoc-gen-go
 
-MOD=nexus/pkg/service/
+MOD=core/pkg/service/
 
 protoc \
     --go_opt=Mwandb/proto/wandb_internal.proto=$MOD \

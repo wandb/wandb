@@ -7,8 +7,8 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/utils"
+	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type Manifest struct {

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func PrintHeadFoot(run *service.RunRecord, settings *service.Settings, footer bool) {

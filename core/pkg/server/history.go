@@ -11,8 +11,8 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type Item[T comparable] struct {
@@ -232,7 +232,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 
 	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
-	summary := nexuslib.ConsolidateSummaryItems(h.consolidatedSummary, history.GetItem())
+	summary := corelib.ConsolidateSummaryItems(h.consolidatedSummary, history.GetItem())
 	h.updateSummaryDelta(summary)
 }
 

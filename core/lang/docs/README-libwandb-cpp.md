@@ -22,7 +22,7 @@ LD_RUN_PATH="$PWD/libwandb/lib/" \
 
 ### Examples
 
-See examples at: [wandb cpp examples](https://github.com/wandb/wandb/tree/main/nexus/lang/cpp/examples).
+See examples at: [wandb cpp examples](https://github.com/wandb/wandb/tree/main/core/lang/cpp/examples).
 
 ### Login
 
@@ -111,7 +111,7 @@ Runs will be finished automatically when the program finishes but they can be ex
 
 ```shell
 git clone https://github.com/wandb/wandb.git
-cd wandb/nexus/lang
+cd wandb/core/lang
 ./scripts/build-dist-libwandb-cpp.sh
 # package is built at ./dist/
 ```

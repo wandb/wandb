@@ -12,7 +12,7 @@ const BufferSize = 32
 
 var defaultLoggerPath atomic.Value
 
-// Server is the nexus server
+// Server is the core server
 type Server struct {
 	// ctx is the context for the server
 	ctx context.Context

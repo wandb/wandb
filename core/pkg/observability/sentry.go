@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/version"
+	"github.com/wandb/wandb/core/internal/version"
 
 	"github.com/getsentry/sentry-go"
 )
@@ -50,7 +50,7 @@ func InitSentry(disabled bool, commit string) {
 				for j := framesLen - 1; j >= framesLen-3; j-- {
 					frame := frames[j]
 					// todo: think of a better way to do this without hard-coding the file names
-					//  this is a hack to remove the bottom-most 3 frames that are internal to nexus
+					//  this is a hack to remove the bottom-most 3 frames that are internal to core
 					if strings.HasSuffix(frame.AbsPath, "sentry.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
 						frames = frames[:j]
 					} else {

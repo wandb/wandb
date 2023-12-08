@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/utils"
+	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 
 	"google.golang.org/protobuf/proto"
 )

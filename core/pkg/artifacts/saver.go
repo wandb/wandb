@@ -10,10 +10,10 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
-	"github.com/wandb/wandb/nexus/internal/filetransfer"
-	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/utils"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactSaver struct {

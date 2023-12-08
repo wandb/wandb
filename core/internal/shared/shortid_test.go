@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/nexus/internal/shared"
+	"github.com/wandb/wandb/core/internal/shared"
 )
 
 func TestShortID(t *testing.T) {

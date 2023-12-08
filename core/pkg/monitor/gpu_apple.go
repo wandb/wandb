@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/segmentio/encoding/json"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func getExecPath() (string, error) {

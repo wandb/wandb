@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/nexus/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/observability"
 
 	fw "github.com/radovskyb/watcher"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const pollingInterval = time.Millisecond * 100

@@ -16,17 +16,17 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/wandb/wandb/nexus/internal/clients"
-	"github.com/wandb/wandb/nexus/internal/debounce"
-	"github.com/wandb/wandb/nexus/internal/filetransfer"
-	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/nexuslib"
-	"github.com/wandb/wandb/nexus/internal/version"
-	"github.com/wandb/wandb/nexus/pkg/artifacts"
-	fs "github.com/wandb/wandb/nexus/pkg/filestream"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/service"
-	"github.com/wandb/wandb/nexus/pkg/utils"
+	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/debounce"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/version"
+	"github.com/wandb/wandb/core/pkg/artifacts"
+	fs "github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const (
@@ -137,9 +137,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
-			// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+			// TODO(core:beta): add jitter to DefaultBackoff scheme
 			// retryClient.BackOff = fs.GetBackoffFunc()
-			// TODO(nexus:beta): add custom retry function
+			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
 		)
 		sender.fileStream = fs.NewFileStream(
@@ -458,7 +458,7 @@ func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 		if telemetry.GetPythonVersion() != "" {
 			v["python_version"] = telemetry.PythonVersion
 		}
-		v["t"] = nexuslib.ProtoEncodeToDict(s.telemetry)
+		v["t"] = corelib.ProtoEncodeToDict(s.telemetry)
 		if s.ms != nil {
 			v["m"] = s.ms.configMetrics
 		}

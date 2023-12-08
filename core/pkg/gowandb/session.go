@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wandb/wandb/nexus/internal/execbin"
-	"github.com/wandb/wandb/nexus/internal/launcher"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/opts/sessionopts"
-	"github.com/wandb/wandb/nexus/pkg/gowandb/settings"
+	"github.com/wandb/wandb/core/internal/execbin"
+	"github.com/wandb/wandb/core/internal/launcher"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/core/pkg/gowandb/settings"
 )
 
 type Session struct {
@@ -34,7 +34,7 @@ func (s *Session) start() {
 		if len(s.CoreBinary) != 0 {
 			execCmd, err = launch.LaunchBinary(s.CoreBinary)
 		} else {
-			execCmd, err = launch.LaunchCommand("nexus")
+			execCmd, err = launch.LaunchCommand("core")
 		}
 		if err != nil {
 			panic("error launching")

@@ -1840,7 +1840,7 @@ def sample_with_exponential_decay_weights(
 
 
 def get_core_path() -> str:
-    core_path: str = os.environ.get("_WANDB_NEXUS_PATH", "")
+    core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
     wandb_core = get_module("wandb_core")
     if not core_path and wandb_core:
         _check_wandb_core_version_compatibility(wandb_core.__version__)

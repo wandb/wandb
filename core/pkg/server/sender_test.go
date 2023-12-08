@@ -7,11 +7,11 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/nexus/internal/gql"
-	"github.com/wandb/wandb/nexus/internal/nexustest"
-	"github.com/wandb/wandb/nexus/pkg/observability"
-	"github.com/wandb/wandb/nexus/pkg/server"
-	"github.com/wandb/wandb/nexus/pkg/service"
+	"github.com/wandb/wandb/core/internal/coretest"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/server"
+	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -32,7 +32,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 
 func TestSendRun(t *testing.T) {
 	// Verify that project and entity are properly passed through to graphql
-	to := nexustest.MakeTestObject(t)
+	to := coretest.MakeTestObject(t)
 	defer to.TeardownTest()
 
 	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
@@ -53,7 +53,7 @@ func TestSendRun(t *testing.T) {
 		Data: &gql.UpsertBucketResponse{
 			UpsertBucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayload{
 				Bucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun{
-					DisplayName: nexustest.StrPtr("FakeName"),
+					DisplayName: coretest.StrPtr("FakeName"),
 					Project: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject{
 						Name: "FakeProject",
 						Entity: gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity{
@@ -69,9 +69,9 @@ func TestSendRun(t *testing.T) {
 		gomock.Any(), // context.Context
 		gomock.Any(), // *graphql.Request
 		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(nexustest.InjectResponse(
+	).Return(nil).Do(coretest.InjectResponse(
 		respEncode,
-		func(vars nexustest.RequestVars) {
+		func(vars coretest.RequestVars) {
 			assert.Equal(t, "testEntity", vars["entity"])
 			assert.Equal(t, "testProject", vars["project"])
 		},
@@ -83,7 +83,7 @@ func TestSendRun(t *testing.T) {
 
 func TestSendLinkArtifact(t *testing.T) {
 	// Verify that arguments are properly passed through to graphql
-	to := nexustest.MakeTestObject(t)
+	to := coretest.MakeTestObject(t)
 	defer to.TeardownTest()
 
 	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
@@ -91,7 +91,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	respEncode := &graphql.Response{
 		Data: &gql.LinkArtifactResponse{
 			LinkArtifact: &gql.LinkArtifactLinkArtifactLinkArtifactPayload{
-				VersionIndex: nexustest.IntPtr(0),
+				VersionIndex: coretest.IntPtr(0),
 			},
 		}}
 
@@ -114,9 +114,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gomock.Any(), // context.Context
 		gomock.Any(), // *graphql.Request
 		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(nexustest.InjectResponse(
+	).Return(nil).Do(coretest.InjectResponse(
 		respEncode,
-		func(vars nexustest.RequestVars) {
+		func(vars coretest.RequestVars) {
 			assert.Equal(t, "portfolioProject", vars["projectName"])
 			assert.Equal(t, "portfolioEntity", vars["entityName"])
 			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
@@ -147,9 +147,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gomock.Any(), // context.Context
 		gomock.Any(), // *graphql.Request
 		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(nexustest.InjectResponse(
+	).Return(nil).Do(coretest.InjectResponse(
 		respEncode,
-		func(vars nexustest.RequestVars) {
+		func(vars coretest.RequestVars) {
 			assert.Equal(t, "portfolioProject", vars["projectName"])
 			assert.Equal(t, "portfolioEntity", vars["entityName"])
 			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
@@ -180,9 +180,9 @@ func TestSendLinkArtifact(t *testing.T) {
 		gomock.Any(), // context.Context
 		gomock.Any(), // *graphql.Request
 		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(nexustest.InjectResponse(
+	).Return(nil).Do(coretest.InjectResponse(
 		respEncode,
-		func(vars nexustest.RequestVars) {
+		func(vars coretest.RequestVars) {
 			assert.Equal(t, "portfolioProject", vars["projectName"])
 			assert.Equal(t, "portfolioEntity", vars["entityName"])
 			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])

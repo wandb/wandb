@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/wandb/nexus/internal/filetransfer"
-	"github.com/wandb/wandb/nexus/internal/gql"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gql"
 )
 
 const BATCH_SIZE int = 10000

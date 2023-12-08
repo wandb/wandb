@@ -1,4 +1,4 @@
-// package launcher manages the execution of a nexus server
+// package launcher manages the execution of a core server
 package launcher
 
 import (
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/nexus/internal/execbin"
+	"github.com/wandb/wandb/core/internal/execbin"
 )
 
 // readLines reads a whole file into memory
@@ -70,7 +70,7 @@ func (l *Launcher) Getport() (int, error) {
 }
 
 func (l *Launcher) prepTempfile() {
-	file, err := os.CreateTemp("", ".nexus-portfile")
+	file, err := os.CreateTemp("", ".core-portfile")
 	if err != nil {
 		panic(err)
 	}

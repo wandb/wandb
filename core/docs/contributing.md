@@ -5,7 +5,7 @@ We are using [pre-commit](https://pre-commit.com/) to manage our pre-commit hook
 the instructions [here](https://pre-commit.com/#install). Once `pre-commit` is installed, run the following command
 from the root of the repository to set up your environment:
 ```shell
-./nexus/scripts/code-checks.sh install
+./core/scripts/code-checks.sh install
 ```
 Now when you run `git push` the hooks will run automatically.
 
@@ -27,7 +27,7 @@ you can install wandb-core in development mode.
 To install wandb-core in development mode, you will need to run the following commands
 (assuming you are in the root of the repository):
 ```shell
-./nexus/scripts/setup-nexus-path.sh
+./core/scripts/setup-core-path.sh
 ```
 This script will also allow you to unset the wandb-core path if you no longer want to use
 the development version of wandb-core. Follow the instructions in the script to do that.
@@ -53,7 +53,7 @@ pytest -m "not wandb_core_failure" tests/pytest_tests/system_tests/test_core
 
 ## Modifying GraphQL Schema
 If there is a schema change on the Server side that affects your GraphQL API,
-update `nexus/api/graphql/schemas/schema-latest.graphql` and run
+update `core/api/graphql/schemas/schema-latest.graphql` and run
 
 ```shell
 nox -s graphql-codegen-schema-change
