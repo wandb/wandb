@@ -1476,7 +1476,7 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
-        prioritization_mode: Optional[str] = "DISABLED",
+        prioritization_mode: Optional[str] = None,
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         (
@@ -1508,7 +1508,7 @@ class Api:
                 $project: String!,
                 $queueName: String!,
                 $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode!,
+                $prioritizationMode: RunQueuePrioritizationMode,
                 $defaultResourceConfigID: ID,
             ) {
                 createRunQueue(
