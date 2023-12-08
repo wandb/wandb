@@ -192,7 +192,7 @@ def test_versions_messages(wandb_init, capsys, version, message):
         assert message in capsys.readouterr().err
 
 
-# todo(nexus): debug how the record is sent in the file stream
+# todo(core): debug how the record is sent in the file stream
 @pytest.mark.wandb_core_failure(feature="mark_preempting")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:

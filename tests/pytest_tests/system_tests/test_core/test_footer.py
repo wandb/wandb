@@ -68,7 +68,7 @@ def test_footer_private(wandb_init, check_output_fn):
     check_output_fn(exp_summary=[], exp_history=[])
 
 
-# todo(nexus): implement sparklines / run history
+# todo(core): implement sparklines / run history
 @pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_normal(wandb_init, check_output_fn):
     run = wandb_init()
@@ -111,7 +111,7 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
 
 
-# todo(nexus): implement sparklines / run history
+# todo(core): implement sparklines / run history
 @pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_history(wandb_init, check_output_fn):
     run = wandb_init()
@@ -124,7 +124,7 @@ def test_footer_history(wandb_init, check_output_fn):
     check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀"])
 
 
-# todo(nexus): implement job info
+# todo(core): implement job info
 @pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_job_output(wandb_init, capsys, monkeypatch):
     """Test that footer includes job info when a job is created."""
