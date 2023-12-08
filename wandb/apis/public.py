@@ -2694,7 +2694,7 @@ RunQueueResourceType = Literal[
     "local-container", "local-process", "kubernetes", "sagemaker", "gcp-vertex"
 ]
 RunQueueAccessType = Literal["project", "user"]
-RunQueuePrioritizationMode = Literal["DISABLED","V0"]
+RunQueuePrioritizationMode = Literal["DISABLED", "V0"]
 
 
 class RunQueue:
