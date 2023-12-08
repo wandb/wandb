@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -61,4 +62,6 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 			}
 		})
 	}
+	// clean up test file
+	_ = os.Remove("./test-download-file.txt")
 }

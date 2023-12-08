@@ -44,7 +44,7 @@ def test_upsert_bucket_410(
 
 
 @pytest.mark.skip(reason="we should handle such cases gracefully")
-@pytest.mark.nexus_failure(feature="error_handling")  # now we just panic
+@pytest.mark.wandb_core_failure(feature="error_handling")  # now we just panic
 def test_gql_409(
     wandb_init,
     relay_server,

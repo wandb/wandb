@@ -39,8 +39,8 @@ def install_core(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=False, name="list-failing-tests-nexus")
-def list_failing_tests_nexus(session: nox.Session) -> None:
+@nox.session(python=False, name="list-failing-tests-wandb-core")
+def list_failing_tests_wandb_core(session: nox.Session) -> None:
     """Lists the nexus failing tests grouped by feature."""
     import pandas as pd
     import pytest
@@ -54,7 +54,7 @@ def list_failing_tests_nexus(session: nox.Session) -> None:
             for item in items:
                 marks = item.own_markers
                 for mark in marks:
-                    if mark.name == "nexus_failure":
+                    if mark.name == "wandb_core_failure":
                         self.collected.append(item.nodeid)
                         self.features.append(
                             {
@@ -75,7 +75,7 @@ def list_failing_tests_nexus(session: nox.Session) -> None:
     pytest.main(
         [
             "-m",
-            "nexus_failure",
+            "wandb_core_failure",
             "tests/pytest_tests/system_tests/test_core",
             "--collect-only",
         ],

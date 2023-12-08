@@ -39,16 +39,16 @@ pip install -r requirements_test.txt  # Install test dependencies, if needed
 ```
 
 A number of tests are not currently passing due to feature incompleteness.
-These tests are marked with the `@pytest.mark.nexus_failure` decorator.
+These tests are marked with the `@pytest.mark.wandb_core_failure` decorator.
 To list all tests that are currently failing, run the following command:
 ```shell
-nox -s list-failing-tests-nexus
+nox -s list-failing-tests-wandb-core
 ```
 
 To run the tests excluding the failing ones locally, you will need to run the following
 commands in your active Python environment (assuming you are in the root of the repository):
 ```shell
-pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
+pytest -m "not wandb_core_failure" tests/pytest_tests/system_tests/test_core
 ```
 
 ## Modifying GraphQL Schema
