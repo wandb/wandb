@@ -1,5 +1,4 @@
 import json
-from unittest import mock
 
 import pytest
 import yaml
@@ -128,7 +127,7 @@ def test_sweep_construct_scheduler_args():
     )
 
 
-@mock.patch.parametrize(
+@pytest.mark.parametrize(
     [
         ({"nonesting": {"value": 1}}, {"nonesting": {"value": 1}}),
         ({"no.nesting": {"value": 1}}, {"no": {"nesting": {"value": 1}}}),
