@@ -16,7 +16,7 @@ To install Nexus, you will need to run the following commands (assuming you are 
 root of the repository):
 ```shell
 pip install -r requirements_build.txt  # Install build dependencies, if needed
-nox -s build-nexus install-nexus
+nox -s build-core install-core
 ```
 This will build Nexus for your current platform and install it into your current Python environment.
 Note that every time you make a change to the code, you will need to re-run this command to install

@@ -15,7 +15,7 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # Nexus version
 # -------------
-NEXUS_VERSION = "0.17.0b2"
+CORE_VERSION = "0.17.0b2"
 
 
 PACKAGE: str = "wandb_core"
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     setup(
         name="wandb-core",
-        version=NEXUS_VERSION,
+        version=CORE_VERSION,
         description="W&B Core Library",
         long_description=open("README.md", encoding="utf-8").read(),
         long_description_content_type="text/markdown",
