@@ -14,6 +14,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/nexus/internal/clients"
 	"github.com/wandb/wandb/nexus/internal/debounce"
@@ -193,6 +194,23 @@ func (s *Sender) Close() {
 	close(s.outChan)
 }
 
+func (s *Sender) SetOutboundChannel(out chan *service.Result) {
+	s.outChan = out
+}
+
+func (s *Sender) GetOutboundChannel() chan *service.Result {
+	return s.outChan
+}
+
+func (s *Sender) SetGraphqlClient(client graphql.Client) {
+	s.graphqlClient = client
+}
+
+func (s *Sender) SendRecord(record *service.Record) {
+	// this is for testing purposes only yet
+	s.sendRecord(record)
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
@@ -229,6 +247,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -257,8 +276,12 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case nil:
+		err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
 	default:
-		// TODO: handle errors
+		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 
@@ -269,6 +292,13 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+
+	// Update run start time in the settings if it is not set
+	if s.settings.XStartTime == nil {
+		// TODO: rewrite in a more robust way
+		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+	}
 
 	s.fileStream.Start()
 	s.fileTransferManager.Start()
@@ -284,7 +314,15 @@ func (s *Sender) sendMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, _ := mo.Marshal(request)
 	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendFile(MetaFilename, filetransfer.WandbFile)
+	s.loopbackChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: MetaFilename},
+				},
+			},
+		},
+	}
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -722,6 +760,10 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	request := &service.Request{RequestType: &service.Request_Defer{
 		Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}},
 	}
+	if record.Control == nil {
+		record.Control = &service.Control{AlwaysSend: true}
+	}
+
 	rec := &service.Record{
 		RecordType: &service.Record_Request{Request: request},
 		Control:    record.Control,

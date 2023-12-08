@@ -577,7 +577,11 @@ func (h *Handler) handleMetadata() {
 			},
 		},
 	}
-	h.sendRecord(&record)
+	h.sendRecordWithControl(&record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+		},
+	)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
