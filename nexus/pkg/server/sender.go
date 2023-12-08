@@ -811,6 +811,12 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 }
 
 func (s *Sender) sendInternalFile(path string) {
+	// check if the file exists
+	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		s.logger.Info("sender: sendInternalFile: file does not exist", "path", path)
+		return
+	}
 	s.loopbackChan <- &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
