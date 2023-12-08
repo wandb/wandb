@@ -250,16 +250,19 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         "args_dict": flags_dict,
     }
 
+
 def renest_concatted_args(args: Dict[str, Any]) -> Dict[str, Any]:
-    """renest args.
+    """Renest args with '.' delimiters.
+
+    Unsafe (!) for args with '.' in the name.
 
     {'components.base_model': 'roberta'} -> {'components': {'base_model': 'roberta'}}
 
     Args:
-        args (dict): nested args dict
+        args (dict): unnested args dict
 
     Returns:
-        dict: unnested args dict
+        dict: renested args dict
     """
     unnested_args = {}
     for arg in args:

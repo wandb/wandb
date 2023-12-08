@@ -662,7 +662,7 @@ class Scheduler(ABC):
         launch_config = self._wandb_run.config.get("launch", {})
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
-        
+
         renested_args = renest_concatted_args(args["args_dict"])
         launch_config["overrides"]["run_config"].update(renested_args)
 
