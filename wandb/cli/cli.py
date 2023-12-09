@@ -483,6 +483,7 @@ def sync_beta(
 ):
     paths = set()
 
+    # TODO: test file discovery logic
     # include and exclude globs are evaluated relative to the provided base_path
     if include:
         for pattern in include:
