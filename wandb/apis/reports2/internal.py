@@ -656,7 +656,7 @@ class ScatterPlot(Panel):
 
 class BarPlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
-    metric: list[str] = Field(default_factory=list)
+    metrics: list[str] = Field(default_factory=list)
     vertical: bool = False
     x_axis_min: Optional[float] = None
     x_axis_max: Optional[float] = None

@@ -1023,7 +1023,7 @@ class ScatterPlot(Panel):
 class BarPlot(Panel):
     title: Optional[str] = None
     metrics: list[MetricType] = Field(default_factory=list)
-    orientation: str = "v"
+    orientation: Literal["v", "h"] = "h"
     range_x: Range = Field(default_factory=lambda: (None, None))
     title_x: Optional[str] = None
     title_y: Optional[str] = None
@@ -1042,7 +1042,7 @@ class BarPlot(Panel):
         return internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
-                metric=[metric_to_backend(name) for name in _listify(self.metrics)],
+                metrics=[metric_to_backend(name) for name in _listify(self.metrics)],
                 vertical=self.orientation == "v",
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
@@ -1529,7 +1529,7 @@ class Report(Base):
 
     @property
     def url(self):
-        if isinstance(self.id, Auto):
+        if self.id == "":
             raise AttributeError("save report or explicitly pass `id` to get a url")
 
         base = urlparse(_get_api().client.app_url)
