@@ -152,18 +152,20 @@ func (s *Stream) Respond(resp *service.ServerResponse) {
 func (s *Stream) FinishAndClose(exitCode int32) {
 	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
-	// send exit record to handler
-	record := &service.Record{
-		RecordType: &service.Record_Exit{
-			Exit: &service.RunExitRecord{
-				ExitCode: exitCode,
-			}},
-		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
-	}
+	if !s.settings.GetXSync().GetValue() {
+		// send exit record to handler
+		record := &service.Record{
+			RecordType: &service.Record_Exit{
+				Exit: &service.RunExitRecord{
+					ExitCode: exitCode,
+				}},
+			Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
+		}
 
-	s.HandleRecord(record)
-	// TODO(beta): process the response so we can formulate a more correct footer
-	<-s.respChan
+		s.HandleRecord(record)
+		// TODO(beta): process the response so we can formulate a more correct footer
+		<-s.respChan
+	}
 
 	// send a shutdown which triggers the handler to stop processing new records
 	shutdownRecord := &service.Record{
