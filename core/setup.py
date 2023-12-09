@@ -78,13 +78,21 @@ class WBCoreBase:
         ]
         if gocover:
             cmd.insert(2, "-cover")
-        log.info("Building for current platform")
+        log.info("Building for {goos}-{goarch}")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
 
         # on arm macs, copy over the stats monitor binary, if available
         # it is built separately with `nox -s build-apple-stats-monitor` to avoid
         # having to wait for that to build on every run.
+        log.info(f"{goos}-{goarch}")
+        monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
+        log.info(f"monitor_path: {monitor_path}")
+        log.info(f"does it exist? {monitor_path.exists()}")
+        log.info(
+            f"ls of {src_dir / 'pkg/monitor/apple'}: {os.listdir(src_dir / 'pkg/monitor/apple')}"
+        )
+        log.info(f"core_path: {core_path}")
         if goos == "darwin" and goarch == "arm64":
             monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
             if monitor_path.exists():
