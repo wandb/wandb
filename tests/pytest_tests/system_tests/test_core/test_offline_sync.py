@@ -21,16 +21,26 @@ def test_sync_with_tensorboard(relay_server, runner, copy_asset, user):
     assert all(history["_runtime"][1:])
 
 
-def test_beta_sync(wandb_init, runner):
+@pytest.mark.parametrize("mark_synced", [True, False])
+def test_beta_sync(wandb_init, runner, mark_synced):
     os.makedirs(".wandb", exist_ok=True)
     run = wandb_init(settings={"mode": "offline"})
     run.log(dict(a=1))
     run.finish()
 
-    result = runner.invoke(cli.beta, ["sync", ".wandb"])
+    args = ["sync", ".wandb"]
+    if not mark_synced:
+        args.append("--no-mark-synced")
+    result = runner.invoke(cli.beta, args)
     print(result.output)
     assert result.exit_code == 0
     assert f"{run.id}" in result.output
+
+    if mark_synced:
+        # check that f"{run.settings.sync_file}.synced" exists
+        assert os.path.exists(f"{run.settings.sync_file}.synced")
+    else:
+        assert not os.path.exists(f"{run.settings.sync_file}.synced")
 
 
 @pytest.mark.skip(

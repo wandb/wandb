@@ -452,6 +452,12 @@ def beta():
     multiple=True,
 )
 @click.option(
+    "--mark-synced/--no-mark-synced",
+    is_flag=True,
+    default=True,
+    help="Mark runs as synced",
+)
+@click.option(
     "--skip-synced/--no-skip-synced",
     is_flag=True,
     default=True,
@@ -472,14 +478,9 @@ def sync_beta(
     include: Optional[str] = None,
     exclude: Optional[str] = None,
     skip_synced: bool = True,
+    mark_synced: bool = True,
     dry_run: bool = False,
 ):
-    # print(wandb_dir)
-    # print()
-    # print(include)
-    # print()
-    # print(exclude)
-
     paths = set()
 
     # include and exclude globs are evaluated relative to the provided base_path
@@ -505,9 +506,6 @@ def sync_beta(
             if d in paths:
                 paths.remove(d)
 
-    # print()
-    # print(paths)
-
     # remove paths that are already synced, if requested
     if skip_synced:
         synced_paths = set()
@@ -521,9 +519,6 @@ def sync_beta(
                 synced_paths.add(path)
         paths -= synced_paths
 
-    # print()
-    # print(paths)
-
     if run_id and len(paths) > 1:
         # TODO: handle this more gracefully
         # wandb.termerror("id can only be set for a single run.")
@@ -534,25 +529,14 @@ def sync_beta(
         click.echo("No runs to sync.")
         return
 
+    click.echo("Found runs:")
+    for path in paths:
+        click.echo(f"  {path}")
+
     if dry_run:
-        click.echo("Found the following runs to sync:")
-        for path in paths:
-            click.echo(f"  {path}")
         return
 
     wandb.sdk.wandb_setup.setup()
-
-    # for path in paths:
-    #     # we already know there is only one wandb file in the directory
-    #     wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
-    #     wandb._sync(
-    #         wandb_file,
-    #         run_id=run_id,
-    #         project=project,
-    #         entity=entity,
-    #         skip_console=skip_console,
-    #         append=append,
-    #     )
 
     # TODO: make it thread-safe in the Rust code
     with concurrent.futures.ProcessPoolExecutor(
@@ -570,12 +554,13 @@ def sync_beta(
                 entity=entity,
                 skip_console=skip_console,
                 append=append,
+                mark_synced=mark_synced,
             )
             futures.append(future)
 
-        # Retrieve results as tasks complete
-        for future in concurrent.futures.as_completed(futures):
-            print(future.result())
+        # Wait for tasks to complete
+        for _ in concurrent.futures.as_completed(futures):
+            pass
 
 
 @cli.command(

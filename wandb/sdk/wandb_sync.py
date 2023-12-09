@@ -10,24 +10,10 @@ from .lib.runid import generate_id
 
 def _sync(
     path: str,
-    view=None,
-    verbose=None,
     run_id: Optional[str] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
-    sync_tensorboard=None,
-    include_globs=None,
-    exclude_globs=None,
-    include_online=None,
-    include_offline=None,
-    include_synced=None,
-    mark_synced=None,
-    sync_all=None,
-    ignore=None,
-    show=None,
-    clean=None,
-    clean_old_hours=24,
-    clean_force=None,
+    mark_synced: Optional[bool] = None,
     append: Optional[bool] = None,
     skip_console: Optional[bool] = None,
 ) -> None:
@@ -47,9 +33,7 @@ def _sync(
     settings.run_id.value = stream_id  # TODO: remove this
     if append:
         settings.resume.value = "allow"
-    # settings.console.value = "off" if console else "auto"
 
-    # print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
     manager = wl._get_manager()
     manager._inform_init(settings=settings, run_id=stream_id)
 
@@ -75,12 +59,14 @@ def _sync(
     assert result and result.response
     response = result.response.sync_response
     if response.url:
-        termlog(f"Syncing {p} to {response.url}")
+        termlog(f"Synced {p} to {response.url}")
+        # create a .synced file in the directory if mark_synced is true
+        if mark_synced:
+            with open(f"{p}.synced", "w"):
+                pass
     else:
         termerror(f"Failed to sync {p}")
     if response.error and response.error.message:
         termerror(response.error.message)
-
-    # TODO: create a .synced file in the directory if mark_synced is true
 
     return response
