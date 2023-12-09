@@ -48,11 +48,12 @@ class WBCoreBase:
         elif goarch == "armv7l":
             goarch = "armv6l"
 
-        # Check the CIBW_BUILD environment variable
-        cibw_build = env.get("CIBW_BUILD", "")
+        # Check the PLAT environment variable available in cibuildwheel
+        cibw_plat = env.get("PLAT", "")
 
         # Custom logic for darwin-arm64 in cibuildwheel
-        if "macosx_arm64" in cibw_build or "macosx_universal2" in cibw_build:
+        # (it's built on an x86_64 mac with qemu, so we need to override the arch)
+        if goos == "darwin" and cibw_plat.endswith("arm64"):
             goarch = "arm64"
 
         # build a binary for coverage profiling if the GOCOVERDIR env var is set
@@ -93,14 +94,6 @@ class WBCoreBase:
         # on arm macs, copy over the stats monitor binary, if available
         # it is built separately with `nox -s build-apple-stats-monitor` to avoid
         # having to wait for that to build on every run.
-        log.info(f"{goos}-{goarch}")
-        monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
-        log.info(f"monitor_path: {monitor_path}")
-        log.info(f"does it exist? {monitor_path.exists()}")
-        log.info(
-            f"ls of {src_dir / 'pkg/monitor/apple'}: {os.listdir(src_dir / 'pkg/monitor/apple')}"
-        )
-        log.info(f"core_path: {core_path}")
         if goos == "darwin" and goarch == "arm64":
             monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
             if monitor_path.exists():
