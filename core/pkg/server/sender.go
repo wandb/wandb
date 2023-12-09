@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,6 +89,10 @@ type Sender struct {
 
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *service.Record
+
+	syncService *SyncService
+
+	store *Store
 }
 
 // NewSender creates a new Sender with the given settings
@@ -277,6 +282,10 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case *service.Request_Sync:
+		s.sendSync(record, x.Sync)
+	case *service.Request_SenderRead:
+		s.sendSenderRead(record, x.SenderRead)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -368,6 +377,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
+		s.syncService.Flush()
 		s.respondExit(s.exitRecord)
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -548,7 +558,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
-			if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
+			//  Need to inform the sync service that this ops failed.
+			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.Result{
 					ResultType: &service.Result_RunResult{
 						RunResult: &service.RunUpdateResult{
@@ -571,7 +583,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
 	}
 
-	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 		runResult := s.RunRecord
 		if runResult == nil {
 			runResult = run
@@ -744,7 +756,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
-	if record == nil {
+	if record == nil || s.settings.GetXSync().GetValue() {
 		return
 	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
@@ -955,6 +967,100 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
+
+	s.syncService = NewSyncService(s.ctx,
+		WithSyncServiceLogger(s.logger),
+		WithSyncServiceSenderFunc(s.sendRecord),
+		WithSyncServiceOverwrite(request.GetOverwrite()),
+		WithSyncServiceSkip(request.GetSkip()),
+		WithSyncServiceFlushCallback(func(err error) {
+			var errorInfo *service.ErrorInfo
+			if err != nil {
+				errorInfo = &service.ErrorInfo{
+					Message: err.Error(),
+					Code:    service.ErrorInfo_UNKNOWN,
+				}
+			}
+
+			var url string
+			if s.RunRecord != nil {
+				baseUrl := s.settings.GetBaseUrl().GetValue()
+				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
+				url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+			}
+			result := &service.Result{
+				ResultType: &service.Result_Response{
+					Response: &service.Response{
+						ResponseType: &service.Response_SyncResponse{
+							SyncResponse: &service.SyncResponse{
+								Url:   url,
+								Error: errorInfo,
+							},
+						},
+					},
+				},
+				Control: record.Control,
+				Uuid:    record.Uuid,
+			}
+			s.outChan <- result
+		}),
+	)
+	s.syncService.Start()
+
+	rec := &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_SenderRead{
+					SenderRead: &service.SenderReadRequest{
+						StartOffset: request.GetStartOffset(),
+						FinalOffset: request.GetFinalOffset(),
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.loopbackChan <- rec
+}
+
+func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
+	if s.store == nil {
+		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		err := store.Open(os.O_RDONLY)
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+			return
+		}
+		s.store = store
+	}
+	// TODO:
+	// 1. seek to startOffset
+	//
+	// if err := s.store.reader.SeekRecord(request.GetStartOffset()); err != nil {
+	// 	s.logger.CaptureError("sender: sendSenderRead: failed to seek record", err)
+	// 	return
+	// }
+	// 2. read records until finalOffset
+	//
+	for {
+		record, err := s.store.Read()
+		if s.settings.GetXSync().GetValue() {
+			s.syncService.SyncRecord(record, err)
+		} else if record != nil {
+			s.sendRecord(record)
+		}
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			return
+		}
+	}
 }
 
 func (s *Sender) getServerInfo() {

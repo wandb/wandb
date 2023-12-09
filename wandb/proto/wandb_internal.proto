@@ -498,6 +498,7 @@ message Request {
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
+    SyncRequest sync = 76;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -527,6 +528,7 @@ message Response {
     ServerInfoResponse server_info_response = 67;
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
+    SyncResponse sync_response = 70;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -681,7 +683,29 @@ message PollExitResponse {
 /*
  * Sender requests
  */
+message SyncOverwrite {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+}
+
+message SyncSkip {
+  bool output_raw = 1;
+}
+
 message SenderMarkRequest {}
+
+message SyncRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  SyncOverwrite overwrite = 3;
+  SyncSkip skip = 4;
+}
+
+message SyncResponse {
+  string url = 1;
+  ErrorInfo error = 2;
+}
 
 message SenderReadRequest {
   int64 start_offset = 1;

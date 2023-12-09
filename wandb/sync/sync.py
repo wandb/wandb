@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import List, Optional
 from urllib.parse import quote as url_quote
 
 import wandb
@@ -378,17 +379,15 @@ class SyncManager:
 
 
 def get_runs(
-    include_offline=None,
-    include_online=None,
-    include_synced=None,
-    include_unsynced=None,
-    exclude_globs=None,
-    include_globs=None,
+    include_offline: bool = True,
+    include_online: bool = True,
+    include_synced: bool = False,
+    include_unsynced: bool = True,
+    exclude_globs: Optional[List[str]] = None,
+    include_globs: Optional[List[str]] = None,
 ):
     # TODO(jhr): grab dir info from settings
-    base = "wandb"
-    if os.path.exists(".wandb"):
-        base = ".wandb"
+    base = ".wandb" if os.path.exists(".wandb") else "wandb"
     if not os.path.exists(base):
         return ()
     all_dirs = os.listdir(base)
