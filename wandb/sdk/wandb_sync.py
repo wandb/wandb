@@ -19,7 +19,7 @@ def _sync(
     mark_synced: Optional[bool] = None,
     append: Optional[bool] = None,
     skip_console: Optional[bool] = None,
-) -> "wandb_internal_pb2.SyncResult":
+) -> "wandb_internal_pb2.SyncResponse":
     p = pathlib.Path(path)
 
     wl = wandb_setup.setup()
