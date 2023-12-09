@@ -47,6 +47,13 @@ class WBCoreBase:
         elif goarch == "armv7l":
             goarch = "armv6l"
 
+        # Check the CIBW_BUILD environment variable
+        cibw_build = env.get("CIBW_BUILD", "")
+
+        # Custom logic for darwin-arm64 in cibuildwheel
+        if "macosx_arm64" in cibw_build or "macosx_universal2" in cibw_build:
+            goarch = "arm64"
+
         # build a binary for coverage profiling if the GOCOVERDIR env var is set
         gocover = True if os.environ.get("GOCOVERDIR") else False
 
