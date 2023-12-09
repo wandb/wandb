@@ -1482,6 +1482,9 @@ class Report(Base):
         if len(blocks) > 0 and blocks[-1] != P():
             blocks = blocks + [P()]
 
+        if not blocks:
+            blocks = [P(), P()]
+
         return internal.ReportViewspec(
             display_name=self.title,
             description=self.description,
