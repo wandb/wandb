@@ -70,16 +70,17 @@ func TestNewNoOpLogger(t *testing.T) {
 func TestNewCoreLoggerWithTags(t *testing.T) {
 	// Mock logger for testing
 	var buf bytes.Buffer
-	mockLogger := slog.New(slog.NewTextHandler(&buf,
-		&slog.HandlerOptions{
-			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-				if a.Key == slog.TimeKey && len(groups) == 0 {
-					return slog.Attr{}
-				}
-				return a
+	mockLogger := slog.New(
+		slog.NewTextHandler(&buf,
+			&slog.HandlerOptions{
+				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+					if a.Key == slog.TimeKey && len(groups) == 0 {
+						return slog.Attr{}
+					}
+					return a
+				},
 			},
-		},
-	),
+		),
 	)
 	// Create tags for testing
 	tags := observability.Tags{"key1": "value1", "key2": "value2"}
@@ -87,14 +88,14 @@ func TestNewCoreLoggerWithTags(t *testing.T) {
 	// Create a CoreLogger with tags
 	logger := observability.NewCoreLogger(mockLogger, observability.WithTags(tags))
 
-	// Verify that the tags are correctly applied to the logger
+	// Assert that the logger has the expected configuration
 	assert.NotNil(t, logger)
 	assert.NotNil(t, logger.Logger)
 
-	// Check if the logger received the expected tags
+	// Assert that the logger has the expected tags
 	assert.Equal(t, tags, logger.GetTags(), "Unexpected tags in the logger")
 
-	// Check if the logger received the expected tags
+	// Assert that the slog logger has the expected tags
 	logger.Info("Test message")
 	assert.Equal(t, "level=INFO msg=\"Test message\" key1=value1 key2=value2\n", buf.String(), "Unexpected log message")
 }
