@@ -1,4 +1,4 @@
-# `wandb-core`: A New Backend for the W&B SDK
+# wandb-core: A New Backend for the W&B SDK
 
 [![PyPI version](https://badge.fury.io/py/wandb-core.svg)](https://badge.fury.io/py/wandb-core)
 [![PyPI - License](https://img.shields.io/pypi/l/wandb-core)]()
@@ -11,7 +11,7 @@ more performant, versatile, and robust.
 ## Getting Started
 
 To start using [`wandb-core`](https://pypi.org/project/wandb-core/), simply install
-the package in your environment. The `wandb`` library will automatically detect and utilize it:
+the package in your environment. The `wandb` library will automatically detect and utilize it:
 
 ```bash
 pip install -U wandb wandb-core
@@ -27,7 +27,7 @@ Note: ensure you have `wandb>=0.16.0`.
 - macOS: `x86_64`, `arm64`
 - Windows `amd64`
 
-For other platforms, build `wandb-core`` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
+For other platforms, build `wandb-core` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
 
 ### Switching Back to the Old SDK Backend
 
@@ -42,7 +42,7 @@ pip uninstall wandb-core
 Your contributions are welcome! Check our [contributing guide](docs/contributing.md) for instructions on setting up your development environment and contributing to the project.
 
 ## Feedback and Bug Reporting
-We're eager to hear your thoughts on `wandb-core``. Your feedback, especially bug reports, is invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
+We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug reports, is invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
 
 ## Feature Support Status
 
