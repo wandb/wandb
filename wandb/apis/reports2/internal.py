@@ -352,32 +352,6 @@ class Heading(TextLikeMixin, Block):
     collapsed_children: Optional[list["BlockTypes"]] = None
     level: int = 1
 
-    # _inline_comments: Optional[list["InlineComment"]] = None
-
-    # def model_dump(self, **kwargs):
-    #     data = super().model_dump(**kwargs)
-    #     for comment in self._inline_comments:
-    #         ref_id = comment.ref_id
-    #         data[f"inlineComment_{ref_id}"] = comment.model_dump()
-    #     return data
-
-    # @classmethod
-    # def model_validate(cls, data):
-    #     print(data)
-    #     obj = cls(**data)
-
-    #     inline_comments = []
-    #     children = data.get("children", {})
-    #     for child in children:
-    #         for k, v in child.items():
-    #             print(k, v)
-    #             if k.startswith("inlineComment"):
-    #                 comment = InlineComment.model_validate(v)
-    #                 inline_comments.append(comment)
-    #         obj._inline_comments = inline_comments
-    #     print(inline_comments)
-    #     return obj
-
 
 class InlineLatex(InlineModel):
     type: Literal["latex"] = "latex"
@@ -1163,7 +1137,6 @@ def key_to_server_path(key: Key):
 
 
 def server_path_to_key(path):
-    print(path)
     if path.startswith("config."):
         return Key(section="config", name=path.split("config.", 1)[1])
     elif path.startswith("summary_metrics."):

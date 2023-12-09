@@ -4,6 +4,7 @@ import pytest
 import wandb.apis.reports2 as wr2
 from polyfactory.factories import DataclassFactory
 from polyfactory.pytest_plugin import register_fixture
+from wandb.apis.reports2 import internal
 
 block_type_instance = wr2.H1
 
@@ -125,7 +126,10 @@ class PanelGridFactory(CustomDataclassFactory[wr2.PanelGrid]):
 
     @classmethod
     def runsets(cls):
-        return [wr2.Runset(filters="a >= 1"), wr2.Runset(filters="b == 1 and c == 2")]
+        return [
+            wr2.Runset(filters="a >= 1"),
+            wr2.Runset(filters="b == 1 and c == 2"),
+        ]
 
 
 @register_fixture
@@ -284,3 +288,13 @@ def test_fix_panel_collisions():
     for p1 in panels:
         for p2 in panels[1:]:
             assert not wr2.interface.collides(p1, p2)
+
+
+def test_expression_parsing():
+    expr = ""
+    expected_filters = internal.Filters(
+        op="OR", filters=[internal.Filters(op="AND", filters=[])]
+    )
+
+    assert internal.expr_to_filters(expr) == expected_filters
+

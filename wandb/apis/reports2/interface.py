@@ -32,7 +32,7 @@ FilterExpr = str
 Color = str
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
-ParallelCoordinatesMetric = Union["Config", "SummaryMetric"]
+ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
 
 
 def get_api():
@@ -1454,7 +1454,7 @@ class WeavePanel(Panel):
 class Report(Base):
     project: str
     entity: str = DEFAULT_ENTITY
-    title: str = "Untitled Report"
+    title: str = Field("Untitled Report", max_length=128)
     width: ReportWidth = "readable"
     description: str = ""
     blocks: list[BlockTypes] = Field(default_factory=list)
@@ -1837,6 +1837,8 @@ def metric_to_frontend(x: str):
 
 
 def metric_to_backend_pc(x: Optional[ParallelCoordinatesMetric]):
+    if isinstance(x, str):
+        return SummaryMetric(x).to_backend_pc()
     if x is None:
         return x
     return x.to_backend_pc()
