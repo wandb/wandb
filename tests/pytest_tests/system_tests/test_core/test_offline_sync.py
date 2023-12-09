@@ -23,6 +23,8 @@ def test_sync_with_tensorboard(relay_server, runner, copy_asset, user):
 
 @pytest.mark.parametrize("mark_synced", [True, False])
 def test_beta_sync(wandb_init, runner, mark_synced):
+    _ = pytest.importorskip("wandb_core")
+
     os.makedirs(".wandb", exist_ok=True)
     run = wandb_init(settings={"mode": "offline"})
     run.log(dict(a=1))
@@ -48,6 +50,7 @@ def test_beta_sync(wandb_init, runner, mark_synced):
     "manifestation: upsertBucket returns 200 with an error message."
 )
 def test_beta_sync_two_runs(user, test_settings, runner):
+    _ = pytest.importorskip("wandb_core")
     os.makedirs(".wandb", exist_ok=True)
     run = wandb.init(settings=test_settings({"mode": "offline"}))
     run.log(dict(a=1))
