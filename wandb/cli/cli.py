@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import asyncio
-import concurrent.futures
 import configparser
 import datetime
 import getpass
@@ -18,7 +17,6 @@ import textwrap
 import time
 import traceback
 from functools import wraps
-from multiprocessing import cpu_count
 from typing import Any, Dict, Optional
 
 import click
@@ -422,9 +420,14 @@ def init(ctx, project, entity, reset, mode):
 @cli.group()
 def beta():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
-    pass
-    # TODO: this is the future that requires wandb-core!
-    #  do the check here, similar to the one in wandb_service
+    # this is the future that requires wandb-core!
+    from wandb.util import get_core_path
+
+    if not get_core_path():
+        click.echo(
+            "wandb beta commands require wandb-core, please install with `pip install wandb-core`"
+        )
+        sys.exit(1)
 
 
 @beta.command(
@@ -481,6 +484,9 @@ def sync_beta(
     mark_synced: bool = True,
     dry_run: bool = False,
 ):
+    import concurrent.futures
+    from multiprocessing import cpu_count
+
     paths = set()
 
     # TODO: test file discovery logic

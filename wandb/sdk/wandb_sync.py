@@ -1,11 +1,14 @@
 import pathlib
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..errors.term import termerror, termlog
 from . import wandb_setup
 from .backend.backend import Backend
 from .lib.mailbox import Mailbox
 from .lib.runid import generate_id
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2
 
 
 def _sync(
@@ -16,7 +19,7 @@ def _sync(
     mark_synced: Optional[bool] = None,
     append: Optional[bool] = None,
     skip_console: Optional[bool] = None,
-) -> None:
+) -> "wandb_internal_pb2.SyncResult":
     p = pathlib.Path(path)
 
     wl = wandb_setup.setup()
