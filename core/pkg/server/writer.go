@@ -52,6 +52,11 @@ func NewWriter(ctx context.Context, settings *service.Settings, logger *observab
 }
 
 func (w *Writer) startStore() {
+	if w.settings.GetXSync().GetValue() {
+		// do not set up store if we are syncing an offline run
+		return
+	}
+
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
