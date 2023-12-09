@@ -528,7 +528,6 @@ def sync_beta(
 
     if run_id and len(paths) > 1:
         # TODO: handle this more gracefully
-        # wandb.termerror("id can only be set for a single run.")
         click.echo("id can only be set for a single run.", err=True)
         sys.exit(1)
 

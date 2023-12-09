@@ -643,7 +643,6 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 			},
 		})
-		// h.sendRecord(summaryRecord)
 		h.updateSummaryDelta(summaryRecord)
 	}
 
