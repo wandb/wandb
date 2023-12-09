@@ -1,6 +1,7 @@
 package observability_test
 
 import (
+	"bytes"
 	"log/slog"
 	"testing"
 
@@ -39,6 +40,11 @@ func TestNewTags(t *testing.T) {
 			input:  []interface{}{},
 			expect: observability.Tags{},
 		},
+		{
+			name:   "Tags from a mix of slog.Attr, map[string]string, string, and int",
+			input:  []interface{}{slog.Attr{Key: "key8", Value: slog.Int64Value(123)}, map[string]string{"key9": "value9"}, "key10", 10},
+			expect: observability.Tags{"key8": "123", "key10": "10"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -47,4 +53,48 @@ func TestNewTags(t *testing.T) {
 			assert.Equal(t, tc.expect, tags, "Unexpected result for test case: %s", tc.name)
 		})
 	}
+}
+
+func TestNewNoOpLogger(t *testing.T) {
+	// Call the function to get a CoreLogger
+	logger := observability.NewNoOpLogger()
+
+	// Assert that the logger has the expected configuration
+	assert.NotNil(t, logger)
+	assert.NotNil(t, logger.GetLogger())
+	assert.NotNil(t, logger.GetTags())
+	assert.NotNil(t, logger.GetCaptureException())
+	assert.NotNil(t, logger.GetCaptureMessage())
+}
+
+func TestNewCoreLoggerWithTags(t *testing.T) {
+	// Mock logger for testing
+	var buf bytes.Buffer
+	mockLogger := slog.New(slog.NewTextHandler(&buf,
+		&slog.HandlerOptions{
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if a.Key == slog.TimeKey && len(groups) == 0 {
+					return slog.Attr{}
+				}
+				return a
+			},
+		},
+	),
+	)
+	// Create tags for testing
+	tags := observability.Tags{"key1": "value1", "key2": "value2"}
+
+	// Create a CoreLogger with tags
+	logger := observability.NewCoreLogger(mockLogger, observability.WithTags(tags))
+
+	// Verify that the tags are correctly applied to the logger
+	assert.NotNil(t, logger)
+	assert.NotNil(t, logger.Logger)
+
+	// Check if the logger received the expected tags
+	assert.Equal(t, tags, logger.GetTags(), "Unexpected tags in the logger")
+
+	// Check if the logger received the expected tags
+	logger.Info("Test message")
+	assert.Equal(t, "level=INFO msg=\"Test message\" key1=value1 key2=value2\n", buf.String(), "Unexpected log message")
 }

@@ -8,8 +8,8 @@ import (
 
 type Tags map[string]string
 
-// NewTags creates a new Tags from a mix of slog.Attr and any other types.
-// It ignores final if they are strings without a corresponding value.
+// NewTags creates a new Tags from a mix of slog.Attr and a string and its corresponding value.
+// It ignores incomplete pairs and other types.
 func NewTags(args ...any) Tags {
 	var done bool
 	tags := Tags{}
@@ -168,6 +168,26 @@ func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
 		Reraise(err, cl.tagsWithArgs(args...))
 	}
+}
+
+// GetTags returns the tags associated with the logger.
+func (cl *CoreLogger) GetTags() Tags {
+	return cl.tags
+}
+
+// GetLogger returns the underlying slog.Logger.
+func (cl *CoreLogger) GetLogger() *slog.Logger {
+	return cl.Logger
+}
+
+// GetCaptureException returns the function used to capture exceptions.
+func (cl *CoreLogger) GetCaptureException() func(err error, tags Tags) {
+	return cl.captureException
+}
+
+// GetCaptureMessage returns the function used to capture messages.
+func (cl *CoreLogger) GetCaptureMessage() func(msg string, tags Tags) {
+	return cl.captureMessage
 }
 
 func NewNoOpLogger() *CoreLogger {
