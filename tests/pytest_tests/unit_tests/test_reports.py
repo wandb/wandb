@@ -297,4 +297,3 @@ def test_expression_parsing():
     )
 
     assert internal.expr_to_filters(expr) == expected_filters
-
