@@ -37,6 +37,7 @@ class WBCoreBase:
         src_dir = Path(__file__).parent
 
         env = os.environ.copy()
+        log.info(env)
 
         goos = platform.system().lower()
         goarch = platform.machine().lower()
@@ -85,7 +86,7 @@ class WBCoreBase:
         ]
         if gocover:
             cmd.insert(2, "-cover")
-        log.info("Building for {goos}-{goarch}")
+        log.info(f"Building for {goos}-{goarch}")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
 
