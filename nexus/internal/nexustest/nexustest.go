@@ -2,8 +2,9 @@ package nexustest
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"

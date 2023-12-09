@@ -11,8 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.15.13.dev1"
-_minimum_nexus_version = "0.16.0b3"
+__version__ = "0.16.2.dev1"
+_minimum_core_version = "0.17.0b2"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -135,6 +135,15 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+log_model = _preinit.PreInitCallable(
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+)
+use_model = _preinit.PreInitCallable(
+    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model
+)
+link_model = _preinit.PreInitCallable(
+    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model
+)
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
@@ -241,4 +250,7 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_model",
+    "use_model",
+    "link_model",
 )

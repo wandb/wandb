@@ -261,6 +261,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	//       handle the rest of the startup
 	nc.stream = NewStream(nc.ctx, settings, streamId)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	nc.stream.Start()
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
@@ -282,6 +283,8 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 		"run_url": nc.stream.settings.GetRunUrl().GetValue(),
 		"entity":  nc.stream.settings.GetEntity().GetValue(),
 	})
+	// TODO: remove this once we have a better observability setup
+	nc.stream.logger.CaptureInfo("nexus", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message

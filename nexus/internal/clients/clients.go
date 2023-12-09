@@ -2,6 +2,7 @@ package clients
 
 import (
 	"encoding/base64"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -31,6 +32,18 @@ type authedTransport struct {
 	key     string
 	headers map[string]string
 	wrapped http.RoundTripper
+}
+
+func getResponseLogHook(logger *slog.Logger, logResponse func(resp *http.Response) bool) func(logger retryablehttp.Logger, resp *http.Response) {
+	return func(_ retryablehttp.Logger, resp *http.Response) {
+		if logResponse != nil && !logResponse(resp) {
+			return
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err == nil {
+			logger.Info("HTTP Error", "status", resp.StatusCode, "body", string(body))
+		}
+	}
 }
 
 func (t *authedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -102,5 +115,15 @@ func WithRetryClientHttpTimeout(timeout time.Duration) RetryClientOption {
 func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClientOption {
 	return func(rc *retryablehttp.Client) {
 		rc.CheckRetry = retryPolicy
+	}
+}
+
+// WithRetryClientResponseLogger is an option to NewRetryClient allowing responses to be logged.
+// logger is an slog.Logger to use for logging, logResponse is a function to determine if the response
+// should be logged.
+func WithRetryClientResponseLogger(logger *slog.Logger, logResponse func(resp *http.Response) bool) RetryClientOption {
+	// TODO: should we also add a logRequest function?
+	return func(rc *retryablehttp.Client) {
+		rc.ResponseLogHook = getResponseLogHook(logger, logResponse)
 	}
 }

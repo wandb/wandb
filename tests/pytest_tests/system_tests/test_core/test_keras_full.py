@@ -3,11 +3,14 @@ import json
 import os
 
 import pytest
-import tensorflow as tf
-from tensorflow.keras import backend as K  # noqa: N812
-from tensorflow.keras.layers import Dense, Flatten, Reshape
-from tensorflow.keras.models import Sequential
-from wandb.keras import WandbCallback
+
+pytest.importorskip("tensorflow")
+
+import tensorflow as tf  # noqa: E402
+from tensorflow.keras import backend as K  # noqa: N812, E402
+from tensorflow.keras.layers import Dense, Flatten, Reshape  # noqa: E402
+from tensorflow.keras.models import Sequential  # noqa: E402
+from wandb.keras import WandbCallback  # noqa: E402
 
 
 @pytest.fixture

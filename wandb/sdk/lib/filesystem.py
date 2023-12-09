@@ -6,7 +6,6 @@ import os
 import platform
 import re
 import shutil
-import stat
 import tempfile
 import threading
 from pathlib import Path
@@ -15,9 +14,6 @@ from typing import IO, Any, BinaryIO, Generator, Optional
 from wandb.sdk.lib.paths import StrPath
 
 logger = logging.getLogger(__name__)
-
-WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
-
 
 # https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
 PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(0, 32)) + ':"*<>?|'
@@ -159,7 +155,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
 
-    permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
+    permissions_plus_write = os.stat(source_path).st_mode
     if need_copy:
         dir_name, file_name = os.path.split(target_path)
         target_path = os.path.join(mkdir_allow_fallback(dir_name), file_name)

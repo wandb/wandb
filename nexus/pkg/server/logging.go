@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 
+	"github.com/wandb/wandb/nexus/internal/version"
 	"github.com/wandb/wandb/nexus/pkg/observability"
 	"github.com/wandb/wandb/nexus/pkg/service"
 )
@@ -26,20 +28,7 @@ func setupLogger(opts *slog.HandlerOptions, writers ...io.Writer) *slog.Logger {
 	return logger
 }
 
-func SetupDefaultLogger() *slog.Logger {
-	var writers []io.Writer
-
-	// todo: discover system temp lib
-	name := "/tmp/logs.txt"
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		fmt.Println("FATAL Problem", err)
-	} else {
-		writers = append(writers, file)
-	}
-	if os.Getenv("WANDB_NEXUS_DEBUG") != "" {
-		writers = append(writers, os.Stderr)
-	}
+func SetupDefaultLogger(writers ...io.Writer) *slog.Logger {
 
 	logger := setupLogger(nil, writers...)
 	slog.SetDefault(logger)
@@ -47,12 +36,28 @@ func SetupDefaultLogger() *slog.Logger {
 	return logger
 }
 
-func SetupStreamLogger(name string, settings *service.Settings) *observability.NexusLogger {
+// TODO: add a noop logger
+
+func SetupStreamLogger(settings *service.Settings) *observability.NexusLogger {
+	// TODO: when we add session concept re-do this to use user provided path
+	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "core-debug.log")
+	if path := defaultLoggerPath.Load(); path != nil {
+		path := path.(string)
+		// check path exists
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			err := os.Symlink(path, targetPath)
+			if err != nil {
+				slog.Error("error creating symlink", "error", err)
+			}
+		}
+	}
+
 	var writers []io.Writer
+	name := settings.GetLogInternal().GetValue()
 
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		fmt.Println("FATAL Problem", err)
+		slog.Error(fmt.Sprintf("error opening log file: %s", err))
 	} else {
 		writers = append(writers, file)
 	}
@@ -61,11 +66,17 @@ func SetupStreamLogger(name string, settings *service.Settings) *observability.N
 	}
 
 	writer := io.MultiWriter(writers...)
-	tags := make(observability.Tags)
-	tags["run_id"] = settings.GetRunId().GetValue()
-	tags["run_url"] = settings.GetRunUrl().GetValue()
-	tags["project"] = settings.GetProject().GetValue()
-	tags["entity"] = settings.GetEntity().GetValue()
 
-	return observability.NewNexusLogger(setupLogger(nil, writer), tags)
+	logger := observability.NewNexusLogger(setupLogger(nil, writer), nil)
+	logger.Info("using version", "core version", version.Version)
+	logger.Info("created symlink", "path", targetPath)
+	tags := observability.Tags{
+		"run_id":  settings.GetRunId().GetValue(),
+		"run_url": settings.GetRunUrl().GetValue(),
+		"project": settings.GetProject().GetValue(),
+		"entity":  settings.GetEntity().GetValue(),
+	}
+	logger.SetTags(tags)
+
+	return logger
 }

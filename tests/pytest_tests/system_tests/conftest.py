@@ -20,7 +20,6 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.handler import HandleManager
@@ -432,9 +431,9 @@ class WandbServerSettings:
     fixture_service_port: str
     wandb_server_pull: str
     wandb_server_tag: str
-    internal_local_base_port: str = "8080"
-    internal_local_services_api_port: str = "8083"
-    internal_fixture_service_port: str = "9015"
+    internal_local_base_port: str = LOCAL_BASE_PORT
+    internal_local_services_api_port: str = SERVICES_API_PORT
+    internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
     url: str = "http://localhost"
 
     base_url: Optional[str] = None
@@ -687,9 +686,9 @@ def wandb_server(wandb_server_factory):
     settings = WandbServerSettings(
         name="wandb-dst-server",
         volume="wandb-dst-server-vol",
-        local_base_port="8080",
-        services_api_port="8083",
-        fixture_service_port="9015",
+        local_base_port=LOCAL_BASE_PORT,
+        services_api_port=SERVICES_API_PORT,
+        fixture_service_port=FIXTURE_SERVICE_PORT,
         wandb_server_pull="missing",
         wandb_server_tag="master",
     )
@@ -883,7 +882,7 @@ def inject_graphql_response(base_url, user):
     ) -> InjectedResponse:
         def match(self, request):
             body = json.loads(request.body)
-            return query_match_fn(body["query"], body["variables"])
+            return query_match_fn(body["query"], body.get("variables"))
 
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
@@ -901,13 +900,3 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
-
-
-@pytest.fixture
-def logged_artifact(wandb_init, example_files) -> Artifact:
-    with wandb_init() as run:
-        artifact = wandb.Artifact("test-artifact", "dataset")
-        artifact.add_dir(example_files)
-        run.log_artifact(artifact)
-    artifact.wait()
-    return artifact

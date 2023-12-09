@@ -4,19 +4,19 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
-message ListStringValue{
+message ListStringValue {
   repeated string value = 1;
 }
 
-message MapStringKeyStringValue{
+message MapStringKeyStringValue {
   map<string, string> value = 1;
 }
 
-message MapStringKeyMapStringKeyStringValue{
+message MapStringKeyMapStringKeyStringValue {
   map<string, MapStringKeyStringValue> value = 1;
 }
 
-message OpenMetricsFilters{
+message OpenMetricsFilters {
   oneof value {
     ListStringValue sequence = 1;
     MapStringKeyMapStringKeyStringValue mapping = 2;
@@ -44,10 +44,10 @@ message Settings {
   google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
   google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;
   google.protobuf.Int32Value _file_stream_timeout_seconds = 15;
-  google.protobuf.Int32Value _file_uploader_retry_max = 150;
-  google.protobuf.Int32Value _file_uploader_retry_wait_min_seconds = 151;
-  google.protobuf.Int32Value _file_uploader_retry_wait_max_seconds = 152;
-  google.protobuf.Int32Value _file_uploader_timeout_seconds = 153;
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  google.protobuf.Int32Value _file_transfer_retry_wait_min_seconds = 151;
+  google.protobuf.Int32Value _file_transfer_retry_wait_max_seconds = 152;
+  google.protobuf.Int32Value _file_transfer_timeout_seconds = 153;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
   google.protobuf.Int32Value _graphql_retry_max = 154;
@@ -187,5 +187,6 @@ message Settings {
   google.protobuf.StringValue wandb_dir = 142;
 
   // todo?
-  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;
+  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =
+  //  500;
 }

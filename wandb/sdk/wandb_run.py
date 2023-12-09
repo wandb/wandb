@@ -351,7 +351,7 @@ class _run_decorator:  # noqa: N801
                     raise RuntimeError(message)
                 cls._is_attaching = func.__name__
                 try:
-                    wandb._attach(run=self)
+                    wandb._attach(run=self)  # type: ignore
                 except Exception as e:
                     # In case the attach fails we will raise the exception that caused the issue.
                     # This exception should be caught and fail the execution of the program.
@@ -1171,6 +1171,9 @@ class Run:
                 files_added = True
                 art.add_file(file_path, name=save_name)
         if not files_added:
+            wandb.termwarn(
+                "No relevant files were detected in the specified directory. No code will be logged to your run."
+            )
             return None
 
         return self._log_artifact(art)
@@ -1416,6 +1419,7 @@ class Run:
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
+        split_table_set = set()
         for k in row:
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
@@ -1425,9 +1429,15 @@ class Run:
             elif isinstance(row[k], CustomChart):
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
-                value = row[k].get_config_value(
-                    "Vega2", row[k].user_query(f"{k}_table")
-                )
+                if row[k]._split_table:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+                    )
+                    split_table_set.add(k)
+                else:
+                    value = row[k].get_config_value(
+                        "Vega2", row[k].user_query(f"{k}_table")
+                    )
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
 
@@ -1435,7 +1445,10 @@ class Run:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
             #     a non-custom chart to this key?
-            row[f"{k}_table"] = row.pop(k)
+            if k in split_table_set:
+                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+            else:
+                row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -2014,6 +2027,7 @@ class Run:
         data_table: "wandb.Table",
         fields: Dict[str, Any],
         string_fields: Optional[Dict[str, Any]] = None,
+        split_table: Optional[bool] = False,
     ) -> CustomChart:
         """Create a custom plot on a table.
 
@@ -2026,7 +2040,9 @@ class Run:
             string_fields: a dict that provides values for any string constants
                 the custom visualization needs
         """
-        return custom_chart(vega_spec_name, data_table, fields, string_fields or {})
+        return custom_chart(
+            vega_spec_name, data_table, fields, string_fields or {}, split_table
+        )
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -2050,6 +2066,9 @@ class Run:
             plot_table=self.plot_table,
             alert=self.alert,
             mark_preempting=self.mark_preempting,
+            log_model=self.log_model,
+            use_model=self.use_model,
+            link_model=self.link_model,
         )
 
     def _redirect(
@@ -2393,7 +2412,7 @@ class Run:
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
-            result = handle.wait(timeout=0)
+            result = handle.wait(timeout=0, release=False)
             if not result:
                 return
             probe_handle.set_probe_result(result)
@@ -2424,30 +2443,34 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        self._footer_exit_status_info(
-            self._exit_code, settings=self._settings, printer=self._printer
-        )
+        # this message is confusing, we should remove it
+        # self._footer_exit_status_info(
+        #     self._exit_code, settings=self._settings, printer=self._printer
+        # )
 
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
+        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+        # wait for them, it's ok to do this serially but this can be improved
+        result = poll_exit_handle.wait(timeout=-1)
+        assert result
+        self._footer_file_pusher_status_info(
+            result.response.poll_exit_response, printer=self._printer
+        )
+        self._poll_exit_response = result.response.poll_exit_response
         internal_messages_handle = self._backend.interface.deliver_internal_messages()
         result = internal_messages_handle.wait(timeout=-1)
         assert result
         self._internal_messages_response = result.response.internal_messages_response
 
         # dispatch all our final requests
-        poll_exit_handle = self._backend.interface.deliver_poll_exit()
+
         server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
         job_info_handle = self._backend.interface.deliver_request_job_info()
-
-        # wait for them, it's ok to do this serially but this can be improved
-        result = poll_exit_handle.wait(timeout=-1)
-        assert result
-        self._poll_exit_response = result.response.poll_exit_response
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -3064,11 +3087,11 @@ class Run:
             name = name or f"run-{self._run_id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
-                artifact.add_file(artifact_or_path)
+                artifact.add_file(str(artifact_or_path))
             elif os.path.isdir(artifact_or_path):
-                artifact.add_dir(artifact_or_path)
+                artifact.add_dir(str(artifact_or_path))
             elif "://" in str(artifact_or_path):
-                artifact.add_reference(artifact_or_path)
+                artifact.add_reference(str(artifact_or_path))
             else:
                 raise ValueError(
                     "path must be a file, directory or external"
@@ -3083,6 +3106,205 @@ class Run:
             )
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def log_model(
+        self,
+        path: StrPath,
+        name: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> None:
+        """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
+
+        Arguments:
+            path: (str) A path to the contents of this model,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+            name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
+                The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
+                This will default to the basename of the path prepended with the current
+                run id  if not specified.
+            aliases: (list, optional) Aliases to apply to the created model artifact,
+                    defaults to `["latest"]`
+
+        Examples:
+            ```python
+            run.log_model(
+                path="/local/directory",
+                name="my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.log_model(
+                path="/local/directory",
+                name="my_entity/my_project/my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+        Raises:
+            ValueError: if name has invalid special characters
+
+        Returns:
+            None
+        """
+        self._log_artifact(
+            artifact_or_path=path, name=name, type="model", aliases=aliases
+        )
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def use_model(self, name: str) -> FilePathStr:
+        """Download the files logged in a model artifact 'name'.
+
+        Arguments:
+            name: (str) A model artifact name. 'name' must match the name of an existing logged
+                model artifact.
+                May be prefixed with entity/project/. Valid names
+                can be in the following forms:
+                    - model_artifact_name:version
+                    - model_artifact_name:alias
+                    - model_artifact_name:digest.
+
+        Examples:
+            ```python
+            run.use_model(
+                name="my_model_artifact:latest",
+            )
+
+            run.use_model(
+                name="my_project/my_model_artifact:v0",
+            )
+
+            run.use_model(
+                name="my_entity/my_project/my_model_artifact:<digest>",
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.use_model(
+                name="my_entity/my_project/my_model_artifact",
+            )
+            ```
+
+        Raises:
+            AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
+
+        Returns:
+            path: (str) path to downloaded model artifact file(s).
+        """
+        artifact = self.use_artifact(artifact_or_name=name)
+        assert "model" in str(
+            artifact.type.lower()
+        ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+        path = artifact.download()
+
+        # If returned directory contains only one file, return path to that file
+        dir_list = os.listdir(path)
+        if len(dir_list) == 1:
+            return FilePathStr(os.path.join(path, dir_list[0]))
+        return path
+
+    @_run_decorator._noop_on_finish()
+    @_run_decorator._attach
+    def link_model(
+        self,
+        path: StrPath,
+        registered_model_name: str,
+        name: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+    ) -> None:
+        """Log a model artifact version and link it to a registered model in the model registry.
+
+        The linked model version will be visible in the UI for the specified registered model.
+
+        Steps:
+            - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
+            located at 'path' or log a new version. Otherwise log files under 'path' as a new model artifact, 'name'
+            of type 'model'.
+            - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project.
+            If not, create a new registered model with name 'registered_model_name'.
+            - Link version of model artifact 'name' to registered model, 'registered_model_name'.
+            - Attach aliases from 'aliases' list to the newly linked model artifact version.
+
+        Arguments:
+            path: (str) A path to the contents of this model,
+                can be in the following forms:
+                    - `/local/directory`
+                    - `/local/directory/file.txt`
+                    - `s3://bucket/path`
+            registered_model_name: (str) - the name of the registered model that the model is to be linked to.
+                A registered model is a collection of model versions linked to the model registry, typically representing a
+                team's specific ML Task. The entity that this registered model belongs to will be derived from the run
+                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+                default to the basename of the path prepended with the current run id  if not specified.
+            aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
+                inside the registered model.
+                The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+        Examples:
+            ```python
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_reg_model",
+                name="my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+            Invalid usage
+            ```python
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_entity/my_project/my_reg_model",
+                name="my_model_artifact",
+                aliases=["production"],
+            )
+
+            run.link_model(
+                path="/local/directory",
+                registered_model_name="my_reg_model",
+                name="my_entity/my_project/my_model_artifact",
+                aliases=["production"],
+            )
+            ```
+
+        Raises:
+            AssertionError: if registered_model_name is a path or
+                if model artifact 'name' is of a type that does not contain the substring 'model'
+            ValueError: if name has invalid special characters
+
+        Returns:
+            None
+        """
+        name_parts = registered_model_name.split("/")
+        assert (
+            len(name_parts) == 1
+        ), "Please provide only the name of the registered model. Do not append the entity or project name."
+        project = "model-registry"
+        target_path = self.entity + "/" + project + "/" + registered_model_name
+
+        public_api = self._public_api()
+        try:
+            artifact = public_api.artifact(name=f"{name}:latest")
+            assert "model" in str(
+                artifact.type.lower()
+            ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
+            artifact = self._log_artifact(
+                artifact_or_path=path, name=name, type=artifact.type
+            )
+        except (ValueError, wandb.CommError):
+            artifact = self._log_artifact(
+                artifact_or_path=path, name=name, type="model"
+            )
+        self.link_artifact(artifact=artifact, target_path=target_path, aliases=aliases)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -3443,7 +3665,7 @@ class Run:
                     poll_exit_responses_list, printer=printer
                 )
         else:
-            raise ValueError(
+            logger.error(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
                 "Expected either None, PollExitResponse or a List[Union[PollExitResponse, None]]"
             )
@@ -3462,10 +3684,11 @@ class Run:
         done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = (
-            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
-            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-        )
+        line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
+        if progress.deduped_bytes > 0:
+            line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        else:
+            line += "\r"
 
         percent_done = (
             1.0

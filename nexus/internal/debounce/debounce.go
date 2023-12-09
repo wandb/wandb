@@ -27,15 +27,24 @@ func NewDebouncer(
 }
 
 func (d *Debouncer) SetNeedsDebounce() {
+	if d == nil {
+		return
+	}
 	d.needsDebounce = true
 }
 
 func (d *Debouncer) UnsetNeedsDebounce() {
+	if d == nil {
+		return
+	}
 	d.needsDebounce = false
 }
 
 // Debounce will call the function f if the rate limiter allows it.
 func (d *Debouncer) Debounce(f func()) {
+	if d == nil {
+		return
+	}
 	if !d.needsDebounce || !d.limiter.Allow() {
 		return
 	}
@@ -44,6 +53,9 @@ func (d *Debouncer) Debounce(f func()) {
 
 // Flush will call the function f if it needs to be called.
 func (d *Debouncer) Flush(f func()) {
+	if d == nil {
+		return
+	}
 	if d.needsDebounce {
 		d.logger.Debug("Flushing debouncer")
 		f()

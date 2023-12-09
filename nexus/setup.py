@@ -12,13 +12,10 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 # --------------
 #   wandb-core:         Package containing architecture specific code
 #   wandb-core-nightly: Package created every night based on main branch
-#   wandb-core-alpha:   Package used during early development
-_WANDB_CORE_ALPHA_ENV = "WANDB_CORE_ALPHA"
-_is_wandb_core_alpha = bool(os.environ.get(_WANDB_CORE_ALPHA_ENV))
 
 # Nexus version
 # -------------
-NEXUS_VERSION = "0.16.0b3"
+NEXUS_VERSION = "0.17.0b2"
 
 
 PACKAGE: str = "wandb_core"
@@ -32,6 +29,7 @@ class NexusBase:
     @staticmethod
     def _get_package_path():
         base = Path(__file__).parent / PACKAGE
+        print(f"Package path: {base}")
         return base
 
     def _build_nexus(self):
@@ -49,6 +47,9 @@ class NexusBase:
             goarch = "arm64"
         elif goarch == "armv7l":
             goarch = "armv6l"
+
+        # build a binary for coverage profiling if the GOCOVERDIR env var is set
+        gocover = True if os.environ.get("GOCOVERDIR") else False
 
         # cgo is needed on:
         #  - arm macs to build the gopsutil dependency,
@@ -68,17 +69,28 @@ class NexusBase:
         if f"{goos}-{goarch}" == "linux-amd64":
             # todo: try llvm's lld linker
             ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
-        cmd = (
+        cmd = [
             "go",
             "build",
             f"-ldflags={ldflags}",
             "-o",
             str(nexus_path / "wandb-nexus"),
             "cmd/nexus/main.go",
-        )
+        ]
+        if gocover:
+            cmd.insert(2, "-cover")
         log.info("Building for current platform")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
+
+        # on arm macs, copy over the stats monitor binary, if available
+        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
+        # having to wait for that to build on every run.
+        if goos == "darwin" and goarch == "arm64":
+            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
+            if monitor_path.exists():
+                log.info("Copying AppleStats binary")
+                subprocess.check_call(["cp", str(monitor_path), str(nexus_path)])
 
 
 class WrapDevelop(develop, NexusBase):
@@ -105,7 +117,7 @@ if __name__ == "__main__":
     log.set_verbosity(log.INFO)
 
     setup(
-        name="wandb-core" if not _is_wandb_core_alpha else "wandb-core-alpha",
+        name="wandb-core",
         version=NEXUS_VERSION,
         description="W&B Core Library",
         long_description=open("README.md", encoding="utf-8").read(),

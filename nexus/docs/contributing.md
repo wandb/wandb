@@ -4,7 +4,7 @@
 We are using [pre-commit](https://pre-commit.com/) to manage our pre-commit hooks.  To install `pre-commit` follow
 the instructions [here](https://pre-commit.com/#install). Once `pre-commit` is installed, run the following command
 from the root of the repository to set up your environment:
-```bash
+```shell
 ./nexus/scripts/code-checks.sh install
 ```
 Now when you run `git push` the hooks will run automatically.
@@ -14,7 +14,7 @@ This step is not required, but it is highly recommended.
 ## Installing Nexus
 To install Nexus, you will need to run the following commands (assuming you are in the
 root of the repository):
-```bash
+```shell
 pip install -r requirements_build.txt  # Install build dependencies, if needed
 nox -s build-nexus install-nexus
 ```
@@ -26,7 +26,7 @@ you can install Nexus in development mode.
 ## Installing Nexus in Development Mode
 To install Nexus in development mode, you will need to run the following commands
 (assuming you are in the root of the repository):
-```bash
+```shell
 ./nexus/scripts/setup-nexus-path.sh
 ```
 This script will also allow you to unset the Nexus path if you no longer want to use
@@ -34,19 +34,31 @@ the development version of Nexus. Follow the instructions in the script to do th
 
 ## Running System Tests Locally
 Install the test requirements into the current Python environment:
-```bash
+```shell
 pip install -r requirements_test.txt  # Install test dependencies, if needed
 ```
 
 A number of tests are not currently passing due to feature incompleteness.
 These tests are marked with the `@pytest.mark.nexus_failure` decorator.
 To list all tests that are currently failing, run the following command:
-```bash
+```shell
 nox -s list-failing-tests-nexus
 ```
 
 To run the tests excluding the failing ones locally, you will need to run the following
 commands in your active Python environment (assuming you are in the root of the repository):
-```bash
-WANDB_REQUIRE_NEXUS=true pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
+```shell
+pytest -m "not nexus_failure" tests/pytest_tests/system_tests/test_core
 ```
+
+## Modifying GraphQL Schema
+If there is a schema change on the Server side that affects your GraphQL API,
+update `nexus/api/graphql/schemas/schema-latest.graphql` and run
+
+```shell
+nox -s graphql-codegen-schema-change
+```
+
+If there is no schema change and you are e.g. just adding a new query or mutation
+against the schema that already supports it, DO NOT USE this nox session.
+Our pre-commit hook will auto-generate the required code for you.

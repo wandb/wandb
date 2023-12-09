@@ -56,7 +56,7 @@ class WBLocalArtifactHandler(StorageHandler):
         target_artifact = artifact_cache.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
             raise RuntimeError("Local Artifact not found - invalid reference")
-        target_entry = target_artifact._manifest.entries[target_path]
+        target_entry = target_artifact._manifest.entries[target_path]  # type: ignore
         if target_entry is None:
             raise RuntimeError("Local entry not found - invalid reference")
 

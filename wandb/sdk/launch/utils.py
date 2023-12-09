@@ -1,4 +1,6 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
+import asyncio
+import json
 import logging
 import os
 import platform
@@ -6,7 +8,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 import click
 
@@ -16,8 +18,9 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
+from wandb.sdk.wandb_config import Config
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -63,6 +66,67 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
+
+
+def load_wandb_config() -> Config:
+    """Load wandb config from WANDB_CONFIG environment variable(s).
+
+    The WANDB_CONFIG environment variable is a json string that can contain
+    multiple config keys. The WANDB_CONFIG_[0-9]+ environment variables are
+    used for environments where there is a limit on the length of environment
+    variables. In that case, we shard the contents of WANDB_CONFIG into
+    multiple environment variables numbered from 0.
+
+    Returns:
+        A dictionary of wandb config values.
+    """
+    config_str = os.environ.get("WANDB_CONFIG")
+    if config_str is None:
+        config_str = ""
+        idx = 0
+        while True:
+            chunk = os.environ.get(f"WANDB_CONFIG_{idx}")
+            if chunk is None:
+                break
+            config_str += chunk
+            idx += 1
+        if idx < 1:
+            raise LaunchError(
+                "No WANDB_CONFIG or WANDB_CONFIG_[0-9]+ environment variables found"
+            )
+    wandb_config = Config()
+    try:
+        env_config = json.loads(config_str)
+    except json.JSONDecodeError as e:
+        raise LaunchError(f"Failed to parse WANDB_CONFIG: {e}") from e
+
+    wandb_config.update(env_config)
+    return wandb_config
+
+
+def event_loop_thread_exec(func: Any) -> Any:
+    """Wrapper for running any function in an awaitable thread on an event loop.
+
+    Example usage:
+    ```
+    def my_func(arg1, arg2):
+        return arg1 + arg2
+
+    future = event_loop_thread_exec(my_func)(2, 2)
+    assert await future == 4
+    ```
+
+    The returned function must be called within an active event loop.
+    """
+
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        loop = asyncio.get_event_loop()
+        result = cast(
+            Any, await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+        )
+        return result
+
+    return wrapper
 
 
 def _is_wandb_uri(uri: str) -> bool:
@@ -440,25 +504,23 @@ def _make_refspec_from_version(version: Optional[str]) -> List[str]:
     ]
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[str]:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
-    checks out commit ``version`` (or defaults to the head commit of the repository's
-    master branch if version is unspecified). Assumes authentication parameters are
+    checks out commit ``version``. Assumes authentication parameters are
     specified by the environment, e.g. by a Git credential helper.
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
 
     _logger.info("Fetching git repo")
-    ref = GitHubReference.parse(uri)
+    ref = GitReference(uri, version)
     if ref is None:
         raise LaunchError(f"Unable to parse git uri: {uri}")
-    if version:
-        ref.update_ref(version)
     ref.fetch(dst_dir)
-    assert version is not None or ref.ref is not None or ref.default_branch is not None
-    return version or ref.ref or ref.default_branch  # type: ignore
+    if version is None:
+        version = ref.ref
+    return version
 
 
 def merge_parameters(
@@ -541,7 +603,7 @@ def validate_build_and_registry_configs(
         raise LaunchError("registry and build config credential mismatch")
 
 
-def get_kube_context_and_api_client(
+async def get_kube_context_and_api_client(
     kubernetes: Any,
     resource_args: Dict[str, Any],
 ) -> Tuple[Any, Any]:
@@ -549,10 +611,10 @@ def get_kube_context_and_api_client(
     context = None
     if config_file is not None or os.path.exists(os.path.expanduser("~/.kube/config")):
         # context only exist in the non-incluster case
-
-        all_contexts, active_context = kubernetes.config.list_kube_config_contexts(
-            config_file
-        )
+        (
+            all_contexts,
+            active_context,
+        ) = kubernetes.config.list_kube_config_contexts(config_file)
         context = None
         if resource_args.get("context"):
             context_name = resource_args["context"]
@@ -571,8 +633,8 @@ def get_kube_context_and_api_client(
             "awscli is required to load a kubernetes context "
             "from eks. Please run `pip install wandb[launch]` to install it.",
         )
-        kubernetes.config.load_kube_config(config_file, context["name"])
-        api_client = kubernetes.config.new_client_from_config(
+        await kubernetes.config.load_kube_config(config_file, context["name"])
+        api_client = await kubernetes.config.new_client_from_config(
             config_file, context=context["name"]
         )
         return context, api_client

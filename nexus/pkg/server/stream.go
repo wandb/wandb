@@ -27,7 +27,7 @@ type Stream struct {
 	wg sync.WaitGroup
 
 	// handler is the handler for the stream
-	handler *Handler
+	handler HandlerInterface
 
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
@@ -56,10 +56,9 @@ type Stream struct {
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
-	logFile := settings.GetLogInternal().GetValue()
-	logger := SetupStreamLogger(logFile, settings)
+	logger := SetupStreamLogger(settings)
 
-	stream := &Stream{
+	s := &Stream{
 		ctx:      ctx,
 		wg:       sync.WaitGroup{},
 		settings: settings,
@@ -67,8 +66,15 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		inChan:   make(chan *service.Record, BufferSize),
 		respChan: make(chan *service.ServerResponse, BufferSize),
 	}
-	stream.Start()
-	return stream
+
+	s.loopbackChan = make(chan *service.Record, BufferSize)
+	s.handler = NewHandler(s.ctx, s.settings, s.logger)
+	s.writer = NewWriter(s.ctx, s.settings, s.logger)
+	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
+	s.dispatcher = NewDispatcher(s.logger)
+
+	s.logger.Info("created new stream", "id", s.settings.RunId)
+	return s
 }
 
 // AddResponders adds the given responders to the stream's dispatcher.
@@ -76,29 +82,29 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
+func (s *Stream) SetHandler(handler HandlerInterface) {
+	s.handler = handler
+}
+
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	s.logger.Info("created new stream", "id", s.settings.RunId)
-
-	s.loopbackChan = make(chan *service.Record, BufferSize)
-	s.handler = NewHandler(s.ctx, s.settings, s.logger, s.loopbackChan)
-	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
-	s.dispatcher = NewDispatcher(s.logger)
-
-	// handle the client requests
+	// handle the client requests with the handler
+	s.handler.SetInboundChannels(s.inChan, s.loopbackChan)
+	handlerFwdChan := make(chan *service.Record, BufferSize)
+	handlerOutChan := make(chan *service.Result, BufferSize)
+	s.handler.SetOutboundChannels(handlerFwdChan, handlerOutChan)
 	s.wg.Add(1)
 	go func() {
-		s.handler.do(s.inChan, s.sender.loopbackChan)
+		s.handler.Handle()
 		s.wg.Done()
 	}()
 
 	// write the data to a transaction log
 	s.wg.Add(1)
 	go func() {
-		s.writer.do(s.handler.fwdChan)
+		s.writer.do(handlerFwdChan)
 		s.wg.Done()
 	}()
 
@@ -112,7 +118,7 @@ func (s *Stream) Start() {
 	// handle dispatching between components
 	s.wg.Add(1)
 	go func() {
-		s.dispatcher.do(s.handler.outChan, s.sender.outChan)
+		s.dispatcher.do(handlerOutChan, s.sender.outChan)
 		s.wg.Done()
 	}()
 

@@ -1,4 +1,5 @@
 """Implementation of launch agent."""
+import asyncio
 import logging
 import os
 import pprint
@@ -13,6 +14,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
+from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -25,13 +27,19 @@ from .._project_spec import (
     fetch_and_validate_project,
 )
 from ..builder.build import construct_agent_configs
+from ..builder.noop import NoOpBuilder
 from ..errors import LaunchDockerError, LaunchError
-from ..utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX, PROJECT_SYNCHRONOUS
+from ..utils import (
+    LAUNCH_DEFAULT_PROJECT,
+    LOG_PREFIX,
+    PROJECT_SYNCHRONOUS,
+    event_loop_thread_exec,
+)
 from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
 AGENT_POLLING_INTERVAL = 10
-RECEIVED_JOB_POLLING_INTERVAL = 1  # more frequent when we know we have jobs
+RECEIVED_JOB_POLLING_INTERVAL = 0.0  # more frequent when we know we have jobs
 
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
@@ -132,6 +140,34 @@ def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
+    _instance = None
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchAgent":
+        """Create a new instance of the LaunchAgent.
+
+        This method ensures that only one instance of the LaunchAgent is created.
+        This is done so that information about the agent can be accessed from
+        elsewhere in the library.
+        """
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def name(cls) -> str:
+        """Return the name of the agent."""
+        if cls._instance is None:
+            raise LaunchError("LaunchAgent has not been initialized")
+        name = cls._instance._name
+        if isinstance(name, str):
+            return name
+        raise LaunchError(f"Found invalid name for agent {name}")
+
+    @classmethod
+    def initialized(cls) -> bool:
+        """Return whether the agent is initialized."""
+        return cls._instance is not None
+
     def __init__(self, api: Api, config: Dict[str, Any]):
         """Initialize a launch agent.
 
@@ -191,7 +227,7 @@ class LaunchAgent:
         self._name = agent_response["name"]
         self._init_agent_run()
 
-    def fail_run_queue_item(
+    async def fail_run_queue_item(
         self,
         run_queue_item_id: str,
         message: str,
@@ -199,7 +235,8 @@ class LaunchAgent:
         files: Optional[List[str]] = None,
     ) -> None:
         if self._gorilla_supports_fail_run_queue_items:
-            self._api.fail_run_queue_item(run_queue_item_id, message, phase, files)
+            fail_rqi = event_loop_thread_exec(self._api.fail_run_queue_item)
+            await fail_rqi(run_queue_item_id, message, phase, files)
 
     def _init_agent_run(self) -> None:
         # TODO: has it been long enough that all backends support agents?
@@ -233,7 +270,7 @@ class LaunchAgent:
         with self._jobs_lock:
             return len([x for x in self._jobs if not self._jobs[x].is_scheduler])
 
-    def pop_from_queue(self, queue: str) -> Any:
+    async def pop_from_queue(self, queue: str) -> Any:
         """Pops an item off the runqueue to run as a job.
 
         Arguments:
@@ -246,7 +283,8 @@ class LaunchAgent:
             Exception: if there is an error popping from the queue.
         """
         try:
-            ups = self._api.pop_from_run_queue(
+            pop = event_loop_thread_exec(self._api.pop_from_run_queue)
+            ups = await pop(
                 queue,
                 entity=self._entity,
                 project=self._project,
@@ -277,19 +315,40 @@ class LaunchAgent:
 
         _logger.info(output_str)
 
-    def update_status(self, status: str) -> None:
+    async def update_status(self, status: str) -> None:
         """Update the status of the agent.
 
         Arguments:
             status: Status to update the agent to.
         """
-        update_ret = self._api.update_launch_agent_status(
+        _update_status = event_loop_thread_exec(self._api.update_launch_agent_status)
+        update_ret = await _update_status(
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
             wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
 
-    def finish_thread_id(
+    def _check_run_exists_and_inited(
+        self, entity: str, project: str, run_id: str, rqi_id: str
+    ) -> bool:
+        """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
+        # Checks the _wandb key in the run config for the run queue item id. If it exists, the
+        # submitted run definitely called init. Falls back to checking state of run.
+        # TODO: handle resuming runs
+
+        # Sweep runs exist but are in pending state, normal launch runs won't exist
+        # so will raise a CommError.
+        try:
+            run_state = self._api.get_run_state(entity, project, run_id)
+            if run_state.lower() != "pending":
+                return True
+        except CommError:
+            _logger.info(
+                f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run"
+            )
+        return False
+
+    async def finish_thread_id(
         self,
         thread_id: int,
         exception: Optional[Union[Exception, LaunchDockerError]] = None,
@@ -311,50 +370,52 @@ class LaunchAgent:
             fnames = job_and_run_status.saver.save_contents(
                 "".join(tb_str), "error.log", "error"
             )
-            self.fail_run_queue_item(
+            await self.fail_run_queue_item(
                 job_and_run_status.run_queue_item_id,
                 str(exception),
                 job_and_run_status.err_stage,
                 fnames,
             )
+        elif job_and_run_status.project is None or job_and_run_status.run_id is None:
+            _logger.error(
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
+            )
+            wandb.termerror(
+                "Missing project or run id on thread called finish thread id"
+            )
+            await self.fail_run_queue_item(
+                job_and_run_status.run_queue_item_id,
+                "submitted job was finished without assigned project or run id",
+                "agent",
+            )
         elif job_and_run_status.run is not None:
-            run_info = None
+            called_init = False
             # We do some weird stuff here getting run info to check for a
             # created in run in W&B.
             #
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
-            #
-            # Sweep runs exist but have no info before they are started
-            # so run_info returned will be None, while normal runs just throw a
-            # comm error.
             logs = None
             start_time = time.time()
             interval = 1
             while True:
-                try:
-                    run_info = self._api.get_run_info(
-                        self._entity,
-                        job_and_run_status.project,
-                        job_and_run_status.run_id,
-                    )
-                except CommError:
-                    pass
-                if (
-                    run_info is not None
-                    or time.time() - start_time > RUN_INFO_GRACE_PERIOD
-                ):
+                called_init = self._check_run_exists_and_inited(
+                    self._entity,
+                    job_and_run_status.project,
+                    job_and_run_status.run_id,
+                    job_and_run_status.run_queue_item_id,
+                )
+                if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
                     break
-                if run_info is None:
+                if not called_init:
                     # Fetch the logs now if we don't get run info on the
                     # first try, in case the logs are cleaned from the runner
                     # environment (e.g. k8s) during the run info grace period.
                     if interval == 1:
-                        logs = job_and_run_status.run.get_logs()
-                    time.sleep(interval)
+                        logs = await job_and_run_status.run.get_logs()
+                    await asyncio.sleep(interval)
                     interval *= 2
-
-            if run_info is None:
+            if not called_init:
                 fnames = None
                 if job_and_run_status.completed_status == "finished":
                     _msg = "The submitted job exited successfully but failed to call wandb.init"
@@ -364,7 +425,7 @@ class LaunchAgent:
                     fnames = job_and_run_status.saver.save_contents(
                         logs, "error.log", "error"
                     )
-                self.fail_run_queue_item(
+                await self.fail_run_queue_item(
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
@@ -379,9 +440,9 @@ class LaunchAgent:
 
         # update status back to polling if no jobs are running
         if len(self.thread_ids) == 0:
-            self.update_status(AGENT_POLLING)
+            await self.update_status(AGENT_POLLING)
 
-    def run_job(
+    async def run_job(
         self, job: Dict[str, Any], queue: str, file_saver: RunQueueItemFileSaver
     ) -> None:
         """Set up project and run the job.
@@ -393,7 +454,7 @@ class LaunchAgent:
         wandb.termlog(_msg)
         _logger.info(_msg)
         # update agent status
-        self.update_status(AGENT_RUNNING)
+        await self.update_status(AGENT_RUNNING)
 
         # parse job
         _logger.info("Parsing launch spec")
@@ -402,19 +463,16 @@ class LaunchAgent:
         # Abort if this job attempts to override secure mode
         self._assert_secure(launch_spec)
         job_tracker = JobAndRunStatusTracker(job["runQueueItemId"], queue, file_saver)
-        t = threading.Thread(
-            target=self.thread_run_job,
-            args=(
+
+        asyncio.create_task(
+            self.task_run_job(
                 launch_spec,
                 job,
                 self.default_config,
                 self._api,
                 job_tracker,
-            ),
-            daemon=True,
+            )
         )
-
-        t.start()
 
     def _assert_secure(self, launch_spec: Dict[str, Any]) -> None:
         """If secure mode is set, make sure no vulnerable keys are overridden."""
@@ -445,7 +503,7 @@ class LaunchAgent:
                 "but the job specification attempts to override it."
             )
 
-    def loop(self) -> None:
+    async def loop(self) -> None:
         """Loop infinitely to poll for jobs and run them.
 
         Raises:
@@ -464,7 +522,7 @@ class LaunchAgent:
                     raise KeyboardInterrupt
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
-                    job_and_queue = self.get_job_and_queue()
+                    job_and_queue = await self.get_job_and_queue()
                     # these will either both be None, or neither will be None
                     if job_and_queue is not None:
                         job = job_and_queue.job
@@ -483,7 +541,7 @@ class LaunchAgent:
                                         "this value use `max_schedulers` key in the agent config"
                                     )
                                     continue
-                            self.run_job(job, queue, file_saver)
+                            await self.run_job(job, queue, file_saver)
                         except Exception as e:
                             wandb.termerror(
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
@@ -496,7 +554,7 @@ class LaunchAgent:
                                 fname="error.log",
                                 file_sub_type="error",
                             )
-                            self.fail_run_queue_item(
+                            await self.fail_run_queue_item(
                                 run_queue_item_id=job["runQueueItemId"],
                                 message=str(e),
                                 phase="agent",
@@ -505,25 +563,26 @@ class LaunchAgent:
 
                 if self._ticks % 2 == 0:
                     if len(self.thread_ids) == 0:
-                        self.update_status(AGENT_POLLING)
+                        await self.update_status(AGENT_POLLING)
                     else:
-                        self.update_status(AGENT_RUNNING)
+                        await self.update_status(AGENT_RUNNING)
                     self.print_status()
 
                 if self.num_running_jobs == self._max_jobs or job is None:
                     # all threads busy or did not receive job
-                    time.sleep(AGENT_POLLING_INTERVAL)
+                    await asyncio.sleep(AGENT_POLLING_INTERVAL)
                 else:
-                    time.sleep(RECEIVED_JOB_POLLING_INTERVAL)
+                    await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
 
         except KeyboardInterrupt:
-            self._jobs_event.clear()
-            self.update_status(AGENT_KILLED)
+            await self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
+        finally:
+            self._jobs_event.clear()
 
     # Threaded functions
-    def thread_run_job(
+    async def task_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],
@@ -531,14 +590,14 @@ class LaunchAgent:
         api: Api,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
-        thread_id = threading.current_thread().ident
-        assert thread_id
+        rqi_id = job["runQueueItemId"]
+        assert rqi_id
         exception: Optional[Union[LaunchDockerError, Exception]] = None
         try:
             with self._jobs_lock:
-                self._jobs[thread_id] = job_tracker
-            self._thread_run_job(
-                launch_spec, job, default_config, api, thread_id, job_tracker
+                self._jobs[rqi_id] = job_tracker
+            await self._task_run_job(
+                launch_spec, job, default_config, api, rqi_id, job_tracker
             )
         except LaunchDockerError as e:
             wandb.termerror(
@@ -555,9 +614,9 @@ class LaunchAgent:
             exception = e
             wandb._sentry.exception(e)
         finally:
-            self.finish_thread_id(thread_id, exception)
+            await self.finish_thread_id(rqi_id, exception)
 
-    def _thread_run_job(
+    async def _task_run_job(
         self,
         launch_spec: Dict[str, Any],
         job: Dict[str, Any],
@@ -568,23 +627,10 @@ class LaunchAgent:
     ) -> None:
         project = create_project_from_spec(launch_spec, api)
         self._set_queue_and_rqi_in_project(project, job, job_tracker.queue)
-        api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
+        ack = event_loop_thread_exec(api.ack_run_queue_item)
+        await ack(job["runQueueItemId"], project.run_id)
         # don't launch sweep runs if the sweep isn't healthy
-        if launch_spec.get("sweep_id"):
-            try:
-                state = api.get_sweep_state(
-                    sweep=launch_spec["sweep_id"],
-                    entity=launch_spec["entity"],
-                    project=launch_spec["project"],
-                )
-            except Exception as e:
-                _logger.debug(f"Fetch sweep state error: {e}")
-                state = None
-
-            if state != "RUNNING" and state != "PAUSED":
-                raise LaunchError(
-                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
-                )
+        await self.check_sweep_state(launch_spec, api)
 
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
@@ -605,22 +651,27 @@ class LaunchAgent:
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
+        if environment is not None and not isinstance(environment, LocalEnvironment):
+            await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
+        if registry is not None:
+            await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
+        if builder is not None and not isinstance(builder, NoOpBuilder):
+            await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
-
         if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
             assert entrypoint is not None
-            image_uri = builder.build_image(project, entrypoint, job_tracker)
+            image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
         _logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
-            run = backend.run(project, image_uri)
+            run = await backend.run(project, image_uri)
         else:
             assert image_uri
-            run = backend.run(project, image_uri)
+            run = await backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -639,31 +690,50 @@ class LaunchAgent:
         stopped_time: Optional[float] = None
         while self._jobs_event.is_set():
             # If run has failed to start before timeout, kill it
-            state = run.get_status().state
+            state = (await run.get_status()).state
             if state == "starting" and RUN_START_TIMEOUT > 0:
                 if time.time() - start_time > RUN_START_TIMEOUT:
-                    run.cancel()
+                    await run.cancel()
                     raise LaunchError(
                         f"Run failed to start within {RUN_START_TIMEOUT} seconds. "
                         "If you want to increase this timeout, set WANDB_LAUNCH_START_TIMEOUT "
                         "to a larger value."
                     )
-            if self._check_run_finished(job_tracker, launch_spec):
+            if await self._check_run_finished(job_tracker, launch_spec):
                 return
-            if job_tracker.check_wandb_run_stopped(self._api):
+            if await job_tracker.check_wandb_run_stopped(self._api):
                 if stopped_time is None:
                     stopped_time = time.time()
                 else:
                     if time.time() - stopped_time > MAX_WAIT_RUN_STOPPED:
-                        run.cancel()
+                        await run.cancel()
+            await asyncio.sleep(AGENT_POLLING_INTERVAL)
 
-            time.sleep(AGENT_POLLING_INTERVAL)
         # temp: for local, kill all jobs. we don't yet have good handling for different
         # types of runners in general
         if isinstance(run, LocalSubmittedRun) and run._command_proc is not None:
             run._command_proc.kill()
 
-    def _check_run_finished(
+    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
+        """Check the state of a sweep before launching a run for the sweep."""
+        if launch_spec.get("sweep_id"):
+            try:
+                get_sweep_state = event_loop_thread_exec(api.get_sweep_state)
+                state = await get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                _logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state != "RUNNING" and state != "PAUSED":
+                raise LaunchError(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
+    async def _check_run_finished(
         self, job_tracker: JobAndRunStatusTracker, launch_spec: Dict[str, Any]
     ) -> bool:
         if job_tracker.completed_status:
@@ -681,7 +751,7 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            status = run.get_status().state
+            status = (await run.get_status()).state
 
             if status == "preempted" and job_tracker.entity == self._entity:
                 config = launch_spec.copy()
@@ -750,9 +820,9 @@ class LaunchAgent:
             wandb._sentry.exception(e)
         return known_error
 
-    def get_job_and_queue(self) -> Optional[JobSpecAndQueue]:
+    async def get_job_and_queue(self) -> Optional[JobSpecAndQueue]:
         for queue in self._queues:
-            job = self.pop_from_queue(queue)
+            job = await self.pop_from_queue(queue)
             if job is not None:
                 self._queues.remove(queue)
                 self._queues.append(queue)

@@ -27,6 +27,120 @@ func (v *ArtifactAliasInput) GetArtifactCollectionName() string { return v.Artif
 // GetAlias returns ArtifactAliasInput.Alias, and is useful for accessing the field via an interface.
 func (v *ArtifactAliasInput) GetAlias() string { return v.Alias }
 
+// ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactFileURLsArtifact struct {
+	Files ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
+}
+
+// GetFiles returns ArtifactFileURLsArtifact.Files, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifact) GetFiles() ArtifactFileURLsArtifactFilesFileConnection {
+	return v.Files
+}
+
+// ArtifactFileURLsArtifactFilesFileConnection includes the requested fields of the GraphQL type FileConnection.
+type ArtifactFileURLsArtifactFilesFileConnection struct {
+	PageInfo ArtifactFileURLsArtifactFilesFileConnectionPageInfo        `json:"pageInfo"`
+	Edges    []ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge `json:"edges"`
+}
+
+// GetPageInfo returns ArtifactFileURLsArtifactFilesFileConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnection) GetPageInfo() ArtifactFileURLsArtifactFilesFileConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns ArtifactFileURLsArtifactFilesFileConnection.Edges, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnection) GetEdges() []ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge {
+	return v.Edges
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge includes the requested fields of the GraphQL type FileEdge.
+type ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge struct {
+	Node *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile `json:"node"`
+}
+
+// GetNode returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge.Node, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdge) GetNode() *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile {
+	return v.Node
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
+type ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile struct {
+	Name      string `json:"name"`
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetName returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile.Name, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetName() string {
+	return v.Name
+}
+
+// GetDirectUrl returns ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionEdgesFileEdgeNodeFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactFileURLsArtifactFilesFileConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type ArtifactFileURLsArtifactFilesFileConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns ArtifactFileURLsArtifactFilesFileConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns ArtifactFileURLsArtifactFilesFileConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsArtifactFilesFileConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// ArtifactFileURLsResponse is returned by ArtifactFileURLs on success.
+type ArtifactFileURLsResponse struct {
+	Artifact *ArtifactFileURLsArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactFileURLsResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactFileURLsResponse) GetArtifact() *ArtifactFileURLsArtifact { return v.Artifact }
+
+// ArtifactManifestArtifact includes the requested fields of the GraphQL type Artifact.
+type ArtifactManifestArtifact struct {
+	CurrentManifest *ArtifactManifestArtifactCurrentManifestArtifactManifest `json:"currentManifest"`
+}
+
+// GetCurrentManifest returns ArtifactManifestArtifact.CurrentManifest, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestArtifact) GetCurrentManifest() *ArtifactManifestArtifactCurrentManifestArtifactManifest {
+	return v.CurrentManifest
+}
+
+// ArtifactManifestArtifactCurrentManifestArtifactManifest includes the requested fields of the GraphQL type ArtifactManifest.
+type ArtifactManifestArtifactCurrentManifestArtifactManifest struct {
+	File ArtifactManifestArtifactCurrentManifestArtifactManifestFile `json:"file"`
+}
+
+// GetFile returns ArtifactManifestArtifactCurrentManifestArtifactManifest.File, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestArtifactCurrentManifestArtifactManifest) GetFile() ArtifactManifestArtifactCurrentManifestArtifactManifestFile {
+	return v.File
+}
+
+// ArtifactManifestArtifactCurrentManifestArtifactManifestFile includes the requested fields of the GraphQL type File.
+type ArtifactManifestArtifactCurrentManifestArtifactManifestFile struct {
+	DirectUrl string `json:"directUrl"`
+}
+
+// GetDirectUrl returns ArtifactManifestArtifactCurrentManifestArtifactManifestFile.DirectUrl, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestArtifactCurrentManifestArtifactManifestFile) GetDirectUrl() string {
+	return v.DirectUrl
+}
+
+// ArtifactManifestResponse is returned by ArtifactManifest on success.
+type ArtifactManifestResponse struct {
+	Artifact *ArtifactManifestArtifact `json:"artifact"`
+}
+
+// GetArtifact returns ArtifactManifestResponse.Artifact, and is useful for accessing the field via an interface.
+func (v *ArtifactManifestResponse) GetArtifact() *ArtifactManifestArtifact { return v.Artifact }
+
 type ArtifactManifestType string
 
 const (
@@ -427,16 +541,17 @@ func (v *RunResumeStatusModelProject) GetBucket() *RunResumeStatusModelProjectBu
 
 // RunResumeStatusModelProjectBucketRun includes the requested fields of the GraphQL type Run.
 type RunResumeStatusModelProjectBucketRun struct {
-	Id               string  `json:"id"`
-	Name             string  `json:"name"`
-	SummaryMetrics   *string `json:"summaryMetrics"`
-	DisplayName      *string `json:"displayName"`
-	LogLineCount     *int    `json:"logLineCount"`
-	HistoryLineCount *int    `json:"historyLineCount"`
-	EventsLineCount  *int    `json:"eventsLineCount"`
-	HistoryTail      *string `json:"historyTail"`
-	EventsTail       *string `json:"eventsTail"`
-	Config           *string `json:"config"`
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	SummaryMetrics   *string  `json:"summaryMetrics"`
+	DisplayName      *string  `json:"displayName"`
+	LogLineCount     *int     `json:"logLineCount"`
+	HistoryLineCount *int     `json:"historyLineCount"`
+	EventsLineCount  *int     `json:"eventsLineCount"`
+	HistoryTail      *string  `json:"historyTail"`
+	EventsTail       *string  `json:"eventsTail"`
+	Config           *string  `json:"config"`
+	Tags             []string `json:"tags"`
 }
 
 // GetId returns RunResumeStatusModelProjectBucketRun.Id, and is useful for accessing the field via an interface.
@@ -469,6 +584,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetEventsTail() *string { return 
 // GetConfig returns RunResumeStatusModelProjectBucketRun.Config, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Config }
 
+// GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
+
 // RunResumeStatusModelProjectEntity includes the requested fields of the GraphQL type Entity.
 type RunResumeStatusModelProjectEntity struct {
 	Id   string `json:"id"`
@@ -488,6 +606,48 @@ type RunResumeStatusResponse struct {
 
 // GetModel returns RunResumeStatusResponse.Model, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
+
+// ServerInfoResponse is returned by ServerInfo on success.
+type ServerInfoResponse struct {
+	ServerInfo *ServerInfoServerInfo `json:"serverInfo"`
+}
+
+// GetServerInfo returns ServerInfoResponse.ServerInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoResponse) GetServerInfo() *ServerInfoServerInfo { return v.ServerInfo }
+
+// ServerInfoServerInfo includes the requested fields of the GraphQL type ServerInfo.
+type ServerInfoServerInfo struct {
+	CliVersionInfo         interface{}                                 `json:"cliVersionInfo"`
+	LatestLocalVersionInfo *ServerInfoServerInfoLatestLocalVersionInfo `json:"latestLocalVersionInfo"`
+}
+
+// GetCliVersionInfo returns ServerInfoServerInfo.CliVersionInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfo) GetCliVersionInfo() interface{} { return v.CliVersionInfo }
+
+// GetLatestLocalVersionInfo returns ServerInfoServerInfo.LatestLocalVersionInfo, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfo) GetLatestLocalVersionInfo() *ServerInfoServerInfoLatestLocalVersionInfo {
+	return v.LatestLocalVersionInfo
+}
+
+// ServerInfoServerInfoLatestLocalVersionInfo includes the requested fields of the GraphQL type LocalVersionInfo.
+type ServerInfoServerInfoLatestLocalVersionInfo struct {
+	OutOfDate                   bool   `json:"outOfDate"`
+	LatestVersionString         string `json:"latestVersionString"`
+	VersionOnThisInstanceString string `json:"versionOnThisInstanceString"`
+}
+
+// GetOutOfDate returns ServerInfoServerInfoLatestLocalVersionInfo.OutOfDate, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetOutOfDate() bool { return v.OutOfDate }
+
+// GetLatestVersionString returns ServerInfoServerInfoLatestLocalVersionInfo.LatestVersionString, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetLatestVersionString() string {
+	return v.LatestVersionString
+}
+
+// GetVersionOnThisInstanceString returns ServerInfoServerInfoLatestLocalVersionInfo.VersionOnThisInstanceString, and is useful for accessing the field via an interface.
+func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceString() string {
+	return v.VersionOnThisInstanceString
+}
 
 type UploadPartsInput struct {
 	PartNumber int64  `json:"partNumber"`
@@ -683,6 +843,30 @@ type ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity struct {
 func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName() string {
 	return v.Name
 }
+
+// __ArtifactFileURLsInput is used internally by genqlient
+type __ArtifactFileURLsInput struct {
+	Id      string  `json:"id"`
+	Cursor  *string `json:"cursor"`
+	PerPage *int    `json:"perPage"`
+}
+
+// GetId returns __ArtifactFileURLsInput.Id, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetId() string { return v.Id }
+
+// GetCursor returns __ArtifactFileURLsInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetCursor() *string { return v.Cursor }
+
+// GetPerPage returns __ArtifactFileURLsInput.PerPage, and is useful for accessing the field via an interface.
+func (v *__ArtifactFileURLsInput) GetPerPage() *int { return v.PerPage }
+
+// __ArtifactManifestInput is used internally by genqlient
+type __ArtifactManifestInput struct {
+	Artifact_id string `json:"artifact_id"`
+}
+
+// GetArtifact_id returns __ArtifactManifestInput.Artifact_id, and is useful for accessing the field via an interface.
+func (v *__ArtifactManifestInput) GetArtifact_id() string { return v.Artifact_id }
 
 // __ClientIDMappingInput is used internally by genqlient
 type __ClientIDMappingInput struct {
@@ -1009,6 +1193,95 @@ func (v *__UseArtifactInput) GetRunName() string { return v.RunName }
 
 // GetArtifactID returns __UseArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
 func (v *__UseArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// The query or mutation executed by ArtifactFileURLs.
+const ArtifactFileURLs_Operation = `
+query ArtifactFileURLs ($id: ID!, $cursor: String, $perPage: Int) {
+	artifact(id: $id) {
+		files(after: $cursor, first: $perPage) {
+			pageInfo {
+				hasNextPage
+				endCursor
+			}
+			edges {
+				node {
+					name
+					directUrl
+				}
+			}
+		}
+	}
+}
+`
+
+func ArtifactFileURLs(
+	ctx context.Context,
+	client graphql.Client,
+	id string,
+	cursor *string,
+	perPage *int,
+) (*ArtifactFileURLsResponse, error) {
+	req := &graphql.Request{
+		OpName: "ArtifactFileURLs",
+		Query:  ArtifactFileURLs_Operation,
+		Variables: &__ArtifactFileURLsInput{
+			Id:      id,
+			Cursor:  cursor,
+			PerPage: perPage,
+		},
+	}
+	var err error
+
+	var data ArtifactFileURLsResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by ArtifactManifest.
+const ArtifactManifest_Operation = `
+query ArtifactManifest ($artifact_id: ID!) {
+	artifact(id: $artifact_id) {
+		currentManifest {
+			file {
+				directUrl
+			}
+		}
+	}
+}
+`
+
+func ArtifactManifest(
+	ctx context.Context,
+	client graphql.Client,
+	artifact_id string,
+) (*ArtifactManifestResponse, error) {
+	req := &graphql.Request{
+		OpName: "ArtifactManifest",
+		Query:  ArtifactManifest_Operation,
+		Variables: &__ArtifactManifestInput{
+			Artifact_id: artifact_id,
+		},
+	}
+	var err error
+
+	var data ArtifactManifestResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
 
 // The query or mutation executed by ClientIDMapping.
 const ClientIDMapping_Operation = `
@@ -1416,6 +1689,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			historyTail
 			eventsTail
 			config
+			tags
 		}
 	}
 }
@@ -1440,6 +1714,42 @@ func RunResumeStatus(
 	var err error
 
 	var data RunResumeStatusResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by ServerInfo.
+const ServerInfo_Operation = `
+query ServerInfo {
+	serverInfo {
+		cliVersionInfo
+		latestLocalVersionInfo {
+			outOfDate
+			latestVersionString
+			versionOnThisInstanceString
+		}
+	}
+}
+`
+
+func ServerInfo(
+	ctx context.Context,
+	client graphql.Client,
+) (*ServerInfoResponse, error) {
+	req := &graphql.Request{
+		OpName: "ServerInfo",
+		Query:  ServerInfo_Operation,
+	}
+	var err error
+
+	var data ServerInfoResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

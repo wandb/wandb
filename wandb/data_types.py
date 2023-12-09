@@ -584,7 +584,7 @@ class Table(Media):
                         required="Deserializing numpy columns requires numpy to be installed",
                     )
                     deserialized = np.load(
-                        source_artifact.get_path(serialization_path["path"]).download()
+                        source_artifact.get_entry(serialization_path["path"]).download()
                     )
                     np_deserialized_columns[
                         json_obj["columns"].index(col_name)
@@ -1100,7 +1100,7 @@ class Audio(BatchableMedia):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
+            source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
         )
 
@@ -1383,7 +1383,7 @@ class Bokeh(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        return cls(source_artifact.get_path(json_obj["path"]).download())
+        return cls(source_artifact.get_entry(json_obj["path"]).download())
 
 
 def _nest(thing):
@@ -1399,14 +1399,14 @@ def _nest(thing):
 class Graph(Media):
     """Wandb class for graphs.
 
-    This class is typically used for saving and diplaying neural net models.  It
+    This class is typically used for saving and displaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
 
     Examples:
         Import a keras model:
         ```
-            Graph.from_keras(keras_model)
+        Graph.from_keras(keras_model)
         ```
 
     Attributes:

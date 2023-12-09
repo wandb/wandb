@@ -16,7 +16,9 @@ type NexusLogger struct {
 }
 
 func NewNexusLogger(logger *slog.Logger, tags Tags) *NexusLogger {
-
+	if tags == nil {
+		tags = make(Tags)
+	}
 	nl := &NexusLogger{
 		tags: tags,
 	}
@@ -112,6 +114,15 @@ func (nl *NexusLogger) CaptureFatalAndPanic(msg string, err error, args ...inter
 // CaptureWarn logs a warning and sends it to sentry.
 func (nl *NexusLogger) CaptureWarn(msg string, args ...interface{}) {
 	nl.Logger.Warn(msg, args...)
+
+	tags := nl.tagsFromArgs(args...)
+	// send message to sentry:
+	CaptureMessage(msg, tags)
+}
+
+// CaptureInfo logs an info message and sends it to sentry.
+func (nl *NexusLogger) CaptureInfo(msg string, args ...interface{}) {
+	nl.Logger.Info(msg, args...)
 
 	tags := nl.tagsFromArgs(args...)
 	// send message to sentry:

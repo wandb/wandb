@@ -10,7 +10,7 @@ depend:
         - pillow
         - tensorflow>=2.6.2,<2.7
 assert:
-    - :wandb:runs_len: 1
+    - :wandb:runs_len: 2
     - :wandb:artifacts[model-lovely-dawn-32][type]: model
     # Test doesnt always save 2 models since it might not improve
     # on second epoch.  When test is made more determinstic, this

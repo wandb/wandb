@@ -62,17 +62,18 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 	for _, item := range record.GetFiles().GetFiles() {
 		matches, err := filepath.Glob(item.Path)
 
-		if err != nil {
-			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
+		// if no matches, just add the item assuming it's not a glob
+		if len(matches) == 0 {
+			// TODO: fix this. if item.Path is a relative path, it will be relative to the current working directory
+			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
+			// 	continue
+			// }
+			items = append(items, item)
 			continue
 		}
 
-		// if no matches, just add the item assuming it's not a glob
-		if len(matches) == 0 {
-			if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
-				continue
-			}
-			items = append(items, item)
+		if err != nil {
+			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
 			continue
 		}
 
@@ -128,4 +129,63 @@ func (fh *FileHandler) Final() *service.Record {
 		return nil
 	}
 	return fh.final
+}
+
+type FileTransferHandler struct {
+	info          map[string]*service.FileTransferInfoRequest
+	totalBytes    int64
+	uploadedBytes int64
+	DedupedBytes  int64
+	fileCounts    *service.FileCounts
+}
+
+func NewFileTransferHandler() *FileTransferHandler {
+	return &FileTransferHandler{
+		info:       make(map[string]*service.FileTransferInfoRequest),
+		fileCounts: &service.FileCounts{},
+	}
+}
+
+func (fth *FileTransferHandler) Handle(record *service.FileTransferInfoRequest) {
+	key := record.GetPath()
+	if info, ok := fth.info[key]; ok {
+		fth.uploadedBytes += record.GetProcessed() - info.GetProcessed()
+
+		fth.fileCounts.OtherCount += record.GetFileCounts().GetOtherCount() - info.GetFileCounts().GetOtherCount()
+		fth.fileCounts.WandbCount += record.GetFileCounts().GetWandbCount() - info.GetFileCounts().GetWandbCount()
+		fth.fileCounts.MediaCount += record.GetFileCounts().GetMediaCount() - info.GetFileCounts().GetMediaCount()
+		fth.fileCounts.ArtifactCount += record.GetFileCounts().GetArtifactCount() - info.GetFileCounts().GetArtifactCount()
+
+		fth.info[key] = record
+	} else {
+		fth.totalBytes += record.GetSize()
+		fth.uploadedBytes += record.GetProcessed()
+
+		fth.fileCounts.OtherCount += record.GetFileCounts().GetOtherCount()
+		fth.fileCounts.WandbCount += record.GetFileCounts().GetWandbCount()
+		fth.fileCounts.MediaCount += record.GetFileCounts().GetMediaCount()
+		fth.fileCounts.ArtifactCount += record.GetFileCounts().GetArtifactCount()
+		fth.info[record.GetPath()] = record
+	}
+}
+
+func (fth *FileTransferHandler) GetTotalBytes() int64 {
+	return fth.totalBytes
+}
+
+func (fth *FileTransferHandler) GetUploadedBytes() int64 {
+	return fth.uploadedBytes
+}
+
+func (fth *FileTransferHandler) GetDedupedBytes() int64 {
+	return fth.DedupedBytes
+}
+
+// TODO: with the new rust client we want to get rid of this
+func (fth *FileTransferHandler) GetFileCounts() *service.FileCounts {
+	return fth.fileCounts
+}
+
+func (fth *FileTransferHandler) IsDone() bool {
+	return fth.totalBytes == fth.uploadedBytes
 }

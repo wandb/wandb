@@ -54,18 +54,8 @@ from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, get_origin, get_type_hints
 else:
-
-    def get_args(obj: Any) -> Optional[Any]:
-        return obj.__args__ if hasattr(obj, "__args__") else None
-
-    def get_origin(obj: Any) -> Optional[Any]:
-        return obj.__origin__ if hasattr(obj, "__origin__") else None
-
-    def get_type_hints(obj: Any) -> Dict[str, Any]:
-        return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
+    from typing_extensions import get_args, get_origin, get_type_hints
 
 
 class SettingsPreprocessingError(UsageError):
@@ -318,11 +308,11 @@ class SettingsData:
     _file_stream_retry_wait_min_seconds: int  # min wait time between retries
     _file_stream_retry_wait_max_seconds: int  # max wait time between retries
     _file_stream_timeout_seconds: int  # timeout for individual HTTP requests
-    # file uploader retry client configuration
-    _file_uploader_retry_max: int
-    _file_uploader_retry_wait_min_seconds: int
-    _file_uploader_retry_wait_max_seconds: int
-    _file_uploader_timeout_seconds: int
+    # file transfer retry client configuration
+    _file_transfer_retry_max: int
+    _file_transfer_retry_wait_min_seconds: int
+    _file_transfer_retry_wait_max_seconds: int
+    _file_transfer_timeout_seconds: int
     _flow_control_custom: bool
     _flow_control_disabled: bool
     # graphql retry client configuration
@@ -655,10 +645,10 @@ class Settings(SettingsData):
             _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
             # A 3 minute timeout for all filestream post requests
             _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
-            _file_uploader_retry_max={"value": 10, "preprocessor": int},
-            _file_uploader_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _file_uploader_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            _file_uploader_timeout_seconds={"value": 0, "preprocessor": int},
+            _file_transfer_retry_max={"value": 10, "preprocessor": int},
+            _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": int},
+            _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            _file_transfer_timeout_seconds={"value": 0, "preprocessor": int},
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -1652,7 +1642,7 @@ class Settings(SettingsData):
             "WANDB_TAGS": "run_tags",
             "WANDB_JOB_TYPE": "run_job_type",
             "WANDB_HTTP_TIMEOUT": "_graphql_timeout_seconds",
-            "WANDB_FILE_PUSHER_TIMEOUT": "_file_uploader_timeout_seconds",
+            "WANDB_FILE_PUSHER_TIMEOUT": "_file_transfer_timeout_seconds",
             "WANDB_USER_EMAIL": "email",
         }
         env = dict()

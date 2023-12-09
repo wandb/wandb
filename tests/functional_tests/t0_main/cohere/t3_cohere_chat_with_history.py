@@ -16,7 +16,6 @@ def main():
         ],
         return_prompt=True,
         return_preamble=True,
-        return_chatlog=True,
     )
 
     _ = co.chat(

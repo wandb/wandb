@@ -4,7 +4,6 @@ import os
 import platform
 import re
 import shutil
-import stat
 import sys
 import tempfile
 import time
@@ -139,7 +138,8 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
     dest_path = copy_or_overwrite_changed(source_path, target_path)
     assert dest_path == target_path
     assert dest_path.read_text() == "replacement"
-    assert dest_path.stat().st_mode & stat.S_IWOTH == stat.S_IWOTH
+    umask = os.umask(0o022)
+    assert dest_path.stat().st_mode & umask == 0
 
 
 @pytest.mark.xfail(reason="Not possible to chown a file to root under test runner.")

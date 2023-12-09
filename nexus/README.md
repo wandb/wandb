@@ -1,54 +1,43 @@
-# W&B Nexus: A New Backend for the W&B SDK
+# Project Nexus: A New Backend for the W&B SDK
 
 [![PyPI version](https://badge.fury.io/py/wandb-core.svg)](https://badge.fury.io/py/wandb-core)
 [![PyPI - License](https://img.shields.io/pypi/l/wandb-core)]()
 
-## What is Nexus?
+## What is it all about?
 
-Greetings, developers!
+Good News, Everyone!
 
-*What is Project Nexus?* At the highest level, Nexus is a new backend for the W&B SDK.
+We have built a new backend for the W&B SDK that is more robust, performant, and versatile!
 
-*Why would anyone care and want to use it?* There are multiple reasons, but here are just two:
-- It's faster. A lot faster. We're talking orders of magnitude faster for some operations.
-- It enables clean multi-language support.
+## How do I use it?
 
-`nexus` is a Golang reimplementation of the W&B SDK internal process, `wandb service`,
-based on the lessons learned from the original implementation(s),
-but starting from a clean slate.
-
-## Installation
-
-To install Nexus, you will need to run the following commands:
+All you need is to have the `wandb-core` package installed into your environment. `wandb` will
+pick it up and use it automatically:
 
 ```bash
-pip install "wandb[nexus]" --pre
+pip install -U wandb wandb-core
 ```
 
-### Supported Platforms
+Note: you will need `wandb>=0.16.0`.
 
-Nexus is currently supported on the following platforms:
+### Supported Platforms
 
 - Linux:`x86_64`, `aarch64`
 - macOS: `x86_64`, `arm64`
 - Windows `amd64`
 
-If you are using a different platform, you can build Nexus from the source by following the
+If you are using a different platform, you can build `wandb-core` from sources by following the
 instructions in the [contributing guide](docs/contributing.md#installing-nexus).
 Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-to let us know that you are interested in using Nexus on
+to let us know that you are interested in using it on
 your platform, and we will prioritize adding support for it.
 
-## Usage example
+### How do I fall back to the previous version of the SDK backend?
 
-While Nexus is still in development, you need to explicitly opt-in to use it.
+Just uninstall `wandb-core` from your environment.
 
-```python
-import wandb
-
-wandb.require("nexus")
-
-# Your code here using the W&B SDK
+```bash
+pip uninstall wandb-core
 ```
 
 ## Contributing
@@ -59,14 +48,13 @@ your development environment and how to contribute to the codebase.
 ## Feedback
 Please give Nexus a try and let us know what you think, we believe it is worth it!
 
-We are very much looking forward to your feedback, especially bug reports.
+We are very much looking forward to your feedback, especially bug reports!
 Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-if you encounter an error, mention that you are using Nexus.
+if you encounter an error, and mention that you are using `wandb-core`.
 
-## Feature Parity Status
+## Feature Support Status
 
-The following table shows the status of the feature parity
-between the current W&B SDK and Nexus for version `0.16.0b3`.
+The following table shows the status of the feature support as of `wandb-core` version `0.17.0b2`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -109,7 +97,7 @@ Status legend:
 |             | team entity       | ✅          |
 |             | service account   | 🚧          |
 | CLI         |                   | 🚧[^CLI.1] |
-| Artifacts   |                   | 🚧[^A.1]   |
+| Artifacts   |                   | ✅          |
 | Launch      |                   | ❌[^L.1]    |
 | Sweeps      |                   | 🚧[^S.1]   |
 
@@ -121,6 +109,5 @@ Status legend:
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
     commands. Expect the CLI to be rewritten to use the new backend.
-[^A.1]: Artifacts are partially supported. Expect full support in the near future.
 [^L.1]: Launch is not yet supported.
 [^S.1]: Requires verification.

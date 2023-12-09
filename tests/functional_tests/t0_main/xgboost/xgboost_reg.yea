@@ -1,6 +1,6 @@
 id: 0.xgboost.01-regression
 tag:
-  shard: service
+    shard: xgboost
 plugin:
   - wandb
 command:

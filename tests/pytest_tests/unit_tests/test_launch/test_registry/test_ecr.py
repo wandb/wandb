@@ -7,7 +7,13 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
 from wandb.sdk.launch.utils import LaunchError
 
 
-def test_ecr_verify():
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_ecr_verify():
     """Test that the ECR registry is verified correctly."""
     client = MagicMock()
     client.describe_registry.return_value = {"registryId": "123456789012"}
@@ -19,13 +25,14 @@ def test_ecr_verify():
     session = MagicMock()
     session.client.return_value = client
     environment = MagicMock()
-    environment.get_session.return_value = session
+    environment.get_session = AsyncMock(return_value=session)
     ecr = ElasticContainerRegistry("my-repo", environment)
-    ecr.verify()
+    await ecr.verify()
     assert ecr.uri == "123456789012.dkr.ecr.us-east-1.amazonaws.com"
 
 
-def test_ecr_get_username_password():
+@pytest.mark.asyncio
+async def test_ecr_get_username_password():
     """Test that the ECR registry returns the correct username and password."""
     client = MagicMock()
     client.get_authorization_token.return_value = {
@@ -38,14 +45,15 @@ def test_ecr_get_username_password():
     session = MagicMock()
     session.client.return_value = client
     environment = MagicMock()
-    environment.get_session.return_value = session
+    environment.get_session = AsyncMock(return_value=session)
     ecr = ElasticContainerRegistry("my-repo", environment)
-    username, password = ecr.get_username_password()
+    username, password = await ecr.get_username_password()
     assert username == "user"
     assert password == "password"
 
 
-def test_ecr_image_exists():
+@pytest.mark.asyncio
+async def test_ecr_image_exists():
     """Test that the ECR registry checks if an image exists correctly."""
     client = MagicMock()
     client.describe_images.return_value = {
@@ -64,10 +72,16 @@ def test_ecr_image_exists():
     session = MagicMock()
     session.client.return_value = client
     environment = MagicMock()
-    environment.get_session.return_value = session
-    ecr = ElasticContainerRegistry("my-repo", environment)
+    environment.get_session = AsyncMock(return_value=session)
+    environment.region = "us-east-1"
+    environment._account = "123456789012"
+    ecr = ElasticContainerRegistry.from_config(
+        {"type": "ecr", "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"},
+        environment,
+    )
+    await ecr.verify()
     assert (
-        ecr.check_image_exists(
+        await ecr.check_image_exists(
             "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
         )
         is True
@@ -75,7 +89,7 @@ def test_ecr_image_exists():
 
     client.describe_images.return_value = {"imageDetails": []}
     assert (
-        ecr.check_image_exists(
+        await ecr.check_image_exists(
             "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest"
         )
         is False
@@ -89,7 +103,6 @@ def test_from_config():
     ecr = ElasticContainerRegistry.from_config(
         {"type": "ecr", "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo"},
         environment,
-        verify=False,
     )
     assert ecr.repo_name == "my-repo"
 
@@ -97,5 +110,4 @@ def test_from_config():
         ElasticContainerRegistry.from_config(
             {"type": "ecr", "uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com"},
             environment,
-            verify=False,
         )

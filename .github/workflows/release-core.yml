@@ -59,7 +59,9 @@ jobs:
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
 
-# todo: build sdist
+# TODO: build swift library for ARM macs GPU stats collection
+
+# TODO: build sdist
 #      - name: Build sdist
 #        if: runner.os == 'Linux'
 #        run: |
@@ -117,8 +119,6 @@ jobs:
         run: |
           python -m pip install .
       - name: Smoke-test wandb-core TestPyPI install
-        env:
-          WANDB_REQUIRE_NEXUS: true
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
@@ -150,7 +150,7 @@ jobs:
       - name: Install from PyPI and get version
         id: get_version
         run: |
-          sleep 5
+          sleep 15
           python -m pip install --upgrade pip
           if [ "${{ inputs.use_pre }}" == "true" ]; then
             python -m pip install --pre wandb-core

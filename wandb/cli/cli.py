@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import asyncio
 import configparser
 import datetime
 import getpass
@@ -475,6 +476,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
 def sync(
     ctx,
@@ -498,6 +500,7 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
     append=None,
+    skip_console=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -567,6 +570,7 @@ def sync(
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
             append=append,
+            skip_console=skip_console,
         )
         for p in _path:
             sm.add(p)
@@ -1054,12 +1058,6 @@ def launch_sweep(
     else:
         overrides["args"] = args
 
-    # set name of scheduler
-    prefix = "sweep" if scheduler_job else "wandb"
-    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
-    if scheduler_args.get("name"):
-        name = scheduler_args["name"]
-
     # configure scheduler job resource
     resource = scheduler_args.get("resource")
     if resource:
@@ -1080,7 +1078,7 @@ def launch_sweep(
     launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name=name,
+        name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
@@ -1334,24 +1332,30 @@ def launch(
     if queue is None:
         # direct launch
         try:
-            run = _launch(
-                api,
-                uri,
-                job,
-                project=project,
-                entity=entity,
-                docker_image=docker_image,
-                name=name,
-                entry_point=entry_point,
-                version=git_version,
-                resource=resource,
-                resource_args=resource_args,
-                launch_config=config,
-                synchronous=(not run_async),
-                run_id=run_id,
-                repository=repository,
+            run = asyncio.run(
+                _launch(
+                    api,
+                    uri,
+                    job,
+                    project=project,
+                    entity=entity,
+                    docker_image=docker_image,
+                    name=name,
+                    entry_point=entry_point,
+                    version=git_version,
+                    resource=resource,
+                    resource_args=resource_args,
+                    launch_config=config,
+                    synchronous=(not run_async),
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
-            if run.get_status().state in ["failed", "stopped", "preempted"]:
+            if asyncio.run(run.get_status()).state in [
+                "failed",
+                "stopped",
+                "preempted",
+            ]:
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
@@ -1362,26 +1366,31 @@ def launch(
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
             sys.exit(e)
+        except asyncio.CancelledError:
+            sys.exit(0)
     else:
         try:
-            _launch_add(
-                api,
-                uri,
-                job,
-                config,
-                project,
-                entity,
-                queue,
-                resource,
-                entry_point,
-                name,
-                git_version,
-                docker_image,
-                project_queue,
-                resource_args,
-                build=build,
-                run_id=run_id,
-                repository=repository,
+            asyncio.run(
+                _launch_add(
+                    api,
+                    uri,
+                    job,
+                    config,
+                    None,
+                    project,
+                    entity,
+                    queue,
+                    resource,
+                    entry_point,
+                    name,
+                    git_version,
+                    docker_image,
+                    project_queue,
+                    resource_args,
+                    build=build,
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
         except Exception as e:
             wandb._sentry.exception(e)
@@ -1416,6 +1425,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1440,6 +1459,7 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1450,6 +1470,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
@@ -1700,6 +1723,12 @@ def create(
     if not project:
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
+
+    if entrypoint is None and job_type in ["git", "code"]:
+        wandb.termwarn(
+            f"No entrypoint provided for {job_type} job, defaulting to main.py"
+        )
+        entrypoint = "main.py"
 
     artifact, action, aliases = _create_job(
         api=api,

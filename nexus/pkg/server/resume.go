@@ -1,8 +1,9 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/internal/gql"
 	fs "github.com/wandb/wandb/nexus/pkg/filestream"
@@ -117,6 +118,15 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record, run *service.
 
 	if err = s.handleConfigResume(record, run, bucket); err != nil {
 		return err
+	}
+
+	// handle tags
+	// - when resuming a run, its tags will be overwritten by the tags
+	//   passed to `wandb.init()`.
+	// - to add tags to a resumed run without overwriting its existing tags
+	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
+	if run.Tags == nil {
+		run.Tags = append(run.Tags, bucket.GetTags()...)
 	}
 
 	s.resumeState.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())

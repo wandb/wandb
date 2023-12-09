@@ -2,11 +2,16 @@ import os
 import platform
 
 import pytest
-import tensorboard.summary.v1 as tb_summary
-import tensorflow as tf
-import wandb
-from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
-from wandb.errors import term
+
+pytest.importorskip("tensorflow")
+
+import tensorboard.summary.v1 as tb_summary  # noqa: E402
+import tensorflow as tf  # noqa: E402
+import wandb  # noqa: E402
+from tensorboard.plugins.pr_curve import (  # noqa: E402
+    summary as pr_curve_plugin_summary,
+)
+from wandb.errors import term  # noqa: E402
 
 PR_CURVE_PANEL_CONFIG = {
     "panel_type": "Vega2",

@@ -2,10 +2,11 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/segmentio/encoding/json"
 
 	"google.golang.org/protobuf/proto"
 
@@ -173,6 +174,8 @@ func NewSystemMonitor(
 		NewDisk(settings),
 		NewNetwork(settings),
 		NewGPUNvidia(settings),
+		NewGPUAMD(settings),
+		NewGPUApple(settings),
 	}
 
 	// if asset is available, add it to the list of assets to monitor

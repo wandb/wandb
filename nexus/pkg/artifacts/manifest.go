@@ -1,9 +1,11 @@
 package artifacts
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
+	"io"
+	"net/http"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/nexus/pkg/service"
 	"github.com/wandb/wandb/nexus/pkg/utils"
@@ -27,6 +29,7 @@ type ManifestEntry struct {
 	Size            int64                  `json:"size"`
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
+	DownloadURL     *string                `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -61,22 +64,35 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
-	data, rerr := json.Marshal(m)
-	if rerr != nil {
-		return
-	}
+	return utils.WriteJsonToFileWithDigest(m)
+}
 
-	f, rerr := os.CreateTemp("", "tmpfile-")
-	if rerr != nil {
-		return
+func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {
+	manifestEntries := m.Contents
+	manifestEntry, ok := manifestEntries[path]
+	if !ok {
+		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
-	defer f.Close()
-	_, rerr = f.Write(data)
-	if rerr != nil {
-		return
-	}
-	filename = f.Name()
+	return manifestEntry, nil
+}
 
-	digest, rerr = utils.ComputeB64MD5(data)
-	return
+func loadManifestFromURL(url string) (Manifest, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer resp.Body.Close()
+	manifest := Manifest{}
+	if resp.StatusCode != http.StatusOK {
+		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
+	}
+	err = json.Unmarshal(body, &manifest)
+	if err != nil {
+		return Manifest{}, nil
+	}
+	return manifest, nil
 }

@@ -10,5 +10,11 @@
 # Nexus changes need extra scrutiny during the initial rollout
 /nexus/ @wandb/sdk-team
 
+# ML Workflows team
+/nexus/pkg/artifacts/ @wandb/mlw-team
+/wandb/sdk/artifacts/ @wandb/mlw-team
+/tests/functional_tests/t0_main/artifacts/ @wandb/mlw-team
+/tests/pytest_tests/system_tests/test_artifacts/ @wandb/mlw-team
+/tests/pytest_tests/unit_tests/test_artifacts/ @wandb/mlw-team
 /tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
 /tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team

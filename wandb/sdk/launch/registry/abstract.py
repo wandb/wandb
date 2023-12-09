@@ -11,12 +11,12 @@ class AbstractRegistry(ABC):
     uri: str
 
     @abstractmethod
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the registry is configured correctly."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
@@ -25,7 +25,7 @@ class AbstractRegistry(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the URI for a repository.
 
         Returns:
@@ -34,7 +34,7 @@ class AbstractRegistry(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if an image exists in the registry.
 
         Arguments:
@@ -48,7 +48,9 @@ class AbstractRegistry(ABC):
     @classmethod
     @abstractmethod
     def from_config(
-        cls, config: dict, environment: "AbstractEnvironment", verify: bool = True
+        cls,
+        config: dict,
+        environment: "AbstractEnvironment",
     ) -> "AbstractRegistry":
         """Create a registry from a config."""
         raise NotImplementedError

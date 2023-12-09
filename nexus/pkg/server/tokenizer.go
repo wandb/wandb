@@ -31,7 +31,7 @@ func (x *Tokenizer) Split(data []byte, _ bool) (advance int, token []byte, err e
 		buf := bytes.NewReader(data)
 		err := binary.Read(buf, binary.LittleEndian, &x.header)
 		if err != nil {
-			slog.Error("cant read token", "err", err)
+			slog.Error("can't read token", "err", err)
 			return 0, nil, err
 		}
 		if x.header.Magic != uint8('W') {

@@ -107,3 +107,52 @@ func TestCollectFinal(t *testing.T) {
 		collector.dump(offset),
 	)
 }
+
+func TestIsDirtyAfterAddingChunk(t *testing.T) {
+	input := make(chan processedChunk, 32)
+	input <- processedChunk{
+		fileType: HistoryChunk,
+		fileLine: "line",
+	}
+	collector := chunkCollector{
+		input:           input,
+		heartbeatTime:   60 * time.Second,
+		delayProcess:    2 * time.Second,
+		maxItemsPerPush: 100,
+	}
+	collector.read()
+	assert.True(t, collector.isDirty)
+}
+
+func TestIsDirtyAfterProcessedChunkUpdate(t *testing.T) {
+	input := make(chan processedChunk, 32)
+	input <- processedChunk{
+		Preempting: true,
+	}
+	collector := chunkCollector{
+		input:           input,
+		heartbeatTime:   60 * time.Second,
+		delayProcess:    2 * time.Second,
+		maxItemsPerPush: 100,
+	}
+	collector.read()
+	assert.True(t, collector.isDirty)
+}
+
+func TestIsDirtyResetAfterDump(t *testing.T) {
+	input := make(chan processedChunk, 32)
+	input <- processedChunk{
+		fileType: HistoryChunk,
+		fileLine: "line",
+	}
+	collector := chunkCollector{
+		input:           input,
+		heartbeatTime:   60 * time.Second,
+		delayProcess:    2 * time.Second,
+		maxItemsPerPush: 100,
+	}
+	collector.read()
+	offset := FileStreamOffsetMap{}
+	collector.dump(offset)
+	assert.False(t, collector.isDirty)
+}
