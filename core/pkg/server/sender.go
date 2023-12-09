@@ -972,11 +972,11 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
 
 	s.syncService = NewSyncService(s.ctx,
-		WithLogger(s.logger),
-		WithSenderFunc(s.sendRecord),
-		WithOverwrite(request.GetOverwrite()),
-		WithSkip(request.GetSkip()),
-		WithFlushCallback(func(err error) {
+		WithSyncServiceLogger(s.logger),
+		WithSyncServiceSenderFunc(s.sendRecord),
+		WithSyncServiceOverwrite(request.GetOverwrite()),
+		WithSyncServiceSkip(request.GetSkip()),
+		WithSyncServiceFlushCallback(func(err error) {
 			var errorInfo *service.ErrorInfo
 			if err != nil {
 				errorInfo = &service.ErrorInfo{

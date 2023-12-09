@@ -35,31 +35,31 @@ func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService
 	return sync
 }
 
-func WithOverwrite(overwrite *service.SyncOverwrite) SyncServiceOption {
+func WithSyncServiceOverwrite(overwrite *service.SyncOverwrite) SyncServiceOption {
 	return func(s *SyncService) {
 		s.overwrite = overwrite
 	}
 }
 
-func WithSkip(skip *service.SyncSkip) SyncServiceOption {
+func WithSyncServiceSkip(skip *service.SyncSkip) SyncServiceOption {
 	return func(s *SyncService) {
 		s.skip = skip
 	}
 }
 
-func WithLogger(logger *observability.CoreLogger) SyncServiceOption {
+func WithSyncServiceLogger(logger *observability.CoreLogger) SyncServiceOption {
 	return func(s *SyncService) {
 		s.logger = logger
 	}
 }
 
-func WithSenderFunc(senderFunc func(*service.Record)) SyncServiceOption {
+func WithSyncServiceSenderFunc(senderFunc func(*service.Record)) SyncServiceOption {
 	return func(s *SyncService) {
 		s.senderFunc = senderFunc
 	}
 }
 
-func WithFlushCallback(syncResultCallback func(error)) SyncServiceOption {
+func WithSyncServiceFlushCallback(syncResultCallback func(error)) SyncServiceOption {
 	return func(s *SyncService) {
 		s.flushCallback = syncResultCallback
 	}
