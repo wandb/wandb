@@ -1,40 +1,37 @@
-# `wandb-core`: A New Backend for the W&B SDK
+# wandb-core: A New Backend for the W&B SDK
 
 [![PyPI version](https://badge.fury.io/py/wandb-core.svg)](https://badge.fury.io/py/wandb-core)
 [![PyPI - License](https://img.shields.io/pypi/l/wandb-core)]()
 
-## What is it all about?
+## Introduction
 
-Good News, Everyone!
+Good News, Everyone! We've developed a new and improved backend for the W&B SDK that is
+more performant, versatile, and robust.
 
-We have built a new backend for the W&B SDK that is more robust, performant, and versatile!
+## Getting Started
 
-## How do I use it?
-
-All you need is to have the `wandb-core` package installed into your environment. `wandb` will
-pick it up and use it automatically:
+To start using [`wandb-core`](https://pypi.org/project/wandb-core/), simply install
+the package in your environment. The `wandb` library will automatically detect and utilize it:
 
 ```bash
 pip install -U wandb wandb-core
 ```
 
-Note: you will need `wandb>=0.16.0`.
+Note: ensure you have `wandb>=0.16.0`.
 
-### Supported Platforms
+### Platform Compatibility
+
+`wandb-core` comes with wheels pre-built for the following platforms:
 
 - Linux:`x86_64`, `aarch64`
 - macOS: `x86_64`, `arm64`
 - Windows `amd64`
 
-If you are using a different platform, you can build `wandb-core` from sources by following the
-instructions in the [contributing guide](docs/contributing.md#installing-wandb-core).
-Please also open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-to let us know that you are interested in using it on
-your platform, and we will prioritize adding support for it.
+For other platforms, build `wandb-core` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
 
-### How do I fall back to the previous version of the SDK backend?
+### Switching Back to the Old SDK Backend
 
-Just uninstall `wandb-core` from your environment.
+To revert to the old SDK backend, simply uninstall `wandb-core` from your environment:
 
 ```bash
 pip uninstall wandb-core
@@ -42,72 +39,70 @@ pip uninstall wandb-core
 
 ## Contributing
 
-Please read our [contributing guide](docs/contributing.md) to learn to set up
-your development environment and how to contribute to the codebase.
+Your contributions are welcome! Check our [contributing guide](docs/contributing.md) for instructions on setting up your development environment and contributing to the project.
 
-## Feedback
-Please give our new core a try and let us know what you think, we believe it is worth it!
-
-We are very much looking forward to your feedback, especially bug reports!
-Please open a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose)
-if you encounter an error, and mention that you are using `wandb-core`.
+## Feedback and Bug Reporting
+We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug reports, is invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
 
 ## Feature Support Status
 
-The following table shows the status of the feature support as of `wandb-core` version `0.17.0b2`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b3`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
-- 🚧: In Development: The feature is available, but may be unstable or incomplete.
+- 🚧: In Development: The feature is available but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status     |
-|-------------|-------------------|------------|
-| Experiments |                   |            |
-|             | `init`            | ✅[^E.1]    |
-|             | `log`             | ✅          |
-|             | `log_artifact`    | ✅          |
-|             | `log_code`        | ✅          |
-|             | `config`          | ✅          |
-|             | `summary`         | ✅          |
-|             | `define_metric`   | 🚧[^E.5]   |
-|             | `tags`            | ✅          |
-|             | `notes`           | ✅          |
-|             | `name`            | ✅          |
-|             | `alert`           | ✅          |
-|             | `save`            | ✅          |
-|             | `restore`         | ✅          |
-|             | `mark_preempting` | ✅          |
-|             | resume            | ✅          |
-|             | reinit            | ✅          |
-|             | Media             | ✅          |
-|             | Grouping          | ✅          |
-|             | anonymous mode    | ✅          |
-|             | offline mode      | ✅          |
-|             | disabled mode     | ✅          |
-|             | multiprocessing   | ✅          |
-|             | TensorBoard sync  | ❌          |
-|             | console logging   | 🚧[^E.8]   |
-|             | system metrics    | 🚧[^E.9]   |
-|             | system info       | ✅          |
-|             | auto code saving  | ✅          |
-|             | Settings          | 🚧[^E.12]  |
-| Login       |                   |            |
-|             | default entity    | ✅          |
-|             | team entity       | ✅          |
-|             | service account   | 🚧          |
-| CLI         |                   | 🚧[^CLI.1] |
-| Artifacts   |                   | ✅          |
-| Launch      |                   | ❌[^L.1]    |
-| Sweeps      |                   | 🚧[^S.1]   |
+| Category    | Feature           | Status          |
+|-------------|-------------------|-----------------|
+| Experiments |                   |                 |
+|             | `init`            | ✅[^E.1]         |
+|             | `log`             | ✅               |
+|             | `log_artifact`    | ✅               |
+|             | `log_code`        | ✅               |
+|             | `config`          | ✅               |
+|             | `summary`         | ✅               |
+|             | `define_metric`   | 🚧[^E.5]        |
+|             | `tags`            | ✅               |
+|             | `notes`           | ✅               |
+|             | `name`            | ✅               |
+|             | `alert`           | ✅               |
+|             | `save`            | ✅               |
+|             | `restore`         | ✅               |
+|             | `mark_preempting` | ✅               |
+|             | resume            | ✅               |
+|             | reinit            | ✅               |
+|             | Media             | ✅               |
+|             | Grouping          | ✅               |
+|             | anonymous mode    | ✅               |
+|             | offline mode      | ✅               |
+|             | disabled mode     | ✅               |
+|             | multiprocessing   | ✅               |
+|             | TensorBoard sync  | ❌               |
+|             | console logging   | ✅[^E.8]         |
+|             | system metrics    | ✅[^E.9]         |
+|             | system info       | ✅               |
+|             | auto code saving  | ✅               |
+|             | Settings          | 🚧[^E.12]       |
+| Login       |                   |                 |
+|             | default entity    | ✅               |
+|             | team entity       | ✅               |
+|             | service account   | 🚧              |
+| CLI         |                   |                 |
+|             | sync              | ✅[^E.1][^CLI.1] |
+|             | <other commands>  | 🚧[^CLI.2]      |
+| Artifacts   |                   | ✅               |
+| Launch      |                   | ❌[^L.1]         |
+| Sweeps      |                   | 🚧[^S.1]        |
 
 [^E.1]: `sync_tensorboard` requires TensorBoard sync support.
 [^E.5]: `define_metric` only supports default summary.
 [^E.8]: Only raw console logging is supported.
-[^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU.
+[^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
 [^E.12]: TODO: list unsupported settings.
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
-[^CLI.1]: The CLI works, but uses the current Python backend under the hood for some
-    commands. Expect the CLI to be rewritten to use the new backend.
+[^CLI.1]: The command is namespaced under `wandb beta` group.
+[^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
+    commands.
 [^L.1]: Launch is not yet supported.
 [^S.1]: Requires verification.
