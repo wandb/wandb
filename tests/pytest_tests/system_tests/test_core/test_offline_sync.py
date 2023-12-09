@@ -2,6 +2,7 @@ import os
 import unittest.mock
 
 import pytest
+import wandb
 from wandb.cli import cli
 from wandb.sdk.lib.runid import generate_id
 
@@ -20,15 +21,34 @@ def test_sync_with_tensorboard(relay_server, runner, copy_asset, user):
     assert all(history["_runtime"][1:])
 
 
-def test_beta_sync(wandb_init, relay_server, runner):
-    with unittest.mock.patch.dict(
-        "os.environ",
-        {"WANDB_MODE": "offline", "WANDB_NEXUS_DEBUG": "1"},
-    ):
-        os.makedirs(".wandb", exist_ok=True)
-        run = wandb_init()
-        run.log(dict(a=1))
-        run.finish()
-    with relay_server():
-        result = runner.invoke(cli.beta, ["sync", ".wandb"])
-        print(result.output)
+def test_beta_sync(wandb_init, runner):
+    os.makedirs(".wandb", exist_ok=True)
+    run = wandb_init(settings={"mode": "offline"})
+    run.log(dict(a=1))
+    run.finish()
+
+    result = runner.invoke(cli.beta, ["sync", ".wandb"])
+    print(result.output)
+    assert result.exit_code == 0
+    assert f"{run.id}" in result.output
+
+
+@pytest.mark.skip(
+    reason="this test trips over the local-testcontainer with what looks like a race."
+    "manifestation: upsertBucket returns 200 with an error message."
+)
+def test_beta_sync_two_runs(user, test_settings, runner):
+    os.makedirs(".wandb", exist_ok=True)
+    run = wandb.init(settings=test_settings({"mode": "offline"}))
+    run.log(dict(a=1))
+    run.finish()
+
+    run2 = wandb.init(settings=test_settings({"mode": "offline"}))
+    run2.log(dict(a=1))
+    run2.finish()
+
+    result = runner.invoke(cli.beta, ["sync", ".wandb"])
+    print(result.output)
+    assert result.exit_code == 0
+    assert f"{run.id}" in result.output
+    assert f"{run2.id}" in result.output

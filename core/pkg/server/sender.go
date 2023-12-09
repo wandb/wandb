@@ -558,7 +558,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
-			if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
+			//  Need to inform the sync service that this ops failed.
+			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.Result{
 					ResultType: &service.Result_RunResult{
 						RunResult: &service.RunUpdateResult{

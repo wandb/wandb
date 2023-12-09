@@ -38,7 +38,6 @@ def _sync(
     assert wl is not None
 
     stream_id = generate_id()
-    print(f"stream_id: {stream_id}")
 
     settings = wl.settings.to_proto()
     # update sync_file setting to point to the passed path
@@ -51,7 +50,7 @@ def _sync(
         settings.resume.value = "allow"
     # settings.console.value = "off" if console else "auto"
 
-    print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
+    # print([(e, os.environ[e]) for e in os.environ if e.startswith("WANDB")])
     manager = wl._get_manager()
     manager._inform_init(settings=settings, run_id=stream_id)
 
