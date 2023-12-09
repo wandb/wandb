@@ -6,33 +6,53 @@ import (
 	"log/slog"
 )
 
-type Tags map[string]string
-
 const LevelFatal = slog.Level(12)
 
 type CoreLogger struct {
 	*slog.Logger
-	tags Tags
+	tags             Tags
+	captureException func(err error, tags Tags)
+	captureMessage   func(msg string, tags Tags)
 }
 
-func NewCoreLogger(logger *slog.Logger, tags Tags) *CoreLogger {
-	if tags == nil {
-		tags = make(Tags)
+type CoreLoggerOption func(cl *CoreLogger)
+
+func WithCaptureMessage(f func(msg string, tags Tags)) CoreLoggerOption {
+	return func(cl *CoreLogger) {
+		cl.captureMessage = f
 	}
-	nl := &CoreLogger{
-		tags: tags,
+}
+
+func WithCaptureException(f func(err error, tags Tags)) CoreLoggerOption {
+	return func(cl *CoreLogger) {
+		cl.captureException = f
+	}
+}
+
+func WithTags(tags Tags) CoreLoggerOption {
+	return func(cl *CoreLogger) {
+		cl.tags = tags
+	}
+}
+
+func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
+
+	cl := &CoreLogger{}
+
+	for _, opt := range opts {
+		opt(cl)
 	}
 
 	var args []interface{}
-	for tag := range nl.tags {
-		args = append(args, slog.String(tag, nl.tags[tag]))
-	}
-	nl.Logger = logger.With(args...)
 
-	return nl
+	for tag := range cl.tags {
+		args = append(args, slog.String(tag, cl.tags[tag]))
+	}
+	cl.Logger = logger.With(args...)
+	return cl
 }
 
-func (nl *CoreLogger) tagsFromArgs(args ...any) Tags {
+func (cl *CoreLogger) tagsFromArgs(args ...any) Tags {
 	tags := make(map[string]string)
 	// add tags from args:
 	for len(args) > 0 {
@@ -52,90 +72,102 @@ func (nl *CoreLogger) tagsFromArgs(args ...any) Tags {
 		}
 	}
 	// add tags from logger:
-	for k, v := range nl.tags {
+	for k, v := range cl.tags {
 		tags[k] = v
 	}
 	return tags
 }
 
-func (nl *CoreLogger) SetTags(tags Tags) {
+func (cl *CoreLogger) SetTags(tags Tags) {
 	for tag := range tags {
-		nl.tags[tag] = tags[tag]
+		cl.tags[tag] = tags[tag]
 	}
 }
 
 // CaptureError logs an error and sends it to sentry.
-func (nl *CoreLogger) CaptureError(msg string, err error, args ...interface{}) {
-	nl.Logger.Error(msg, args...)
+func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
+	cl.Logger.Error(msg, args...)
 	if err != nil {
 		// convert args to tags to pass to sentry:
-		tags := nl.tagsFromArgs(args...)
+		tags := cl.tagsFromArgs(args...)
 		// send error to sentry:
-		CaptureException(err, tags)
+		if cl.captureException != nil {
+			cl.captureException(err, tags)
+		}
 	}
 }
 
 // Fatal logs an error at the fatal level.
-func (nl *CoreLogger) Fatal(msg string, err error, args ...interface{}) {
+func (cl *CoreLogger) Fatal(msg string, err error, args ...any) {
 	args = append(args, "error", err)
-	nl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
+	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 }
 
 // FatalAndPanic logs an error at the fatal level and panics.
-func (nl *CoreLogger) FatalAndPanic(msg string, err error, args ...interface{}) {
-	nl.Fatal(msg, err, args...)
+func (cl *CoreLogger) FatalAndPanic(msg string, err error, args ...any) {
+	cl.Fatal(msg, err, args...)
 	if err != nil {
 		panic(err)
 	}
 }
 
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
-func (nl *CoreLogger) CaptureFatal(msg string, err error, args ...interface{}) {
+func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...interface{}) {
 	// todo: make sure this level is printed nicely
-	nl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
+	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 
 	if err != nil {
 		// convert args to tags to pass to sentry:
-		tags := nl.tagsFromArgs(args...)
+		tags := cl.tagsFromArgs(args...)
 		// send error to sentry:
-		CaptureException(err, tags)
+		if cl.captureException != nil {
+			cl.captureException(err, tags)
+		}
 	}
 }
 
 // CaptureFatalAndPanic logs an error at the fatal level and sends it to sentry.
 // It then panics.
-func (nl *CoreLogger) CaptureFatalAndPanic(msg string, err error, args ...interface{}) {
-	nl.CaptureFatal(msg, err, args...)
+func (cl *CoreLogger) CaptureFatalAndPanic(msg string, err error, args ...interface{}) {
+	cl.CaptureFatal(msg, err, args...)
 	if err != nil {
 		panic(err)
 	}
 }
 
 // CaptureWarn logs a warning and sends it to sentry.
-func (nl *CoreLogger) CaptureWarn(msg string, args ...interface{}) {
-	nl.Logger.Warn(msg, args...)
+func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
+	cl.Logger.Warn(msg, args...)
 
-	tags := nl.tagsFromArgs(args...)
+	tags := cl.tagsFromArgs(args...)
 	// send message to sentry:
-	CaptureMessage(msg, tags)
+	if cl.captureMessage != nil {
+		cl.captureMessage(msg, tags)
+	}
 }
 
 // CaptureInfo logs an info message and sends it to sentry.
-func (nl *CoreLogger) CaptureInfo(msg string, args ...interface{}) {
-	nl.Logger.Info(msg, args...)
+func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
+	cl.Logger.Info(msg, args...)
 
-	tags := nl.tagsFromArgs(args...)
+	tags := cl.tagsFromArgs(args...)
 	// send message to sentry:
-	CaptureMessage(msg, tags)
+	if cl.captureMessage != nil {
+		cl.captureMessage(msg, tags)
+	}
 }
 
 // Reraise is used to capture unexpected panics with sentry and reraise them.
-func (nl *CoreLogger) Reraise(args ...any) {
+func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
-		Reraise(err, nl.tagsFromArgs(args...))
+		Reraise(err, cl.tagsFromArgs(args...))
 	}
 }
 
 func NewNoOpLogger() *CoreLogger {
-	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		WithTags(Tags{}),
+		WithCaptureException(func(err error, tags Tags) {}),
+		WithCaptureMessage(func(msg string, tags Tags) {}),
+	)
 }

@@ -67,7 +67,12 @@ func SetupStreamLogger(settings *service.Settings) *observability.CoreLogger {
 
 	writer := io.MultiWriter(writers...)
 
-	logger := observability.NewCoreLogger(setupLogger(nil, writer), nil)
+	logger := observability.NewCoreLogger(
+		setupLogger(nil, writer),
+		observability.WithTags(observability.Tags{}),
+		observability.WithCaptureMessage(observability.CaptureMessage),
+		observability.WithCaptureException(observability.CaptureException),
+	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 	tags := observability.Tags{

@@ -14,6 +14,8 @@ import (
 
 const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
+type Tags map[string]string
+
 type SentryClient struct {
 	Dsn    string
 	Commit string
@@ -74,7 +76,7 @@ func InitSentry(disabled bool, commit string) {
 	}
 }
 
-func CaptureException(err error, tags map[string]string) {
+func CaptureException(err error, tags Tags) {
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
@@ -86,7 +88,7 @@ func CaptureException(err error, tags map[string]string) {
 	localHub.CaptureException(err)
 }
 
-func CaptureMessage(msg string, tags map[string]string) {
+func CaptureMessage(msg string, tags Tags) {
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
@@ -98,7 +100,7 @@ func CaptureMessage(msg string, tags map[string]string) {
 
 // Reraise captures an error and re-raises it.
 // Used to capture unexpected panics.
-func Reraise(err any, tags map[string]string) {
+func Reraise(err any, tags Tags) {
 	if err != nil {
 		var e error
 		if errors.As(e, &err) {
