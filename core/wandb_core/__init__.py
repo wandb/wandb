@@ -1,5 +1,9 @@
 """W&B Core: This is the backend for the W&B client library."""
-__all__ = ("__version__", "get_core_path")
+__all__ = (
+    "__version__",
+    "get_core_path",
+    "get_nexus_path",
+)
 
 from pathlib import Path
 
