@@ -32,26 +32,11 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	statusCode := resp.StatusCode
-	// internalError := false
-	// body, err := io.ReadAll(resp.Body)
-	// if err == nil {
-	// 	// check "errors" field in body and whether its length is > 0
-	// 	var bodyMap interface{}
-	// 	err = json.Unmarshal(body, &bodyMap)
-	// 	if ok := bodyMap.(map[string]interface{})["errors"]; ok != nil {
-	// 		fmt.Println("errors", ok)
-	// 		if len(ok.([]interface{})) > 0 {
-	// 			internalError = true
-	// 		}
-	// 	}
-	// }
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
 		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusConflict: // retry on 409 Conflict
 		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
-	// case statusCode == 200 && internalError: // retry on 200 OK with internal error
-	// 	return true, fmt.Errorf("internal error, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	default: // use default retry policy for all other status codes
 		return DefaultRetryPolicy(ctx, resp, err)
 	}
