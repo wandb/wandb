@@ -20,17 +20,22 @@ func TestNewTags(t *testing.T) {
 			expect: observability.Tags{"key1": "123"},
 		},
 		{
-			name:   "Tags from string and slog.Any",
+			name:   "Tags from string and int",
 			input:  []interface{}{"key2", 456},
 			expect: observability.Tags{"key2": "456"},
 		},
 		{
-			name:   "Tags from a mix of slog.Attr, string, and slog.Any",
+			name:   "Tags from a mix of slog.Attr, string, and int",
 			input:  []interface{}{slog.Attr{Key: "key3", Value: slog.StringValue("value3")}, "key4", 789, slog.Any("key5", "value5")},
 			expect: observability.Tags{"key3": "value3", "key4": "789", "key5": "value5"},
 		},
 		{
-			name:   "Empty Tags",
+			name:   "Tags from slog.Attr and string",
+			input:  []interface{}{slog.Attr{Key: "key6", Value: slog.Int64Value(123)}, "key7"},
+			expect: observability.Tags{"key6": "123"},
+		},
+		{
+			name:   "Tags from empty input",
 			input:  []interface{}{},
 			expect: observability.Tags{},
 		},

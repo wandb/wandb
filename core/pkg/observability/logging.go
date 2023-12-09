@@ -8,16 +8,20 @@ import (
 
 type Tags map[string]string
 
+// NewTags creates a new Tags from a mix of slog.Attr and any other types.
+// It ignores final if they are strings without a corresponding value.
 func NewTags(args ...any) Tags {
+	var done bool
 	tags := Tags{}
 	// add tags from args:
-	for len(args) > 0 {
+	for len(args) > 0 && !done {
 		switch x := args[0].(type) {
 		case slog.Attr:
 			tags[x.Key] = x.Value.String()
 			args = args[1:]
 		case string:
 			if len(args) < 2 {
+				done = true
 				break
 			}
 			attr := slog.Any(x, args[1])
