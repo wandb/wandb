@@ -38,13 +38,11 @@ func WithTags(tags Tags) CoreLoggerOption {
 func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
 
 	cl := &CoreLogger{}
-
 	for _, opt := range opts {
 		opt(cl)
 	}
 
 	var args []interface{}
-
 	for tag := range cl.tags {
 		args = append(args, slog.String(tag, cl.tags[tag]))
 	}
@@ -88,10 +86,10 @@ func (cl *CoreLogger) SetTags(tags Tags) {
 func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
 	cl.Logger.Error(msg, args...)
 	if err != nil {
-		// convert args to tags to pass to sentry:
-		tags := cl.tagsFromArgs(args...)
 		// send error to sentry:
 		if cl.captureException != nil {
+			// convert args to tags to pass to sentry:
+			tags := cl.tagsFromArgs(args...)
 			cl.captureException(err, tags)
 		}
 	}
@@ -113,14 +111,13 @@ func (cl *CoreLogger) FatalAndPanic(msg string, err error, args ...any) {
 
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
 func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...any) {
-	// todo: make sure this level is printed nicely
+	// TODO: make sure this level is printed nicely
 	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
-
 	if err != nil {
-		// convert args to tags to pass to sentry:
-		tags := cl.tagsFromArgs(args...)
 		// send error to sentry:
 		if cl.captureException != nil {
+			// convert args to tags to pass to sentry:
+			tags := cl.tagsFromArgs(args...)
 			cl.captureException(err, tags)
 		}
 	}
@@ -138,10 +135,9 @@ func (cl *CoreLogger) CaptureFatalAndPanic(msg string, err error, args ...any) {
 // CaptureWarn logs a warning and sends it to sentry.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Logger.Warn(msg, args...)
-
-	tags := cl.tagsFromArgs(args...)
 	// send message to sentry:
 	if cl.captureMessage != nil {
+		tags := cl.tagsFromArgs(args...)
 		cl.captureMessage(msg, tags)
 	}
 }
@@ -149,10 +145,9 @@ func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 // CaptureInfo logs an info message and sends it to sentry.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Logger.Info(msg, args...)
-
-	tags := cl.tagsFromArgs(args...)
 	// send message to sentry:
 	if cl.captureMessage != nil {
+		tags := cl.tagsFromArgs(args...)
 		cl.captureMessage(msg, tags)
 	}
 }
