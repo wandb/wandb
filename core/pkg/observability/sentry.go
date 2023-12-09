@@ -14,8 +14,6 @@ import (
 
 const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
-type Tags map[string]string
-
 type SentryClient struct {
 	Dsn    string
 	Commit string

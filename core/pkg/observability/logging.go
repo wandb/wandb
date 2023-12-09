@@ -6,6 +6,30 @@ import (
 	"log/slog"
 )
 
+type Tags map[string]string
+
+func NewTags(args ...any) Tags {
+	tags := Tags{}
+	// add tags from args:
+	for len(args) > 0 {
+		switch x := args[0].(type) {
+		case slog.Attr:
+			tags[x.Key] = x.Value.String()
+			args = args[1:]
+		case string:
+			if len(args) < 2 {
+				break
+			}
+			attr := slog.Any(x, args[1])
+			tags[attr.Key] = attr.Value.String()
+			args = args[2:]
+		default:
+			args = args[1:]
+		}
+	}
+	return tags
+}
+
 const LevelFatal = slog.Level(12)
 
 type CoreLogger struct {
@@ -50,25 +74,8 @@ func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
 	return cl
 }
 
-func (cl *CoreLogger) tagsFromArgs(args ...any) Tags {
-	tags := make(map[string]string)
-	// add tags from args:
-	for len(args) > 0 {
-		switch x := args[0].(type) {
-		case slog.Attr:
-			tags[x.Key] = x.Value.String()
-			args = args[1:]
-		case string:
-			if len(args) < 2 {
-				break
-			}
-			attr := slog.Any(x, args[1])
-			tags[attr.Key] = attr.Value.String()
-			args = args[2:]
-		default:
-			args = args[1:]
-		}
-	}
+func (cl *CoreLogger) tagsWithArgs(args ...any) Tags {
+	tags := NewTags(args...)
 	// add tags from logger:
 	for k, v := range cl.tags {
 		tags[k] = v
@@ -89,7 +96,7 @@ func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
 		// send error to sentry:
 		if cl.captureException != nil {
 			// convert args to tags to pass to sentry:
-			tags := cl.tagsFromArgs(args...)
+			tags := cl.tagsWithArgs(args...)
 			cl.captureException(err, tags)
 		}
 	}
@@ -117,7 +124,7 @@ func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...any) {
 		// send error to sentry:
 		if cl.captureException != nil {
 			// convert args to tags to pass to sentry:
-			tags := cl.tagsFromArgs(args...)
+			tags := cl.tagsWithArgs(args...)
 			cl.captureException(err, tags)
 		}
 	}
@@ -137,7 +144,7 @@ func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Logger.Warn(msg, args...)
 	// send message to sentry:
 	if cl.captureMessage != nil {
-		tags := cl.tagsFromArgs(args...)
+		tags := cl.tagsWithArgs(args...)
 		cl.captureMessage(msg, tags)
 	}
 }
@@ -147,7 +154,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Logger.Info(msg, args...)
 	// send message to sentry:
 	if cl.captureMessage != nil {
-		tags := cl.tagsFromArgs(args...)
+		tags := cl.tagsWithArgs(args...)
 		cl.captureMessage(msg, tags)
 	}
 }
@@ -155,7 +162,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // Reraise is used to capture unexpected panics with sentry and reraise them.
 func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
-		Reraise(err, cl.tagsFromArgs(args...))
+		Reraise(err, cl.tagsWithArgs(args...))
 	}
 }
 
