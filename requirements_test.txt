@@ -15,3 +15,4 @@ pandas
 responses
 
 coverage[toml]
+pydantic>=2.0.0
