@@ -1,3 +1,5 @@
+from typing import Optional
+
 import wandb
 from wandb import util
 from wandb.plots.utils import test_missing, test_types
@@ -10,6 +12,7 @@ def pr_curve(
     classes_to_plot=None,
     interp_size=21,
     title=None,
+    split_table: Optional[bool] = False,
 ):
     """Compute the tradeoff between precision and recall for different thresholds.
 
@@ -30,6 +33,7 @@ def pr_curve(
         interp_size (int): the recall values will be fixed to `interp_size` points
             uniform on [0, 1] and the precision will be interpolated for these recall
             values.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab under
@@ -127,4 +131,5 @@ def pr_curve(
         table,
         {"x": "recall", "y": "precision", "class": "class"},
         {"title": title},
+        split_table=split_table,
     )

@@ -45,7 +45,6 @@ class AbstractBuilder(ABC):
         config: dict,
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        verify: bool = True,
     ) -> "AbstractBuilder":
         """Create a builder from a config dictionary.
 
@@ -62,7 +61,7 @@ class AbstractBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
@@ -80,7 +79,7 @@ class AbstractBuilder(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the builder can be used to build images.
 
         Raises:

@@ -13,7 +13,6 @@ import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
-from torchvision.io import read_image
 from wandb import data_types
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -1529,6 +1528,9 @@ def test_numpy_arrays_to_list():
 
 
 def test_log_uint8_image():
+    pytest.importorskip("torchvision")
+    from torchvision.io import read_image
+
     with open("temp.png", "wb") as temp:
         # Create and save image
         imarray = np.random.rand(100, 100, 3) * 255

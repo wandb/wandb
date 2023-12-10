@@ -1,4 +1,5 @@
 """Sweep tests."""
+import asyncio
 from typing import Dict
 from unittest.mock import Mock, patch
 
@@ -104,7 +105,7 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
     _entity = user
     _project = "test-project"
 
-    def mock_launch_add(*args, **kwargs):
+    async def mock_launch_add(*args, **kwargs):
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
         return mock
@@ -369,7 +370,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
     _job = "test-job:latest"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
-    def mock_launch_add(*args, **kwargs):
+    async def mock_launch_add(*args, **kwargs):
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
         return mock
@@ -587,7 +588,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(
         + [[{"type": "stop", "run_cap": 7}]]
     )
 
-    def mock_launch_add(*args, **kwargs):
+    async def mock_launch_add(*args, **kwargs):
         return Mock(spec=public.QueuedRun)
 
     monkeypatch.setattr(
@@ -719,8 +720,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         f"{queue!r}",
         "--project",
         f"{project!r}",
-        "--sweep_type",
-        "wandb",
         "--author",
         "'author'",
     ]
@@ -748,7 +747,7 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
 def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     _patch_wandb_run(monkeypatch)
 
-    def mock_launch_add(*args, **kwargs):
+    async def mock_launch_add(*args, **kwargs):
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
         return mock
@@ -774,6 +773,6 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     scheduler = SweepScheduler(
         api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1
     )
-    scheduler._register_agents()
+    asyncio.run(scheduler._register_agents())
     srun2 = scheduler._get_next_sweep_run(0)
     scheduler._add_to_launch_queue(srun2)

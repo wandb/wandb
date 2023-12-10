@@ -10,7 +10,21 @@ from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
 
 
-def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_settings):
+class MockBuilder:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def verify(self):
+        pass
+
+    async def build(self, *args, **kwargs):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_launch_incorrect_backend(
+    runner, user, monkeypatch, wandb_init, test_settings
+):
     launch_project = MagicMock()
     launch_project.get_single_entry_point.return_value = EntryPoint(
         "blah", ["python", "test.py"]
@@ -38,15 +52,15 @@ def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_se
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.loader.environment_from_config",
-        lambda *args, **kawrgs: MagicMock(),
+        lambda *args, **kawrgs: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch.loader.registry_from_config",
-        lambda *args, **kawrgs: MagicMock(),
-    )
+        "wandb.sdk.launch.loader.registry_from_config", lambda *args, **kawrgs: None
+    ),
+
     monkeypatch.setattr(
         "wandb.sdk.launch.loader.builder_from_config",
-        lambda *args, **kawrgs: MagicMock(),
+        lambda *args, **kawrgs: MockBuilder(),
     )
     r = wandb_init(settings=settings)
     r.finish()
@@ -54,7 +68,7 @@ def test_launch_incorrect_backend(runner, user, monkeypatch, wandb_init, test_se
         LaunchError,
         match="Could not create runner from config. Invalid runner name: testing123",
     ):
-        _launch(
+        await _launch(
             api,
             uri=uri,
             entity=user,

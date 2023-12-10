@@ -4,6 +4,8 @@ import errno
 import hashlib
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
@@ -16,8 +18,6 @@ from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
-    import sys
-
     if sys.version_info >= (3, 8):
         from typing import Protocol
     else:
@@ -34,6 +34,12 @@ class ArtifactsCache:
         self._obj_dir = self._cache_dir / "obj"
         self._temp_dir = self._cache_dir / "tmp"
         self._temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
+        # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
+        umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
+        umask = int(subprocess.check_output(umask_cmd))
+        self._sys_umask = umask
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
@@ -181,6 +187,7 @@ class ArtifactsCache:
             try:
                 yield temp_file
                 temp_file.close()
+                os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
             except Exception:
