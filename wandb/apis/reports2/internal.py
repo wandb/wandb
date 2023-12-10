@@ -72,7 +72,8 @@ class TextLikeMixin:
         d = deepcopy(data)
         children = []
         for c in d.get("children"):
-            if (_type := c.get("type")) == "link":
+            _type = c.get("type")
+            if _type == "link":
                 child = InlineLink.model_validate(c)
             elif _type == "latex":
                 child = InlineLatex.model_validate(c)
@@ -149,7 +150,8 @@ class Text(ReportAPIBaseModel):
 
     def model_dump(self, **kwargs):
         data = super().model_dump(**kwargs)
-        if (comments := self.inline_comments) is None:
+        comments = self.inline_comments
+        if comments is None:
             comments = []
         for comment in comments:
             ref_id = comment.ref_id

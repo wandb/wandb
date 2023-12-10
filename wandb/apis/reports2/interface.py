@@ -148,7 +148,8 @@ class H1(Heading):
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
-        if (collapsed_children := self.collapsed_blocks) is not None:
+        collapsed_children = self.collapsed_blocks
+        if collapsed_children is not None:
             collapsed_children = [b.to_model() for b in collapsed_children]
 
         return internal.Heading(
@@ -164,7 +165,8 @@ class H2(Heading):
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
-        if (collapsed_children := self.collapsed_blocks) is not None:
+        collapsed_children = self.collapsed_blocks
+        if collapsed_children is not None:
             collapsed_children = [b.to_model() for b in collapsed_children]
 
         return internal.Heading(
@@ -180,7 +182,8 @@ class H3(Heading):
     collapsed_blocks: Optional[list["BlockTypes"]] = None
 
     def to_model(self):
-        if (collapsed_children := self.collapsed_blocks) is not None:
+        collapsed_children = self.collapsed_blocks
+        if collapsed_children is not None:
             collapsed_children = [b.to_model() for b in collapsed_children]
 
         return internal.Heading(
@@ -387,7 +390,8 @@ class Image(Block):
 
     def to_model(self):
         has_caption = False
-        if children := _text_to_internal_children(self.caption):
+        children = _text_to_internal_children(self.caption)
+        if children:
             has_caption = True
 
         return internal.Image(children=children, url=self.url, has_caption=has_caption)
@@ -574,8 +578,8 @@ class Runset(Base):
         entity = ""
         project = ""
 
-        if (p := model.project) is not None:
-            print(type(p), p)
+        p = model.project
+        if p is not None:
             if p.entity_name:
                 entity = p.entity_name
             if p.name:
@@ -878,7 +882,8 @@ class ScatterPlot(Panel):
     regression: Optional[bool] = None
 
     def to_model(self):
-        if (custom_gradient := self.gradient) is not None:
+        custom_gradient = self.gradient
+        if custom_gradient is not None:
             custom_gradient = [cgp.to_model() for cgp in self.gradient]
 
         return internal.ScatterPlot(
@@ -911,7 +916,8 @@ class ScatterPlot(Panel):
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        if (gradient := model.config.custom_gradient) is not None:
+        gradient = model.config.custom_gradient
+        if gradient is not None:
             gradient = [GradientPoint.from_model(cgp) for cgp in gradient]
 
         return cls(
@@ -1111,7 +1117,8 @@ class ParallelCoordinatesPlot(Panel):
     font_size: Optional[FontSize] = None
 
     def to_model(self):
-        if (gradient := self.gradient) is not None:
+        gradient = self.gradient
+        if gradient is not None:
             gradient = [x.to_model() for x in self.gradient]
 
         return internal.ParallelCoordinatesPlot(
@@ -1128,7 +1135,8 @@ class ParallelCoordinatesPlot(Panel):
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        if (gradient := model.config.custom_gradient) is not None:
+        gradient = model.config.custom_gradient
+        if gradient is not None:
             gradient = [GradientPoint.from_model(x) for x in gradient]
 
         return cls(
@@ -1626,7 +1634,8 @@ PanelTypes = Union[
 
 
 def _text_to_internal_children(text_field):
-    if (text := text_field) == []:
+    text = text_field
+    if text == []:
         text = ""
     # if isinstance(text, str):
     if not isinstance(text, list):
@@ -1835,7 +1844,8 @@ def _to_color_dict(custom_run_colors, runsets):
     d = {}
     for k, v in custom_run_colors.items():
         if isinstance(k, RunsetGroup):
-            if not (rs := _get_rs_by_name(runsets, k.runset_name)):
+            rs = _get_rs_by_name(runsets, k.runset_name)
+            if not rs:
                 continue
             id = rs._id
             kvs = []

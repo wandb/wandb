@@ -193,7 +193,8 @@ def filters_to_expr(filter_obj: Any, is_root=True) -> str:
 
 def _key_to_server_path(key: Key):
     name = key.name
-    if (section := key.section) == "config":
+    section = key.section
+    if section == "config":
         return f"config.{name}"
     elif section == "summary":
         return f"summary_metrics.{name}"
