@@ -16,4 +16,4 @@ responses
 
 coverage[toml]
 pydantic>=2.0.0
-polyfactory
+polyfactory; python_version >= '3.8'

@@ -1,3 +1,4 @@
+import sys
 from typing import Any, Dict, Generic, Type, TypeVar
 
 import pytest
@@ -264,6 +265,9 @@ panel_factory_names = [
 factory_names = block_factory_names + panel_factory_names
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 8), reason="polyfactory requires py38 or higher"
+)
 @pytest.mark.parametrize("factory_name", factory_names)
 def test_idempotency(request, factory_name) -> None:
     factory = request.getfixturevalue(factory_name)

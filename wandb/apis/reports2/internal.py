@@ -4,7 +4,7 @@ import random
 import re
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field, validator
 from pydantic.alias_generators import to_camel
@@ -53,7 +53,7 @@ Mark = Literal["solid", "dashed", "dotted", "dotdash", "dotdotdash"]
 Timestep = Literal["seconds", "minutes", "hours", "days"]
 SmoothingType = Literal["exponential", "gaussian", "average", "none"]
 CodeCompareDiff = Literal["split", "unified"]
-Range = tuple[Optional[float], Optional[float]]
+Range = Tuple[Optional[float], Optional[float]]
 Language = Literal["javascript", "python", "css", "json", "html", "markdown", "yaml"]
 Ops = Literal["OR", "AND", "=", "!=", "<=", ">=", "IN", "NIN", "=="]
 TextLikeInternal = Union["InlineLatex", "InlineLink", "Paragraph", "Text"]

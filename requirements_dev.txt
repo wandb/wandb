@@ -44,7 +44,7 @@ respx
 prometheus_client
 google-cloud-aiplatform
 pydantic>=2.0.0
-polyfactory
+polyfactory; python_version >= '3.8'
 aiohttp==3.9.0b0; python_version >= '3.12'
 
 .[async]
