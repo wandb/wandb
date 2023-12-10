@@ -4,7 +4,8 @@ import pytest
 import wandb.apis.reports2 as wr2
 from polyfactory.factories import DataclassFactory
 from polyfactory.pytest_plugin import register_fixture
-from wandb.apis.reports2 import internal
+from wandb.apis.reports2.expr_parsing import expr_to_filters
+from wandb.apis.reports2.internal import Filters, Key
 
 block_type_instance = wr2.H1
 
@@ -274,15 +275,7 @@ def test_idempotency(request, factory_name) -> None:
     model = instance.to_model()
     model2 = cls.from_model(model).to_model()
 
-    # assert model.dict() == model2.dict()
-
-    if isinstance(model, wr2.internal.PanelGrid):
-        d = model.metadata.run_sets[0].filters.dict()
-        print(f"{d=}")
-        d2 = model2.metadata.run_sets[0].filters.dict()
-        print(f"{d2=}")
-
-        assert d == d2
+    assert model.dict() == model2.dict()
 
 
 def test_fix_panel_collisions():
@@ -298,10 +291,73 @@ def test_fix_panel_collisions():
             assert not wr2.interface.collides(p1, p2)
 
 
-def test_expression_parsing():
-    expr = ""
-    expected_filters = internal.Filters(
-        op="OR", filters=[internal.Filters(op="AND", filters=[])]
+@pytest.mark.parametrize(
+    "expr, expected_filters",
+    [
+        ["", []],
+        [
+            "a >= 1",
+            [
+                Filters(
+                    op=">=",
+                    key=Key(section="run", name="a"),
+                    filters=None,
+                    value=1,
+                    disabled=False,
+                )
+            ],
+        ],
+        [
+            "(a >= 1)",
+            [
+                Filters(
+                    op=">=",
+                    key=Key(section="run", name="a"),
+                    filters=None,
+                    value=1,
+                    disabled=False,
+                )
+            ],
+        ],
+        [
+            "(Metric('a') >= 1)",
+            [
+                Filters(
+                    op=">=",
+                    key=Key(section="run", name="a"),
+                    filters=None,
+                    value=1,
+                    disabled=False,
+                )
+            ],
+        ],
+        [
+            "(SummaryMetric('a') >= 1)",
+            [
+                Filters(
+                    op=">=",
+                    key=Key(section="summary", name="a"),
+                    filters=None,
+                    value=1,
+                    disabled=False,
+                )
+            ],
+        ],
+        [
+            "(Config('a') >= 1)",
+            [
+                Filters(
+                    op=">=",
+                    key=Key(section="config", name="a"),
+                    filters=None,
+                    value=1,
+                    disabled=False,
+                )
+            ],
+        ],
+    ],
+)
+def test_expression_parsing(expr, expected_filters):
+    assert expr_to_filters(expr) == Filters(
+        op="OR", filters=[Filters(op="AND", filters=expected_filters)]
     )
-
-    assert internal.expr_to_filters(expr) == expected_filters

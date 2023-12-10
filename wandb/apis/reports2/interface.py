@@ -10,7 +10,7 @@ from pydantic.dataclasses import dataclass
 
 import wandb
 
-from . import gql, internal
+from . import expr_parsing, gql, internal
 from .internal import (
     CodeCompareDiff,
     FontSize,
@@ -22,7 +22,6 @@ from .internal import (
     Range,
     ReportWidth,
     SmoothingType,
-    _generate_name,
 )
 
 TextLike = Union[str, "TextWithInlineComments", "Link", "InlineLatex", "InlineCode"]
@@ -64,21 +63,8 @@ class Base:
         return self._model.model_dump(by_alias=True, exclude_none=True)
 
 
-# @dataclass(config=dataclass_config, frozen=True)
-# class Group:
-#     runset_name: str
-#     grouping: Tuple[str, ...]
-
-
-# @dataclass(config=dataclass_config, frozen=True)
-# class Group2:
-#     runset_name: str
-#     group_key: Tuple[str, ...]
-#     group_value: Tuple[str, ...]
-
-
 @dataclass(config=dataclass_config, frozen=True)
-class Group:
+class RunsetGroupKey:
     key: MetricType
     value: str
 
@@ -86,7 +72,7 @@ class Group:
 @dataclass(config=dataclass_config, frozen=True)
 class RunsetGroup:
     runset_name: str
-    keys: Tuple[Group, ...]
+    keys: Tuple[RunsetGroupKey, ...]
 
 
 @dataclass(config=dataclass_config, frozen=True)
@@ -94,11 +80,11 @@ class Metric:
     name: str
 
     def to_backend(self):
-        return internal.to_backend_name(self.name)
+        return expr_parsing.to_backend_name(self.name)
 
     @classmethod
     def from_backend(cls, v):
-        name = internal.to_frontend_name(v)
+        name = expr_parsing.to_frontend_name(v)
         return cls(name)
 
 
@@ -166,7 +152,7 @@ class SummaryMetric:
         return cls(name)
 
     def to_backend_pg(self):
-        name = internal.to_backend_name(self.name)
+        name = expr_parsing.to_backend_name(self.name)
         return f"summary:{name}"
 
     @classmethod
@@ -650,7 +636,7 @@ class Runset(Base):
         default_factory=dict
     )
 
-    _id: str = field(default_factory=_generate_name, init=False, repr=False)
+    _id: str = field(default_factory=internal._generate_name, init=False, repr=False)
 
     def to_model(self):
         project = None
@@ -660,9 +646,9 @@ class Runset(Base):
         return internal.Runset(
             project=project,
             name=self.name,
-            filters=internal.expr_to_filters(self.filters),
+            filters=expr_parsing.expr_to_filters(self.filters),
             grouping=[
-                internal.Key(name=internal.to_backend_name(g)) for g in self.groupby
+                internal.Key(name=expr_parsing.to_backend_name(g)) for g in self.groupby
             ],
             sort=internal.Sort(keys=[o.to_model() for o in self.order]),
             id=self._id,
@@ -684,8 +670,8 @@ class Runset(Base):
             entity=entity,
             project=project,
             name=model.name,
-            filters=internal.filters_to_expr(model.filters),
-            groupby=[internal.to_frontend_name(k.name) for k in model.grouping],
+            filters=expr_parsing.filters_to_expr(model.filters),
+            groupby=[expr_parsing.to_frontend_name(k.name) for k in model.grouping],
             order=[OrderBy.from_model(s) for s in model.sort.keys],
             _id=model.id,
         )
@@ -1841,7 +1827,7 @@ def collides(p1: Panel, p2: Panel) -> bool:
 
 def metric_to_backend(x: Optional[MetricType]):
     if isinstance(x, str):
-        return internal.to_backend_name(x)
+        return expr_parsing.to_backend_name(x)
     elif x is None:
         return x
     return x.to_backend()
@@ -1931,7 +1917,7 @@ def _from_color_dict(d, runsets):
             for part in backend_parts:
                 key, value = part.rsplit(":", 1)
                 kkey = metric_to_frontend_panel_grid(key)
-                group = Group(kkey, value)
+                group = RunsetGroupKey(kkey, value)
                 groups.append(group)
             rs = _get_rs_by_id(runsets, id)
             rg = RunsetGroup(runset_name=rs.name, keys=groups)

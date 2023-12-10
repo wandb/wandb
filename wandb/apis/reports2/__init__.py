@@ -6,7 +6,6 @@ from . import blocks, panels
 from .blocks import *  # noqa
 from .interface import (
     GradientPoint,
-    Group,
     InlineCode,
     InlineLatex,
     Layout,
@@ -14,6 +13,8 @@ from .interface import (
     ParallelCoordinatesPlotColumn,
     Report,
     Runset,
+    RunsetGroup,
+    RunsetGroupKey,
 )
 from .metrics import *  # noqa
 from .panels import *  # noqa
