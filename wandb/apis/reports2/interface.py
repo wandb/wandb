@@ -2,11 +2,10 @@
 import os
 from dataclasses import field
 from datetime import datetime
-from typing import Iterable, Literal, Optional, Union
+from typing import Iterable, Literal, Optional, Tuple, Union
 from urllib.parse import urlparse, urlunparse
 
-import pydantic_core
-from pydantic import ConfigDict, Field, computed_field, root_validator, validator
+from pydantic import ConfigDict, Field, validator
 from pydantic.dataclasses import dataclass
 
 import wandb
@@ -33,6 +32,7 @@ Color = str
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
 ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
+RunId = str
 
 
 def get_api():
@@ -55,16 +55,42 @@ class Base:
     ...
     # TODO: Add __repr__ that hides Nones
 
+    @property
+    def _model(self):
+        return self.to_model()
 
-@dataclass(config=dataclass_config)
-class Auto:
-    """This value will be defined when the report is saved."""
-
-    ...
+    @property
+    def _spec(self):
+        return self._model.model_dump(by_alias=True, exclude_none=True)
 
 
-@dataclass(config=dataclass_config)
-class Metric(Base):
+# @dataclass(config=dataclass_config, frozen=True)
+# class Group:
+#     runset_name: str
+#     grouping: Tuple[str, ...]
+
+
+# @dataclass(config=dataclass_config, frozen=True)
+# class Group2:
+#     runset_name: str
+#     group_key: Tuple[str, ...]
+#     group_value: Tuple[str, ...]
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class Group:
+    key: MetricType
+    value: str
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class RunsetGroup:
+    runset_name: str
+    keys: Tuple[Group, ...]
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class Metric:
     name: str
 
     def to_backend(self):
@@ -76,8 +102,8 @@ class Metric(Base):
         return cls(name)
 
 
-@dataclass(config=dataclass_config)
-class Config(Base):
+@dataclass(config=dataclass_config, frozen=True)
+class Config:
     name: str
 
     def to_backend(self):
@@ -99,9 +125,26 @@ class Config(Base):
         name = v.replace("c::", "")
         return cls(name)
 
+    def to_backend_pg(self):
+        name, *rest = self.name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        return f"config:{name}.value{rest}"
 
-@dataclass(config=dataclass_config)
-class SummaryMetric(Base):
+    @classmethod
+    def from_backend_pg(cls, v):
+        name = v.replace("config:", "").replace(".value", "")
+        return cls(name)
+
+    def to_backend_run_color(self, name):
+        ...
+
+    @classmethod
+    def from_backend_run_color(cls, v):
+        ...
+
+
+@dataclass(config=dataclass_config, frozen=True)
+class SummaryMetric:
     name: str
 
     def to_backend(self):
@@ -119,6 +162,15 @@ class SummaryMetric(Base):
 
     @classmethod
     def from_backend_pc(cls, v):
+        name = v.replace("summary:", "")
+        return cls(name)
+
+    def to_backend_pg(self):
+        name = internal.to_backend_name(self.name)
+        return f"summary:{name}"
+
+    @classmethod
+    def from_backend_pg(cls, v):
         name = v.replace("summary:", "")
         return cls(name)
 
@@ -563,11 +615,6 @@ class Gallery(Block):
 
 
 @dataclass(config=dataclass_config)
-class CustomRunColors(Base):
-    ...
-
-
-@dataclass(config=dataclass_config)
 class OrderBy(Base):
     name: MetricType
     ascending: bool = False
@@ -598,38 +645,12 @@ class Runset(Base):
         default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
     )
 
-    _id: str = field(default_factory=_generate_name, init=False, repr=False)
-    # _id: str = field(default_factory=lambda: "", init=False, repr=False)
-    _filters: internal.Filters = field(
-        default_factory=internal.Filters, init=False, repr=False
+    # this field does not get exported to model, but is used in PanelGrid
+    custom_run_colors: dict[Union[str, Tuple[MetricType, ...]], str] = Field(
+        default_factory=dict
     )
 
-    def set_filters_with_python_expr(self, expr):
-        self._filters = internal.expr_to_filters(expr)
-
-    @computed_field
-    @property
-    def filters(self) -> str:
-        return internal.filters_to_expr(self._filters)
-
-    @root_validator(pre=True)
-    def special_filters_assignment(cls, values):  # noqa: N805
-        # This preserves the Refs for filters that are not modified.
-        if isinstance(values, pydantic_core._pydantic_core.ArgsKwargs):
-            d = values.kwargs if values.kwargs is not None else {}
-            d.setdefault("_filters", "")
-            d.setdefault("filters", "")
-            d["_filters"] = internal.expr_to_filters(d["filters"])
-            values = pydantic_core.ArgsKwargs(values.args, d)
-
-        elif isinstance(values, dict):
-            d = values if values is not None else {}
-            d.setdefault("_filters", "")
-            d.setdefault("filters", "")
-            d["_filters"] = internal.expr_to_filters(d["filters"])
-            values = d
-
-        return values
+    _id: str = field(default_factory=_generate_name, init=False, repr=False)
 
     def to_model(self):
         project = None
@@ -639,7 +660,7 @@ class Runset(Base):
         return internal.Runset(
             project=project,
             name=self.name,
-            filters=self._filters,
+            filters=internal.expr_to_filters(self.filters),
             grouping=[
                 internal.Key(name=internal.to_backend_name(g)) for g in self.groupby
             ],
@@ -663,7 +684,7 @@ class Runset(Base):
             entity=entity,
             project=project,
             name=model.name,
-            _filters=model.filters,
+            filters=internal.filters_to_expr(model.filters),
             groupby=[internal.to_frontend_name(k.name) for k in model.grouping],
             order=[OrderBy.from_model(s) for s in model.sort.keys],
             _id=model.id,
@@ -680,22 +701,14 @@ class Panel(Base):
     )
 
 
-# @dataclass(config=dataclass_config)
-# class PanelGridColumn(Base):
-#     name: str
-#     visible: bool = True
-#     pinned: bool = False
-#     width: int = 100
-
-
 @dataclass(config=dataclass_config)
 class PanelGrid(Block):
     runsets: list["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: list["PanelTypes"] = Field(default_factory=list)
-    # custom_run_colors: Optional[CustomRunColors] = None
     active_runset: int = 0
-
-    # columns: list[str] = Field(default_factory=list)
+    custom_run_colors: dict[Union[RunId, RunsetGroup], str] = Field(
+        default_factory=dict
+    )
 
     _ref: Optional[internal.Ref] = field(
         default_factory=lambda: None, init=False, repr=False
@@ -720,13 +733,15 @@ class PanelGrid(Block):
                     panel_bank_config=internal.PanelBankConfig(),
                     open_viz=self._open_viz,
                 ),
+                custom_run_colors=_to_color_dict(self.custom_run_colors, self.runsets),
             )
         )
 
     @classmethod
     def from_model(cls, model: internal.PanelGrid):
+        runsets = [Runset.from_model(rs) for rs in model.metadata.run_sets]
         return cls(
-            runsets=[Runset.from_model(rs) for rs in model.metadata.run_sets],
+            runsets=runsets,
             panels=[
                 _lookup_panel(p)
                 for p in model.metadata.panel_bank_section_config.panels
@@ -734,6 +749,9 @@ class PanelGrid(Block):
             active_runset=model.metadata.open_run_set,
             _ref=model.metadata.panels.ref,
             _open_viz=model.metadata.open_viz,
+            custom_run_colors=_from_color_dict(
+                model.metadata.custom_run_colors, runsets
+            ),
             # _panel_bank_sections=model.metadata.panel_bank_config.sections,
         )
 
@@ -1068,7 +1086,7 @@ class BarPlot(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metrics=[metric_to_frontend(name) for name in model.config.metric],
+            metrics=[metric_to_frontend(name) for name in model.config.metrics],
             orientation="v" if model.config.vertical else "h",
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             title_x=model.config.x_axis_title,
@@ -1855,3 +1873,70 @@ def metric_to_frontend_pc(x: str):
     if x.startswith("summary:"):
         return SummaryMetric.from_backend_pc(x)
     return Metric.from_backend_pc(x)
+
+
+def metric_to_backend_panel_grid(x: Optional[MetricType]):
+    if isinstance(x, str):
+        return Config(x).to_backend_pg()
+    return metric_to_backend(x)
+
+
+def metric_to_frontend_panel_grid(x: str):
+    if x.startswith("config:") and ".value" in x:
+        name = x.replace("config:", "").replace(".value", "")
+        return Config(name)
+
+
+def _get_rs_by_name(runsets, name):
+    for rs in runsets:
+        if rs.name == name:
+            return rs
+
+
+def _get_rs_by_id(runsets, id):
+    for rs in runsets:
+        if rs._id == id:
+            return rs
+
+
+def _to_color_dict(custom_run_colors, runsets):
+    d = {}
+    for k, v in custom_run_colors.items():
+        if isinstance(k, RunsetGroup):
+            if not (rs := _get_rs_by_name(runsets, k.runset_name)):
+                continue
+            id = rs._id
+            kvs = []
+            for keys in k.keys:
+                kk = metric_to_backend_panel_grid(keys.key)
+                vv = keys.value
+                kv = f"{kk}:{vv}"
+                kvs.append(kv)
+            linked = "-".join(kvs)
+            key = f"{id}-{linked}"
+        else:
+            key = k
+        d[key] = v
+
+    return d
+
+
+def _from_color_dict(d, runsets):
+    d2 = {}
+    for k, v in d.items():
+        id, *backend_parts = k.split("-")
+
+        if backend_parts:
+            groups = []
+            for part in backend_parts:
+                key, value = part.rsplit(":", 1)
+                kkey = metric_to_frontend_panel_grid(key)
+                group = Group(kkey, value)
+                groups.append(group)
+            rs = _get_rs_by_id(runsets, id)
+            rg = RunsetGroup(runset_name=rs.name, keys=groups)
+            new_key = rg
+        else:
+            new_key = k
+        d2[new_key] = v
+    return d2

@@ -259,7 +259,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
-    custom_run_colors: dict = Field(default_factory=dict)
+    custom_run_colors: dict[str, str] = Field(default_factory=dict)
     # custom_run_colors: PanelGridCustomRunColors = Field(
     #     default_factory=PanelGridCustomRunColors
     # )
@@ -298,7 +298,6 @@ class Filters(ReportAPIBaseModel):
     op: Ops = "OR"
     key: Optional[Key] = None
     filters: Optional[list["Filters"]] = None
-    ref: Optional[Ref] = None
     value: Optional[Any] = None
     disabled: Optional[bool] = None
 

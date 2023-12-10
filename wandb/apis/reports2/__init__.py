@@ -6,6 +6,7 @@ from . import blocks, panels
 from .blocks import *  # noqa
 from .interface import (
     GradientPoint,
+    Group,
     InlineCode,
     InlineLatex,
     Layout,
