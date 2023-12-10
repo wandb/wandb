@@ -32,18 +32,6 @@ ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
 RunId = str
 
 
-def get_api():
-    try:
-        return wandb.Api()
-    except wandb.errors.UsageError as e:
-        raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
-
-
-_api = get_api()
-
-
-DEFAULT_ENTITY = _api.default_entity
-
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
@@ -1384,7 +1372,7 @@ class WeavePanel(Panel):
 @dataclass(config=dataclass_config)
 class Report(Base):
     project: str
-    entity: str = DEFAULT_ENTITY
+    entity: str = Field(default_factory=lambda: _get_api().default_entity)
     title: str = Field("Untitled Report", max_length=128)
     width: ReportWidth = "readable"
     description: str = ""
@@ -1539,7 +1527,10 @@ class Report(Base):
 
 
 def _get_api():
-    return wandb.Api()
+    try:
+        return wandb.Api()
+    except wandb.errors.UsageError as e:
+        raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
 
 
 def _url_to_viewspec(url):
