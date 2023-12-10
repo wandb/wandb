@@ -26,8 +26,6 @@ from .internal import (
 
 TextLike = Union[str, "TextWithInlineComments", "Link", "InlineLatex", "InlineCode"]
 TextLikeField = Union[TextLike, list[TextLike]]
-FilterExpr = str
-Color = str
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
 ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
@@ -79,86 +77,15 @@ class RunsetGroup:
 class Metric:
     name: str
 
-    def to_backend(self):
-        return expr_parsing.to_backend_name(self.name)
-
-    @classmethod
-    def from_backend(cls, v):
-        name = expr_parsing.to_frontend_name(v)
-        return cls(name)
-
 
 @dataclass(config=dataclass_config, frozen=True)
 class Config:
     name: str
 
-    def to_backend(self):
-        name, *rest = self.name.split(".")
-        rest = "." + ".".join(rest) if rest else ""
-        return f"config.{name}.value{rest}"
-
-    @classmethod
-    def from_backend(cls, v):
-        name = v.replace("config.", "").replace(".value", "")
-        return cls(name)
-
-    def to_backend_pc(self):
-        name = self.name
-        return f"c::{name}"
-
-    @classmethod
-    def from_backend_pc(cls, v):
-        name = v.replace("c::", "")
-        return cls(name)
-
-    def to_backend_pg(self):
-        name, *rest = self.name.split(".")
-        rest = "." + ".".join(rest) if rest else ""
-        return f"config:{name}.value{rest}"
-
-    @classmethod
-    def from_backend_pg(cls, v):
-        name = v.replace("config:", "").replace(".value", "")
-        return cls(name)
-
-    def to_backend_run_color(self, name):
-        ...
-
-    @classmethod
-    def from_backend_run_color(cls, v):
-        ...
-
 
 @dataclass(config=dataclass_config, frozen=True)
 class SummaryMetric:
     name: str
-
-    def to_backend(self):
-        name = self.name
-        return f"summary_metrics.{name}"
-
-    @classmethod
-    def from_backend(cls, v):
-        name = v.replace("summary_metrics.", "")
-        return cls(name)
-
-    def to_backend_pc(self):
-        name = self.name
-        return f"summary:{name}"
-
-    @classmethod
-    def from_backend_pc(cls, v):
-        name = v.replace("summary:", "")
-        return cls(name)
-
-    def to_backend_pg(self):
-        name = expr_parsing.to_backend_name(self.name)
-        return f"summary:{name}"
-
-    @classmethod
-    def from_backend_pg(cls, v):
-        name = v.replace("summary:", "")
-        return cls(name)
 
 
 @dataclass(config=dataclass_config)
@@ -567,15 +494,15 @@ class Gallery(Block):
         links = []
         for x in self.items:
             if isinstance(x, GalleryReport):
-                thing = internal.GalleryLinkReport(id=x.report_id)
+                link = internal.GalleryLinkReport(id=x.report_id)
             elif isinstance(x, GalleryURL):
-                thing = internal.GalleryLinkURL(
+                link = internal.GalleryLinkURL(
                     url=x.url,
                     title=x.title,
                     description=x.description,
                     image_url=x.image_url,
                 )
-            links.append(thing)
+            links.append(link)
 
         return internal.Gallery(links=links)
 
@@ -607,14 +534,14 @@ class OrderBy(Base):
 
     def to_model(self):
         return internal.SortKey(
-            key=internal.SortKeyKey(name=metric_to_backend(self.name)),
+            key=internal.SortKeyKey(name=_metric_to_backend(self.name)),
             ascending=self.ascending,
         )
 
     @classmethod
     def from_model(cls, model: internal.SortKey):
         return cls(
-            name=metric_to_frontend(model.key.name),
+            name=_metric_to_frontend(model.key.name),
             ascending=model.ascending,
         )
 
@@ -743,7 +670,7 @@ class PanelGrid(Block):
 
     @validator("panels")
     def _resolve_collisions(cls, v):  # noqa: N805
-        v2 = resolve_collisions(v)
+        v2 = _resolve_collisions(v)
         return v2
 
     @validator("runsets")
@@ -878,8 +805,8 @@ class LinePlot(Panel):
         return internal.LinePlot(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
-                x_axis=metric_to_backend(self.x),
-                metrics=[metric_to_backend(name) for name in _listify(self.y)],
+                x_axis=_metric_to_backend(self.x),
+                metrics=[_metric_to_backend(name) for name in _listify(self.y)],
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_x[0],
@@ -913,8 +840,8 @@ class LinePlot(Panel):
     def from_model(cls, model: internal.LinePlot):
         return cls(
             title=model.config.chart_title,
-            x=metric_to_frontend(model.config.x_axis),
-            y=[metric_to_frontend(name) for name in model.config.metrics],
+            x=_metric_to_frontend(model.config.x_axis),
+            y=[_metric_to_frontend(name) for name in model.config.metrics],
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             range_y=(model.config.y_axis_min, model.config.y_axis_max),
             log_x=model.config.x_log_scale,
@@ -969,9 +896,9 @@ class ScatterPlot(Panel):
         return internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
-                x_axis=metric_to_backend(self.x),
-                y_axis=metric_to_backend(self.y),
-                z_axis=metric_to_backend(self.z),
+                x_axis=_metric_to_backend(self.x),
+                y_axis=_metric_to_backend(self.y),
+                z_axis=_metric_to_backend(self.z),
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_y[0],
@@ -1001,9 +928,9 @@ class ScatterPlot(Panel):
 
         return cls(
             title=model.config.chart_title,
-            x=metric_to_frontend(model.config.x_axis),
-            y=metric_to_frontend(model.config.y_axis),
-            z=metric_to_frontend(model.config.z_axis),
+            x=_metric_to_frontend(model.config.x_axis),
+            y=_metric_to_frontend(model.config.y_axis),
+            z=_metric_to_frontend(model.config.z_axis),
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             range_y=(model.config.y_axis_min, model.config.y_axis_max),
             range_z=(model.config.z_axis_min, model.config.z_axis_max),
@@ -1046,7 +973,7 @@ class BarPlot(Panel):
         return internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
-                metrics=[metric_to_backend(name) for name in _listify(self.metrics)],
+                metrics=[_metric_to_backend(name) for name in _listify(self.metrics)],
                 vertical=self.orientation == "v",
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
@@ -1072,7 +999,7 @@ class BarPlot(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metrics=[metric_to_frontend(name) for name in model.config.metrics],
+            metrics=[_metric_to_frontend(name) for name in model.config.metrics],
             orientation="v" if model.config.vertical else "h",
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             title_x=model.config.x_axis_title,
@@ -1107,7 +1034,7 @@ class ScalarChart(Panel):
         return internal.ScalarChart(
             config=internal.ScalarChartConfig(
                 chart_title=self.title,
-                metrics=[metric_to_backend(self.metric)],
+                metrics=[_metric_to_backend(self.metric)],
                 group_agg=self.groupby_aggfunc,
                 group_area=self.groupby_rangefunc,
                 expressions=self.custom_expressions,
@@ -1123,7 +1050,7 @@ class ScalarChart(Panel):
     def from_model(cls, model: internal.ScatterPlot):
         return cls(
             title=model.config.chart_title,
-            metric=metric_to_frontend(model.config.metrics[0]),
+            metric=_metric_to_frontend(model.config.metrics[0]),
             groupby_aggfunc=model.config.group_agg,
             groupby_rangefunc=model.config.group_area,
             custom_expressions=model.config.expressions,
@@ -1170,7 +1097,7 @@ class ParallelCoordinatesPlotColumn(Base):
 
     def to_model(self):
         return internal.Column(
-            accessor=metric_to_backend_pc(self.metric),
+            accessor=_metric_to_backend_pc(self.metric),
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
@@ -1180,7 +1107,7 @@ class ParallelCoordinatesPlotColumn(Base):
     @classmethod
     def from_model(cls, model: internal.Column):
         return cls(
-            metric=metric_to_frontend_pc(model.accessor),
+            metric=_metric_to_frontend_pc(model.accessor),
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
@@ -1716,11 +1643,11 @@ def _text_to_internal_children(text_field):
 
     texts = []
     for x in text:
-        thing = None
+        t = None
         if isinstance(x, str):
-            thing = internal.Text(text=x)
+            t = internal.Text(text=x)
         elif isinstance(x, TextWithInlineComments):
-            thing = internal.Text(text=x.text, inline_comments=x._inline_comments)
+            t = internal.Text(text=x.text, inline_comments=x._inline_comments)
         elif isinstance(x, Link):
             txt = x.text
             if isinstance(txt, str):
@@ -1729,12 +1656,12 @@ def _text_to_internal_children(text_field):
                 children = [
                     internal.Text(text=txt.text, inline_comments=txt._inline_comments)
                 ]
-            thing = internal.InlineLink(url=x.url, children=children)
+            t = internal.InlineLink(url=x.url, children=children)
         elif isinstance(x, InlineLatex):
-            thing = internal.InlineLatex(content=x.text)
+            t = internal.InlineLatex(content=x.text)
         elif isinstance(x, InlineCode):
-            thing = internal.Text(text=x.text, inline_code=True)
-        texts.append(thing)
+            t = internal.Text(text=x.text, inline_code=True)
+        texts.append(t)
     if not all(isinstance(x, str) for x in texts):
         pass
     return texts
@@ -1767,12 +1694,12 @@ def _generate_thing(x):
 def _internal_children_to_text(children):
     pieces = []
     for x in children:
-        thing = _generate_thing(x)
-        if isinstance(thing, list):
-            for x in thing:
+        t = _generate_thing(x)
+        if isinstance(t, list):
+            for x in t:
                 pieces.append(x)
         else:
-            pieces.append(thing)
+            pieces.append(t)
 
     if not pieces:
         return ""
@@ -1792,12 +1719,12 @@ def _internal_children_to_text(children):
     return pieces
 
 
-def resolve_collisions(panels: list[Panel], x_max: int = 24):
+def _resolve_collisions(panels: list[Panel], x_max: int = 24):
     for i, p1 in enumerate(panels):
         for p2 in panels[i + 1 :]:
             l1, l2 = p1.layout, p2.layout
 
-            if collides(p1, p2):
+            if _collides(p1, p2):
                 x = l1.x + l1.w - l2.x
                 y = l1.y + l1.h - l2.y
 
@@ -1810,7 +1737,7 @@ def resolve_collisions(panels: list[Panel], x_max: int = 24):
     return panels
 
 
-def collides(p1: Panel, p2: Panel) -> bool:
+def _collides(p1: Panel, p2: Panel) -> bool:
     l1, l2 = p1.layout, p2.layout
 
     if (
@@ -1825,52 +1752,80 @@ def collides(p1: Panel, p2: Panel) -> bool:
     return True
 
 
-def metric_to_backend(x: Optional[MetricType]):
-    if isinstance(x, str):
-        return expr_parsing.to_backend_name(x)
-    elif x is None:
+def _metric_to_backend(x: Optional[MetricType]):
+    if x is None:
         return x
-    return x.to_backend()
+    if isinstance(x, str):  # Same as Metric
+        return expr_parsing.to_backend_name(x)
+    if isinstance(x, Metric):
+        name = x.name
+        return expr_parsing.to_backend_name(name)
+    if isinstance(x, Config):
+        name, *rest = x.name.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        return f"config.{name}.value{rest}"
+    if isinstance(x, SummaryMetric):
+        name = x.name
+        return f"summary_metrics.{name}"
+    raise Exception("Unexpected metric type")
 
 
-def metric_to_frontend(x: str):
+def _metric_to_frontend(x: str):
     if x is None:
         return x
     if x.startswith("config.") and ".value" in x:
-        return Config.from_backend(x)
+        name = x.replace("config.", "").replace(".value", "")
+        return Config(name)
     if x.startswith("summary_metrics."):
-        return SummaryMetric.from_backend(x)
-    return Metric.from_backend(x)
+        name = x.replace("summary_metrics.", "")
+        return SummaryMetric(name)
+
+    name = expr_parsing.to_frontend_name(x)
+    return Metric(name)
 
 
-def metric_to_backend_pc(x: Optional[ParallelCoordinatesMetric]):
-    if isinstance(x, str):
-        return SummaryMetric(x).to_backend_pc()
+def _metric_to_backend_pc(x: Optional[ParallelCoordinatesMetric]):
     if x is None:
         return x
-    return x.to_backend_pc()
+    if isinstance(x, str):  # Same as SummaryMetric
+        name = x
+        return f"summary:{name}"
+    if isinstance(x, Config):
+        name = x.name
+        return f"c::{name}"
+    if isinstance(x, SummaryMetric):
+        name = x.name
+        return f"summary:{name}"
+    raise Exception("Unexpected metric type")
 
 
-def metric_to_frontend_pc(x: str):
+def _metric_to_frontend_pc(x: str):
     if x is None:
         return x
     if x.startswith("c::"):
-        return Config.from_backend_pc(x)
+        name = x.replace("c::", "")
+        return Config(name)
     if x.startswith("summary:"):
-        return SummaryMetric.from_backend_pc(x)
-    return Metric.from_backend_pc(x)
+        name = x.replace("summary:", "")
+        return SummaryMetric(name)
+
+    name = expr_parsing.to_frontend_name(x)
+    return Metric(name)
 
 
-def metric_to_backend_panel_grid(x: Optional[MetricType]):
+def _metric_to_backend_panel_grid(x: Optional[MetricType]):
     if isinstance(x, str):
-        return Config(x).to_backend_pg()
-    return metric_to_backend(x)
+        name, *rest = x.split(".")
+        rest = "." + ".".join(rest) if rest else ""
+        return f"config:{name}.value{rest}"
+    return _metric_to_backend(x)
 
 
-def metric_to_frontend_panel_grid(x: str):
+def _metric_to_frontend_panel_grid(x: str):
     if x.startswith("config:") and ".value" in x:
         name = x.replace("config:", "").replace(".value", "")
         return Config(name)
+    return _metric_to_frontend(x)
 
 
 def _get_rs_by_name(runsets, name):
@@ -1894,7 +1849,7 @@ def _to_color_dict(custom_run_colors, runsets):
             id = rs._id
             kvs = []
             for keys in k.keys:
-                kk = metric_to_backend_panel_grid(keys.key)
+                kk = _metric_to_backend_panel_grid(keys.key)
                 vv = keys.value
                 kv = f"{kk}:{vv}"
                 kvs.append(kv)
@@ -1916,7 +1871,7 @@ def _from_color_dict(d, runsets):
             groups = []
             for part in backend_parts:
                 key, value = part.rsplit(":", 1)
-                kkey = metric_to_frontend_panel_grid(key)
+                kkey = _metric_to_frontend_panel_grid(key)
                 group = RunsetGroupKey(kkey, value)
                 groups.append(group)
             rs = _get_rs_by_id(runsets, id)

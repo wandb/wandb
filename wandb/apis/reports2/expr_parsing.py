@@ -34,20 +34,6 @@ fe_name_map = {
 }
 fe_name_map_reversed = {v: k for k, v in fe_name_map.items()}
 
-op_map = {
-    ">": ">",
-    "<": "<",
-    "=": "==",
-    "!=": "!=",
-    ">=": ">=",
-    "<=": "<=",
-    "IN": "in",
-    "NIN": "not in",
-    "AND": "and",
-    "OR": "or",
-}
-op_map_reversed = {v: k for k, v in op_map.items()}
-
 
 def expr_to_filters(expr: str) -> Filters:
     if not expr:
@@ -83,10 +69,31 @@ def _parse_node(node) -> Filters:
 
 def _map_op(op_node) -> str:
     # Map the AST operation node to a string repr
+    op_map = {
+        ast.Gt: ">",
+        ast.Lt: "<",
+        ast.Eq: "==",
+        ast.NotEq: "!=",
+        ast.GtE: ">=",
+        ast.LtE: "<=",
+        ast.In: "IN",
+        ast.NotIn: "NIN",
+    }
     return op_map[type(op_node)]
 
 
 def _handle_comparison(node) -> Filters:
+    op_map = {
+        "Gt": ">",
+        "Lt": "<",
+        "Eq": "==",
+        "NotEq": "!=",
+        "GtE": ">=",
+        "LtE": "<=",
+        "In": "IN",
+        "NotIn": "NIN",
+    }
+
     left_operand = node.left.id if isinstance(node.left, ast.Name) else None
     left_operand_mapped = to_frontend_name(left_operand)
     right_operand = _extract_value(node.comparators[0])
@@ -132,6 +139,19 @@ def _handle_logical_op(node) -> Filters:
 
 
 def filters_to_expr(filter_obj: Any, is_root=True) -> str:
+    op_map = {
+        ">": ">",
+        "<": "<",
+        "=": "==",
+        "!=": "!=",
+        ">=": ">=",
+        "<=": "<=",
+        "IN": "in",
+        "NIN": "not in",
+        "AND": "and",
+        "OR": "or",
+    }
+
     def _convert_filter(filter: Any, is_root: bool) -> str:
         if hasattr(filter, "filters") and filter.filters is not None:
             sub_expressions = [

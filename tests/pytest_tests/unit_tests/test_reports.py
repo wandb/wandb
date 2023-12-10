@@ -284,11 +284,11 @@ def test_fix_panel_collisions():
     p3 = wr2.interface.Panel(layout=wr2.Layout(2, 1, 8, 6))
 
     panels = [p1, p2, p3]
-    panels = wr2.interface.resolve_collisions(panels)
+    panels = wr2.interface._resolve_collisions(panels)
 
     for p1 in panels:
         for p2 in panels[1:]:
-            assert not wr2.interface.collides(p1, p2)
+            assert not wr2.interface._collides(p1, p2)
 
 
 @pytest.mark.parametrize(
