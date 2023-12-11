@@ -1,4 +1,5 @@
 import ast
+import sys
 from typing import Any
 
 from .internal import Filters, Key
@@ -121,14 +122,15 @@ def _handle_function_call(node) -> dict:
 
 
 def _extract_value(node) -> Any:
+    if sys.version < (3, 8) and isinstance(node, ast.Num):
+        return node.n
     if isinstance(node, ast.Constant):
         return node.n
-    elif isinstance(node, ast.List) or isinstance(node, ast.Tuple):
+    if isinstance(node, ast.List) or isinstance(node, ast.Tuple):
         return [_extract_value(element) for element in node.elts]
-    elif isinstance(node, ast.Name):
+    if isinstance(node, ast.Name):
         return node.id
-    else:
-        raise ValueError(f"Unsupported value type: {type(node)}")
+    raise ValueError(f"Unsupported value type: {type(node)}")
 
 
 def _handle_logical_op(node) -> Filters:
