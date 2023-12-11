@@ -214,108 +214,50 @@ exclude = '''
    )
 '''
 
+# wandb.*
+[[tool.mypy.overrides]]
+module = "wandb.*"
+ignore_errors = true
+
+# wandb/testing.*
+[[tool.mypy.overrides]]
+module = "wandb.testing.*"
+ignore_errors = true
+
+# wandb/env
+[[tool.mypy.overrides]]
+module = "wandb.env"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# wandb/filesync.*
+[[tool.mypy.overrides]]
+module = "wandb.filesync.*"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_calls = false
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# More wandb/ modules can be added in a similar manner as overrides
+
+# External libraries
 [[tool.mypy.overrides]]
 module = [
-    # wandb/*
-    "wandb.*",
-
-    # wandb/testing/*
-    "wandb.testing.*",
-
-    # wandb/env
-    "wandb.env",
-    "wandb.filesync.*",
-    "wandb.util",
-    "wandb.integration.catboost.*",
-    "wandb.integration.lightgbm.*",
-    "wandb.apis.importers.*",
-    "wandb.integration.fastai.*",
-    "wandb.integration.keras.callbacks.*",
-    "wandb.integration.yolov8.*",
-    "wandb.integration.sb3.*",
-    "wandb.integration.tensorboard.*",
-    "wandb.integration.xgboost.*",
-    "wandb.sdk.*",
-    "wandb.sdk.artifacts.*",
-    "wandb.sdk.backend.*",
-    "wandb.sdk.integration_utils.*",
-    "wandb.sdk.interface.*",
-    "wandb.sdk.internal.*",
-    "wandb.sdk.launch.*",
-    "wandb.sdk.lib.*",
-    "wandb.sdk.service.*",
-    "wandb.sdk.verify.*",
-
-    # Overrides: wandb/sdk/wandb_*
-    "wandb.sdk.wandb_run",
-    "wandb.sdk.wandb_watch",
-    "wandb.sdk.wandb_init",
-    "wandb.sdk.wandb_login",
-    "wandb.sdk.wandb_sweep",
-    "wandb.sdk.wandb_config",
-    "wandb.sdk.wandb_history",
-    "wandb.sdk.wandb_helper",
-    "wandb.sdk.wandb_require",
-    "wandb.sdk.wandb_settings",
-    "wandb.sdk.wandb_alerts",
-    "wandb.sdk.wandb_summary",
-    "wandb.sdk.wandb_save",
-    "wandb.sdk.wandb_sync",
-
-    # wandb/sdk/data_types/
-    "wandb.sdk.data_types",
-    "wandb.sdk.data_types.*",
-    "wandb.sdk.data_types._dtypes",
-
-    # wandb/sdk/interface/
-    "wandb.sdk.interface.summary_record",
-
-    # wandb/sdk/internal/
-    "wandb.sdk.internal.tpu",
-    "wandb.sdk.internal.internal_api",
-    "wandb.sdk.internal.meta",
-    "wandb.sdk.internal.run",
-    "wandb.sdk.internal.update",
-    "wandb.sdk.internal.profiler",
-    "wandb.sdk.internal.sample",
-    "wandb.sdk.internal.progress",
-    "wandb.sdk.internal.datastore",
-    "wandb.sdk.internal.file_stream",
-    "wandb.sdk.internal.file_pusher",
-    "wandb.sdk.internal.handler",
-    "wandb.sdk.internal.sender",
-    "wandb.sdk.internal.tb_watcher",
-    "wandb.sdk.internal.stats",
-    "wandb.sdk.internal.internal",
-
-    # wandb/sdk/lib/
-    "wandb.sdk.lib.sparkline",
-    "wandb.sdk.lib.disabled",
-    "wandb.sdk.lib.lazyloader",
-    "wandb.sdk.lib.retry",
-    "wandb.sdk.lib.config_util",
-    "wandb.sdk.lib.server",
-    "wandb.sdk.lib.module",
-    "wandb.sdk.lib.file_stream_utils",
-    "wandb.sdk.lib.timed_input",
-    "wandb.sdk.lib.console",
-    "wandb.sdk.lib.redirect",
-    "wandb.sdk.lib.preinit",
-    "wandb.sdk.lib.reporting",
-    "wandb.sdk.lib.gitlib",
-    "wandb.sdk.lib.handler_util",
-    "wandb.sdk.lib.ipython",
-
-    # wandb/apis/reports/
-    "wandb.apis.reports.*",
-
-    # wandb/proto/
-    "wandb.proto.*",
-
-    # wandb/docker/
-    "wandb.docker.*",
-
-    # external libraries
     "psutil.*",
     "tensorboard.*",
     "grpc.*",
@@ -323,47 +265,6 @@ module = [
     "ultralytics.*",
     "wandb.vendor.*",
     "wandb_gql.*",
-    "wandb_graphql.*",
+    "wandb_graphql.*"
 ]
-
-# Ignore errors settings
-ignore_errors = [
-    "wandb.*",
-    "wandb.testing.*",
-    "wandb.sdk.integration_utils.*",
-    "wandb.sdk.verify.*",
-    "wandb.sdk.wandb_watch",
-    "wandb.sdk.wandb_login",
-    "wandb.sdk.wandb_summary",
-    "wandb.sdk.wandb_save",
-    "wandb.sdk.data_types",
-    "wandb.sdk.data_types._dtypes",
-    "wandb.sdk.interface.summary_record",
-    "wandb.sdk.internal.file_pusher",
-    "wandb.sdk.internal.file_stream",
-    "wandb.sdk.internal.datastore",
-    "wandb.sdk.internal.handler",
-    "wandb.sdk.internal.sender",
-    "wandb.sdk.internal.tb_watcher",
-    "wandb.sdk.internal.stats",
-    "wandb.sdk.internal.internal",
-    "wandb.sdk.lib.preinit",
-    "wandb.sdk.lib.reporting",
-    "wandb.sdk.lib.gitlib",
-    "wandb.sdk.lib.handler_util",
-    "wandb.sdk.lib.ipython",
-    "wandb.apis.reports.*",
-    "wandb.integration.fastai.*",
-]
-
-ignore_missing_imports = [
-    "wandb.proto.*",
-    "psutil.*",
-    "tensorboard.*",
-    "grpc.*",
-    "setproctitle.*",
-    "ultralytics.*",
-    "wandb.vendor.*",
-    "wandb_gql.*",
-    "wandb_graphql.*",
-]
+ignore_missing_imports = true
