@@ -205,3 +205,66 @@ ignore-overlong-task-comments = true
 
 [tool.ruff.mccabe]
 max-complexity = 18
+
+[tool.mypy]
+warn_redundant_casts = true
+exclude = '''
+   (?x)(
+      wandb/vendor/.
+   )
+'''
+
+# wandb.*
+[[tool.mypy.overrides]]
+module = "wandb.*"
+ignore_errors = true
+
+# wandb/testing.*
+[[tool.mypy.overrides]]
+module = "wandb.testing.*"
+ignore_errors = true
+
+# wandb/env
+[[tool.mypy.overrides]]
+module = "wandb.env"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# wandb/filesync.*
+[[tool.mypy.overrides]]
+module = "wandb.filesync.*"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_calls = false
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# More wandb/ modules can be added in a similar manner as overrides
+
+# External libraries
+[[tool.mypy.overrides]]
+module = [
+    "psutil.*",
+    "tensorboard.*",
+    "grpc.*",
+    "setproctitle.*",
+    "ultralytics.*",
+    "wandb.vendor.*",
+    "wandb_gql.*",
+    "wandb_graphql.*"
+]
+ignore_missing_imports = true
