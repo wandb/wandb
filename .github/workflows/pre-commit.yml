@@ -16,7 +16,7 @@ jobs:
     - uses: actions/setup-python@v3
     - name: setup env
       run: |
-        ./nexus/scripts/code-checks.sh update
+        ./core/scripts/code-checks.sh update
     - uses: pre-commit/action@v3.0.0
       with:
         extra_args: --hook-stage pre-push --all-files

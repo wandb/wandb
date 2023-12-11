@@ -7,11 +7,11 @@
 /setup.cfg @wandb/sdk-team
 /setup.py @wandb/sdk-team
 /requirements.txt @wandb/sdk-team
-# Nexus changes need extra scrutiny during the initial rollout
-/nexus/ @wandb/sdk-team
+# core changes need extra scrutiny during the initial rollout
+/core/ @wandb/sdk-team
 
 # ML Workflows team
-/nexus/pkg/artifacts/ @wandb/mlw-team
+/core/pkg/artifacts/ @wandb/mlw-team
 /wandb/sdk/artifacts/ @wandb/mlw-team
 /tests/functional_tests/t0_main/artifacts/ @wandb/mlw-team
 /tests/pytest_tests/system_tests/test_artifacts/ @wandb/mlw-team
