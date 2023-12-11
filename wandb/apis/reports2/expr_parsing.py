@@ -143,6 +143,7 @@ def filters_to_expr(filter_obj: Any, is_root=True) -> str:
         ">": ">",
         "<": "<",
         "=": "==",
+        "==": "==",
         "!=": "!=",
         ">=": ">=",
         "<=": "<=",
