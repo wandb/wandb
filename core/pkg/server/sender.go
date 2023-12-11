@@ -257,14 +257,11 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
-<<<<<<< HEAD:nexus/pkg/server/sender.go
 	case *service.Record_StreamTable:
 		s.sendStreamTable(record, x.StreamTable)
 	case *service.Record_StreamData:
 		s.sendStreamData(record)
-=======
 	case *service.Record_Artifact:
->>>>>>> origin/main:core/pkg/server/sender.go
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -340,9 +337,6 @@ func (s *Sender) startFileStream(fsPath string, useAsync bool) {
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-<<<<<<< HEAD:nexus/pkg/server/sender.go
-	s.startFileStream(fsPath, false)
-=======
 
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
@@ -354,8 +348,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
 
-	s.fileStream.Start()
->>>>>>> origin/main:core/pkg/server/sender.go
+	s.startFileStream(fsPath, false)
 	s.fileTransferManager.Start()
 }
 
