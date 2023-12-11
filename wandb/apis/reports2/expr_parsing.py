@@ -122,7 +122,7 @@ def _handle_function_call(node) -> dict:
 
 
 def _extract_value(node) -> Any:
-    if sys.version < (3, 8) and isinstance(node, ast.Num):
+    if sys.version_info < (3, 8) and isinstance(node, ast.Num):
         return node.n
     if isinstance(node, ast.Constant):
         return node.n
