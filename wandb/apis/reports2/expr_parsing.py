@@ -205,7 +205,8 @@ def _key_to_server_path(key: Key):
         return f"tags.{name}"
     elif section == "runs":
         return name
-    raise ValueError(f"Invalid {key=}")
+    raise ValueError(f"Invalid key ({key})")
+    # raise ValueError(f"Invalid {key=}")
 
 
 def _server_path_to_key(path):
