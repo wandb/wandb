@@ -220,18 +220,21 @@ class RecordMaker:
         output_raw.line = line
         return self.interface._make_record(output_raw=output_raw)
 
-    def _make_summary_record(self) -> pb.Record:
+    def _make_summary_record(self, rewind_steps: Optional[int] = None) -> pb.Record:
         d: dict = {
             **self.run.summary(),
             "_runtime": self.run.runtime(),  # quirk of runtime -- it has to be here!
+            "_step": self.run.summary()["_step"] - max(0, rewind_steps),
             # '_timestamp': self.run.start_time()/1000,
         }
         d = cast_dictlike_to_dict(d)
         summary = self.interface._make_summary_from_dict(d)
         return self.interface._make_record(summary=summary)
 
-    def _make_history_records(self) -> Iterable[pb.Record]:
-        for _, metrics in enumerate(self.run.metrics()):
+    def _make_history_records(
+        self, rewind_steps: Optional[int] = None
+    ) -> Iterable[pb.Record]:
+        for _, metrics in enumerate(self.run.metrics(rewind_steps=rewind_steps)):
             history = pb.HistoryRecord()
             for k, v in metrics.items():
                 item = history.item.add()
@@ -321,6 +324,7 @@ class RecordMaker:
 
 def send_run_with_send_manager(
     run: ImporterRun,
+    rewind_steps: Optional[int] = None,
     overrides: Optional[Dict[str, Any]] = None,
     settings_override: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -398,12 +402,15 @@ def send_run_with_send_manager(
 
         wandb.termlog(">> Log History")
         for history_record in tqdm(
-            rm._make_history_records(), desc="History", unit="steps", leave=False
+            rm._make_history_records(rewind_steps=rewind_steps),
+            desc="History",
+            unit="steps",
+            leave=False,
         ):
             sm.send(history_record)
 
         wandb.termlog(">> Log Summary")
-        sm.send(rm._make_summary_record())
+        sm.send(rm._make_summary_record(rewind_steps=rewind_steps))
 
         wandb.termlog(">> Log Output")
         lines = run.logs()
