@@ -14,7 +14,7 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # wandb-core versioning
 # ---------------------
-CORE_VERSION = "0.17.0b3"
+CORE_VERSION = "0.17.0b4"
 
 
 PACKAGE: str = "wandb_core"
