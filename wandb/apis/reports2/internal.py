@@ -4,7 +4,12 @@ import random
 import re
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, validator
 from pydantic.alias_generators import to_camel
@@ -146,7 +151,7 @@ class Text(ReportAPIBaseModel):
     text: str = ""
     inline_code: Optional[bool] = None
 
-    inline_comments: Optional[list["InlineComment"]] = None
+    inline_comments: Optional[List["InlineComment"]] = None
 
     def model_dump(self, **kwargs):
         data = super().model_dump(**kwargs)
@@ -222,7 +227,7 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
 class PanelBankConfig(ReportAPIBaseModel):
     state: int = 0
     settings: PanelBankConfigSettings = Field(default_factory=PanelBankConfigSettings)
-    sections: list[PanelBankConfigSectionsItem] = Field(
+    sections: List[PanelBankConfigSectionsItem] = Field(
         default_factory=lambda: [PanelBankConfigSectionsItem()]
     )
 
@@ -230,7 +235,7 @@ class PanelBankConfig(ReportAPIBaseModel):
 class PanelBankSectionConfig(ReportAPIBaseModel):
     name: Literal["Report Panels"] = "Report Panels"
     is_open: bool = False
-    panels: list["PanelTypes"] = Field(default_factory=list)
+    panels: List["PanelTypes"] = Field(default_factory=list)
     type: Literal["grid"] = "grid"
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
@@ -254,13 +259,13 @@ class PanelGridMetadata(ReportAPIBaseModel):
     open_viz: bool = True
     open_run_set: Optional[int] = 0  # none is closed
     name: Literal["unused-name"] = "unused-name"
-    run_sets: list["Runset"] = Field(default_factory=lambda: [Runset()])
+    run_sets: List["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: PanelGridMetadataPanels = Field(default_factory=PanelGridMetadataPanels)
     panel_bank_config: PanelBankConfig = Field(default_factory=PanelBankConfig)
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
-    custom_run_colors: dict[str, str] = Field(default_factory=dict)
+    custom_run_colors: Dict[str, str] = Field(default_factory=dict)
     # custom_run_colors: PanelGridCustomRunColors = Field(
     #     default_factory=PanelGridCustomRunColors
     # )
@@ -272,7 +277,7 @@ class Block(ReportAPIBaseModel):
 
 class PanelGrid(Block):
     type: Literal["panel-grid"] = "panel-grid"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     metadata: PanelGridMetadata = Field(default_factory=PanelGridMetadata)
 
 
@@ -282,10 +287,10 @@ class RunsetSearch(ReportAPIBaseModel):
 
 class RunFeed(ReportAPIBaseModel):
     version: int = 2
-    column_visible: dict[str, bool] = Field(default_factory=lambda: {"run:name": False})
-    column_pinned: dict[str, bool] = Field(default_factory=dict)
-    column_widths: dict[str, int] = Field(default_factory=dict)
-    column_order: list[str] = Field(default_factory=list)
+    column_visible: Dict[str, bool] = Field(default_factory=lambda: {"run:name": False})
+    column_pinned: Dict[str, bool] = Field(default_factory=dict)
+    column_widths: Dict[str, int] = Field(default_factory=dict)
+    column_order: List[str] = Field(default_factory=list)
     page_size: int = 10
     only_show_selected: bool = False
 
@@ -298,7 +303,7 @@ class Key(ReportAPIBaseModel):
 class Filters(ReportAPIBaseModel):
     op: Ops = "OR"
     key: Optional[Key] = None
-    filters: Optional[list["Filters"]] = None
+    filters: Optional[List["Filters"]] = None
     value: Optional[Any] = None
     disabled: Optional[bool] = None
 
@@ -314,7 +319,7 @@ class SortKey(ReportAPIBaseModel):
 
 
 class Sort(ReportAPIBaseModel):
-    keys: list[SortKey] = Field(default_factory=lambda: [SortKey()])
+    keys: List[SortKey] = Field(default_factory=lambda: [SortKey()])
     # ref: Ref = Field(default_factory=Ref)
     ref: Optional[Ref] = None
 
@@ -329,7 +334,7 @@ class Runset(ReportAPIBaseModel):
     filters: Filters = Field(
         default_factory=lambda: Filters(filters=[Filters(op="AND")])
     )
-    grouping: list[Key] = Field(default_factory=list)
+    grouping: List[Key] = Field(default_factory=list)
     sort: Sort = Field(default_factory=Sort)
     # selections: dict = Field(default_factory=dict)
     selections: dict = Field(
@@ -342,32 +347,32 @@ class Runset(ReportAPIBaseModel):
 
 class CodeLine(ReportAPIBaseModel):
     type: Literal["code-line"] = "code-line"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     language: Optional[Language] = "python"
 
 
 class Heading(TextLikeMixin, Block):
     type: Literal["heading"] = "heading"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
-    collapsed_children: Optional[list["BlockTypes"]] = None
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    collapsed_children: Optional[List["BlockTypes"]] = None
     level: int = 1
 
 
 class InlineLatex(InlineModel):
     type: Literal["latex"] = "latex"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     content: str = ""
 
 
 class InlineLink(TextLikeMixin, InlineModel):
     type: Literal["link"] = "link"
     url: str = "https://"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class Paragraph(TextLikeMixin, Block):
     type: Literal["paragraph"] = "paragraph"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -393,80 +398,80 @@ class Paragraph(TextLikeMixin, Block):
 
 class BlockQuote(Block):
     type: Literal["block-quote"] = "block-quote"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
 
 class CodeBlock(Block):
     type: Literal["code-block"] = "code-block"
-    children: list[CodeLine] = Field(default_factory=lambda: [CodeLine()])
+    children: List[CodeLine] = Field(default_factory=lambda: [CodeLine()])
     language: Optional[Language] = "python"
 
 
 class MarkdownBlock(Block):
     type: Literal["markdown-block"] = "markdown-block"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     content: str = ""
 
 
 class LatexBlock(Block):
     type: Literal["latex"] = "latex"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     content: str = ""
     block: bool = True
 
 
 class Image(Block):
     type: Literal["image"] = "image"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
     url: str
     has_caption: bool
 
 
 class ListItem(ReportAPIBaseModel):
     type: Literal["list-item"] = "list-item"
-    children: list[TextLikeInternal]
+    children: List[TextLikeInternal]
     ordered: Optional[bool] = None
     checked: Optional[bool] = None
 
 
 class List(Block):
     type: Literal["list"] = "list"
-    children: list[ListItem] = Field(default_factory=lambda: [ListItem()])
+    children: List[ListItem] = Field(default_factory=lambda: [ListItem()])
     ordered: Optional[bool] = None
 
 
 class CalloutLine(ReportAPIBaseModel):
     type: Literal["callout-line"] = "callout-line"
-    children: list[TextLikeInternal] = Field(default_factory=lambda: [Text()])
+    children: List[TextLikeInternal] = Field(default_factory=lambda: [Text()])
 
 
 class CalloutBlock(Block):
     type: Literal["callout-block"] = "callout-block"
-    children: list[CalloutLine] = Field(default_factory=lambda: list)
+    children: List[CalloutLine] = Field(default_factory=lambda: list)
 
 
 class HorizontalRule(Block):
     type: Literal["horizontal-rule"] = "horizontal-rule"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class Video(Block):
     type: Literal["video"] = "video"
     url: str
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class Spotify(Block):
     type: Literal["spotify"] = "spotify"
     spotify_type: Literal["track"] = "track"
     spotify_id: str = Field(..., alias="spotifyID")
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class SoundCloud(Block):
     type: Literal["soundcloud"] = "soundcloud"
     html: str
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class GalleryLinkReport(ReportAPIBaseModel):
@@ -484,25 +489,25 @@ class GalleryLinkURL(ReportAPIBaseModel):
 
 class Gallery(Block):
     type: Literal["gallery"] = "gallery"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
-    links: Optional[list[GalleryLink]] = None
-    ids: Optional[list[str]] = None
+    children: List[Text] = Field(default_factory=lambda: [Text()])
+    links: Optional[List[GalleryLink]] = None
+    ids: Optional[List[str]] = None
 
 
 class TableOfContents(ReportAPIBaseModel):
     type: Literal["table-of-contents"] = "table-of-contents"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
 
 
 class Twitter(ReportAPIBaseModel):
     type: Literal["twitter"] = "twitter"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     html: str
 
 
 class WeaveBlock(ReportAPIBaseModel):
     type: Literal["weave-panel"] = "weave-panel"
-    children: list[Text] = Field(default_factory=lambda: [Text()])
+    children: List[Text] = Field(default_factory=lambda: [Text()])
     config: dict = Field(default_factory=dict)
 
 
@@ -515,7 +520,7 @@ class InlineComment(ReportAPIBaseModel):
 class Spec(ReportAPIBaseModel):
     version: int = 5
     panel_settings: dict = Field(default_factory=dict)
-    blocks: list["BlockTypes"] = Field(default_factory=list)
+    blocks: List["BlockTypes"] = Field(default_factory=list)
     width: str = "readable"
     authors: list = Field(default_factory=list)
     discussion_threads: list = Field(default_factory=list)
@@ -557,7 +562,7 @@ class Panel(ReportAPIBaseModel):
 
 class MediaBrowserConfig(ReportAPIBaseModel):
     column_count: Optional[int] = None
-    media_keys: list[str] = Field(default_factory=list)
+    media_keys: List[str] = Field(default_factory=list)
 
 
 class MediaBrowser(Panel):
@@ -577,7 +582,7 @@ class MarkdownPanel(Panel):
 class LinePlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
     x_axis: Optional[str] = None
-    metrics: list[str] = Field(default_factory=list)
+    metrics: List[str] = Field(default_factory=list)
     x_axis_min: Optional[float] = None
     x_axis_max: Optional[float] = None
     y_axis_min: Optional[float] = None
@@ -594,7 +599,7 @@ class LinePlotConfig(ReportAPIBaseModel):
     smoothing_type: Optional[SmoothingType] = None
     show_original_after_smoothing: Optional[bool] = None
     limit: Optional[int] = None
-    expressions: Optional[list[str]] = None
+    expressions: Optional[List[str]] = None
     plot_type: Optional[LinePlotStyle] = None
     font_size: Optional[FontSize] = None
     legend_position: Optional[LegendPosition] = None
@@ -644,7 +649,7 @@ class ScatterPlotConfig(ReportAPIBaseModel):
     show_max_y_axis_line: Optional[bool] = None
     show_avg_y_axis_line: Optional[bool] = None
     legend_template: Optional[str] = None
-    custom_gradient: Optional[list[GradientPoint]] = None
+    custom_gradient: Optional[List[GradientPoint]] = None
     font_size: Optional[FontSize] = None
     show_linear_regression: Optional[bool] = None
 
@@ -656,7 +661,7 @@ class ScatterPlot(Panel):
 
 class BarPlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
-    metrics: list[str] = Field(default_factory=list)
+    metrics: List[str] = Field(default_factory=list)
     vertical: bool = False
     x_axis_min: Optional[float] = None
     x_axis_max: Optional[float] = None
@@ -667,7 +672,7 @@ class BarPlotConfig(ReportAPIBaseModel):
     group_area: Optional[GroupArea] = None
     limit: Optional[int] = None
     bar_limit: Optional[int] = None
-    expressions: Optional[list[str]] = None
+    expressions: Optional[List[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
     override_series_titles: Optional[dict] = None
@@ -681,10 +686,10 @@ class BarPlot(Panel):
 
 class ScalarChartConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
-    metrics: list[str] = Field(default_factory=list)
+    metrics: List[str] = Field(default_factory=list)
     group_agg: Optional[GroupAgg] = None
     group_area: Optional[GroupArea] = None
-    expressions: Optional[list[str]] = None
+    expressions: Optional[List[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
 
@@ -713,8 +718,8 @@ class Column(ReportAPIBaseModel):
 
 class ParallelCoordinatesPlotConfig(ReportAPIBaseModel):
     chart_title: Optional[str] = None
-    columns: list[Column] = Field(default_factory=list)
-    custom_gradient: Optional[list[GradientPoint]] = None
+    columns: List[Column] = Field(default_factory=list)
+    custom_gradient: Optional[List[GradientPoint]] = None
     font_size: Optional[FontSize] = None
 
 
@@ -735,7 +740,7 @@ class ParameterImportancePlotConfig(ReportAPIBaseModel):
     # parameter_conf: ParameterConf = Field(default_factory=ParameterConf)
     columns_pinned: dict = Field(default_factory=dict)
     column_widths: dict = Field(default_factory=dict)
-    column_order: list[str] = Field(default_factory=list)
+    column_order: List[str] = Field(default_factory=list)
     page_size: int = 10
     only_show_selected: bool = False
 
@@ -761,19 +766,19 @@ class QueryFieldsValue(ReportAPIBaseModel):
 
 class QueryFieldsField(ReportAPIBaseModel):
     name: str = ""
-    fields: Optional[list["QueryFieldsField"]] = None
-    # fields: list["QueryFieldsField"] = Field(default_factory=list)
-    value: list[QueryFieldsValue] = Field(default_factory=list)
+    fields: Optional[List["QueryFieldsField"]] = None
+    # fields: List["QueryFieldsField"] = Field(default_factory=list)
+    value: List[QueryFieldsValue] = Field(default_factory=list)
 
 
 class QueryField(ReportAPIBaseModel):
-    args: list[QueryFieldsValue] = Field(
+    args: List[QueryFieldsValue] = Field(
         default_factory=lambda: [
             QueryFieldsValue(name="runSets", value="${runSets}"),
             QueryFieldsValue(name="limit", value=500),
         ]
     )
-    fields: list[QueryFieldsField] = Field(
+    fields: List[QueryFieldsField] = Field(
         default_factory=lambda: [
             QueryFieldsField(name="id", value=[], fields=None),
             QueryFieldsField(name="name", value=[], fields=None),
@@ -783,7 +788,7 @@ class QueryField(ReportAPIBaseModel):
 
 
 class UserQuery(ReportAPIBaseModel):
-    query_fields: list[QueryField] = Field(default_factory=lambda: [QueryField()])
+    query_fields: List[QueryField] = Field(default_factory=lambda: [QueryField()])
 
 
 class Vega2ConfigTransform(ReportAPIBaseModel):

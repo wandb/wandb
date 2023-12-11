@@ -2,7 +2,13 @@
 import os
 from dataclasses import field
 from datetime import datetime
-from typing import Iterable, Literal, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
+
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import ConfigDict, Field, validator
@@ -25,7 +31,7 @@ from .internal import (
 )
 
 TextLike = Union[str, "TextWithInlineComments", "Link", "InlineLatex", "InlineCode"]
-TextLikeField = Union[TextLike, list[TextLike]]
+TextLikeField = Union[TextLike, List[TextLike]]
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
 ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
@@ -119,7 +125,7 @@ class UnknownBlock(Block):
 class TextWithInlineComments(Base):
     text: str
 
-    _inline_comments: Optional[list[internal.InlineComment]] = field(
+    _inline_comments: Optional[List[internal.InlineComment]] = field(
         default_factory=lambda: None, repr=False
     )
 
@@ -145,7 +151,7 @@ class Heading(Block):
 @dataclass(config=dataclass_config)
 class H1(Heading):
     text: TextLikeField = ""
-    collapsed_blocks: Optional[list["BlockTypes"]] = None
+    collapsed_blocks: Optional[List["BlockTypes"]] = None
 
     def to_model(self):
         collapsed_children = self.collapsed_blocks
@@ -162,7 +168,7 @@ class H1(Heading):
 @dataclass(config=dataclass_config)
 class H2(Heading):
     text: TextLikeField = ""
-    collapsed_blocks: Optional[list["BlockTypes"]] = None
+    collapsed_blocks: Optional[List["BlockTypes"]] = None
 
     def to_model(self):
         collapsed_children = self.collapsed_blocks
@@ -179,7 +185,7 @@ class H2(Heading):
 @dataclass(config=dataclass_config)
 class H3(Heading):
     text: TextLikeField = ""
-    collapsed_blocks: Optional[list["BlockTypes"]] = None
+    collapsed_blocks: Optional[List["BlockTypes"]] = None
 
     def to_model(self):
         collapsed_children = self.collapsed_blocks
@@ -198,7 +204,7 @@ class Link(Base):
     text: Union[str, TextWithInlineComments]
     url: str
 
-    _inline_comments: Optional[list[internal.InlineComment]] = field(
+    _inline_comments: Optional[List[internal.InlineComment]] = field(
         default_factory=lambda: None, init=False, repr=False
     )
 
@@ -300,7 +306,7 @@ class List(Block):
 
 @dataclass(config=dataclass_config)
 class CheckedList(List):
-    items: list[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
+    items: List[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
     def to_model(self):
         items = [x.to_model() for x in self.items]
@@ -309,7 +315,7 @@ class CheckedList(List):
 
 @dataclass(config=dataclass_config)
 class OrderedList(List):
-    items: list[str] = Field(default_factory=lambda: [""])
+    items: List[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
         children = [OrderedListItem(li).to_model() for li in self.items]
@@ -318,7 +324,7 @@ class OrderedList(List):
 
 @dataclass(config=dataclass_config)
 class UnorderedList(List):
-    items: list[str] = Field(default_factory=lambda: [""])
+    items: List[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
         children = [UnorderedListItem(li).to_model() for li in self.items]
@@ -480,7 +486,7 @@ class GalleryURL(Base):
 
 @dataclass(config=dataclass_config)
 class Gallery(Block):
-    items: list[Union[GalleryReport, GalleryURL]] = Field(default_factory=list)
+    items: List[Union[GalleryReport, GalleryURL]] = Field(default_factory=list)
 
     def to_model(self):
         links = []
@@ -545,13 +551,13 @@ class Runset(Base):
     name: str = "Run set"
     query: str = ""
     filters: Optional[str] = ""
-    groupby: list[str] = Field(default_factory=list)
-    order: list[OrderBy] = Field(
+    groupby: List[str] = Field(default_factory=list)
+    order: List[OrderBy] = Field(
         default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
     )
 
     # this field does not get exported to model, but is used in PanelGrid
-    custom_run_colors: dict[Union[str, Tuple[MetricType, ...]], str] = Field(
+    custom_run_colors: Dict[Union[str, Tuple[MetricType, ...]], str] = Field(
         default_factory=dict
     )
 
@@ -608,10 +614,10 @@ class Panel(Base):
 
 @dataclass(config=dataclass_config)
 class PanelGrid(Block):
-    runsets: list["Runset"] = Field(default_factory=lambda: [Runset()])
-    panels: list["PanelTypes"] = Field(default_factory=list)
+    runsets: List["Runset"] = Field(default_factory=lambda: [Runset()])
+    panels: List["PanelTypes"] = Field(default_factory=list)
     active_runset: int = 0
-    custom_run_colors: dict[Union[RunId, RunsetGroup], str] = Field(
+    custom_run_colors: Dict[Union[RunId, RunsetGroup], str] = Field(
         default_factory=dict
     )
 
@@ -619,7 +625,7 @@ class PanelGrid(Block):
         default_factory=lambda: None, init=False, repr=False
     )
     _open_viz: bool = field(default_factory=lambda: True, init=False, repr=False)
-    _panel_bank_sections: list[dict] = field(
+    _panel_bank_sections: List[dict] = field(
         default_factory=list, init=False, repr=False
     )
     _panel_grid_metadata_ref: Optional[internal.Ref] = field(
@@ -770,7 +776,7 @@ class GradientPoint(Base):
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[MetricType] = None
-    y: Union[list[MetricType], MetricType] = Field(default_factory=list)
+    y: Union[List[MetricType], MetricType] = Field(default_factory=list)
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     log_x: Optional[bool] = None
@@ -785,7 +791,7 @@ class LinePlot(Panel):
     smoothing_type: Optional[SmoothingType] = None
     smoothing_show_original: Optional[bool] = None
     max_runs_to_show: Optional[int] = None
-    custom_expressions: Optional[list[str]] = None
+    custom_expressions: Optional[List[str]] = None
     plot_type: Optional[LinePlotStyle] = None
     font_size: Optional[FontSize] = None
     legend_position: Optional[LegendPosition] = None
@@ -877,7 +883,7 @@ class ScatterPlot(Panel):
     running_ymax: Optional[bool] = None
     running_ymean: Optional[bool] = None
     legend_template: Optional[str] = None
-    gradient: Optional[list[GradientPoint]] = None
+    gradient: Optional[List[GradientPoint]] = None
     font_size: Optional[FontSize] = None
     regression: Optional[bool] = None
 
@@ -947,7 +953,7 @@ class ScatterPlot(Panel):
 @dataclass(config=dataclass_config)
 class BarPlot(Panel):
     title: Optional[str] = None
-    metrics: list[MetricType] = Field(default_factory=list)
+    metrics: List[MetricType] = Field(default_factory=list)
     orientation: Literal["v", "h"] = "h"
     range_x: Range = Field(default_factory=lambda: (None, None))
     title_x: Optional[str] = None
@@ -957,7 +963,7 @@ class BarPlot(Panel):
     groupby_rangefunc: Optional[GroupArea] = None
     max_runs_to_show: Optional[int] = None
     max_bars_to_show: Optional[int] = None
-    custom_expressions: Optional[list[str]] = None
+    custom_expressions: Optional[List[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
     line_titles: Optional[dict] = None
@@ -1020,7 +1026,7 @@ class ScalarChart(Panel):
     metric: MetricType = ""
     groupby_aggfunc: Optional[GroupAgg] = None
     groupby_rangefunc: Optional[GroupArea] = None
-    custom_expressions: Optional[list[str]] = None
+    custom_expressions: Optional[List[str]] = None
     legend_template: Optional[str] = None
     font_size: Optional[FontSize] = None
 
@@ -1111,9 +1117,9 @@ class ParallelCoordinatesPlotColumn(Base):
 
 @dataclass(config=dataclass_config)
 class ParallelCoordinatesPlot(Panel):
-    columns: list[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
+    columns: List[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
-    gradient: Optional[list[GradientPoint]] = None
+    gradient: Optional[List[GradientPoint]] = None
     font_size: Optional[FontSize] = None
 
     def to_model(self):
@@ -1202,7 +1208,7 @@ class RunComparer(Panel):
 @dataclass(config=dataclass_config)
 class MediaBrowser(Panel):
     num_columns: Optional[int] = None
-    media_keys: list[str] = Field(default_factory=list)
+    media_keys: List[str] = Field(default_factory=list)
 
     def to_model(self):
         return internal.MediaBrowser(
@@ -1384,7 +1390,7 @@ class Report(Base):
     title: str = Field("Untitled Report", max_length=128)
     width: ReportWidth = "readable"
     description: str = ""
-    blocks: list[BlockTypes] = Field(default_factory=list)
+    blocks: List[BlockTypes] = Field(default_factory=list)
 
     # id: str = Field("", kw_only=True)
     id: str = field(default_factory=lambda: "", init=False, repr=False)
@@ -1393,7 +1399,7 @@ class Report(Base):
     _discussion_threads: list = field(default_factory=list, init=False, repr=False)
     _ref: dict = field(default_factory=dict, init=False, repr=False)
     _panel_settings: dict = field(default_factory=dict, init=False, repr=False)
-    _authors: list[dict] = field(default_factory=list, init=False, repr=False)
+    _authors: List[dict] = field(default_factory=list, init=False, repr=False)
     _created_at: Optional[datetime] = field(
         default_factory=lambda: None, init=False, repr=False
     )
@@ -1719,7 +1725,7 @@ def _internal_children_to_text(children):
     return pieces
 
 
-def _resolve_collisions(panels: list[Panel], x_max: int = 24):
+def _resolve_collisions(panels: List[Panel], x_max: int = 24):
     for i, p1 in enumerate(panels):
         for p2 in panels[i + 1 :]:
             l1, l2 = p1.layout, p2.layout
