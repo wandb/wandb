@@ -118,14 +118,14 @@ jobs:
       - name: Install wandb from source
         run: |
           python -m pip install .
-      - name: Smoke-test wandb-core TestPyPI install WRT wandb@main
+      - name: Smoke-test wandb-core TestPyPI install against wandb@main
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
       - name: Install latest wandb from PyPI
         run: |
           python -m pip uninstall wandb -y
           python -m pip install --upgrade wandb
-      - name: Smoke-test wandb-core TestPyPI install WRT latest wandb from PyPI
+      - name: Smoke-test wandb-core TestPyPI install against latest wandb from PyPI
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
