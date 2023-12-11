@@ -214,7 +214,7 @@ exclude = '''
    )
 '''
 
-[tool.mypy.overrides]
+[[tool.mypy.overrides]]
 module = [
     # wandb/*
     "wandb.*",
