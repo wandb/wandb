@@ -322,8 +322,10 @@ class WandbImporter:
         limit: Optional[int] = None,
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> Generator[WandbRun, None, None]:
-        filters: Dict[str, Any] = {}
+        if filters is None:
+            filters = {}
         if skip_ids is not None:
             filters["name"] = {"$nin": skip_ids}
         if start_date is not None:
@@ -346,6 +348,7 @@ class WandbImporter:
         self,
         run: WandbRun,
         overrides: Optional[Dict[str, Any]] = None,
+        rewind_steps: Optional[int] = 0,
     ) -> None:
         _overrides: Dict[str, Any] = coalesce(overrides, {})
         settings_override = {
@@ -355,6 +358,7 @@ class WandbImporter:
 
         send_run_with_send_manager(
             run,
+            rewind_steps=rewind_steps,  # Pass rewind_steps to send_run_with_send_manager
             overrides=_overrides,
             settings_override=settings_override,
         )
@@ -550,7 +554,7 @@ class WandbImporter:
 
 
 class WandbParquetRun(WandbRun):
-    def metrics(self) -> Iterable[Dict[str, float]]:
+    def metrics(self, rewind_steps: Optional[int] = 0) -> Iterable[Dict[str, float]]:
         self.history_paths = []
         for art in self.run.logged_artifacts():
             if art.type != "wandb-history":
@@ -566,6 +570,10 @@ class WandbParquetRun(WandbRun):
         for path in self.history_paths:
             for p in Path(path).glob("*.parquet"):
                 df = pl.read_parquet(p)
+
+                # Rewind the specified number of steps
+                df = df.head(len(df) - rewind_steps) if rewind_steps > 0 else df
+
                 for row in df.iter_rows(named=True):
                     row = remove_keys_with_none_values(row)
                     yield row
