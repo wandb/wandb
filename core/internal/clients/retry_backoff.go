@@ -8,6 +8,19 @@ import (
 	"time"
 )
 
+// ExponentialBackoffWithJitter returns a duration to sleep for based on the
+// attempt number, the minimum and maximum durations, and the response.
+// If the response is nil or not a 429, the response is ignored.
+// If the response is a 429, the Retry-After header is used to determine the
+// duration to sleep for.
+// Otherwise, the sleep duration is calculated as:
+//
+//	min * 2^(attemptNum)
+//
+// If the calculated duration is greater than max, max is used instead.
+// A random jitter is added to the calculated duration, unless the calculated
+// duration is >= max.
+// The jitter is at most 25% of the calculated duration.
 func ExponentialBackoffWithJitter(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
 	// based on go-retryablehttp's DefaultBackoff
 	addJitter := func(duration time.Duration) time.Duration {
