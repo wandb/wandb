@@ -3,12 +3,12 @@ import platform
 
 import nox
 
-NEXUS_VERSION = "0.17.0b2"
+CORE_VERSION = "0.17.0b4"
 
 
-@nox.session(python=False, name="build-nexus")
-def build_nexus(session: nox.Session) -> None:
-    """Builds the nexus binary for the current platform."""
+@nox.session(python=False, name="build-core")
+def build_core(session: nox.Session) -> None:
+    """Builds the wandb-core binary for the current platform."""
     session.run(
         "python3",
         "-m",
@@ -16,32 +16,32 @@ def build_nexus(session: nox.Session) -> None:
         "-w",  # only build the wheel
         "-n",  # disable building the project in an isolated virtual environment
         "-x",  # do not check that build dependencies are installed
-        "./nexus",
+        "./core",
         external=True,
     )
 
 
-@nox.session(python=False, name="install-nexus")
-def install_nexus(session: nox.Session) -> None:
-    """Installs the nexus wheel into the current environment."""
-    # get the wheel file in ./nexus/dist/:
+@nox.session(python=False, name="install-core")
+def install_core(session: nox.Session) -> None:
+    """Installs the wandb-core wheel into the current environment."""
+    # get the wheel file in ./core/dist/:
     wheel_file = [
         f
-        for f in os.listdir("./nexus/dist/")
-        if f.startswith(f"wandb_core-{NEXUS_VERSION}") and f.endswith(".whl")
+        for f in os.listdir("./core/dist/")
+        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
     ][0]
     session.run(
         "pip",
         "install",
         "--force-reinstall",
-        f"./nexus/dist/{wheel_file}",
+        f"./core/dist/{wheel_file}",
         external=True,
     )
 
 
-@nox.session(python=False, name="list-failing-tests-nexus")
-def list_failing_tests_nexus(session: nox.Session) -> None:
-    """Lists the nexus failing tests grouped by feature."""
+@nox.session(python=False, name="list-failing-tests-wandb-core")
+def list_failing_tests_wandb_core(session: nox.Session) -> None:
+    """Lists the core failing tests grouped by feature."""
     import pandas as pd
     import pytest
 
@@ -54,7 +54,7 @@ def list_failing_tests_nexus(session: nox.Session) -> None:
             for item in items:
                 marks = item.own_markers
                 for mark in marks:
-                    if mark.name == "nexus_failure":
+                    if mark.name == "wandb_core_failure":
                         self.collected.append(item.nodeid)
                         self.features.append(
                             {
@@ -75,7 +75,7 @@ def list_failing_tests_nexus(session: nox.Session) -> None:
     pytest.main(
         [
             "-m",
-            "nexus_failure",
+            "wandb_core_failure",
             "tests/pytest_tests/system_tests/test_core",
             "--collect-only",
         ],
@@ -141,9 +141,9 @@ def build_apple_stats_monitor(session):
     """Builds the apple stats monitor binary for the current platform.
 
     The binary will be located in
-    nexus/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
+    core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
     """
-    session.cd("nexus/pkg/monitor/apple")
+    session.cd("core/pkg/monitor/apple")
     session.run(
         "swift",
         "build",
@@ -153,7 +153,7 @@ def build_apple_stats_monitor(session):
         "-cross-module-optimization",
         external=True,
     )
-    # copy the binary to nexus/pkg/monitor/apple/AppleStats
+    # copy the binary to core/pkg/monitor/apple/AppleStats
     session.run(
         "cp",
         f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
@@ -166,8 +166,8 @@ def graphql_codegen_schema_change(session):
     """Runs the GraphQL codegen script and saves the previous api version.
 
     This will save the current generated go graphql code gql_gen.go
-    in nexus/internal/gql/v[n+1]/gql_gen.go, run the graphql codegen script,
-    and save the new generated go graphql code as nexus/internal/gql/gql_gen.go.
+    in core/internal/gql/v[n+1]/gql_gen.go, run the graphql codegen script,
+    and save the new generated go graphql code as core/internal/gql/gql_gen.go.
     The latter will always point to the latest api version, while the versioned
     gql_gen.go files can be used in versioning your GraphQL API requests,
     for example when communicating with an older server.
@@ -178,7 +178,7 @@ def graphql_codegen_schema_change(session):
     against the schema that already supports it.
     """
     session.run(
-        "./nexus/scripts/generate-graphql.sh",
+        "./core/scripts/generate-graphql.sh",
         "--schema-change",
         external=True,
     )

@@ -56,6 +56,26 @@ API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
+AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
+    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+)
+
+ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
+    r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$"
+)
+
+GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
+    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+    re.IGNORECASE,
+)
+
+S3_URI_RE = re.compile(r"s3://([^/]+)(/(.*))?")
+GCS_URI_RE = re.compile(r"gs://([^/]+)(?:/(.*))?")
+AZURE_BLOB_REGEX = re.compile(
+    r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
+)
+
+
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"

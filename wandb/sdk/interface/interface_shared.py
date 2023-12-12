@@ -140,6 +140,7 @@ class InterfaceShared(InterfaceBase):
         run_status: Optional[pb.RunStatusRequest] = None,
         sender_mark: Optional[pb.SenderMarkRequest] = None,
         sender_read: Optional[pb.SenderReadRequest] = None,
+        sync: Optional[pb.SyncRequest] = None,
         status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
@@ -204,6 +205,8 @@ class InterfaceShared(InterfaceBase):
             request.job_info.CopyFrom(job_info)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
+        elif sync:
+            request.sync.CopyFrom(sync)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -439,6 +442,10 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
         record = self._make_record(run=run)
+        return self._deliver_record(record)
+
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        record = self._make_request(sync=sync)
         return self._deliver_record(record)
 
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

@@ -295,7 +295,9 @@ class SettingsData:
     # _config_dict: Config
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
-    _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_service: (
+        bool
+    )  # Disable wandb-service, spin up internal process the old way
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
@@ -341,7 +343,7 @@ class SettingsData:
     _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
     _python: str
     _runqueue_item_id: str
-    _require_nexus: bool
+    _require_core: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
@@ -350,15 +352,21 @@ class SettingsData:
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
-    _stats_join_assets: bool  # join metrics from different assets before sending to backend
-    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_join_assets: (
+        bool
+    )  # join metrics from different assets before sending to backend
+    _stats_neuron_monitor_config_path: (
+        str
+    )  # path to place config file for neuron-monitor (AWS Trainium)
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
-    _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
+    _stats_buffer_size: (
+        int
+    )  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -694,7 +702,7 @@ class Settings(SettingsData):
             _proxies={
                 "preprocessor": _str_as_json,
             },
-            _require_nexus={"value": False, "preprocessor": _str_as_bool},
+            _require_core={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
@@ -1635,7 +1643,7 @@ class Settings(SettingsData):
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
-            "WANDB_REQUIRE_NEXUS": "_require_nexus",
+            "WANDB_REQUIRE_CORE": "_require_core",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",

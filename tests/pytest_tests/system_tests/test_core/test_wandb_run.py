@@ -208,7 +208,7 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
         ({}, True),
     ],
 )
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="version_check",
     reason="need to implement versioning in wandb core",
 )
@@ -246,7 +246,7 @@ def test_local_warning(
         assert msg not in captured
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="need to implement upload of wandb files",
 )
