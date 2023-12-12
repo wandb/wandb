@@ -1,14 +1,13 @@
 """Implementation of the GCP environment for wandb launch."""
 import logging
 import os
-import re
 import subprocess
 from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import event_loop_thread_exec
+from ..utils import GCS_URI_RE, event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 google = get_module(
@@ -45,7 +44,6 @@ google.cloud.storage = get_module(
 
 _logger = logging.getLogger(__name__)
 
-GCS_URI_RE = re.compile(r"gs://([^/]+)(?:/(.*))?")
 GCP_REGION_ENV_VAR = "GOOGLE_CLOUD_REGION"
 
 

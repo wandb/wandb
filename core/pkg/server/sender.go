@@ -333,6 +333,19 @@ func (s *Sender) startFileStream(fsPath string, useAsync bool) {
 	s.fileStream.Start()
 }
 
+// updateSettingsStartTime sets run start time in the settings if it is not set
+func (s *Sender) updateSettingsStartTime() {
+	// TODO: rewrite in a cleaner way
+	if s.settings == nil || s.settings.XStartTime != nil {
+		return
+	}
+	if s.RunRecord == nil || s.RunRecord.StartTime == nil {
+		return
+	}
+	startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+}
+
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
@@ -341,13 +354,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
-	// Update run start time in the settings if it is not set
-	if s.settings.XStartTime == nil {
-		// TODO: rewrite in a more robust way
-		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
-		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
-	}
-
+	s.updateSettingsStartTime()
 	s.startFileStream(fsPath, false)
 	s.fileTransferManager.Start()
 }
