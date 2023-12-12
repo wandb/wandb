@@ -806,7 +806,12 @@ def fetch_and_validate_template_variables(
         variable_schemas[tv["name"]] = json.loads(tv["schema"])
 
     for field in fields:
-        key, val = field.split("=")
+        field_parts = field.split("=")
+        if len(field_parts) != 2:
+            raise LaunchError(
+                f"--set-var value must be in the format \"--set-var key1=value1\", instead got: {field}"
+            )
+        key, val = field_parts
         if key not in variable_schemas:
             raise LaunchError(
                 f"Queue {runqueue.name} does not support overriding {key}."
