@@ -560,11 +560,11 @@ def test_launch_template_vars(runner, monkeypatch):
     ]
     command_inputs = [
         "--queue=default",
-        "--set",
+        "--set-var",
         "test_str=str1",
-        "--set",
+        "--set-var",
         "test_int=2",
-        "--set",
+        "--set-var",
         "test_num=2.5",
     ]
     expected_template_variables = {"test_str": "str1", "test_int": 2, "test_num": 2.5}
