@@ -21,7 +21,7 @@ const (
 )
 
 type HandlerInterface interface {
-	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
+	SetInboundChannels(in chan *service.Record, lb chan *service.Record)
 	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
 	Handle()
 	Close()
@@ -51,7 +51,7 @@ type Handler struct {
 	loopbackChan chan *service.Record
 
 	// inChan is the channel for incoming messages received through the stream
-	inChan <-chan *service.Record
+	inChan chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
@@ -137,7 +137,7 @@ func NewHandler(
 	return h
 }
 
-func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
+func (h *Handler) SetInboundChannels(in chan *service.Record, lb chan *service.Record) {
 	h.inChan = in
 	h.loopbackChan = lb
 }

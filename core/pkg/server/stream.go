@@ -59,15 +59,15 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 	logger := SetupStreamLogger(settings)
 
 	s := &Stream{
-		ctx:      ctx,
-		wg:       sync.WaitGroup{},
-		settings: settings,
-		logger:   logger,
-		inChan:   make(chan *service.Record, BufferSize),
-		respChan: make(chan *service.ServerResponse, BufferSize),
+		ctx:          ctx,
+		wg:           sync.WaitGroup{},
+		settings:     settings,
+		logger:       logger,
+		inChan:       make(chan *service.Record, BufferSize),
+		respChan:     make(chan *service.ServerResponse, BufferSize),
+		loopbackChan: make(chan *service.Record, BufferSize),
 	}
 
-	s.loopbackChan = make(chan *service.Record, BufferSize)
 	s.handler = NewHandler(s.ctx, s.settings, s.logger)
 	s.writer = NewWriter(s.ctx, s.settings, s.logger)
 	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
