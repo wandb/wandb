@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -11,6 +12,7 @@ import (
 
 type SyncService struct {
 	ctx        context.Context
+	wg         sync.WaitGroup
 	logger     *observability.CoreLogger
 	senderFunc func(*service.Record)
 	inChan     chan *service.Record
@@ -27,6 +29,7 @@ type SyncServiceOption func(*SyncService)
 func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService {
 	sync := &SyncService{
 		ctx:    ctx,
+		wg:     sync.WaitGroup{},
 		inChan: make(chan *service.Record),
 	}
 	for _, opt := range opts {
@@ -85,7 +88,13 @@ func (s *SyncService) SyncRecord(record *service.Record, err error) {
 }
 
 func (s *SyncService) Start() {
+	s.wg.Add(1)
 	go s.sync()
+}
+
+func (s *SyncService) Close() {
+	close(s.inChan)
+	s.wg.Wait()
 }
 
 func (s *SyncService) sync() {
@@ -106,6 +115,7 @@ func (s *SyncService) sync() {
 			s.senderFunc(record)
 		}
 	}
+	s.wg.Done()
 }
 
 func (s *SyncService) syncRun(record *service.Record) {
@@ -149,7 +159,7 @@ func (s *SyncService) Flush() {
 	if s == nil {
 		return
 	}
-	close(s.inChan)
+	s.Close()
 	if s.flushCallback == nil {
 		s.logger.CaptureError("Flush without callback", fmt.Errorf("flushing sync service"))
 		return

@@ -42,6 +42,7 @@ func TestSyncService(t *testing.T) {
 			},
 		}
 		syncService.SyncRecord(run, nil)
+		syncService.Close()
 		assert.Equal(t, 2, len(mockSender.Records))
 		assert.Equal(t, run, mockSender.Records[0])
 		assert.IsType(t, &service.Record_Request{}, mockSender.Records[1].RecordType)
@@ -66,6 +67,7 @@ func TestSyncService(t *testing.T) {
 		)
 		syncService.Start()
 		syncService.SyncRecord(run, nil)
+		syncService.Close()
 		assert.Equal(t, 2, len(mockSender.Records))
 		modifiedRun := mockSender.Records[0]
 		assert.Equal(t, overwrite.GetEntity(), modifiedRun.GetRun().Entity)
@@ -81,6 +83,7 @@ func TestSyncService(t *testing.T) {
 			RecordType: &service.Record_OutputRaw{},
 		}
 		syncService.SyncRecord(record, nil)
+		syncService.Close()
 		assert.Equal(t, 1, len(mockSender.Records))
 		assert.Equal(t, record, mockSender.Records[0])
 	})
@@ -100,6 +103,7 @@ func TestSyncService(t *testing.T) {
 			RecordType: &service.Record_OutputRaw{},
 		}
 		syncService.SyncRecord(record, nil)
+		syncService.Close()
 		assert.Equal(t, 0, len(mockSender.Records))
 	})
 
