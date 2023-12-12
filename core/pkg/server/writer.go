@@ -82,8 +82,8 @@ func (w *Writer) startStore() {
 	}()
 }
 
-// do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
+// Write is the main loop of the writer to process incoming messages
+func (w *Writer) Write(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 

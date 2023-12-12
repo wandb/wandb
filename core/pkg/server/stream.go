@@ -104,7 +104,7 @@ func (s *Stream) Start() {
 	// write the data to a transaction log
 	s.wg.Add(1)
 	go func() {
-		s.writer.do(handlerFwdChan)
+		s.writer.Write(handlerFwdChan)
 		s.wg.Done()
 	}()
 
