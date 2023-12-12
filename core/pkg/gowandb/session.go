@@ -34,7 +34,7 @@ func (s *Session) start() {
 		if len(s.CoreBinary) != 0 {
 			execCmd, err = launch.LaunchBinary(s.CoreBinary)
 		} else {
-			execCmd, err = launch.LaunchCommand("core")
+			execCmd, err = launch.LaunchCommand("wandb-core")
 		}
 		if err != nil {
 			panic("error launching")
