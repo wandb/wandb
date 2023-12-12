@@ -93,6 +93,9 @@ def resolve_agent_config(  # noqa: C901
         with open(config_path) as f:
             try:
                 launch_config = yaml.safe_load(f)
+                # This is considered unreachable by mypy, but it's not.
+                if launch_config is None:
+                    launch_config = {}  # type: ignore
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if launch_config.get("project") is not None:
@@ -152,6 +155,27 @@ def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
 ) -> None:
+    try:
+        from wandb.sdk.launch.agent import config as agent_config
+    except ModuleNotFoundError:
+        raise LaunchError(
+            "wandb launch-agent requires pydantic to be installed. "
+            "Please install with `pip install wandb[launch]`"
+        )
+    try:
+        config.pop("runner", None)
+        agent_config.AgentConfig(**config)
+    except agent_config.ValidationError as e:
+        errors = e.errors()
+        for error in errors:
+            loc = ".".join([str(x) for x in error.get("loc", [])])
+            msg = f"Agent config error in field {loc}"
+            value = error.get("input")
+            if not isinstance(value, dict):
+                msg += f" (value: {value})"
+            msg += f": {error['msg']}"
+            wandb.termerror(msg)
+        raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
     try:
         asyncio.run(agent.loop())
