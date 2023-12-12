@@ -74,7 +74,7 @@ func InitSentry(disabled bool, commit string) {
 	}
 }
 
-func CaptureException(err error, tags map[string]string) {
+func CaptureException(err error, tags Tags) {
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
@@ -86,7 +86,7 @@ func CaptureException(err error, tags map[string]string) {
 	localHub.CaptureException(err)
 }
 
-func CaptureMessage(msg string, tags map[string]string) {
+func CaptureMessage(msg string, tags Tags) {
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
@@ -98,7 +98,7 @@ func CaptureMessage(msg string, tags map[string]string) {
 
 // Reraise captures an error and re-raises it.
 // Used to capture unexpected panics.
-func Reraise(err any, tags map[string]string) {
+func Reraise(err any, tags Tags) {
 	if err != nil {
 		var e error
 		if errors.As(e, &err) {

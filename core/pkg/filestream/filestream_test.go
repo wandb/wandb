@@ -9,7 +9,6 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 
 	"github.com/wandb/wandb/core/pkg/filestream"
-	"github.com/wandb/wandb/core/pkg/server"
 
 	"net/http"
 	"net/http/httptest"
@@ -117,7 +116,7 @@ type testServer struct {
 
 func NewTestServer() *testServer {
 	settings := service.Settings{}
-	logger := observability.NewCoreLogger(server.SetupDefaultLogger(), nil)
+	logger := observability.NewNoOpLogger()
 
 	mux := http.NewServeMux()
 	hserver := httptest.NewServer(mux)

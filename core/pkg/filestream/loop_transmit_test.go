@@ -2,7 +2,6 @@ package filestream
 
 import (
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -41,8 +40,7 @@ type testObj struct {
 func newFsTest(t *testing.T) *testObj {
 	ctrl := gomock.NewController(t)
 
-	slogger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	logger := observability.NewCoreLogger(slogger, nil)
+	logger := observability.NewNoOpLogger()
 	m := clienttest.NewMockRoundTripper(ctrl)
 	client := clienttest.NewMockRetryClient(m)
 	client.Logger = logger

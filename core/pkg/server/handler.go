@@ -317,6 +317,12 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+	case *service.Request_Sync:
+		h.handleSync(record)
+		response = nil
+	case *service.Request_SenderRead:
+		h.handleSenderRead(record)
+		response = nil
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -421,6 +427,10 @@ func (h *Handler) handleHeader(record *service.Record) {
 }
 
 func (h *Handler) handleFinal() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 	record := &service.Record{
 		RecordType: &service.Record_Final{
 			Final: &service.FinalRecord{},
@@ -435,6 +445,10 @@ func (h *Handler) handleFinal() {
 }
 
 func (h *Handler) handleFooter() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 	record := &service.Record{
 		RecordType: &service.Record_Footer{
 			Footer: &service.FooterRecord{},
@@ -623,18 +637,23 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = runtime
 
 	// update summary with runtime
-	summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
-		{
-			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-		},
-	})
-	// h.sendRecord(summaryRecord)
-	h.updateSummaryDelta(summaryRecord)
+	if !h.settings.GetXSync().GetValue() {
+		summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+			{
+				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+			},
+		})
+		h.updateSummaryDelta(summaryRecord)
+	}
 
 	// send the exit record
 	h.sendRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
+			// do not write to the transaction log when syncing an offline run
+			if h.settings.GetXSync().GetValue() {
+				control.Local = true
+			}
 		},
 	)
 }
@@ -697,6 +716,14 @@ func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	h.ft.Handle(info)
 }
 
+func (h *Handler) handleSync(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handleSenderRead(record *service.Record) {
+	h.sendRecord(record)
+}
+
 func (h *Handler) handleTelemetry(record *service.Record) {
 	h.sendRecord(record)
 }
@@ -733,6 +760,10 @@ func (h *Handler) sendSummary() {
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
 
 	runtime := int32(h.timer.Elapsed().Seconds())
 

@@ -14,7 +14,7 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # wandb-core versioning
 # ---------------------
-CORE_VERSION = "0.17.0b2"
+CORE_VERSION = "0.17.0b4"
 
 
 PACKAGE: str = "wandb_core"
@@ -37,6 +37,7 @@ class WBCoreBase:
         src_dir = Path(__file__).parent
 
         env = os.environ.copy()
+        log.info(env)
 
         goos = platform.system().lower()
         goarch = platform.machine().lower()
@@ -46,6 +47,14 @@ class WBCoreBase:
             goarch = "arm64"
         elif goarch == "armv7l":
             goarch = "armv6l"
+
+        # Check the PLAT environment variable available in cibuildwheel
+        cibw_plat = env.get("PLAT", "")
+
+        # Custom logic for darwin-arm64 in cibuildwheel
+        # (it's built on an x86_64 mac with qemu, so we need to override the arch)
+        if goos == "darwin" and cibw_plat.endswith("arm64"):
+            goarch = "arm64"
 
         # build a binary for coverage profiling if the GOCOVERDIR env var is set
         gocover = True if os.environ.get("GOCOVERDIR") else False
@@ -78,7 +87,7 @@ class WBCoreBase:
         ]
         if gocover:
             cmd.insert(2, "-cover")
-        log.info("Building for current platform")
+        log.info(f"Building for {goos}-{goarch}")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
 
