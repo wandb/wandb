@@ -1716,7 +1716,7 @@ class Api:
 
         if push_result:
             return push_result
-        
+
         if priority is not None:
             # Cannot proceed with legacy method if priority is set
             return None

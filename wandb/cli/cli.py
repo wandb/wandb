@@ -1250,8 +1250,8 @@ def launch_sweep(
     "--priority",
     "-P",
     default=None,
-    type=click.Choice(['critical', 'high', 'medium', 'low']),
-    help="When --queue is passed, set the priority of the job. Higher priority jobs are run first."
+    type=click.Choice(["critical", "high", "medium", "low"]),
+    help="When --queue is passed, set the priority of the job. Higher priority jobs are run first.",
 )
 @display_error
 def launch(
@@ -1339,13 +1339,13 @@ def launch(
             config["overrides"]["dockerfile"] = dockerfile
         else:
             config["overrides"] = {"dockerfile": dockerfile}
-            
+
     if priority is not None:
         priority_map = {
-            'critical': 0,
-            'high': 1,
-            'medium': 2,
-            'low': 3,
+            "critical": 0,
+            "high": 1,
+            "medium": 2,
+            "low": 3,
         }
         priority = priority_map[priority.lower()]
 
