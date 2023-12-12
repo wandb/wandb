@@ -72,6 +72,7 @@ class WandbCallback:
             )
         else:
             self.run = wandb.run
+        assert self.run is not None
         self.run.define_metric("epoch", hidden=True)
         self.run.define_metric(
             "train/*", step_metric="epoch", step_sync=True, summary="min"
@@ -92,6 +93,7 @@ class WandbCallback:
             tel.feature.ultralytics_yolov8 = True
 
     def on_pretrain_routine_end(self, trainer: BaseTrainer) -> None:
+        assert self.run is not None
         self.run.summary.update(
             {
                 "model/parameters": get_num_params(trainer.model),
@@ -102,10 +104,12 @@ class WandbCallback:
     def on_train_epoch_start(self, trainer: BaseTrainer) -> None:
         """On train epoch start we only log epoch number to the Weights & Biases run."""
         # We log the epoch number here to commit the previous step,
+        assert self.run is not None
         self.run.log({"epoch": trainer.epoch + 1})
 
     def on_train_epoch_end(self, trainer: BaseTrainer) -> None:
         """On train epoch end we log all the metrics to the Weights & Biases run."""
+        assert self.run is not None
         self.run.log(
             {
                 **trainer.metrics,
@@ -126,6 +130,7 @@ class WandbCallback:
 
     def on_fit_epoch_end(self, trainer: BaseTrainer) -> None:
         """On fit epoch end we log all the best metrics and model detail to Weights & Biases run summary."""
+        assert self.run is not None
         if trainer.epoch == 0:
             speeds = [
                 trainer.validator.speed.get(
@@ -151,7 +156,9 @@ class WandbCallback:
     def on_train_end(self, trainer: BaseTrainer) -> None:
         """On train end we log all the media, including plots, images and best model artifact to Weights & Biases."""
         # Currently only the detection and segmentation trainers save images to the save_dir
+        assert self.run is not None
         if not isinstance(trainer, ClassificationTrainer):
+            assert self.run is not None
             self.run.log(
                 {
                     "plots": [
@@ -166,6 +173,7 @@ class WandbCallback:
             )
 
         if trainer.best.exists():
+            assert self.run is not None
             self.run.log_artifact(
                 str(trainer.best),
                 type="model",
@@ -175,6 +183,7 @@ class WandbCallback:
 
     def on_model_save(self, trainer: BaseTrainer) -> None:
         """On model save we log the model as an artifact to Weights & Biases."""
+        assert self.run is not None
         self.run.log_artifact(
             str(trainer.last),
             type="model",
@@ -184,6 +193,7 @@ class WandbCallback:
 
     def teardown(self, _trainer: BaseTrainer) -> None:
         """On teardown, we finish the Weights & Biases run and set it to None."""
+        assert self.run is not None
         self.run.finish()
         self.run = None
 

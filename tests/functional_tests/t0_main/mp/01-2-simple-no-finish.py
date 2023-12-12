@@ -2,7 +2,6 @@
 import torch
 import wandb
 
-wandb.require("service")
 run = wandb.init()
 print("somedata")
 

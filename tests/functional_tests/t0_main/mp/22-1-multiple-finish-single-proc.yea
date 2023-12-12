@@ -1,6 +1,4 @@
 id: 0.mp.22-1-multiple-finish-single-proc
-tag:
-  shard: service
 
 plugin:
   - wandb

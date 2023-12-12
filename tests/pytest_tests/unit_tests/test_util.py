@@ -136,7 +136,7 @@ def test_tensorflow_json_nd(array_shape):
     ],
 )
 def test_jax_json(array_shape):
-    from jax import numpy as jnp
+    jnp = pytest.importorskip("jax.numpy")
 
     orig_data = nested_list(*array_shape)
     jax_array = jnp.asarray(orig_data)
@@ -148,7 +148,7 @@ def test_jax_json(array_shape):
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
 def test_bfloat16_to_float():
-    import jax.numpy as jnp
+    jnp = pytest.importorskip("jax.numpy")
 
     array = jnp.array(1.0, dtype=jnp.bfloat16)
     # array to scalar bfloat16

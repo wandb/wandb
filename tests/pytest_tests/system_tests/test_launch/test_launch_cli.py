@@ -505,3 +505,48 @@ def test_launch_supplied_docker_image(
     assert " -e WANDB_CONFIG='{}'" in result.output
     assert "-e WANDB_ARTIFACTS='{}'" in result.output
     assert "test:tag" in result.output
+
+
+def test_launch_supplied_logfile(
+    runner, monkeypatch, caplog, wandb_init, test_settings
+):
+    """Test that the logfile is set properly when supplied via the CLI."""
+
+    def patched_pop_empty_queue(self, queue):
+        # patch to no result, agent should read stopPolling and stop
+        return None
+
+    _setup_agent(monkeypatch, patched_pop_empty_queue)
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.get_launch_agent",
+        lambda c, i, g: {"id": "mock_agent_id", "name": "blah", "stopPolling": True},
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api.update_launch_agent_status",
+        lambda c, i, s, g: {"success": True},
+    )
+
+    with runner.isolated_filesystem():
+        with caplog.at_level("INFO"):
+            result = runner.invoke(
+                cli.launch_agent,
+                [
+                    "--queue=default",
+                    "--log-file=agent.logs",
+                ],
+            )
+
+            assert "Internal agent logs printing to agent.logs" in result.output
+
+            print("Output from cli command:")
+            print(result.output)
+
+            # open agent logs and inspect the contents
+            with open("agent.logs") as f:
+                logs = f.read()
+                print("agent.logs:")
+                print(logs)
+                assert "Internal agent logs printing to agent.logs" in logs
+
+            assert result.exit_code == 0  # Do at the end so we get maximum printing

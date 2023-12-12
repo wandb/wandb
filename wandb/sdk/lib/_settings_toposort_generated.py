@@ -61,7 +61,7 @@ _Setting = Literal[
     "_proxies",
     "_python",
     "_runqueue_item_id",
-    "_require_nexus",
+    "_require_core",
     "_save_requirements",
     "_service_transport",
     "_service_wait",
