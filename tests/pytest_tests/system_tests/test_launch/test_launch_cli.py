@@ -555,44 +555,59 @@ def test_launch_supplied_logfile(
 @pytest.mark.parametrize(
     "command_inputs,expected_error",
     [
-        ([
-            "--queue=default",
-            "--set-var",
-            "test_str=str1",
-            "--set-var",
-            "test_int=2",
-            "--set-var",
-            "test_num=2.5",
-        ], None),
-        ([
-            "--queue=default",
-            "--set-var",
-            "test_str=str1",
-            "--set-var",
-            "test_int=2.5",
-            "--set-var",
-            "test_num=2.5",
-        ], "Value for test_int must be of type integer."),
-        ([
-            "--queue=default",
-            "--set-var",
-            "test_str=str1",
-            "--set-var",
-            "test_int=2",
-            "--set-var",
-            "test_num=abc",
-        ], "Value for test_num must be of type number."),
-        ([
-            "--queue=default",
-            "--set-var",
-            "illegal_override=3",
-        ], "Queue test-queue does not support overriding illegal_override."),
-        ([
-            "--queue=default",
-            "--set-var",
-            "test_str=str1,test_int=2,test_num=2.5",
-        ], "--set-var value must be in the format \"--set-var key1=value1\", instead got: test_str=str1,test_int=2,test_num=2.5"),
-    ]
+        (
+            [
+                "--queue=default",
+                "--set-var",
+                "test_str=str1",
+                "--set-var",
+                "test_int=2",
+                "--set-var",
+                "test_num=2.5",
+            ],
+            None,
+        ),
+        (
+            [
+                "--queue=default",
+                "--set-var",
+                "test_str=str1",
+                "--set-var",
+                "test_int=2.5",
+                "--set-var",
+                "test_num=2.5",
+            ],
+            "Value for test_int must be of type integer.",
+        ),
+        (
+            [
+                "--queue=default",
+                "--set-var",
+                "test_str=str1",
+                "--set-var",
+                "test_int=2",
+                "--set-var",
+                "test_num=abc",
+            ],
+            "Value for test_num must be of type number.",
+        ),
+        (
+            [
+                "--queue=default",
+                "--set-var",
+                "illegal_override=3",
+            ],
+            "Queue test-queue does not support overriding illegal_override.",
+        ),
+        (
+            [
+                "--queue=default",
+                "--set-var",
+                "test_str=str1,test_int=2,test_num=2.5",
+            ],
+            '--set-var value must be in the format "--set-var key1=value1", instead got: test_str=str1,test_int=2,test_num=2.5',
+        ),
+    ],
 )
 def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatch):
     mock_template_variables = [
