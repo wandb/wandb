@@ -1246,6 +1246,13 @@ def launch_sweep(
     default=None,
     help="Path to the Dockerfile used to build the job, relative to the job's root",
 )
+@click.option(
+    "--priority",
+    "-P",
+    default=None,
+    type=click.Choice(['critical', 'high', 'medium', 'low']),
+    help="When --queue is passed, set the priority of the job. Higher priority jobs are run first."
+)
 @display_error
 def launch(
     uri,
@@ -1265,6 +1272,7 @@ def launch(
     repository,
     project_queue,
     dockerfile,
+    priority,
 ):
     """Start a W&B run from the given URI.
 
@@ -1293,6 +1301,9 @@ def launch(
         raise LaunchError(
             "Cannot use --queue and --docker together without a project. Please specify a project with --project or -p."
         )
+
+    if priority is not None and queue is None:
+        raise LaunchError("--priority flag requires --queue to be set")
 
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
@@ -1328,6 +1339,15 @@ def launch(
             config["overrides"]["dockerfile"] = dockerfile
         else:
             config["overrides"] = {"dockerfile": dockerfile}
+            
+    if priority is not None:
+        priority_map = {
+            'critical': 0,
+            'high': 1,
+            'medium': 2,
+            'low': 3,
+        }
+        priority = priority_map[priority.lower()]
 
     if queue is None:
         # direct launch
@@ -1390,6 +1410,7 @@ def launch(
                     build=build,
                     run_id=run_id,
                     repository=repository,
+                    priority=priority,
                 )
             )
         except Exception as e:
