@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from pydantic import ValidationError
 from wandb.sdk.launch._launch import create_and_run_agent
+from wandb.sdk.launch.errors import LaunchError
 
 
 class MockAgent:
@@ -61,11 +61,41 @@ def mock_agent(monkeypatch):
             },
             False,
         ),
+        # Registry type invalid.
+        (
+            {
+                "entity": "test-entity",
+                "project": "test-project",
+                "queues": ["test-queue"],
+                "builder": {
+                    "type": "docker",
+                },
+                "registry": {
+                    "type": "ecrr",
+                },
+            },
+            True,
+        ),
+        # Builder type set to kaniko but build-context-store not set.
+        (
+            {
+                "entity": "test-entity",
+                "project": "test-project",
+                "queues": ["test-queue"],
+                "builder": {
+                    "type": "kaniko",
+                },
+                "registry": {
+                    "type": "ecr",
+                },
+            },
+            True,
+        ),
     ],
 )
 def test_create_and_run_agent(config, error, mock_agent):
     if error:
-        with pytest.raises(ValidationError):
+        with pytest.raises(LaunchError):
             create_and_run_agent(MagicMock(), config)
     else:
         create_and_run_agent(MagicMock(), config)
