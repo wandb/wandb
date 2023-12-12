@@ -132,6 +132,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
@@ -146,8 +147,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
-			// TODO(core:beta): add jitter to DefaultBackoff scheme
-			// retryClient.BackOff = fs.GetBackoffFunc()
+			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
 		)
@@ -163,6 +163,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileTransferTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
 			logger,
