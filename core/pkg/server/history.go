@@ -205,7 +205,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	history.Item = append(history.Item,
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
+		// &service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
 
 	// handles all history items. It is responsible for matching current history

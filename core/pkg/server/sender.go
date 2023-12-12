@@ -133,6 +133,9 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
+		fsHeaders := map[string]string{
+			"X-WANDB-USE-ASYNC-FILESTREAM": "true",
+		}
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
@@ -142,7 +145,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
 			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), fsHeaders),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
