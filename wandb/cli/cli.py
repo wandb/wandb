@@ -1193,12 +1193,13 @@ def launch_sweep(
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
-    "--set",
-    "-s",
+    "--set-var",
+    "-v",
     "cli_template_vars",
     default=None,
     multiple=True,
-    help="""Set template variable values for queues with allow listing enabled, as key-value pairs e.g. `--set key1=value1 --set key2=value2`""",
+    help="""Set template variable values for queues with allow listing enabled,
+    as key-value pairs e.g. `--set-var key1=value1 --set-var key2=value2`""",
 )
 @click.option(
     "--queue",
@@ -1342,7 +1343,7 @@ def launch(
     template_variables = None
     if cli_template_vars is not None:
         if queue is None:
-            raise LaunchError("'--set' flag requires queue to be set")
+            raise LaunchError("'--set-var' flag requires queue to be set")
         public_api = PublicApi()
         runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
         template_variables = launch_utils.fetch_and_validate_template_variables(
