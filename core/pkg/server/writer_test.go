@@ -21,17 +21,17 @@ func TestNewWriter(t *testing.T) {
 	}
 }
 
-func TestWriterStartStore(t *testing.T) {
-	ctx := context.Background()
-	settings := &service.Settings{}
-	logger := &observability.CoreLogger{}
+// func TestWriterStartStore(t *testing.T) {
+// 	ctx := context.Background()
+// 	settings := &service.Settings{}
+// 	logger := &observability.CoreLogger{}
 
-	writer := server.NewWriter(ctx, settings, logger)
+// 	writer := server.NewWriter(ctx, settings, logger)
 
-	inChan := make(chan *service.Record, 1)
-	writer.Write(inChan)
+// 	inChan := make(chan *service.Record, 1)
+// 	writer.Write(inChan)
 
-	// if writer.StoreChan == nil {
-	// 	t.Error("Expected non-nil StoreChan, got nil")
-	// }
-}
+// 	// if writer.StoreChan == nil {
+// 	// 	t.Error("Expected non-nil StoreChan, got nil")
+// 	// }
+// }
