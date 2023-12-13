@@ -1714,7 +1714,7 @@ class Artifact:
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if get_core_path():  # require Nexus
+        if get_core_path():  # require core
             if not run._backend or not run._backend.interface:
                 raise NotImplementedError
             if run._settings._offline:
@@ -1750,9 +1750,9 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in nexus
+        # todo: remove once artifact reference downloads are supported in core
         assert wandb.run is not None
-        require_nexus = get_core_path() != ""
+        require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1804,8 +1804,8 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_nexus and entry.ref is None:
-                        # Handled by nexus
+                    if require_core and entry.ref is None:
+                        # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
