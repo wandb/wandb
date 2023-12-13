@@ -47,7 +47,7 @@ _REQUEST_POOL_MAXSIZE = 64
 
 # AWS S3 max upload parts without having to make additional requests for extra parts
 S3_MAX_PART_NUMBERS = 1000
-S3_MIN_MULTI_UPLOAD_SIZE = 2 * 1024**3
+S3_MIN_MULTI_UPLOAD_SIZE = 100 * 1024**2
 S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 
 
