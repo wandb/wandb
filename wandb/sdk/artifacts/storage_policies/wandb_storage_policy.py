@@ -327,6 +327,13 @@ class WandbStoragePolicy(StoragePolicy):
             if multipart_urls is None:
                 raise ValueError(f"No multipart urls to upload for file: {file_path}")
             # Upload files using s3 multipart upload urls
+
+            print(f"{file_path=}")
+            print(f"{chunk_size=}")
+            print(f"{hex_digests=}")
+            print(f"{multipart_urls=}")
+            print(f"{extra_headers=}")
+
             etags = self.s3_multipart_file_upload(
                 file_path,
                 chunk_size,
@@ -334,6 +341,10 @@ class WandbStoragePolicy(StoragePolicy):
                 multipart_urls,
                 extra_headers,
             )
+            print(f"{artifact_id=}")
+            print(f"{resp.storage_path=}")
+            print(f"{etags=}")
+            print(f"{resp.upload_id=}")
             complete_multipart_upload = self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
