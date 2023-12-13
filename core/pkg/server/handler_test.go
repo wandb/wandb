@@ -25,9 +25,8 @@ func makeHandler(
 	outChan chan *service.Result,
 	debounce bool,
 ) *server.Handler {
-	logger := observability.NewNoOpLogger()
 	h := server.NewHandler(context.Background(),
-		logger,
+		observability.NewNoOpLogger(),
 		server.WithHandlerSettings(&service.Settings{}),
 		server.WithHandlerFwdChannel(fwdChan),
 		server.WithHandlerOutChannel(outChan),

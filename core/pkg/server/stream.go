@@ -108,9 +108,9 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	// handle the client requests with the handler
-	fwdChan := make(chan *service.Record, BufferSize)
 
+	// forward records from the inChan and loopBackChan to the handler
+	fwdChan := make(chan *service.Record, BufferSize)
 	s.wg.Add(1)
 	go func() {
 		wg := sync.WaitGroup{}
@@ -128,6 +128,7 @@ func (s *Stream) Start() {
 		s.wg.Done()
 	}()
 
+	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
 		s.handler.Do(fwdChan)
@@ -216,7 +217,10 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 					Shutdown: &service.ShutdownRequest{},
 				},
 			}},
-		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
+		Control: &service.Control{
+			AlwaysSend:   true,
+			ConnectionId: internalConnectionId,
+			ReqResp:      true},
 	}
 	s.HandleRecord(shutdownRecord)
 	<-s.outChan

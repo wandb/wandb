@@ -306,6 +306,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_Shutdown:
+		s.sendShutdown(record, x.Shutdown)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -1089,6 +1091,10 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			return
 		}
 	}
+}
+
+func (s *Sender) sendShutdown(record *service.Record, _ *service.ShutdownRequest) {
+	// close(s.fwdChan)
 }
 
 func (s *Sender) getServerInfo() {
