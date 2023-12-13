@@ -263,7 +263,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleServerInfo(record)
 		response = nil
 	case *service.Request_Shutdown:
-		h.handleShutdown(record, x.Shutdown)
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record)
@@ -339,10 +338,6 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 			control.Local = true
 		},
 	)
-}
-
-func (h *Handler) handleShutdown(record *service.Record, request *service.ShutdownRequest) {
-	h.sendRecord(record)
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record) {

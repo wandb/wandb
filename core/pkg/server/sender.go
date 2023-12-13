@@ -65,6 +65,9 @@ type Sender struct {
 	// ctx is the context for the handler
 	ctx context.Context
 
+	// cancel is the cancel function for the handler
+	cancel context.CancelFunc
+
 	// logger is the logger for the sender
 	logger *observability.CoreLogger
 
@@ -116,10 +119,17 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, logger *observability.CoreLogger, settings *service.Settings, opts ...SenderOption) *Sender {
+func NewSender(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	logger *observability.CoreLogger,
+	settings *service.Settings,
+	opts ...SenderOption,
+) *Sender {
 
 	sender := &Sender{
 		ctx:        ctx,
+		cancel:     cancel,
 		settings:   settings,
 		logger:     logger,
 		summaryMap: make(map[string]*service.SummaryItem),
@@ -306,8 +316,6 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
-	case *service.Request_Shutdown:
-		s.sendShutdown(record, x.Shutdown)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -408,7 +416,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.syncService.Flush()
 		s.respondExit(s.exitRecord)
-		close(s.fwdChan)
+		// cancel tells the stream to close the loopback channel
+		s.cancel()
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -1091,10 +1100,6 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			return
 		}
 	}
-}
-
-func (s *Sender) sendShutdown(record *service.Record, _ *service.ShutdownRequest) {
-	// close(s.fwdChan)
 }
 
 func (s *Sender) getServerInfo() {

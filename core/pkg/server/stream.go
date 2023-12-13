@@ -29,6 +29,9 @@ type Stream struct {
 	// ctx is the context for the stream
 	ctx context.Context
 
+	// cancel is the cancel function for the stream
+	cancel context.CancelFunc
+
 	// logger is the logger for the stream
 	logger *observability.CoreLogger
 
@@ -62,8 +65,10 @@ type Stream struct {
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
+	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
+		cancel:       cancel,
 		logger:       SetupStreamLogger(settings),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
@@ -88,7 +93,7 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	s.sender = NewSender(s.ctx, s.logger, s.settings,
+	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
@@ -182,6 +187,9 @@ func (s *Stream) GetRun() *service.RunRecord {
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
+	// wait for the context to be canceled in the defer state machine in the sender
+	<-s.ctx.Done()
+	close(s.loopBackChan)
 	close(s.inChan)
 	s.wg.Wait()
 }
@@ -208,22 +216,6 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		// TODO(beta): process the response so we can formulate a more correct footer
 		<-s.outChan
 	}
-
-	// send a shutdown which triggers the handler to stop processing new records
-	shutdownRecord := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Shutdown{
-					Shutdown: &service.ShutdownRequest{},
-				},
-			}},
-		Control: &service.Control{
-			AlwaysSend:   true,
-			ConnectionId: internalConnectionId,
-			ReqResp:      true},
-	}
-	s.HandleRecord(shutdownRecord)
-	<-s.outChan
 
 	s.Close()
 
