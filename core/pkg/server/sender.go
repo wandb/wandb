@@ -28,6 +28,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
+	"github.com/wandb/wandb/pkg/launch"
 )
 
 const (
@@ -93,6 +94,8 @@ type Sender struct {
 	syncService *SyncService
 
 	store *Store
+
+	jobBulder launch.JobBuilder
 }
 
 // NewSender creates a new Sender with the given settings
@@ -107,6 +110,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		loopbackChan: loopbackChan,
 		outChan:      make(chan *service.Result, BufferSize),
 		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
+		jobBulder:    launch.NewJobBuilder(settings),
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -364,7 +368,16 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
-
+		a, err := s.jobBulder.Build(s.graphqlClient)
+		if err != nil {
+			fmt.Println("Encountered error while building job artifact: %s", err)
+		}
+		if a != nil {
+			saver := artifacts.NewArtifactSaver(
+				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, nil,
+			)
+			artifactID, err := saver.Save()
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:

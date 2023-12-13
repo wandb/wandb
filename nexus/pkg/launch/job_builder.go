@@ -148,13 +148,13 @@ func isColabRunFromSettings(settings *service.Settings) bool {
 	return false
 }
 
-func NewJobBuilder(settings *service.Settings) (*JobBuilder, error) {
+func NewJobBuilder(settings *service.Settings) *JobBuilder {
 	isNotebookRun := isNotbookRunFromSettings(settings)
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: isNotebookRun,
 	}
-	return &jobBuilder, nil
+	return &jobBuilder
 }
 
 func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
@@ -289,6 +289,8 @@ func (j *JobBuilder) buildRepoJobSource(programRelpath string, metadata RunMetad
 		_, err = os.Stat(filepath.Join(cwd, filepath.Base(programRelpath)))
 		if os.IsNotExist(err) {
 			return nil, nil, nil
+		} else if err != nil {
+			return nil, nil, err
 		}
 
 		if metadata.root == nil || j.settings.XJupyterRoot == nil {
@@ -458,7 +460,7 @@ func (j *JobBuilder) Build(gqlClient graphql.Client) (artifact *artifacts.Artifa
 				return nil, err
 			}
 		} else {
-			// TODO: warn if source type was set??? WHY bad comment kyle
+			// TODO: warn if source type was set to something different
 			return nil, nil
 		}
 		sourceInfo.Source = jobSource
@@ -476,26 +478,42 @@ func (j *JobBuilder) Build(gqlClient graphql.Client) (artifact *artifacts.Artifa
 	sourceInfo.InputTypes = make(map[string]interface{})
 	sourceInfo.OutputTypes = make(map[string]interface{})
 
-	artifactBuilder := artifacts.NewArtifactBuilder("job", name)
+	baseArtifact := &service.ArtifactRecord{
+		Entity:           j.settings.Entity,
+		Project:          j.settings.Project,
+		RunId:            j.settings.RunId,
+		Name:             name,
+		Metadata:         "",
+		Type:             "job",
+		Aliases:          j.aliases,
+		Finalize:         true,
+		ClientId:         j.settings.ClientId,
+		SequenceClientId: j.settings.SequenceClientId,
+	}
 
-	err = artifactBuilder.AddFile(filepath.Join(fileDir, REQUIREMENTS_FNAME), FROZEN_REQUIREMENTS_FNAME)
+	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact)
+
+	err = artifactBuilder.AddData(filepath.Join(fileDir, REQUIREMENTS_FNAME), FROZEN_REQUIREMENTS_FNAME)
 	if err != nil {
 		return nil, err
 	}
 
-	jsonData, err := json.MarshalIndent(sourceInfo, "", "    ")
+	err = artifactBuilder.AddData("wandb-job.json", sourceInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	artifactBuilder.NewFile("wandb-job.json", string(jsonData))
 	if *sourceType == RepoSourceType {
-		diffFilePath := filepath.Join(j.settings.FilesDir.Value, DIFF_FNAME)
-		if _, err := os.Stat(diffFilePath); err == nil {
-			if err := artifactBuilder.AdFile(diffFilePath, DIFF_FNAME); err != nil {
+		_, err = os.Stat(filepath.Join(fileDir, DIFF_FNAME))
+		if !os.IsNotExist(err) {
+			err = artifactBuilder.AddData(filepath.Join(fileDir, DIFF_FNAME), DIFF_FNAME)
+			if err != nil {
 				return nil, err
 			}
+		} else if err != nil {
+			return nil, err
 		}
 	}
+
 	return &artifactBuilder, nil
 }
