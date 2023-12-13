@@ -47,7 +47,7 @@ _REQUEST_POOL_MAXSIZE = 64
 
 # AWS S3 max upload parts without having to make additional requests for extra parts
 S3_MAX_PART_NUMBERS = 1000
-S3_MIN_MULTI_UPLOAD_SIZE = 100 * 1024**2
+S3_MIN_MULTI_UPLOAD_SIZE = 100 * 1024**2  # 100mb
 S3_MAX_MULTI_UPLOAD_SIZE = 5 * 1024**4
 
 
@@ -272,6 +272,9 @@ class WandbStoragePolicy(StoragePolicy):
         file_path = entry.local_path if entry.local_path is not None else ""
         # Logic for AWS s3 multipart upload.
         # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
+        print(f"{file_size=}")
+        print(f"{S3_MIN_MULTI_UPLOAD_SIZE=}")
+
         if (
             file_size >= S3_MIN_MULTI_UPLOAD_SIZE
             and file_size <= S3_MAX_MULTI_UPLOAD_SIZE
@@ -286,6 +289,7 @@ class WandbStoragePolicy(StoragePolicy):
                     upload_parts.append(
                         {"hexMD5": hex_digest, "partNumber": part_number}
                     )
+                    print(f"inside multipart update loop {hex_digest=}, {part_number=}")
                     hex_digests[part_number] = hex_digest
                     part_number += 1
 
