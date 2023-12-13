@@ -374,9 +374,12 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		}
 		if a != nil {
 			saver := artifacts.NewArtifactSaver(
-				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, nil,
+				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, "",
 			)
-			artifactID, err := saver.Save()
+			_, err := saver.Save()
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 		request.State++
 		s.sendRequestDefer(request)

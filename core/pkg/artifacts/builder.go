@@ -3,7 +3,7 @@ package artifacts
 import (
 	"crypto/md5"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"sort"
 
@@ -65,7 +65,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 
 	defer file.Close()
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}
