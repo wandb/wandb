@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -12,6 +13,11 @@ import (
 const (
 	internalConnectionId = "internal"
 )
+
+type StreamComponent interface {
+	Do(<-chan *service.Record)
+	Close()
+}
 
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
@@ -23,54 +29,70 @@ type Stream struct {
 	// ctx is the context for the stream
 	ctx context.Context
 
+	// logger is the logger for the stream
+	logger *observability.CoreLogger
+
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
-
-	// handler is the handler for the stream
-	handler HandlerInterface
-
-	// dispatcher is the dispatcher for the stream
-	dispatcher *Dispatcher
-
-	// writer is the writer for the stream
-	writer *Writer
-
-	// sender is the sender for the stream
-	sender *Sender
 
 	// settings is the settings for the stream
 	settings *service.Settings
 
-	// logger is the logger for the stream
-	logger *observability.CoreLogger
+	// handler is the handler for the stream
+	handler StreamComponent
+
+	// writer is the writer for the stream
+	writer StreamComponent
+
+	// sender is the sender for the stream
+	sender StreamComponent
 
 	// inChan is the channel for incoming messages
 	inChan chan *service.Record
 
-	// loopbackChan is the channel for internal loopback messages
-	loopbackChan chan *service.Record
+	// loopBackChan is the channel for internal loopback messages
+	loopBackChan chan *service.Record
 
 	// internal responses from teardown path typically
-	respChan chan *service.ServerResponse
+	outChan chan *service.ServerResponse
+
+	// dispatcher is the dispatcher for the stream
+	dispatcher *Dispatcher
 }
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
-	logger := SetupStreamLogger(settings)
-
 	s := &Stream{
-		ctx:      ctx,
-		wg:       sync.WaitGroup{},
-		settings: settings,
-		logger:   logger,
-		inChan:   make(chan *service.Record, BufferSize),
-		respChan: make(chan *service.ServerResponse, BufferSize),
+		ctx:          ctx,
+		logger:       SetupStreamLogger(settings),
+		wg:           sync.WaitGroup{},
+		settings:     settings,
+		inChan:       make(chan *service.Record, BufferSize),
+		outChan:      make(chan *service.ServerResponse, BufferSize),
+		loopBackChan: make(chan *service.Record, BufferSize),
 	}
 
-	s.loopbackChan = make(chan *service.Record, BufferSize)
-	s.handler = NewHandler(s.ctx, s.settings, s.logger)
-	s.writer = NewWriter(s.ctx, s.settings, s.logger)
-	s.sender = NewSender(s.ctx, s.settings, s.logger, s.loopbackChan)
+	s.handler = NewHandler(s.ctx, s.logger,
+		WithHandlerSettings(s.settings),
+		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
+		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
+		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.settings, s.logger, s.loopBackChan)),
+		WithHandlerFileHandler(NewFileHandler(s.logger, s.loopBackChan)),
+		WithHandlerFileTransferHandler(NewFileTransferHandler()),
+		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
+		WithHandlerMetricHandler(NewMetricHandler()),
+	)
+
+	s.writer = NewWriter(s.ctx, s.logger,
+		WithWriterSettings(s.settings),
+		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
+	)
+
+	s.sender = NewSender(s.ctx, s.logger, s.settings,
+		WithSenderFwdChannel(s.loopBackChan),
+		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+	)
+
 	s.dispatcher = NewDispatcher(s.logger)
 
 	s.logger.Info("created new stream", "id", s.settings.RunId)
@@ -82,46 +104,67 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
-func (s *Stream) SetHandler(handler HandlerInterface) {
-	s.handler = handler
-}
-
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
 	// handle the client requests with the handler
-	s.handler.SetInboundChannels(s.inChan, s.loopbackChan)
-	handlerFwdChan := make(chan *service.Record, BufferSize)
-	handlerOutChan := make(chan *service.Result, BufferSize)
-	s.handler.SetOutboundChannels(handlerFwdChan, handlerOutChan)
+	fwdChan := make(chan *service.Record, BufferSize)
+
 	s.wg.Add(1)
 	go func() {
-		s.handler.Handle()
+		wg := sync.WaitGroup{}
+		for _, ch := range []chan *service.Record{s.inChan, s.loopBackChan} {
+			wg.Add(1)
+			go func(ch chan *service.Record) {
+				for record := range ch {
+					fwdChan <- record
+				}
+				wg.Done()
+			}(ch)
+		}
+		wg.Wait()
+		close(fwdChan)
+		s.wg.Done()
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		s.handler.Do(fwdChan)
 		s.wg.Done()
 	}()
 
 	// write the data to a transaction log
 	s.wg.Add(1)
 	go func() {
-		s.writer.do(handlerFwdChan)
+		s.writer.Do(s.handler.(*Handler).fwdChan)
 		s.wg.Done()
 	}()
 
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.do(s.writer.fwdChan)
+		s.sender.Do(s.writer.(*Writer).fwdChan)
 		s.wg.Done()
 	}()
 
 	// handle dispatching between components
 	s.wg.Add(1)
 	go func() {
-		s.dispatcher.do(handlerOutChan, s.sender.outChan)
+		wg := sync.WaitGroup{}
+		for _, ch := range []chan *service.Result{s.handler.(*Handler).outChan, s.sender.(*Sender).outChan} {
+			wg.Add(1)
+			go func(ch chan *service.Result) {
+				for result := range ch {
+					s.dispatcher.handleRespond(result)
+				}
+				wg.Done()
+			}(ch)
+		}
+		wg.Wait()
+		close(s.outChan)
 		s.wg.Done()
 	}()
-
 	s.logger.Debug("starting stream", "id", s.settings.RunId)
 }
 
@@ -132,21 +175,19 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
-	return s.handler.GetRun()
+	return s.handler.(*Handler).GetRun()
 }
 
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
-	s.handler.Close()
-	s.writer.Close()
-	s.sender.Close()
+	close(s.inChan)
 	s.wg.Wait()
 }
 
 // Respond Handle internal responses like from the finish and close path
 func (s *Stream) Respond(resp *service.ServerResponse) {
-	s.respChan <- resp
+	s.outChan <- resp
 }
 
 func (s *Stream) FinishAndClose(exitCode int32) {
@@ -164,7 +205,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 		s.HandleRecord(record)
 		// TODO(beta): process the response so we can formulate a more correct footer
-		<-s.respChan
+		<-s.outChan
 	}
 
 	// send a shutdown which triggers the handler to stop processing new records
@@ -178,7 +219,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
 	}
 	s.HandleRecord(shutdownRecord)
-	<-s.respChan
+	<-s.outChan
 
 	s.Close()
 

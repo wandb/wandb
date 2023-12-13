@@ -9,12 +9,12 @@ import (
 )
 
 // Generic item which works with summary and history
-type genericItem interface {
+type GenericItem interface {
 	GetKey() string
 	GetValueJson() string
 }
 
-func JsonifyItems[V genericItem](items []V) (string, error) {
+func JsonifyItems[V GenericItem](items []V) (string, error) {
 	jsonMap := make(map[string]interface{})
 
 	for _, item := range items {
@@ -33,7 +33,7 @@ func JsonifyItems[V genericItem](items []V) (string, error) {
 	return string(jsonBytes), nil
 }
 
-func ConsolidateSummaryItems[V genericItem](consolidatedSummary map[string]string, items []V) *service.Record {
+func ConsolidateSummaryItems[V GenericItem](consolidatedSummary map[string]string, items []V) *service.Record {
 	var summaryItems []*service.SummaryItem
 
 	for i := 0; i < len(items); i++ {
