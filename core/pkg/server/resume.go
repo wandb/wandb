@@ -37,18 +37,6 @@ func NewResumeState(logger *observability.CoreLogger, mode string) *ResumeState 
 
 type Bucket = gql.RunResumeStatusModelProjectBucketRun
 
-func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
-	result := &service.Result{
-		ResultType: &service.Result_RunResult{
-			RunResult: runResult,
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.outChan <- result
-
-}
-
 func (r *ResumeState) update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
@@ -90,33 +78,26 @@ func (r *ResumeState) update(
 	run.Resumed = true
 
 	r.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
-	if result, err := r.handleResumeHistory(run, bucket); err != nil {
+	if result, err := r.updateHistory(run, bucket); err != nil {
 		return result, err
 	}
 
 	r.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
-	if result, err := r.handleSummaryResume(run, bucket); err != nil {
+	if result, err := r.updateSummary(run, bucket); err != nil {
 		return result, err
 	}
 
 	r.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
-	if result, err := r.handleConfigResume(bucket, config); err != nil {
+	if result, err := r.updateConfig(bucket, config); err != nil {
 		return result, err
 	}
 
-	// handle tags
-	// - when resuming a run, its tags will be overwritten by the tags
-	//   passed to `wandb.init()`.
-	// - to add tags to a resumed run without overwriting its existing tags
-	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
-	if run.Tags == nil {
-		run.Tags = append(run.Tags, bucket.GetTags()...)
-	}
+	r.updateTags(run, bucket)
 
 	return nil, nil
 }
 
-func (r *ResumeState) handleResumeHistory(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
+func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
 	var historyTail []string
 	var historyTailMap map[string]interface{}
 
@@ -160,7 +141,7 @@ func (r *ResumeState) handleResumeHistory(run *service.RunRecord, bucket *Bucket
 	return nil, nil
 }
 
-func (r *ResumeState) handleSummaryResume(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
+func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
 	// If we are unable to parse the config, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
 	var summary map[string]interface{}
@@ -190,7 +171,7 @@ func (r *ResumeState) handleSummaryResume(run *service.RunRecord, bucket *Bucket
 	return nil, nil
 }
 
-func (r *ResumeState) handleConfigResume(bucket *Bucket, config map[string]interface{}) (*service.RunUpdateResult, error) {
+func (r *ResumeState) updateConfig(bucket *Bucket, config map[string]interface{}) (*service.RunUpdateResult, error) {
 	var cfg map[string]interface{}
 	if err := json.Unmarshal([]byte(*bucket.GetConfig()), &cfg); err != nil {
 		err = fmt.Errorf("sender: checkAndUpdateResumeState: failed to unmarshal config: %s", err)
@@ -205,6 +186,7 @@ func (r *ResumeState) handleConfigResume(bucket *Bucket, config map[string]inter
 		}
 	}
 
+	// TODO: should we use the run record config instead of the sender config?
 	for key, value := range cfg {
 		switch v := value.(type) {
 		case map[string]interface{}:
@@ -214,4 +196,15 @@ func (r *ResumeState) handleConfigResume(bucket *Bucket, config map[string]inter
 		}
 	}
 	return nil, nil
+}
+
+func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) {
+	// handle tags
+	// - when resuming a run, its tags will be overwritten by the tags
+	//   passed to `wandb.init()`.
+	// - to add tags to a resumed run without overwriting its existing tags
+	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
+	if run.Tags == nil {
+		run.Tags = append(run.Tags, bucket.GetTags()...)
+	}
 }

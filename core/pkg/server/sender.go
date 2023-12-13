@@ -503,6 +503,18 @@ func (s *Sender) serializeConfig() string {
 	return string(configJson)
 }
 
+func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{
+			RunResult: runResult,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+
+}
+
 func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
