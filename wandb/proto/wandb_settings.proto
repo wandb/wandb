@@ -92,6 +92,7 @@ message Settings {
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
+  google.protobuf.BoolValue _enable_async = 162;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
   google.protobuf.StringValue anonymous = 54;

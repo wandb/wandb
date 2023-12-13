@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,7 +135,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
 		fsHeaders := map[string]string{
-			"X-WANDB-USE-ASYNC-FILESTREAM": "true",
+			"X-WANDB-USE-ASYNC-FILESTREAM": strconv.FormatBool(settings.GetXEnableAsync().GetValue()),
 		}
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),

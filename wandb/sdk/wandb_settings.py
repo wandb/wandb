@@ -302,6 +302,7 @@ class SettingsData:
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
+    _enable_async: bool
     _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
@@ -337,7 +338,6 @@ class SettingsData:
     _noop: bool
     _notebook: bool
     _offline: bool
-    _sync: bool
     _os: str
     _platform: str
     _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
@@ -367,6 +367,7 @@ class SettingsData:
     _stats_buffer_size: (
         int
     )  # number of consolidated samples to buffer before flushing, available in run obj
+    _sync: bool
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
