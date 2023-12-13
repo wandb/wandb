@@ -2715,6 +2715,7 @@ class RunQueue:
         self._access = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
+        self._template_variables = None
         self._type = None
         self._items = None
         self._id = None
@@ -2754,6 +2755,14 @@ class RunQueue:
                 self._get_metadata()
             self._get_default_resource_config()
         return self._default_resource_config
+
+    @property
+    def template_variables(self):
+        if self._template_variables is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._template_variables
 
     @property
     def id(self) -> str:
@@ -2836,6 +2845,10 @@ class RunQueue:
                     defaultResourceConfig(id: $id) {
                         config
                         resource
+                        templateVariables {
+                            name
+                            schema
+                        }
                     }
                 }
             }
@@ -2848,6 +2861,9 @@ class RunQueue:
         res = self._client.execute(query, variable_values)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
         self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
+        self._template_variables = res["entity"]["defaultResourceConfig"][
+            "templateVariables"
+        ]
 
     @normalize_exceptions
     def _get_items(self):
