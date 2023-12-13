@@ -108,14 +108,17 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record, run *service.
 	bucket := data.GetModel().GetBucket()
 	run.Resumed = true
 
+	s.resumeState.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
 	if err = s.handleResumeHistory(record, run, bucket); err != nil {
 		return err
 	}
 
+	s.resumeState.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
 	if err = s.handleSummaryResume(record, run, bucket); err != nil {
 		return err
 	}
 
+	s.resumeState.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
 	if err = s.handleConfigResume(record, run, bucket); err != nil {
 		return err
 	}
@@ -128,10 +131,6 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record, run *service.
 	if run.Tags == nil {
 		run.Tags = append(run.Tags, bucket.GetTags()...)
 	}
-
-	s.resumeState.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
-	s.resumeState.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
-	s.resumeState.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
 
 	return nil
 }
@@ -173,7 +172,7 @@ func (s *Sender) handleResumeHistory(record *service.Record, run *service.RunRec
 	if step, ok := historyTailMap["_step"].(float64); ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
-		if step > 0 {
+		if step > 0 || s.resumeState.GetFileStreamOffset()[fs.HistoryChunk] > 0 {
 			run.StartingStep = int64(step) + 1
 		}
 	}
