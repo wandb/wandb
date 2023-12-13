@@ -1,4 +1,4 @@
-package clients
+package clients_test
 
 import (
 	"bufio"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/clients"
 )
 
 const (
@@ -34,9 +35,9 @@ func TestClientResponseLogger(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	client := NewRetryClient(
-		WithRetryClientRetryMax(0),
-		WithRetryClientResponseLogger(slogger, func(resp *http.Response) bool {
+	client := clients.NewRetryClient(
+		clients.WithRetryClientRetryMax(0),
+		clients.WithRetryClientResponseLogger(slogger, func(resp *http.Response) bool {
 			return resp.StatusCode >= 400
 		}),
 	)
