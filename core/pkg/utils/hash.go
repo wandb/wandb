@@ -4,11 +4,27 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"io"
+	"os"
 )
 
 func ComputeB64MD5(data []byte) (string, error) {
 	hasher := md5.New()
 	_, err := hasher.Write(data)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func ComputeFileB64MD5(path string) (string, error) {
+	hasher := md5.New()
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	_, err = io.Copy(hasher, f)
 	if err != nil {
 		return "", err
 	}
