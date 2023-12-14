@@ -17,7 +17,7 @@ RUN apt-get update && apt-get upgrade -y \
 # copy reqs and install for docker cache
 COPY ../requirements.txt /src/requirements.txt
 RUN pip install --no-cache-dir -r /src/requirements.txt
-RUN pip install awscli nbconvert nbformat chardet iso8601 typing_extensions boto3 botocore google-auth google-cloud-compute google-cloud-storage google-cloud-artifact-registry kubernetes
+RUN pip install awscli nbconvert nbformat chardet iso8601 typing_extensions boto3 botocore google-auth google-cloud-compute google-cloud-storage google-cloud-artifact-registry google-cloud-aiplatform kubernetes
 
 
 # Copy source code and install
