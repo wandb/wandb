@@ -1,7 +1,6 @@
 pytest
 hypothesis
 hypothesis-fspaths
-coverage
 
 Pillow
 pandas
@@ -28,7 +27,7 @@ tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_pla
 tensorboard
 torch; python_version < '3.12'
 torchvision; python_version < '3.12'
-jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
+jax[cpu]; python_version > '3.7' and (sys_platform == 'darwin' or sys_platform == 'linux')
 
 fastcore
 pyarrow; python_version < '3.12'  # TODO: 3.12 support will be added in 14.0.0

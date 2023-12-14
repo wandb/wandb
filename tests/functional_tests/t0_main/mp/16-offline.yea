@@ -1,6 +1,5 @@
 id: 0.mp.16-offline
-tag:
-  shard: service
+
 env:
   - WANDB_BASE_URL: https://does.not-resolve/
 command:

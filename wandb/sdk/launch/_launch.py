@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -12,7 +13,6 @@ from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .builder.build import construct_agent_configs
-from .builder.noop import NoOpBuilder
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
@@ -25,6 +25,35 @@ from .utils import (
 )
 
 _logger = logging.getLogger(__name__)
+
+
+def set_launch_logfile(logfile: str) -> None:
+    """Set the logfile for the launch agent."""
+    # Get logger of parent module
+    _launch_logger = logging.getLogger("wandb.sdk.launch")
+    if logfile == "-":
+        logfile_stream = sys.stdout
+    else:
+        try:
+            logfile_stream = open(logfile, "w")
+        # check if file is writable
+        except Exception as e:
+            wandb.termerror(
+                f"Could not open {logfile} for writing logs. Please check "
+                f"the path and permissions.\nError: {e}"
+            )
+            return
+
+    wandb.termlog(
+        f"Internal agent logs printing to {'stdout' if logfile == '-' else logfile}. "
+    )
+    handler = logging.StreamHandler(logfile_stream)
+    handler.formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+    )
+    _launch_logger.addHandler(handler)
+    _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
 def resolve_agent_config(  # noqa: C901
@@ -64,6 +93,9 @@ def resolve_agent_config(  # noqa: C901
         with open(config_path) as f:
             try:
                 launch_config = yaml.safe_load(f)
+                # This is considered unreachable by mypy, but it's not.
+                if launch_config is None:
+                    launch_config = {}  # type: ignore
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
         if launch_config.get("project") is not None:
@@ -123,6 +155,27 @@ def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
 ) -> None:
+    try:
+        from wandb.sdk.launch.agent import config as agent_config
+    except ModuleNotFoundError:
+        raise LaunchError(
+            "wandb launch-agent requires pydantic to be installed. "
+            "Please install with `pip install wandb[launch]`"
+        )
+    try:
+        config.pop("runner", None)
+        agent_config.AgentConfig(**config)
+    except agent_config.ValidationError as e:
+        errors = e.errors()
+        for error in errors:
+            loc = ".".join([str(x) for x in error.get("loc", [])])
+            msg = f"Agent config error in field {loc}"
+            value = error.get("input")
+            if not isinstance(value, dict):
+                msg += f" (value: {value})"
+            msg += f": {error['msg']}"
+            wandb.termerror(msg)
+        raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
     try:
         asyncio.run(agent.loop())
@@ -185,11 +238,7 @@ async def _launch(
     if environment is not None and not isinstance(environment, LocalEnvironment):
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
-    if registry:
-        await registry.verify()
     builder = loader.builder_from_config(build_config, environment, registry)
-    if builder is not None and not isinstance(builder, NoOpBuilder):
-        await builder.verify()
     if not launch_project.docker_image:
         assert entrypoint
         image_uri = await builder.build_image(launch_project, entrypoint, None)

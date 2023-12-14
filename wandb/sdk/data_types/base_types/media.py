@@ -232,7 +232,7 @@ class Media(WBValue):
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self._artifact_source.artifact.get_path(name)
+                        path = self._artifact_source.artifact.get_entry(name)
                         artifact.add_reference(path.ref_url(), name=name)
                     elif (
                         isinstance(self, Audio) or isinstance(self, Image)
@@ -254,7 +254,7 @@ class Media(WBValue):
         cls: Type["Media"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Media":
         """Likely will need to override for any more complicated media objects."""
-        return cls(source_artifact.get_path(json_obj["path"]).download())
+        return cls(source_artifact.get_entry(json_obj["path"]).download())
 
     def __eq__(self, other: object) -> bool:
         """Likely will need to override for any more complicated media objects."""

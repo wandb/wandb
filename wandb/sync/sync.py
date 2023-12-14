@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import List, Optional
 from urllib.parse import quote as url_quote
 
 import wandb
@@ -51,6 +52,7 @@ class SyncThread(threading.Thread):
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -66,6 +68,7 @@ class SyncThread(threading.Thread):
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -85,6 +88,8 @@ class SyncThread(threading.Thread):
             if self._entity:
                 pb.run.entity = self._entity
             pb.control.req_resp = True
+        elif record_type in ("output", "output_raw") and self._skip_console:
+            return pb, exit_pb, True
         elif record_type == "exit":
             exit_pb = pb
             return pb, exit_pb, True
@@ -325,6 +330,7 @@ class SyncManager:
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -338,6 +344,7 @@ class SyncManager:
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
 
     def status(self):
         pass
@@ -359,6 +366,7 @@ class SyncManager:
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
             append=self._append,
+            skip_console=self._skip_console,
         )
         self._thread.start()
 
@@ -371,17 +379,15 @@ class SyncManager:
 
 
 def get_runs(
-    include_offline=None,
-    include_online=None,
-    include_synced=None,
-    include_unsynced=None,
-    exclude_globs=None,
-    include_globs=None,
+    include_offline: bool = True,
+    include_online: bool = True,
+    include_synced: bool = False,
+    include_unsynced: bool = True,
+    exclude_globs: Optional[List[str]] = None,
+    include_globs: Optional[List[str]] = None,
 ):
     # TODO(jhr): grab dir info from settings
-    base = "wandb"
-    if os.path.exists(".wandb"):
-        base = ".wandb"
+    base = ".wandb" if os.path.exists(".wandb") else "wandb"
     if not os.path.exists(base):
         return ()
     all_dirs = os.listdir(base)

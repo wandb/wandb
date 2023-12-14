@@ -421,7 +421,7 @@ class InterfaceBase:
             # Download source info from logged partial job artifact
             job_info = {}
             try:
-                path = artifact.get_path("wandb-job.json").download()
+                path = artifact.get_entry("wandb-job.json").download()
                 with open(path) as f:
                     job_info = json.load(f)
             except Exception as e:
@@ -478,15 +478,13 @@ class InterfaceBase:
 
     def deliver_download_artifact(
         self,
-        qualified_name: str,
+        artifact_id: str,
         download_root: str,
-        recursive: bool,
         allow_missing_references: bool,
     ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
-        download_artifact.qualified_name = qualified_name
+        download_artifact.artifact_id = artifact_id
         download_artifact.download_root = download_root
-        download_artifact.recursive = recursive
         download_artifact.allow_missing_references = allow_missing_references
         resp = self._deliver_download_artifact(download_artifact)
         return resp
@@ -709,6 +707,33 @@ class InterfaceBase:
     def deliver_run(self, run: "Run") -> MailboxHandle:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
+
+    def deliver_sync(
+        self,
+        start_offset: int,
+        final_offset: int,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run_id: Optional[str] = None,
+        skip_output_raw: Optional[bool] = None,
+    ) -> MailboxHandle:
+        sync = pb.SyncRequest(
+            start_offset=start_offset,
+            final_offset=final_offset,
+        )
+        if entity:
+            sync.overwrite.entity = entity
+        if project:
+            sync.overwrite.project = project
+        if run_id:
+            sync.overwrite.run_id = run_id
+        if skip_output_raw:
+            sync.skip.output_raw = skip_output_raw
+        return self._deliver_sync(sync)
+
+    @abstractmethod
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
