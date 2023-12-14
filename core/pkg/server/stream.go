@@ -14,11 +14,6 @@ const (
 	internalConnectionId = "internal"
 )
 
-type StreamComponent interface {
-	Do(<-chan *service.Record)
-	Close()
-}
-
 // Stream is a collection of components that work together to handle incoming
 // data for a W&B run, store it locally, and send it to a W&B server.
 // Stream.handler receives incoming data from the client and dispatches it to
@@ -42,13 +37,13 @@ type Stream struct {
 	settings *service.Settings
 
 	// handler is the handler for the stream
-	handler StreamComponent
+	handler *Handler
 
 	// writer is the writer for the stream
-	writer StreamComponent
+	writer *Writer
 
 	// sender is the sender for the stream
-	sender StreamComponent
+	sender *Sender
 
 	// inChan is the channel for incoming messages
 	inChan chan *service.Record
@@ -73,8 +68,8 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
+		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
 	s.handler = NewHandler(s.ctx, s.logger,
@@ -143,14 +138,14 @@ func (s *Stream) Start() {
 	// write the data to a transaction log
 	s.wg.Add(1)
 	go func() {
-		s.writer.Do(s.handler.(*Handler).fwdChan)
+		s.writer.Do(s.handler.fwdChan)
 		s.wg.Done()
 	}()
 
 	// send the data to the server
 	s.wg.Add(1)
 	go func() {
-		s.sender.Do(s.writer.(*Writer).fwdChan)
+		s.sender.Do(s.writer.fwdChan)
 		s.wg.Done()
 	}()
 
@@ -158,7 +153,7 @@ func (s *Stream) Start() {
 	s.wg.Add(1)
 	go func() {
 		wg := sync.WaitGroup{}
-		for _, ch := range []chan *service.Result{s.handler.(*Handler).outChan, s.sender.(*Sender).outChan} {
+		for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
 			wg.Add(1)
 			go func(ch chan *service.Result) {
 				for result := range ch {
@@ -181,7 +176,7 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
-	return s.handler.(*Handler).GetRun()
+	return s.handler.GetRun()
 }
 
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
