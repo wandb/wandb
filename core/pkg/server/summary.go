@@ -47,7 +47,3 @@ func (sh *SummaryHandler) updateSummaryDelta(summaryRecord *service.Record) {
 	}
 	sh.summaryDebouncer.SetNeedsDebounce()
 }
-
-func (sh *SummaryHandler) GetConsolidatedSummary() map[string]string {
-	return sh.consolidatedSummary
-}

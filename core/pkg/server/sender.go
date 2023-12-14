@@ -53,12 +53,6 @@ func WithSenderOutChannel(out chan *service.Result) SenderOption {
 	}
 }
 
-func WithSenderSettings(settings *service.Settings) SenderOption {
-	return func(s *Sender) {
-		s.settings = settings
-	}
-}
-
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
