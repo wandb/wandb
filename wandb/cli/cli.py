@@ -1513,7 +1513,7 @@ def launch(
         priority = priority_map[priority.lower()]
         
     template_variables = None
-    if cli_template_vars is not None:
+    if cli_template_vars:
         if queue is None:
             raise LaunchError("'--set-var' flag requires queue to be set")
         public_api = PublicApi()
