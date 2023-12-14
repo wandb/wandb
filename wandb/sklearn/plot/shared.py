@@ -1,12 +1,10 @@
-"""Defines plots used by multiple sklearn model classes."""
+"""Define plots used by multiple sklearn model classes."""
 from warnings import simplefilter
 
 import numpy as np
 
 import wandb
-
-from wandb.sklearn import calculate
-from wandb.sklearn import utils
+from wandb.sklearn import calculate, utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
@@ -75,7 +73,7 @@ def learning_curve(
 
     Example:
     ```python
-        wandb.sklearn.plot_learning_curve(model, X, y)
+    wandb.sklearn.plot_learning_curve(model, X, y)
     ```
     """
     not_missing = utils.test_missing(model=model, X=X, y=y)

@@ -2,20 +2,18 @@ import queue
 import socket
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from wandb.proto import wandb_server_pb2 as spb
+from wandb.sdk.internal.settings_static import SettingsStatic
 
-from .service_base import _pbmap_apply_dict
-from .streams import StreamMux
 from ..lib import tracelog
-from ..lib.proto_util import settings_dict_from_pbmap
 from ..lib.sock_client import SockClient, SockClientClosedError
-
+from .streams import StreamMux
 
 if TYPE_CHECKING:
     from threading import Event
+
     from ..interface.interface_relay import InterfaceRelay
 
 
@@ -105,11 +103,11 @@ class SockServerReadThread(threading.Thread):
                 break
             assert sreq, "read_server_request should never timeout"
             sreq_type = sreq.WhichOneof("server_request_type")
-            shandler_str = "server_" + sreq_type
-            shandler: "Callable[[spb.ServerRequest], None]" = getattr(
+            shandler_str = "server_" + sreq_type  # type: ignore
+            shandler: Callable[[spb.ServerRequest], None] = getattr(  # type: ignore
                 self, shandler_str, None
             )
-            assert shandler, f"unknown handle: {shandler_str}"
+            assert shandler, f"unknown handle: {shandler_str}"  # type: ignore
             shandler(sreq)
 
     def stop(self) -> None:
@@ -123,7 +121,7 @@ class SockServerReadThread(threading.Thread):
     def server_inform_init(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_init
         stream_id = request._info.stream_id
-        settings = settings_dict_from_pbmap(request._settings_map)
+        settings = SettingsStatic(request.settings)
         self._mux.add_stream(stream_id, settings=settings)
 
         iface = self._mux.get_stream(stream_id).interface
@@ -138,8 +136,9 @@ class SockServerReadThread(threading.Thread):
     def server_inform_start(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_start
         stream_id = request._info.stream_id
-        settings = settings_dict_from_pbmap(request._settings_map)
+        settings = SettingsStatic(request.settings)
         self._mux.update_stream(stream_id, settings=settings)
+        self._mux.start_stream(stream_id)
 
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
@@ -147,9 +146,8 @@ class SockServerReadThread(threading.Thread):
 
         self._clients.add_client(self._sock_client)
         inform_attach_response = spb.ServerInformAttachResponse()
-        _pbmap_apply_dict(
-            inform_attach_response._settings_map,
-            dict(self._mux._streams[stream_id]._settings),
+        inform_attach_response.settings.CopyFrom(
+            self._mux._streams[stream_id]._settings._proto,
         )
         response = spb.ServerResponse(inform_attach_response=inform_attach_response)
         self._sock_client.send_server_response(response)
@@ -168,6 +166,8 @@ class SockServerReadThread(threading.Thread):
 
     def server_record_publish(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_publish
+        # encode relay information so the right socket picks up the data
+        record.control.relay_id = self._sock_client._sockid
         stream_id = record._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         assert iface.record_q
@@ -267,7 +267,7 @@ class SocketServer:
                 # TODO(jhr): consider a more graceful shutdown in the future
                 # socket.shutdown() is a more heavy handed approach to interrupting socket.accept()
                 # in the future we might want to consider a more graceful shutdown which would involve setting
-                # a threading Event and then intiating one last connection just to close down the thread
+                # a threading Event and then initiating one last connection just to close down the thread
                 # The advantage of the heavy handed approach is that it doesnt depend on the threads functioning
                 # properly, that is, if something has gone wrong, we probably want to use this hammer to shut things down
                 self._sock.shutdown(socket.SHUT_RDWR)

@@ -1,7 +1,5 @@
 import json
 
-from six import unichr
-
 from ..error import GraphQLSyntaxError
 
 __all__ = ['Token', 'Lexer', 'TokenKind',
@@ -134,7 +132,7 @@ def print_char_code(code):
         return '<EOF>'
 
     if code < 0x007F:
-        return json.dumps(unichr(code))
+        return json.dumps(chr(code))
 
     return '"\\u%04X"' % code
 
@@ -225,9 +223,7 @@ def position_after_whitespace(body, start_position):
 def read_number(source, start, first_code):
     """Reads a number token from the source file, either a float
     or an int depending on whether a decimal point appears.
-
-    Int:   -?(0|[1-9][0-9]*)
-    Float: -?(0|[1-9][0-9]*)(\.[0-9]+)?((E|e)(+|-)?[0-9]+)?"""
+    """
     code = first_code
     body = source.body
     position = start
@@ -368,12 +364,12 @@ def read_string(source, start):
                         u'Invalid character escape sequence: \\u{}.'.format(body[position + 1: position + 5])
                     )
 
-                append(unichr(char_code))
+                append(chr(char_code))
                 position += 4
             else:
                 raise GraphQLSyntaxError(
                     source, position,
-                    u'Invalid character escape sequence: \\{}.'.format(unichr(code))
+                    u'Invalid character escape sequence: \\{}.'.format(chr(code))
                 )
 
             position += 1

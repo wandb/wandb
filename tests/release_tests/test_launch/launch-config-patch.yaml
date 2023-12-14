@@ -1,0 +1,48 @@
+# Indicates changes to make to the base launch config from wandb/sdk/launch/deploys/kubernetes/launch-config.yaml
+metadata:
+  name: wandb-release-testing
+---
+metadata:
+  namespace: wandb-release-testing
+---
+{}
+---
+metadata:
+  namespace: wandb-release-testing
+---
+metadata:
+  namespace: wandb-release-testing
+subjects:
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb-release-testing
+---
+metadata:
+  namespace: wandb-release-testing
+subjects:
+  - kind: ServiceAccount
+    name: wandb-launch-serviceaccount
+    namespace: wandb-release-testing
+---
+metadata:
+  namespace: wandb-release-testing
+data:
+  launch-config.yaml: |
+    base_url: https://api.wandb.ai
+    max_jobs: 8
+    entity: launch-release-testing
+    queues:
+    - kubernetes-queue
+    builder:
+      type: noop
+    registry:
+      type: ecr
+      repository: release-testing
+    environment:
+      type: aws
+      region: us-east-2
+---
+metadata:
+  namespace: wandb-release-testing
+stringData:
+  password: "" # Placeholder, set to wandb api key in utils.create_config_files()

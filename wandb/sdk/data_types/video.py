@@ -1,9 +1,10 @@
-from io import BytesIO
 import logging
 import os
-from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from io import BytesIO
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
 from ._private import MEDIA_TMP
@@ -12,14 +13,15 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
 
 # This helper function is a workaround for the issue discussed here:
-# https://github.com/wandb/client/issues/3472
+# https://github.com/wandb/wandb/issues/3472
 #
 # Essentially, the issue is that moviepy's write_gif function fails to close
 # the open write / file descripter returned from `imageio.save`. The following
@@ -100,7 +102,7 @@ class Video(BatchableMedia):
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + self._format
+                MEDIA_TMP.name, runid.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
@@ -116,7 +118,7 @@ class Video(BatchableMedia):
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
-                self.data = data_or_path.numpy()  # type: ignore
+                self.data = data_or_path.numpy()
             elif util.is_numpy_array(data_or_path):
                 self.data = data_or_path
             else:
@@ -131,12 +133,14 @@ class Video(BatchableMedia):
             required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
         )
         tensor = self._prepare_video(self.data)
-        _, self._height, self._width, self._channels = tensor.shape
+        _, self._height, self._width, self._channels = tensor.shape  # type: ignore
 
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
-        filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
+        filename = os.path.join(
+            MEDIA_TMP.name, runid.generate_id() + "." + self._format
+        )
         if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
@@ -166,7 +170,7 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
 
@@ -180,7 +184,7 @@ class Video(BatchableMedia):
         return json_dict
 
     def _prepare_video(self, video: "np.ndarray") -> "np.ndarray":
-        """This logic was mostly taken from tensorboardX"""
+        """This logic was mostly taken from tensorboardX."""
         np = util.get_module(
             "numpy",
             required='wandb.Video requires numpy when passing raw data. To get it, run "pip install numpy".',
@@ -224,7 +228,7 @@ class Video(BatchableMedia):
         step: Union[int, str],
     ) -> dict:
         base_path = os.path.join(run.dir, cls.get_media_subdir())
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
 
         meta = {
             "_type": "videos",

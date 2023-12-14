@@ -1,20 +1,22 @@
 import codecs
 import os
-from typing import Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
 
 from ._private import MEDIA_TMP
-from .base_types.media import _numpy_arrays_to_lists, Media
+from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     ValToJsonType = Union[
@@ -29,8 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """
-    Wandb class for plotly plots.
+    """Wandb class for plotly plots.
 
     Arguments:
         val: matplotlib or plotly figure
@@ -65,7 +66,7 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".plotly.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(val, fp)
@@ -75,7 +76,7 @@ class Plotly(Media):
     def get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict

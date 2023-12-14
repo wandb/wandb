@@ -14,7 +14,6 @@ Threads:
 
 
 import atexit
-from datetime import datetime
 import logging
 import os
 import queue
@@ -22,46 +21,43 @@ import sys
 import threading
 import time
 import traceback
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import psutil
-import wandb
-from wandb.util import sentry_exc, sentry_set_scope
 
-from . import handler
-from . import internal_util
-from . import sender
-from . import settings_static
-from . import writer
+import wandb
+
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import tracelog
-
+from . import context, handler, internal_util, sender, writer
 
 if TYPE_CHECKING:
-    from .settings_static import SettingsDict, SettingsStatic
-    from typing import Any, List, Optional
     from queue import Queue
-    from .internal_util import RecordLoopThread
-    from wandb.proto.wandb_internal_pb2 import Record, Result
     from threading import Event
+
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+
+    from .internal_util import RecordLoopThread
+    from .settings_static import SettingsStatic
 
 
 logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings: "SettingsDict",
+    settings: "SettingsStatic",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
-    port: int = None,
-    user_pid: int = None,
+    port: Optional[int] = None,
+    user_pid: Optional[int] = None,
 ) -> None:
     """Internal process function entrypoint.
 
     Read from record queue and dispatch work to various threads.
 
     Arguments:
-        settings: dictionary of configuration parameters.
+        settings: settings object
         record_q: records to be handled
         result_q: for sending results back
 
@@ -72,7 +68,7 @@ def wandb_internal(
     started = time.time()
 
     # any sentry events in the internal process will be tagged as such
-    sentry_set_scope(process_context="internal")
+    wandb._sentry.configure_scope(process_context="internal", tags=dict(settings))
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
@@ -80,7 +76,7 @@ def wandb_internal(
         logger.info("Internal process exited")
 
     # Let's make sure we don't modify settings so use a static object
-    _settings = settings_static.SettingsStatic(settings)
+    _settings = settings
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
@@ -98,28 +94,35 @@ def wandb_internal(
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
-    threads: "List[RecordLoopThread]" = []
+    threads: List[RecordLoopThread] = []
 
-    send_record_q: "Queue[Record]" = queue.Queue()
+    context_keeper = context.ContextKeeper()
+
+    send_record_q: Queue[Record] = queue.Queue()
     tracelog.annotate_queue(send_record_q, "send_q")
+
+    write_record_q: Queue[Record] = queue.Queue()
+    tracelog.annotate_queue(write_record_q, "write_q")
+
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
-        debounce_interval_ms=30000,
+        debounce_interval_ms=5000,
+        context_keeper=context_keeper,
     )
     threads.append(record_sender_thread)
 
-    write_record_q: "Queue[Record]" = queue.Queue()
-    tracelog.annotate_queue(write_record_q, "write_q")
     record_writer_thread = WriterThread(
         settings=_settings,
         record_q=write_record_q,
         result_q=result_q,
         stopped=stopped,
-        writer_q=write_record_q,
+        interface=publish_interface,
+        sender_q=send_record_q,
+        context_keeper=context_keeper,
     )
     threads.append(record_writer_thread)
 
@@ -128,9 +131,9 @@ def wandb_internal(
         record_q=record_q,
         result_q=result_q,
         stopped=stopped,
-        sender_q=send_record_q,
         writer_q=write_record_q,
         interface=publish_interface,
+        context_keeper=context_keeper,
     )
     threads.append(record_handler_thread)
 
@@ -159,19 +162,27 @@ def wandb_internal(
     for thread in threads:
         thread.join()
 
+    def close_internal_log() -> None:
+        root = logging.getLogger("wandb")
+        for _handler in root.handlers[:]:
+            _handler.close()
+            root.removeHandler(_handler)
+
     for thread in threads:
         exc_info = thread.get_exception()
         if exc_info:
             logger.error(f"Thread {thread.name}:", exc_info=exc_info)
             print(f"Thread {thread.name}:", file=sys.stderr)
             traceback.print_exception(*exc_info)
-            sentry_exc(exc_info, delay=True)
+            wandb._sentry.exception(exc_info)
             wandb.termerror("Internal wandb error: file data was not synced")
-            if settings.get("_require_service"):
+            if not settings._disable_service:
                 # TODO: We can make this more graceful by returning an error to streams.py
                 # and potentially just fail the one stream.
                 os._exit(-1)
             sys.exit(-1)
+
+    close_internal_log()
 
 
 def _setup_tracelog() -> None:
@@ -182,7 +193,9 @@ def _setup_tracelog() -> None:
         tracelog.enable(tracelog_mode)
 
 
-def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:
+def configure_logging(
+    log_fname: str, log_level: int, run_id: Optional[str] = None
+) -> None:
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
@@ -223,6 +236,7 @@ class HandlerThread(internal_util.RecordLoopThread):
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: "Event"
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -230,9 +244,9 @@ class HandlerThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
         interface: "InterfaceQueue",
+        context_keeper: context.ContextKeeper,
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super().__init__(
@@ -246,9 +260,9 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._sender_q = sender_q
         self._writer_q = writer_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
     def _setup(self) -> None:
         self._hm = handler.HandleManager(
@@ -256,9 +270,9 @@ class HandlerThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             stopped=self._stopped,
-            sender_q=self._sender_q,
             writer_q=self._writer_q,
             interface=self._interface,
+            context_keeper=self._context_keeper,
         )
 
     def _process(self, record: "Record") -> None:
@@ -276,6 +290,7 @@ class SenderThread(internal_util.RecordLoopThread):
 
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -284,6 +299,7 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         interface: "InterfaceQueue",
+        context_keeper: context.ContextKeeper,
         debounce_interval_ms: "float" = 5000,
     ) -> None:
         super().__init__(
@@ -297,6 +313,7 @@ class SenderThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._context_keeper = context_keeper
 
     def _setup(self) -> None:
         self._sm = sender.SendManager(
@@ -304,6 +321,7 @@ class SenderThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             interface=self._interface,
+            context_keeper=self._context_keeper,
         )
 
     def _process(self, record: "Record") -> None:
@@ -321,6 +339,7 @@ class WriterThread(internal_util.RecordLoopThread):
 
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
+    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -328,11 +347,13 @@ class WriterThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        writer_q: "Queue[Record]",
+        interface: "InterfaceQueue",
+        sender_q: "Queue[Record]",
+        context_keeper: context.ContextKeeper,
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super().__init__(
-            input_record_q=writer_q,
+            input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
             debounce_interval_ms=debounce_interval_ms,
@@ -341,12 +362,18 @@ class WriterThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._sender_q = sender_q
+        self._interface = interface
+        self._context_keeper = context_keeper
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
             settings=self._settings,
             record_q=self._record_q,
             result_q=self._result_q,
+            sender_q=self._sender_q,
+            interface=self._interface,
+            context_keeper=self._context_keeper,
         )
 
     def _process(self, record: "Record") -> None:
@@ -362,9 +389,9 @@ class WriterThread(internal_util.RecordLoopThread):
 class ProcessCheck:
     """Class to help watch a process id to detect when it is dead."""
 
-    check_process_last: "Optional[float]"
+    check_process_last: Optional[float]
 
-    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: Optional[int]) -> None:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None

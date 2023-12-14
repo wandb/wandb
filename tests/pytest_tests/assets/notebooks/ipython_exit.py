@@ -1,0 +1,3 @@
+import wandb
+
+wandb.init()

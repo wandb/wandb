@@ -10,9 +10,7 @@ Usage:
     ```
 """
 
-from typing import Dict, Optional
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
     from ._wburls_generated import URLS
@@ -29,10 +27,13 @@ class WBURLs:
             cli_launch="https://wandb.me/launch",
             doc_run="https://wandb.me/run",
             doc_require="https://wandb.me/library-require",
-            doc_start_err="https://docs.wandb.ai/library/init#init-start-error",
-            upgrade_local="https://wandb.me/local-upgrade",
+            doc_start_err="https://docs.wandb.ai/guides/track/tracking-faq#initstarterror-error-communicating-with-wandb-process-",
+            doc_artifacts_guide="https://docs.wandb.ai/guides/artifacts",
+            upgrade_server="https://wandb.me/server-upgrade",
             multiprocess="http://wandb.me/init-multiprocess",
             wandb_init="https://wandb.me/wandb-init",
+            wandb_server="https://wandb.me/wandb-server",
+            wandb_define_metric="https://wandb.me/define-metric",
         )
 
     def get(self, s: "URLS") -> str:

@@ -1,0 +1,21 @@
+mutation NotifyScriptableRunAlert(
+    $entityName: String!,
+    $projectName: String!,
+    $runName: String!,
+    $title: String!,
+    $text: String!,
+    $severity: AlertSeverity = INFO,
+    $waitDuration: Duration
+) {
+    notifyScriptableRunAlert(input: {
+        entityName: $entityName,
+        projectName: $projectName,
+        runName: $runName,
+        title: $title,
+        text: $text,
+        severity: $severity,
+        waitDuration: $waitDuration
+    }) {
+        success
+    }
+}

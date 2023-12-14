@@ -1,36 +1,53 @@
-"""
-static settings.
-"""
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from dataclasses import fields
+from typing import Any, Iterable, Sequence, Tuple
 
-SettingsDict = Dict[str, Union[str, float, Tuple, None]]
+from wandb.proto import wandb_settings_pb2
+from wandb.sdk.wandb_settings import SettingsData
 
 
-class SettingsStatic:
-    # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
-    _offline: Optional[bool]
-    _disable_stats: Optional[bool]
-    _disable_meta: Optional[bool]
-    _start_time: float
-    _start_datetime: str
-    files_dir: str
-    log_internal: str
-    _internal_check_process: bool
-    is_local: Optional[bool]
-    _colab: Optional[bool]
-    _jupyter: Optional[bool]
-    _require_service: Optional[str]
-    _live_policy_rate_limit: Optional[int]
-    resume: Optional[str]
-    program: Optional[str]
-    silent: Optional[bool]
-    email: Optional[str]
+class SettingsStatic(SettingsData):
+    """A readonly object that wraps a protobuf Settings message.
 
-    # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
-    _log_level: int
+    Implements the mapping protocol, so you can access settings as
+    attributes or items.
+    """
 
-    def __init__(self, d: "SettingsDict") -> None:
-        object.__setattr__(self, "__dict__", d)
+    def __init__(self, proto: wandb_settings_pb2.Settings) -> None:
+        self._from_proto(proto)
+        object.__setattr__(self, "_proto", proto)
+
+    def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
+        for field in fields(SettingsData):
+            key = field.name
+            value: Any = None
+            if key == "_stats_open_metrics_filters":
+                # todo: it's an underscored field, refactor into
+                #  something more elegant?
+                # I'm really about this. It's ugly, but it works.
+                # Do not try to repeat this at home.
+                value_type = getattr(proto, key).WhichOneof("value")
+                if value_type == "sequence":
+                    value = list(getattr(proto, key).sequence.value)
+                elif value_type == "mapping":
+                    unpacked_mapping = {}
+                    for outer_key, outer_value in getattr(
+                        proto, key
+                    ).mapping.value.items():
+                        unpacked_inner = {}
+                        for inner_key, inner_value in outer_value.value.items():
+                            unpacked_inner[inner_key] = inner_value
+                        unpacked_mapping[outer_key] = unpacked_inner
+                    value = unpacked_mapping
+            else:
+                if proto.HasField(key):  # type: ignore [arg-type]
+                    value = getattr(proto, key).value
+                    if field.type == Sequence[str]:
+                        value = list(value)
+                    elif field.type == Tuple[str]:
+                        value = tuple(value)
+                else:
+                    value = None
+            object.__setattr__(self, key, value)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")
@@ -41,11 +58,17 @@ class SettingsStatic:
     def keys(self) -> "Iterable[str]":
         return self.__dict__.keys()
 
-    def items(self) -> "Iterable[Any]":
-        return self.__dict__.items()
-
-    def __getitem__(self, key: str) -> "Any":
+    def __getitem__(self, key: str) -> Any:
         return self.__dict__[key]
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self.__dict__[name]
+        except KeyError:
+            raise AttributeError(f"SettingsStatic has no attribute {name}")
 
     def __str__(self) -> str:
         return str(self.__dict__)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.__dict__

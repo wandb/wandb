@@ -1,12 +1,12 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
 
 We at Weights & Biases ❤️ open source and welcome contributions from the community!
-This guide discusses the development workflow and the internals of the `wandb` client library.
+This guide discusses the development workflow and the internals of the `wandb` library.
 
 ### Table of Contents
 
@@ -16,37 +16,48 @@ Please make sure to update the ToC when you update this page!
 -->
 
 - [Development workflow](#development-workflow)
+  * [Conventional Commits](#conventional-commits)
+    + [Types](#types)
+    + [Scopes](#scopes)
+    + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
+  * [Mac with the Apple M1 chip](#mac-with-the-apple-m1-chip)
+- [Code organization](#code-organization)
 - [Building protocol buffers](#building-protocol-buffers)
 - [Linting the code](#linting-the-code)
 - [Testing](#testing)
-  - [Overview](#overview)
-  - [Finding good test points](#finding-good-test-points)
-  - [Global Pytest Fixtures](#global-pytest-fixtures)
-  - [Code Coverage](#code-coverage)
-  - [Test parallelism](#test-parallelism)
-  - [Functional Testing](#functional-testing)
-  - [Regression Testing](#regression-testing)
+  * [Overview](#overview)
+  * [Finding good test points](#finding-good-test-points)
+  * [Global Pytest Fixtures](#global-pytest-fixtures)
+  * [Code Coverage](#code-coverage)
+  * [Test parallelism](#test-parallelism)
+  * [Functional Testing](#functional-testing)
+  * [Regression Testing](#regression-testing)
 - [Live development](#live-development)
-- [Code organization](#code-organization)
 - [Library Objectives](#library-objectives)
-- [Changes from production library](#changes-from-production-library)
+  * [Supported user interface](#supported-user-interface)
+  * [Arguments/environment variables impacting wandb functions are merged with Settings](#arguments-environment-variables-impacting-wandb-functions-are-merged-with-settings)
+    + [wandb.Settings internals](#wandbsettings-internals)
+    + [Adding a new setting](#adding-a-new-setting)
+  * [Data to be synced to server is fully validated](#data-to-be-synced-to-server-is-fully-validated)
+  * [All changes to objects are reflected in sync data](#all-changes-to-objects-are-reflected-in-sync-data)
+  * [Library can be disabled](#library-can-be-disabled)
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
-- [Documentation Generation](#documentation-generation)
-- [Deprecating Features](#deprecating-features)
+- [Server introspection](#server-introspection)
+- [Deprecating features](#deprecating-features)
 - [Adding URLs](#adding-urls)
 
 ## Development workflow
 
-1.  Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
+1.  Browse the existing [Issues](https://github.com/wandb/wandb/issues) on GitHub to see
     if the feature/bug you are willing to add/fix has already been requested/reported.
 
-    - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
+    - If not, please create a [new issue](https://github.com/wandb/wandb/issues/new/choose).
       This will help the project keep track of feature requests and bug reports and make sure
       effort is not duplicated.
 
 2.  If you are a first-time contributor, please go to
-    [`https://github.com/wandb/client`](https://github.com/wandb/client)
+    [`https://github.com/wandb/client`](https://github.com/wandb/wandb)
     and click the "Fork" button in the top-right corner of the page.
     This will create your personal copy of the repository that you will use for development.
 
@@ -55,16 +66,16 @@ Please make sure to update the ToC when you update this page!
       that will point to the main `wandb` project:
 
       ```shell
-      git clone https://github.com/<your-username>/client.git
-      cd client
-      git remote add upstream https://github.com/wandb/client.git
+      git clone https://github.com/<your-username>/wandb.git
+      cd wandb
+      git remote add upstream https://github.com/wandb/wandb.git
       ```
 
-3.  Develop you contribution.
+3.  Develop your contribution.
     - Make sure your fork is in sync with the main repository:
     ```shell
-    git checkout master
-    git pull upstream master
+    git checkout main
+    git pull upstream main
     ```
     - Create a `git` branch where you will develop your contribution.
       Use a sensible name for the branch, for example:
@@ -74,10 +85,13 @@ Please make sure to update the ToC when you update this page!
     - Hack! As you make progress, commit your changes locally, e.g.:
     ```shell
     git add changed-file.py tests/test-changed-file.py
-    git commit -m "Added integration with a new library"
+    git commit -m "feat(integrations): Add integration with the `awesomepyml` library"
     ```
     - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
-4.  Proposed changes are contributed through  
+    - Ensure compliance with [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/),
+      see [below](#conventional-commits). This is enforced by the CI and will prevent your PR from
+      being merged if not followed.
+4.  Proposed changes are contributed through
     [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
 
     - When your contribution is ready and the tests all pass, push your branch to GitHub:
@@ -100,11 +114,104 @@ Please make sure to update the ToC when you update this page!
 
       ```shell
       git add tests/test-changed-file.py
-      git commit -m "Added another test case to address reviewer feedback"
+      git commit -m "test(sdk): Add a test case to address reviewer feedback"
       git push origin new-awesome-feature
       ```
 
     - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
+
+### Conventional Commits
+
+At Weights & Biases, we ask that all PR titles conform to the
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+Conventional Commits is a lightweight convention on top of commit messages.
+
+**Structure**
+
+The commit message should be structured as follows:
+
+```jsx
+<type>(<scope>): <description>
+```
+
+<aside>
+⭐ **TLDR:** Every commit that has type `feat` or `fix` is **user-facing**.
+If notes are user-facing, please make sure users can clearly understand your commit message.
+
+</aside>
+
+#### Types
+
+Only certain types are permitted.
+
+<aside>
+⭐ User-facing notes such as `fix` and `feat` should be written so that a user can clearly understand the changes.
+If the feature or fix does not directly impact users, consider using a different type.
+Examples can be found in the section below.
+
+</aside>
+
+| Type     | Name                        | Description                                                                                  | User-facing? |
+|----------|-----------------------------|----------------------------------------------------------------------------------------------|--------------|
+| feat     | ✨ Feature                   | A pull request that adds new functionality that directly impacts users                       | Yes          |
+| fix      | 🐛 Fix                      | A pull request that fixes a bug                                                              | Yes          |
+| docs     | 📚 Documentation            | Documentation changes only                                                                   | Maybe        |
+| style    | 💎 Style                    | Changes that do not affect the meaning of the code (e.g. linting or adding type annotations) | No           |
+| refactor | 📦 Code Refactor            | A code change that neither fixes a bug nor adds a feature                                    | No           |
+| perf     | 🚀 Performance Improvements | A code change that improves performance                                                      | No           |
+| test     | 🚨 Tests                    | Adding new or missing tests or correcting existing tests                                     | No           |
+| build    | 🛠 Builds                   | Changes that affect the build system (e.g. protobuf) or external dependencies                | Maybe        |
+| ci       | ⚙️ Continuous Integrations  | Changes to our CI configuration files and scripts                                            | No           |
+| chore    | ♻️ Chores                   | Other changes that don't modify source code files.                                           | No           |
+| revert   | 🗑 Reverts                  | Reverts a previous commit                                                                    | Maybe        |
+| security | 🔒 Security                 | Security fix/feature                                                                         | Maybe        |
+
+#### Scopes
+
+Which part of the codebase does this change impact? Only certain scopes are permitted.
+
+| Scope        | Name                     | Description                                             |
+|--------------|--------------------------|---------------------------------------------------------|
+| sdk          | Software Development Kit | Generic SDK changes or if can't define a narrower scope |
+| cli          | Command-Line Interface   | Generic CLI changes                                     |
+| public-api   | Public API               | Public API changes                                      |
+| integrations | Integrations             | Changes related to third-party integrations             |
+| artifacts    | Artifacts                | Changes related to Artifacts                            |
+| media        | Media Types              | Changes related to Media types                          |
+| sweeps       | Sweeps                   | Changes related to Sweeps                               |
+| launch       | Launch                   | Changes related to Launch                               |
+
+Sometimes a change may span multiple scopes. In this case, please choose the scope that would be most relevant to the user.
+
+
+#### Subjects
+
+Write a short, imperative tense description of the change.
+
+User-facing notes (ones with type `fix` and `feat`) should be written so that a user can understand what has changed.
+If the feature or fix does not directly impact users, consider using a different type.
+
+✅ **Good Examples**
+
+- `feat(media): add support for RDKit Molecules`
+
+    It is clear to the user what the change introduces to our product.
+
+- `fix(sdk): fix a hang caused by keyboard interrupt on Windows`
+
+    This bug fix addressed an issue that caused the sdk to hang when hitting Ctrl-C on Windows.
+
+
+❌ **Bad Examples**
+
+- `fix(launch): fix an issue where patch is None`
+
+    It is unclear what is referenced here.
+
+- `feat(sdk): Adds new query to the the internal api getting the state of the run`
+
+    It is unclear what is of importance to the user here, what do they do with that information.
+    A better type would be `chore` or the title should indicate how it translates into a user-facing feature.
 
 ## Setting up your development environment
 
@@ -148,7 +255,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 - The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
 the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
-You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands 
+You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands
 using [homebrew](https://brew.sh/):
 
 ```shell
@@ -170,6 +277,13 @@ You can install `ffmpeg` with the following command using [homebrew](https://bre
 
 ```shell
 $ brew install ffmpeg
+```
+
+- The `lightgbm` package might require build packages `cmake` and `libomp` to be installed.
+You can install `cmake` and `libomp` with the following command using [homebrew](https://brew.sh/):
+
+```shell
+$ brew install cmake libomp
 ```
 
 ## Code organization
@@ -251,7 +365,7 @@ By default, tests are run in parallel with 4 processes. This can be changed by s
 To run specific tests in a specific environment:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test
+tox -e py37 -- tests/test_some_code.py -k substring_of_test
 ```
 
 To run all tests in a specific environment:
@@ -271,14 +385,14 @@ This will manifest as a test failure with no/shortened associated output.
 In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
+tox -e py37 -- tests/test_some_code.py -k substring_of_test -vvvv --showlocals
 ```
 
 If a test fails, you can use the `--pdb -n0` flags to get the
 [pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
+tox -e py37 -- tests/test_some_code.py -k failing_test -vvvv --showlocals --pdb -n0
 ```
 
 You can also manually set breakpoints in the test code (`breakpoint()`)
@@ -357,31 +471,30 @@ The interfaces are described here:
 
 1. Full codepath from wandb.init() to mock_server
    Note: coverage only counts for the User Process and interface code
-   Example: tests/wandb_integration_test.py
+   Example: [wandb_integration_test.py](tests/pytest_tests/system_tests/test_wandb_integration.py)
 2. Inject into the Shared Queues to mock_server
    Note: coverage only counts for the interface code and internal process code
-   Example: tests/test_sender.py
+   Example: [test_sender.py](tests/pytest_tests/system_tests/test_sender.py)
 3. From wandb.Run object to Shared Queues
    Note: coverage counts for User Process
-   Example: tests/wandb_run_test.py
+   Example: [wandb_run_test.py](tests/pytest_tests/unit_tests/test_wandb_run.py)
 ```
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_metric_user.py](tests/test_metric_user.py): User process tests
-- [test_metric_internal.py](tests/test_metric_internal.py): Internal process tests
-- [test_metric_full.py](tests/test_metric_full.py): Full stack tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
+- [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
+- [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
 ### Global Pytest Fixtures
 
-All global fixtures are defined in `tests/conftest.py`:
+Global fixtures are defined in `tests/**/conftest.py`, separated into [unit test fixtures](tests/pytest_tests/unit_tests/conftest.py), [system test fixtures](tests/pytest_tests/system_tests/conftest.py), as well as [shared fixtures](tests/pytest_tests/conftest.py).
 
 - `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
 - `local_settings` - used automatically for all tests and patches the global settings path to an isolated directory.
 - `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`. See `tests/wandb_integration_test.py`
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
-- `mocked_module` - if you need to test code that calls `wandb.util.get_module("XXX")`, you can use this fixture to get a MagicMock(). See `tests/test_notebook.py`
 - `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling `wandb.init`). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
 - `mock_server` - mocks all calls to the `requests` module with sane defaults. You can customize `tests/utils/mock_server.py` to use context or add api calls.
 - `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get its context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
@@ -396,7 +509,7 @@ We use codecov to ensure we're executing all branches of logic in our tests. Bel
 
 1. If you want to see the lines not covered you click on the “Diff” tab. then look for any “+” lines that have a red block for the line number
 2. If you want more context about the files, go to the “Files” tab, it will highlight diffs, but you have to do even more searching for the lines you might care about
-3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from master)
+3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from main)
 
 We currently have 8 categories of test coverage:
 
@@ -432,21 +545,25 @@ If you update one of those files, you need to:
 - While working on your contribution:
   - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
     Make sure to update the `yea-wandb` version.
-  - Point the client branch you are working on to this `yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and change it to
+  - Point the `wandb/wandb` branch you are working on to this `wandb/yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and replace the entire line with
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
-  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`. 
-  - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.** 
-  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
+  - Release `yea-wandb` (with `make release`) from your `shiny-new-branch` branch.
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`) in your `wandb/yea-wandb` branch, make sure to update these files in `tests/utils` in a `wandb/wandb` branch. We have a Github Action that verifies that these files are equal (between the `wandb/wandb` and `wandb/yea-wandb`). **If you have changes in these files and you merge then in the wandb/yea-wandb repo and do not sync them to the wandb/wandb repo, all wandb/wandb PRs will fail this Github Action.**
+  - Once your `wandb/wandb` PR and `wandb/yea-wandb` PR are ready to be merged, you can merge first the `wandb/yea-wandb` PR, make sure that your `wandb/wandb` PR is green and merge it next.
 
 
 ### Regression Testing
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing).
+The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found
+[here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py).
+Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`),
+can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
@@ -507,6 +624,28 @@ TODO: There are lots of cool things we could do with this, currently it just put
 tox -e dev
 ```
 
+### Editable mode:
+
+When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+
+- During installation, provide the following flags:
+
+  ```shell
+  pip install -e . --config-settings editable_mode=strict
+  ```
+  By doing so, editable mode will correctly identify the relevant files.
+
+
+- Alternatively, you can configure it once using the following command:
+  ```shell
+  pip config set global.config-settings editable_mode=strict
+  ```
+  Once the configuration is in place, you can use the command:
+  ```shell
+  pip install -e .
+  ```
+  without any additional flags, and the strict editable mode will be applied consistently.
+
 ## Library Objectives
 
 ### Supported user interface
@@ -559,6 +698,7 @@ def uses_https(x):
         raise ValueError("Must use https")
     return True
 
+
 base_url = Property(
     name="base_url",
     value="https://wandb.com/",
@@ -576,7 +716,7 @@ endpoint = Property(
 )
 ```
 
-```python
+```ipython
 >>> print(base_url)  # note the stripped "/"
 'https://wandb.com'
 >>> print(endpoint)  # note the runtime hook
@@ -613,7 +753,9 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- Add a new type-annotated `Settings` class attribute.
+- Add a new type-annotated `SettingsData` class attribute.
+- Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
+  - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -621,6 +763,10 @@ The `Settings` object:
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
+- Note that individual settings may depend on other settings through validator methods and runtime hooks,
+  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
+  modification order list with `tox -e auto-codegen` -- it will also automatically
+  detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
 
@@ -642,10 +788,11 @@ not perform any serialization to sync data.
 ### Program
 
 ```python
-1 import wandb
-2 run = wandb.init(config=dict(param1=1))
-3 run.config.param2 = 2
-4 run.log(dict(this=3))
+import wandb
+
+run = wandb.init(config=dict(param1=1))
+run.config.param2 = 2
+run.log(dict(this=3))
 ```
 
 #### import wandb [line 1]
@@ -707,43 +854,18 @@ not perform any serialization to sync data.
   - Exit code of program is captured and sent synchronously to internal process as `ExitData`
   - `Run.on_final()` is called to display final information about the run
 
-## Documentation Generation
 
-The documentation generator is broken into two parts:
+## Server introspection
 
-- `generate.py`: Generic documentation generator for wandb/ref
-- `docgen_cli.py`: Documentation generator for wandb CLI
+Some features may depend on a minimum version of the W&B backend service, but this library may be communicating with an outdated backend.  We use the GraphQL introspection schema to determine which features are supported.  See the `*_introspection` methods in [internal_api.py](/wandb/sdk/internal/internal_api.py) for examples.  Depending on the nature of your feature, you may need to introspect:
 
-### `generate.py`
+- If one or more fields on the root `Query` or `Mutation` types exist: [example](/wandb/sdk/internal/internal_api.py#L477)
+- If an input type includes a specific field: [example](/wandb/sdk/internal/internal_api.py#L546)
 
-The following is a road map of how to generate documentation for the reference.
-**Steps**
+You should reuse the generic introspection methods if possible, and cache the introspection result.
 
-1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
-2. `python generate.py` creates the documentation.
+The entire introspection schema is available.  For more info see the [official GraphQL docs](https://graphql.org/learn/introspection/)
 
-**Outputs**
-A folder named `library` in the same folder as the code. The files in the `library` folder are the generated markdown.
-
-**Requirements**
-
-- wandb
-
-### `docgen_cli.py`
-
-**Usage**
-
-```shell
-python docgen_cli.py
-```
-
-**Outputs**
-A file named `cli.md` in the same folder as the code. The file is the generated markdown for the CLI.
-
-**Requirements**
-
-- python >= 3.8
-- wandb
 
 ## Deprecating features
 
@@ -771,7 +893,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 from wandb.sdk.lib import deprecate
 
 deprecate.deprecate(
-    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
+    field_name=deprecate.Deprecated.deprecated_field_name,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
 ```

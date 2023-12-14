@@ -5,21 +5,25 @@ import logging
 import os
 import queue
 import time
-from typing import Mapping, MutableMapping, MutableSet, NewType, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Optional
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk.internal.file_pusher import FilePusher
-from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.paths import LogicalPath
 
-wd_polling = util.vendor_import("watchdog.observers.polling")
-wd_events = util.vendor_import("watchdog.events")
 if TYPE_CHECKING:
-    wd_api = util.vendor_import("watchdog.observers.api")
+    import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
+    import wandb.vendor.watchdog_0_9_0.observers.polling as wd_polling
+    import wandb.vendor.watchdog_0_9_0.watchdog.events as wd_events
     from wandb.sdk.interface.interface import PolicyName
+    from wandb.sdk.internal.file_pusher import FilePusher
+    from wandb.sdk.internal.settings_static import SettingsStatic
+else:
+    wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
+    wd_events = util.vendor_import("wandb_watchdog.events")
 
 PathStr = str  # TODO(spencerpearson): would be nice to use Path here
-SaveName = NewType("SaveName", str)
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +32,16 @@ class FileEventHandler(abc.ABC):
     def __init__(
         self,
         file_path: PathStr,
-        save_name: SaveName,
-        file_pusher: FilePusher,
-        *args,
-        **kwargs,
+        save_name: LogicalPath,
+        file_pusher: "FilePusher",
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         self.file_path = file_path
         # Convert windows paths to unix paths
-        save_name = util.to_forward_slash_path(save_name)
-        self.save_name = save_name
+        self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
-        self._last_sync = None
+        self._last_sync: Optional[float] = None
 
     @property
     @abc.abstractmethod
@@ -53,14 +56,14 @@ class FileEventHandler(abc.ABC):
     def finish(self) -> None:
         raise NotImplementedError
 
-    def on_renamed(self, new_path: PathStr, new_name: SaveName) -> None:
+    def on_renamed(self, new_path: PathStr, new_name: LogicalPath) -> None:
         self.file_path = new_path
         self.save_name = new_name
         self.on_modified()
 
 
 class PolicyNow(FileEventHandler):
-    """This policy only uploads files now"""
+    """This policy only uploads files now."""
 
     def on_modified(self, force: bool = False) -> None:
         # only upload if we've never uploaded or when .save is called
@@ -77,7 +80,7 @@ class PolicyNow(FileEventHandler):
 
 
 class PolicyEnd(FileEventHandler):
-    """This policy only updates at the end of the run"""
+    """This policy only updates at the end of the run."""
 
     def on_modified(self, force: bool = False) -> None:
         pass
@@ -95,8 +98,11 @@ class PolicyEnd(FileEventHandler):
 
 
 class PolicyLive(FileEventHandler):
-    """This policy will upload files every RATE_LIMIT_SECONDS as it
-    changes throttling as the size increases"""
+    """Event handler that uploads respecting throttling.
+
+    Uploads files every RATE_LIMIT_SECONDS, which changes as the size increases to deal
+    with throttling.
+    """
 
     RATE_LIMIT_SECONDS = 15
     unit_dict = dict(util.POW_10_BYTES)
@@ -106,19 +112,19 @@ class PolicyLive(FileEventHandler):
     def __init__(
         self,
         file_path: PathStr,
-        save_name: SaveName,
-        file_pusher: FilePusher,
-        settings: Optional[SettingsStatic] = None,
-        *args,
-        **kwargs,
-    ):
+        save_name: LogicalPath,
+        file_pusher: "FilePusher",
+        settings: Optional["SettingsStatic"] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(file_path, save_name, file_pusher, *args, **kwargs)
-        self._last_uploaded_time = None
-        self._last_uploaded_size = 0
+        self._last_uploaded_time: Optional[float] = None
+        self._last_uploaded_size: int = 0
         if settings is not None:
             if settings._live_policy_rate_limit is not None:
                 self.RATE_LIMIT_SECONDS = settings._live_policy_rate_limit
-            self._min_wait_time = settings._live_policy_wait_time
+            self._min_wait_time: Optional[float] = settings._live_policy_wait_time
         else:
             self._min_wait_time = None
 
@@ -171,7 +177,7 @@ class PolicyLive(FileEventHandler):
         self._last_uploaded_size = self.current_size
         self._file_pusher.file_changed(self.save_name, self.file_path)
 
-    def finish(self):
+    def finish(self) -> None:
         self.on_modified(force=True)
 
     @property
@@ -182,21 +188,21 @@ class PolicyLive(FileEventHandler):
 class DirWatcher:
     def __init__(
         self,
-        settings: SettingsStatic,
-        file_pusher: FilePusher,
+        settings: "SettingsStatic",
+        file_pusher: "FilePusher",
         file_dir: Optional[PathStr] = None,
-    ):
+    ) -> None:
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
         self._settings = settings
-        self._savename_file_policies: MutableMapping[SaveName, "PolicyName"] = {}
-        self._user_file_policies: Mapping["PolicyName", MutableSet[GlobStr]] = {
+        self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
+        self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
             "end": set(),
             "live": set(),
             "now": set(),
         }
         self._file_pusher = file_pusher
-        self._file_event_handlers = {}
+        self._file_event_handlers: MutableMapping[LogicalPath, FileEventHandler] = {}
         self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
@@ -212,13 +218,23 @@ class DirWatcher:
             return None
 
     def update_policy(self, path: GlobStr, policy: "PolicyName") -> None:
-        if path == glob.escape(path):
-            save_name = os.path.relpath(os.path.join(self._dir, path), self._dir)
+        # When we're dealing with one of our own media files, there's no need
+        # to store the policy in memory.  _get_file_event_handler will always
+        # return PolicyNow.  Using the path makes syncing historic runs much
+        # faster if the name happens to include glob escapable characters.  In
+        # the future we may add a flag to "files" records that indicates it's
+        # policy is not dynamic and doesn't need to be stored / checked.
+        save_name = LogicalPath(
+            os.path.relpath(os.path.join(self._dir, path), self._dir)
+        )
+        if save_name.startswith("media/"):
+            pass
+        elif path == glob.escape(path):
             self._savename_file_policies[save_name] = policy
         else:
             self._user_file_policies[policy].add(path)
         for src_path in glob.glob(os.path.join(self._dir, path)):
-            save_name = os.path.relpath(src_path, self._dir)
+            save_name = LogicalPath(os.path.relpath(src_path, self._dir))
             feh = self._get_file_event_handler(src_path, save_name)
             # handle the case where the policy changed
             if feh.policy != policy:
@@ -230,8 +246,8 @@ class DirWatcher:
                 feh = self._get_file_event_handler(src_path, save_name)
             feh.on_modified(force=True)
 
-    def _per_file_event_handler(self) -> FileEventHandler:
-        """Create a Watchdog file event handler that does different things for every file"""
+    def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
+        """Create a Watchdog file event handler that does different things for every file."""
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified
@@ -246,13 +262,12 @@ class DirWatcher:
             os.path.join(self._dir, ".*"),
             os.path.join(self._dir, "*/.*"),
         ]
-        # TODO: pipe in actual settings
         for glb in self._settings.ignore_globs:
             file_event_handler._ignore_patterns.append(os.path.join(self._dir, glb))
 
         return file_event_handler
 
-    def _on_file_created(self, event: wd_events.FileCreatedEvent) -> None:
+    def _on_file_created(self, event: "wd_events.FileCreatedEvent") -> None:
         logger.info("file/dir created: %s", event.src_path)
         if os.path.isdir(event.src_path):
             return None
@@ -262,23 +277,27 @@ class DirWatcher:
             emitter = self.emitter
             if emitter:
                 emitter._timeout = int(self._file_count / 100) + 1
-        save_name = os.path.relpath(event.src_path, self._dir)
+        save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
-    def _on_file_modified(self, event: wd_events.FileModifiedEvent) -> None:
+    # TODO(spencerpearson): this pattern repeats so many times we should have a method/function for it
+    # def _save_name(self, path: PathStr) -> LogicalPath:
+    #     return LogicalPath(os.path.relpath(path, self._dir))
+
+    def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
         logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
-        save_name = os.path.relpath(event.src_path, self._dir)
+        save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
-    def _on_file_moved(self, event: wd_events.FileMovedEvent) -> None:
+    def _on_file_moved(self, event: "wd_events.FileMovedEvent") -> None:
         # TODO: test me...
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):
             return None
-        old_save_name = os.path.relpath(event.src_path, self._dir)
-        new_save_name = os.path.relpath(event.dest_path, self._dir)
+        old_save_name = LogicalPath(os.path.relpath(event.src_path, self._dir))
+        new_save_name = LogicalPath(os.path.relpath(event.dest_path, self._dir))
 
         # We have to move the existing file handler to the new name
         handler = self._get_file_event_handler(event.src_path, old_save_name)
@@ -288,13 +307,16 @@ class DirWatcher:
         handler.on_renamed(event.dest_path, new_save_name)
 
     def _get_file_event_handler(
-        self, file_path: PathStr, save_name: SaveName
+        self, file_path: PathStr, save_name: LogicalPath
     ) -> FileEventHandler:
         """Get or create an event handler for a particular file.
 
         file_path: the file's actual path
         save_name: its path relative to the run directory (aka the watch directory)
         """
+        # Always return PolicyNow for any of our media files.
+        if save_name.startswith("media/"):
+            return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
             if "tfevents" in save_name or "graph.pbtxt" in save_name:
@@ -337,14 +359,14 @@ class DirWatcher:
         try:
             # avoid hanging if we crashed before the observer was started
             if self._file_observer.is_alive():
-                # rather unfortunatly we need to manually do a final scan of the dir
+                # rather unfortunately we need to manually do a final scan of the dir
                 # with `queue_events`, then iterate through all events before stopping
                 # the observer to catch all files written.  First we need to prevent the
                 # existing thread from consuming our final events, then we process them
                 self._file_observer._timeout = 0
                 self._file_observer._stopped_event.set()
                 self._file_observer.join()
-                self.emitter.queue_events(0)
+                self.emitter.queue_events(0)  # type: ignore[union-attr]
                 while True:
                     try:
                         self._file_observer.dispatch_events(
@@ -368,7 +390,7 @@ class DirWatcher:
         for dirpath, _, filenames in os.walk(self._dir):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
-                save_name = os.path.relpath(file_path, self._dir)
+                save_name = LogicalPath(os.path.relpath(file_path, self._dir))
                 ignored = False
                 for glb in self._settings.ignore_globs:
                     if len(fnmatch.filter([save_name], glb)) > 0:

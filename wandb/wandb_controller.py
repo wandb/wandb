@@ -55,15 +55,16 @@ import string
 import time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import yaml
+
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
-from wandb.util import (
-    get_module,
+from wandb.sdk.launch.sweeps.utils import (
     handle_sweep_config_violations,
     sweep_config_err_text_from_jsonschema_violations,
 )
-import yaml
+from wandb.util import get_module
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space
@@ -86,7 +87,7 @@ def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
 
 
 class ControllerError(Exception):
-    """Base class for sweep errors"""
+    """Base class for sweep errors."""
 
     pass
 
@@ -127,7 +128,6 @@ class _WandbController:
     """
 
     def __init__(self, sweep_id_or_config=None, entity=None, project=None):
-
         # sweep id configured in constuctor
         self._sweep_id: Optional[str] = None
 
@@ -326,7 +326,7 @@ class _WandbController:
             self._create["parameters"][name]["b"] = b
 
     def configure_controller(self, type):
-        """configure controller to local if type == 'local'."""
+        """Configure controller to local if type == 'local'."""
         self._configure_check()
         self._create.setdefault("controller", {})
         self._create["controller"].setdefault("type", type)

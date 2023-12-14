@@ -1,0 +1,15 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+command:
+  program: two_runs.py
+  args:
+    - --delete_run
+assert:
+  - :op:!=:
+    - :yea:exit
+    - 0
+  - :op:<:
+    - :yea:time
+    - 360

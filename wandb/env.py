@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""All of W&B's environment variables
+"""All of W&B's environment variables.
 
 Getters and putters for all of them should go here. That
 way it'll be easier to avoid typos with names and be
@@ -10,11 +10,16 @@ Environment variables are not the authoritative source for
 these values in many cases.
 """
 
+import json
 import os
 import sys
-import json
-import wandb
 from distutils.util import strtobool
+from pathlib import Path
+from typing import List, MutableMapping, Optional, Union
+
+import appdirs  # type: ignore
+
+Env = Optional[MutableMapping]
 
 CONFIG_PATHS = "WANDB_CONFIG_PATHS"
 SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
@@ -46,10 +51,12 @@ RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
 SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
+FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
 DISABLE_GIT = "WANDB_DISABLE_GIT"
+GIT_ROOT = "WANDB_GIT_ROOT"
 SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
@@ -65,19 +72,31 @@ HOST = "WANDB_HOST"
 ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
+DATA_DIR = "WANDB_DATA_DIR"
+ARTIFACT_DIR = "WANDB_ARTIFACT_DIR"
+ARTIFACT_FETCH_FILE_URL_BATCH_SIZE = "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
+_DISABLE_SERVICE = "WANDB_DISABLE_SERVICE"
 SENTRY_DSN = "WANDB_SENTRY_DSN"
 INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
+GIT_COMMIT = "WANDB_GIT_COMMIT"
+GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
+_EXECUTABLE = "WANDB_EXECUTABLE"
+LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
+LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
+LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
 
 
-def immutable_keys():
-    """These are env keys that shouldn't change within a single process.  We use this to maintain
-    certain values between multiple calls to wandb.init within a single process."""
+def immutable_keys() -> List[str]:
+    """These are env keys that shouldn't change within a single process.
+
+    We use this to maintain certain values between multiple calls to wandb.init within a single process.
+    """
     return [
         DIR,
         ENTITY,
@@ -105,248 +124,343 @@ def immutable_keys():
         AGENT_REPORT_INTERVAL,
         HTTP_TIMEOUT,
         HOST,
+        DATA_DIR,
+        ARTIFACT_DIR,
+        ARTIFACT_FETCH_FILE_URL_BATCH_SIZE,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
     ]
 
 
-def _env_as_bool(var: str, default: str = None, env=None) -> bool:
+def _env_as_bool(
+    var: str, default: Optional[str] = None, env: Optional[Env] = None
+) -> bool:
     if env is None:
         env = os.environ
     val = env.get(var, default)
     try:
-        val = bool(strtobool(val))
+        val = bool(strtobool(val))  # type: ignore
     except (AttributeError, ValueError):
         pass
     return val if isinstance(val, bool) else False
 
 
-def is_debug(default=None, env=None):
+def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
 def error_reporting_enabled() -> bool:
-    return _env_as_bool(ERROR_REPORTING, default=True)
+    return _env_as_bool(ERROR_REPORTING, default="True")
 
 
-def ssl_disabled():
-    return _env_as_bool(DISABLE_SSL, default=False)
+def ssl_disabled() -> bool:
+    return _env_as_bool(DISABLE_SSL, default="False")
 
 
-def get_error_reporting(default=True, env=None):
+def get_error_reporting(
+    default: Union[bool, str] = True,
+    env: Optional[Env] = None,
+) -> Union[bool, str]:
     if env is None:
         env = os.environ
 
     return env.get(ERROR_REPORTING, default)
 
 
-def get_run(default=None, env=None):
+def get_run(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(RUN_ID, default)
 
 
-def get_args(default=None, env=None):
+def get_args(
+    default: Optional[List[str]] = None, env: Optional[Env] = None
+) -> Optional[List[str]]:
     if env is None:
         env = os.environ
     if env.get(ARGS):
         try:
-            return json.loads(env.get(ARGS, "[]"))
+            return json.loads(env.get(ARGS, "[]"))  # type: ignore
         except ValueError:
             return None
     else:
         return default or sys.argv[1:]
 
 
-def get_docker(default=None, env=None):
+def get_docker(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(DOCKER, default)
 
 
-def get_http_timeout(default=10, env=None):
+def get_http_timeout(default: int = 20, env: Optional[Env] = None) -> int:
     if env is None:
         env = os.environ
 
     return int(env.get(HTTP_TIMEOUT, default))
 
 
-def get_ignore(default=None, env=None):
+def get_file_pusher_timeout(
+    default: Optional[int] = None,
+    env: Optional[Env] = None,
+) -> Optional[int]:
     if env is None:
         env = os.environ
 
-    if env.get(IGNORE):
-        return env.get(IGNORE).split(",")
+    timeout = env.get(FILE_PUSHER_TIMEOUT, default)
+    return int(timeout) if timeout else None
+
+
+def get_ignore(
+    default: Optional[List[str]] = None, env: Optional[Env] = None
+) -> Optional[List[str]]:
+    if env is None:
+        env = os.environ
+    ignore = env.get(IGNORE)
+    if ignore is not None:
+        return ignore.split(",")
     else:
         return default
 
 
-def get_project(default=None, env=None):
+def get_project(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(PROJECT, default)
 
 
-def get_username(default=None, env=None):
+def get_username(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USERNAME, default)
 
 
-def get_user_email(default=None, env=None):
+def get_user_email(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(USER_EMAIL, default)
 
 
-def get_entity(default=None, env=None):
+def get_entity(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(ENTITY, default)
 
 
-def get_base_url(default=None, env=None):
+def get_base_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default).rstrip("/")
+    base_url = env.get(BASE_URL, default)
+
+    return base_url.rstrip("/") if base_url is not None else base_url
 
 
-def get_app_url(default=None, env=None):
+def get_app_url(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(APP_URL, default)
 
 
-def get_show_run(default=None, env=None):
+def get_show_run(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
 
     return bool(env.get(SHOW_RUN, default))
 
 
-def get_description(default=None, env=None):
+def get_description(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
 
     return env.get(DESCRIPTION, default)
 
 
-def get_tags(default="", env=None):
+def get_tags(default: str = "", env: Optional[Env] = None) -> List[str]:
     if env is None:
         env = os.environ
 
     return [tag for tag in env.get(TAGS, default).split(",") if tag]
 
 
-def get_dir(default=None, env=None):
+def get_dir(default: Optional[str] = None, env: Optional[Env] = None) -> Optional[str]:
     if env is None:
         env = os.environ
     return env.get(DIR, default)
 
 
-def get_config_paths(default=None, env=None):
+def get_config_paths(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     return env.get(CONFIG_PATHS, default)
 
 
-def get_agent_report_interval(default=None, env=None):
+def get_agent_report_interval(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[int]:
     if env is None:
         env = os.environ
     val = env.get(AGENT_REPORT_INTERVAL, default)
     try:
-        val = int(val)
+        val = int(val)  # type: ignore
     except ValueError:
         val = None  # silently ignore env format errors, caller should handle.
     return val
 
 
-def get_agent_kill_delay(default=None, env=None):
+def get_agent_kill_delay(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[int]:
     if env is None:
         env = os.environ
     val = env.get(AGENT_KILL_DELAY, default)
     try:
-        val = int(val)
+        val = int(val)  # type: ignore
     except ValueError:
         val = None  # silently ignore env format errors, caller should handle.
     return val
 
 
-def get_crash_nosync_time(default=None, env=None):
+def get_crash_nosync_time(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[int]:
     if env is None:
         env = os.environ
     val = env.get(CRASH_NOSYNC_TIME, default)
     try:
-        val = int(val)
+        val = int(val)  # type: ignore
     except ValueError:
         val = None  # silently ignore env format errors, caller should handle.
     return val
 
 
-def get_magic(default=None, env=None):
+def get_magic(
+    default: Optional[str] = None, env: Optional[Env] = None
+) -> Optional[str]:
     if env is None:
         env = os.environ
     val = env.get(MAGIC, default)
     return val
 
 
-def get_cache_dir(env=None):
-    default_dir = os.path.expanduser(os.path.join("~", ".cache", "wandb"))
+def get_data_dir(env: Optional[Env] = None) -> str:
+    default_dir = appdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
-    val = env.get(CACHE_DIR, default_dir)
+    val = env.get(DATA_DIR, default_dir)
     return val
 
 
-def get_use_v1_artifacts(env=None):
+def get_artifact_dir(env: Optional[Env] = None) -> str:
+    default_dir = os.path.join(".", "artifacts")
     if env is None:
         env = os.environ
-    val = env.get(USE_V1_ARTIFACTS, False)
+    val = env.get(ARTIFACT_DIR, default_dir)
+    return os.path.abspath(val)
+
+
+def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
+    default_batch_size = 5000
+    if env is None:
+        env = os.environ
+    val = int(env.get(ARTIFACT_FETCH_FILE_URL_BATCH_SIZE, default_batch_size))
     return val
 
 
-def get_agent_max_initial_failures(default=None, env=None):
+def get_cache_dir(env: Optional[Env] = None) -> Path:
+    env = env or os.environ
+    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
+
+
+def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    val = bool(env.get(USE_V1_ARTIFACTS, False))
+    return val
+
+
+def get_agent_max_initial_failures(
+    default: Optional[int] = None, env: Optional[Env] = None
+) -> Optional[int]:
     if env is None:
         env = os.environ
     val = env.get(AGENT_MAX_INITIAL_FAILURES, default)
     try:
-        val = int(val)
+        val = int(val)  # type: ignore
     except ValueError:
         val = default
     return val
 
 
-def set_entity(value, env=None):
+def set_entity(value: str, env: Optional[Env] = None) -> None:
     if env is None:
         env = os.environ
     env[ENTITY] = value
 
 
-def set_project(value, env=None):
+def set_project(value: str, env: Optional[Env] = None) -> None:
     if env is None:
         env = os.environ
     env[PROJECT] = value or "uncategorized"
 
 
-def should_save_code():
-    save_code = _env_as_bool(SAVE_CODE, default=False)
-    code_disabled = _env_as_bool(DISABLE_CODE, default=False)
+def should_save_code() -> bool:
+    save_code = _env_as_bool(SAVE_CODE, default="False")
+    code_disabled = _env_as_bool(DISABLE_CODE, default="False")
     return save_code and not code_disabled
 
 
-def disable_git(env=None):
+def disable_git(env: Optional[Env] = None) -> bool:
     if env is None:
         env = os.environ
-    val = env.get(DISABLE_GIT, default=False)
-    if type(val) is str:
+    val = env.get(DISABLE_GIT, default="False")
+    if isinstance(val, str):
         val = False if val.lower() == "false" else True
+    return val
+
+
+def get_launch_queue_name(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_QUEUE_NAME, None)
+    return val
+
+
+def get_launch_queue_entity(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_QUEUE_ENTITY, None)
+    return val
+
+
+def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_TRACE_ID, None)
     return val

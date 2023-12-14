@@ -1,5 +1,9 @@
 libcst
-grpcio==1.40.0
-grpcio-tools==1.40.0
-bumpversion
+grpcio>=1.46.3
+grpcio-tools>=1.46.3
+bump2version
 twine
+wheel>=0.38.0
+build
+setuptools>=64
+nox

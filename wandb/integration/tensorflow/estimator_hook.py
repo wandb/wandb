@@ -1,7 +1,7 @@
 import tensorflow as tf
+
 import wandb
 from wandb.sdk.lib import telemetry
-
 
 if hasattr(tf.estimator, "SessionRunHook"):
     # In tf 1.14 and beyond, SessionRunHook is in the estimator package.

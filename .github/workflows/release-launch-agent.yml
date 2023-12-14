@@ -1,0 +1,67 @@
+name: Release Launch Agent
+
+defaults:
+  run:
+    working-directory: ./tools/launch/release
+
+on:
+  workflow_dispatch:
+    inputs:
+      preReleaseString:
+        type: string
+        description: The pre-release string for this release, leave empty for official releases
+        default: ""
+      candidateTag:
+        type: string
+        required: true
+        description: The tag of the wandb/launch-agent-dev repo to be promoted
+
+jobs:
+  release-launch-agent:
+    name: Launch Agent Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push to official repo
+        run: |
+          docker context create builder
+          docker buildx create --use
+
+          REPO=wandb/launch-agent
+          IMAGE=wandb/launch-agent-dev:${{ github.event.inputs.candidateTag }}
+          echo "Pulling image $IMAGE"
+          docker pull $IMAGE
+
+          # Get full tag
+          SDK_RELEASE_VERSION=$(docker run --rm --entrypoint wandb $IMAGE --version | awk '{print $3}')
+
+          if [[ $SDK_RELEASE_VERSION == *"dev"* ]]; then
+            echo "selected image to be promoted is not based on a release"
+            exit 1
+          fi
+
+          PRERELEASE_STRING=${{ github.event.inputs.preReleaseString }}
+          length=${#PRERELEASE_STRING}
+          isPrerelease=$((length > 0))
+          if [ "$isPrerelease" -eq 1 ]
+          then
+            TAG="$SDK_RELEASE_VERSION-$PRERELEASE_STRING"
+            echo "Tagging image $REPO:sdk-preview"
+            SDK_OR_PREVIEW_TAG=sdk-preview
+          else
+            TAG=$SDK_RELEASE_VERSION
+            echo "Tagging image $REPO:sdk"
+            SDK_OR_PREVIEW_TAG=sdk
+          fi
+
+          echo "Tagging image $REPO:$TAG"
+
+          echo "Applying agent version to image $TAG and pushing"
+          docker buildx build --platform linux/amd64,linux/arm64  --build-arg image=$IMAGE --build-arg releaseTag=$TAG  -t $REPO:$TAG -t $REPO:latest -t $REPO:$SDK_OR_PREVIEW_TAG . --push

@@ -1,9 +1,11 @@
 import io
 import os
 import pathlib
-from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
+from wandb.sdk.lib.paths import LogicalPath
 
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia, Media
@@ -13,15 +15,15 @@ if TYPE_CHECKING:  # pragma: no cover
 
     import rdkit.Chem  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 
 
 class Molecule(BatchableMedia):
-    """
-    Wandb class for 3D Molecular data
+    """Wandb class for 3D Molecular data.
 
     Arguments:
         data_or_path: (string, io)
@@ -57,12 +59,12 @@ class Molecule(BatchableMedia):
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
-            data_or_path = data_or_path.name  # type: ignore
+            data_or_path = data_or_path.name
 
         if hasattr(data_or_path, "read"):
             if hasattr(data_or_path, "seek"):
-                data_or_path.seek(0)  # type: ignore
-            molecule = data_or_path.read()  # type: ignore
+                data_or_path.seek(0)
+            molecule = data_or_path.read()
 
             extension = kwargs.pop("file_type", None)
             if extension is None:
@@ -76,7 +78,7 @@ class Molecule(BatchableMedia):
                 )
 
             tmp_path = os.path.join(
-                MEDIA_TMP.name, util.generate_id() + "." + extension
+                MEDIA_TMP.name, runid.generate_id() + "." + extension
             )
             with open(tmp_path, "w") as f:
                 f.write(molecule)
@@ -102,8 +104,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert RDKit-supported file/object types to wandb.Molecule
+        """Convert RDKit-supported file/object types to wandb.Molecule.
 
         Arguments:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
@@ -170,8 +171,7 @@ class Molecule(BatchableMedia):
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
-        """
-        Convert SMILES string to wandb.Molecule
+        """Convert SMILES string to wandb.Molecule.
 
         Arguments:
             data: (string)
@@ -205,7 +205,7 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         if self._caption:
@@ -225,7 +225,7 @@ class Molecule(BatchableMedia):
         jsons = [obj.to_json(run) for obj in seq]
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected = LogicalPath(cls.get_media_subdir())
             if not obj["path"].startswith(expected):
                 raise ValueError(
                     "Files in an array of Molecule's must be in the {} directory, not {}".format(

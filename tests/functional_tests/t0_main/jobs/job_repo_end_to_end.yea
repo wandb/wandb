@@ -1,0 +1,14 @@
+id: 4.jobs.repo-end-to-end
+plugin:
+  - wandb
+tag:
+  platforms:
+    - linux
+depend:
+  requirements:
+    - pytest
+assert:
+  - :wandb:runs_len: 2
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:artifacts[job-git_github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py][type]: job
+  - :yea:exit: 0

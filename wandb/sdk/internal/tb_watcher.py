@@ -1,6 +1,4 @@
-"""
-tensorboard watcher.
-"""
+"""tensorboard watcher."""
 
 import glob
 import logging
@@ -10,25 +8,27 @@ import socket
 import sys
 import threading
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib import filesystem
 from wandb.viz import CustomChart
 
 from . import run as internal_run
 
-
 if TYPE_CHECKING:
-    from ..interface.interface_queue import InterfaceQueue
-    from .settings_static import SettingsStatic
-    from typing import Dict, List, Optional
+    from queue import PriorityQueue
+
+    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+
     from wandb.proto.wandb_internal_pb2 import RunRecord
     from wandb.sdk.interface.interface import FilesDict
-    from queue import PriorityQueue
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
-    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+
+    from ..interface.interface_queue import InterfaceQueue
+    from .settings_static import SettingsStatic
 
     HistoryDict = Dict[str, Any]
 
@@ -47,7 +47,7 @@ def _link_and_save_file(
     file_name = os.path.relpath(path, base_path)
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
-    util.mkdir_exists_ok(os.path.dirname(wandb_path))
+    filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
     if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
         os.remove(wandb_path)
@@ -58,12 +58,16 @@ def _link_and_save_file(
     interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
-def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
-    """Checks if a path is a tfevents file created by hostname.
+def is_tfevents_file_created_by(
+    path: str, hostname: Optional[str], start_time: Optional[float]
+) -> bool:
+    """Check if a path is a tfevents file.
+
+    Optionally checks that it was created by [hostname] after [start_time].
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-    tensorflow tfevents fielname format:
+    tensorflow tfevents filename format:
         https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
     """
     if not path:
@@ -77,23 +81,27 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     except ValueError:
         return False
     # check the hostname, which may have dots
-    for i, part in enumerate(hostname.split(".")):
+    if hostname is not None:
+        for i, part in enumerate(hostname.split(".")):
+            try:
+                fname_component_part = fname_components[tfevents_idx + 2 + i]
+            except IndexError:
+                return False
+            if part != fname_component_part:
+                return False
+    if start_time is not None:
         try:
-            fname_component_part = fname_components[tfevents_idx + 2 + i]
-        except IndexError:
+            created_time = int(fname_components[tfevents_idx + 1])
+        except (ValueError, IndexError):
             return False
-        if part != fname_component_part:
+        # Ensure that the file is newer then our start time, and that it was
+        # created from the same hostname.
+        # TODO: we should also check the PID (also contained in the tfevents
+        #     filename). Can we assume that our parent pid is the user process
+        #     that wrote these files?
+        if created_time < int(start_time):
             return False
-    try:
-        created_time = int(fname_components[tfevents_idx + 1])
-    except (ValueError, IndexError):
-        return False
-    # Ensure that the file is newer then our start time, and that it was
-    # created from the same hostname.
-    # TODO: we should also check the PID (also contained in the tfevents
-    #     filename). Can we assume that our parent pid is the user process
-    #     that wrote these files?
-    return created_time >= int(start_time)  # noqa: W503
+    return True
 
 
 class TBWatcher:
@@ -117,8 +125,8 @@ class TBWatcher:
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
-        namespace: "Optional[str]"
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
+        namespace: Optional[str]
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -136,6 +144,7 @@ class TBWatcher:
             # Note that we strip '/' instead of os.sep, because elsewhere we've
             # converted paths to forward slash.
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+
             # TODO: revisit this heuristic, it exists because we don't know the
             # root log directory until more than one tfevents file is written to
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
@@ -180,7 +189,7 @@ class TBDirWatcher:
         tbwatcher: "TBWatcher",
         logdir: str,
         save: bool,
-        namespace: "Optional[str]",
+        namespace: Optional[str],
         queue: "PriorityQueue",
         force: bool = False,
     ) -> None:
@@ -214,18 +223,21 @@ class TBDirWatcher:
         self._thread.start()
 
     def _is_our_tfevents_file(self, path: str) -> bool:
-        """Checks if a path has been modified since launch and contains tfevents"""
+        """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
-        if self._force:
-            return True
         path = self.tf_compat.tf.compat.as_str_any(path)
-        return is_tfevents_file_created_by(
-            path, self._hostname, self._tbwatcher._settings._start_time
-        )
+        if self._force:
+            return is_tfevents_file_created_by(path, None, None)
+        else:
+            return is_tfevents_file_created_by(
+                path, self._hostname, self._tbwatcher._settings._start_time
+            )
 
-    def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
-        """Incredibly hacky class generator to optionally save / prefix tfevent files"""
+    def _loader(
+        self, save: bool = True, namespace: Optional[str] = None
+    ) -> "EventFileLoader":
+        """Incredibly hacky class generator to optionally save / prefix tfevent files."""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
         try:
@@ -281,8 +293,8 @@ class TBDirWatcher:
             raise e
 
     def _thread_body(self) -> None:
-        """Check for new events every second"""
-        shutdown_time: "Optional[float]" = None
+        """Check for new events every second."""
+        shutdown_time: Optional[float] = None
         while True:
             self._process_events()
             if self._shutdown.is_set():
@@ -314,9 +326,9 @@ class TBDirWatcher:
 
 
 class Event:
-    """An event wrapper to enable priority queueing"""
+    """An event wrapper to enable priority queueing."""
 
-    def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
+    def __init__(self, event: "ProtoEvent", namespace: Optional[str]):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
@@ -328,10 +340,11 @@ class Event:
 
 
 class TBEventConsumer:
-    """Consumes tfevents from a priority queue.  There should always
-    only be one of these per run_manager.  We wait for 10 seconds of queued
-    events to reduce the chance of multiple tfevent files triggering
-    out of order steps.
+    """Consume tfevents from a priority queue.
+
+    There should always only be one of these per run_manager.  We wait for 10 seconds of
+    queued events to reduce the chance of multiple tfevent files triggering out of order
+    steps.
     """
 
     def __init__(
@@ -353,7 +366,7 @@ class TBEventConsumer:
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
         def datatypes_cb(fname: GlobStr) -> None:
-            files: "FilesDict" = dict(files=[(fname, "now")])
+            files: FilesDict = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts
@@ -414,7 +427,9 @@ class TBEventConsumer:
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
+    def _handle_event(
+        self, event: "ProtoEvent", history: Optional["TBHistory"] = None
+    ) -> None:
         wandb.tensorboard._log(
             event.event,
             step=event.event.step,

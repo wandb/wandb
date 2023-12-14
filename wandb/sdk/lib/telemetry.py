@@ -1,12 +1,11 @@
 import re
+import sys
 from types import TracebackType
-from typing import ContextManager, Dict, List, Optional, Type
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ContextManager, Dict, List, Optional, Set, Type
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
 from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
-
 
 # avoid cycle, use string type reference
 
@@ -22,7 +21,9 @@ class _TelemetryObject:
     _obj: TelemetryRecord
 
     def __init__(
-        self, run: "wandb_run.Run" = None, obj: TelemetryRecord = None
+        self,
+        run: Optional["wandb_run.Run"] = None,
+        obj: Optional[TelemetryRecord] = None,
     ) -> None:
         self._run = run or wandb.run
         self._obj = obj or TelemetryRecord()
@@ -42,7 +43,7 @@ class _TelemetryObject:
 
 
 def context(
-    run: "wandb_run.Run" = None, obj: TelemetryRecord = None
+    run: Optional["wandb_run.Run"] = None, obj: Optional[TelemetryRecord] = None
 ) -> ContextManager[TelemetryRecord]:
     return _TelemetryObject(run=run, obj=obj)
 
@@ -79,8 +80,21 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
     return ret
 
 
+def list_telemetry_imports(only_imported: bool = False) -> Set[str]:
+    import_telemetry_set = {
+        desc.name
+        for desc in TelemetryImports.DESCRIPTOR.fields
+        if desc.type == desc.TYPE_BOOL
+    }
+    if only_imported:
+        imported_modules_set = set(sys.modules)
+        return imported_modules_set.intersection(import_telemetry_set)
+    return import_telemetry_set
+
+
 __all__ = [
     "TelemetryImports",
     "TelemetryRecord",
     "context",
+    "list_telemetry_imports",
 ]

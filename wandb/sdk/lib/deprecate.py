@@ -1,11 +1,10 @@
 __all__ = ["deprecate", "Deprecated"]
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
-from wandb.proto.wandb_deprecated import Deprecated, DEPRECATED_FEATURES
+from wandb.proto.wandb_deprecated import DEPRECATED_FEATURES, Deprecated
 from wandb.proto.wandb_telemetry_pb2 import Deprecated as TelemetryDeprecated
-
 
 # avoid cycle, use string type reference
 if TYPE_CHECKING:
@@ -22,9 +21,9 @@ def deprecate(
     warning_message: str,
     run: Optional["wandb_run.Run"] = None,
 ) -> None:
-    """
-    Warn the user that a feature has been deprecated
-    and store the information about the event in telemetry.
+    """Warn the user that a feature has been deprecated.
+
+    Also stores the information about the event in telemetry.
 
     Args:
         field_name: The name of the feature that has been deprecated.

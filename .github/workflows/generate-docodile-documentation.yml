@@ -1,0 +1,38 @@
+name: Generate Docodile Documentation
+
+env:
+  # share an ssh-agent socket across jobs
+  SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+
+on: # Whenever a release is published,
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Reference (tag or commit sha) to generate docs from'
+        required: false
+
+jobs: # update the docs.
+  update-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare wandb-branch value
+        run: |
+          REF_VALUE="${{ github.event.inputs.ref }}"
+          if [[ -z "$REF_VALUE" ]]; then
+            REF_VALUE="${{ github.event.release.tag_name }}"
+          fi
+          if [[ "$REF_VALUE" == refs/tags/* ]]; then
+          echo "WANDB_BRANCH=${REF_VALUE/refs\/tags\//}" >> "$GITHUB_ENV"
+          else
+          echo "WANDB_BRANCH=${REF_VALUE}" >> "$GITHUB_ENV"
+          fi
+
+      - uses: wandb/docugen@v0.4.2
+        with:
+          docodile-branch: main
+          wandb-branch: $WANDB_BRANCH
+          generate-sdk-docs: true
+          generate-weave-docs: false
+          access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}

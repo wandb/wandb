@@ -1,14 +1,11 @@
-"""Defines plots for clustering models built with scikit-learn."""
+"""Define plots for clustering models built with scikit-learn."""
 from warnings import simplefilter
 
 import pandas as pd
 import sklearn
 
 import wandb
-
-from wandb.sklearn import utils
-from wandb.sklearn import calculate
-
+from wandb.sklearn import calculate, utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
@@ -39,7 +36,7 @@ def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer
 
     Example:
     ```python
-        wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, 'KMeans')
+    wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, "KMeans")
     ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
@@ -76,7 +73,7 @@ def elbow_curve(
 
     Example:
     ```python
-        wandb.sklearn.plot_elbow_curve(model, X_train)
+    wandb.sklearn.plot_elbow_curve(model, X_train)
     ```
     """
     if not hasattr(clusterer, "n_clusters"):
@@ -90,7 +87,6 @@ def elbow_curve(
     is_fitted = utils.test_fitted(clusterer)
 
     if not_missing and correct_types and is_fitted:
-
         elbow_curve_chart = calculate.elbow_curve(
             clusterer, X, cluster_ranges, n_jobs, show_cluster_time
         )
@@ -129,7 +125,7 @@ def silhouette(
 
     Example:
     ```python
-        wandb.sklearn.plot_silhouette(model, X_train, ['spam', 'not spam'])
+    wandb.sklearn.plot_silhouette(model, X_train, ["spam", "not spam"])
     ```
     """
     not_missing = utils.test_missing(clusterer=clusterer)

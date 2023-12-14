@@ -1,0 +1,28 @@
+plugin:
+  - wandb
+tag:
+  shard: standalone-cpu
+command:
+  program: console_output.py
+  args:
+    - --output-total
+    - "10000"
+env:
+  - WANDB_DISABLE_SERVICE: "true"
+  - WANDB_MODE: offline
+  - WANDB_CONSOLE: redirect
+profile:
+  - :wandb:init
+  - :wandb:finish
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 0
+  - :op:<:
+    - :yea:time
+    - 15
+  - :op:<:
+    - :yea:profile[:wandb:init][mean]
+    - 6
+  - :op:<:
+    - :yea:profile[:wandb:finish][mean]
+    - 10

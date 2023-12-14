@@ -1,20 +1,17 @@
-"""
-config.
-"""
+"""config."""
 
 import logging
+from typing import Optional
 
 import wandb
 from wandb.util import (
-    _is_artifact,
-    _is_artifact_string,
+    _is_artifact_representation,
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
 
 from . import wandb_helper
 from .lib import config_util
-
 
 logger = logging.getLogger("wandb")
 
@@ -23,8 +20,7 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config:
-    """
-    Config object
+    """Config object.
 
     Config objects are intended to hold all of the hyperparameters associated with
     a wandb run and are saved with the run object when `wandb.init` is called.
@@ -33,15 +29,15 @@ class Config:
     setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
     You can create a file called `config-defaults.yaml`, and it will automatically be
-    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
+    loaded into `wandb.config`. See https://docs.wandb.com/guides/track/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
     into `wandb.init(config="special_config.yaml")`.
-    See https://docs.wandb.com/library/config#file-based-configs.
+    See https://docs.wandb.com/guides/track/config#file-based-configs.
 
     Examples:
         Basic usage
-        ```python
+        ```
         wandb.config.epochs = 4
         wandb.init()
         for x in range(wandb.config.epochs):
@@ -49,14 +45,14 @@ class Config:
         ```
 
         Using wandb.init to set config
-        ```python
+        ```
         wandb.init(config={"epochs": 4, "batch_size": 32})
         for x in range(wandb.config.epochs):
             # train
         ```
 
         Nested configs
-        ```python
+        ```
         wandb.config['train']['epochs'] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
@@ -64,7 +60,7 @@ class Config:
         ```
 
         Using absl flags
-        ```python
+        ```
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
@@ -75,8 +71,14 @@ class Config:
         wandb.config.epochs = 4
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('-b', '--batch-size', type=int, default=8, metavar='N',
-                            help='input batch size for training (default: 8)')
+        parser.add_argument(
+            "-b",
+            "--batch-size",
+            type=int,
+            default=8,
+            metavar="N",
+            help="input batch size for training (default: 8)",
+        )
         args = parser.parse_args()
         wandb.config.update(args)
         ```
@@ -84,8 +86,8 @@ class Config:
         Using TensorFlow flags (deprecated in tensorflow v2)
         ```python
         flags = tf.app.flags
-        flags.DEFINE_string('data_dir', '/tmp/data')
-        flags.DEFINE_integer('batch_size', 128, 'Batch size.')
+        flags.DEFINE_string("data_dir", "/tmp/data")
+        flags.DEFINE_integer("batch_size", 128, "Batch size.")
         wandb.config.update(flags.FLAGS)  # adds all of the tensorflow flags to config
         ```
     """
@@ -133,8 +135,7 @@ class Config:
             locked_user = self._users_inv[locked]
             if not ignore_locked:
                 wandb.termwarn(
-                    "Config item '%s' was locked by '%s' (ignored update)."
-                    % (key, locked_user)
+                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
                 )
             return True
         return False
@@ -157,7 +158,12 @@ class Config:
     __setattr__ = __setitem__
 
     def __getattr__(self, key):
-        return self.__getitem__(key)
+        try:
+            return self.__getitem__(key)
+        except KeyError as ke:
+            raise AttributeError(
+                f"{self.__class__!r} object has no attribute {key!r}"
+            ) from ke
 
     def __contains__(self, key):
         return key in self._items
@@ -183,7 +189,7 @@ class Config:
         return self._items.get(*args)
 
     def persist(self):
-        """Calls the callback if it's set"""
+        """Call the callback if it's set."""
         if self._callback:
             self._callback(data=self._as_dict())
 
@@ -221,7 +227,7 @@ class Config:
         self,
         config_dict,
         allow_val_change=None,
-        ignore_keys: set = None,
+        ignore_keys: Optional[set] = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
@@ -233,28 +239,27 @@ class Config:
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        # TODO: enable WBValues in the config in the future
+        # refuse all WBValues which is all Media and Histograms
+        if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
+            raise ValueError("WBValue objects cannot be added to the run config")
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if _is_artifact_string(val) or _is_artifact(val):
+        if _is_artifact_representation(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
-        if not (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-        ):
+        if not isinstance(val, wandb.Artifact):
             val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
-                    (
-                        'Attempted to change value of key "{}" '
-                        "from {} to {}\n"
-                        "If you really want to do this, pass"
-                        " allow_val_change=True to config.update()"
-                    ).format(key, self._items[key], val)
+                    f'Attempted to change value of key "{key}" '
+                    f"from {self._items[key]} to {val}\n"
+                    "If you really want to do this, pass"
+                    " allow_val_change=True to config.update()"
                 )
         return key, val
 
@@ -263,8 +268,7 @@ class Config:
         # best if we don't allow nested artifacts until we can lock nested keys in the config
         if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
             raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
-                " can only be top level keys in wandb.config"
+                "Instances of wandb.Artifact can only be top level keys in wandb.config"
             )
 
 

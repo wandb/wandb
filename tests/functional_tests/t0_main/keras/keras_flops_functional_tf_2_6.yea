@@ -1,0 +1,18 @@
+id: 0.keras.flopsfunctional.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_flops_functional.py
+depend:
+    requirements:
+        - pillow
+        - tensorflow>=2.6.2,<=2.9
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][GFLOPs]: 0.000039576
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
+    - :wandb:runs[0][exitcode]: 0

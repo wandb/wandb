@@ -1,5 +1,4 @@
-"""
-Compatibility lightgbm module.
+"""Compatibility lightgbm module.
 
 In the future use:
     from wandb.integration.lightgbm import wandb_callback

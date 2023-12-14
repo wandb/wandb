@@ -1,0 +1,4 @@
+extend = "../pyproject.toml"
+
+[isort]
+known-third-party = ["wandb"]

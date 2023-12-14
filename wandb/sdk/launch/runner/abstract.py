@@ -1,16 +1,20 @@
-from abc import ABC, abstractmethod
+"""Implementation of the abstract runner class.
+
+This class defines the interface that the W&B launch runner uses to manage the lifecycle
+of runs launched in different environments (e.g. runs launched locally or in a cluster).
+"""
 import logging
 import os
 import subprocess
 import sys
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
+
 import wandb
-from wandb import Settings
 from wandb.apis.internal import Api
-from wandb.errors import CommError
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
 
@@ -23,7 +27,14 @@ else:
     from typing_extensions import Literal
 
 State = Literal[
-    "unknown", "starting", "running", "failed", "finished", "stopping", "stopped"
+    "unknown",
+    "starting",
+    "running",
+    "failed",
+    "finished",
+    "stopping",
+    "stopped",
+    "preempted",
 ]
 
 
@@ -34,6 +45,18 @@ class Status:
 
     def __repr__(self) -> "State":
         return self.state
+
+    def __str__(self) -> str:
+        return self.state
+
+    def __eq__(self, __value: object) -> bool:
+        if isinstance(__value, Status):
+            return self.state == __value.state
+        else:
+            return self.state == __value
+
+    def __hash__(self) -> int:
+        return hash(self.state)
 
 
 class AbstractRun(ABC):
@@ -55,10 +78,15 @@ class AbstractRun(ABC):
     def status(self) -> Status:
         return self._status
 
+    @abstractmethod
+    async def get_logs(self) -> Optional[str]:
+        """Return the logs associated with the run."""
+        pass
+
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
-        """Runs the command and returns a popen object or the stdout of the command.
+        """Run the command and returns a popen object or the stdout of the command.
 
         Arguments:
         cmd: The command to run
@@ -77,7 +105,7 @@ class AbstractRun(ABC):
             return None
 
     @abstractmethod
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         """Wait for the run to finish, returning True if the run succeeded and false otherwise.
 
         Note that in some cases, we may wait until the remote job completes rather than until the W&B run completes.
@@ -85,12 +113,12 @@ class AbstractRun(ABC):
         pass
 
     @abstractmethod
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         """Get status of the run."""
         pass
 
     @abstractmethod
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         """Cancel the run (interrupts the command subprocess, cancels the run, etc).
 
         Cancels the run and waits for it to terminate. The W&B run status may not be
@@ -100,7 +128,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> str:
+    def id(self) -> Optional[str]:
         pass
 
 
@@ -112,12 +140,17 @@ class AbstractRunner(ABC):
     (e.g. to run projects against your team's in-house cluster or job scheduler).
     """
 
-    def __init__(self, api: Api, backend_config: Dict[str, Any]) -> None:
-        self._settings = Settings()
+    _type: str
+
+    def __init__(
+        self,
+        api: Api,
+        backend_config: Dict[str, Any],
+    ) -> None:
         self._api = api
         self.backend_config = backend_config
         self._cwd = os.getcwd()
-        self._namespace = wandb.util.generate_id()
+        self._namespace = runid.generate_id()
 
     def find_executable(
         self, cmd: str
@@ -141,25 +174,11 @@ class AbstractRunner(ABC):
             sys.exit(1)
         return True
 
-    def ack_run_queue_item(self, launch_project: LaunchProject) -> bool:
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return False
-        return True
-
     @abstractmethod
-    def run(
+    async def run(
         self,
         launch_project: LaunchProject,
-        builder: AbstractBuilder,
-        registry_config: Dict[str, Any],
+        image_uri: str,
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 

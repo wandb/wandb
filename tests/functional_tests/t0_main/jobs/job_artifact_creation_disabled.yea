@@ -1,0 +1,10 @@
+id: 5.jobs.artifact-creation-disabled
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :op:not_contains_regex:
+    - :wandb:artifacts
+    - job-.*
+  - :yea:exit: 0

@@ -22,19 +22,19 @@ import json
 import logging
 import os
 import pprint
-import re
-import sys
 import tempfile
+from decimal import Decimal
 from typing import Optional
 
 import wandb
 from wandb import util
+from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
 from .sdk.data_types.base_types.media import (
-    _numpy_arrays_to_lists,
     BatchableMedia,
     Media,
+    _numpy_arrays_to_lists,
 )
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
@@ -47,7 +47,9 @@ from .sdk.data_types.molecule import Molecule
 from .sdk.data_types.object_3d import Object3D
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
+from .sdk.data_types.trace_tree import WBTraceTree
 from .sdk.data_types.video import Video
+from .sdk.lib import runid
 
 # Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
 # Once we fully type this file and move it all into sdk, then we will need to clean up the
@@ -66,6 +68,7 @@ __all__ = [
     "Object3D",
     "Plotly",
     "Video",
+    "WBTraceTree",
     "_SavedModel",
     # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
@@ -143,12 +146,14 @@ def _json_helper(val, artifact):
         )
     elif isinstance(val, (list, tuple)):
         return [_json_helper(i, artifact) for i in val]
+    elif isinstance(val, Decimal):
+        return float(val)
     else:
         return util.json_friendly(val)[0]
 
 
 class Table(Media):
-    """The Table class is used to display and analyze tabular data.
+    """The Table class used to display and analyze tabular data.
 
     Unlike traditional spreadsheets, Tables support numerous types of data:
     scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
@@ -165,8 +170,7 @@ class Table(Media):
     import pandas as pd
     import wandb
 
-    data = {"users": ["geoff", "juergen", "ada"],
-            "feature_01": [1, 117, 42]}
+    data = {"users": ["geoff", "juergen", "ada"], "feature_01": [1, 117, 42]}
     df = pd.DataFrame(data)
 
     tbl = wandb.Table(data=df)
@@ -188,7 +192,11 @@ class Table(Media):
     [tbl.add_data(user) for user in users]
     assert tbl.get_column("user") == users
 
-    def get_user_name_length(index, row): return {"feature_01": len(row["user"])}
+
+    def get_user_name_length(index, row):
+        return {"feature_01": len(row["user"])}
+
+
     tbl.add_computed_columns(get_user_name_length)
     assert tbl.get_column("feature_01") == [5, 7, 3]
     ```
@@ -254,7 +262,10 @@ class Table(Media):
         optional=True,
         allow_mixed_types=False,
     ):
-        """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
+        """Initialize a Table object.
+
+        Rows is kept for legacy reasons, we use data to mimic the Pandas api.
+        """
         super().__init__()
         self._pk_col = None
         self._fk_cols = set()
@@ -289,15 +300,13 @@ class Table(Media):
     @staticmethod
     def _assert_valid_columns(columns):
         valid_col_types = [str, int]
-        if sys.version_info.major < 3:
-            valid_col_types.append(unicode)  # noqa: F821 (unicode is in py2)
-        assert type(columns) is list, "columns argument expects a `list` object"
+        assert isinstance(columns, list), "columns argument expects a `list` object"
         assert len(columns) == 0 or all(
             [type(col) in valid_col_types for col in columns]
         ), "columns argument expects list of strings or ints"
 
     def _init_from_list(self, data, columns, optional=True, dtype=None):
-        assert type(data) is list, "data argument expects a `list` object"
+        assert isinstance(data, list), "data argument expects a `list` object"
         self.data = []
         self._assert_valid_columns(columns)
         self.columns = columns
@@ -343,7 +352,7 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Casts a column to a specific type
+        """Cast a column to a specific type.
 
         Arguments:
             col_name: (str) - name of the column to cast
@@ -444,11 +453,15 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
+        """Deprecated: use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Add a row of data to the table. Argument length should match column length"""
+        """Add a row of data to the table.
+
+        Argument length should match column length.
+        """
         if len(data) != len(self.columns):
             raise ValueError(
                 "This table expects {} columns: {}, found {}".format(
@@ -480,8 +493,11 @@ class Table(Media):
         self._update_keys(force_last=True)
 
     def _get_updated_result_type(self, row):
-        """Returns an updated result type based on incoming row. Raises error if
-        the assignment is invalid"""
+        """Return an updated result type based on incoming row.
+
+        Raises:
+            TypeError: if the assignment is invalid.
+        """
         incoming_row_dict = {
             col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
         }
@@ -520,7 +536,7 @@ class Table(Media):
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publicly say 200k is the limit.
         data = self._to_table_json(warn=False)
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
@@ -568,7 +584,7 @@ class Table(Media):
                         required="Deserializing numpy columns requires numpy to be installed",
                     )
                     deserialized = np.load(
-                        source_artifact.get_path(serialization_path["path"]).download()
+                        source_artifact.get_entry(serialization_path["path"]).download()
                     )
                     np_deserialized_columns[
                         json_obj["columns"].index(col_name)
@@ -596,7 +612,7 @@ class Table(Media):
         dtypes = None
         if column_types is not None:
             dtypes = [
-                column_types.params["type_map"][col] for col in json_obj["columns"]
+                column_types.params["type_map"][str(col)] for col in json_obj["columns"]
             ]
 
         new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
@@ -619,7 +635,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -640,7 +656,7 @@ class Table(Media):
                 is_1d_array = (
                     ndarray_type is not None
                     and "shape" in ndarray_type._params
-                    and type(ndarray_type._params["shape"]) == list
+                    and isinstance(ndarray_type._params["shape"], list)
                     and len(ndarray_type._params["shape"]) == 1
                     and ndarray_type._params["shape"][0]
                     <= self._MAX_EMBEDDING_DIMENSIONS
@@ -654,9 +670,7 @@ class Table(Media):
                         "numpy",
                         required="Serializing numpy requires numpy to be installed",
                     )
-                    file_name = "{}_{}.npz".format(
-                        str(col_name), str(util.generate_id())
-                    )
+                    file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
@@ -695,14 +709,15 @@ class Table(Media):
         return json_dict
 
     def iterrows(self):
-        """Iterate over rows as (ndx, row)
-        Yields
+        """Iterate over rows as (ndx, row).
+
+        Yields:
         ------
         index : int
             The index of the row. Using this value in other WandB tables
             will automatically build a relationship between the tables
         row : List[any]
-            The data of the row
+            The data of the row.
         """
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -721,13 +736,14 @@ class Table(Media):
         self.cast(col_name, _ForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
-        """Updates the known key-like columns based on the current
-        column types. If the state has been updated since
-        the last update, we wrap the data appropriately in the Key classes
+        """Update the known key-like columns based on the current column types.
+
+        If the state has been updated since the last update, we wrap the data
+        appropriately in the Key classes.
 
         Arguments:
-        force_last: (bool) Determines wrapping the last column of data even if
-        there are no key updates.
+            force_last: (bool) Determines wrapping the last column of data even if there
+                are no key updates.
         """
         _pk_col = None
         _fk_cols = set()
@@ -767,7 +783,7 @@ class Table(Media):
             self._apply_key_updates(not has_update)
 
     def _apply_key_updates(self, only_last=False):
-        """Appropriately wraps the underlying data in special key classes.
+        """Appropriately wrap the underlying data in special key classes.
 
         Arguments:
             only_last: only apply the updates to the last row (used for performance when
@@ -818,7 +834,7 @@ class Table(Media):
     def add_column(self, name, data, optional=False):
         """Add a column of data to the table.
 
-        Arguments
+        Arguments:
             name: (str) - the unique name of the column
             data: (list | np.array) - a column of homogenous data
             optional: (bool) - if null-like values are permitted
@@ -857,9 +873,9 @@ class Table(Media):
             raise err
 
     def get_column(self, name, convert_to=None):
-        """Retrieves a column of data from the table
+        """Retrieve a column of data from the table.
 
-        Arguments
+        Arguments:
             name: (str) - the name of the column
             convert_to: (str, optional)
                 - "numpy": will convert the underlying data to numpy object
@@ -882,7 +898,7 @@ class Table(Media):
         return col
 
     def get_index(self):
-        """Returns an array of row indexes which can be used in other tables to create links"""
+        """Return an array of row indexes for use in other tables to create links."""
         ndxs = []
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -890,15 +906,23 @@ class Table(Media):
             ndxs.append(index)
         return ndxs
 
+    def get_dataframe(self):
+        """Returns a pandas.DataFrame of the table."""
+        pd = util.get_module(
+            "pandas",
+            required="Converting to pandas.DataFrame requires installing pandas",
+        )
+        return pd.DataFrame.from_records(self.data, columns=self.columns)
+
     def index_ref(self, index):
-        """Get a reference to a particular row index in the table"""
+        """Get a reference to a particular row index in the table."""
         assert index < len(self.data)
         _index = _TableIndex(index)
         _index.set_table(self)
         return _index
 
     def add_computed_columns(self, fn):
-        """Adds one or more computed columns based on existing data
+        """Add one or more computed columns based on existing data.
 
         Args:
             fn: A function which accepts one or two parameters, ndx (int) and row (dict),
@@ -923,7 +947,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts"""
+    """Helper class for PartitionTable to track its parts."""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -940,17 +964,18 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """PartitionedTable represents a table which is composed
-    by the union of multiple sub-tables. Currently, PartitionedTable
-    is designed to point to a directory within an artifact.
+    """A table which is composed of multiple sub-tables.
+
+    Currently, PartitionedTable is designed to point to a directory within an artifact.
     """
 
     _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
-        """
+        """Initialize a PartitionedTable.
+
         Args:
-            parts_path (str): path to a directory of tables in the artifact
+            parts_path (str): path to a directory of tables in the artifact.
         """
         super().__init__()
         self.parts_path = parts_path
@@ -982,13 +1007,14 @@ class PartitionedTable(Media):
         return instance
 
     def iterrows(self):
-        """Iterate over rows as (ndx, row)
-        Yields
+        """Iterate over rows as (ndx, row).
+
+        Yields:
         ------
         index : int
             The index of the row.
         row : List[any]
-            The data of the row
+            The data of the row.
         """
         columns = None
         ndx = 0
@@ -1024,8 +1050,7 @@ class PartitionedTable(Media):
 
 
 class Audio(BatchableMedia):
-    """
-    Wandb class for audio clips.
+    """Wandb class for audio clips.
 
     Arguments:
         data_or_path: (string or numpy array) A path to an audio file
@@ -1038,14 +1063,14 @@ class Audio(BatchableMedia):
     _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
-        """Accepts a path to an audio file or a numpy array of audio data."""
+        """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
 
         if isinstance(data_or_path, str):
-            if Audio.path_is_reference(data_or_path):
+            if self.path_is_reference(data_or_path):
                 self._path = data_or_path
                 self._sha256 = hashlib.sha256(data_or_path.encode("utf-8")).hexdigest()
                 self._is_tmp = False
@@ -1062,15 +1087,11 @@ class Audio(BatchableMedia):
                 required='Raw audio requires the soundfile package. To get it, run "pip install soundfile"',
             )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".wav")
+            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".wav")
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
             self._set_file(tmp_path, is_tmp=True)
-
-    @classmethod
-    def path_is_reference(cls, path):
-        return bool(re.match(r"^(gs|s3|https?)://", path))
 
     @classmethod
     def get_media_subdir(cls):
@@ -1079,14 +1100,14 @@ class Audio(BatchableMedia):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
-            source_artifact.get_path(json_obj["path"]).download(),
+            source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
         )
 
     def bind_to_run(
         self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
     ):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
@@ -1112,7 +1133,7 @@ class Audio(BatchableMedia):
             required="wandb.Audio requires the soundfile package. To get it, run: pip install soundfile",
         )
         base_path = os.path.join(run.dir, "media", "audio")
-        util.mkdir_exists_ok(base_path)
+        filesystem.mkdir_exists_ok(base_path)
         meta = {
             "_type": "audio",
             "count": len(audio_list),
@@ -1147,7 +1168,7 @@ class Audio(BatchableMedia):
             return ["" if c is None else c for c in captions]
 
     def resolve_ref(self):
-        if Audio.path_is_reference(self._path):
+        if self.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
         source_artifact = self._artifact_source.artifact
@@ -1161,7 +1182,7 @@ class Audio(BatchableMedia):
         return None
 
     def __eq__(self, other):
-        if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
+        if self.path_is_reference(self._path) or self.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
             return (
@@ -1176,13 +1197,13 @@ class Audio(BatchableMedia):
 
 
 class JoinedTable(Media):
-    """Joins two tables for visualization in the Artifact UI
+    """Join two tables for visualization in the Artifact UI.
 
     Arguments:
-        table1 (str, wandb.Table, ArtifactEntry):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+        table1 (str, wandb.Table, ArtifactManifestEntry):
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         table2 (str, wandb.Table):
-            the path to a wandb.Table in an artifact, the table object, or ArtifactEntry
+            the path to a wandb.Table in an artifact, the table object, or ArtifactManifestEntry
         join_key (str, [str, str]):
             key or keys to perform the join
     """
@@ -1231,16 +1252,16 @@ class JoinedTable(Media):
 
     @staticmethod
     def _validate_table_input(table):
-        """Helper method to validate that the table input is one of the 3 supported types"""
+        """Helper method to validate that the table input is one of the 3 supported types."""
         return (
-            (type(table) == str and table.endswith(".table.json"))
+            (isinstance(table, str) and table.endswith(".table.json"))
             or isinstance(table, Table)
             or isinstance(table, PartitionedTable)
             or (hasattr(table, "ref_url") and table.ref_url().endswith(".table.json"))
         )
 
     def _ensure_table_in_artifact(self, table, artifact, table_ndx):
-        """Helper method to add the table to the incoming artifact. Returns the path"""
+        """Helper method to add the table to the incoming artifact. Returns the path."""
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = f"t{table_ndx}_{str(id(self))}"
             if (
@@ -1250,12 +1271,12 @@ class JoinedTable(Media):
                 table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
-        # Check if this is an ArtifactEntry
+        # Check if this is an ArtifactManifestEntry
         elif hasattr(table, "ref_url"):
             # Give the new object a unique, yet deterministic name
-            name = binascii.hexlify(
-                base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:20]
+            name = binascii.hexlify(base64.standard_b64decode(table.digest)).decode(
+                "ascii"
+            )[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
@@ -1314,8 +1335,7 @@ class JoinedTable(Media):
 
 
 class Bokeh(Media):
-    """
-    Wandb class for Bokeh plots.
+    """Wandb class for Bokeh plots.
 
     Arguments:
         val: Bokeh plot
@@ -1341,7 +1361,7 @@ class Bokeh(Media):
             if "references" in b_json["roots"]:
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
-            tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
+            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".bokeh.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
@@ -1363,7 +1383,7 @@ class Bokeh(Media):
 
     @classmethod
     def from_json(cls, json_obj, source_artifact):
-        return cls(source_artifact.get_path(json_obj["path"]).download())
+        return cls(source_artifact.get_entry(json_obj["path"]).download())
 
 
 def _nest(thing):
@@ -1377,16 +1397,16 @@ def _nest(thing):
 
 
 class Graph(Media):
-    """Wandb class for graphs
+    """Wandb class for graphs.
 
-    This class is typically used for saving and diplaying neural net models.  It
+    This class is typically used for saving and displaying neural net models.  It
     represents the graph as an array of nodes and edges.  The nodes can have
     labels that can be visualized by wandb.
 
     Examples:
         Import a keras model:
         ```
-            Graph.from_keras(keras_model)
+        Graph.from_keras(keras_model)
         ```
 
     Attributes:
@@ -1422,7 +1442,7 @@ class Graph(Media):
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
@@ -1454,9 +1474,7 @@ class Graph(Media):
             node = Node(**node_kwargs)
         elif node_kwargs:
             raise ValueError(
-                "Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})".format(
-                    node=node, node_kwargs=node_kwargs
-                )
+                f"Only pass one of either node ({node}) or other keyword arguments ({node_kwargs})"
             )
         self.nodes.append(node)
         self.nodes_by_id[node.id] = node
@@ -1541,9 +1559,7 @@ class Graph(Media):
 
 
 class Node(WBValue):
-    """
-    Node used in `Graph`
-    """
+    """Node used in `Graph`."""
 
     def __init__(
         self,
@@ -1560,7 +1576,7 @@ class Node(WBValue):
         self._attributes = {"name": None}
         self.in_edges = {}  # indexed by source node id
         self.out_edges = {}  # indexed by dest node id
-        # optional object (eg. PyTorch Parameter or Module) that this Node represents
+        # optional object (e.g. PyTorch Parameter or Module) that this Node represents
         self.obj = None
 
         if node is not None:
@@ -1593,7 +1609,7 @@ class Node(WBValue):
 
     @property
     def id(self):
-        """Must be unique in the graph"""
+        """Must be unique in the graph."""
         return self._attributes.get("id")
 
     @id.setter
@@ -1603,7 +1619,7 @@ class Node(WBValue):
 
     @property
     def name(self):
-        """Usually the type of layer or sublayer"""
+        """Usually the type of layer or sublayer."""
         return self._attributes.get("name")
 
     @name.setter
@@ -1613,7 +1629,7 @@ class Node(WBValue):
 
     @property
     def class_name(self):
-        """Usually the type of layer or sublayer"""
+        """Usually the type of layer or sublayer."""
         return self._attributes.get("class_name")
 
     @class_name.setter
@@ -1645,7 +1661,7 @@ class Node(WBValue):
 
     @size.setter
     def size(self, val):
-        """Tensor size"""
+        """Tensor size."""
         self._attributes["size"] = tuple(val)
         return val
 
@@ -1655,7 +1671,7 @@ class Node(WBValue):
 
     @output_shape.setter
     def output_shape(self, val):
-        """Tensor output_shape"""
+        """Tensor output_shape."""
         self._attributes["output_shape"] = val
         return val
 
@@ -1665,7 +1681,7 @@ class Node(WBValue):
 
     @is_output.setter
     def is_output(self, val):
-        """Tensor is_output"""
+        """Tensor is_output."""
         self._attributes["is_output"] = val
         return val
 
@@ -1675,7 +1691,7 @@ class Node(WBValue):
 
     @num_parameters.setter
     def num_parameters(self, val):
-        """Tensor num_parameters"""
+        """Tensor num_parameters."""
         self._attributes["num_parameters"] = val
         return val
 
@@ -1685,7 +1701,7 @@ class Node(WBValue):
 
     @child_parameters.setter
     def child_parameters(self, val):
-        """Tensor child_parameters"""
+        """Tensor child_parameters."""
         self._attributes["child_parameters"] = val
         return val
 
@@ -1695,7 +1711,7 @@ class Node(WBValue):
 
     @is_constant.setter
     def is_constant(self, val):
-        """Tensor is_constant"""
+        """Tensor is_constant."""
         self._attributes["is_constant"] = val
         return val
 
@@ -1718,9 +1734,7 @@ class Node(WBValue):
 
 
 class Edge(WBValue):
-    """
-    Edge used in `Graph`
-    """
+    """Edge used in `Graph`."""
 
     def __init__(self, from_node, to_node):
         self._attributes = {}
@@ -1740,7 +1754,7 @@ class Edge(WBValue):
 
     @property
     def name(self):
-        """Optional, not necessarily unique"""
+        """Optional, not necessarily unique."""
         return self._attributes.get("name")
 
     @name.setter
@@ -1774,7 +1788,12 @@ class _ImageFileType(_dtypes.Type):
     types = [Image]
 
     def __init__(
-        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None
+        self,
+        box_layers=None,
+        box_score_keys=None,
+        mask_layers=None,
+        class_map=None,
+        **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []
@@ -1983,7 +2002,7 @@ class _ForeignKeyType(_dtypes.Type):
     def to_json(self, artifact=None):
         res = super().to_json(artifact)
         if artifact is not None:
-            table_name = f"media/tables/t_{util.generate_id()}"
+            table_name = f"media/tables/t_{runid.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:
@@ -2043,7 +2062,7 @@ class _ForeignIndexType(_dtypes.Type):
     def to_json(self, artifact=None):
         res = super().to_json(artifact)
         if artifact is not None:
-            table_name = f"media/tables/t_{util.generate_id()}"
+            table_name = f"media/tables/t_{runid.generate_id()}"
             entry = artifact.add(self.params["table"], table_name)
             res["params"]["table"] = entry.path
         else:

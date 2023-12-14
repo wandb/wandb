@@ -2,13 +2,11 @@ from warnings import simplefilter
 
 import numpy as np
 import sklearn
-from sklearn import naive_bayes
+from sklearn import model_selection, naive_bayes
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-from sklearn import model_selection
 
 import wandb
-
 from wandb.sklearn import utils
 
 # ignore all future warnings
@@ -60,7 +58,6 @@ def calibration_curves(clf, X, y, clf_name):
     names = ["Logistic", f"{clf_name} Isotonic", f"{clf_name} Sigmoid"]
 
     for model, name in zip(models, names):
-
         model.fit(X_train, y_train)
         if hasattr(model, "predict_proba"):
             prob_pos = model.predict_proba(X_test)[:, 1]

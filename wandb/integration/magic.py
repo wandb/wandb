@@ -5,11 +5,11 @@ import os
 import re
 import sys
 
+import yaml
+
 import wandb
 from wandb import trigger
 from wandb.util import add_import_hook, get_optional_module
-import yaml
-
 
 _import_hook = None
 _run_once = False
@@ -292,7 +292,7 @@ def _magic_fit(
     # workers=1,
     # use_multiprocessing=False,
     *args,
-    **kwargs
+    **kwargs,
 ):
     if hasattr(self, "_wandb_internal_model"):
         return self._fit(
@@ -322,7 +322,7 @@ def _magic_fit_generator(
     # shuffle=True,
     # initial_epoch=0,
     *args,
-    **kwargs
+    **kwargs,
 ):
     return _fit_wrapper(
         self,
@@ -331,13 +331,14 @@ def _magic_fit_generator(
         steps_per_epoch=steps_per_epoch,
         epochs=epochs,
         *args,
-        **kwargs
+        **kwargs,
     )
 
 
 def _monkey_tfkeras():
-    from wandb.integration.keras import WandbCallback  # add keras import hooks first
     from tensorflow import keras as tfkeras
+
+    from wandb.integration.keras import WandbCallback  # add keras import hooks first
 
     models = getattr(tfkeras, "models", None)
     if not models:

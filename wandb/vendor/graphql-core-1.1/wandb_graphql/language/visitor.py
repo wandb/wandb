@@ -1,7 +1,5 @@
 from copy import copy
 
-import six
-
 from . import ast
 from .visitor_meta import QUERY_DOCUMENT_KEYS, VisitorMeta
 
@@ -158,8 +156,7 @@ def visit(root, visitor, key_map=None):
     return new_root
 
 
-@six.add_metaclass(VisitorMeta)
-class Visitor(object):
+class Visitor(metaclass=VisitorMeta):
     __slots__ = ()
 
     def enter(self, node, key, parent, path, ancestors):

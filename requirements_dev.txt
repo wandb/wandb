@@ -1,42 +1,53 @@
 pytest
-coverage
-tox==3.24.0
-pip
+hypothesis
+hypothesis-fspaths
+
 Pillow
 pandas
-matplotlib!=3.5.2
-soundfile; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-git+https://github.com/bastibe/python-soundfile@0.11.0b3#egg=soundfile; sys_platform == 'darwin' and platform.machine == 'arm64'
-boto3
-google-cloud-storage
-google-cloud-aiplatform
-kubernetes
 moviepy
 imageio
-ipython
-ipykernel
-nbclient
-scikit-learn
-tensorflow>=1.15.2; sys_platform != 'darwin'
-tensorflow>=1.15.2; python_version > '3.6' and sys_platform == 'darwin' and platform.machine != 'arm64'
-tensorflow-macos; python_version > '3.6' and python_version < '3.10' and sys_platform == 'darwin' and platform.machine == 'arm64'
-torch
-torchvision
+matplotlib!=3.5.2
+soundfile
+rdkit; (sys_platform != 'darwin') or (sys_platform == 'darwin' and platform.machine != 'arm64')
+rdkit; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
 plotly
 bokeh
+
 tqdm
-docker
-stable_baselines3
+
+ipython
+ipython<8.13; python_version < '3.9'
+ipykernel
+nbclient
+
+scikit-learn
+tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
+tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
+tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 tensorboard
-gym
-jax[cpu]
-fastcore; python_version > '3.6'
-fastcore==1.3.29; python_version == '3.6'
-pyarrow
+torch; python_version < '3.12'
+torchvision; python_version < '3.12'
+jax[cpu]; python_version > '3.7' and (sys_platform == 'darwin' or sys_platform == 'linux')
+
+fastcore
+pyarrow; python_version < '3.12'  # TODO: 3.12 support will be added in 14.0.0
 metaflow>=2.3.5
-rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
+xgboost
+lightgbm; sys_platform != 'darwin'
+mlflow; python_version < '3.12'  # TODO: requires pyarrow
+# kfp<2.0.0  # TODO: put back when we support kfp>=2.0.0
+urllib3<2
+docker
+
+responses
+respx
+prometheus_client
+google-cloud-aiplatform
+
+aiohttp==3.9.0b0; python_version >= '3.12'
+
+.[async]
+.[perf]
 .[launch]
 .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
-cloudpickle

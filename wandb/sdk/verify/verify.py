@@ -1,35 +1,32 @@
-"""
-Utilities for wandb verify
-"""
-from functools import partial
+"""Utilities for wandb verify."""
 import getpass
 import os
 import time
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from functools import partial
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
-from pkg_resources import parse_version
 import requests
-import wandb
-from wandb_gql import gql  # type: ignore
+from pkg_resources import parse_version
+from wandb_gql import gql
 
-from ..wandb_artifacts import Artifact
+import wandb
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.lib import runid
+
 from ...apis.internal import Api
-from ...apis.public import Artifact as ArtifactAPI
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
 CHECKMARK = "\u2705"
 RED_X = "\u274C"
+ID_PREFIX = runid.generate_id()
+
+
+def nice_id(name):
+    return ID_PREFIX + "-" + name
 
 
 def print_results(
@@ -132,7 +129,9 @@ def check_run(api: Api) -> bool:
     f.write("test")
     f.close()
 
-    with wandb.init(reinit=True, config=config, project=PROJECT_NAME) as run:
+    with wandb.init(
+        id=nice_id("check_run"), reinit=True, config=config, project=PROJECT_NAME
+    ) as run:
         run_id = run.id
         entity = run.entity
         logged = True
@@ -187,7 +186,9 @@ def check_run(api: Api) -> bool:
     # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
         read_file = retry_fn(partial(prev_run.file, filepath))
-        read_file = read_file.download(replace=True)
+        # There's a race where the file hasn't been processed in the queue,
+        # we just retry until we get a download
+        read_file = retry_fn(partial(read_file.download, replace=True))
     except Exception:
         failed_test_strings.append(
             "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
@@ -222,7 +223,7 @@ def verify_manifest(
 
 
 def verify_digest(
-    downloaded: "ArtifactAPI", computed: "ArtifactAPI", fails_list: List[str]
+    downloaded: "Artifact", computed: "Artifact", fails_list: List[str]
 ) -> None:
     if downloaded.digest != computed.digest:
         fails_list.append(
@@ -231,7 +232,7 @@ def verify_digest(
 
 
 def artifact_with_path_or_paths(
-    name: str, verify_dir: str = None, singular: bool = False
+    name: str, verify_dir: Optional[str] = None, singular: bool = False
 ) -> "Artifact":
     art = wandb.Artifact(type="artsy", name=name)
     # internal file
@@ -250,11 +251,11 @@ def artifact_with_path_or_paths(
     with open(f"{verify_dir}/verify_1.txt", "w") as f:
         f.write("1")
     art.add_dir(verify_dir)
-    with open("verify_3.txt", "w") as f:
-        f.write("3")
+    file3 = Path(verify_dir) / "verify_3.txt"
+    file3.write_text("3")
 
     # reference to local file
-    art.add_reference("file://verify_3.txt")
+    art.add_reference(file3.resolve().as_uri())
 
     return art
 
@@ -266,11 +267,13 @@ def log_use_download_artifact(
     download_dir: str,
     failed_test_strings: List[str],
     add_extra_file: bool,
-) -> Tuple[bool, Optional["ArtifactAPI"], List[str]]:
+) -> Tuple[bool, Optional["Artifact"], List[str]]:
     with wandb.init(
-        reinit=True, project=PROJECT_NAME, config={"test": "artifact log"}
+        id=nice_id("log_artifact"),
+        reinit=True,
+        project=PROJECT_NAME,
+        config={"test": "artifact log"},
     ) as log_art_run:
-
         if add_extra_file:
             with open("verify_2.txt", "w") as f:
                 f.write("2")
@@ -284,6 +287,7 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
+        id=nice_id("use_artifact"),
         project=PROJECT_NAME,
         config={"test": "artifact use"},
     ) as use_art_run:
@@ -310,7 +314,7 @@ def check_artifacts() -> bool:
     # test checksum
     sing_art_dir = "./verify_sing_art"
     alias = "sing_art1"
-    name = "sing-artys"
+    name = nice_id("sing-artys")
     singular_art = artifact_with_path_or_paths(name, singular=True)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         singular_art, alias, name, sing_art_dir, failed_test_strings, False
@@ -328,7 +332,7 @@ def check_artifacts() -> bool:
     # test manifest and digest
     multi_art_dir = "./verify_art"
     alias = "art1"
-    name = "my-artys"
+    name = nice_id("my-artys")
     art1 = artifact_with_path_or_paths(name, "./verify_art_dir", singular=False)
     cont_test, download_artifact, failed_test_strings = log_use_download_artifact(
         art1, alias, name, multi_art_dir, failed_test_strings, True
@@ -352,9 +356,7 @@ def check_artifacts() -> bool:
     verify_digest(download_artifact, computed, failed_test_strings)
 
     computed_manifest = computed.manifest.to_manifest_json()["contents"]
-    downloaded_manifest = download_artifact._load_manifest().to_manifest_json()[
-        "contents"
-    ]
+    downloaded_manifest = download_artifact.manifest.to_manifest_json()["contents"]
     verify_manifest(downloaded_manifest, computed_manifest, failed_test_strings)
 
     print_results(failed_test_strings, False)
@@ -370,7 +372,10 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     f.write("test2")
     f.close()
     with wandb.init(
-        reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
+        id=nice_id("graphql_put"),
+        reinit=True,
+        project=PROJECT_NAME,
+        config={"test": "put to graphql"},
     ) as run:
         wandb.save(gql_fp)
     public_api = wandb.Api()
@@ -385,7 +390,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     try:
         read_file = retry_fn(partial(prev_run.file, gql_fp))
         url = read_file.url
-        read_file = read_file.download(replace=True)
+        read_file = retry_fn(partial(read_file.download, replace=True))
     except Exception:
         failed_test_strings.append(
             "Unable to read file successfully saved through a put request. Check SQS configurations, bucket permissions and topic configs."
@@ -439,7 +444,11 @@ def check_large_post() -> bool:
             timeout=60,
         )
     except Exception as e:
-        if isinstance(e, requests.HTTPError) and e.response.status_code == 413:
+        if (
+            isinstance(e, requests.HTTPError)
+            and e.response is not None
+            and e.response.status_code == 413
+        ):
             failed_test_strings.append(
                 'Failed to send a large payload. Check nginx.ingress.kubernetes.io/proxy-body-size is "0".'
             )

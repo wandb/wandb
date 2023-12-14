@@ -1,14 +1,15 @@
 import sys
-from typing import Optional, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 from wandb import util
 
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     NumpyHistogram = Tuple[np.ndarray, np.ndarray]
@@ -23,7 +24,7 @@ class Histogram(WBValue):
     Examples:
         Generate histogram from a sequence
         ```python
-        wandb.Histogram([1,2,3])
+        wandb.Histogram([1, 2, 3])
         ```
 
         Efficiently initialize from np.histogram.
@@ -52,7 +53,6 @@ class Histogram(WBValue):
         np_histogram: Optional["NumpyHistogram"] = None,
         num_bins: int = 64,
     ) -> None:
-
         if np_histogram:
             if len(np_histogram) == 2:
                 self.histogram = (
@@ -84,11 +84,13 @@ class Histogram(WBValue):
         if len(self.histogram) + 1 != len(self.bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
-    def to_json(self, run: Union["LocalRun", "LocalArtifact"] = None) -> dict:
+    def to_json(self, run: Optional[Union["LocalRun", "Artifact"]] = None) -> dict:
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 
     def __sizeof__(self) -> int:
-        """This returns an estimated size in bytes, currently the factor of 1.7
-        is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory
+        """Estimated size in bytes.
+
+        Currently the factor of 1.7 is used to account for the JSON encoding. We use
+        this in tb_watcher.TBHistory.
         """
         return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)

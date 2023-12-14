@@ -1,0 +1,12 @@
+mutation CommitArtifact(
+    $artifactID: ID!,
+) {
+    commitArtifact(input: {
+        artifactID: $artifactID,
+    }) {
+        artifact {
+            id
+            digest
+        }
+    }
+}

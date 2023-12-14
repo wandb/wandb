@@ -1,14 +1,16 @@
 import codecs
 import os
-from typing import Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Type, Union
 
 from wandb import util
+from wandb.sdk.lib import runid
 
-from .media import Media
 from .._private import MEDIA_TMP
+from .media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ...wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ...wandb_run import Run as LocalRun
 
 
@@ -20,9 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class JSONMetadata(Media):
-    """
-    JSONMetadata is a type for encoding arbitrary metadata as files.
-    """
+    """JSONMetadata is a type for encoding arbitrary metadata as files."""
 
     def __init__(self, val: dict) -> None:
         super().__init__()
@@ -31,7 +31,7 @@ class JSONMetadata(Media):
         self._val = val
 
         ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ext)
+        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ext)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_uncompressed(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
@@ -40,7 +40,7 @@ class JSONMetadata(Media):
     def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self.type_name()
 

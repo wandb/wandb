@@ -1,0 +1,32 @@
+id: 0.mp.18-multiple-crash
+
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+var:
+  - run0:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 0
+  - run1:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 1
+  - run2:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 2
+  - run3:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 3
+assert:
+  - :wandb:runs_len: 4
+  - :run2[exitcode]: null
+  - :yea:exit: 255

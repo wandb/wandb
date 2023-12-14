@@ -1,0 +1,21 @@
+id: 0.code-save.3-log_code
+plugin:
+  - wandb
+var:
+  - runline0:
+      :fn:concat:
+      - RUN_ID=
+      - :wandb:runs[0][run_id]
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]: {}
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][output][stdout][0]: :runline0
+  - :wandb:runs[0][config_wandb][code_path]: code/tests/functional_tests/t0_main/code_save/log_code/log_code.py
+  - :op:contains:
+    - :wandb:runs[0][files]
+    - code/tests/functional_tests/t0_main/code_save/log_code/log_code.py
+  - :op:contains:
+    - :wandb:artifacts
+    - source-test-tests_functional_tests_t0_main_code_save_log_code_log_code.py

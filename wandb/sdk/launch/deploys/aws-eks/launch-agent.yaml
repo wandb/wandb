@@ -15,31 +15,36 @@ spec:
     spec:
       serviceAccountName: wandb-launch-serviceaccount
       containers:
-      - name: launch-agent
-        image: wandb/launch-agent-dev:kaniko-test6
-        resources:
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 1000
-          capabilities:
-            drop: ["ALL"]
-          seccompProfile:
-            type: RuntimeDefault
-        env:
-        - name: WANDB_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: wandb-api-key
-              key: password
-        volumeMounts:
-        - name: wandb-launch-config
-          mountPath: /home/launch_agent/.config/wandb
-          readOnly: true
+        - name: launch-agent
+          image: wandb/launch-agent-dev:df552430
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: password
+            - name: WANDB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
+          volumeMounts:
+            - name: wandb-launch-config
+              mountPath: /home/launch_agent/.config/wandb
+              readOnly: true
       volumes:
-      - name: wandb-launch-config
-        configMap:
-          name: wandb-launch-configmap
+        - name: wandb-launch-config
+          configMap:
+            name: wandb-launch-configmap

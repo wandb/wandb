@@ -1,0 +1,24 @@
+name: pre-commit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    - uses: actions/setup-python@v3
+    - name: setup env
+      run: |
+        ./core/scripts/code-checks.sh update
+    - uses: pre-commit/action@v3.0.0
+      with:
+        extra_args: --hook-stage pre-push --all-files
+      env:
+        SKIP: go-generate-graphql

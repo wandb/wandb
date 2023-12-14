@@ -1,11 +1,11 @@
-"""MessageFuture - represents a message result of an asynchronous operation
+"""MessageFuture - represents a message result of an asynchronous operation.
 
 Base class MessageFuture for MessageFutureObject and MessageFuturePoll
 
 """
 
-from abc import abstractmethod
 import threading
+from abc import abstractmethod
 from typing import Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -23,5 +23,5 @@ class MessageFuture:
         self._object_ready.set()
 
     @abstractmethod
-    def get(self, timeout: int = None) -> Optional[pb.Result]:
+    def get(self, timeout: Optional[int] = None) -> Optional[pb.Result]:
         raise NotImplementedError

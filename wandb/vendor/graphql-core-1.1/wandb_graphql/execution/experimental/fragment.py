@@ -1,6 +1,6 @@
 import functools
 
-from promise import Promise, is_thenable, promise_for_dict
+from wandb_promise import Promise, is_thenable, promise_for_dict
 
 from ...pyutils.cached_property import cached_property
 from ...pyutils.default_ordered_dict import DefaultOrderedDict

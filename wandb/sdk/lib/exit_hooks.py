@@ -1,8 +1,7 @@
 import sys
 import traceback
 from types import TracebackType
-from typing import Optional, Type
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Type
 
 import wandb
 from wandb.errors import Error
@@ -12,7 +11,6 @@ if TYPE_CHECKING:
 
 
 class ExitHooks:
-
     exception: Optional[BaseException] = None
 
     def __init__(self) -> None:
@@ -28,14 +26,14 @@ class ExitHooks:
             != sys.__excepthook__  # respect hooks by other libraries like pdb
             else None
         )
-        sys.excepthook = self.exc_handler
+        sys.excepthook = self.exc_handler  # type: ignore
 
     def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
         code = code if code is not None else 0
         code = code if isinstance(code, int) else 1
         self.exit_code = code
-        self._orig_exit(orig_code)
+        self._orig_exit(orig_code)  # type: ignore
 
     def was_ctrl_c(self) -> bool:
         return isinstance(self.exception, KeyboardInterrupt)

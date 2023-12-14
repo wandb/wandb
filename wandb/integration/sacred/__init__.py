@@ -3,13 +3,15 @@ import warnings
 import numpy
 from sacred.dependencies import get_digest
 from sacred.observers import RunObserver
+
 import wandb
 
 
 class WandbObserver(RunObserver):
-    """Logs sacred experiment data to W&B.
+    """Log sacred experiment data to W&B.
+
     Arguments:
-        Accepts all the arguments accepted by wandb.init()
+        Accepts all the arguments accepted by wandb.init().
 
         name — A display name for this run, which shows up in the UI and is editable, doesn't have to be unique
         notes — A multiline string description associated with the run
@@ -60,11 +62,8 @@ class WandbObserver(RunObserver):
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
     ):
-        """
-        TODO:
-        * add the source code file
-        * add dependencies and metadata
-        """
+        # TODO: add the source code file
+        # TODO: add dependencies and metadata.
         self.__update_config(config)
 
     def completed_event(self, stop_time, result):
@@ -87,9 +86,8 @@ class WandbObserver(RunObserver):
                     wandb.log({f"result_{i}": wandb.Image(r)})
                 else:
                     warnings.warn(
-                        "logging results does not support type '{}' results. Ignoring this result".format(
-                            type(r)
-                        )
+                        f"logging results does not support type '{type(r)}' results. Ignoring this result",
+                        stacklevel=2,
                     )
 
     def artifact_event(self, name, filename, metadata=None, content_type=None):
@@ -100,9 +98,7 @@ class WandbObserver(RunObserver):
         self.run.log_artifact(artifact)
 
     def resource_event(self, filename):
-        """
-        TODO: Maintain resources list
-        """
+        """TODO: Maintain resources list."""
         if filename not in self.resources:
             md5 = get_digest(filename)
             self.resources[filename] = md5

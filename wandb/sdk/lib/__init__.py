@@ -1,8 +1,8 @@
-#
-from . import lazyloader  # noqa: F401
+from . import lazyloader
 from .disabled import RunDisabled, SummaryDisabled
 
-__all__ = [
+__all__ = (
+    "lazyloader",
     "RunDisabled",
     "SummaryDisabled",
-]
+)

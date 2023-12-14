@@ -1,10 +1,10 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import (
+    deprecation_notice,
+    encode_labels,
     test_missing,
     test_types,
-    encode_labels,
-    deprecation_notice,
 )
 
 

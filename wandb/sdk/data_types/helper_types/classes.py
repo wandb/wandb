@@ -1,13 +1,12 @@
 import os
-from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from .. import _dtypes
 from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -17,7 +16,7 @@ class Classes(Media):
     _class_set: Sequence[dict]
 
     def __init__(self, class_set: Sequence[dict]) -> None:
-        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
+        """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts.
 
         Args:
             class_set (list): list of dicts in the form of {"id":int|str, "name":str}
@@ -31,13 +30,11 @@ class Classes(Media):
     def from_json(
         cls: Type["Classes"],
         json_obj: dict,
-        source_artifact: Optional["PublicArtifact"],
+        source_artifact: Optional["Artifact"],
     ) -> "Classes":
         return cls(json_obj.get("class_set"))  # type: ignore
 
-    def to_json(
-        self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
-    ) -> dict:
+    def to_json(self, run_or_artifact: Optional[Union["LocalRun", "Artifact"]]) -> dict:
         json_obj = {}
         # This is a bit of a hack to allow _ClassesIdType to
         # be able to operate fully without an artifact in play.
@@ -116,7 +113,7 @@ class _ClassesIdType(_dtypes.Type):
     def from_obj(cls, py_obj: Optional[Any] = None) -> "_dtypes.Type":
         return cls(py_obj)
 
-    def to_json(self, artifact: Optional["LocalArtifact"] = None) -> Dict[str, Any]:
+    def to_json(self, artifact: Optional["Artifact"] = None) -> Dict[str, Any]:
         cl_dict = super().to_json(artifact)
         # TODO (tss): Refactor this block with the similar one in wandb.Image.
         # This is a bit of a smell that the classes object does not follow
@@ -137,7 +134,7 @@ class _ClassesIdType(_dtypes.Type):
     def from_json(
         cls,
         json_dict: Dict[str, Any],
-        artifact: Optional["PublicArtifact"] = None,
+        artifact: Optional["Artifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (
@@ -148,6 +145,7 @@ class _ClassesIdType(_dtypes.Type):
                 classes_obj = artifact.get(
                     json_dict.get("params", {}).get("classes_obj", {}).get("path")
                 )
+                assert classes_obj is None or isinstance(classes_obj, Classes)
             else:
                 raise RuntimeError("Expected artifact to be non-null.")
         else:
