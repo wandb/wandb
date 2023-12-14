@@ -149,9 +149,6 @@ func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) (*se
 	// If we are unable to parse the config, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
 	var summary map[string]interface{}
-	fmt.Println()
-	fmt.Println(*bucket.GetSummaryMetrics())
-	fmt.Println()
 	if err := json.Unmarshal([]byte(*bucket.GetSummaryMetrics()), &summary); err != nil {
 		err = fmt.Errorf("failed to unmarshal summary metrics: %s", err)
 		if r.ResumeMode == "must" {
