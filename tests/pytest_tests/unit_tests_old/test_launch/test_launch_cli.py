@@ -200,7 +200,7 @@ def test_launch_cli_with_priority(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
-    
+
     async def mock_launch_add(*args, **kwargs):
         mock = Mock(spec=public.QueuedRun)
         mock.args = Mock(return_value=args)
@@ -209,8 +209,7 @@ def test_launch_cli_with_priority(
     monkeypatch.setattr(
         "wandb.sdk.launch._launch_add._launch_add",
         mock_launch_add,
-    ) 
-    
+    )
 
     with runner.isolated_filesystem():
         with open("config.json", "w") as fp:
@@ -227,12 +226,13 @@ def test_launch_cli_with_priority(
                 "--queue",
                 "prioritized",
                 "--priority",
-                "critical"
+                "critical",
             ],
         )
         print(result.output)
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
+
 
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
@@ -404,12 +404,13 @@ def test_launch_priority_no_queue(runner):
                 "--entry-point",
                 "train.py",
                 "--priority",
-                "critical"
+                "critical",
             ],
         )
 
     assert result.exit_code != 0
     assert "--priority flag requires --queue to be set" in result.output
+
 
 def test_launch_agent_project_environment_variable(
     runner,
