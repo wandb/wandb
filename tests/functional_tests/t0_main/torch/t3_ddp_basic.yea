@@ -4,7 +4,7 @@ plugin:
   - wandb
 depend:
   requirements:
-    - torch
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
 
 assert:
   - :wandb:runs_len: 2

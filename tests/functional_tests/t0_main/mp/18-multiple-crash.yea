@@ -2,6 +2,9 @@ id: 0.mp.18-multiple-crash
 
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 var:
   - run0:
       :fn:find:

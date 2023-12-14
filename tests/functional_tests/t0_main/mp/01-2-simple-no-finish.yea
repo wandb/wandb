@@ -4,7 +4,7 @@ plugin:
 
 depend:
   requirements:
-    - torch
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
     - jax
     - jaxlib
 

@@ -74,7 +74,7 @@ def _checkpoint_artifact(
     model.save_model(model_path, num_iteration=iteration)
 
     model_artifact = wandb.Artifact(name=model_name, type="model")
-    model_artifact.add_file(model_path)
+    model_artifact.add_file(str(model_path))
     wandb.log_artifact(model_artifact, aliases=aliases)
 
 
@@ -139,7 +139,7 @@ class _WandbCallback:
             else:
                 data_name, eval_name = item[1].split()
                 res_mean = item[2]
-                res_stdv = item[4]  # type: ignore
+                res_stdv = item[4]
                 wandb.log(
                     {
                         data_name + "_" + eval_name + "-mean": res_mean,

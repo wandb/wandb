@@ -59,7 +59,7 @@ def test_launch_agent_base(
         "LAUNCH_CONFIG_FILE",
         os.path.join("./config/wandb/launch-config.yaml"),
     )
-    launch_config = {"build": {"type": "docker"}, "registry": {"url": "test"}}
+    launch_config = {"builder": {"type": "docker"}, "registry": {"url": "test"}}
 
     with runner.isolated_filesystem():
         os.makedirs(os.path.expanduser("./config/wandb"))
@@ -96,7 +96,7 @@ def test_agent_queues_config(runner, test_settings, live_mock_server, monkeypatc
         "LAUNCH_CONFIG_FILE",
         os.path.join("./config/wandb/launch-config.yaml"),
     )
-    launch_config = {"build": {"type": "docker"}, "queues": ["q1", "q2"]}
+    launch_config = {"builder": {"type": "docker"}, "queues": ["q1", "q2"]}
 
     with runner.isolated_filesystem():
         os.makedirs(os.path.expanduser("./config/wandb"))
