@@ -1416,11 +1416,12 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
+    def _visualization_hack(self, row: Dict[str, Any], nested_key: str ="") -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
         split_table_set = set()
         for k in row:
+            nested_key = nested_key+("." if nested_key else "")+k
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
                 value = row[k].get_config_value(k)
@@ -1429,19 +1430,20 @@ class Run:
             elif isinstance(row[k], CustomChart):
                 chart_keys.add(k)
                 key = row[k].get_config_key(k)
-                # print(key)
                 if row[k]._split_table:
                     value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+                        "Vega2", row[k].user_query(f"Custom Chart Tables/{nested_key}_table")
                     )
                     split_table_set.add(k)
                 else:
                     value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
+                        "Vega2", row[k].user_query(f"{nested_key}_table")
                     )
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
-
+            elif isinstance(row[k], dict):
+                row[k]=self._visualization_hack(row[k],nested_key)
+        
         for k in chart_keys:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
@@ -1449,7 +1451,7 @@ class Run:
             if k in split_table_set:
                 row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
             else:
-                row[f"{k}_table"] = row.pop(k)
+                row[f"{k}_table"] = row.pop(k)       
         return row
 
     def _partial_history_callback(
@@ -1459,26 +1461,92 @@ class Run:
         commit: Optional[bool] = None,
     ) -> None:
         row = row.copy()
+        if row:
+            row = self._visualization_hack(row)
 
-        # go through the dictionary we are logging and check recursively if it's nested
-        def nested_row_check(row_dict, key=""):
-            for dict_key, dict_val in row_dict.items():
-                full_key_path = key + ("/" if key else "") + dict_key  # Add "/" only if key is not empty 
-                if isinstance(dict_val, dict):
-                    nested_row_check(dict_val,full_key_path)
+
+        def nested_keys_to_string(d, separator='.', parent_key=''):
+            result = {}
+            for k, v in d.items():
+                new_key = f"{parent_key}{separator}{k}" if parent_key else k
+                if isinstance(v, dict):
+                    result.update(nested_keys_to_string(v, separator, new_key))
                 else:
-                    row_to_publish = self._visualization_hack({full_key_path:dict_val})
-                    if self._backend and self._backend.interface:
-                        not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+                    result[new_key] = v
+            return result
 
-                        self._backend.interface.publish_partial_history(
-                            row_to_publish,
-                            user_step=self._step,
-                            step=step,
-                            flush=commit,
-                            publish_step=not_using_tensorboard,
-                        )
-        nested_row_check(row)
+        row = nested_keys_to_string(row)
+
+        if self._backend and self._backend.interface:
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
+            self._backend.interface.publish_partial_history(
+                row,
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=not_using_tensorboard,
+            )
+
+
+        # # go through the dictionary we are logging and check recursively if it's nested
+        # def nested_row_check(row_dict, key=""):
+        #     for dict_key, dict_val in row_dict.items():
+        #         full_key_path = key + ("/" if key else "") + dict_key  # Add "/" only if key is not empty 
+        #         if isinstance(dict_val, dict):
+        #             nested_row_check(dict_val,full_key_path)
+        #         else:
+        #             row_to_publish = self._visualization_hack({full_key_path:dict_val})
+        #             if self._backend and self._backend.interface:
+        #                 not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
+        #                 self._backend.interface.publish_partial_history(
+        #                     row_to_publish,
+        #                     user_step=self._step,
+        #                     step=step,
+        #                     flush=commit,
+        #                     publish_step=not_using_tensorboard,
+        #                 )
+        # nested_row_check(row)
+
+        # def recursively_build_all_branches(input_dict, current_branch=[], yes=""):
+        #     # Initialize the result dictionary for the current branch
+        #     for dict_key, value in input_dict.items():
+                
+        #         # for custom charts scenario
+        #         full_key_path = yes + ("/" if yes else "") + dict_key  
+        #         # Add the key-value pair to the current branch
+        #         current_branch.append(dict_key)
+
+        #         if isinstance(value, dict):
+        #             # Recursively process nested dictionaries
+        #             recursively_build_all_branches(value, current_branch.copy(), full_key_path)
+        #         else:
+        #             # If the value is not a dictionary, add it to the result dictionary
+        #             if isinstance(value, CustomChart):
+        #                 dictForValHack = {full_key_path:value}
+        #             else:
+        #                 nested_dict = value
+        #                 for dict_key in reversed(current_branch):
+        #                     nested_dict = {dict_key: nested_dict}
+        #                 dictForValHack = nested_dict
+                        
+        #             row_to_publish = self._visualization_hack(dictForValHack)
+        #             if self._backend and self._backend.interface:
+        #                 not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
+        #                 self._backend.interface.publish_partial_history(
+        #                     row_to_publish,
+        #                     user_step=self._step,
+        #                     step=step,
+        #                     flush=commit,
+        #                     publish_step=not_using_tensorboard,
+        #                 )
+                        
+
+        #         # Remove the last key from the current branch to backtrack
+        #         current_branch.pop()
+        # recursively_build_all_branches(row)
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
@@ -2184,7 +2252,6 @@ class Run:
             self._err_redir = err_redir
             logger.info("Redirects installed.")
         except Exception as e:
-            print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
 
