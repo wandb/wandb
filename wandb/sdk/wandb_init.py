@@ -845,6 +845,28 @@ class _WandbInit:
         self._reporter.set_context(run=run)
         run._on_start()
         logger.info("run started, returning control to user process")
+
+        # _save_pip
+        if self.settings._save_requirements:
+            try:
+                import pkg_resources
+
+                from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
+
+                installed_packages = [d for d in iter(pkg_resources.working_set)]
+                installed_packages_list = sorted(
+                    f"{i.key}=={i.version}" for i in installed_packages
+                )
+                with open(
+                    os.path.join(self.settings.files_dir, REQUIREMENTS_FNAME), "w"
+                ) as f:
+                    f.write("\n".join(installed_packages_list))
+            except Exception as e:
+                logger.exception(f"Error saving pip packages: {e}")
+            logger.debug("Saving pip packages done")
+            self.backend.interface.publish_files(
+                dict(files=[(REQUIREMENTS_FNAME, "now")])
+            )
         return run
 
 
