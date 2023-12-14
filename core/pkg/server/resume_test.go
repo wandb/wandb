@@ -71,12 +71,13 @@ func appender(target *string, defaultVal string) *string {
 func TestUpdate(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 
-	data1 := `["{\"_step\":1,\"_runtime\":50}"]`
-	data2 := `{"loss": 0.5}`
-	data3 := `{"lr": {"value": 0.001}}`
-	data4 := `{"_step":2}`
-	data5 := `["invalid_history"]`
-	data6 := `{"_step": {"other": 2}}`
+	validHistory := `["{\"_step\":1,\"_runtime\":50}"]`
+	validHistoryStep0 := `["{\"_step\":0}"]`
+	validSummary := `{"loss": 0.5}`
+	validConfig := `{"lr": {"value": 0.001}}`
+	invalidHistoryOrConfig := `{"_step":0}`
+	invalidHistory := `["invalid_history"]`
+	invalidConfig := `{"_step": {"other": 2}}`
 
 	testCases := []struct {
 		name                   string
@@ -113,7 +114,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "valid_resume_history",
 			resumeMode:         "must",
-			bucket:             createBucketRawData(1, 0, 0, &data1, nil, nil, nil),
+			bucket:             createBucketRawData(1, 0, 0, &validHistory, nil, nil, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 2,
@@ -121,9 +122,27 @@ func TestUpdate(t *testing.T) {
 			expectError:        false,
 		},
 		{
+			name:               "valid_resume_history_step_0",
+			resumeMode:         "must",
+			bucket:             createBucketRawData(0, 0, 0, nil, nil, nil, nil),
+			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:      true,
+			expectStartingStep: 0,
+			expectError:        false,
+		},
+		{
+			name:               "valid_resume_history_step_0_line_count_1",
+			resumeMode:         "must",
+			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, nil, nil, nil),
+			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:      true,
+			expectStartingStep: 1,
+			expectError:        false,
+		},
+		{
 			name:                "valid_resume_summary",
 			resumeMode:          "must",
-			bucket:              createBucketRawData(0, 0, 0, nil, nil, &data2, nil),
+			bucket:              createBucketRawData(0, 0, 0, nil, nil, &validSummary, nil),
 			run:                 &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:       true,
 			expectSummaryUpdate: true,
@@ -132,7 +151,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "valid_resume_config",
 			resumeMode:         "must",
-			bucket:             createBucketRawData(0, 0, 0, nil, &data3, nil, nil),
+			bucket:             createBucketRawData(0, 0, 0, nil, &validConfig, nil, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectConfigUpdate: true,
@@ -150,7 +169,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:                   "invalid_resume_history_tail",
 			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, &data4, nil, nil, nil),
+			bucket:                 createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, nil, nil, nil),
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
 			expectError:            true,
@@ -159,7 +178,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:                   "invalid_resume_history_tail_map",
 			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, &data5, nil, nil, nil),
+			bucket:                 createBucketRawData(0, 0, 0, &invalidHistory, nil, nil, nil),
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
 			expectError:            true,
@@ -168,7 +187,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:                   "invalid_resume_summary",
 			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, nil, nil, &data5, nil),
+			bucket:                 createBucketRawData(0, 0, 0, nil, nil, &invalidHistory, nil),
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
 			expectError:            true,
@@ -177,7 +196,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:                   "invalid_resume_config",
 			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, nil, &data5, nil, nil),
+			bucket:                 createBucketRawData(0, 0, 0, nil, &invalidHistory, nil, nil),
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
 			expectError:            true,
@@ -186,7 +205,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "invalid_resume_config_value",
 			resumeMode:    "must",
-			bucket:        createBucketRawData(0, 0, 0, nil, &data4, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, nil, &invalidHistoryOrConfig, nil, nil),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
@@ -194,7 +213,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "invalid_resume_config_no_value",
 			resumeMode:    "must",
-			bucket:        createBucketRawData(0, 0, 0, nil, &data6, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, nil, &invalidConfig, nil, nil),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
