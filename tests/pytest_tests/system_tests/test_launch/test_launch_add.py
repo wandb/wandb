@@ -552,6 +552,15 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
         "create_run_queue_introspection",
         patched_create_run_queue_introspection,
     )
+    
+    def patched_push_to_run_queue_by_name(*args, **kwargs):
+        return None
+    
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        patched_push_to_run_queue_by_name,
+    )
 
     queue_name = "no_prio_queue"
     proj = "test1"
