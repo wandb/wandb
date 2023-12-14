@@ -503,6 +503,52 @@ func (s *Sender) serializeConfig() string {
 	return string(configJson)
 }
 
+func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{
+			RunResult: runResult,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+
+}
+
+func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
+	if s.graphqlClient == nil {
+		return nil
+	}
+	// There was no resume status set, so we don't need to do anything
+	if s.settings.GetResume().GetValue() == "" {
+		return nil
+	}
+
+	// init resume state if it doesn't exist
+	s.resumeState = NewResumeState(s.logger, s.settings.GetResume().GetValue())
+	run := s.RunRecord
+	// If we couldn't get the resume status, we should fail if resume is set
+	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
+	if err != nil {
+		err = fmt.Errorf("failed to get run resume status: %s", err)
+		s.logger.Error("sender:", "error", err)
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Message: err.Error(),
+				Code:    service.ErrorInfo_COMMUNICATION,
+			}}
+		s.sendRunResult(record, result)
+		return err
+	}
+
+	if result, err := s.resumeState.Update(data, s.RunRecord, s.configMap); err != nil {
+		s.sendRunResult(record, result)
+		return err
+	}
+
+	return nil
+}
+
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	if s.RunRecord == nil && s.graphqlClient != nil {
@@ -513,7 +559,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 		}
 
-		if err := s.checkAndUpdateResumeState(record, s.RunRecord); err != nil {
+		if err := s.checkAndUpdateResumeState(record); err != nil {
 			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
 			return
 		}
