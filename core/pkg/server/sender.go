@@ -541,7 +541,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		return err
 	}
 
-	if result, err := s.resumeState.update(data, s.RunRecord, s.configMap); err != nil {
+	if result, err := s.resumeState.Update(data, s.RunRecord, s.configMap); err != nil {
 		s.sendRunResult(record, result)
 		return err
 	}
