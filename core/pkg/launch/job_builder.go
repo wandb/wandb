@@ -363,6 +363,7 @@ func (j *JobBuilder) buildArtifactJobSource(programRelPath string, metadata RunM
 
 	return source, &name, nil
 }
+
 func (j *JobBuilder) buildImageJobSource(metadata RunMetadata) (*ImageSource, *string, error) {
 	if metadata.Docker == nil {
 		return nil, nil, fmt.Errorf("no docker image provided for image sourced job")
@@ -390,6 +391,9 @@ func (j *JobBuilder) buildImageJobSource(metadata RunMetadata) (*ImageSource, *s
 }
 
 func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
+	if j.Disable {
+		return nil, nil
+	}
 	fileDir := j.settings.FilesDir.GetValue()
 	_, err := os.Stat(filepath.Join(fileDir, REQUIREMENTS_FNAME))
 	if os.IsNotExist(err) {
