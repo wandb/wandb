@@ -477,6 +477,8 @@ def test_launch_add_repository(
 
 def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
     def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_variables = True
+        args[0].server_push_to_run_queue_supports_priority = True
         return (True, True)
 
     monkeypatch.setattr(
@@ -486,6 +488,8 @@ def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
     )
 
     def patched_create_run_queue_introspection(*args, **kwargs):
+        args[0].server_create_run_queue_supports_drc = True
+        args[0].server_create_run_queue_supports_priority = True
         return (True, True, True)
 
     monkeypatch.setattr(
@@ -528,6 +532,8 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     runner, relay_server, user, monkeypatch
 ):
     def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_variables = True
+        args[0].server_push_to_run_queue_supports_priority = True
         return (True, True)
 
     monkeypatch.setattr(
@@ -537,6 +543,8 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     )
 
     def patched_create_run_queue_introspection(*args, **kwargs):
+        args[0].server_create_run_queue_supports_drc = True
+        args[0].server_create_run_queue_supports_priority = True
         return (True, True, True)
 
     monkeypatch.setattr(
