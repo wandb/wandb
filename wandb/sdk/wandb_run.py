@@ -1416,12 +1416,14 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: Dict[str, Any], nested_key: str ="") -> Dict[str, Any]:
+    def _visualization_hack(
+        self, row: Dict[str, Any], nested_key: str = ""
+    ) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
         split_table_set = set()
         for k in row:
-            nested_key = nested_key+("." if nested_key else "")+k
+            nested_key = nested_key + ("." if nested_key else "") + k
             if isinstance(row[k], Visualize):
                 key = row[k].get_config_key(k)
                 value = row[k].get_config_value(k)
@@ -1432,7 +1434,8 @@ class Run:
                 key = row[k].get_config_key(k)
                 if row[k]._split_table:
                     value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{nested_key}_table")
+                        "Vega2",
+                        row[k].user_query(f"Custom Chart Tables/{nested_key}_table"),
                     )
                     split_table_set.add(k)
                 else:
@@ -1442,8 +1445,8 @@ class Run:
                 row[k] = row[k]._data
                 self._config_callback(val=value, key=key)
             elif isinstance(row[k], dict):
-                row[k]=self._visualization_hack(row[k],nested_key)
-        
+                row[k] = self._visualization_hack(row[k], nested_key)
+
         for k in chart_keys:
             # remove the chart key from the row
             # TODO: is this really the right move? what if the user logs
@@ -1451,7 +1454,7 @@ class Run:
             if k in split_table_set:
                 row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
             else:
-                row[f"{k}_table"] = row.pop(k)       
+                row[f"{k}_table"] = row.pop(k)
         return row
 
     def _partial_history_callback(
@@ -1463,19 +1466,6 @@ class Run:
         row = row.copy()
         if row:
             row = self._visualization_hack(row)
-
-
-        # def nested_keys_to_string(d, separator='.', parent_key=''):
-        #     result = {}
-        #     for k, v in d.items():
-        #         new_key = f"{parent_key}{separator}{k}" if parent_key else k
-        #         if isinstance(v, dict):
-        #             result.update(nested_keys_to_string(v, separator, new_key))
-        #         else:
-        #             result[new_key] = v
-        #     return result
-
-        # row = nested_keys_to_string(row)
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0

@@ -550,7 +550,6 @@ class InterfaceBase:
         data.pop("_step", None)
         # print(data)
 
-
         # add timestamp to the history request, if not already present
         # the timestamp might come from the tensorboard log logic
         if "_timestamp" not in data:
