@@ -336,9 +336,10 @@ class KubernetesRunner(AbstractRunner):
         job_metadata.setdefault("labels", {})
         job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
+        agent_name = ""
         if LaunchAgent.initialized():
-            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
-
+            agent_name = LaunchAgent.name()
+            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = agent_name
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
             job_metadata["generateName"] = make_name_dns_safe(
@@ -393,13 +394,13 @@ class KubernetesRunner(AbstractRunner):
             for key, value in env_vars.items():
                 if key == "WANDB_API_KEY" and value:
                     # Override API key with secret. TODO: Do the same for other runners
-                    await create_api_key_secret(core_api, namespace, value)
+                    await create_api_key_secret(core_api, agent_name, namespace, value)
                     env.append(
                         {
                             "name": key,
                             "valueFrom": {
                                 "secretKeyRef": {
-                                    "name": "wandb-api-key",
+                                    "name": f"wandb-api-key-{agent_name}",
                                     "key": "password",
                                 }
                             },
@@ -426,7 +427,7 @@ class KubernetesRunner(AbstractRunner):
             add_label_to_pods(
                 job,
                 WANDB_K8S_LABEL_AGENT,
-                LaunchAgent.name(),
+                agent_name,
             )
 
         return job, secret
@@ -609,6 +610,7 @@ def inject_entrypoint_and_args(
 
 async def create_api_key_secret(
     core_api: "CoreV1Api",
+    agent_id: str,
     namespace: str,
     api_key: str,
 ) -> "V1Secret":
@@ -625,7 +627,9 @@ async def create_api_key_secret(
     secret_data = {"password": base64.b64encode(api_key.encode()).decode()}
     secret = client.V1Secret(
         data=secret_data,
-        metadata=client.V1ObjectMeta(name="wandb-api-key", namespace=namespace),
+        metadata=client.V1ObjectMeta(
+            name=f"wandb-api-key-{agent_id}", namespace=namespace
+        ),
         kind="Secret",
         type="kubernetes.io/basic-auth",
     )
@@ -636,10 +640,9 @@ async def create_api_key_secret(
         except ApiException as e:
             # 409 = conflict = secret already exists
             if e.status == 409:
-                await core_api.delete_namespaced_secret(
-                    name="wandb-api-key", namespace=namespace
+                return await core_api.read_namespaced_secret(
+                    name=f"wandb-api-key-{agent_id}", namespace=namespace
                 )
-                return await core_api.create_namespaced_secret(namespace, secret)
             raise
     except Exception as e:
         raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
