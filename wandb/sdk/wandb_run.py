@@ -1488,66 +1488,6 @@ class Run:
                 publish_step=not_using_tensorboard,
             )
 
-
-        # # go through the dictionary we are logging and check recursively if it's nested
-        # def nested_row_check(row_dict, key=""):
-        #     for dict_key, dict_val in row_dict.items():
-        #         full_key_path = key + ("/" if key else "") + dict_key  # Add "/" only if key is not empty 
-        #         if isinstance(dict_val, dict):
-        #             nested_row_check(dict_val,full_key_path)
-        #         else:
-        #             row_to_publish = self._visualization_hack({full_key_path:dict_val})
-        #             if self._backend and self._backend.interface:
-        #                 not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-        #                 self._backend.interface.publish_partial_history(
-        #                     row_to_publish,
-        #                     user_step=self._step,
-        #                     step=step,
-        #                     flush=commit,
-        #                     publish_step=not_using_tensorboard,
-        #                 )
-        # nested_row_check(row)
-
-        # def recursively_build_all_branches(input_dict, current_branch=[], yes=""):
-        #     # Initialize the result dictionary for the current branch
-        #     for dict_key, value in input_dict.items():
-                
-        #         # for custom charts scenario
-        #         full_key_path = yes + ("/" if yes else "") + dict_key  
-        #         # Add the key-value pair to the current branch
-        #         current_branch.append(dict_key)
-
-        #         if isinstance(value, dict):
-        #             # Recursively process nested dictionaries
-        #             recursively_build_all_branches(value, current_branch.copy(), full_key_path)
-        #         else:
-        #             # If the value is not a dictionary, add it to the result dictionary
-        #             if isinstance(value, CustomChart):
-        #                 dictForValHack = {full_key_path:value}
-        #             else:
-        #                 nested_dict = value
-        #                 for dict_key in reversed(current_branch):
-        #                     nested_dict = {dict_key: nested_dict}
-        #                 dictForValHack = nested_dict
-                        
-        #             row_to_publish = self._visualization_hack(dictForValHack)
-        #             if self._backend and self._backend.interface:
-        #                 not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-        #                 self._backend.interface.publish_partial_history(
-        #                     row_to_publish,
-        #                     user_step=self._step,
-        #                     step=step,
-        #                     flush=commit,
-        #                     publish_step=not_using_tensorboard,
-        #                 )
-                        
-
-        #         # Remove the last key from the current branch to backtrack
-        #         current_branch.pop()
-        # recursively_build_all_branches(row)
-
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
