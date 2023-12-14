@@ -74,6 +74,9 @@ func TestUpdate(t *testing.T) {
 	data1 := `["{\"_step\":1,\"_runtime\":50}"]`
 	data2 := `{"loss": 0.5}`
 	data3 := `{"lr": {"value": 0.001}}`
+	data4 := `{"_step":2}`
+	data5 := `["invalid_history"]`
+	data6 := `{"_step": {"other": 2}}`
 
 	testCases := []struct {
 		name                   string
@@ -143,6 +146,58 @@ func TestUpdate(t *testing.T) {
 			expectResumed:    true,
 			expectTagsUpdate: true,
 			expectError:      false,
+		},
+		{
+			name:                   "invalid_resume_history_tail",
+			resumeMode:             "must",
+			bucket:                 createBucketRawData(0, 0, 0, &data4, nil, nil, nil),
+			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:          false,
+			expectError:            true,
+			expectedErrorSubstring: "failed to unmarshal history tail",
+		},
+		{
+			name:                   "invalid_resume_history_tail_map",
+			resumeMode:             "must",
+			bucket:                 createBucketRawData(0, 0, 0, &data5, nil, nil, nil),
+			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:          false,
+			expectError:            true,
+			expectedErrorSubstring: "failed to unmarshal history tail map",
+		},
+		{
+			name:                   "invalid_resume_summary",
+			resumeMode:             "must",
+			bucket:                 createBucketRawData(0, 0, 0, nil, nil, &data5, nil),
+			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:          false,
+			expectError:            true,
+			expectedErrorSubstring: "failed to unmarshal summary metrics",
+		},
+		{
+			name:                   "invalid_resume_config",
+			resumeMode:             "must",
+			bucket:                 createBucketRawData(0, 0, 0, nil, &data5, nil, nil),
+			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed:          false,
+			expectError:            true,
+			expectedErrorSubstring: "failed to unmarshal config",
+		},
+		{
+			name:          "invalid_resume_config_value",
+			resumeMode:    "must",
+			bucket:        createBucketRawData(0, 0, 0, nil, &data4, nil, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: true,
+			expectError:   false,
+		},
+		{
+			name:          "invalid_resume_config_no_value",
+			resumeMode:    "must",
+			bucket:        createBucketRawData(0, 0, 0, nil, &data6, nil, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: true,
+			expectError:   false,
 		},
 	}
 

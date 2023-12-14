@@ -190,11 +190,12 @@ func (r *ResumeState) updateConfig(bucket *Bucket, config map[string]interface{}
 		}
 	}
 
-	// TODO: should we use the run record config instead of the sender config?
 	for key, value := range cfg {
 		switch v := value.(type) {
 		case map[string]interface{}:
-			config[key] = v["value"]
+			if val, ok := v["value"]; ok {
+				config[key] = val
+			}
 		default:
 			r.logger.Error("sender: updateResumeState: config value is not a map[string]interface{}")
 		}
