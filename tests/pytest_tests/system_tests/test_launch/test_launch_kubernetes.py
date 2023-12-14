@@ -12,6 +12,8 @@ from wandb.sdk.launch.utils import make_name_dns_safe
 async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
     pass
 
+async def _mock_create_api_key_secret(*args, **kwargs):
+    pass
 
 @pytest.mark.asyncio
 async def test_kubernetes_run_clean_generate_name(
@@ -141,6 +143,11 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
             kubernetes_runner,
             "maybe_create_imagepull_secret",
             _mock_maybe_create_imagepull_secret,
+        )
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "create_api_key_secret",
+            _mock_create_api_key_secret,
         )
         project.launch_spec = {"_resume_count": 0}
         run = await runner.run(image_uri="hello-world", launch_project=project)
