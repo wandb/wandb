@@ -390,9 +390,23 @@ class KubernetesRunner(AbstractRunner):
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env") or []
-            env.extend(
-                [{"name": key, "value": value} for key, value in env_vars.items()]
-            )
+            for key, value in env_vars.items():
+                if key == "WANDB_API_KEY":
+                    # Override API key with secret. TODO: Do the same for other runners
+                    await create_api_key_secret(core_api, namespace, value)
+                    env.append(
+                        {
+                            "name": key,
+                            "valueFrom": {
+                                "secretKeyRef": {
+                                    "name": "wandb-api-key",
+                                    "key": "password",
+                                }
+                            },
+                        }
+                    )
+                else:
+                    env.append({"name": key, "value": value})
             cont["env"] = env
 
         pod_spec["containers"] = containers
@@ -591,6 +605,44 @@ def inject_entrypoint_and_args(
             not containers[i].get("command") or should_override_entrypoint
         ):
             containers[i]["command"] = entry_point.command
+
+
+async def create_api_key_secret(
+    core_api: "CoreV1Api",
+    namespace: str,
+    api_key: str,
+) -> "V1Secret":
+    """Create a secret containing a user's wandb API key.
+
+    Arguments:
+        core_api: The Kubernetes CoreV1Api object.
+        namespace: The namespace to create the secret in.
+        api_key: The user's wandb API key
+
+    Returns:
+        The created secret
+    """
+    secret_data = {"password": base64.b64encode(api_key.encode()).decode()}
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(name="wandb-api-key", namespace=namespace),
+        kind="Secret",
+        type="kubernetes.io/basic-auth",
+    )
+
+    try:
+        try:
+            return await core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            # 409 = conflict = secret already exists
+            if e.status == 409:
+                await core_api.delete_namespaced_secret(
+                    name="wandb-api-key", namespace=namespace
+                )
+                return await core_api.create_namespaced_secret(namespace, secret)
+            raise
+    except Exception as e:
+        raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
 
 
 async def maybe_create_imagepull_secret(
