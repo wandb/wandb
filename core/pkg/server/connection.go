@@ -355,5 +355,4 @@ func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardow
 	slog.Debug("handle teardown received", "id", nc.id)
 	close(nc.teardownChan)
 	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
-	nc.Close()
 }
