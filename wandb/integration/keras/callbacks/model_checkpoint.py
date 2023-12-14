@@ -1,4 +1,3 @@
-import glob
 import os
 import string
 import sys
@@ -9,6 +8,7 @@ from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
 from wandb.sdk.lib import telemetry
+from wandb.sdk.lib.paths import StrPath
 
 from ..keras import patch_tf_keras
 
@@ -25,17 +25,17 @@ patch_tf_keras()
 
 
 class WandbModelCheckpoint(callbacks.ModelCheckpoint):
-    """`WandbModelCheckpoint` periodically saves a Keras model or model weights
-    and uploads it to W&B as a `wandb.Artifact`.
+    """A checkpoint that periodically saves a Keras model or model weights.
 
-    Since this callback is subclassed from `tf.keras.callbacks.ModelCheckpoint`,
-    the checkpointing logic is taken care of by the parent callback. You can learn
-    more here:
-    https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint
+    Saved weights are uploaded to W&B as a `wandb.Artifact`.
 
-    This callback is to be used in conjunction with training using `model.fit()`
-    to save a model or weights (in a checkpoint file) at some interval. The
-    model checkpoints will be logged as W&B Artifacts. You can learn more here:
+    Since this callback is subclassed from `tf.keras.callbacks.ModelCheckpoint`, the
+    checkpointing logic is taken care of by the parent callback. You can learn more
+    here: https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint
+
+    This callback is to be used in conjunction with training using `model.fit()` to save
+    a model or weights (in a checkpoint file) at some interval. The model checkpoints
+    will be logged as W&B Artifacts. You can learn more here:
     https://docs.wandb.ai/guides/artifacts
 
     This callback provides the following features:
@@ -46,34 +46,41 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         - Save the model either in SavedModel format or in `.h5` format.
 
     Arguments:
-        filepath (Union[str, os.PathLike]): path to save the model file.
-        monitor (str): The metric name to monitor.
-        verbose (int): Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
+        filepath: (Union[str, os.PathLike]) path to save the model file. `filepath`
+            can contain named formatting options, which will be filled by the value
+            of `epoch` and keys in `logs` (passed in `on_epoch_end`). For example:
+            if `filepath` is `model-{epoch:02d}-{val_loss:.2f}`, then the
+            model checkpoints will be saved with the epoch number and the
+            validation loss in the filename.
+        monitor: (str) The metric name to monitor. Default to "val_loss".
+        verbose: (int) Verbosity mode, 0 or 1. Mode 0 is silent, and mode 1
             displays messages when the callback takes an action.
-        save_best_only (bool): if `save_best_only=True`, it only saves when the model
+        save_best_only: (bool) if `save_best_only=True`, it only saves when the model
             is considered the "best" and the latest best model according to the
-            quantity monitored will not be overwritten.
-        save_weights_only (bool): if True, then only the model's weights will be saved.
-        mode (Mode): one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
+            quantity monitored will not be overwritten. If `filepath` doesn't contain
+            formatting options like `{epoch}` then `filepath` will be overwritten by
+            each new better model locally. The model logged as an artifact will still be
+            associated with the correct `monitor`.  Artifacts will be uploaded
+            continuously and versioned separately as a new best model is found.
+        save_weights_only: (bool) if True, then only the model's weights will be saved.
+        mode: (Mode) one of {'auto', 'min', 'max'}. For `val_acc`, this should be `max`,
             for `val_loss` this should be `min`, etc.
-        save_weights_only (bool): if True, then only the model's weights will be saved
-        save_freq (Union[SaveStrategy, int]): `epoch` or integer. When using `'epoch'`,
+        save_freq: (Union[SaveStrategy, int]) `epoch` or integer. When using `'epoch'`,
             the callback saves the model after each epoch. When using an integer, the
             callback saves the model at end of this many batches.
             Note that when monitoring validation metrics such as `val_acc` or `val_loss`,
             save_freq must be set to "epoch" as those metrics are only available at the
             end of an epoch.
-
-        options (Optional[str]): Optional `tf.train.CheckpointOptions` object if
+        options: (Optional[str]) Optional `tf.train.CheckpointOptions` object if
             `save_weights_only` is true or optional `tf.saved_model.SaveOptions`
             object if `save_weights_only` is false.
-        initial_value_threshold (Optional[float]): Floating point initial "best" value of the metric
+        initial_value_threshold: (Optional[float]) Floating point initial "best" value of the metric
             to be monitored.
     """
 
     def __init__(
         self,
-        filepath: Union[str, os.PathLike],
+        filepath: StrPath,
         monitor: str = "val_loss",
         verbose: int = 0,
         save_best_only: bool = False,
@@ -148,23 +155,16 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         """Log model checkpoint as  W&B Artifact."""
         try:
             assert wandb.run is not None
-            model_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", type="model")
-            if self.save_weights_only:
-                # We get three files when this is True
-                model_artifact.add_file(
-                    os.path.join(os.path.dirname(filepath), "checkpoint")
-                )
-                model_artifact.add_file(filepath + ".index")
-                # In a distributed setting we get multiple shards.
-                for file in glob.glob(f"{filepath}.data-*"):
-                    model_artifact.add_file(file)
-            elif filepath.endswith(".h5"):
-                # Model saved in .h5 format thus we get one file.
-                model_artifact.add_file(filepath)
+            model_checkpoint_artifact = wandb.Artifact(
+                f"run_{wandb.run.id}_model", type="model"
+            )
+            if os.path.isfile(filepath):
+                model_checkpoint_artifact.add_file(filepath)
+            elif os.path.isdir(filepath):
+                model_checkpoint_artifact.add_dir(filepath)
             else:
-                # Model saved in the SavedModel format thus we have dir.
-                model_artifact.add_dir(filepath)
-            wandb.log_artifact(model_artifact, aliases=aliases or [])
+                raise FileNotFoundError(f"No such file or directory {filepath}")
+            wandb.log_artifact(model_checkpoint_artifact, aliases=aliases or [])
         except ValueError:
             # This error occurs when `save_best_only=True` and the model
             # checkpoint is not saved for that epoch/batch. Since TF/Keras
@@ -189,9 +189,12 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if self._is_old_tf_keras_version is None:
             from pkg_resources import parse_version
 
-            if parse_version(tf.keras.__version__) < parse_version("2.6.0"):
-                self._is_old_tf_keras_version = True
-            else:
+            try:
+                if parse_version(tf.keras.__version__) < parse_version("2.6.0"):
+                    self._is_old_tf_keras_version = True
+                else:
+                    self._is_old_tf_keras_version = False
+            except AttributeError:
                 self._is_old_tf_keras_version = False
 
         return self._is_old_tf_keras_version

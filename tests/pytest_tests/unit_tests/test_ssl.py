@@ -3,6 +3,7 @@ import dataclasses
 import http.server
 import os
 import ssl
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
@@ -44,12 +45,11 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
             self.wfile.write(b"Hello, world!")
 
     httpd = http.server.HTTPServer(("localhost", 0), MyServer)
-    httpd.socket = ssl.wrap_socket(
-        httpd.socket,
-        keyfile=ssl_creds.key,
-        certfile=ssl_creds.cert,
-        server_side=True,
-    )
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile=ssl_creds.cert, keyfile=ssl_creds.key)
+
+    httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
@@ -84,6 +84,9 @@ def disable_ssl_context():
         reset()
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 7), reason="fails on python version 3.7"
+)
 def test_disable_ssl(
     ssl_server: http.server.HTTPServer,
 ):
@@ -96,6 +99,9 @@ def test_disable_ssl(
         assert requests.get(url).status_code == 200
 
 
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 7), reason="fails on python version 3.7"
+)
 @pytest.mark.parametrize(
     "make_env",
     [

@@ -2,7 +2,7 @@ from typing import Optional, Union
 
 from .helpers import LineKey, PCColumn
 from .util import Attr, Panel, coalesce, nested_get, nested_set
-from .validators import (  # MARKS,; Between,
+from .validators import (
     AGGFUNCS,
     CODE_COMPARE_DIFF,
     FONT_SIZES,
@@ -570,9 +570,9 @@ class ParallelCoordinatesPlot(Panel):
         validators=[TypeValidator(Union[PCColumn, str], how="keys")],
     )
     title: Optional[str] = Attr(json_path="spec.config.chartTitle")
+    gradient: Optional[list] = Attr(json_path="spec.config.customGradient")
 
     # Attr(json_path="spec.config.dimensions")
-    # Attr(json_path="spec.config.customGradient")
     # Attr(json_path="spec.config.gradientColor")
     # Attr(json_path="spec.config.legendFields")
     font_size: Optional[str] = Attr(
@@ -650,7 +650,7 @@ class RunComparer(Panel):
 
 class MediaBrowser(Panel):
     num_columns: Optional[int] = Attr(json_path="spec.config.columnCount")
-    media_keys: Optional[str] = Attr(json_path="spec.config.media_keys")
+    media_keys: Optional[str] = Attr(json_path="spec.config.mediaKeys")
     # Attr(json_path="spec.config.chartTitle")
     # Attr(json_path="spec.config.stepIndex")
     # Attr(json_path="spec.config.mediaIndex")
@@ -720,14 +720,32 @@ class Vega(Panel):
 class CustomChart(Panel):
     query: dict = Attr(json_path="spec.config.userQuery.queryFields")
     chart_name: str = Attr(json_path="spec.config.panelDefId")
-    user_fields: dict = Attr(json_path="spec.config.fieldSettings")
+    chart_fields: dict = Attr(json_path="spec.config.fieldSettings")
+    chart_strings: dict = Attr(json_path="spec.config.stringSettings")
 
-    def __init__(self, query=None, chart_name="", user_fields=None, *args, **kwargs):
+    def __init__(
+        self,
+        query=None,
+        chart_name="",
+        chart_fields=None,
+        chart_strings=None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.spec["config"] = {"transform": {"name": "tableWithLeafColNames"}}
         self.query = coalesce(query, {})
         self.chart_name = chart_name
-        self.user_fields = coalesce(user_fields, {})
+        self.chart_fields = coalesce(chart_fields, {})
+        self.chart_strings = coalesce(chart_strings, {})
+
+    @classmethod
+    def from_table(cls, table_name, chart_fields=None, chart_strings=None):
+        return CustomChart(
+            query={"summaryTable": {"tableKey": table_name}},
+            chart_fields=chart_fields,
+            chart_strings=chart_strings,
+        )
 
     @property
     def view_type(self) -> str:
@@ -735,46 +753,51 @@ class CustomChart(Panel):
 
     @query.getter
     def query(self):
-        d = nested_get(self, self._get_path("query"))
-        fields = d[0]["fields"]
-        query = {o["name"]: o.get("args") for o in fields}
-        query = {
-            k: v[0]["value"] if v is not None else None
-            for k, v in query.items()
-            if k not in ("id", "name")
-        }
-        return query
+        def fields_to_dict(fields):
+            d = {}
+            for field in fields:
+                keys = set(field.keys())
+                name = field["name"]
+
+                if keys == {"name", "fields"}:
+                    d[name] = {}
+                elif keys == {"name", "value"}:
+                    d[name] = field["value"]
+                elif keys == {"name", "args", "fields"}:
+                    d[name] = fields_to_dict(field["args"])
+            return d
+
+        fields = nested_get(self, self._get_path("query"))
+        return fields_to_dict(fields)
 
     @query.setter
     def query(self, d):
-        def make_fields(d):
+        def dict_to_fields(d):
             fields = []
             for k, v in d.items():
-                if v is None:
+                if isinstance(v, dict) and len(v) > 0:
+                    field = {"name": k, "args": dict_to_fields(v), "fields": []}
+                elif isinstance(v, dict) and len(v) == 0 or v is None:
                     field = {"name": k, "fields": []}
                 else:
-                    field = {
-                        "name": k,
-                        "fields": [],
-                        "args": [{"name": "keys", "value": v}],
-                    }
+                    field = {"name": k, "value": v}
                 fields.append(field)
-            if "id" not in d:
-                fields.append({"name": "id", "fields": []})
-            if "name" not in d:
-                fields.append({"name": "name", "fields": []})
             return fields
 
-        query = {
-            "args": [
-                {"name": "runSets", "value": "${runSets}"},
-                {"name": "limit", "value": 500},
-            ],
-            "name": "runSets",
-        }
-        query["fields"] = make_fields(d)
-        query = [query]
-        nested_set(self, self._get_path("query"), query)
+        d.setdefault("id", [])
+        d.setdefault("name", [])
+
+        _query = [
+            {
+                "args": [
+                    {"name": "runSets", "value": r"${runSets}"},
+                    {"name": "limit", "value": 500},
+                ],
+                "fields": dict_to_fields(d),
+                "name": "runSets",
+            }
+        ]
+        nested_set(self, self._get_path("query"), _query)
 
 
 class Vega3(Panel):

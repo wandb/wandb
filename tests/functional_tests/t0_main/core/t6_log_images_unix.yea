@@ -5,6 +5,9 @@ tag:
   platforms:
     - linux
     - mac
+depend:
+  requirements:
+    - pillow
 command:
   program: t6_log_images.py
 assert:

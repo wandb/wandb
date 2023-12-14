@@ -4,7 +4,7 @@ import logging
 import socket
 import sys
 import threading
-import time
+import traceback
 import urllib.parse
 from collections import defaultdict, deque
 from copy import deepcopy
@@ -27,6 +27,7 @@ import responses
 
 import wandb
 import wandb.util
+from wandb.sdk.lib.timer import Timer
 
 try:
     from typing import Literal, TypedDict
@@ -73,42 +74,44 @@ class DeliberateHTTPError(Exception):
         return f"DeliberateHTTPError({self.message!r}, {self.status_code!r})"
 
 
-class Timer:
-    def __init__(self) -> None:
-        self.start: float = time.perf_counter()
-        self.stop: float = self.start
+@dataclasses.dataclass
+class RunAttrs:
+    """Simple data class for run attributes."""
 
-    def __enter__(self) -> "Timer":
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self.stop = time.perf_counter()
-
-    @property
-    def elapsed(self) -> float:
-        return self.stop - self.start
+    name: str
+    display_name: str
+    description: str
+    sweep_name: str
+    project: Dict[str, Any]
+    config: Dict[str, Any]
+    remote: Optional[str] = None
+    commit: Optional[str] = None
 
 
 class Context:
-    """
-    Implements a container used to store the snooped state/data of a test,
-    including raw requests and responses; parsed and processed data; and
-    a number of convenience methods and properties for accessing the data.
+    """A container used to store the snooped state/data of a test.
+
+    Includes raw requests and responses, parsed and processed data, and a number of
+    convenience methods and properties for accessing the data.
     """
 
     def __init__(self) -> None:
         # parsed/merged data. keys are the individual wandb run id's.
         self._entries = defaultdict(dict)
         # container for raw requests and responses:
-        self.raw_data: List["RawRequestResponse"] = []
+        self.raw_data: List[RawRequestResponse] = []
         # concatenated file contents for all runs:
         self._history: Optional[pd.DataFrame] = None
         self._events: Optional[pd.DataFrame] = None
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
+        self._output: Optional[Any] = None
 
     def upsert(self, entry: Dict[str, Any]) -> None:
-        entry_id: str = entry["name"]
+        try:
+            entry_id: str = entry["name"]
+        except KeyError:
+            entry_id = entry["id"]
         self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
@@ -177,6 +180,14 @@ class Context:
         return deepcopy(self._summary)
 
     @property
+    def output(self) -> pd.DataFrame:
+        if self._output is not None:
+            return deepcopy(self._output)
+
+        self._output = self.get_file_contents("output.log")
+        return deepcopy(self._output)
+
+    @property
     def config(self) -> Dict[str, Any]:
         if self._config is not None:
             return deepcopy(self._config)
@@ -238,17 +249,36 @@ class Context:
         run_stats = self.events[mask_run]
         return run_stats
 
+    def get_run_attrs(self, run_id: str) -> Optional[RunAttrs]:
+        run_entry = self._entries.get(run_id)
+        if not run_entry:
+            return None
+
+        return RunAttrs(
+            name=run_entry["name"],
+            display_name=run_entry["displayName"],
+            description=run_entry["description"],
+            sweep_name=run_entry["sweepName"],
+            project=run_entry["project"],
+            config=run_entry["config"],
+            remote=run_entry.get("repo"),
+            commit=run_entry.get("commit"),
+        )
+
+    def get_run(self, run_id: str) -> Dict[str, Any]:
+        return self._entries.get(run_id, {})
+
     # todo: add getter (by run_id) utilities for other properties
 
 
 class QueryResolver:
-    """
-    Resolves request/response pairs against a set of known patterns
-    to extract and process useful data, to be later stored in a Context object.
+    """Resolve request/response pairs against a set of known patterns.
+
+    This extracts and processes useful data to be later stored in a Context object.
     """
 
     def __init__(self):
-        self.resolvers: List["Resolver"] = [
+        self.resolvers: List[Resolver] = [
             {
                 "name": "upsert_bucket",
                 "resolver": self.resolve_upsert_bucket,
@@ -262,6 +292,10 @@ class QueryResolver:
                 "resolver": self.resolve_uploaded_files,
             },
             {
+                "name": "uploaded_files_legacy",
+                "resolver": self.resolve_uploaded_files_legacy,
+            },
+            {
                 "name": "preempting",
                 "resolver": self.resolve_preempting,
             },
@@ -269,9 +303,14 @@ class QueryResolver:
                 "name": "upsert_sweep",
                 "resolver": self.resolve_upsert_sweep,
             },
-            # { "name": "create_artifact",
-            #     "resolver": self.resolve_create_artifact,
-            # },
+            {
+                "name": "create_artifact",
+                "resolver": self.resolve_create_artifact,
+            },
+            {
+                "name": "delete_run",
+                "resolver": self.resolve_delete_run,
+            },
         ]
 
     @staticmethod
@@ -282,8 +321,27 @@ class QueryResolver:
             return None
         query = response_data.get("data", {}).get("upsertBucket") is not None
         if query:
-            data = response_data["data"]["upsertBucket"].get("bucket")
-            data["config"] = json.loads(data["config"])
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["upsertBucket"].get("bucket"))
+            if "config" in data:
+                data["config"] = json.loads(data["config"])
+            return data
+        return None
+
+    @staticmethod
+    def resolve_delete_run(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+        query = "query" in request_data and "deleteRun" in request_data["query"]
+        if query:
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["deleteRun"])
             return data
         return None
 
@@ -293,24 +351,29 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
+
         query = request_data.get("files") is not None
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
             name = kwargs.get("path").split("/")[2]
-            files = {
-                file_name: [
-                    {
-                        "content": [
-                            json.loads(k) for k in file_value.get("content", [])
-                        ],
-                        "offset": file_value.get("offset"),
-                    }
-                ]
-                for file_name, file_value in request_data["files"].items()
-            }
+            files = defaultdict(list)
+            for file_name, file_value in request_data["files"].items():
+                content = []
+                for k in file_value.get("content", []):
+                    try:
+                        content.append(json.loads(k))
+                    except json.decoder.JSONDecodeError:
+                        content.append([k])
+
+                files[file_name].append(
+                    {"offset": file_value.get("offset"), "content": content}
+                )
+
             post_processed_data = {
                 "name": name,
-                "dropped": [request_data["dropped"]],
+                "dropped": [request_data["dropped"]]
+                if "dropped" in request_data
+                else [],
                 "files": files,
             }
             return post_processed_data
@@ -322,6 +385,30 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict) or not isinstance(response_data, dict):
             return None
+
+        query = "CreateRunFiles" in request_data.get("query", "")
+        if query:
+            run_name = request_data["variables"]["run"]
+            files = ((response_data.get("data") or {}).get("createRunFiles") or {}).get(
+                "files", {}
+            )
+            post_processed_data = {
+                "name": run_name,
+                "uploaded": [file["name"] for file in files] if files else [""],
+            }
+            return post_processed_data
+        return None
+
+    @staticmethod
+    def resolve_uploaded_files_legacy(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        # This is a legacy resolver for uploaded files
+        # No longer used by tests but leaving it here in case we need it in the future
+        # Please refer to upload_urls() in internal_api.py for more details
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+
         query = "RunUploadUrls" in request_data.get("query", "")
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
@@ -418,7 +505,7 @@ class TokenizedCircularPattern:
 
         if set(pattern) - known_tokens:
             raise ValueError(f"Pattern can only contain {known_tokens}")
-        self.pattern: "Deque[str]" = deque(pattern)
+        self.pattern: Deque[str] = deque(pattern)
 
     def next(self):
         if self.pattern[0] == self.STOP_TOKEN:
@@ -468,9 +555,10 @@ class InjectedResponse:
         self,
         other: Union["InjectedResponse", requests.Request, requests.PreparedRequest],
     ):
-        """
-        Equality check for InjectedResponse objects.
-        We use this to check if this response should be injected as a replacement of `other`.
+        """Check InjectedResponse object equality.
+
+        We use this to check if this response should be injected as a replacement of
+        `other`.
 
         :param other:
         :return:
@@ -483,8 +571,8 @@ class InjectedResponse:
         # always check the method and url
         ret = self.method == other.method and self.url == other.url
         # use custom_match_fn to check, e.g. the request body content
-        if self.custom_match_fn is not None:
-            ret = ret and self.custom_match_fn(self, other)
+        if ret and self.custom_match_fn is not None:
+            ret = self.custom_match_fn(self, other)
         return ret
 
     def to_dict(self):
@@ -510,6 +598,7 @@ class RelayServer:
         base_url: str,
         inject: Optional[List[InjectedResponse]] = None,
         control: Optional[RelayControlProtocol] = None,
+        verbose: bool = False,
     ) -> None:
         # todo for the future:
         #  - consider switching from Flask to Quart
@@ -555,9 +644,9 @@ class RelayServer:
         self.session = requests.Session()
         self.relay_url = f"http://127.0.0.1:{self.port}"
 
-        # recursively merge-able object to store state
-        self.resolver = QueryResolver()
         # todo: add an option to add custom resolvers
+        self.resolver = QueryResolver()
+        # recursively merge-able object to store state
         self.context = Context()
 
         # injected responses
@@ -565,6 +654,7 @@ class RelayServer:
 
         # useful when debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
+        self.verbose = verbose
 
     @staticmethod
     def handle_http_exception(e):
@@ -616,13 +706,28 @@ class RelayServer:
             json=request.get_json(),
         ).prepare()
 
+        if self.verbose:
+            print("*****************")
+            print("RELAY REQUEST:")
+            print(prepared_relayed_request.url)
+            print(prepared_relayed_request.method)
+            print(prepared_relayed_request.headers)
+            print(prepared_relayed_request.body)
+            print("*****************")
+
         for injected_response in self.inject:
             # where are we in the application pattern?
             should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
             if injected_response == prepared_relayed_request:
+                if self.verbose:
+                    print("*****************")
+                    print("INJECTING RESPONSE:")
+                    print(injected_response.to_dict())
+                    print("*****************")
                 # rotate the injection pattern
                 injected_response.application_pattern.next()
+                # TODO: allow access to the request object when making the mocked response
                 if should_apply:
                     with responses.RequestsMock() as mocked_responses:
                         # do the actual injection
@@ -649,7 +754,7 @@ class RelayServer:
             self.relay_control.process(request)
 
         # store raw data
-        raw_data: "RawRequestResponse" = {
+        raw_data: RawRequestResponse = {
             "url": request.url,
             "request": request_data,
             "response": response_data,
@@ -657,7 +762,17 @@ class RelayServer:
         }
         self.context.raw_data.append(raw_data)
 
-        snooped_context = self.resolver.resolve(request_data, response_data, **kwargs)
+        try:
+            snooped_context = self.resolver.resolve(
+                request_data,
+                response_data,
+                **kwargs,
+            )
+        except Exception as e:
+            print("Failed to resolve context: ", e)
+            traceback.print_exc()
+            snooped_context = None
+
         if snooped_context is not None:
             self.context.upsert(snooped_context)
 
@@ -667,19 +782,21 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("GRAPHQL REQUEST:")
-        # print(request.get_json())
-        # print("GRAPHQL RESPONSE:")
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("GRAPHQL REQUEST:")
+            print(request.get_json())
+            print("GRAPHQL RESPONSE:")
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
         # snoop work to extract the context
         self.snoop_context(request, relayed_response, timer.elapsed)
-        # print("*****************")
-        # print("SNOOPED CONTEXT:")
-        # print(self.context.entries)
-        # print(len(self.context.raw_data))
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("SNOOPED CONTEXT:")
+            print(self.context.entries)
+            print(len(self.context.raw_data))
+            print("*****************")
 
         return relayed_response.json()
 
@@ -687,16 +804,17 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("FILE STREAM REQUEST:")
-        # print("********PATH*********")
-        # print(path)
-        # print("********ENDPATH*********")
-        # print(request.get_json())
-        # print("FILE STREAM RESPONSE:")
-        # print(relayed_response)
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("FILE STREAM REQUEST:")
+            print("********PATH*********")
+            print(path)
+            print("********ENDPATH*********")
+            print(request.get_json())
+            print("FILE STREAM RESPONSE:")
+            print(relayed_response)
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
@@ -706,12 +824,13 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("STORAGE REQUEST:")
-        # print(request.get_json())
-        # print("STORAGE RESPONSE:")
-        # print(relayed_response.status_code, relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("STORAGE REQUEST:")
+            print(request.get_json())
+            print("STORAGE RESPONSE:")
+            print(relayed_response.status_code, relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed)
 
@@ -721,15 +840,16 @@ class RelayServer:
         request = flask.request
         with Timer() as timer:
             relayed_response = self.relay(request)
-        # print("*****************")
-        # print("STORAGE FILE REQUEST:")
-        # print("********PATH*********")
-        # print(path)
-        # print("********ENDPATH*********")
-        # print(request.get_json())
-        # print("STORAGE FILE RESPONSE:")
-        # print(relayed_response.json())
-        # print("*****************")
+        if self.verbose:
+            print("*****************")
+            print("STORAGE FILE REQUEST:")
+            print("********PATH*********")
+            print(path)
+            print("********ENDPATH*********")
+            print(request.get_json())
+            print("STORAGE FILE RESPONSE:")
+            print(relayed_response.json())
+            print("*****************")
 
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 

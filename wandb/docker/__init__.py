@@ -8,7 +8,40 @@ import requests
 from dockerpycreds.utils import find_executable  # type: ignore
 
 from wandb.docker import auth, www_authenticate
-from wandb.errors import DockerError
+from wandb.errors import Error
+
+
+class DockerError(Error):
+    """Raised when attempting to execute a docker command."""
+
+    def __init__(
+        self,
+        command_launched: List[str],
+        return_code: int,
+        stdout: Optional[bytes] = None,
+        stderr: Optional[bytes] = None,
+    ) -> None:
+        command_launched_str = " ".join(command_launched)
+        error_msg = (
+            f"The docker command executed was `{command_launched_str}`.\n"
+            f"It returned with code {return_code}\n"
+        )
+        if stdout is not None:
+            error_msg += f"The content of stdout is '{stdout.decode()}'\n"
+        else:
+            error_msg += (
+                "The content of stdout can be found above the "
+                "stacktrace (it wasn't captured).\n"
+            )
+        if stderr is not None:
+            error_msg += f"The content of stderr is '{stderr.decode()}'\n"
+        else:
+            error_msg += (
+                "The content of stderr can be found above the "
+                "stacktrace (it wasn't captured)."
+            )
+        super().__init__(error_msg)
+
 
 entrypoint = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "wandb-entrypoint.sh"
@@ -18,9 +51,10 @@ log = logging.getLogger(__name__)
 
 
 def shell(cmd: List[str]) -> Optional[str]:
-    """Simple wrapper for calling docker,
+    """Simple wrapper for calling docker,.
 
-    returning None on error and the output on success"""
+    returning None on error and the output on success
+    """
     try:
         return (
             subprocess.check_output(["docker"] + cmd, stderr=subprocess.STDOUT)
@@ -36,7 +70,7 @@ _buildx_installed = None
 
 
 def is_buildx_installed() -> bool:
-    """Returns `True` if docker buildx is installed and working."""
+    """Return `True` if docker buildx is installed and working."""
     global _buildx_installed
     if _buildx_installed is not None:
         return _buildx_installed  # type: ignore
@@ -48,17 +82,75 @@ def is_buildx_installed() -> bool:
     return _buildx_installed
 
 
-def build(tags: List[str], file: str, context_path: str) -> str:
-    command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+def is_docker_installed() -> bool:
+    """Return `True` if docker is installed and working, else `False`."""
+    try:
+        # Run the docker --version command
+        result = subprocess.run(
+            ["docker", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if result.returncode == 0:
+            return True
+        else:
+            return False
+    except FileNotFoundError:
+        # If docker command is not found
+        return False
+
+
+def build(
+    tags: List[str], file: str, context_path: str, platform: Optional[str] = None
+) -> str:
+    use_buildx = is_buildx_installed()
+    command = ["buildx", "build"] if use_buildx else ["build"]
+    command += ["--load"] if should_add_load_argument(platform) and use_buildx else []
+    if platform:
+        command += ["--platform", platform]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
-    run(
-        ["docker"] + command + build_tags + ["-f", file, context_path],
-        capture_stderr=False,
-        capture_stdout=False,
+    args = ["docker"] + command + build_tags + ["-f", file, context_path]
+    stdout = run_command_live_output(
+        args,
     )
-    return tags[0]
+    return stdout
+
+
+def should_add_load_argument(platform: Optional[str]) -> bool:
+    # the load option does not work when multiple platforms are specified:
+    # https://github.com/docker/buildx/issues/59
+    if platform is None or (platform and "," not in platform):
+        return True
+    return False
+
+
+def run_command_live_output(args: List[Any]) -> str:
+    with subprocess.Popen(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        bufsize=1,
+    ) as process:
+        stdout = ""
+        while True:
+            chunk = os.read(process.stdout.fileno(), 4096)  # type: ignore
+            if not chunk:
+                break
+            index = chunk.find(b"\r")
+            if index != -1:
+                print(chunk.decode(), end="")
+            else:
+                stdout += chunk.decode()
+                print(chunk.decode(), end="\r")
+
+        print(stdout)
+
+    return_code = process.wait()
+    if return_code != 0:
+        raise DockerError(args, return_code, stdout.encode())
+
+    return stdout
 
 
 def run(
@@ -132,7 +224,7 @@ def parse(image_name: str) -> Tuple[str, str, str]:
 
 
 def auth_token(registry: str, repo: str) -> Dict[str, str]:
-    """Makes a request to the root of a v2 docker registry to get the auth url.
+    """Make a request to the root of a v2 docker registry to get the auth url.
 
     Always returns a dictionary, if there's no token key we couldn't authenticate
     """
@@ -154,9 +246,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
             info = {}
     else:
         log.error(
-            "Received {} when attempting to authenticate with {}".format(
-                response, registry
-            )
+            f"Received {response} when attempting to authenticate with {registry}"
         )
         info = {}
     if info.get("bearer"):
@@ -175,7 +265,7 @@ def auth_token(registry: str, repo: str) -> Dict[str, str]:
 
 
 def image_id_from_registry(image_name: str) -> Optional[str]:
-    """Get the docker id from a public or private registry"""
+    """Get the docker id from a public or private registry."""
     registry, repository, tag = parse(image_name)
     res = None
     try:
@@ -199,7 +289,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
 
 
 def image_id(image_name: str) -> Optional[str]:
-    """Retreve the image id from the local docker daemon or remote registry"""
+    """Retreve the image id from the local docker daemon or remote registry."""
     if "@sha256:" in image_name:
         return image_name
     else:
@@ -214,23 +304,23 @@ def image_id(image_name: str) -> Optional[str]:
 
 
 def get_image_uid(image_name: str) -> int:
-    """Retrieve the image default uid through brute force"""
+    """Retrieve the image default uid through brute force."""
     image_uid = shell(["run", image_name, "id", "-u"])
     return int(image_uid) if image_uid else -1
 
 
 def push(image: str, tag: str) -> Optional[str]:
-    """Push an image to a remote registry"""
+    """Push an image to a remote registry."""
     return shell(["push", f"{image}:{tag}"])
 
 
 def login(username: str, password: str, registry: str) -> Optional[str]:
-    """Login to a registry"""
+    """Login to a registry."""
     return shell(["login", "--username", username, "--password", password, registry])
 
 
 def tag(image_name: str, tag: str) -> Optional[str]:
-    """Tag an image"""
+    """Tag an image."""
     return shell(["tag", image_name, tag])
 
 
@@ -240,6 +330,7 @@ __all__ = [
     "run",
     "image_id",
     "image_id_from_registry",
+    "is_docker_installed",
     "auth_token",
     "parse",
     "parse_repository_tag",

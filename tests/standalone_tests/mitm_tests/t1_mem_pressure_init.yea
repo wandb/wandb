@@ -1,14 +1,14 @@
 plugin:
   - wandb
 tag:
-  shards:
-    - standalone-mitm
+  shard: mitm
 option:
   - :wandb:mitm
 command:
   program: mem_pressure.py
 assert:
   - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
 trigger:
   - :wandb:init:
       command: pause

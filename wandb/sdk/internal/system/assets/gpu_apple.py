@@ -1,10 +1,10 @@
 import json
 import logging
-import multiprocessing as mp
 import pathlib
 import platform
 import subprocess
 import sys
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List
 
@@ -34,13 +34,11 @@ class _Stats(TypedDict):
     temp: float
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
-    # cpuWaitMs: float  # noqa: N815
+    # cpuWaitMs: float
 
 
 class GPUAppleStats:
-    """
-    Apple GPU stats available on Arm Macs.
-    """
+    """Apple GPU stats available on Arm Macs."""
 
     name = "gpu.0.{}"
     samples: "Deque[_Stats]"
@@ -102,7 +100,7 @@ class GPUApple:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [

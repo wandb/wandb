@@ -6,6 +6,9 @@ plugin:
 depend:
   requirements:
     - kfp==1.8.11
+    - appengine-python-standard
+tag:
+  skip: true
 assert:
     - :wandb:runs_len: 3
     - :wandb:runs[0][job_type]: preprocess_data

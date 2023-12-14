@@ -21,7 +21,7 @@ def learning_curve(
     n_jobs=1,
     scoring=None,
 ):
-    """Trains model on datasets of varying size and generates plot of score vs size.
+    """Train model on datasets of varying size and generates plot of score vs size.
 
     Called by plot_learning_curve to visualize learning curve. Please use the function
     plot_learning_curve() if you wish to visualize your learning curves.

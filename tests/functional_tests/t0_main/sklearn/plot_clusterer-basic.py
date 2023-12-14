@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Demonstrate basic API of plot_clusterer.
+
 ---
 id: 0.sklearn.plot_clusterer-basic
 tag:

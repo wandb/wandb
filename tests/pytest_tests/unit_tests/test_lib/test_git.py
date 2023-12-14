@@ -1,22 +1,15 @@
 #!/usr/bin/env python
 
-"""
-test_git_repo
-----------------------------------
-
-Tests for the `wandb.GitRepo` module.
-"""
-from typing import Callable, Optional
+"""Tests for the `wandb.GitRepo` module."""
+from typing import Generator, Optional
 
 import git
 import pytest
-import wandb
-
-GitRepo = wandb.wandb_lib.git.GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 
 
 @pytest.fixture
-def git_repo_fn() -> Callable:
+def git_repo_fn() -> Generator:
     def git_repo_fn_helper(
         path: str = ".",
         remote_name: str = "origin",
@@ -88,4 +81,4 @@ class TestGitRepo:
 
     def test_root_doesnt_exist(self):
         git_repo = GitRepo(root="/tmp/foo")
-        assert git_repo.repo is False
+        assert git_repo.repo is None and git_repo._repo_initialized is True

@@ -1,6 +1,6 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -43,7 +43,7 @@ Please make sure to update the ToC when you update this page!
   * [All changes to objects are reflected in sync data](#all-changes-to-objects-are-reflected-in-sync-data)
   * [Library can be disabled](#library-can-be-disabled)
 - [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
-- [Documentation Generation](#documentation-generation)
+- [Server introspection](#server-introspection)
 - [Deprecating features](#deprecating-features)
 - [Adding URLs](#adding-urls)
 
@@ -71,7 +71,7 @@ Please make sure to update the ToC when you update this page!
       git remote add upstream https://github.com/wandb/wandb.git
       ```
 
-3.  Develop you contribution.
+3.  Develop your contribution.
     - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout main
@@ -365,7 +365,7 @@ By default, tests are run in parallel with 4 processes. This can be changed by s
 To run specific tests in a specific environment:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test
+tox -e py37 -- tests/test_some_code.py -k substring_of_test
 ```
 
 To run all tests in a specific environment:
@@ -385,14 +385,14 @@ This will manifest as a test failure with no/shortened associated output.
 In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
+tox -e py37 -- tests/test_some_code.py -k substring_of_test -vvvv --showlocals
 ```
 
 If a test fails, you can use the `--pdb -n0` flags to get the
 [pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
+tox -e py37 -- tests/test_some_code.py -k failing_test -vvvv --showlocals --pdb -n0
 ```
 
 You can also manually set breakpoints in the test code (`breakpoint()`)
@@ -471,31 +471,30 @@ The interfaces are described here:
 
 1. Full codepath from wandb.init() to mock_server
    Note: coverage only counts for the User Process and interface code
-   Example: tests/wandb_integration_test.py
+   Example: [wandb_integration_test.py](tests/pytest_tests/system_tests/test_wandb_integration.py)
 2. Inject into the Shared Queues to mock_server
    Note: coverage only counts for the interface code and internal process code
-   Example: tests/test_sender.py
+   Example: [test_sender.py](tests/pytest_tests/system_tests/test_sender.py)
 3. From wandb.Run object to Shared Queues
    Note: coverage counts for User Process
-   Example: tests/wandb_run_test.py
+   Example: [wandb_run_test.py](tests/pytest_tests/unit_tests/test_wandb_run.py)
 ```
 
 Good examples of tests for each level of testing can be found at:
 
-- [test_metric_user.py](tests/test_metric_user.py): User process tests
-- [test_metric_internal.py](tests/test_metric_internal.py): Internal process tests
-- [test_metric_full.py](tests/test_metric_full.py): Full stack tests
+- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
+- [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
+- [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
 
 ### Global Pytest Fixtures
 
-All global fixtures are defined in `tests/conftest.py`:
+Global fixtures are defined in `tests/**/conftest.py`, separated into [unit test fixtures](tests/pytest_tests/unit_tests/conftest.py), [system test fixtures](tests/pytest_tests/system_tests/conftest.py), as well as [shared fixtures](tests/pytest_tests/conftest.py).
 
 - `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
 - `local_settings` - used automatically for all tests and patches the global settings path to an isolated directory.
 - `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`. See `tests/wandb_integration_test.py`
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
-- `mocked_module` - if you need to test code that calls `wandb.util.get_module("XXX")`, you can use this fixture to get a MagicMock(). See `tests/test_notebook.py`
 - `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling `wandb.init`). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
 - `mock_server` - mocks all calls to the `requests` module with sane defaults. You can customize `tests/utils/mock_server.py` to use context or add api calls.
 - `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get its context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
@@ -546,21 +545,25 @@ If you update one of those files, you need to:
 - While working on your contribution:
   - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
     Make sure to update the `yea-wandb` version.
-  - Point the client branch you are working on to this `yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and change it to
+  - Point the `wandb/wandb` branch you are working on to this `wandb/yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and replace the entire line with
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
-  - Merge and release `yea-wandb` (with `make release`).
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`), create a new client PR to copy/paste those changes over to the corresponding file(s) in `tests/utils`. We have a Github Action that verifies that these files are equal (between the client and yea-wandb). **If you have changes in these files and you do not sync them to the client, all client PRs will fail this Github Action.**
-  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+  - Release `yea-wandb` (with `make release`) from your `shiny-new-branch` branch.
+  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`) in your `wandb/yea-wandb` branch, make sure to update these files in `tests/utils` in a `wandb/wandb` branch. We have a Github Action that verifies that these files are equal (between the `wandb/wandb` and `wandb/yea-wandb`). **If you have changes in these files and you merge then in the wandb/yea-wandb repo and do not sync them to the wandb/wandb repo, all wandb/wandb PRs will fail this Github Action.**
+  - Once your `wandb/wandb` PR and `wandb/yea-wandb` PR are ready to be merged, you can merge first the `wandb/yea-wandb` PR, make sure that your `wandb/wandb` PR is green and merge it next.
 
 
 ### Regression Testing
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing).
+The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found
+[here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py).
+Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`),
+can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
@@ -620,6 +623,28 @@ TODO: There are lots of cool things we could do with this, currently it just put
 ```shell
 tox -e dev
 ```
+
+### Editable mode:
+
+When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+
+- During installation, provide the following flags:
+
+  ```shell
+  pip install -e . --config-settings editable_mode=strict
+  ```
+  By doing so, editable mode will correctly identify the relevant files.
+
+
+- Alternatively, you can configure it once using the following command:
+  ```shell
+  pip config set global.config-settings editable_mode=strict
+  ```
+  Once the configuration is in place, you can use the command:
+  ```shell
+  pip install -e .
+  ```
+  without any additional flags, and the strict editable mode will be applied consistently.
 
 ## Library Objectives
 
@@ -728,7 +753,9 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- Add a new type-annotated `Settings` class attribute.
+- Add a new type-annotated `SettingsData` class attribute.
+- Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
+  - Run `make proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -736,6 +763,10 @@ The `Settings` object:
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
+- Note that individual settings may depend on other settings through validator methods and runtime hooks,
+  but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
+  modification order list with `tox -e auto-codegen` -- it will also automatically
+  detect cyclic dependencies and throw an exception.
 
 ### Data to be synced to server is fully validated
 
@@ -823,43 +854,18 @@ run.log(dict(this=3))
   - Exit code of program is captured and sent synchronously to internal process as `ExitData`
   - `Run.on_final()` is called to display final information about the run
 
-## Documentation Generation
 
-The documentation generator is broken into two parts:
+## Server introspection
 
-- `generate.py`: Generic documentation generator for wandb/ref
-- `docgen_cli.py`: Documentation generator for wandb CLI
+Some features may depend on a minimum version of the W&B backend service, but this library may be communicating with an outdated backend.  We use the GraphQL introspection schema to determine which features are supported.  See the `*_introspection` methods in [internal_api.py](/wandb/sdk/internal/internal_api.py) for examples.  Depending on the nature of your feature, you may need to introspect:
 
-### `generate.py`
+- If one or more fields on the root `Query` or `Mutation` types exist: [example](/wandb/sdk/internal/internal_api.py#L477)
+- If an input type includes a specific field: [example](/wandb/sdk/internal/internal_api.py#L546)
 
-The following is a road map of how to generate documentation for the reference.
-**Steps**
+You should reuse the generic introspection methods if possible, and cache the introspection result.
 
-1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
-2. `python generate.py` creates the documentation.
+The entire introspection schema is available.  For more info see the [official GraphQL docs](https://graphql.org/learn/introspection/)
 
-**Outputs**
-A folder named `library` in the same folder as the code. The files in the `library` folder are the generated markdown.
-
-**Requirements**
-
-- wandb
-
-### `docgen_cli.py`
-
-**Usage**
-
-```shell
-python docgen_cli.py
-```
-
-**Outputs**
-A file named `cli.md` in the same folder as the code. The file is the generated markdown for the CLI.
-
-**Requirements**
-
-- python >= 3.8
-- wandb
 
 ## Deprecating features
 

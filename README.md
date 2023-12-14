@@ -1,6 +1,6 @@
 <p align="center">
-  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases" />
-  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 <p align='center'>
@@ -15,72 +15,80 @@
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
-<p align='center'>
-<a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/experiments_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/experiments_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Experiments" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/reports_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/reports_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Reports" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/artifacts_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/artifacts_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Artifacts" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/tables_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/tables_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Tables" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/sweeps_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/sweeps_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Sweeps" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/models_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/models_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Model Management" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/launch_icon.svg" width="13.5%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/launch_icon.svg" width="13.5%">
-  <img alt="Weights and Biases Launch" src="">
-</picture>
-</a>
-</p>
-
-&nbsp;
-
 🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
 
 Want to use Weights & Biases for seamless collaboration between your ML or Data Science team? Looking for Production-grade MLOps at scale? Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact the Sales Team](https://wandb.ai/site/contact).
-
 
 &nbsp;
 
 # Documentation
 
-See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
+<p align='center'>
+<a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/experiments-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/experiments-light.svg" width="14.0%">
+  <img alt="Weights and Biases Experiments" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/report-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/report-light.svg" width="14.0%">
+  <img alt="Weights and Biases Reports" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/artifacts-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/artifacts-light.svg" width="14.0%">
+  <img alt="Weights and Biases Artifacts" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/tables-light.svg" width="14.0%">
+  <img alt="Weights and Biases Tables" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/sweeps-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/sweeps-light.svg" width="14.0%">
+  <img alt="Weights and Biases Sweeps" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/launch-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/launch-light.svg" width="14.0%">
+  <img alt="Weights and Biases Launch" src="">
+</picture>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/models-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/models-light.svg" width="14.0%">
+  <img alt="Weights and Biases Model Management" src="">
+</picture>
+</a>
+</a>
+<a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/prompts-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/prompts-light.svg" width="14.0%">
+  <img alt="Weights and Biases Prompts" src="">
+</picture>
+<a target="_blank" href="https://github.com/wandb/weave">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/weave-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/weave-light.svg" width="14.0%">
+  <img alt="Weights and Biases Prompts" src="">
+</picture>
+</p>
 
-&nbsp;
+See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
 
 # Quickstart
 
@@ -163,7 +171,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 ```
 
 - Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
-- Read the [Developer Guide](https://docs.wandb.com/library/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
+- Read the [Developer Guide](https://docs.wandb.com/guides/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
 - Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 
 </details>
@@ -249,14 +257,14 @@ run.finish()
 Get started integrating your Keras model with W&B today:
 
 - Run an example [Google Colab Notebook](https://wandb.me/intro-keras?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations)
-- Read the [Developer Guide](https://docs.wandb.com/library/integrations/keras?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Keras with W&B.
+- Read the [Developer Guide](https://docs.wandb.com/guides/integrations/keras?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Keras with W&B.
 - Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
 
 </details>
 <details>
-<summary>🤗 Huggingface Transformers</summary>
+<summary>🤗 Hugging Face Transformers</summary>
 
-Pass `wandb` to the `report_to` argument when you run a script using a HuggingFace Trainer. W&B will automatically log losses,
+Pass `wandb` to the `report_to` argument when you run a script using a Hugging Face Trainer. W&B will automatically log losses,
 evaluation metrics, model topology, and gradients.
 
 **Note**: The environment you run your script in must have `wandb` installed.
@@ -338,7 +346,7 @@ wandb.finish()
 ```
 
 - Run an example [Google Colab Notebook](http://wandb.me/hf?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
-- Read the [Developer Guide](https://docs.wandb.com/library/integrations/huggingface?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Hugging Face with W&B.
+- Read the [Developer Guide](https://docs.wandb.com/guides/integrations/huggingface?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Hugging Face with W&B.
 </details>
 
 <details>
@@ -571,11 +579,11 @@ run.finish()
 
 Weights & Biases is available in the cloud or installed on your private infrastructure. Set up a W&B Server in a production environment in one of three ways:
 
-1. [Production Cloud](https://docs.wandb.ai/guides/self-hosted/setup/private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
-2. [Dedicated Cloud](https://docs.wandb.ai/guides/self-hosted/setup/dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
-3. [On-Prem/Bare Metal](https://docs.wandb.ai/guides/self-hosted/setup/on-premise-baremetal?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): W&B supports setting up a production server on most bare metal servers in your on-premise data centers. Quickly get started by running `wandb server` to easily start hosting W&B on your local infrastructure.
+1. [Production Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/self-managed#on-prem-private-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): Set up a production deployment on a private cloud in just a few steps using terraform scripts provided by W&B.
+2. [Dedicated Cloud](https://docs.wandb.ai/guides/hosting/hosting-options/wb-managed#dedicated-cloud?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): A managed, dedicated deployment on W&B's single-tenant infrastructure in your choice of cloud region.
+3. [On-Prem/Bare Metal](https://docs.wandb.ai/guides/hosting/how-to-guides/bare-metal?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting): W&B supports setting up a production server on most bare metal servers in your on-premise data centers. Quickly get started by running `wandb server` to easily start hosting W&B on your local infrastructure.
 
-See the [Hosting documentation](https://docs.wandb.ai/guides/self-hosted?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
+See the [Hosting documentation](https://docs.wandb.ai/guides/hosting?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=hosting) in the W&B Developer Guide for more information.
 
 <!-- &nbsp;
 
@@ -596,7 +604,6 @@ Weights & Biases ❤️ open source, and we welcome contributions from the commu
 # W&B Community
 
 Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord). Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
-
 
 &nbsp;
 

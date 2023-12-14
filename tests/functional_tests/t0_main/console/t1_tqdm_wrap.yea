@@ -1,8 +1,14 @@
 id: 0.console.t1_tqdm_wrap
 plugin:
   - wandb
+depend:
+  requirements:
+    - tqdm
 command:
   program: test_tqdm.py
+tag:
+  skips:
+    - platform: win
 env:
   - WANDB_CONSOLE: wrap
 assert:

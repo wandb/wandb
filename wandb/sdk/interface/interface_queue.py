@@ -1,4 +1,4 @@
-"""InterfaceQueue - Derived from InterfaceShared using queues to send to internal thread
+"""InterfaceQueue - Derived from InterfaceShared using queues to send to internal thread.
 
 See interface.py for how interface classes relate to each other.
 

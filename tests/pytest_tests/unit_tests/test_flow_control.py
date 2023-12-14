@@ -16,7 +16,7 @@ class FlowTester:
         self._offset = 0
 
         settings_obj = Settings()
-        settings = settings_static.SettingsStatic(settings_obj.make_static())
+        settings = settings_static.SettingsStatic(settings_obj.to_proto())
         fc = flow_control.FlowControl(
             settings=settings,
             write_record=self._write_func,

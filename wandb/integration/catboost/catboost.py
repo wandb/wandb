@@ -1,6 +1,4 @@
-"""
-catboost init
-"""
+"""catboost init."""
 
 from pathlib import Path
 from types import SimpleNamespace
@@ -65,9 +63,7 @@ class WandbCallback:
 def _checkpoint_artifact(
     model: Union[CatBoostClassifier, CatBoostRegressor], aliases: List[str]
 ) -> None:
-    """
-    Upload model checkpoint as W&B artifact
-    """
+    """Upload model checkpoint as W&B artifact."""
     if wandb.run is None:
         raise wandb.Error(
             "You must call `wandb.init()` before `_checkpoint_artifact()`"
@@ -87,9 +83,7 @@ def _checkpoint_artifact(
 def _log_feature_importance(
     model: Union[CatBoostClassifier, CatBoostRegressor]
 ) -> None:
-    """
-    Log feature importance with default settings.
-    """
+    """Log feature importance with default settings."""
     if wandb.run is None:
         raise wandb.Error(
             "You must call `wandb.init()` before `_checkpoint_artifact()`"
@@ -119,7 +113,7 @@ def log_summary(
     save_model_checkpoint: bool = False,
     log_feature_importance: bool = True,
 ) -> None:
-    """`log_summary` logs useful metrics about catboost model after training is done
+    """`log_summary` logs useful metrics about catboost model after training is done.
 
     Arguments:
         model: it can be CatBoostClassifier or CatBoostRegressor.
@@ -136,13 +130,13 @@ def log_summary(
 
     Example:
         ```python
-        train_pool = Pool(train[features], label=train['label'], cat_features=cat_features)
-        test_pool = Pool(test[features], label=test['label'], cat_features=cat_features)
+        train_pool = Pool(train[features], label=train["label"], cat_features=cat_features)
+        test_pool = Pool(test[features], label=test["label"], cat_features=cat_features)
 
         model = CatBoostRegressor(
             iterations=100,
-            loss_function='Cox',
-            eval_metric='Cox',
+            loss_function="Cox",
+            eval_metric="Cox",
         )
 
         model.fit(

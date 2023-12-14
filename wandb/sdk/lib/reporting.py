@@ -1,6 +1,4 @@
-"""
-reporting.
-"""
+"""reporting."""
 
 import logging
 

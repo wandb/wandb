@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Test parent and child processes sharing a run.
-Compare to a run in a single process, base usage of `run.log`"""
+
+Compare to a run in a single process, base usage of `run.log`.
+"""
 import multiprocessing as mp
 
 import wandb
@@ -36,8 +38,6 @@ def share_run():
 
 
 def main():
-    wandb.require("service")
-
     reference_run()
     share_run()
 

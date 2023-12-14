@@ -1,6 +1,4 @@
-"""
-config tests.
-"""
+"""config tests."""
 
 import pytest
 import yaml

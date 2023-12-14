@@ -23,4 +23,5 @@ from ._blocks import (
     WeaveBlockArtifact,
     WeaveBlockArtifactVersionedFile,
     WeaveBlockSummaryTable,
+    Twitter,
 )

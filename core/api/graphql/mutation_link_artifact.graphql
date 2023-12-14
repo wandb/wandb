@@ -1,0 +1,19 @@
+mutation LinkArtifact(
+            $artifactPortfolioName: String!,
+            $entityName: String!,
+            $projectName: String!,
+            $aliases: [ArtifactAliasInput!],
+            $clientId: ID,
+            $artifactId: ID,
+        ) {
+            linkArtifact(input: {
+                artifactPortfolioName: $artifactPortfolioName,
+                entityName: $entityName,
+                projectName: $projectName,
+                aliases: $aliases,
+                artifactID: $artifactId,
+                clientID: $clientId
+            }) {
+                versionIndex
+            }
+        }

@@ -171,8 +171,9 @@ class PrinterTerm(_Printer):
     def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
-    def progress_close(self) -> None:
-        wandb.termlog(" " * 79)
+    def progress_close(self, text: Optional[str] = None) -> None:
+        text = text or " " * 79
+        wandb.termlog(text)
 
     def code(self, text: str) -> str:
         ret: str = click.style(text, bold=True)
@@ -191,7 +192,14 @@ class PrinterTerm(_Printer):
     def emoji(self, name: str) -> str:
         emojis = dict()
         if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀", gorilla="🦍", turtle="🐢")
+            emojis = dict(
+                star="⭐️",
+                broom="🧹",
+                rocket="🚀",
+                gorilla="🦍",
+                turtle="🐢",
+                lightning="️⚡",
+            )
 
         return emojis.get(name, "")
 
@@ -279,12 +287,11 @@ class PrinterJupyter(_Printer):
         if self._progress:
             self._progress.update(percent_done, text)
 
-    def progress_close(self) -> None:
+    def progress_close(self, _: Optional[str] = None) -> None:
         if self._progress:
             self._progress.close()
 
     def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-
         format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
         grid = "".join([format_row.format(*row) for row in rows])
         grid = f'<table class="wandb">{grid}</table>'
@@ -300,7 +307,7 @@ class PrinterJupyter(_Printer):
 Printer = Union[PrinterTerm, PrinterJupyter]
 
 
-def get_printer(_jupyter: Optional[bool] = None) -> Printer:
-    if _jupyter and ipython.in_jupyter():
+def get_printer(_jupyter: bool) -> Printer:
+    if _jupyter:
         return PrinterJupyter()
     return PrinterTerm()

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""
-Use numpy in nested dict keys
+"""Use numpy in nested dict keys.
 
 ---
 plugin:

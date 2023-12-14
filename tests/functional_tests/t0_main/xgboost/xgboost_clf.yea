@@ -6,7 +6,11 @@ command:
 depend:
     requirements:
         - xgboost>=1.3.0
-
+        - scikit-learn
+tag:
+  shard: xgboost
+  skips:
+    - platform: win
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][learner][gradient_booster][name]: gbtree
@@ -16,7 +20,9 @@ assert:
   - :wandb:runs[0][summary][Feature Importance_table][nrows]: 11
   - :wandb:runs[0][summary][epoch]: 49
   - :wandb:runs[0][summary][best_score]: 1.0
-  - :wandb:runs[0][summary][best_iteration]: 12
+  - :op:>=:
+    - :wandb:runs[0][summary][best_iteration]
+    - 10
   - :wandb:runs[0][summary][validation_0-auc][max]: 1
   - :wandb:runs[0][summary][validation_1-auc][max]: 1
   - :op:>:

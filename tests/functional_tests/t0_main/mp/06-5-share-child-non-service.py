@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Test parent and child processes sharing a run.
-In the non-service case all the ops in the child process on the run should be no-op"""
+
+In the non-service case all the ops in the child process on the run should be no-op.
+"""
 import multiprocessing as mp
 
 import wandb

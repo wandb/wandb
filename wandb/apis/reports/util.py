@@ -22,10 +22,10 @@ Func = Callable[[T], V]
 
 
 def generate_name(length: int = 12) -> str:
-    """
-    Generate random name.
+    """Generate a random name.
+
     This implementation roughly based the following snippet in core:
-    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44
+    https://github.com/wandb/core/blob/master/lib/js/cg/src/utils/string.ts#L39-L44.
     """
 
     # Borrowed from numpy: https://github.com/numpy/numpy/blob/v1.23.0/numpy/core/numeric.py#L2069-L2123
@@ -54,14 +54,17 @@ def generate_name(length: int = 12) -> str:
 
 
 def coalesce(*arg: Any) -> Any:
-    """Return the first non-none value in the list of arguments.  Similar to ?? in C#"""
+    """Return the first non-none value in the list of arguments.
+
+    Similar to ?? in C#.
+    """
     return next((a for a in arg if a is not None), None)
 
 
 def nested_get(json: dict, keys: str) -> Any:
-    """
-    Given a nested JSON dict and path, get the element at the terminal node.
-    The first item of the path can be an object
+    """Get the element at the terminal node of a nested JSON dict based on `path`.
+
+    The first item of the path can be an object.
     """
     keys = keys.split(".")
     if len(keys) == 1:
@@ -81,8 +84,8 @@ def nested_get(json: dict, keys: str) -> Any:
 
 
 def nested_set(json: dict, keys: str, value: Any) -> None:
-    """
-    Given a nested JSON dict and path, set the element at the terminal node.
+    """Set the element at the terminal node of a nested JSON dict based on `path`.
+
     The first item of the path can be an object.
 
     If nodes do not exist, they are created along the way.
@@ -323,7 +326,6 @@ def fix_collisions(panels: List[Panel]) -> List[Panel]:
     for i, p1 in enumerate(panels):
         for p2 in panels[i:]:
             if collides(p1, p2):
-
                 # try to move right
                 x, y = shift(p1, p2)
                 if p2.layout["x"] + p2.layout["w"] + x <= x_max:

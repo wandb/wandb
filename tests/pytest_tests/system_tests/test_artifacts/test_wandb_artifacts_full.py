@@ -1,19 +1,24 @@
 import os
+import platform
+import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pytest
 import wandb
-from wandb import wandb_sdk
-from wandb.errors import WaitTimeoutError
+from wandb import Api
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
 
 def test_add_table_from_dataframe(wandb_init):
-
     import pandas as pd
 
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
@@ -52,7 +57,6 @@ def test_add_table_from_dataframe(wandb_init):
 
 
 def test_artifact_error_for_invalid_aliases(wandb_init):
-
     run = wandb_init()
     artifact = wandb.Artifact("test-artifact", "dataset")
     error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
@@ -71,7 +75,6 @@ def test_artifact_error_for_invalid_aliases(wandb_init):
 
 
 def test_artifact_upsert_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -88,7 +91,6 @@ def test_artifact_upsert_no_id(wandb_init):
 
 
 def test_artifact_upsert_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -105,7 +107,6 @@ def test_artifact_upsert_group_id(wandb_init):
 
 
 def test_artifact_upsert_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -122,7 +123,6 @@ def test_artifact_upsert_distributed_id(wandb_init):
 
 
 def test_artifact_finish_no_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -137,7 +137,6 @@ def test_artifact_finish_no_id(wandb_init):
 
 
 def test_artifact_finish_group_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -152,7 +151,6 @@ def test_artifact_finish_group_id(wandb_init):
 
 
 def test_artifact_finish_distributed_id(wandb_init):
-
     # NOTE: these tests are against a mock server so they are testing the internal flows, but
     # not the actual data transfer.
     artifact_name = f"distributed_artifact_{round(time.time())}"
@@ -201,10 +199,24 @@ def test_edit_after_add(wandb_init):
     assert open(filename).read() == "goodbye."
 
 
+def test_remove_after_log(wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="hi-art", type="dataset")
+        artifact.add_reference(Path(__file__).as_uri())
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    with wandb_init() as run:
+        retrieved = run.use_artifact("hi-art:latest")
+
+        with pytest.raises(ArtifactFinalizedError):
+            retrieved.remove("file1.txt")
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
-    staging_dir = Path(wandb_sdk.interface.artifacts.get_staging_dir())
+    staging_dir = Path(get_staging_dir())
 
     def dir_size():
         return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
@@ -225,7 +237,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
 
 def test_local_references(wandb_init):
-
     run = wandb_init()
 
     def make_table():
@@ -266,3 +277,214 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
+
+
+@pytest.mark.skip(
+    reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
+)
+@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10])
+def test_artifact_upload_succeeds_with_async(
+    wandb_init: Callable[..., Run],
+    _async_upload_concurrency_limit: Optional[int],
+    tmp_path: Path,
+):
+    with wandb_init(
+        settings=dict(_async_upload_concurrency_limit=_async_upload_concurrency_limit)
+    ) as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        (tmp_path / "my-file.txt").write_text("my contents")
+        artifact.add_dir(str(tmp_path))
+        run.log_artifact(artifact).wait(timeout=5)
+
+    # re-download the artifact
+    with wandb.init() as using_run:
+        using_artifact: Artifact = using_run.use_artifact("art:latest")
+        using_artifact.download(root=str(tmp_path / "downloaded"))
+        assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
+
+
+def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
+    """Don't re-download an artifact if it's already in the desired location."""
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+
+    original_file = tmp_path / "test.txt"
+    original_file.write_text("hello")
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        artifact.add_file(original_file)
+        run.log_artifact(artifact)
+
+    # Download the artifact
+    with wandb_init() as run:
+        artifact_path = run.use_artifact("art:latest").download()
+        assert os.path.exists(artifact_path)
+
+    # Delete the entire cache
+    shutil.rmtree(cache_dir)
+
+    def fail_copy(src, dst):
+        raise RuntimeError(f"Should not be called, attempt to copy from {src} to {dst}")
+
+    # Monkeypatch the copy function to fail
+    monkeypatch.setattr(shutil, "copy2", fail_copy)
+
+    # Download the artifact again; it should be left in place despite the absent cache.
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file1 = artifact_path / "test.txt"
+        assert file1.is_file()
+        assert file1.read_text() == "hello"
+
+
+def test_check_changed_artifact_then_download(wandb_init, tmp_path):
+    """*Do* re-download an artifact if it's been modified in place."""
+    original_file = tmp_path / "test.txt"
+    original_file.write_text("hello")
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        artifact.add_file(original_file)
+        run.log_artifact(artifact)
+
+    # Download the artifact
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file1 = artifact_path / "test.txt"
+        assert file1.is_file()
+        assert file1.read_text() == "hello"
+
+    # Modify the artifact file to change its hash.
+    file1.write_text("goodbye")
+
+    # Download it again; it should be replaced with the original version.
+    with wandb_init() as run:
+        artifact_path = Path(run.use_artifact("art:latest").download())
+        file2 = artifact_path / "test.txt"
+        assert file1 == file2  # Same path, but the content should have changed.
+        assert file2.is_file()
+        assert file2.read_text() == "hello"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_dir_directly(example_files, wandb_init, path_type):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_files))
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None  # It was successfully logged.
+    assert artifact.name == f"run-{run_id}-{Path(example_files).name}:v0"
+
+
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_log_file_directly(example_file, wandb_init, path_type):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(path_type(example_file))
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None
+    assert artifact.name == f"run-{run_id}-{Path(example_file).name}:v0"
+
+
+def test_log_reference_directly(example_files, wandb_init):
+    with wandb_init() as run:
+        run_id = run.id
+        artifact = run.log_artifact(example_files.resolve().as_uri())
+    artifact.wait()
+
+    assert artifact is not None
+    assert artifact.id is not None
+    assert artifact.name == f"run-{run_id}-{example_files.name}:v0"
+
+
+def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
+    art_dir = tmp_path / "an-unusual-path"
+    monkeypatch.setenv("WANDB_ARTIFACT_DIR", str(art_dir))
+    name_path = logged_artifact.name
+    if platform.system() == "Windows":
+        name_path = name_path.replace(":", "-")
+
+    downloaded = Path(logged_artifact.download())
+    assert downloaded == art_dir / name_path
+
+
+def test_new_draft(wandb_init):
+    art = wandb.Artifact("test-artifact", "test-type")
+    with art.new_file("boom.txt", "w") as f:
+        f.write("detonation")
+
+    # Set properties that won't be copied.
+    art.ttl = None
+
+    project = "test"
+    with wandb_init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = Api().artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+
+    # entity/project/name should all match the *source* artifact.
+    assert draft.type == art.type
+    assert draft.name == "test-artifact"  # No version suffix.
+    assert draft._base_id == parent.id  # Parent is the source artifact.
+
+    # We would use public properties, but they're only available on non-draft artifacts.
+    assert draft._entity == parent.entity
+    assert draft._project == parent.project
+    assert draft._source_name == art.name
+    assert draft._source_entity == parent.entity
+    assert draft._source_project == parent.project
+
+    # The draft won't have fields that only exist after being committed.
+    assert draft._version is None
+    assert draft._source_version is None
+    assert draft._ttl_duration_seconds is None
+    assert draft._ttl_is_inherited
+    assert not draft._ttl_changed
+    assert draft._aliases == []
+    assert draft._saved_aliases == []
+    assert draft.is_draft()
+    assert draft._created_at is None
+    assert draft._updated_at is None
+    assert not draft._final
+
+    # Add a file and log the new draft.
+    with draft.new_file("bang.txt", "w") as f:
+        f.write("expansion")
+
+    with wandb_init(project=project) as run:
+        run.log_artifact(draft)
+
+    child = Api().artifact(f"{project}/test-artifact:latest")
+    assert child.version == "v1"
+
+    assert len(child.manifest.entries) == 2
+    file_path = child.download()
+    assert os.path.exists(os.path.join(file_path, "boom.txt"))
+    assert os.path.exists(os.path.join(file_path, "bang.txt"))
+
+
+def test_get_artifact_collection(logged_artifact):
+    collection = logged_artifact.collection
+    assert logged_artifact.entity == collection.entity
+    assert logged_artifact.project == collection.project
+    assert logged_artifact.name.startswith(collection.name)
+    assert logged_artifact.type == collection.type
+
+
+def test_get_artifact_collection_from_linked_artifact(linked_artifact):
+    collection = linked_artifact.collection
+    assert linked_artifact.entity == collection.entity
+    assert linked_artifact.project == collection.project
+    assert linked_artifact.name.startswith(collection.name)
+    assert linked_artifact.type == collection.type
+
+    collection = linked_artifact.source_collection
+    assert linked_artifact.source_entity == collection.entity
+    assert linked_artifact.source_project == collection.project
+    assert linked_artifact.source_name.startswith(collection.name)
+    assert linked_artifact.type == collection.type

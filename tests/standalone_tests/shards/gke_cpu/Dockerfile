@@ -4,7 +4,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 ARG PYTHON_VERSION=3.9
 ARG GIT_BRANCH=master
-ARG TOX_VERSION=3.24.0
+ARG TOX_VERSION=4.5.1
 ARG UTC_DATE
 
 # todo: enable docker image layer caching on circleci

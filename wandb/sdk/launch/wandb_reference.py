@@ -1,6 +1,4 @@
-"""
-Support for parsing W&B URLs (which might be user provided) into constituent parts.
-"""
+"""Support for parsing W&B URLs (which might be user provided) into constituent parts."""
 
 from dataclasses import dataclass
 from enum import IntEnum
@@ -35,7 +33,6 @@ RESERVED_JOB_PATHS = ("_view",)
 
 @dataclass
 class WandbReference:
-
     # TODO: This will include port, should we separate that out?
     host: Optional[str] = None
 
@@ -88,9 +85,7 @@ class WandbReference:
 
     @staticmethod
     def parse(uri: str) -> Optional["WandbReference"]:
-        """
-        Attempt to parse a string as a W&B URL.
-        """
+        """Attempt to parse a string as a W&B URL."""
         # TODO: Error if HTTP and host is not localhost?
         if (
             not uri.startswith("/")

@@ -1,7 +1,7 @@
 pytest
+pytest-asyncio
 pytest-cov
 pytest-xdist
-pytest-flask
 pytest-split
 pytest-mock
 pytest-timeout
@@ -9,3 +9,9 @@ pytest-openfiles
 pytest-flakefinder
 pytest-rerunfailures
 parameterized
+
+flask>2.0.0
+pandas
+responses
+
+coverage[toml]

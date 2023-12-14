@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 """Base case - main process init/finish.
 
+This test checks that two Sentry sessions are created:
+one for the main process and one for the internal process.
+
 ---
 plugin:
   - wandb
 tag:
-  shard: standalone-cpu
+  shards:
+    - default
+    - standalone-cpu
 var:
   - num_sentry_sessions:
       :fn:len: :wandb:sentry_sessions
@@ -19,12 +24,9 @@ assert:
   - :num_sentry_sessions: 2
 """
 
-import time
-
 import wandb
 
-wandb.init()
-wandb.log(dict(m1=1))
-wandb.log(dict(m2=2))
-# sleep needed for sentry to capture sentry session info
-time.sleep(80)
+run = wandb.init()
+run.log(dict(m1=1))
+run.log(dict(m2=2))
+run.finish()

@@ -1,19 +1,18 @@
-"""
-api.
-"""
+"""api."""
 
 from typing import Callable
 
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 
-from wandb import env, termwarn, util
+import wandb
+from wandb import env, util
 
 
 def _disable_ssl() -> Callable[[], None]:
     # Because third party libraries may also use requests, we monkey patch it globally
     # and turn off urllib3 warnings instead printing a global warning to the user.
-    termwarn(
+    wandb.termwarn(
         "Disabling SSL verification.  Connections to this server are not verified and may be insecure!"
     )
 

@@ -12,10 +12,11 @@ from .image import Image
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd  # type: ignore
+    import pandas as pd
     import plotly  # type: ignore
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
+
     from ..wandb_run import Run as LocalRun
 
     ValToJsonType = Union[
@@ -30,8 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Plotly(Media):
-    """
-    Wandb class for plotly plots.
+    """Wandb class for plotly plots.
 
     Arguments:
         val: matplotlib or plotly figure
@@ -76,7 +76,7 @@ class Plotly(Media):
     def get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict

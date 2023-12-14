@@ -1,0 +1,18 @@
+id: 0.llm-hf.03-summarization
+plugin:
+  - wandb
+tag:
+  shard: llm
+#  skip: true  # todo: fix
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - "transformers"
+    - "torch"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[0][summary][summarization][_type]: table-file
+    - :wandb:runs[0][summary][summarization][ncols]: 7
+    - :wandb:runs[0][summary][summarization][nrows]: 2

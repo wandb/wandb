@@ -1,6 +1,4 @@
-"""
-console.
-"""
+"""console."""
 
 import os
 

@@ -11,7 +11,7 @@ simplefilter(action="ignore", category=FutureWarning)
 
 
 def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
-    """Calculates summary metrics for both regressors and classifiers.
+    """Calculate summary metrics for both regressors and classifiers.
 
     Called by plot_summary_metrics to visualize metrics. Please use the function
     plot_summary_metrics() if you wish to visualize your summary metrics.
@@ -23,7 +23,6 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
     y_pred = model.predict(X_test)
 
     if sklearn.base.is_classifier(model):
-
         accuracy_score = sklearn.metrics.accuracy_score(y_test, y_pred)
         metrics["accuracy_score"] = accuracy_score
 
@@ -37,7 +36,6 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
         metrics["f1_score"] = f1_score
 
     elif sklearn.base.is_regressor(model):
-
         mae = sklearn.metrics.mean_absolute_error(y_test, y_pred)
         metrics["mae"] = mae
 

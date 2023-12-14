@@ -138,7 +138,7 @@ class WriteManager:
             self._flow_control.flow(record)
         elif not self._settings._offline or record.control.always_send:
             # when flow_control is disabled we pass through all records to
-            # the sender as long as we are online.   The exception is there
+            # the sender as long as we are online.  The exception is there
             # are special records that we always pass to the sender
             # (namely the exit record so we can trigger the defer shutdown
             # state machine)
@@ -148,7 +148,7 @@ class WriteManager:
         record_type = record.WhichOneof("record_type")
         assert record_type
         writer_str = "write_" + record_type
-        write_handler: Callable[["pb.Record"], None] = getattr(
+        write_handler: Callable[[pb.Record], None] = getattr(
             self, writer_str, self._write
         )
         write_handler(record)
@@ -157,7 +157,7 @@ class WriteManager:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         write_request_str = "write_request_" + request_type
-        write_request_handler: Optional[Callable[["pb.Record"], None]] = getattr(
+        write_request_handler: Optional[Callable[[pb.Record], None]] = getattr(
             self, write_request_str, None
         )
         if write_request_handler:

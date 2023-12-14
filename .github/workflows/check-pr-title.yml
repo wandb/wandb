@@ -1,0 +1,71 @@
+name: Validate PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  cc:
+    name: check conventional commit compliance
+    runs-on: ubuntu-latest
+    steps:
+      # check the basic semantic compliance of the PR title
+      # https://github.com/amannn/action-semantic-pull-request/releases
+      - uses: amannn/action-semantic-pull-request@v5.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Allowed types: add a notion doc
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+            security
+            release
+          # Product based scopes
+          scopes: |
+            core
+            sdk
+            cli
+            public-api
+            artifacts
+            media
+            sweeps
+            launch
+            integrations
+          requireScope: true
+          wip: true
+          validateSingleCommit: false
+          validateSingleCommitMatchesPrTitle: false
+
+#       - name: Checkout repository
+#         uses: actions/checkout@v3
+
+#       # check the PR title against the conventional commit format
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: "3.9"
+
+#       - name: Install dependencies
+#         run: pip install pygithub openai tenacity
+
+#       - name: Get PR number
+#         id: get_pr_number
+#         run: |
+#           pr_url="${{ github.event.pull_request.url }}"
+#           pr_number="${pr_url##*/}"
+#           echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+
+#       - name: Run script to check the title
+#         id: check_title
+#         run: |
+#           GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} python tools/pr-title-bot.py check ${{ steps.get_pr_number.outputs.pr_number }}

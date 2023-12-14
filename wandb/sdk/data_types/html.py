@@ -10,15 +10,13 @@ from .base_types.media import BatchableMedia
 if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
 
 
 class Html(BatchableMedia):
-    """
-    Wandb class for arbitrary html
+    """Wandb class for arbitrary html.
 
     Arguments:
         data: (string or io object) HTML to display in wandb
@@ -51,7 +49,7 @@ class Html(BatchableMedia):
 
         if inject or not data_is_path:
             tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".html")
-            with open(tmp_path, "w") as out:
+            with open(tmp_path, "w", encoding="utf-8") as out:
                 out.write(self.html)
 
             self._set_file(tmp_path, is_tmp=True)
@@ -79,16 +77,16 @@ class Html(BatchableMedia):
     def get_media_subdir(cls: Type["Html"]) -> str:
         return os.path.join("media", "html")
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
     def from_json(
-        cls: Type["Html"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
-        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
+        return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(

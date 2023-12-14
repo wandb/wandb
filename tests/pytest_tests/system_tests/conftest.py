@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import os
 import platform
 import secrets
@@ -129,7 +130,7 @@ def internal_sm(
     def helper(settings):
         with runner.isolated_filesystem():
             sm = SendManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_sender_q,
                 result_q=internal_result_q,
                 interface=_internal_sender,
@@ -159,7 +160,7 @@ def internal_hm(
     def helper(settings):
         with runner.isolated_filesystem():
             hm = HandleManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_record_q,
                 result_q=internal_result_q,
                 stopped=stopped_event,
@@ -186,13 +187,13 @@ def internal_wm(
         with runner.isolated_filesystem():
             wandb_file = settings.sync_file
 
-            # this is hacky, but we dont have a clean rundir always
+            # this is hacky, but we don't have a clean rundir always
             # so lets at least make sure we can write to this dir
             run_dir = Path(wandb_file).parent
             os.makedirs(run_dir)
 
             wm = WriteManager(
-                settings=SettingsStatic(settings.make_static()),
+                settings=SettingsStatic(settings.to_proto()),
                 record_q=internal_writer_q,
                 result_q=internal_result_q,
                 sender_q=internal_sender_q,
@@ -313,9 +314,12 @@ def _start_backend(
         wt = start_write_thread(iwm)
         st = start_send_thread(ism)
         if initial_run:
-            _run = _internal_sender.communicate_run(run)
+            handle = _internal_sender.deliver_run(run)
+            result = handle.wait(timeout=5)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(_run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=5)
         return ht, wt, st
 
     yield start_backend_func
@@ -398,6 +402,44 @@ def publish_util(backend_interface):
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
+@dataclasses.dataclass
+class UserFixtureCommand:
+    command: Literal["up", "down", "down_all", "logout", "login", "password"]
+    username: Optional[str] = None
+    password: Optional[str] = None
+    admin: bool = False
+    endpoint: str = "db/user"
+    port: str = FIXTURE_SERVICE_PORT
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: str = SERVICES_API_PORT
+    method: Literal["put"] = "put"
+
+
+@dataclasses.dataclass
+class WandbServerSettings:
+    name: str
+    volume: str
+    local_base_port: str
+    services_api_port: str
+    fixture_service_port: str
+    wandb_server_pull: str
+    wandb_server_tag: str
+    internal_local_base_port: str = LOCAL_BASE_PORT
+    internal_local_services_api_port: str = SERVICES_API_PORT
+    internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
+    url: str = "http://localhost"
+
+    base_url: Optional[str] = None
+
+    def __post_init__(self):
+        self.base_url = f"{self.url}:{self.local_base_port}"
 
 
 def pytest_addoption(parser):
@@ -432,11 +474,17 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests in debug mode",
     )
+    parser.addoption(
+        "--wandb-verbose",
+        action="store_true",
+        default=False,
+        help="Run tests in verbose mode",
+    )
 
 
 def random_string(length: int = 12) -> str:
-    """
-    Generate a random string of a given length.
+    """Generate a random string of a given length.
+
     :param length: Length of the string to generate.
     :return: Random string.
     """
@@ -455,27 +503,20 @@ def base_url(request):
 
 
 @pytest.fixture(scope="session")
-def wandb_server_tag(request):
-    return request.config.getoption("--wandb-server-tag")
-
-
-@pytest.fixture(scope="session")
-def wandb_server_pull(request):
-    if request.config.getoption("--wandb-server-pull"):
-        return "always"
-    return "missing"
-
-
-@pytest.fixture(scope="session")
 def wandb_debug(request):
     return request.config.getoption("--wandb-debug", default=False)
+
+
+@pytest.fixture(scope="session")
+def wandb_verbose(request):
+    return request.config.getoption("--wandb-verbose", default=False)
 
 
 def check_server_health(
     base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
 ) -> bool:
-    """
-    Check if wandb server is healthy.
+    """Check if wandb server is healthy.
+
     :param base_url:
     :param num_retries:
     :param sleep_time:
@@ -492,169 +533,178 @@ def check_server_health(
     return False
 
 
-def check_mysql_health(num_retries: int = 1, sleep_time: int = 1):
-    for _ in range(num_retries):
-        try:
-            exit_code = subprocess.call(
-                [
-                    "docker",
-                    "exec",
-                    "-t",
-                    "wandb-local",
-                    "/bin/bash",
-                    "-c",
-                    "sudo mysqladmin ping",
-                ]
-            )
-            if exit_code == 0:
-                return True
-            time.sleep(sleep_time)
-        except subprocess.CalledProcessError:
-            time.sleep(sleep_time)
-    return False
-
-
-def check_server_up(
-    base_url: str,
-    wandb_server_tag: str = "master",
-    wandb_server_pull: Literal["missing", "always"] = "missing",
-) -> bool:
-    """
-    Check if wandb server is up and running;
-    if not on the CI and the server is not running, then start it first.
-    :param base_url:
-    :param wandb_server_tag:
-    :param wandb_server_pull:
-    :return:
-    """
-    app_health_endpoint = "healthz"
-    fixture_url = base_url.replace(LOCAL_BASE_PORT, FIXTURE_SERVICE_PORT)
-    fixture_health_endpoint = "health"
-
-    if os.environ.get("CI") == "true":
-        return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
-
-    if not check_server_health(base_url=base_url, endpoint=app_health_endpoint):
-        # start wandb server locally and expose necessary ports to the host
-        command = [
-            "docker",
-            "run",
-            "--pull",
-            wandb_server_pull,
-            "--rm",
-            "-v",
-            "wandb:/vol",
-            "-p",
-            f"{LOCAL_BASE_PORT}:{LOCAL_BASE_PORT}",
-            "-p",
-            f"{SERVICES_API_PORT}:{SERVICES_API_PORT}",
-            "-p",
-            f"{FIXTURE_SERVICE_PORT}:{FIXTURE_SERVICE_PORT}",
-            "-e",
-            "WANDB_ENABLE_TEST_CONTAINER=true",
-            "--name",
-            "wandb-local",
-            "--platform",
-            "linux/amd64",
-            f"gcr.io/wandb-production/local-testcontainer:{wandb_server_tag}",
-        ]
-        subprocess.Popen(command)
-        # wait for the server to start
-        server_is_up = check_server_health(
-            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+@pytest.fixture(scope="session")
+def user_factory(worker_id: str, wandb_debug) -> str:
+    def _user_factory(fixture_fn, settings):
+        username = f"user-{worker_id}-{random_string()}"
+        command = UserFixtureCommand(
+            command="up", username=username, port=settings.fixture_service_port
         )
-        if not server_is_up:
-            return False
-        # check that MySQL and fixture service are accessible
-        return check_mysql_health(num_retries=30) and check_server_health(
-            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
+        fixture_fn(command)
+        command = UserFixtureCommand(
+            command="password",
+            username=username,
+            password=username,
+            port=settings.fixture_service_port,
         )
+        fixture_fn(command)
 
-    return check_mysql_health(num_retries=10) and check_server_health(
-        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
-    )
+        with unittest.mock.patch.dict(
+            os.environ,
+            {
+                "WANDB_API_KEY": username,
+                "WANDB_ENTITY": username,
+                "WANDB_USERNAME": username,
+                "WANDB_BASE_URL": f"http://localhost:{settings.local_base_port}",
+            },
+        ):
+            yield username
 
+            if not wandb_debug:
+                command = UserFixtureCommand(
+                    command="down",
+                    username=username,
+                    port=settings.fixture_service_port,
+                )
+                fixture_fn(command)
 
-@dataclasses.dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login"]
-    username: Optional[str] = None
-    admin: bool = False
-    endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT
-    method: Literal["post"] = "post"
-
-
-@dataclasses.dataclass
-class AddAdminAndEnsureNoDefaultUser:
-    email: str
-    password: str
-    endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT
-    method: Literal["put"] = "put"
+    yield _user_factory
 
 
 @pytest.fixture(scope="session")
-def fixture_fn(base_url, wandb_server_tag, wandb_server_pull):
-    def fixture_util(
-        cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
-    ) -> bool:
-        endpoint = urllib.parse.urljoin(
-            base_url.replace(LOCAL_BASE_PORT, cmd.port),
-            cmd.endpoint,
+def wandb_server_factory():
+    def _wandb_server_factory(settings):
+        base_url = f"http://localhost:{settings.local_base_port}"
+        endpoint = "healthz"
+        app_health_endpoint = "healthz"
+        fixture_url = base_url.replace(
+            settings.local_base_port, settings.fixture_service_port
+        )
+        fixture_health_endpoint = "health"
+
+        if os.environ.get("CI") == "true":
+            return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
+
+        if not check_server_health(base_url, endpoint):
+            command = [
+                "docker",
+                "run",
+                "--pull",
+                settings.wandb_server_pull,
+                "--rm",
+                "-v",
+                f"{settings.volume}:/vol",
+                "-p",
+                f"{settings.local_base_port}:{settings.internal_local_base_port}",
+                "-p",
+                f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
+                "-p",
+                f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
+                "-e",
+                "WANDB_ENABLE_TEST_CONTAINER=true",
+                "--name",
+                settings.name,
+                "--platform",
+                "linux/amd64",
+                f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{settings.wandb_server_tag}",
+            ]
+            subprocess.Popen(command)
+            # wait for the server to start
+            server_is_up = check_server_health(
+                base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+            )
+            if not server_is_up:
+                return False
+            # check that the fixture service is accessible
+            return check_server_health(
+                base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
+            )
+
+        return check_server_health(
+            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
         )
 
-        if isinstance(cmd, UserFixtureCommand):
-            data = {"command": cmd.command}
-            if cmd.username:
-                data["username"] = cmd.username
-            if cmd.admin is not None:
-                data["admin"] = cmd.admin
-        elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
-            data = [
-                {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
-                {"email": "local@wandb.com", "delete": True},
-            ]
-        else:
-            raise NotImplementedError(f"{cmd} is not implemented")
-        # trigger fixture
-        print(f"Triggering fixture: {data}")
-        response = getattr(requests, cmd.method)(endpoint, json=data)
-        if response.status_code != 200:
-            print(response.json())
-            return False
-        return True
+    return _wandb_server_factory
 
-    # todo: remove this once testcontainer is available on Win
-    if platform.system() == "Windows":
-        pytest.skip("testcontainer is not available on Win")
 
-    if not check_server_up(base_url, wandb_server_tag, wandb_server_pull):
-        pytest.fail("wandb server is not running")
+@pytest.fixture(scope="session")
+def fixture_fn_factory():
+    def _fixture_fn_factory(settings):
+        def fixture_util(
+            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+        ) -> bool:
+            base_url = f"http://localhost:{settings.local_base_port}"
+            endpoint = urllib.parse.urljoin(
+                base_url.replace(settings.local_base_port, cmd.port),
+                cmd.endpoint,
+            )
 
-    yield fixture_util
+            if isinstance(cmd, UserFixtureCommand):
+                data = {"command": cmd.command}
+                if cmd.username:
+                    data["username"] = cmd.username
+                if cmd.password:
+                    data["password"] = cmd.password
+                if cmd.admin is not None:
+                    data["admin"] = cmd.admin
+            elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+                data = [
+                    {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                ]
+            else:
+                raise NotImplementedError(f"{cmd} is not implemented")
+            # trigger fixture
+            print(f"Triggering fixture on {endpoint}: {data}")
+            response = getattr(requests, cmd.method)(
+                endpoint,
+                json=data,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+                    "Accept-Encoding": "*",
+                    "Connection": "keep-alive",
+                    # "Content-Type": "application/json",
+                    # "accept": "application/json",
+                },
+            )
+            print(response)
+            if response.status_code != 200:
+                print(response.json())
+                return False
+            return True
+
+        # todo: remove this once testcontainer is available on Win
+        if platform.system() == "Windows":
+            pytest.skip("testcontainer is not available on Win")
+
+        yield fixture_util
+
+    yield _fixture_fn_factory
+
+
+@pytest.fixture(scope="session")
+def wandb_server(wandb_server_factory):
+    settings = WandbServerSettings(
+        name="wandb-dst-server",
+        volume="wandb-dst-server-vol",
+        local_base_port=LOCAL_BASE_PORT,
+        services_api_port=SERVICES_API_PORT,
+        fixture_service_port=FIXTURE_SERVICE_PORT,
+        wandb_server_pull="missing",
+        wandb_server_tag="master",
+    )
+
+    wandb_server_factory(settings)
+    return settings
+
+
+@pytest.fixture(scope="session")
+def fixture_fn(wandb_server, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server)
 
 
 @pytest.fixture(scope=determine_scope)
-def user(worker_id: str, fixture_fn, base_url, wandb_debug) -> str:
-    username = f"user-{worker_id}-{random_string()}"
-    command = UserFixtureCommand(command="up", username=username)
-    fixture_fn(command)
-
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "WANDB_API_KEY": username,
-            "WANDB_ENTITY": username,
-            "WANDB_USERNAME": username,
-            "WANDB_BASE_URL": base_url,
-        },
-    ):
-        yield username
-
-        if not wandb_debug:
-            command = UserFixtureCommand(command="down", username=username)
-            fixture_fn(command)
+def user(user_factory, fixture_fn, wandb_server):
+    yield from user_factory(fixture_fn, wandb_server)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -663,12 +713,23 @@ def debug(wandb_debug, fixture_fn, base_url):
         admin_username = f"admin-{random_string()}"
         # disable default user and create an admin account that can be used to log in to the app
         # and inspect the test runs.
+        command = UserFixtureCommand(command="down", username="local@wandb.com")
+        fixture_fn(command)
         command = UserFixtureCommand(
             command="up",
             username=admin_username,
             admin=True,
         )
         fixture_fn(command)
+
+        command = UserFixtureCommand(
+            command="password",
+            username=admin_username,
+            password=admin_username,
+            admin=True,
+        )
+        fixture_fn(command)
+
         command = AddAdminAndEnsureNoDefaultUser(
             email=admin_username,
             password=admin_username,
@@ -695,14 +756,16 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 
 @pytest.fixture(scope="function")
-def relay_server(base_url):
-    """
-    Creates a new relay server.
-    """
+def relay_server(base_url, wandb_verbose):
+    """Create a new relay server."""
 
     @contextmanager
     def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
-        _relay_server = RelayServer(base_url=base_url, inject=inject)
+        _relay_server = RelayServer(
+            base_url=base_url,
+            inject=inject,
+            verbose=wandb_verbose,
+        )
         try:
             _relay_server.start()
             print(f"Relay server started at {_relay_server.relay_url}")
@@ -749,7 +812,6 @@ def wandb_init(user, test_settings, request):
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
     ):
-
         kwargs = dict(locals())
         # drop fixtures from kwargs
         for key in ("user", "test_settings", "request"):
@@ -791,7 +853,6 @@ def inject_file_stream_response(base_url, user):
         status: int = 200,
         application_pattern: str = "1",
     ) -> InjectedResponse:
-
         if status > 299:
             message = body if isinstance(body, str) else "::".join(body.args)
             body = DeliberateHTTPError(status_code=status, message=message)
@@ -806,6 +867,36 @@ def inject_file_stream_response(base_url, user):
             body=body,
             status=status,
             application_pattern=TokenizedCircularPattern(application_pattern),
+        )
+
+    yield helper
+
+
+@pytest.fixture(scope="function")
+def inject_graphql_response(base_url, user):
+    def helper(
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        query_match_fn=None,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        def match(self, request):
+            body = json.loads(request.body)
+            return query_match_fn(body["query"], body.get("variables"))
+
+        if status > 299:
+            message = body if isinstance(body, str) else "::".join(body.args)
+            body = DeliberateHTTPError(status_code=status, message=message)
+
+        return InjectedResponse(
+            # request
+            method="POST",
+            url=urllib.parse.urljoin(base_url, "/graphql"),
+            custom_match_fn=match if query_match_fn else None,
+            application_pattern=TokenizedCircularPattern(application_pattern),
+            # response
+            body=body,
+            status=status,
         )
 
     yield helper

@@ -4,6 +4,9 @@ plugin:
 depend:
   requirements:
     - "metaflow>=2.3.5"
+    - scikit-learn
+    - fastcore
+    - pyarrow
 tag:
   shard: metaflow
   skips:

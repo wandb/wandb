@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, List, Optional
 
@@ -20,16 +20,14 @@ if TYPE_CHECKING:
 
 
 class ProcessCpuPercent:
-    """
-    CPU usage of the process in percent normalized by the number of CPUs.
-    """
+    """CPU usage of the process in percent normalized by the number of CPUs."""
 
     # name = "process_cpu_percent"
     name = "cpu"
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        self.samples: "Deque[float]" = deque([])
+        self.samples: Deque[float] = deque([])
         self.process: Optional[psutil.Process] = None
 
     def sample(self) -> None:
@@ -58,14 +56,12 @@ class ProcessCpuPercent:
 
 
 class CpuPercent:
-    """
-    CPU usage of the system in percent per core.
-    """
+    """CPU usage of the system in percent per core."""
 
     name = "cpu.{i}.cpu_percent"
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        self.samples: "Deque[List[float]]" = deque([])
+        self.samples: Deque[List[float]] = deque([])
         self.interval = interval
 
     def sample(self) -> None:
@@ -87,14 +83,12 @@ class CpuPercent:
 
 
 class ProcessCpuThreads:
-    """
-    Number of threads used by the process.
-    """
+    """Number of threads used by the process."""
 
     name = "proc.cpu.threads"
 
     def __init__(self, pid: int) -> None:
-        self.samples: "Deque[int]" = deque([])
+        self.samples: Deque[int] = deque([])
         self.pid = pid
         self.process: Optional[psutil.Process] = None
 
@@ -119,7 +113,7 @@ class CPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name: str = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [
@@ -127,7 +121,7 @@ class CPU:
             CpuPercent(),
             ProcessCpuThreads(settings._stats_pid),
         ]
-        self.metrics_monitor: "MetricsMonitor" = MetricsMonitor(
+        self.metrics_monitor: MetricsMonitor = MetricsMonitor(
             self.name,
             self.metrics,
             interface,

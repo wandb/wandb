@@ -35,7 +35,7 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.writer import WriteManager
 from wandb.sdk.lib import filesystem, runid
-from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.module import unset_globals
 
@@ -61,8 +61,7 @@ servers = ServerMap()
 
 
 def get_temp_dir_kwargs(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    return dict(temp_dir=tmp_path)
 
 
 def test_cleanup(*args, **kwargs):
@@ -92,52 +91,66 @@ def wait_for_port_file(port_file):
     return port
 
 
+def find_port():
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+
+    _, port = sock.getsockname()
+    return port
+
+
 def start_mock_server(worker_id):
     """We start a flask server process for each pytest-xdist worker_id"""
     this_folder = os.path.dirname(__file__)
     path = os.path.join(this_folder, "utils", "mock_server.py")
     command = [sys.executable, "-u", path]
     env = os.environ
-    env["PORT"] = "0"  # Let the server find its own port
     env["PYTHONPATH"] = os.path.abspath(os.path.join(this_folder, os.pardir))
+
+    # env["PORT"] = "0"  # Let the server find its own port
+    # port_file = os.path.join(
+    #     this_folder, "logs", f"live_mock_server-{worker_id}-{os.getpid()}-{random.randint(0, 2**32)}.port"
+    # )
+    # env["PORT_FILE"] = port_file
+    env["PORT"] = str(find_port())
     logfname = os.path.join(this_folder, "logs", f"live_mock_server-{worker_id}.log")
-    pid = os.getpid()
-    rand = random.randint(0, 2**32)
-    port_file = os.path.join(
-        this_folder, "logs", f"live_mock_server-{worker_id}-{pid}-{rand}.port"
-    )
-    env["PORT_FILE"] = port_file
-    logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
-        stdout=logfile,
+        stdout=open(logfname, "w"),
         env=env,
         stderr=subprocess.STDOUT,
         bufsize=1,
         close_fds=True,
     )
 
-    port = wait_for_port_file(port_file)
+    # port = wait_for_port_file(port_file)
+    port = int(env["PORT"])
     server._port = port
     server.base_url = f"http://localhost:{server._port}"
 
+    headers = {"Content-type": "application/json", "Accept": "application/json"}
+
     def get_ctx():
-        return requests.get(server.base_url + "/ctx").json()
+        return requests.get(f"{server.base_url}/ctx", headers=headers).json()
 
     def set_ctx(payload):
-        return requests.put(server.base_url + "/ctx", json=payload).json()
+        return requests.put(
+            f"{server.base_url}/ctx", headers=headers, json=payload
+        ).json()
 
     def reset_ctx():
-        return requests.delete(server.base_url + "/ctx").json()
+        return requests.delete(f"{server.base_url}/ctx", headers=headers).json()
 
     server.get_ctx = get_ctx
     server.set_ctx = set_ctx
     server.reset_ctx = reset_ctx
 
     started = False
-    for i in range(10):
+    for _ in range(10):
         try:
-            res = requests.get("%s/ctx" % server.base_url, timeout=5)
+            res = requests.get(f"{server.base_url}/ctx", headers=headers, timeout=5)
             if res.status_code == 200:
                 started = True
                 break
@@ -163,7 +176,7 @@ def start_mock_server(worker_id):
             print("=" * 40)
         except Exception as e:
             print("EXCEPTION:", e)
-        raise ValueError("Failed to start server!  Exit code %s" % server.returncode)
+        raise ValueError(f"Failed to start server!  Exit code {server.returncode}")
     return server
 
 
@@ -276,6 +289,15 @@ def mocked_run(runner, test_settings):
 
 
 @pytest.fixture
+def mocked_run_disable_job_creation(runner, test_settings):
+    """A managed run object for tests with a mock backend"""
+    test_settings.update({"disable_job_creation": True})
+    run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
+    run._set_backend(MagicMock())
+    yield run
+
+
+@pytest.fixture
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
@@ -362,95 +384,6 @@ def live_mock_server(request, worker_id):
         # clear mock server ctx
         server.reset_ctx()
         yield server
-
-
-@pytest.fixture
-def notebook(live_mock_server, test_dir):
-    """This launches a live server, configures a notebook to use it, and enables
-    devs to execute arbitrary cells.  See tests/test_notebooks.py
-    """
-
-    @contextmanager
-    def notebook_loader(nb_path, kernel_name="wandb_python", save_code=True, **kwargs):
-        with open(utils.notebook_path("setup.ipynb")) as f:
-            setupnb = nbformat.read(f, as_version=4)
-            setupcell = setupnb["cells"][0]
-            # Ensure the notebooks talks to our mock server
-            new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__",
-                live_mock_server.base_url,
-            )
-            if save_code:
-                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
-            else:
-                new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", "")
-            setupcell["source"] = new_source
-
-        nb_path = utils.notebook_path(nb_path)
-        shutil.copy(nb_path, os.path.join(os.getcwd(), os.path.basename(nb_path)))
-        with open(nb_path) as f:
-            nb = nbformat.read(f, as_version=4)
-        nb["cells"].insert(0, setupcell)
-
-        try:
-            client = utils.WandbNotebookClient(nb, kernel_name=kernel_name)
-            with client.setup_kernel(**kwargs):
-                # Run setup commands for mocks
-                client.execute_cells(-1, store_history=False)
-                yield client
-        finally:
-            with open(os.path.join(os.getcwd(), "notebook.log"), "w") as f:
-                f.write(client.all_output_text())
-            wandb.termlog("Find debug logs at: %s" % os.getcwd())
-            wandb.termlog(client.all_output_text())
-
-    notebook_loader.base_url = live_mock_server.base_url
-
-    return notebook_loader
-
-
-@pytest.fixture
-def mocked_module(monkeypatch):
-    """This allows us to mock modules loaded via wandb.util.get_module"""
-
-    def mock_get_module(module):
-        orig_get_module = wandb.util.get_module
-        mocked_module = MagicMock()
-
-        def get_module(mod):
-            if mod == module:
-                return mocked_module
-            else:
-                return orig_get_module(mod)
-
-        monkeypatch.setattr(wandb.util, "get_module", get_module)
-        return mocked_module
-
-    return mock_get_module
-
-
-@pytest.fixture
-def mocked_ipython(mocker):
-    mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
-    mocker.patch("wandb.sdk.wandb_settings._get_python_type", lambda: "jupyter")
-    html_mock = mocker.MagicMock()
-    mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
-    ipython = MagicMock()
-    ipython.html = html_mock
-
-    def run_cell(cell):
-        print("Running cell: ", cell)
-        exec(cell)
-
-    ipython.run_cell = run_cell
-    # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
-    orig_get_ipython = wandb.jupyter.get_ipython
-    orig_display = wandb.jupyter.display
-    wandb.jupyter.get_ipython = lambda: ipython
-    wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
-    yield ipython
-    wandb.jupyter.get_ipython = orig_get_ipython
-    wandb.jupyter.display = orig_display
 
 
 def default_wandb_args():
@@ -862,9 +795,12 @@ def _start_backend(
         wt = start_write_thread(internal_wm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            run = _internal_sender.communicate_run(mocked_run)
+            handle = _internal_sender.deliver_run(mocked_run)
+            result = handle.wait(timeout=10)
+            run_result = result.run_result
             if initial_start:
-                _internal_sender.communicate_run_start(run.run)
+                handle = _internal_sender.deliver_run_start(run_result.run)
+                handle.wait(timeout=10)
         return (ht, wt, st)
 
     yield start_backend_func
@@ -955,7 +891,6 @@ def publish_util(
 @pytest.fixture
 def tbwatcher_util(mocked_run, mock_server, internal_hm, backend_interface, parse_ctx):
     def fn(write_function, logdir="./", save=True, root_dir="./"):
-
         with backend_interface() as interface:
             proto_run = pb.RunRecord()
             mocked_run._make_proto_run(proto_run)

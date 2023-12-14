@@ -8,7 +8,13 @@ from wandb.keras import WandbCallback
 
 
 def main():
-    wandb.init(name=pathlib.Path(__file__).stem)
+    wandb.init(
+        name=pathlib.Path(__file__).stem,
+        settings=wandb.Settings(
+            _stats_sample_rate_seconds=1,
+            _stats_samples_to_average=1,
+        ),
+    )
 
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))

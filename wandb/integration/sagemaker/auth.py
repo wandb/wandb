@@ -12,7 +12,6 @@ def sagemaker_auth(overrides=None, path=".", api_key=None):
                                     to secrets.env
         path (str, optional): The path to write the secrets file.
     """
-
     settings = wandb.setup().settings
     current_api_key = wandb.wandb_lib.apikey.api_key(settings=settings)
 

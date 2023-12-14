@@ -17,4 +17,5 @@ URLS = Literal[
     "multiprocess",
     "wandb_init",
     "wandb_server",
+    "wandb_define_metric",
 ]

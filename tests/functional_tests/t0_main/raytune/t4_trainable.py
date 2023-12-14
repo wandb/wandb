@@ -21,7 +21,7 @@ class WandbTrainable(WandbTrainableMixin, Trainable):
 
 
 def tune_trainable(api_key_file):
-    """Example for using a WandTrainableMixin with the class API"""
+    """Example for using a WandTrainableMixin with the class API."""
     tuner = tune.Tuner(
         WandbTrainable,
         tune_config=tune.TuneConfig(

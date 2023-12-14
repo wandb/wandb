@@ -1,4 +1,4 @@
-"""Backend - Send to internal process
+"""Backend - Send to internal process.
 
 Manage backend.
 
@@ -14,18 +14,17 @@ import threading
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, cast
 
 import wandb
-
-from ..interface.interface import InterfaceBase
-from ..interface.interface_queue import InterfaceQueue
-from ..internal.internal import wandb_internal
-from ..lib.mailbox import Mailbox
-from ..wandb_manager import _Manager
-from ..wandb_settings import Settings
+from wandb.sdk.interface.interface import InterfaceBase
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal.internal import wandb_internal
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.mailbox import Mailbox
+from wandb.sdk.wandb_manager import _Manager
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
 
-    from ..service.service_grpc import ServiceGrpcInterface
     from ..service.service_sock import ServiceSockInterface
     from ..wandb_run import Run
 
@@ -118,7 +117,7 @@ class Backend:
         main_mod_path = getattr(main_module, "__file__", None)
         if main_mod_spec is None:  # hack for pdb
             # Note: typing has trouble with BuiltinImporter
-            loader: "Loader" = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
+            loader: Loader = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
             main_mod_spec = importlib.machinery.ModuleSpec(
                 name="wandb.mpmain", loader=loader
             )
@@ -141,13 +140,6 @@ class Backend:
             main_module.__file__ = self._save_mod_path
 
     def _ensure_launched_manager(self) -> None:
-        # grpc_port: Optional[int] = None
-        # attach_id = self._settings._attach_id if self._settings else None
-        # if attach_id:
-        #     # TODO(attach): implement
-        #     # already have a server, assume it is already up
-        #     grpc_port = int(attach_id)
-
         assert self._manager
         svc = self._manager._get_service()
         assert svc
@@ -161,37 +153,22 @@ class Backend:
             sock_client = svc_iface_sock._get_sock_client()
             sock_interface = InterfaceSock(sock_client, mailbox=self._mailbox)
             self.interface = sock_interface
-        elif svc_transport == "grpc":
-            from ..interface.interface_grpc import InterfaceGrpc
-
-            svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
-            stub = svc_iface_grpc._get_stub()
-            grpc_interface = InterfaceGrpc(mailbox=self._mailbox)
-            grpc_interface._connect(stub=stub)
-            self.interface = grpc_interface
         else:
             raise AssertionError(f"Unsupported service transport: {svc_transport}")
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
-        settings: Dict[str, Any] = dict()
-        if self._settings is not None:
-            settings = self._settings.make_static()
-
-        settings["_log_level"] = self._log_level or logging.DEBUG
-
-        # TODO: this is brittle and should likely be handled directly on the
-        #  settings object. Multiprocessing blows up when it can't pickle
-        #  objects.
-        if "_early_logger" in settings:
-            del settings["_early_logger"]
-
-        start_method = settings.get("start_method")
-
         if self._manager:
             self._ensure_launched_manager()
             return
 
+        assert self._settings
+        settings = self._settings.copy()
+        settings.update(_log_level=self._log_level or logging.DEBUG)
+
+        start_method = settings.start_method
+
+        settings_static = SettingsStatic(settings.to_proto())
         user_pid = os.getpid()
 
         if start_method == "thread":
@@ -201,7 +178,7 @@ class Backend:
             wandb_thread = BackendThread(
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,
@@ -215,7 +192,7 @@ class Backend:
             self.wandb_process = self._multiprocessing.Process(  # type: ignore
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings,
+                    settings=settings_static,
                     record_q=self.record_q,
                     result_q=self.result_q,
                     user_pid=user_pid,
@@ -237,14 +214,10 @@ class Backend:
 
         self.interface = InterfaceQueue(
             process=self.wandb_process,
-            record_q=self.record_q,
-            result_q=self.result_q,
+            record_q=self.record_q,  # type: ignore
+            result_q=self.result_q,  # type: ignore
             mailbox=self._mailbox,
         )
-
-    def server_connect(self) -> None:
-        """Connect to server."""
-        pass
 
     def server_status(self) -> None:
         """Report server status."""

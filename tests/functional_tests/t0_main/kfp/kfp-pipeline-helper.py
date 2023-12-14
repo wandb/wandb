@@ -88,7 +88,7 @@ def preprocess_data(
 
 def train_model(
     X_train_path: components.InputPath("np_array"),  # noqa: F821,N803
-    y_train_path: components.InputPath("np_array"),  # noqa: F821,N803
+    y_train_path: components.InputPath("np_array"),  # noqa: F821
     model_path: components.OutputPath("sklearn_model"),  # noqa: F821
     mlpipeline_ui_metadata_path: components.OutputPath(),
 ):

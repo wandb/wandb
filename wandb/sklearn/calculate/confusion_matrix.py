@@ -24,7 +24,7 @@ def confusion_matrix(
     pred_labels=None,
     normalize=False,
 ):
-    """Computes the confusion matrix to evaluate the performance of a classification.
+    """Compute the confusion matrix to evaluate the performance of a classification.
 
     Called by plot_confusion_matrix to visualize roc curves. Please use the function
     plot_confusion_matrix() if you wish to visualize your confusion matrix.

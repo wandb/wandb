@@ -2,12 +2,11 @@
 
 import os
 import pathlib
-import subprocess
-from typing import Any, Dict, Optional
 
 import grpc_tools  # type: ignore
 from grpc_tools import protoc  # type: ignore
-import pkg_resources
+import importlib.metadata
+from packaging import version
 
 
 def generate_deprecated_class_definition() -> None:
@@ -43,11 +42,10 @@ def generate_deprecated_class_definition() -> None:
 
 
 def get_pip_package_version(package_name: str) -> str:
-    out = subprocess.check_output(("pip", "show", package_name))
-    info: Dict[str, Any] = dict(
-        [line.split(": ", 2) for line in out.decode().rstrip("\n").split("\n")]  # type: ignore[misc]
-    )
-    return info["Version"]
+    try:
+        return importlib.metadata.version(package_name)
+    except importlib.metadata.PackageNotFoundError:
+        raise ValueError(f"Package `{package_name}` not found")
 
 
 def get_min_required_version(requirements_file_name: str, package_name: str) -> str:
@@ -70,12 +68,11 @@ package_version = get_pip_package_version(package)
 requirements_file: str = "../../requirements_build.txt"
 requirements_min_version = get_min_required_version(requirements_file, package)
 # check that the installed version of the package is at least the required version
-assert pkg_resources.parse_version(package_version) >= pkg_resources.parse_version(
+assert version.Version(package_version) >= version.Version(
     requirements_min_version
 ), f"Package {package} found={package_version} required>={requirements_min_version}"
 
-
-protobuf_version = pkg_resources.parse_version(get_pip_package_version("protobuf"))
+protobuf_version = version.Version(get_pip_package_version("protobuf"))
 
 proto_root = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 tmp_out: pathlib.Path = pathlib.Path(f"wandb/proto/v{protobuf_version.major}/")
@@ -84,7 +81,9 @@ os.chdir("../..")
 for proto_file in [
     "wandb_base.proto",
     "wandb_internal.proto",
+    "wandb_settings.proto",
     "wandb_telemetry.proto",
+    "wandb_server.proto",
 ]:
     ret = protoc.main(
         (
@@ -99,24 +98,6 @@ for proto_file in [
         )
     )
     assert not ret
-
-
-ret = protoc.main(
-    (
-        "",
-        "-I",
-        proto_root,
-        "-I",
-        ".",
-        f"--python_out={tmp_out}",
-        f"--grpc_python_out={tmp_out}",
-        f"--mypy_out={tmp_out}",
-        f"--mypy_grpc_out={tmp_out}",
-        "wandb/proto/wandb_server.proto",
-    )
-)
-assert not ret
-
 
 # clean up tmp dirs
 for p in (tmp_out / "wandb" / "proto").glob("*pb2*"):

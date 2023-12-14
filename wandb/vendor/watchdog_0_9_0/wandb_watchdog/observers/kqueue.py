@@ -94,8 +94,6 @@ if sys.version_info < (2, 7, 0):
 else:
     import select
 
-from pathtools.path import absolute_path
-
 from wandb_watchdog.observers.api import (
     BaseObserver,
     EventEmitter,
@@ -141,6 +139,12 @@ WATCHDOG_KQ_FFLAGS = (
     select.KQ_NOTE_RENAME |
     select.KQ_NOTE_REVOKE
 )
+
+
+def absolute_path(path):
+    """Return absolute normalized path for given path."""
+    return os.path.abspath(os.path.normpath(path))
+
 
 # Flag tests.
 

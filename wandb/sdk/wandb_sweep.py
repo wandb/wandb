@@ -4,7 +4,7 @@ from typing import Callable, Dict, Optional, Union
 import wandb
 from wandb import env
 from wandb.apis import InternalApi
-from wandb.util import handle_sweep_config_violations
+from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
 
@@ -44,7 +44,7 @@ def sweep(
       sweep: dict, SweepConfig, or callable. The sweep configuration
         (or configuration generator). If a dict or SweepConfig,
         should conform to the W&B sweep config specification
-        (https://docs.wandb.ai/guides/sweeps/configuration). If a
+        (https://docs.wandb.ai/guides/sweeps/define-sweep-configuration). If a
         callable, should take no arguments and return a dict that
         conforms to the W&B sweep config spec.
       entity: str (optional). An entity is a username or team name
@@ -67,16 +67,14 @@ def sweep(
         <!--yeadoc-test:one-parameter-sweep-->
         ```python
         import wandb
+
         sweep_configuration = {
             "name": "my-awesome-sweep",
             "metric": {"name": "accuracy", "goal": "maximize"},
             "method": "grid",
-            "parameters": {
-                "a": {
-                    "values": [1, 2, 3, 4]
-                }
-            }
+            "parameters": {"a": {"values": [1, 2, 3, 4]}},
         }
+
 
         def my_train_func():
             # read the current value of parameter "a" from wandb.config
@@ -85,13 +83,13 @@ def sweep(
 
             wandb.log({"a": a, "accuracy": a + 1})
 
+
         sweep_id = wandb.sweep(sweep_configuration)
 
         # run the sweep
         wandb.agent(sweep_id, function=my_train_func)
         ```
     """
-
     if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""
@@ -128,6 +126,7 @@ def controller(
     Usage:
         ```python
         import wandb
+
         tuner = wandb.controller(...)
         print(tuner.sweep_config)
         print(tuner.sweep_id)

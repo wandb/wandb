@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""
-Test for WB-3758.
-"""
+"""Test for WB-3758."""
 
 import os
 import sys

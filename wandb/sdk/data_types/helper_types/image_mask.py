@@ -10,9 +10,8 @@ from .._private import MEDIA_TMP
 from ..base_types.media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.artifacts.artifact import Artifact
 
-    from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
 
 
@@ -116,19 +115,19 @@ class ImageMask(Media):
     _log_type = "mask"
 
     def __init__(self, val: dict, key: str) -> None:
-        """
-        Arguments:
-            val: (dictionary)
-                One of these two keys to represent the image:
-                    mask_data : (2D numpy array) The mask containing an integer class label
-                        for each pixel in the image
-                    path : (string) The path to a saved image file of the mask
-                class_labels : (dictionary of integers to strings, optional) A mapping of the
-                    integer class labels in the mask to readable class names. These will default
-                    to class_0, class_1, class_2, etc.
+        """Initialize an ImageMask object.
 
-            key: (string)
-                The readable name or id for this mask type (e.g. predictions, ground_truth)
+        Arguments:
+            val: (dictionary) One of these two keys to represent the image:
+                mask_data : (2D numpy array) The mask containing an integer class label
+                    for each pixel in the image
+                path : (string) The path to a saved image file of the mask
+                class_labels : (dictionary of integers to strings, optional) A mapping
+                    of the integer class labels in the mask to readable class names.
+                    These will default to class_0, class_1, class_2, etc.
+
+        key: (string)
+            The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
         super().__init__()
 
@@ -184,24 +183,24 @@ class ImageMask(Media):
 
     @classmethod
     def from_json(
-        cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
+        cls: Type["ImageMask"], json_obj: dict, source_artifact: "Artifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            {"path": source_artifact.get_entry(json_obj["path"]).download()},
             key="",
         )
 
-    def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
 
         if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
-        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
-            raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
+            raise ValueError("to_json accepts wandb_run.Run or wandb.Artifact")
 
     @classmethod
     def type_name(cls: Type["ImageMask"]) -> str:

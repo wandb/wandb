@@ -19,8 +19,8 @@ log = logging.getLogger(__name__)
 
 
 class DockerError(Exception):
-    """
-    A base class from which all other exceptions inherit.
+    """Base class from which all other exceptions inherit.
+
     If you want to catch all errors that the Docker SDK might raise,
     catch this base exception.
     """
@@ -67,9 +67,10 @@ def config_path_from_environment() -> Optional[str]:
 
 
 def home_dir() -> str:
-    """
-    Get the user's home directory, using the same logic as the Docker Engine
-    client - use %USERPROFILE% on Windows, $HOME/getuid on POSIX.
+    """Get the user's home directory.
+
+    Uses the same logic as the Docker Engine client - use %USERPROFILE% on Windows,
+    $HOME/getuid on POSIX.
     """
     if IS_WINDOWS_PLATFORM:
         return os.environ.get("USERPROFILE", "")
@@ -105,8 +106,7 @@ def resolve_repository_name(repo_name: str) -> Tuple[str, str]:
     index_name, remote_name = split_repo_name(repo_name)
     if index_name[0] == "-" or index_name[-1] == "-":
         raise InvalidRepositoryError(
-            "Invalid index name ({}). Cannot begin or end with a"
-            " hyphen.".format(index_name)
+            f"Invalid index name ({index_name}). Cannot begin or end with a hyphen."
         )
     return resolve_index_name(index_name), remote_name
 
@@ -141,7 +141,7 @@ class AuthConfig(dict):
             dct["auths"] = {}
         self.update(dct)
         self._credstore_env = credstore_env
-        self._stores: Dict[str, "dockerpycreds.Store"] = dict()
+        self._stores: Dict[str, dockerpycreds.Store] = dict()
 
     @classmethod
     def parse_auth(
@@ -149,8 +149,8 @@ class AuthConfig(dict):
         entries: Dict[str, Dict[str, Any]],
         raise_on_error: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
-        """
-        Parses authentication entries
+        """Parse authentication entries.
+
         Arguments:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
@@ -158,7 +158,6 @@ class AuthConfig(dict):
         Returns:
           Authentication registry.
         """
-
         conf = {}
         for registry, entry in entries.items():
             if not isinstance(entry, dict):
@@ -182,17 +181,15 @@ class AuthConfig(dict):
                 # a valid value in the auth's config.
                 # https://github.com/docker/compose/issues/3265
                 log.debug(
-                    "Auth data for {} is absent. Client might be using a "
-                    "credentials store instead.".format(registry)
+                    f"Auth data for {registry} is absent. Client might be using a "
+                    "credentials store instead."
                 )
                 conf[registry] = {}
                 continue
 
             username, password = decode_auth(entry["auth"])
             log.debug(
-                "Found entry (registry={}, username={})".format(
-                    repr(registry), repr(username)
-                )
+                f"Found entry (registry={repr(registry)}, username={repr(username)})"
             )
 
             conf[registry] = {
@@ -210,14 +207,15 @@ class AuthConfig(dict):
         config_dict: Optional[Dict[str, Any]],
         credstore_env: Optional[Mapping] = None,
     ) -> "AuthConfig":
-        """
-        Loads authentication data from a Docker configuration file in the given
-        root directory or if config_path is passed use given path.
+        """Load authentication data from a Docker configuration file.
+
+        If the config_path is not passed in it looks for a configuration file in the
+        root directory.
+
         Lookup priority:
             explicit config_path parameter > DOCKER_CONFIG environment
-            variable > ~/.docker/config.json > ~/.dockercfg
+            variable > ~/.docker/config.json > ~/.dockercfg.
         """
-
         if not config_dict:
             config_file = find_config_file(config_path)
 
@@ -257,15 +255,15 @@ class AuthConfig(dict):
 
     @property
     def auths(self) -> Dict[str, Dict[str, Any]]:
-        return self.get("auths", {})
+        return self.get("auths", {})  # type: ignore
 
     @property
     def creds_store(self) -> Optional[str]:
-        return self.get("credsStore", None)
+        return self.get("credsStore", None)  # type: ignore
 
     @property
     def cred_helpers(self) -> Dict:
-        return self.get("credHelpers", {})
+        return self.get("credHelpers", {})  # type: ignore
 
     @property
     def is_empty(self) -> bool:
@@ -274,13 +272,12 @@ class AuthConfig(dict):
     def resolve_authconfig(
         self, registry: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """
-        Returns the authentication data from the given auth configuration for a
-        specific registry. As with the Docker client, legacy entries in the
-        config with full URLs are stripped down to hostnames before checking
-        for a match. Returns None if no match was found.
-        """
+        """Return the authentication data for a specific registry.
 
+        As with the Docker client, legacy entries in the config with full URLs are
+        stripped down to hostnames before checking for a match. Returns None if no match
+        was found.
+        """
         if self.creds_store or self.cred_helpers:
             store_name = self.get_credential_store(registry)
             if store_name is not None:
@@ -387,8 +384,8 @@ def decode_auth(auth: Union[str, bytes]) -> Tuple[str, str]:
 def parse_auth(
     entries: Dict, raise_on_error: bool = False
 ) -> Dict[str, Dict[str, Any]]:
-    """
-    Parses authentication entries
+    """Parse authentication entries.
+
     Arguments:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise
@@ -396,7 +393,6 @@ def parse_auth(
     Returns:
       Authentication registry.
     """
-
     return AuthConfig.parse_auth(entries, raise_on_error)
 
 

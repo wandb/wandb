@@ -1,6 +1,4 @@
-"""
-runid util.
-"""
+"""runid util."""
 
 import secrets
 import string

@@ -16,6 +16,9 @@ def set_global(
     alert=None,
     plot_table=None,
     mark_preempting=None,
+    log_model=None,
+    use_model=None,
+    link_model=None,
 ):
     if run:
         wandb.run = run
@@ -39,6 +42,12 @@ def set_global(
         wandb.alert = alert
     if mark_preempting:
         wandb.mark_preempting = mark_preempting
+    if log_model:
+        wandb.log_model = log_model
+    if use_model:
+        wandb.use_model = use_model
+    if link_model:
+        wandb.link_model = link_model
 
 
 def unset_globals():

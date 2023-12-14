@@ -1,7 +1,6 @@
-"""Interface base class - Used to send messages to the internal process
+"""Interface base class - Used to send messages to the internal process.
 
 InterfaceBase: The abstract class
-InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
@@ -9,17 +8,19 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-import json
 import logging
 import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Iterable, NewType, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
-from wandb.apis.public import Artifact as PublicArtifact
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -32,9 +33,7 @@ from wandb.util import (
 
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
-from ..wandb_artifacts import Artifact
 from . import summary_record as sr
-from .artifacts import ArtifactManifest
 from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
@@ -97,21 +96,6 @@ class InterfaceBase:
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def communicate_check_version(
-        self, current_version: Optional[str] = None
-    ) -> Optional[pb.CheckVersionResponse]:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
-        ret = self._communicate_check_version(check_version)
-        return ret
-
-    @abstractmethod
-    def _communicate_check_version(
-        self, current_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        raise NotImplementedError
-
     def communicate_status(self) -> Optional[pb.StatusResponse]:
         status = pb.StatusRequest()
         resp = self._communicate_status(status)
@@ -121,28 +105,6 @@ class InterfaceBase:
     def _communicate_status(
         self, status: pb.StatusRequest
     ) -> Optional[pb.StatusResponse]:
-        raise NotImplementedError
-
-    def communicate_stop_status(self) -> Optional[pb.StopStatusResponse]:
-        status = pb.StopStatusRequest()
-        resp = self._communicate_stop_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        raise NotImplementedError
-
-    def communicate_network_status(self) -> Optional[pb.NetworkStatusResponse]:
-        status = pb.NetworkStatusRequest()
-        resp = self._communicate_network_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
         raise NotImplementedError
 
     def _make_config(
@@ -180,8 +142,9 @@ class InterfaceBase:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run: "pb.RunRecord") -> None:
-        self._publish_run(run)
+    def publish_run(self, run: "Run") -> None:
+        run_record = self._make_run(run)
+        self._publish_run(run_record)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
@@ -213,41 +176,6 @@ class InterfaceBase:
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
 
-    def communicate_attach(self, attach_id: str) -> Optional[pb.AttachResponse]:
-        attach = pb.AttachRequest(attach_id=attach_id)
-        resp = self._communicate_attach(attach)
-        return resp
-
-    @abstractmethod
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        raise NotImplementedError
-
-    def communicate_run(
-        self, run_obj: "Run", timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        run = self._make_run(run_obj)
-        return self._communicate_run(run, timeout=timeout)
-
-    @abstractmethod
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        raise NotImplementedError
-
-    def communicate_run_start(self, run_pb: pb.RunRecord) -> bool:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
-        result = self._communicate_run_start(run_start)
-        return result is not None
-
-    @abstractmethod
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
-        raise NotImplementedError
-
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
         summary = pb.SummaryRecord()
         for k, v in summary_dict.items():
@@ -267,7 +195,6 @@ class InterfaceBase:
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
@@ -336,27 +263,6 @@ class InterfaceBase:
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         raise NotImplementedError
 
-    def communicate_get_summary(self) -> Optional[pb.GetSummaryResponse]:
-        get_summary = pb.GetSummaryRequest()
-        return self._communicate_get_summary(get_summary)
-
-    @abstractmethod
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        raise NotImplementedError
-
-    def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
-        sampled_history = pb.SampledHistoryRequest()
-        resp = self._communicate_sampled_history(sampled_history)
-        return resp
-
-    @abstractmethod
-    def _communicate_sampled_history(
-        self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
-        raise NotImplementedError
-
     def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
@@ -373,7 +279,7 @@ class InterfaceBase:
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: Artifact) -> pb.ArtifactRecord:
+    def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -386,6 +292,12 @@ class InterfaceBase:
             proto_artifact.description = artifact.description
         if artifact.metadata:
             proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+        if artifact._base_id:
+            proto_artifact.base_id = artifact._base_id
+
+        ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
+        if ttl_duration_input:
+            proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
@@ -396,7 +308,7 @@ class InterfaceBase:
         obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -425,14 +337,14 @@ class InterfaceBase:
     def publish_link_artifact(
         self,
         run: "Run",
-        artifact: Union[Artifact, PublicArtifact],
+        artifact: "Artifact",
         portfolio_name: str,
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
     ) -> None:
         link_artifact = pb.LinkArtifactRecord()
-        if isinstance(artifact, Artifact):
+        if artifact.is_draft():
             link_artifact.client_id = artifact._client_id
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
@@ -447,16 +359,81 @@ class InterfaceBase:
     def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         raise NotImplementedError
 
+    @staticmethod
+    def _make_partial_source_str(
+        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> str:
+        """Construct use_artifact.partial.source_info.sourc as str."""
+        source_type = job_info.get("source_type", "").strip()
+        if source_type == "artifact":
+            info_source = job_info.get("source", {})
+            source.artifact.artifact = info_source.get("artifact", "")
+            source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
+            source.artifact.notebook = info_source.get("notebook", False)
+        elif source_type == "repo":
+            source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
+            source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
+            source.git.entrypoint.extend(metadata.get("entrypoint", []))
+            source.git.notebook = metadata.get("notebook", False)
+        elif source_type == "image":
+            source.image.image = metadata.get("docker", "")
+        else:
+            raise ValueError("Invalid source type")
+
+        source_str: str = source.SerializeToString()
+        return source_str
+
+    def _make_proto_use_artifact(
+        self,
+        use_artifact: pb.UseArtifactRecord,
+        job_name: str,
+        job_info: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> pb.UseArtifactRecord:
+        use_artifact.partial.job_name = job_name
+        use_artifact.partial.source_info._version = job_info.get("_version", "")
+        use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
+        use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
+
+        src_str = self._make_partial_source_str(
+            source=use_artifact.partial.source_info.source,
+            job_info=job_info,
+            metadata=metadata,
+        )
+        use_artifact.partial.source_info.source.ParseFromString(src_str)
+
+        return use_artifact
+
     def publish_use_artifact(
         self,
-        artifact: Artifact,
+        artifact: "Artifact",
     ) -> None:
-        # use_artifact is either a public.Artifact or a wandb.Artifact that has been
-        # waited on and has an id
         assert artifact.id is not None, "Artifact must have an id"
+
         use_artifact = pb.UseArtifactRecord(
-            id=artifact.id, type=artifact.type, name=artifact.name
+            id=artifact.id,
+            type=artifact.type,
+            name=artifact.name,
         )
+
+        # TODO(gst): move to internal process
+        if "_partial" in artifact.metadata:
+            # Download source info from logged partial job artifact
+            job_info = {}
+            try:
+                path = artifact.get_entry("wandb-job.json").download()
+                with open(path) as f:
+                    job_info = json.load(f)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+            use_artifact = self._make_proto_use_artifact(
+                use_artifact=use_artifact,
+                job_name=artifact.name,
+                job_info=job_info,
+                metadata=artifact.metadata,
+            )
 
         self._publish_use_artifact(use_artifact)
 
@@ -467,7 +444,7 @@ class InterfaceBase:
     def communicate_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: "Artifact",
         aliases: Iterable[str],
         history_step: Optional[int] = None,
         is_user_created: bool = False,
@@ -489,6 +466,7 @@ class InterfaceBase:
         log_artifact.artifact.CopyFrom(proto_artifact)
         if history_step is not None:
             log_artifact.history_step = history_step
+        log_artifact.staging_dir = get_staging_dir()
         resp = self._communicate_artifact(log_artifact)
         return resp
 
@@ -498,26 +476,29 @@ class InterfaceBase:
     ) -> MessageFuture:
         raise NotImplementedError
 
-    @abstractmethod
-    def _communicate_artifact_send(
-        self, artifact_send: pb.ArtifactSendRequest
-    ) -> Optional[pb.ArtifactSendResponse]:
-        raise NotImplementedError
+    def deliver_download_artifact(
+        self,
+        artifact_id: str,
+        download_root: str,
+        allow_missing_references: bool,
+    ) -> MailboxHandle:
+        download_artifact = pb.DownloadArtifactRequest()
+        download_artifact.artifact_id = artifact_id
+        download_artifact.download_root = download_root
+        download_artifact.allow_missing_references = allow_missing_references
+        resp = self._deliver_download_artifact(download_artifact)
+        return resp
 
     @abstractmethod
-    def _communicate_artifact_poll(
-        self, art_poll: pb.ArtifactPollRequest
-    ) -> Optional[pb.ArtifactPollResponse]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
+    def _deliver_download_artifact(
+        self, download_artifact: pb.DownloadArtifactRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: "Artifact",
         aliases: Iterable[str],
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -705,34 +686,12 @@ class InterfaceBase:
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         raise NotImplementedError
 
-    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
-        poll_exit = pb.PollExitRequest()
-        resp = self._communicate_poll_exit(poll_exit)
-        return resp
-
-    @abstractmethod
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
-        raise NotImplementedError
-
     def publish_keepalive(self) -> None:
         keepalive = pb.KeepaliveRequest()
         self._publish_keepalive(keepalive)
 
     @abstractmethod
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
-        raise NotImplementedError
-
-    def communicate_server_info(self) -> Optional[pb.ServerInfoResponse]:
-        server_info = pb.ServerInfoRequest()
-        resp = self._communicate_server_info(server_info)
-        return resp
-
-    @abstractmethod
-    def _communicate_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> Optional[pb.ServerInfoResponse]:
         raise NotImplementedError
 
     def join(self) -> None:
@@ -745,8 +704,36 @@ class InterfaceBase:
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
-    def deliver_run(self, run: "pb.RunRecord") -> MailboxHandle:
-        return self._deliver_run(run)
+    def deliver_run(self, run: "Run") -> MailboxHandle:
+        run_record = self._make_run(run)
+        return self._deliver_run(run_record)
+
+    def deliver_sync(
+        self,
+        start_offset: int,
+        final_offset: int,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run_id: Optional[str] = None,
+        skip_output_raw: Optional[bool] = None,
+    ) -> MailboxHandle:
+        sync = pb.SyncRequest(
+            start_offset=start_offset,
+            final_offset=final_offset,
+        )
+        if entity:
+            sync.overwrite.entity = entity
+        if project:
+            sync.overwrite.project = project
+        if run_id:
+            sync.overwrite.run_id = run_id
+        if skip_output_raw:
+            sync.skip.output_raw = skip_output_raw
+        return self._deliver_sync(sync)
+
+    @abstractmethod
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
@@ -799,12 +786,32 @@ class InterfaceBase:
     def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
         raise NotImplementedError
 
+    def deliver_internal_messages(self) -> MailboxHandle:
+        internal_message = pb.InternalMessagesRequest()
+        return self._deliver_internal_messages(internal_message)
+
+    @abstractmethod
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
     def deliver_get_summary(self) -> MailboxHandle:
         get_summary = pb.GetSummaryRequest()
         return self._deliver_get_summary(get_summary)
 
     @abstractmethod
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metrics(self) -> MailboxHandle:
+        get_summary = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_summary)
+
+    @abstractmethod
+    def _deliver_get_system_metrics(
+        self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
@@ -851,4 +858,12 @@ class InterfaceBase:
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_job_info(self) -> MailboxHandle:
+        job_info = pb.JobInfoRequest()
+        return self._deliver_request_job_info(job_info)
+
+    @abstractmethod
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError

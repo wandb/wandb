@@ -1,4 +1,4 @@
-"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock
+"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock.
 
 See interface.py for how interface classes relate to each other.
 
@@ -124,6 +124,7 @@ class InterfaceShared(InterfaceBase):
         resume: Optional[pb.ResumeRequest] = None,
         status: Optional[pb.StatusRequest] = None,
         stop_status: Optional[pb.StopStatusRequest] = None,
+        internal_messages: Optional[pb.InternalMessagesRequest] = None,
         network_status: Optional[pb.NetworkStatusRequest] = None,
         poll_exit: Optional[pb.PollExitRequest] = None,
         partial_history: Optional[pb.PartialHistoryRequest] = None,
@@ -131,20 +132,21 @@ class InterfaceShared(InterfaceBase):
         run_start: Optional[pb.RunStartRequest] = None,
         check_version: Optional[pb.CheckVersionRequest] = None,
         log_artifact: Optional[pb.LogArtifactRequest] = None,
+        download_artifact: Optional[pb.DownloadArtifactRequest] = None,
         defer: Optional[pb.DeferRequest] = None,
         attach: Optional[pb.AttachRequest] = None,
-        artifact_send: Optional[pb.ArtifactSendRequest] = None,
-        artifact_poll: Optional[pb.ArtifactPollRequest] = None,
-        artifact_done: Optional[pb.ArtifactDoneRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
         keepalive: Optional[pb.KeepaliveRequest] = None,
         run_status: Optional[pb.RunStatusRequest] = None,
         sender_mark: Optional[pb.SenderMarkRequest] = None,
         sender_read: Optional[pb.SenderReadRequest] = None,
+        sync: Optional[pb.SyncRequest] = None,
         status_report: Optional[pb.StatusReportRequest] = None,
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
+        job_info: Optional[pb.JobInfoRequest] = None,
+        get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -159,6 +161,8 @@ class InterfaceShared(InterfaceBase):
             request.status.CopyFrom(status)
         elif stop_status:
             request.stop_status.CopyFrom(stop_status)
+        elif internal_messages:
+            request.internal_messages.CopyFrom(internal_messages)
         elif network_status:
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
@@ -173,16 +177,12 @@ class InterfaceShared(InterfaceBase):
             request.check_version.CopyFrom(check_version)
         elif log_artifact:
             request.log_artifact.CopyFrom(log_artifact)
+        elif download_artifact:
+            request.download_artifact.CopyFrom(download_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
         elif attach:
             request.attach.CopyFrom(attach)
-        elif artifact_send:
-            request.artifact_send.CopyFrom(artifact_send)
-        elif artifact_poll:
-            request.artifact_poll.CopyFrom(artifact_poll)
-        elif artifact_done:
-            request.artifact_done.CopyFrom(artifact_done)
         elif server_info:
             request.server_info.CopyFrom(server_info)
         elif keepalive:
@@ -201,6 +201,12 @@ class InterfaceShared(InterfaceBase):
             request.summary_record.CopyFrom(summary_record)
         elif telemetry_record:
             request.telemetry_record.CopyFrom(telemetry_record)
+        elif job_info:
+            request.job_info.CopyFrom(job_info)
+        elif get_system_metrics:
+            request.get_system_metrics.CopyFrom(get_system_metrics)
+        elif sync:
+            request.sync.CopyFrom(sync)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -231,6 +237,8 @@ class InterfaceShared(InterfaceBase):
         preempting: Optional[pb.RunPreemptingRecord] = None,
         link_artifact: Optional[pb.LinkArtifactRecord] = None,
         use_artifact: Optional[pb.UseArtifactRecord] = None,
+        output: Optional[pb.OutputRecord] = None,
+        output_raw: Optional[pb.OutputRawRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -271,6 +279,10 @@ class InterfaceShared(InterfaceBase):
             record.link_artifact.CopyFrom(link_artifact)
         elif use_artifact:
             record.use_artifact.CopyFrom(use_artifact)
+        elif output:
+            record.output.CopyFrom(output)
+        elif output_raw:
+            record.output_raw.CopyFrom(output_raw)
         else:
             raise Exception("Invalid record")
         return record
@@ -359,37 +371,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(metric=metric)
         self._publish(rec)
 
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        req = self._make_request(attach=attach)
-        resp = self._communicate(req)
-        if resp is None:
-            return None
-        return resp.response.attach_response
-
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: Optional[int] = None
-    ) -> Optional[pb.RunUpdateResult]:
-        """Send synchronous run object waiting for a response.
-
-        Arguments:
-            run: RunRecord object
-            timeout: number of seconds to wait
-
-        Returns:
-            RunRecord object
-        """
-
-        req = self._make_record(run=run)
-        resp = self._communicate(req, timeout=timeout)
-        if resp is None:
-            logger.info("couldn't get run from backend")
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        assert resp.HasField("run_result")
-        return resp.run_result
-
     def publish_stats(self, stats_dict: dict) -> None:
         stats = self._make_stats(stats_dict)
         rec = self._make_record(stats=stats)
@@ -411,29 +392,11 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_request(log_artifact=log_artifact)
         return self._communicate_async(rec)
 
-    def _communicate_artifact_send(
-        self, artifact_send: pb.ArtifactSendRequest
-    ) -> Optional[pb.ArtifactSendResponse]:
-        rec = self._make_request(artifact_send=artifact_send)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        artifact_send_resp = result.response.artifact_send_response
-        return artifact_send_resp
-
-    def _communicate_artifact_poll(
-        self, artifact_poll: pb.ArtifactPollRequest
-    ) -> Optional[pb.ArtifactPollResponse]:
-        rec = self._make_request(artifact_poll=artifact_poll)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        artifact_poll_resp = result.response.artifact_poll_response
-        return artifact_poll_resp
-
-    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
-        rec = self._make_request(artifact_done=artifact_done)
-        self._publish(rec)
+    def _deliver_download_artifact(
+        self, download_artifact: pb.DownloadArtifactRequest
+    ) -> MailboxHandle:
+        rec = self._make_request(download_artifact=download_artifact)
+        return self._deliver_record(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)
@@ -453,97 +416,13 @@ class InterfaceShared(InterfaceBase):
         assert resp.response.status_response
         return resp.response.status_response
 
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        req = self._make_request(stop_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.stop_status_response
-        return resp.response.stop_status_response
-
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
-        req = self._make_request(network_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.network_status_response
-        return resp.response.network_status_response
-
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
-        rec = self._make_request(poll_exit=poll_exit)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        poll_exit_response = result.response.poll_exit_response
-        assert poll_exit_response
-        return poll_exit_response
-
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         record = self._make_request(keepalive=keepalive)
         self._publish(record)
-
-    def _communicate_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> Optional[pb.ServerInfoResponse]:
-        rec = self._make_request(server_info=server_info)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        server_info_response = result.response.server_info_response
-        assert server_info_response
-        return server_info_response
-
-    def _communicate_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        rec = self._make_request(check_version=check_version)
-        result = self._communicate(rec)
-        if result is None:
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        return result.response.check_version_response
-
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
-        rec = self._make_request(run_start=run_start)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        run_start_response = result.response.run_start_response
-        return run_start_response
-
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        record = self._make_request(get_summary=get_summary)
-        result = self._communicate(record, timeout=10)
-        if result is None:
-            return None
-        get_summary_response = result.response.get_summary_response
-        assert get_summary_response
-        return get_summary_response
-
-    def _communicate_sampled_history(
-        self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
-        record = self._make_request(sampled_history=sampled_history)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        sampled_history_response = result.response.sampled_history_response
-        assert sampled_history_response
-        return sampled_history_response
 
     def _communicate_shutdown(self) -> None:
         # shutdown
@@ -565,12 +444,22 @@ class InterfaceShared(InterfaceBase):
         record = self._make_record(run=run)
         return self._deliver_record(record)
 
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        record = self._make_request(sync=sync)
+        return self._deliver_record(record)
+
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         record = self._make_request(run_start=run_start)
         return self._deliver_record(record)
 
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
         record = self._make_request(get_summary=get_summary)
+        return self._deliver_record(record)
+
+    def _deliver_get_system_metrics(
+        self, get_system_metrics: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        record = self._make_request(get_system_metrics=get_system_metrics)
         return self._deliver_record(record)
 
     def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
@@ -601,6 +490,12 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(network_status=network_status)
         return self._deliver_record(record)
 
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        record = self._make_request(internal_messages=internal_message)
+        return self._deliver_record(record)
+
     def _deliver_request_server_info(
         self, server_info: pb.ServerInfoRequest
     ) -> MailboxHandle:
@@ -617,6 +512,10 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
+        return self._deliver_record(record)
+
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
+        record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

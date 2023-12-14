@@ -1,4 +1,4 @@
-import multiprocessing as mp
+import threading
 from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 
 class IPUStats:
-    """
-    Stats for Graphcore IPU devices
-    """
+    """Stats for Graphcore IPU devices."""
 
     name = "ipu.{}.{}"
     samples: "Deque[dict]"
@@ -40,7 +38,7 @@ class IPUStats:
     }
 
     def __init__(self, pid: int, gc_ipu_info: Optional[Any] = None) -> None:
-        self.samples: "Deque[dict]" = deque()
+        self.samples: Deque[dict] = deque()
 
         if gc_ipu_info is None:
             if not gcipuinfo:
@@ -132,7 +130,7 @@ class IPU:
         self,
         interface: "Interface",
         settings: "SettingsStatic",
-        shutdown_event: mp.synchronize.Event,
+        shutdown_event: threading.Event,
     ) -> None:
         self.name = self.__class__.__name__.lower()
         self.metrics: List[Metric] = [

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""Log some images with interesting paths
-"""
+"""Log some images with interesting paths."""
 
 import platform
 

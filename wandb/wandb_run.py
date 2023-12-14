@@ -1,5 +1,4 @@
-"""
-Compatibility wandb_run module.
+"""Compatibility wandb_run module.
 
 In the future use:
     from wandb.sdk.wandb_run import Run

@@ -64,30 +64,31 @@ class WandbCallback(xgb.callback.TrainingCallback):
     Passing `WandbCallback` to XGBoost will:
 
     - log the booster model configuration to Weights & Biases
-    - log evaluation metrics collected by XGBoost, such as rmse, accuracy etc to Weights & Biases
+    - log evaluation metrics collected by XGBoost, such as rmse, accuracy etc. to Weights & Biases
     - log training metric collected by XGBoost (if you provide training data to eval_set)
     - log the best score and the best iteration
-    - save and upload your trained model to to Weights & Biases Artifacts (when `log_model = True`)
+    - save and upload your trained model to Weights & Biases Artifacts (when `log_model = True`)
     - log feature importance plot when `log_feature_importance=True` (default).
     - Capture the best eval metric in `wandb.summary` when `define_metric=True` (default).
 
     Example:
         ```python
         bst_params = dict(
-            objective ='reg:squarederror',
-            colsample_bytree = 0.3,
-            learning_rate = 0.1,
-            max_depth = 5,
-            alpha = 10,
-            n_estimators = 10,
-            tree_method = 'hist'
+            objective="reg:squarederror",
+            colsample_bytree=0.3,
+            learning_rate=0.1,
+            max_depth=5,
+            alpha=10,
+            n_estimators=10,
+            tree_method="hist",
+            callbacks=[WandbCallback()],
         )
 
         xg_reg = xgb.XGBRegressor(**bst_params)
-        xg_reg.fit(X_train,
+        xg_reg.fit(
+            X_train,
             y_train,
             eval_set=[(X_test, y_test)],
-            callbacks=[WandbCallback()])
         )
         ```
     """
@@ -99,7 +100,6 @@ class WandbCallback(xgb.callback.TrainingCallback):
         importance_type: str = "gain",
         define_metric: bool = True,
     ):
-
         self.log_model: bool = log_model
         self.log_feature_importance: bool = log_feature_importance
         self.importance_type: str = importance_type
@@ -163,7 +163,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         model.save_model(str(model_path))
 
         model_artifact = wandb.Artifact(name=model_name, type="model")
-        model_artifact.add_file(model_path)
+        model_artifact.add_file(str(model_path))
         wandb.log_artifact(model_artifact)
 
     def _log_feature_importance(self, model: Booster) -> None:

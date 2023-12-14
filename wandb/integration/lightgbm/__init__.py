@@ -74,7 +74,7 @@ def _checkpoint_artifact(
     model.save_model(model_path, num_iteration=iteration)
 
     model_artifact = wandb.Artifact(name=model_name, type="model")
-    model_artifact.add_file(model_path)
+    model_artifact.add_file(str(model_path))
     wandb.log_artifact(model_artifact, aliases=aliases)
 
 
@@ -94,6 +94,64 @@ def _log_feature_importance(model: "Booster") -> None:
     )
 
 
+class _WandbCallback:
+    """Internal class to handle `wandb_callback` logic.
+
+    This callback is adapted form the LightGBM's `_RecordEvaluationCallback`.
+    """
+
+    def __init__(self, log_params: bool = True, define_metric: bool = True) -> None:
+        self.order = 20
+        self.before_iteration = False
+        self.log_params = log_params
+        self.define_metric_bool = define_metric
+
+    def _init(self, env: "CallbackEnv") -> None:
+        with wb_telemetry.context() as tel:
+            tel.feature.lightgbm_wandb_callback = True
+
+        # log the params as W&B config.
+        if self.log_params:
+            wandb.config.update(env.params)
+
+        # use `define_metric` to set the wandb summary to the best metric value.
+        for item in env.evaluation_result_list:
+            if self.define_metric_bool:
+                if len(item) == 4:
+                    data_name, eval_name = item[:2]
+                    _define_metric(data_name, eval_name)
+                else:
+                    data_name, eval_name = item[1].split()
+                    _define_metric(data_name, f"{eval_name}-mean")
+                    _define_metric(data_name, f"{eval_name}-stdv")
+
+    def __call__(self, env: "CallbackEnv") -> None:
+        if env.iteration == env.begin_iteration:  # type: ignore
+            self._init(env)
+
+        for item in env.evaluation_result_list:
+            if len(item) == 4:
+                data_name, eval_name, result = item[:3]
+                wandb.log(
+                    {data_name + "_" + eval_name: result},
+                    commit=False,
+                )
+            else:
+                data_name, eval_name = item[1].split()
+                res_mean = item[2]
+                res_stdv = item[4]
+                wandb.log(
+                    {
+                        data_name + "_" + eval_name + "-mean": res_mean,
+                        data_name + "_" + eval_name + "-stdv": res_stdv,
+                    },
+                    commit=False,
+                )
+
+        # call `commit=True` to log the data as a single W&B step.
+        wandb.log({"iteration": env.iteration}, commit=True)
+
+
 def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Callable:
     """Automatically integrates LightGBM with wandb.
 
@@ -111,59 +169,26 @@ def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Calla
     Example:
         ```python
         params = {
-            'boosting_type': 'gbdt',
-            'objective': 'regression',
-            .
+            "boosting_type": "gbdt",
+            "objective": "regression",
         }
-        gbm = lgb.train(params,
-                        lgb_train,
-                        num_boost_round=10,
-                        valid_sets=lgb_eval,
-                        valid_names=('validation'),
-                        callbacks=[wandb_callback()])
+        gbm = lgb.train(
+            params,
+            lgb_train,
+            num_boost_round=10,
+            valid_sets=lgb_eval,
+            valid_names=("validation"),
+            callbacks=[wandb_callback()],
+        )
         ```
     """
-    log_params_list: "List[bool]" = [log_params]
-    define_metric_list: "List[bool]" = [define_metric]
-
-    def _init(env: "CallbackEnv") -> None:
-        with wb_telemetry.context() as tel:
-            tel.feature.lightgbm_wandb_callback = True
-
-        wandb.config.update(env.params)
-        log_params_list[0] = False
-
-        if define_metric_list[0]:
-            for i in range(len(env.evaluation_result_list)):
-                data_type = env.evaluation_result_list[i][0]
-                metric_name = env.evaluation_result_list[i][1]
-                _define_metric(data_type, metric_name)
-
-    def _callback(env: "CallbackEnv") -> None:
-        if log_params_list[0]:
-            _init(env)
-
-        eval_results: "Dict[str, Dict[str, List[Any]]]" = {}
-        recorder = lightgbm.record_evaluation(eval_results)
-        recorder(env)
-
-        for validation_key in eval_results.keys():
-            for key in eval_results[validation_key].keys():
-                wandb.log(
-                    {validation_key + "_" + key: eval_results[validation_key][key][0]},
-                    commit=False,
-                )
-
-        # Previous log statements use commit=False. This commits them.
-        wandb.log({"iteration": env.iteration}, commit=True)
-
-    return _callback
+    return _WandbCallback(define_metric)
 
 
 def log_summary(
     model: Booster, feature_importance: bool = True, save_model_checkpoint: bool = False
 ) -> None:
-    """Logs useful metrics about lightgbm model after training is done.
+    """Log useful metrics about lightgbm model after training is done.
 
     Arguments:
         model: (Booster) is an instance of lightgbm.basic.Booster.
@@ -179,16 +204,17 @@ def log_summary(
     Example:
         ```python
         params = {
-            'boosting_type': 'gbdt',
-            'objective': 'regression',
-            .
+            "boosting_type": "gbdt",
+            "objective": "regression",
         }
-        gbm = lgb.train(params,
-                        lgb_train,
-                        num_boost_round=10,
-                        valid_sets=lgb_eval,
-                        valid_names=('validation'),
-                        callbacks=[wandb_callback()])
+        gbm = lgb.train(
+            params,
+            lgb_train,
+            num_boost_round=10,
+            valid_sets=lgb_eval,
+            valid_names=("validation"),
+            callbacks=[wandb_callback()],
+        )
 
         log_summary(gbm)
         ```

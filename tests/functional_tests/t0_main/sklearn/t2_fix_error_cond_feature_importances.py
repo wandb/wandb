@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Demonstrate fix for error condition for plotting feature importances in sklearn
+"""Demonstrate fix for error condition for plotting feature importances in sklearn.
 
 Reproduction for WB-6697
 

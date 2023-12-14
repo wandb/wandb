@@ -25,6 +25,8 @@ test-results/
 mypy-results/
 cover-results/
 wandb/proto_check/
+*.log
 .idea/
 .yea-requirements.txt
 .yeadoc/
+logs/

@@ -1,0 +1,27 @@
+id: 0.langhchain.01-v1
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skip: true
+depend:
+  requirements:
+    - langchain>=0.0.188
+    - openai
+    - beautifulsoup4
+    - numexpr
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary][langchain_trace][_type]: wb_trace_tree
+  - :op:contains:
+    - :wandb:runs[0][summary][langchain_trace]
+    - root_span_dumps
+  # Model tracking not enabled in current LC integration
+  # - :op:contains:
+  #   - :wandb:runs[0][summary][langchain_trace]
+  #   - model_dict_dumps
+  # - :op:contains:
+  #   - :wandb:runs[0][summary][langchain_trace]
+  #   - model_hash
+  - :wandb:runs[0][telemetry][9][2] : langchain  # label is langchain

@@ -1,0 +1,17 @@
+mutation UseArtifact(
+    $entityName: String!,
+    $projectName: String!,
+    $runName: String!,
+    $artifactID: ID!,
+) {
+    useArtifact(input: {
+        entityName: $entityName,
+        projectName: $projectName,
+        runName: $runName,
+        artifactID: $artifactID,
+    }) {
+        artifact {
+            id
+        }
+    }
+}

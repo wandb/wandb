@@ -1,0 +1,3 @@
+recursive-exclude * __pycache__
+recursive-exclude .tox/ *
+recursive-include wandb_core *

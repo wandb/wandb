@@ -119,9 +119,7 @@ def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_sett
         with open("netrc") as f:
             generated_netrc = f.read()
         assert generated_netrc == (
-            "machine google.com\n"
-            "  login user\n"
-            "  password {}\n".format(dummy_api_key)
+            f"machine google.com\n  login user\n  password {dummy_api_key}\n"
         )
 
 

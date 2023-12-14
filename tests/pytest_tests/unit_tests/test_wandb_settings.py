@@ -1,36 +1,33 @@
 import copy
-import inspect
 import json
 import os
 import subprocess
 import sys
 import tempfile
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 from unittest import mock
 
 import pytest
 import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
+from wandb.sdk import wandb_login, wandb_settings
+from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_type_hints
 else:
+    from typing_extensions import get_type_hints
 
-    def get_type_hints(obj):
-        return obj.__annotations__
-
-
-from wandb.sdk import wandb_settings
 
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
 Source = wandb_settings.Source
+is_instance_recursive = wandb_settings.is_instance_recursive
 
 
 def test_multiproc_strict_bad(test_settings):
-    with pytest.raises(ValueError):
+    with pytest.raises(wandb_settings.SettingsPreprocessingError):
         test_settings(dict(strict="bad"))
 
 
@@ -120,21 +117,73 @@ def test_property_multiple_validators():
 
 
 # fixme: remove this once full validation is restored
-def test_property_strict_validation(capsys):
-    attributes = inspect.getmembers(Property, lambda a: not (inspect.isroutine(a)))
-    strict_validate_settings = [
-        a for a in attributes if a[0] == "_Property__strict_validate_settings"
-    ][0][1]
-    for name in strict_validate_settings:
-        p = Property(name=name, validator=lambda x: isinstance(x, int))
-        with pytest.raises(ValueError):
-            p.update(value="rubbish")
-
+def test_property_strict_validation():
     p = Property(name="api_key", validator=lambda x: isinstance(x, str))
-    p.update(value=31415926)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 31415926"
-    assert msg in captured
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        p.update(value=31415926)
+
+
+def test_settings_validator_method_names():
+    # Settings validator methods should be named `_validate_<setting_name>`
+    s = wandb.Settings()
+    prefix = "_validate_"
+    symbols = set(dir(s))
+    validator_methods = tuple(m for m in symbols if m.startswith(prefix))
+
+    assert all(tuple(m.split(prefix)[1] in symbols for m in validator_methods))
+
+
+def test_settings_modification_order():
+    # Settings should be modified in the order that respects the dependencies
+    # between settings manifested in validator methods and runtime hooks.
+    s = wandb.Settings()
+    modification_order = s._Settings__modification_order
+    # todo: uncomment once api_key validation is restored:
+    # assert (
+    #     modification_order.index("base_url")
+    #     < modification_order.index("is_local")
+    #     < modification_order.index("api_key")
+    # )
+    assert modification_order.index("_network_buffer") < modification_order.index(
+        "_flow_control_custom"
+    )
+
+
+def test_settings_modification_order_up_to_date():
+    # Assert that the modification order is up-to-date with the generated code
+    s = wandb.Settings()
+    props = tuple(get_type_hints(Settings).keys())
+    modification_order = s._Settings__modification_order
+
+    _settings_literal_list, _settings_topologically_sorted = _get_modification_order(s)
+
+    assert props == _settings_literal_list
+    assert modification_order == _settings_topologically_sorted
+
+
+def test_settings_detect_cycle_in_dependencies():
+    # Settings modification order generator
+    # should detect cycles in dependencies between settings
+
+    def _mock_default_props(self):
+        props = dict(
+            api_key={"validator": self._validate_api_key},
+            base_url={
+                "hook": lambda _: "https://localhost"
+                if self.is_local
+                else "https://api.wandb.ai",
+                "auto_hook": True,
+            },
+            is_local={
+                "hook": lambda _: self.base_url is not None,
+                "auto_hook": True,
+            },
+        )
+        return props
+
+    with mock.patch.object(Settings, "_default_props", _mock_default_props):
+        with pytest.raises(wandb.UsageError):
+            _get_modification_order(wandb.Settings())
 
 
 def test_property_update():
@@ -232,35 +281,20 @@ def test_default_props_match_class_attributes():
     assert set(default_props) - set(class_attributes) == set()
 
 
-# fixme: remove this once full validation is restored
-def test_settings_strict_validation(capsys):
-    s = Settings(api_key=271828, lol=True)
-    assert s.api_key == 271828
-    with pytest.raises(AttributeError):
-        s.lol
-    captured = capsys.readouterr().err
-    msgs = (
-        "Ignoring unexpected arguments: ['lol']",
-        "Invalid value for property api_key: 271828",
-    )
-    for msg in msgs:
-        assert msg in captured
+def test_settings_strict_validation():
+    with pytest.raises(wandb_settings.SettingsUnexpectedArgsError):
+        Settings(api_key=271828, lol=True)
+
+
+def test_settings_strict_validation_2():
+    with pytest.raises(wandb_settings.SettingsValidationError):
+        Settings(api_key=271828)
 
 
 def test_static_settings_json_dump():
     s = Settings()
-    static_settings = s.make_static()
+    static_settings = s.to_dict()
     assert json.dumps(static_settings)
-
-
-# fixme: remove this once full validation is restored
-def test_no_repeat_warnings(capsys):
-    s = Settings(api_key=234)
-    assert s.api_key == 234
-    s.update(api_key=234)
-    captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 234"
-    assert captured.count(msg) == 1
 
 
 def test_program_python_m():
@@ -378,7 +412,7 @@ def test_attrib_set_not_allowed():
 def test_attrib_get_bad():
     s = Settings()
     with pytest.raises(AttributeError):
-        s.missing
+        s.missing  # noqa: B018
 
 
 def test_update_override():
@@ -697,6 +731,23 @@ def test_preprocess_bool_settings(setting: str):
         assert s[setting] is True
 
 
+@pytest.mark.parametrize(
+    "setting, value",
+    [
+        ("_stats_open_metrics_endpoints", '{"DCGM":"http://localhvost"}'),
+        (
+            "_stats_open_metrics_filters",
+            '{"DCGM_FI_DEV_POWER_USAGE": {"pod": "dcgm-*"}}',
+        ),
+    ],
+)
+def test_preprocess_dict_settings(setting: str, value: str):
+    with mock.patch.dict(os.environ, {"WANDB_" + setting.upper(): value}):
+        s = Settings()
+        s._apply_env_vars(environ=os.environ)
+        assert s[setting] == json.loads(value)
+
+
 def test_redact():
     # normal redact case
     redacted = wandb_settings._redact_dict({"this": 2, "that": 9, "api_key": "secret"})
@@ -789,6 +840,53 @@ def test_log_internal(test_settings):
     assert fname == "debug-internal.log"
 
 
+class TestAsyncUploadConcurrency:
+    def test_default_is_none(self, test_settings):
+        settings = test_settings()
+        assert settings._async_upload_concurrency_limit is None
+
+    @pytest.mark.parametrize(
+        ["value", "ok"],
+        [
+            (None, True),
+            (1, True),
+            (2, True),
+            (10, True),
+            (100, True),
+            (99999999, True),
+            (-10, False),
+            ("not an int", False),
+        ],
+    )
+    def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
+        if ok:
+            settings = test_settings({"_async_upload_concurrency_limit": value})
+            assert settings._async_upload_concurrency_limit == value
+        else:
+            with pytest.raises((UsageError, ValueError)):
+                test_settings({"_async_upload_concurrency_limit": value})
+
+    @pytest.mark.parametrize(
+        ["value", "warn"], [(None, False), (1, False), (9999999, True)]
+    )
+    @mock.patch("wandb.termwarn")
+    def test_warns_if_exceeds_filelimit(
+        self,
+        termwarn: mock.Mock,
+        test_settings,
+        value: Optional[int],
+        warn: bool,
+    ):
+        pytest.importorskip("resource")
+        test_settings({"_async_upload_concurrency_limit": value})
+
+        if warn:
+            termwarn.assert_called_once()
+            assert "exceeds this process's limit" in termwarn.call_args[0][0]
+        else:
+            termwarn.assert_not_called()
+
+
 # --------------------------
 # test static settings
 # --------------------------
@@ -797,6 +895,269 @@ def test_log_internal(test_settings):
 def test_settings_static():
     from wandb.sdk.internal.settings_static import SettingsStatic
 
-    static_settings = SettingsStatic(Settings().make_static())
+    static_settings = SettingsStatic(Settings().to_proto())
     assert "base_url" in static_settings
-    assert static_settings.get("base_url") == "https://api.wandb.ai"
+    assert static_settings.base_url == "https://api.wandb.ai"
+
+
+# --------------------------
+# test run settings
+# --------------------------
+
+
+def test_silent_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"silent": "true"}, source=Source.SETTINGS)
+    assert test_settings.silent is True
+    run = mock_run(settings=test_settings)
+    assert run._settings.silent is True
+
+
+def test_strict_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"strict": "true"}, source=Source.SETTINGS)
+    assert test_settings.strict is True
+    run = mock_run(settings=test_settings)
+    assert run._settings.strict is True
+
+
+def test_show_info_run(mock_run):
+    run = mock_run()
+    assert run._settings.show_info is True
+
+
+def test_show_info_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_info": "false"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_info is False
+
+
+def test_show_warnings_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_warnings is True
+
+
+def test_show_warnings_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_warnings is False
+
+
+def test_show_errors_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_errors": True}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_errors is True
+
+
+def test_show_errors_false_run(mock_run, test_settings):
+    test_settings = test_settings()
+    test_settings.update({"show_errors": False}, source=Source.SETTINGS)
+    run = mock_run(settings=test_settings)
+    assert run._settings.show_errors is False
+
+
+def test_not_jupyter(mock_run):
+    run = mock_run()
+    assert run._settings._jupyter is False
+
+
+def test_resume_fname_run(mock_run):
+    run = mock_run()
+    assert run._settings.resume_fname == os.path.join(
+        run._settings.root_dir, "wandb", "wandb-resume.json"
+    )
+
+
+def test_wandb_dir_run(mock_run):
+    run = mock_run()
+    assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(
+        os.path.join(run._settings.root_dir, "wandb")
+    )
+
+
+def test_console_run(mock_run):
+    run = mock_run(settings={"console": "auto", "mode": "offline"})
+    assert run._settings.console == "wrap"
+
+
+def test_console(test_settings):
+    test_settings = test_settings()
+    assert test_settings.console == "off"
+    test_settings.update({"console": "redirect"}, source=Source.BASE)
+    assert test_settings.console == "redirect"
+    test_settings.update({"console": "wrap"}, source=Source.BASE)
+    assert test_settings.console == "wrap"
+
+
+def test_code_saving_save_code_env_false(mock_run, test_settings):
+    settings = test_settings()
+    settings.update({"save_code": None}, source=Source.BASE)
+    with mock.patch.dict("os.environ", WANDB_SAVE_CODE="false"):
+        settings._infer_settings_from_environment()
+        run = mock_run(settings=settings)
+        assert run._settings.save_code is False
+
+
+def test_code_saving_disable_code(mock_run, test_settings):
+    settings = test_settings()
+    settings.update({"save_code": None}, source=Source.BASE)
+    with mock.patch.dict("os.environ", WANDB_DISABLE_CODE="true"):
+        settings._infer_settings_from_environment()
+        run = mock_run(settings=settings)
+        assert run.settings.save_code is False
+
+
+def test_override_login_settings(test_settings):
+    wlogin = wandb_login._WandbLogin()
+    login_settings = test_settings().copy()
+    login_settings.update(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True
+
+
+def test_override_login_settings_with_dict():
+    wlogin = wandb_login._WandbLogin()
+    login_settings = dict(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True
+
+
+def test_setup_offline(test_settings):
+    # this is to increase coverage
+    login_settings = test_settings().copy()
+    login_settings.update(mode="offline")
+    assert wandb.setup(settings=login_settings)._instance._get_entity() is None
+    assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
+
+
+def test_disable_machine_info(test_settings):
+    settings = test_settings()
+    attrs = (
+        "_disable_stats",
+        "_disable_meta",
+        "disable_code",
+        "disable_git",
+        "disable_job_creation",
+    )
+    for attr in attrs:
+        assert not getattr(settings, attr)
+    settings.update({"_disable_machine_info": True}, source=Source.BASE)
+    for attr in attrs:
+        assert getattr(settings, attr) is True
+    settings.update({"_disable_machine_info": False}, source=Source.BASE)
+    for attr in attrs:
+        assert getattr(settings, attr) is False
+
+
+@pytest.mark.skip(reason="causes other tests that depend on capsys to fail")
+def test_silent_env_run(mock_run, test_settings):
+    settings = test_settings()
+    with mock.patch.dict("os.environ", WANDB_SILENT="true"):
+        settings._apply_env_vars(os.environ)
+        run = mock_run(settings=settings)
+        assert run._settings.silent is True
+
+
+def test_is_instance_recursive():
+    # Test with simple types
+    assert is_instance_recursive(42, int)
+    assert not is_instance_recursive(42, str)
+    assert is_instance_recursive("hello", str)
+    assert not is_instance_recursive("hello", int)
+
+    # Test with Any type
+    assert is_instance_recursive(42, Any)
+    assert is_instance_recursive("hello", Any)
+    assert is_instance_recursive([1, 2, 3], Any)
+    assert is_instance_recursive({"a": 1, "b": 2}, Any)
+
+    # Test with Union
+    assert is_instance_recursive(42, Union[int, str])
+    assert is_instance_recursive("hello", Union[int, str])
+    assert not is_instance_recursive([1, 2, 3], Union[int, str])
+
+    # Test with Mapping
+    assert is_instance_recursive({"a": 1, "b": 2}, Dict[str, int])
+    assert not is_instance_recursive({"a": 1, "b": "2"}, Dict[str, int])
+    assert not is_instance_recursive([("a", 1), ("b", 2)], Dict[str, int])
+
+    # Test with Sequence
+    assert is_instance_recursive([1, 2, 3], List[int])
+    assert not is_instance_recursive([1, 2, "3"], List[int])
+    assert not is_instance_recursive("123", List[int])
+    assert is_instance_recursive([(1, 2), (3, 4)], List[Tuple[int, int]])
+    assert not is_instance_recursive([(1, 2), (3, "4")], List[Tuple[int, int]])
+
+    # Test with fixed-length Sequence
+    assert is_instance_recursive([1, "a", 3.5], Tuple[int, str, float])
+    assert not is_instance_recursive([1, "a", "3.5"], Tuple[int, str, float])
+    assert not is_instance_recursive([1, "a"], Tuple[int, str, float])
+
+    # Test with Tuple of variable length
+    assert is_instance_recursive((1, 2, 3), Tuple[int, ...])
+    assert not is_instance_recursive((1, 2, "a"), Tuple[int, ...])
+    assert is_instance_recursive((1, 2, "a"), Tuple[Union[int, str], ...])
+
+    # Test with Set
+    assert is_instance_recursive({1, 2, 3}, Set[int])
+    assert not is_instance_recursive({1, 2, "3"}, Set[int])
+    assert not is_instance_recursive([1, 2, 3], Set[int])
+
+    # Test with nested types
+    assert is_instance_recursive({"a": [1, 2], "b": [3, 4]}, Dict[str, List[int]])
+    assert not is_instance_recursive({"a": [1, 2], "b": [3, "4"]}, Dict[str, List[int]])
+
+
+def test_is_instance_recursive_mapping_and_sequence():
+    # Test with Mapping
+    assert is_instance_recursive({"a": 1, "b": 2}, Mapping[str, int])
+    assert not is_instance_recursive({"a": 1, "b": "2"}, Mapping[str, int])
+    assert not is_instance_recursive([("a", 1), ("b", 2)], Mapping[str, int])
+
+    # Test with Sequence
+    assert is_instance_recursive([1, 2, 3], Sequence[int])
+    assert not is_instance_recursive([1, 2, "3"], Sequence[int])
+    assert not is_instance_recursive("123", Sequence[int])
+    assert is_instance_recursive([(1, 2), (3, 4)], Sequence[Tuple[int, int]])
+    assert not is_instance_recursive([(1, 2), (3, "4")], Sequence[Tuple[int, int]])
+
+    # Test with nested types and Mapping
+    assert is_instance_recursive(
+        {"a": [1, 2], "b": [3, 4]}, Mapping[str, Sequence[int]]
+    )
+    assert not is_instance_recursive(
+        {"a": [1, 2], "b": [3, "4"]}, Mapping[str, Sequence[int]]
+    )
+
+    # Test with nested types and Sequence
+    assert is_instance_recursive(
+        [{"a": 1, "b": 2}, {"c": 3, "d": 4}], Sequence[Mapping[str, int]]
+    )
+    assert not is_instance_recursive(
+        [{"a": 1, "b": 2}, {"c": 3, "d": "4"}], Sequence[Mapping[str, int]]
+    )
+
+
+def test_is_instance_recursive_custom_types():
+    class Custom:
+        pass
+
+    class CustomSubclass(Custom):
+        pass
+
+    assert is_instance_recursive(Custom(), Custom)
+    assert is_instance_recursive(CustomSubclass(), Custom)
+    assert not is_instance_recursive(Custom(), CustomSubclass)
+    assert is_instance_recursive(CustomSubclass(), CustomSubclass)
+
+    # container types
+    assert is_instance_recursive([Custom()], List[Custom])
+    assert is_instance_recursive([CustomSubclass()], List[Custom])
+    assert is_instance_recursive(
+        {"a": Custom(), "b": CustomSubclass()}, Mapping[str, Custom]
+    )

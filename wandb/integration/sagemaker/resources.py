@@ -8,7 +8,7 @@ from . import files as sm_files
 
 
 def parse_sm_secrets() -> Dict[str, str]:
-    """We read our api_key from secrets.env in SageMaker"""
+    """We read our api_key from secrets.env in SageMaker."""
     env_dict = dict()
     # Set secret variables
     if os.path.exists(sm_files.SM_SECRETS):

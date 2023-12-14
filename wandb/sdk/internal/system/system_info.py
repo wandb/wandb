@@ -18,7 +18,8 @@ from wandb.sdk.lib.filenames import (
     METADATA_FNAME,
     REQUIREMENTS_FNAME,
 )
-from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.lib.gitlib import GitRepo
+from wandb.sdk.wandb_settings import _get_program_relpath
 
 from .assets.interfaces import Interface
 
@@ -35,7 +36,7 @@ class SystemInfo:
         self.backend_interface = interface
         self.git = GitRepo(
             root=self.settings.git_root,
-            remote=self.settings.git_remote,  # type: ignore
+            remote=self.settings.git_remote,
             remote_url=self.settings.git_remote_url,
             commit=self.settings.git_commit,
         )
@@ -47,7 +48,7 @@ class SystemInfo:
 
     # todo: refactor these _save_* methods
     def _save_pip(self) -> None:
-        """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
+        """Save the current working set of pip packages to {REQUIREMENTS_FNAME}."""
         logger.debug(
             "Saving list of pip packages installed into the current environment"
         )
@@ -87,7 +88,7 @@ class SystemInfo:
 
     def _save_code(self) -> None:
         logger.debug("Saving code")
-        if self.settings.program_relpath is None:
+        if not self.settings.program_relpath:
             logger.warning("unable to save code -- program entry not found")
             return None
 
@@ -142,8 +143,8 @@ class SystemInfo:
                         os.path.relpath(patch_path, start=self.settings.files_dir)
                     )
 
-            upstream_commit = self.git.get_upstream_fork_point()  # type: ignore
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
+            upstream_commit = self.git.get_upstream_fork_point()
+            if upstream_commit and upstream_commit != self.git.repo.head.commit:  # type: ignore
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
                     self.settings.files_dir, f"upstream_diff_{sha}.patch"
@@ -205,13 +206,16 @@ class SystemInfo:
         data["docker"] = self.settings.docker
 
         data["cuda"] = self.settings._cuda
-        data["args"] = self.settings._args
+        data["args"] = tuple(self.settings._args or ())
         data["state"] = "running"
 
         if self.settings.program is not None:
             data["program"] = self.settings.program
+            # Used during artifact-job creation, always points to the relpath
+            # of code execution, even when in a git repo
+            data["codePathLocal"] = _get_program_relpath(self.settings.program)
         if not self.settings.disable_code:
-            if self.settings.program_relpath is not None:
+            if self.settings.program_relpath:
                 data["codePath"] = self.settings.program_relpath
             elif self.settings._jupyter:
                 if self.settings.notebook_name:
@@ -220,8 +224,7 @@ class SystemInfo:
                     if self.settings._jupyter_path.startswith("fileId="):
                         unescaped = unquote(self.settings._jupyter_path)
                         data["colab"] = (
-                            "https://colab.research.google.com/notebook#"
-                            + unescaped  # noqa
+                            "https://colab.research.google.com/notebook#" + unescaped
                         )
                         data["program"] = self.settings._jupyter_name
                     else:

@@ -1,7 +1,10 @@
 import pytest
-import torch
-import torch.nn as nn
-import wandb
+
+pytest.importorskip("torch")
+
+import torch  # noqa: E402
+import torch.nn as nn  # noqa: E402
+import wandb  # noqa: E402
 
 
 def test_nested_shape():

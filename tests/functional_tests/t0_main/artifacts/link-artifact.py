@@ -1,6 +1,6 @@
-"""
-Test for run.link_artifact()
-Allows user to link an artifact to a portfolio, without logging it first
+"""Test for run.link_artifact().
+
+Allows user to link an artifact to a portfolio, without logging it first.
 """
 import tempfile
 

@@ -3,12 +3,13 @@ import shlex
 from typing import Any, List, Optional
 
 import wandb
-from wandb.errors import LaunchError
 
 from .._project_spec import LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
+from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
+    MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_uri,
     download_wandb_python_deps,
@@ -31,7 +32,7 @@ class LocalProcessRunner(AbstractRunner):
 
     """
 
-    def run(  # type: ignore
+    async def run(  # type: ignore
         self,
         launch_project: LaunchProject,
         *args,
@@ -45,7 +46,10 @@ class LocalProcessRunner(AbstractRunner):
             _logger.warning(_msg)
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
-        entry_point = launch_project.get_single_entry_point()
+        entry_point = (
+            launch_project.override_entrypoint
+            or launch_project.get_single_entry_point()
+        )
 
         cmd: List[Any] = []
 
@@ -77,12 +81,11 @@ class LocalProcessRunner(AbstractRunner):
                 )
             except Exception:
                 wandb.termwarn("Unable to validate python dependencies")
-        env_vars = get_env_vars_dict(launch_project, self._api)
+        env_vars = get_env_vars_dict(
+            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        )
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
-
-        if not self.ack_run_queue_item(launch_project):
-            return None
 
         entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
         cmd += entry_cmd
@@ -92,5 +95,5 @@ class LocalProcessRunner(AbstractRunner):
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            run.wait()
+            await run.wait()
         return run
