@@ -391,7 +391,7 @@ class KubernetesRunner(AbstractRunner):
             # Add our env vars to user supplied env vars
             env = cont.get("env") or []
             for key, value in env_vars.items():
-                if key == "WANDB_API_KEY":
+                if key == "WANDB_API_KEY" and value:
                     # Override API key with secret. TODO: Do the same for other runners
                     await create_api_key_secret(core_api, namespace, value)
                     env.append(
