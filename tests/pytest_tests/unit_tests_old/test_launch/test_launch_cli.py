@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 import wandb
+from wandb.apis import public
 from wandb.cli import cli
 
 from .test_launch import mock_load_backend, mocked_fetchable_git_repo  # noqa: F401
@@ -175,6 +176,64 @@ def test_launch_cli_with_config_file_and_params(
         assert "Launching run in docker with command: docker run" in result.output
 
 
+def test_launch_cli_with_priority(
+    runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
+):
+    config = {
+        "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+        "project": "test_project",
+        "entity": "mock_server_entity",
+        "resource": "local-container",
+        "overrides": {"args": ["--epochs", "5"]},
+    }
+
+    async def _mock_build(*args, **kwargs):
+        return "testimage:12345"
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.builder.docker_builder.DockerBuilder,
+        "build_image",
+        lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
+    )
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local_container._run_entry_point",
+        patched_run_run_entry,
+    )
+    
+    async def mock_launch_add(*args, **kwargs):
+        mock = Mock(spec=public.QueuedRun)
+        mock.args = Mock(return_value=args)
+        return mock
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch._launch_add._launch_add",
+        mock_launch_add,
+    ) 
+    
+
+    with runner.isolated_filesystem():
+        with open("config.json", "w") as fp:
+            json.dump(
+                config,
+                fp,
+            )
+
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--job",
+                "test/test/test:latest",
+                "--queue",
+                "prioritized",
+                "--priority",
+                "critical"
+            ],
+        )
+        print(result.output)
+        assert result.exit_code == 0
+        assert "Launching run in docker with command: docker run" in result.output
+
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
 ):
@@ -334,6 +393,23 @@ def test_launch_queue_error(runner):
     assert result.exit_code != 0
     assert "Cannot use both --async and --queue with wandb launch" in result.output
 
+
+def test_launch_priority_no_queue(runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "-u",
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+                "--priority",
+                "critical"
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "--priority flag requires --queue to be set" in result.output
 
 def test_launch_agent_project_environment_variable(
     runner,
