@@ -39,11 +39,28 @@ const (
 	configDebouncerBurstSize = 1        // todo: audit burst size
 )
 
+type SenderOption func(*Sender)
+
+func WithSenderFwdChannel(fwd chan *service.Record) SenderOption {
+	return func(s *Sender) {
+		s.fwdChan = fwd
+	}
+}
+
+func WithSenderOutChannel(out chan *service.Result) SenderOption {
+	return func(s *Sender) {
+		s.outChan = out
+	}
+}
+
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
 	// ctx is the context for the handler
 	ctx context.Context
+
+	// cancel is the cancel function for the handler
+	cancel context.CancelFunc
 
 	// logger is the logger for the sender
 	logger *observability.CoreLogger
@@ -51,8 +68,8 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *service.Settings
 
-	// loopbackChan is the channel for loopback messages (messages from the sender to the handler)
-	loopbackChan chan *service.Record
+	// fwdChan is the channel for loopback messages (messages from the sender to the handler)
+	fwdChan chan *service.Record
 
 	// outChan is the channel for dispatcher messages
 	outChan chan *service.Result
@@ -74,7 +91,7 @@ type Sender struct {
 
 	telemetry *service.TelemetryRecord
 
-	ms *MetricSender
+	metricSender *MetricSender
 
 	configDebouncer *debounce.Debouncer
 
@@ -96,17 +113,22 @@ type Sender struct {
 }
 
 // NewSender creates a new Sender with the given settings
-func NewSender(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger, loopbackChan chan *service.Record) *Sender {
+func NewSender(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	logger *observability.CoreLogger,
+	settings *service.Settings,
+	opts ...SenderOption,
+) *Sender {
 
 	sender := &Sender{
-		ctx:          ctx,
-		settings:     settings,
-		logger:       logger,
-		summaryMap:   make(map[string]*service.SummaryItem),
-		configMap:    make(map[string]interface{}),
-		loopbackChan: loopbackChan,
-		outChan:      make(chan *service.Result, BufferSize),
-		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
+		ctx:        ctx,
+		cancel:     cancel,
+		settings:   settings,
+		logger:     logger,
+		summaryMap: make(map[string]*service.SummaryItem),
+		configMap:  make(map[string]interface{}),
+		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -180,11 +202,15 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		logger,
 	)
 
+	for _, opt := range opts {
+		opt(sender)
+	}
+
 	return sender
 }
 
 // do sending of messages to the server
-func (s *Sender) do(inChan <-chan *service.Record) {
+func (s *Sender) Do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
@@ -193,16 +219,13 @@ func (s *Sender) do(inChan <-chan *service.Record) {
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 	}
+	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
 }
 
 func (s *Sender) Close() {
 	// sender is done processing data, close our dispatch channel
 	close(s.outChan)
-}
-
-func (s *Sender) SetOutboundChannel(out chan *service.Result) {
-	s.outChan = out
 }
 
 func (s *Sender) GetOutboundChannel() chan *service.Result {
@@ -387,6 +410,8 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.syncService.Flush()
 		s.respondExit(s.exitRecord)
+		// cancel tells the stream to close the loopback channel
+		s.cancel()
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
 		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
@@ -400,7 +425,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		}},
 		Control: &service.Control{AlwaysSend: true},
 	}
-	s.loopbackChan <- rec
+	s.fwdChan <- rec
 }
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
@@ -477,8 +502,8 @@ func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 			v["python_version"] = telemetry.PythonVersion
 		}
 		v["t"] = corelib.ProtoEncodeToDict(s.telemetry)
-		if s.ms != nil {
-			v["m"] = s.ms.configMetrics
+		if s.metricSender != nil {
+			v["m"] = s.metricSender.configMetrics
 		}
 		// todo: add the rest of the telemetry from telemetry
 	default:
@@ -503,6 +528,52 @@ func (s *Sender) serializeConfig() string {
 	return string(configJson)
 }
 
+func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{
+			RunResult: runResult,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
+
+}
+
+func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
+	if s.graphqlClient == nil {
+		return nil
+	}
+	// There was no resume status set, so we don't need to do anything
+	if s.settings.GetResume().GetValue() == "" {
+		return nil
+	}
+
+	// init resume state if it doesn't exist
+	s.resumeState = NewResumeState(s.logger, s.settings.GetResume().GetValue())
+	run := s.RunRecord
+	// If we couldn't get the resume status, we should fail if resume is set
+	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
+	if err != nil {
+		err = fmt.Errorf("failed to get run resume status: %s", err)
+		s.logger.Error("sender:", "error", err)
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Message: err.Error(),
+				Code:    service.ErrorInfo_COMMUNICATION,
+			}}
+		s.sendRunResult(record, result)
+		return err
+	}
+
+	if result, err := s.resumeState.Update(data, s.RunRecord, s.configMap); err != nil {
+		s.sendRunResult(record, result)
+		return err
+	}
+
+	return nil
+}
+
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	if s.RunRecord == nil && s.graphqlClient != nil {
@@ -513,7 +584,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 		}
 
-		if err := s.checkAndUpdateResumeState(record, s.RunRecord); err != nil {
+		if err := s.checkAndUpdateResumeState(record); err != nil {
 			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
 			return
 		}
@@ -798,14 +869,14 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.loopbackChan <- rec
+	s.fwdChan <- rec
 }
 
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
-	if s.ms == nil {
-		s.ms = NewMetricSender()
+	if s.metricSender == nil {
+		s.metricSender = NewMetricSender()
 	}
 
 	if metric.GetGlobName() != "" {
@@ -837,7 +908,7 @@ func (s *Sender) sendInternalFile(path string) {
 		s.logger.Info("sender: sendInternalFile: file does not exist", "path", path)
 		return
 	}
-	s.loopbackChan <- &service.Record{
+	s.fwdChan <- &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
@@ -889,7 +960,7 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 				rec := &service.Record{
 					RecordType: &service.Record_Request{Request: request},
 				}
-				s.loopbackChan <- rec
+				s.fwdChan <- rec
 			},
 		)
 		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
@@ -920,7 +991,7 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 				rec := &service.Record{
 					RecordType: &service.Record_Request{Request: request},
 				}
-				s.loopbackChan <- rec
+				s.fwdChan <- rec
 			},
 		)
 
@@ -1032,7 +1103,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.loopbackChan <- rec
+	s.fwdChan <- rec
 }
 
 func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
