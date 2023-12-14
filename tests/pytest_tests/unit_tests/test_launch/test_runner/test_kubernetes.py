@@ -705,7 +705,7 @@ async def test_create_api_key_secret():
     namespace, secret = api.secrets[0]
     assert namespace == "wandb"
     assert secret.metadata.name == "wandb-api-key"
-    assert secret.data["password"] == base64.b64encode("testsecret".encode()).decode()
+    assert secret.data["password"] == base64.b64encode(b"testsecret").decode()
 
 
 # Test monitor class.
