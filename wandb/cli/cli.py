@@ -1511,7 +1511,7 @@ def launch(
             "low": 3,
         }
         priority = priority_map[priority.lower()]
-        
+
     template_variables = None
     if cli_template_vars:
         if queue is None:
