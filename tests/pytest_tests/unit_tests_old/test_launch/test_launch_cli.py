@@ -181,12 +181,12 @@ def test_launch_cli_with_priority(
 ):
     async def patched_asyncio_run(*args, **kwargs):
         pass
-        
+
     monkeypatch.setattr(
         "asyncio.run",
         patched_asyncio_run,
     )
-    
+
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
