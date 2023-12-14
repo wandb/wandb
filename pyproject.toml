@@ -91,6 +91,7 @@ launch = [
     "optuna",
     "nbconvert",
     "nbformat",
+    "pydantic",
     "typing_extensions",
     "PyYAML>=6.0.0",
 ]

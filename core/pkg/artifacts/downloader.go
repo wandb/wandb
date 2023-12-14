@@ -3,13 +3,13 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const BATCH_SIZE int = 10000
@@ -135,10 +135,20 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
-					// Skip downloading the file if it already exists
-					if _, err := os.Stat(downloadLocalPath); err == nil {
-						numDone++
-						continue
+					// Skip downloading the file if it already exists and has the same digest.
+					exists, err := utils.FileExists(downloadLocalPath)
+					if err != nil {
+						return err
+					}
+					if exists {
+						existingDigest, err := utils.ComputeFileB64MD5(downloadLocalPath)
+						if err != nil {
+							return err
+						}
+						if existingDigest == entry.Digest {
+							numDone++
+							continue
+						}
 					}
 					task := &filetransfer.Task{
 						Type:     filetransfer.DownloadTask,

@@ -303,7 +303,6 @@ def test_artifact_upload_succeeds_with_async(
         assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts")
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
     """Don't re-download an artifact if it's already in the desired location."""
     cache_dir = tmp_path / "cache"
@@ -338,12 +337,8 @@ def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypat
         assert file1.read_text() == "hello"
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts")
-def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch):
+def test_check_changed_artifact_then_download(wandb_init, tmp_path):
     """*Do* re-download an artifact if it's been modified in place."""
-    cache_dir = tmp_path / "cache"
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
     original_file = tmp_path / "test.txt"
     original_file.write_text("hello")
     with wandb_init() as run:
@@ -357,9 +352,6 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path, monkeypatch)
         file1 = artifact_path / "test.txt"
         assert file1.is_file()
         assert file1.read_text() == "hello"
-
-    # Delete the cached file
-    shutil.rmtree(cache_dir)
 
     # Modify the artifact file to change its hash.
     file1.write_text("goodbye")
