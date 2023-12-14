@@ -881,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
@@ -1230,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }
@@ -1506,7 +1508,7 @@ class Api:
                 $project: String!,
                 $queueName: String!,
                 $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode!,
+                $prioritizationMode: RunQueuePrioritizationMode,
                 $defaultResourceConfigID: ID,
             ) {
                 createRunQueue(

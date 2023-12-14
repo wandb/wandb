@@ -11,8 +11,8 @@ comment:
 ignore:
   - "wandb/vendor"
   - "wandb/proto"
-  - "nexus/pkg/service"
-  - "nexus/internal/gql"
+  - "core/pkg/service"
+  - "core/internal/gql"
 
 coverage:
   precision: 2
@@ -50,9 +50,9 @@ coverage:
         informational: true
         paths:
           - wandb/apis/
-      nexus:
+      core:
         paths:
-          - nexus/
+          - core/
       other:
         informational: true
         paths:

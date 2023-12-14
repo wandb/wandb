@@ -11,8 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.1.dev1"
-_minimum_core_version = "0.17.0b2"
+__version__ = "0.16.2.dev1"
+_minimum_core_version = "0.17.0b4"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -33,6 +33,7 @@ wandb.wandb_lib = wandb_sdk.lib
 init = wandb_sdk.init
 setup = wandb_sdk.setup
 _attach = wandb_sdk._attach
+_sync = wandb_sdk._sync
 _teardown = wandb_sdk.teardown
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
@@ -209,21 +210,6 @@ from .analytics import Sentry as _Sentry
 
 _sentry = _Sentry()
 _sentry.setup()
-
-
-# print a warning if running py 3.6 saying that it will be deprecated in the 0.16.0 release
-try:
-    import sys
-
-    if sys.version_info[0] == 3 and sys.version_info[1] == 6:
-        termwarn(
-            "Support for Python 3.6 will be discontinued "
-            "in the upcoming 0.16.0 release of wandb. "
-            "We recommend upgrading to Python 3.7 or a later version.",
-            repeat=False,
-        )
-except Exception:
-    pass
 
 
 __all__ = (

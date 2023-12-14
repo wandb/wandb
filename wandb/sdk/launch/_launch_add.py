@@ -195,7 +195,7 @@ async def _launch_add(
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(
+        job_artifact = run._log_job_artifact_with_image(  # type: ignore
             docker_image_uri, launch_project.override_args
         )
         job_name = job_artifact.wait().name
