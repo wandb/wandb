@@ -11,6 +11,7 @@ import os
 import queue
 import socket
 import threading
+import multiprocessing
 import time
 
 import wandb
@@ -101,7 +102,7 @@ class Agent:
 
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
-        self._run_threads = {}
+        self._run_process = {}
         self._run_status = {}
         self._queue = queue.Queue()
         self._exit_flag = False
@@ -138,13 +139,13 @@ class Agent:
     def _stop_run(self, run_id):
         logger.debug(f"Stopping run {run_id}.")
         self._run_status[run_id] = RunStatus.STOPPED
-        thread = self._run_threads.get(run_id)
+        thread = self._run_process.get(run_id)
         if thread:
             _terminate_thread(thread)
 
     def _stop_all_runs(self):
         logger.debug("Stopping all runs.")
-        for run in list(self._run_threads.keys()):
+        for run in list(self._run_process.keys()):
             self._stop_run(run)
 
     def _exit(self):
@@ -212,13 +213,15 @@ class Agent:
                     run_id = job.run_id
                     if self._run_status[run_id] == RunStatus.STOPPED:
                         continue
-                    logger.debug(f"Spawning new thread for run {run_id}.")
-                    thread = threading.Thread(target=self._run_job, args=(job,))
-                    self._run_threads[run_id] = thread
-                    thread.start()
+                    logger.debug(f"Spawning new process for run {run_id}.")
+
+                    process = multiprocessing.Process(target=self._run_job, args=(job,))
+                    self._run_process[run_id] = process
+                    process.start()
                     self._run_status[run_id] = RunStatus.RUNNING
-                    thread.join()
-                    logger.debug(f"Thread joined for run {run_id}.")
+                    process.join()
+                    logger.debug(f"Process joined for run {run_id}.")
+
                     if self._run_status[run_id] == RunStatus.RUNNING:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
