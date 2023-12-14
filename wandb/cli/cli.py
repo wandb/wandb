@@ -2310,15 +2310,15 @@ def put(path, name, description, type, alias, run_id, resume):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    run = wandb.init(
+    with wandb.init(
         entity=entity,
         project=project,
         config={"path": path},
         job_type="cli_put",
         id=run_id,
         resume=resume,
-    )
-    run.log_artifact(artifact, aliases=alias)
+    ) as run:
+        run.log_artifact(artifact, aliases=alias)
     artifact.wait()
 
     wandb.termlog(
