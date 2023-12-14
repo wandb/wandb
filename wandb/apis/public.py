@@ -576,7 +576,7 @@ class Api:
         """Create a new user.
 
         Arguments:
-            email: (str) The name of the team
+            email: (str) The email address of the user
             admin: (bool) Whether this user should be a global instance admin
 
         Returns:
@@ -716,7 +716,7 @@ class Api:
 
     def _parse_project_path(self, path):
         """Return project and entity for project specified by path."""
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
@@ -735,7 +735,7 @@ class Api:
 
         Entity is optional and will fall back to the current logged-in user.
         """
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         parts = (
             path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
@@ -2715,6 +2715,7 @@ class RunQueue:
         self._access = _access
         self._default_resource_config_id = _default_resource_config_id
         self._default_resource_config = _default_resource_config
+        self._template_variables = None
         self._type = None
         self._items = None
         self._id = None
@@ -2752,6 +2753,14 @@ class RunQueue:
                 self._get_metadata()
             self._get_default_resource_config()
         return self._default_resource_config
+
+    @property
+    def template_variables(self):
+        if self._template_variables is None:
+            if self._default_resource_config_id is None:
+                self._get_metadata()
+            self._get_default_resource_config()
+        return self._template_variables
 
     @property
     def id(self) -> str:
@@ -2832,6 +2841,10 @@ class RunQueue:
                     defaultResourceConfig(id: $id) {
                         config
                         resource
+                        templateVariables {
+                            name
+                            schema
+                        }
                     }
                 }
             }
@@ -2844,6 +2857,9 @@ class RunQueue:
         res = self._client.execute(query, variable_values)
         self._type = res["entity"]["defaultResourceConfig"]["resource"]
         self._default_resource_config = res["entity"]["defaultResourceConfig"]["config"]
+        self._template_variables = res["entity"]["defaultResourceConfig"][
+            "templateVariables"
+        ]
 
     @normalize_exceptions
     def _get_items(self):

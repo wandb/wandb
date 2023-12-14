@@ -9,6 +9,20 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+type WriterOption func(*Writer)
+
+func WithWriterFwdChannel(fwd chan *service.Record) WriterOption {
+	return func(w *Writer) {
+		w.fwdChan = fwd
+	}
+}
+
+func WithWriterSettings(settings *service.Settings) WriterOption {
+	return func(w *Writer) {
+		w.settings = settings
+	}
+}
+
 // Writer is responsible for writing messages to the append-only log.
 // It receives messages from the handler, processes them,
 // if the message is to be persisted it writes them to the log.
@@ -40,13 +54,14 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, settings *service.Settings, logger *observability.CoreLogger) *Writer {
-
+func NewWriter(ctx context.Context, logger *observability.CoreLogger, opts ...WriterOption) *Writer {
 	w := &Writer{
-		ctx:      ctx,
-		settings: settings,
-		logger:   logger,
-		fwdChan:  make(chan *service.Record, BufferSize),
+		ctx:    ctx,
+		logger: logger,
+		wg:     sync.WaitGroup{},
+	}
+	for _, opt := range opts {
+		opt(w)
 	}
 	return w
 }
@@ -66,7 +81,6 @@ func (w *Writer) startStore() {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
 
-	w.wg = sync.WaitGroup{}
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
@@ -83,7 +97,7 @@ func (w *Writer) startStore() {
 }
 
 // do is the main loop of the writer to process incoming messages
-func (w *Writer) do(inChan <-chan *service.Record) {
+func (w *Writer) Do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
 
@@ -92,6 +106,7 @@ func (w *Writer) do(inChan <-chan *service.Record) {
 	for record := range inChan {
 		w.handleRecord(record)
 	}
+	w.Close()
 	w.wg.Wait()
 }
 
