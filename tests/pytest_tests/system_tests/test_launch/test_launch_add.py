@@ -518,7 +518,6 @@ def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
         )
         for comm in relay.context.raw_data:
             q = comm["request"].get("query")
-            vars = comm["request"].get("variables")
             if q and "mutation pushToRunQueueByName(" in str(q):
                 assert comm["response"].get("data") is not None
             elif q and "mutation pushToRunQueue(" in str(q):
@@ -551,7 +550,7 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     queue_config = {}
     base_config = {}
 
-    with relay_server() as relay, runner.isolated_filesystem():
+    with relay_server(), runner.isolated_filesystem():
         api = PublicApi(api_key=user)
         api.create_run_queue(
             entity=user,
