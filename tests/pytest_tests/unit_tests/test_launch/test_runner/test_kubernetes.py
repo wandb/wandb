@@ -24,6 +24,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
+    create_api_key_secret,
     maybe_create_imagepull_secret,
 )
 
@@ -695,6 +696,16 @@ async def test_maybe_create_imagepull_secret_given_creds():
             }
         ).encode("utf-8")
     ).decode("utf-8")
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_secret():
+    api = MockCoreV1Api()
+    await create_api_key_secret(api, "wandb", "testsecret")
+    namespace, secret = api.secrets[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "wandb-api-key"
+    assert secret.data["password"] == base64.b64encode("testsecret").decode()
 
 
 # Test monitor class.

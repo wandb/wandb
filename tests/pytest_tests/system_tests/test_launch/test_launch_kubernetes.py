@@ -12,8 +12,10 @@ from wandb.sdk.launch.utils import make_name_dns_safe
 async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
     pass
 
+
 async def _mock_create_api_key_secret(*args, **kwargs):
     pass
+
 
 @pytest.mark.asyncio
 async def test_kubernetes_run_clean_generate_name(
