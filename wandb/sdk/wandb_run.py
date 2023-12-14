@@ -1465,17 +1465,17 @@ class Run:
             row = self._visualization_hack(row)
 
 
-        def nested_keys_to_string(d, separator='.', parent_key=''):
-            result = {}
-            for k, v in d.items():
-                new_key = f"{parent_key}{separator}{k}" if parent_key else k
-                if isinstance(v, dict):
-                    result.update(nested_keys_to_string(v, separator, new_key))
-                else:
-                    result[new_key] = v
-            return result
+        # def nested_keys_to_string(d, separator='.', parent_key=''):
+        #     result = {}
+        #     for k, v in d.items():
+        #         new_key = f"{parent_key}{separator}{k}" if parent_key else k
+        #         if isinstance(v, dict):
+        #             result.update(nested_keys_to_string(v, separator, new_key))
+        #         else:
+        #             result[new_key] = v
+        #     return result
 
-        row = nested_keys_to_string(row)
+        # row = nested_keys_to_string(row)
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
