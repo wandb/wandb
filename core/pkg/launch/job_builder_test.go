@@ -100,50 +100,58 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
-	// t.Run("buildArtifactSourcedJob", func(t *testing.T) {
-	// 	metadata := map[string]interface{}{
-	// 		"python":   "3.11.2",
-	// 		"codePath": "/path/to/train.py",
-	// 	}
+	t.Run("buildArtifactSourcedJob", func(t *testing.T) {
+		metadata := map[string]interface{}{
+			"python":   "3.11.2",
+			"codePath": "/path/to/train.py",
+		}
 
-	// 	fdir := filepath.Join(os.TempDir(), "test")
-	// 	err := os.MkdirAll(fdir, 0777)
-	// 	assert.Nil(t, err)
-	// 	writeRequirements(t, fdir)
-	// 	writeDiffFile(t, fdir)
-	// 	writeWandbMetadata(t, fdir, metadata)
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
 
-	// 	defer os.RemoveAll(fdir)
-	// 	settings := &service.Settings{
-	// 		Project:  toWrapperPb("testProject"),
-	// 		Entity:   toWrapperPb("testEntity"),
-	// 		RunId:    toWrapperPb("testRunId"),
-	// 		FilesDir: toWrapperPb(fdir),
-	// 	}
-	// 	jobBuilder := NewJobBuilder(settings)
-	// 	artifact, err := jobBuilder.Build()
-	// 	assert.Nil(t, err)
-	// 	assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
-	// 	assert.Equal(t, "testProject", artifact.Project)
-	// 	assert.Equal(t, "testEntity", artifact.Entity)
-	// 	assert.Equal(t, "testRunId", artifact.RunId)
-	// 	assert.Equal(t, 3, len(artifact.Manifest.Contents))
-	// 	assert.Equal(t, "5c90116a39060cbe9ec20345f6a34a58", artifact.Digest)
-	// 	for _, content := range artifact.Manifest.Contents {
-	// 		if content.Path == "wandb-job.json" {
-	// 			jobFile, err := os.Open(content.LocalPath)
-	// 			assert.Nil(t, err)
-	// 			defer jobFile.Close()
-	// 			assert.Nil(t, err)
-	// 			data := make(map[string]interface{})
-	// 			err = json.NewDecoder(jobFile).Decode(&data)
-	// 			assert.Nil(t, err)
-	// 			assert.Equal(t, "3.11.2", data["runtime"])
-	// 			assert.Equal(t, "1234567890", data["source"].(map[string]interface{})["git"].(map[string]interface{})["commit"])
-	// 			assert.Equal(t, "example.com", data["source"].(map[string]interface{})["git"].(map[string]interface{})["remote"])
-	// 			assert.Equal(t, []interface{}([]interface{}{"python3.11", "/path/to/train.py"}), data["source"].(map[string]interface{})["entrypoint"])
-	// 		}
-	// 	}
-	// })
+		defer os.RemoveAll(fdir)
+		settings := &service.Settings{
+			Project:  toWrapperPb("testProject"),
+			Entity:   toWrapperPb("testEntity"),
+			RunId:    toWrapperPb("testRunId"),
+			FilesDir: toWrapperPb(fdir),
+		}
+		jobBuilder := NewJobBuilder(settings)
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_Artifact{
+				Artifact: &service.ArtifactRecord{
+					Name: "testArtifact",
+					Type: "code",
+				},
+			},
+		}
+		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, err)
+		assert.Equal(t, "job-testArtifact", artifact.Name)
+		assert.Equal(t, "testProject", artifact.Project)
+		assert.Equal(t, "testEntity", artifact.Entity)
+		assert.Equal(t, "testRunId", artifact.RunId)
+		assert.Equal(t, 2, len(artifact.Manifest.Contents))
+		assert.Equal(t, "ba0c50457c5a7c43e0bf8d4aa2b4e624", artifact.Digest)
+		for _, content := range artifact.Manifest.Contents {
+			if content.Path == "wandb-job.json" {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
+				assert.Nil(t, err)
+				data := make(map[string]interface{})
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(t, "wandb-artifact://_id/testArtifactId", data["source"].(map[string]interface{})["artifact"])
+				assert.Equal(t, "artifact", data["source_type"])
+				assert.Equal(t, []interface{}([]interface{}{"python3.11", "/path/to/train.py"}), data["source"].(map[string]interface{})["entrypoint"])
+			}
+		}
+	})
 
 }

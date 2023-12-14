@@ -578,3 +578,20 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	}
 
 }
+
+func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.Record) {
+	artifactRecord := record.GetArtifact()
+	if artifactRecord == nil || response.ErrorMessage != "" {
+		return
+	}
+	switch artifactRecord.Type {
+	case "job":
+		// TODO: handle response to inject job link in run footer
+	case "code":
+		j.runCodeArtifact = &ArtifactInfoForJob{
+			ID:   response.ArtifactId,
+			Name: artifactRecord.Name,
+		}
+		return
+	}
+}

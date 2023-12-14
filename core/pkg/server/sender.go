@@ -969,6 +969,8 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
+	s.jobBuilder.HandleLogArtifactResult(&response, record)
+	fmt.Printf("sender: sendLogArtifact: result: %v\n", result)
 	s.outChan <- result
 }
 
