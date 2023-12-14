@@ -258,6 +258,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+		s.jobBuilder.HandleUseArtifactRecord(record)
 	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")

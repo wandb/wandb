@@ -102,11 +102,12 @@ type PartialJobSource struct {
 }
 
 type JobBuilder struct {
+	Disable          bool
+	PartialJobSource *PartialJobSource
+
 	settings        *service.Settings
 	runCodeArtifact *ArtifactInfoForJob
-	// disable          bool
-	partialJobSource *PartialJobSource
-	aliases          []string
+	aliases         []string
 	// jobSequenceId    *string
 	// jobVersionAlias  *string
 	isNotebookRun bool
@@ -415,9 +416,9 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	var name *string
 	var sourceType *SourceType
 	// this flow is from using a partial job artifact that was created by the CLI to make a run
-	if j.partialJobSource != nil {
-		name = &j.partialJobSource.JobName
-		sourceInfo = j.partialJobSource.JobSourceInfo
+	if j.PartialJobSource != nil {
+		name = &j.PartialJobSource.JobName
+		sourceInfo = j.PartialJobSource.JobSourceInfo
 		_sourceType := sourceInfo.Source.GetSourceType()
 		sourceType = &_sourceType
 	} else {
@@ -444,6 +445,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 
 		sourceInfo.Version = "v0"
 	}
+
 	// inject partial field for create job CLI flow
 	if metadata.Partial != nil {
 		sourceInfo.Partial = metadata.Partial
@@ -516,4 +518,59 @@ func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath stri
 		// TODO: warn if source type was set to something different
 		return nil, nil, nil
 	}
+}
+
+func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
+	// configure job builder to either not build a job, because a full job has been used
+	// or to configure to build a complete job from a partial job
+	useArtifact := record.GetUseArtifact()
+	if useArtifact == nil || useArtifact.Type != "job" {
+		return
+	}
+
+	if len(useArtifact.Partial.JobName) == 0 {
+		j.Disable = true
+		return
+	} else if len(useArtifact.Partial.JobName) == 0 {
+		return
+	}
+
+	sourceInfo := useArtifact.Partial.SourceInfo
+	jobSourceMetadata := &JobSourceMetadata{
+		Version:    "v0",
+		SourceType: SourceType(sourceInfo.SourceType),
+		Runtime:    &sourceInfo.Runtime,
+	}
+
+	switch sourceInfo.SourceType {
+	case "repo":
+		entrypoint := sourceInfo.Source.Git.Entrypoint
+		gitSource := GitSource{
+			Git: GitInfo{
+				Remote: &sourceInfo.Source.Git.GitInfo.Remote,
+				Commit: &sourceInfo.Source.Git.GitInfo.Commit,
+			},
+			Notebook:   sourceInfo.Source.Git.Notebook,
+			Entrypoint: entrypoint,
+		}
+		jobSourceMetadata.Source = gitSource
+	case "artifact":
+		entrypoint := sourceInfo.Source.Artifact.Entrypoint
+		artifactSource := ArtifactSource{
+			Artifact:   sourceInfo.Source.Artifact.Artifact,
+			Notebook:   sourceInfo.Source.Artifact.Notebook,
+			Entrypoint: entrypoint,
+		}
+		jobSourceMetadata.Source = artifactSource
+	case "image":
+		imageSource := ImageSource{
+			Image: sourceInfo.Source.Image.Image,
+		}
+		jobSourceMetadata.Source = imageSource
+	}
+	j.PartialJobSource = &PartialJobSource{
+		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
+		JobSourceInfo: *jobSourceMetadata,
+	}
+
 }
