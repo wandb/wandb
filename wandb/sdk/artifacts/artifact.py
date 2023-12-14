@@ -61,8 +61,9 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
-from wandb.util import get_core_path
+from wandb.util import generate_id, get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -1685,42 +1686,34 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
+        from wandb.sdk import wandb_setup
+        from wandb.sdk.backend.backend import Backend
+
         self._ensure_logged("download")
 
         root = root or self._default_root()
         self._add_download_root(root)
+    
+        # Try to create a stream instead of a run
+        wl = wandb_setup.setup()
+        assert wl is not None
 
-        if wandb.run is None:
-            with wandb.init(  # type: ignore
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ):
-                return self._run_artifact_download(
-                    root=root,
-                    allow_missing_references=allow_missing_references,
-                )
-        else:
-            return self._run_artifact_download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
+        stream_id = generate_id()
+        settings = wl.settings.to_proto()
+        manager = wl._get_manager()
+        manager._inform_init(settings=settings, run_id=stream_id)
 
-    def _run_artifact_download(
-        self,
-        root: str,
-        allow_missing_references: bool = False,
-    ) -> FilePathStr:
-        assert wandb.run is not None, "failed to initialize run"
-        run = wandb.run
+        mailbox = Mailbox()
+        backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
+        backend.ensure_launched()
+
+        assert backend.interface
+        backend.interface._stream_id = stream_id # type: ignore
+
+        mailbox.enable_keepalive()
         if get_core_path():  # require core
-            if not run._backend or not run._backend.interface:
-                raise NotImplementedError
-            if run._settings._offline:
-                raise NotImplementedError("cannot download in offline mode")
             assert self.id is not None
-            handle = run._backend.interface.deliver_download_artifact(
+            handle = backend.interface.deliver_download_artifact(
                 self.id,
                 root,
                 allow_missing_references,
@@ -1751,7 +1744,6 @@ class Artifact:
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
-        assert wandb.run is not None
         require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
