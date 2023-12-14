@@ -1,7 +1,9 @@
+from typing import Optional
+
 import wandb
 
 
-def scatter(table, x, y, title=None):
+def scatter(table, x, y, title=None, split_table: Optional[bool] = False):
     """Construct a scatter plot.
 
     Arguments:
@@ -9,6 +11,7 @@ def scatter(table, x, y, title=None):
         x (string): Name of column to as for x-axis values.
         y (string): Name of column to as for y-axis values.
         title (string): Plot title.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         A plot object, to be passed to wandb.log()
@@ -21,5 +24,9 @@ def scatter(table, x, y, title=None):
         ```
     """
     return wandb.plot_table(
-        "wandb/scatter/v0", table, {"x": x, "y": y}, {"title": title}
+        "wandb/scatter/v0",
+        table,
+        {"x": x, "y": y},
+        {"title": title},
+        split_table=split_table,
     )

@@ -17,7 +17,7 @@ from distutils.util import strtobool
 from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
-import appdirs
+import appdirs  # type: ignore
 
 Env = Optional[MutableMapping]
 
@@ -84,6 +84,9 @@ INIT_TIMEOUT = "WANDB_INIT_TIMEOUT"
 GIT_COMMIT = "WANDB_GIT_COMMIT"
 GIT_REMOTE_URL = "WANDB_GIT_REMOTE_URL"
 _EXECUTABLE = "WANDB_EXECUTABLE"
+LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
+LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
+LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -379,7 +382,7 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     val = env.get(ARTIFACT_DIR, default_dir)
-    return val
+    return os.path.abspath(val)
 
 
 def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
@@ -439,4 +442,25 @@ def disable_git(env: Optional[Env] = None) -> bool:
     val = env.get(DISABLE_GIT, default="False")
     if isinstance(val, str):
         val = False if val.lower() == "false" else True
+    return val
+
+
+def get_launch_queue_name(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_QUEUE_NAME, None)
+    return val
+
+
+def get_launch_queue_entity(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_QUEUE_ENTITY, None)
+    return val
+
+
+def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
+    if env is None:
+        env = os.environ
+    val = env.get(LAUNCH_TRACE_ID, None)
     return val

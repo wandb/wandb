@@ -1,0 +1,31 @@
+mutation CreateArtifactManifest(
+    $artifactID: ID!,
+    $baseArtifactID: ID,
+    $name: String!,
+    $digest: String!,
+    $entityName: String!,
+    $projectName: String!,
+    $runName: String!,
+    $manifestType: ArtifactManifestType!,
+    $includeUpload: Boolean!,
+) {
+    createArtifactManifest(input: {
+        artifactID: $artifactID,
+        baseArtifactID: $baseArtifactID,
+        name: $name,
+        digest: $digest,
+        entityName: $entityName,
+        projectName: $projectName,
+        runName: $runName,
+        type: $manifestType,
+    }) {
+        artifactManifest {
+            id
+            file {
+                id
+                uploadUrl @include(if: $includeUpload)
+                uploadHeaders @include(if: $includeUpload)
+            }
+        }
+    }
+}

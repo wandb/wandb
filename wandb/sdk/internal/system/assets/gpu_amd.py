@@ -25,8 +25,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-
 ROCM_SMI_CMD: Final[str] = shutil.which("rocm-smi") or "/usr/bin/rocm-smi"
 
 

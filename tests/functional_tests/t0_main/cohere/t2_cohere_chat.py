@@ -12,7 +12,6 @@ def main():
         model="command-light",
         return_prompt=True,
         return_preamble=True,
-        return_chatlog=True,
     )
     conv_session_id = response.conversation_id
     _ = co.chat(

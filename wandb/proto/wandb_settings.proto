@@ -4,19 +4,19 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
-message ListStringValue{
+message ListStringValue {
   repeated string value = 1;
 }
 
-message MapStringKeyStringValue{
+message MapStringKeyStringValue {
   map<string, string> value = 1;
 }
 
-message MapStringKeyMapStringKeyStringValue{
+message MapStringKeyMapStringKeyStringValue {
   map<string, MapStringKeyStringValue> value = 1;
 }
 
-message OpenMetricsFilters{
+message OpenMetricsFilters {
   oneof value {
     ListStringValue sequence = 1;
     MapStringKeyMapStringKeyStringValue mapping = 2;
@@ -44,10 +44,10 @@ message Settings {
   google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
   google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;
   google.protobuf.Int32Value _file_stream_timeout_seconds = 15;
-  google.protobuf.Int32Value _file_uploader_retry_max = 150;
-  google.protobuf.Int32Value _file_uploader_retry_wait_min_seconds = 151;
-  google.protobuf.Int32Value _file_uploader_retry_wait_max_seconds = 152;
-  google.protobuf.Int32Value _file_uploader_timeout_seconds = 153;
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  google.protobuf.Int32Value _file_transfer_retry_wait_min_seconds = 151;
+  google.protobuf.Int32Value _file_transfer_retry_wait_max_seconds = 152;
+  google.protobuf.Int32Value _file_transfer_timeout_seconds = 153;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
   google.protobuf.Int32Value _graphql_retry_max = 154;
@@ -74,7 +74,7 @@ message Settings {
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue _runqueue_item_id = 35;
-  google.protobuf.BoolValue _require_nexus = 36;
+  google.protobuf.BoolValue _require_core = 36;
   google.protobuf.BoolValue _save_requirements = 37;
   google.protobuf.StringValue _service_transport = 38;
   google.protobuf.DoubleValue _service_wait = 39;
@@ -88,6 +88,7 @@ message Settings {
   MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
   OpenMetricsFilters _stats_open_metrics_filters = 48;
   ListStringValue _stats_disk_paths = 146;
+  google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
@@ -186,5 +187,6 @@ message Settings {
   google.protobuf.StringValue wandb_dir = 142;
 
   // todo?
-  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;
+  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =
+  //  500;
 }

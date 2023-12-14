@@ -149,6 +149,7 @@ class ResumeState:
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
+    tags: Optional[List[str]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -161,6 +162,7 @@ class ResumeState:
         self.wandb_runtime = None
         self.summary = None
         self.config = None
+        self.tags = None
 
     def __str__(self) -> str:
         obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
@@ -330,13 +332,12 @@ class SendManager:
             _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(settings.to_proto())
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=settings,
+            settings=SettingsStatic(settings.to_proto()),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
@@ -542,7 +543,9 @@ class SendManager:
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
+                name=self._run.run_id,
+                config=config_value_dict,
+                **self._api_settings,  # type: ignore
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
@@ -717,7 +720,7 @@ class SendManager:
 
         result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
         for message in self._server_messages:
-            # guard agains the case the message level returns malformed from server
+            # guard against the case the message level returns malformed from server
             message_level = str(message.get("messageLevel"))
             message_level_sanitized = int(
                 printer.INFO if not message_level.isdigit() else message_level
@@ -760,7 +763,9 @@ class SendManager:
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
+            entity=entity,  # type: ignore
+            project_name=run.project,
+            name=run.run_id,
         )
 
         if not resume_status:
@@ -809,6 +814,7 @@ class SendManager:
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
                 self._resume_state.wandb_runtime = new_runtime
+            tags = resume_status.get("tags") or []
 
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
@@ -821,12 +827,15 @@ class SendManager:
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state.runtime = max(events_rt, history_rt)
-        self._resume_state.step = history.get("_step", -1) + 1 if history else 0
-        self._resume_state.history = resume_status["historyLineCount"]
+        last_step = history.get("_step", 0)
+        history_line_count = resume_status["historyLineCount"]
+        self._resume_state.step = last_step + 1 if history_line_count > 0 else last_step
+        self._resume_state.history = history_line_count
         self._resume_state.events = resume_status["eventsLineCount"]
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
         self._resume_state.summary = summary
+        self._resume_state.tags = tags
         self._resume_state.resumed = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
@@ -1010,6 +1019,10 @@ class SendManager:
         ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
+
+        if self._resume_state and self._resume_state.tags and not run.tags:
+            run.tags.extend(self._resume_state.tags)
+
         server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,

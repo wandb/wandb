@@ -1,4 +1,5 @@
 """Abstract Scheduler class."""
+import asyncio
 import base64
 import logging
 import os
@@ -23,6 +24,7 @@ from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
 )
+from wandb.sdk.launch.utils import event_loop_thread_exec
 from wandb.sdk.lib.runid import generate_id
 
 if TYPE_CHECKING:
@@ -250,11 +252,8 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
-        _type = self._kwargs.get("sweep_type", "sweep")
-        run: SdkRun = wandb.init(
-            name=f"{_type}-scheduler-{self._sweep_id}",
-            job_type=self.SWEEP_JOB_TYPE,
-            # WANDB_RUN_ID = sweep_id for scheduler
+        run: SdkRun = wandb.init(  # type: ignore
+            name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
         )
@@ -290,7 +289,7 @@ class Scheduler(ABC):
 
         # For resuming sweeps
         self._load_state()
-        self._register_agents()
+        asyncio.run(self._register_agents())
         self.run()
 
     def run(self) -> None:
@@ -422,21 +421,26 @@ class Scheduler(ABC):
         else:
             return False
 
-    def _register_agents(self) -> None:
+    async def _register_agents(self) -> None:
+        tasks = []
+        register_agent = event_loop_thread_exec(self._api.register_agent)
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
             try:
-                agent_config = self._api.register_agent(
+                worker = register_agent(
                     f"{socket.gethostname()}-{worker_id}",  # host
                     sweep_id=self._sweep_id,
                     project_name=self._project,
                     entity=self._entity,
                 )
+                tasks.append(worker)
             except Exception as e:
                 _logger.debug(f"failed to register agent: {e}")
                 self.fail_sweep(f"failed to register agent: {e}")
 
-            self._workers[worker_id] = _Worker(
+        finished_tasks = await asyncio.gather(*tasks)
+        for idx, agent_config in enumerate(finished_tasks):
+            self._workers[idx] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
             )

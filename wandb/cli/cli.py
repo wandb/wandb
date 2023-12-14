@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
+import asyncio
 import configparser
 import datetime
 import getpass
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import subprocess
@@ -31,6 +33,7 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import RunQueue
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -174,7 +177,6 @@ class RunGroup(click.Group):
 @click.version_option(version=wandb.__version__)
 @click.pass_context
 def cli(ctx):
-    # wandb.try_to_set_up_global_logging()
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -416,6 +418,158 @@ def init(ctx, project, entity, reset, mode):
     )
 
 
+@cli.group()
+def beta():
+    """Beta versions of wandb CLI commands. Requires wandb-core."""
+    # this is the future that requires wandb-core!
+    from wandb.util import get_core_path
+
+    if not get_core_path():
+        click.echo(
+            "wandb beta commands require wandb-core, please install with `pip install wandb-core`"
+        )
+        sys.exit(1)
+
+
+@beta.command(
+    name="sync",
+    context_settings=CONTEXT,
+    help="Upload a training run to W&B",
+)
+@click.pass_context
+@click.argument("wandb_dir", nargs=1, type=click.Path(exists=True))
+@click.option("--id", "run_id", help="The run you want to upload to.")
+@click.option("--project", "-p", help="The project you want to upload to.")
+@click.option("--entity", "-e", help="The entity to scope to.")
+@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
+@click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option(
+    "--include",
+    "-i",
+    help="Glob to include. Can be used multiple times.",
+    multiple=True,
+)
+@click.option(
+    "--exclude",
+    "-e",
+    help="Glob to exclude. Can be used multiple times.",
+    multiple=True,
+)
+@click.option(
+    "--mark-synced/--no-mark-synced",
+    is_flag=True,
+    default=True,
+    help="Mark runs as synced",
+)
+@click.option(
+    "--skip-synced/--no-skip-synced",
+    is_flag=True,
+    default=True,
+    help="Skip synced runs",
+)
+@click.option(
+    "--dry-run", is_flag=True, help="Perform a dry run without uploading anything."
+)
+@display_error
+def sync_beta(
+    ctx,
+    wandb_dir=None,
+    run_id: Optional[str] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    skip_console: bool = False,
+    append: bool = False,
+    include: Optional[str] = None,
+    exclude: Optional[str] = None,
+    skip_synced: bool = True,
+    mark_synced: bool = True,
+    dry_run: bool = False,
+):
+    import concurrent.futures
+    from multiprocessing import cpu_count
+
+    paths = set()
+
+    # TODO: test file discovery logic
+    # include and exclude globs are evaluated relative to the provided base_path
+    if include:
+        for pattern in include:
+            matching_dirs = list(pathlib.Path(wandb_dir).glob(pattern))
+            for d in matching_dirs:
+                if not d.is_dir():
+                    continue
+                wandb_files = [p for p in d.glob("*.wandb") if p.is_file()]
+                if len(wandb_files) > 1:
+                    print(f"Multiple wandb files found in directory {d}, skipping")
+                elif len(wandb_files) == 1:
+                    paths.add(d)
+    else:
+        paths.update({p.parent for p in pathlib.Path(wandb_dir).glob("**/*.wandb")})
+
+    for pattern in exclude:
+        matching_dirs = list(pathlib.Path(wandb_dir).glob(pattern))
+        for d in matching_dirs:
+            if not d.is_dir():
+                continue
+            if d in paths:
+                paths.remove(d)
+
+    # remove paths that are already synced, if requested
+    if skip_synced:
+        synced_paths = set()
+        for path in paths:
+            wandb_synced_files = [p for p in path.glob("*.wandb.synced") if p.is_file()]
+            if len(wandb_synced_files) > 1:
+                print(
+                    f"Multiple wandb.synced files found in directory {path}, skipping"
+                )
+            elif len(wandb_synced_files) == 1:
+                synced_paths.add(path)
+        paths -= synced_paths
+
+    if run_id and len(paths) > 1:
+        # TODO: handle this more gracefully
+        click.echo("id can only be set for a single run.", err=True)
+        sys.exit(1)
+
+    if not paths:
+        click.echo("No runs to sync.")
+        return
+
+    click.echo("Found runs:")
+    for path in paths:
+        click.echo(f"  {path}")
+
+    if dry_run:
+        return
+
+    wandb.sdk.wandb_setup.setup()
+
+    # TODO: make it thread-safe in the Rust code
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=min(len(paths), cpu_count())
+    ) as executor:
+        futures = []
+        for path in paths:
+            # we already know there is only one wandb file in the directory
+            wandb_file = [p for p in path.glob("*.wandb") if p.is_file()][0]
+            future = executor.submit(
+                wandb._sync,
+                wandb_file,
+                run_id=run_id,
+                project=project,
+                entity=entity,
+                skip_console=skip_console,
+                append=append,
+                mark_synced=mark_synced,
+            )
+            futures.append(future)
+
+        # Wait for tasks to complete
+        for _ in concurrent.futures.as_completed(futures):
+            pass
+
+
 @cli.command(
     context_settings=CONTEXT, help="Upload an offline training directory to W&B"
 )
@@ -475,6 +629,7 @@ def init(ctx, project, entity, reset, mode):
 @click.option("--ignore", hidden=True)
 @click.option("--show", default=5, help="Number of runs to show")
 @click.option("--append", is_flag=True, default=False, help="Append run")
+@click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
 def sync(
     ctx,
@@ -498,6 +653,7 @@ def sync(
     clean_old_hours=24,
     clean_force=None,
     append=None,
+    skip_console=None,
 ):
     # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
     os.environ["WANDB_DIR"] = TMPDIR.name
@@ -567,6 +723,7 @@ def sync(
             sync_tensorboard=_sync_tensorboard,
             log_path=_wandb_log_path,
             append=append,
+            skip_console=skip_console,
         )
         for p in _path:
             sm.add(p)
@@ -1054,12 +1211,6 @@ def launch_sweep(
     else:
         overrides["args"] = args
 
-    # set name of scheduler
-    prefix = "sweep" if scheduler_job else "wandb"
-    name = f"{prefix}-scheduler-WANDB_SWEEP_ID"
-    if scheduler_args.get("name"):
-        name = scheduler_args["name"]
-
     # configure scheduler job resource
     resource = scheduler_args.get("resource")
     if resource:
@@ -1080,7 +1231,7 @@ def launch_sweep(
     launch_scheduler_spec = launch_utils.construct_launch_spec(
         uri=Scheduler.PLACEHOLDER_URI,
         api=api,
-        name=name,
+        name="Scheduler.WANDB_SWEEP_ID",
         project=project,
         entity=entity,
         docker_image=scheduler_args.get("docker_image"),
@@ -1194,6 +1345,15 @@ def launch_sweep(
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
+    "--set-var",
+    "-v",
+    "cli_template_vars",
+    default=None,
+    multiple=True,
+    help="""Set template variable values for queues with allow listing enabled,
+    as key-value pairs e.g. `--set-var key1=value1 --set-var key2=value2`""",
+)
+@click.option(
     "--queue",
     "-q",
     is_flag=False,
@@ -1260,6 +1420,7 @@ def launch(
     project,
     docker_image,
     config,
+    cli_template_vars,
     queue,
     run_async,
     resource_args,
@@ -1331,27 +1492,43 @@ def launch(
         else:
             config["overrides"] = {"dockerfile": dockerfile}
 
+    template_variables = None
+    if cli_template_vars:
+        if queue is None:
+            raise LaunchError("'--set-var' flag requires queue to be set")
+        public_api = PublicApi()
+        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        template_variables = launch_utils.fetch_and_validate_template_variables(
+            runqueue, cli_template_vars
+        )
+
     if queue is None:
         # direct launch
         try:
-            run = _launch(
-                api,
-                uri,
-                job,
-                project=project,
-                entity=entity,
-                docker_image=docker_image,
-                name=name,
-                entry_point=entry_point,
-                version=git_version,
-                resource=resource,
-                resource_args=resource_args,
-                launch_config=config,
-                synchronous=(not run_async),
-                run_id=run_id,
-                repository=repository,
+            run = asyncio.run(
+                _launch(
+                    api,
+                    uri,
+                    job,
+                    project=project,
+                    entity=entity,
+                    docker_image=docker_image,
+                    name=name,
+                    entry_point=entry_point,
+                    version=git_version,
+                    resource=resource,
+                    resource_args=resource_args,
+                    launch_config=config,
+                    synchronous=(not run_async),
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
-            if run.get_status().state in ["failed", "stopped", "preempted"]:
+            if asyncio.run(run.get_status()).state in [
+                "failed",
+                "stopped",
+                "preempted",
+            ]:
                 wandb.termerror("Launched run exited with non-zero status")
                 sys.exit(1)
         except LaunchError as e:
@@ -1362,26 +1539,31 @@ def launch(
             logger.error("=== %s ===", e)
             wandb._sentry.exception(e)
             sys.exit(e)
+        except asyncio.CancelledError:
+            sys.exit(0)
     else:
         try:
-            _launch_add(
-                api,
-                uri,
-                job,
-                config,
-                project,
-                entity,
-                queue,
-                resource,
-                entry_point,
-                name,
-                git_version,
-                docker_image,
-                project_queue,
-                resource_args,
-                build=build,
-                run_id=run_id,
-                repository=repository,
+            asyncio.run(
+                _launch_add(
+                    api,
+                    uri,
+                    job,
+                    config,
+                    template_variables,
+                    project,
+                    entity,
+                    queue,
+                    resource,
+                    entry_point,
+                    name,
+                    git_version,
+                    docker_image,
+                    project_queue,
+                    resource_args,
+                    build=build,
+                    run_id=run_id,
+                    repository=repository,
+                )
             )
         except Exception as e:
             wandb._sentry.exception(e)
@@ -1416,6 +1598,16 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option(
+    "--log-file",
+    "-l",
+    default=None,
+    help=(
+        "Destination for internal agent logs. Use - for stdout. "
+        "By default all agents logs will go to debug.log in your wandb/ "
+        "subdirectory or WANDB_DIR if set."
+    ),
+)
+@click.option(
     "--max-jobs",
     "-j",
     default=None,
@@ -1440,6 +1632,7 @@ def launch_agent(
     max_jobs=None,
     config=None,
     url=None,
+    log_file=None,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1450,6 +1643,9 @@ def launch_agent(
         )
 
     import wandb.sdk.launch._launch as _launch
+
+    if log_file is not None:
+        _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
@@ -1700,6 +1896,12 @@ def create(
     if not project:
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
+
+    if entrypoint is None and job_type in ["git", "code"]:
+        wandb.termwarn(
+            f"No entrypoint provided for {job_type} job, defaulting to main.py"
+        )
+        entrypoint = "main.py"
 
     artifact, action, aliases = _create_job(
         api=api,
@@ -2108,15 +2310,15 @@ def put(path, name, description, type, alias, run_id, resume):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    run = wandb.init(
+    with wandb.init(
         entity=entity,
         project=project,
         config={"path": path},
         job_type="cli_put",
         id=run_id,
         resume=resume,
-    )
-    run.log_artifact(artifact, aliases=alias)
+    ) as run:
+        run.log_artifact(artifact, aliases=alias)
     artifact.wait()
 
     wandb.termlog(
@@ -2256,7 +2458,7 @@ def pull(run, project, entity):
 )
 @click.pass_context
 @click.argument("run", envvar=env.RUN_ID)
-@click.option("--no-git", is_flag=True, default=False, help="Skupp")
+@click.option("--no-git", is_flag=True, default=False, help="Don't restore git state")
 @click.option(
     "--branch/--no-branch",
     default=True,

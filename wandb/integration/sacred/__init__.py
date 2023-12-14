@@ -86,9 +86,7 @@ class WandbObserver(RunObserver):
                     wandb.log({f"result_{i}": wandb.Image(r)})
                 else:
                     warnings.warn(
-                        "logging results does not support type '{}' results. Ignoring this result".format(
-                            type(r),
-                        ),
+                        f"logging results does not support type '{type(r)}' results. Ignoring this result",
                         stacklevel=2,
                     )
 

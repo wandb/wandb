@@ -68,9 +68,9 @@ class WBArtifactHandler(StorageHandler):
         assert dep_artifact is not None
         link_target_path: Union[URIStr, FilePathStr]
         if local:
-            link_target_path = dep_artifact.get_path(artifact_file_path).download()
+            link_target_path = dep_artifact.get_entry(artifact_file_path).download()
         else:
-            link_target_path = dep_artifact.get_path(artifact_file_path).ref_target()
+            link_target_path = dep_artifact.get_entry(artifact_file_path).ref_target()
 
         return link_target_path
 

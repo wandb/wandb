@@ -223,9 +223,7 @@ def position_after_whitespace(body, start_position):
 def read_number(source, start, first_code):
     """Reads a number token from the source file, either a float
     or an int depending on whether a decimal point appears.
-
-    Int:   -?(0|[1-9][0-9]*)
-    Float: -?(0|[1-9][0-9]*)(\.[0-9]+)?((E|e)(+|-)?[0-9]+)?"""
+    """
     code = first_code
     body = source.body
     position = start

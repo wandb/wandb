@@ -7,6 +7,7 @@ import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
@@ -20,6 +21,7 @@ from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
+    event_loop_thread_exec,
     sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
@@ -51,16 +53,12 @@ class DockerBuilder(AbstractBuilder):
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
         config: Dict[str, Any],
-        verify: bool = True,
-        login: bool = True,
     ):
         """Initialize a DockerBuilder.
 
         Arguments:
             environment (AbstractEnvironment): The environment to use.
             registry (AbstractRegistry): The registry to use.
-            verify (bool, optional): Whether to verify the functionality of the builder.
-            login (bool, optional): Whether to login to the registry.
 
         Raises:
             LaunchError: If docker is not installed
@@ -68,10 +66,6 @@ class DockerBuilder(AbstractBuilder):
         self.environment = environment  # Docker builder doesn't actually use this.
         self.registry = registry
         self.config = config
-        if verify:
-            self.verify()
-        if login:
-            self.login()
 
     @classmethod
     def from_config(
@@ -79,7 +73,6 @@ class DockerBuilder(AbstractBuilder):
         config: Dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
-        verify: bool = True,
     ) -> "DockerBuilder":
         """Create a DockerBuilder from a config.
 
@@ -92,23 +85,33 @@ class DockerBuilder(AbstractBuilder):
         Returns:
             DockerBuilder: The DockerBuilder.
         """
-        # TODO the config for the docker builder as of yet is empty
-        # but ultimately we should add things like target platform, base image, etc.
+        # If the user provided a destination URI in the builder config
+        # we use that as the registry.
+        image_uri = config.get("destination")
+        if image_uri:
+            if registry is not None:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Overriding registry from registry config"
+                    f" with {image_uri} from builder config."
+                )
+            registry = registry_from_uri(image_uri)
+
         return cls(environment, registry, config)
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the builder."""
-        validate_docker_installation()
+        await validate_docker_installation()
 
-    def login(self) -> None:
+    async def login(self) -> None:
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         else:
-            username, password = self.registry.get_username_password()
-            docker.login(username, password, self.registry.uri)
+            username, password = await self.registry.get_username_password()
+            login = event_loop_thread_exec(docker.login)
+            await login(username, password, self.registry.uri)
 
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,
@@ -120,6 +123,9 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
+        await self.verify()
+        await self.login()
+
         dockerfile_str = generate_dockerfile(
             launch_project=launch_project,
             entry_point=entrypoint,
@@ -130,7 +136,7 @@ class DockerBuilder(AbstractBuilder):
 
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
 
-        repository = None if not self.registry else self.registry.get_repo_uri()
+        repository = None if not self.registry else await self.registry.get_repo_uri()
         # if repo is set, use the repo name as the image name
         if repository:
             image_uri = f"{repository}:{image_tag}"
@@ -139,8 +145,9 @@ class DockerBuilder(AbstractBuilder):
         else:
             image_uri = f"{launch_project.image_name}:{image_tag}"
 
-        if not launch_project.build_required() and self.registry.check_image_exists(
-            image_uri
+        if (
+            not launch_project.build_required()
+            and await self.registry.check_image_exists(image_uri)
         ):
             return image_uri
 
@@ -159,7 +166,7 @@ class DockerBuilder(AbstractBuilder):
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
         try:
-            output = docker.build(
+            output = await event_loop_thread_exec(docker.build)(
                 tags=[image_uri],
                 file=dockerfile,
                 context_path=build_ctx_path,
@@ -184,7 +191,7 @@ class DockerBuilder(AbstractBuilder):
         if repository:
             reg, tag = image_uri.split(":")
             wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
-            push_resp = docker.push(reg, tag)
+            push_resp = await event_loop_thread_exec(docker.push)(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")
             elif (

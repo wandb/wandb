@@ -32,6 +32,8 @@ from wandb.proto.wandb_internal_pb2 import (
     SummaryItem,
     SummaryRecord,
     SummaryRecordRequest,
+    SystemMetricSample,
+    SystemMetricsBuffer,
 )
 
 from ..interface.interface_queue import InterfaceQueue
@@ -736,6 +738,26 @@ class HandleManager:
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
+        self._respond_result(result)
+
+    def handle_request_get_system_metrics(self, record: Record) -> None:
+        result = proto_util._result_from_record(record)
+        if self._system_monitor is None:
+            return
+
+        buffer = self._system_monitor.buffer
+        for key, samples in buffer.items():
+            buff = []
+            for s in samples:
+                sms = SystemMetricSample()
+                sms.timestamp.FromMicroseconds(int(s[0] * 1e6))
+                sms.value = s[1]
+                buff.append(sms)
+
+            result.response.get_system_metrics_response.system_metrics[key].CopyFrom(
+                SystemMetricsBuffer(record=buff)
+            )
+
         self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:

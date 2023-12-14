@@ -1,7 +1,9 @@
+import datetime
 import logging
 import queue
 import threading
-from typing import TYPE_CHECKING, List, Optional
+from collections import defaultdict, deque
+from typing import TYPE_CHECKING, Deque, Dict, List, Optional, Tuple
 
 from .assets.asset_registry import asset_registry
 from .assets.interfaces import Asset, Interface
@@ -87,6 +89,10 @@ class SystemMonitor:
             settings=self.settings, interface=interface
         )
 
+        self.buffer: Dict[str, Deque[Tuple[float, float]]] = defaultdict(
+            lambda: deque([], maxlen=self.settings._stats_buffer_size)
+        )
+
     def _get_assets(self) -> List["Asset"]:
         return [
             asset_class(
@@ -130,6 +136,13 @@ class SystemMonitor:
             aggregated_metrics.update(item)
 
         if aggregated_metrics:
+            # update buffer:
+            # todo: get it from publish_stats instead?
+            #  either is not too accurate, just use wandb-core!
+            t = datetime.datetime.now().timestamp()
+            for k, v in aggregated_metrics.items():
+                self.buffer[k].append((t, v))
+            # publish aggregated metrics
             self.backend_interface.publish_stats(aggregated_metrics)
 
     def publish_telemetry(self) -> None:

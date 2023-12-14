@@ -871,6 +871,7 @@ def make_safe_for_json(obj: Any) -> Any:
 def no_retry_4xx(e: Exception) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
+    assert e.response is not None
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
         return True
     body = json.loads(e.response.content)
@@ -883,7 +884,7 @@ def no_retry_auth(e: Any) -> bool:
     if not isinstance(e, requests.HTTPError):
         return True
     if e.response is None:
-        return True  # type: ignore
+        return True
     # Don't retry bad request errors; raise immediately
     if e.response.status_code in (400, 409):
         return False
@@ -1710,7 +1711,7 @@ def _get_max_cli_version() -> Union[str, None]:
 def _is_offline() -> bool:
     return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline
+    ) or wandb.setup().settings._offline  # type: ignore
 
 
 def ensure_text(
@@ -1836,3 +1837,23 @@ def sample_with_exponential_decay_weights(
     sampled_keys = keys_array[sampled_indices].tolist() if keys else None
 
     return sampled_xs, sampled_ys, sampled_keys
+
+
+def get_core_path() -> str:
+    core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
+    wandb_core = get_module("wandb_core")
+    if not core_path and wandb_core:
+        _check_wandb_core_version_compatibility(wandb_core.__version__)
+        core_path = wandb_core.get_core_path()
+    return core_path
+
+
+def _check_wandb_core_version_compatibility(core_version: str) -> None:
+    """Checks if the installed wandb-core version is compatible with the wandb version."""
+    from pkg_resources import parse_version
+
+    if parse_version(core_version) < parse_version(wandb._minimum_core_version):
+        raise ImportError(
+            f"Requires wandb-core version {wandb._minimum_core_version} or later, "
+            f"but you have {core_version}. Run `pip install --upgrade wandb-core` to upgrade."
+        )

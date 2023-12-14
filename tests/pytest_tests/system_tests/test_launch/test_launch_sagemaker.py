@@ -19,8 +19,9 @@ def mock_sagemaker_environment():
     environment.get_region.return_value = "us-east-1"
 
 
-def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
-    def mock_launch_sagemaker_job(*args, **kwargs):
+@pytest.mark.asyncio
+async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
+    async def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]
 
@@ -90,6 +91,9 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         project.image_name = "testimage"
         project.job = "testjob"
         project.launch_spec = {}
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -99,7 +103,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
             environment,
             MagicMock(),
         )
-        req = runner.run(project, project.docker_image)
+        req = await runner.run(project, project.docker_image)
 
         assert "my-fake-RoleArn" in req["RoleArn"]
         assert req["AlgorithmSpecification"] == {
@@ -114,7 +118,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch):
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
         assert env == {
-            "WANDB_API_KEY": None,
+            "WANDB_API_KEY": user,
             "WANDB_PROJECT": "test_project",
             "WANDB_ENTITY": "test_entity",
             "WANDB_LAUNCH": "True",

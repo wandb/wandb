@@ -173,7 +173,6 @@ def test_anonymous_mode(wandb_init, capsys, local_settings):
 
 
 @pytest.mark.xfail(reason="Backend race condition")
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
@@ -345,8 +344,6 @@ def test_log_step(relay_server, wandb_init):
     assert relay.context.history["_step"][0] == 5
 
 
-# todo: incremental artifact in nexus
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_log_custom_chart(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()

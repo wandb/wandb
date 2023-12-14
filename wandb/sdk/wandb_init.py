@@ -136,8 +136,6 @@ class _WandbInit:
 
         self.deprecated_features_used: Dict[str, str] = dict()
 
-        self._require_nexus = os.environ.get("WANDB_REQUIRE_NEXUS") == "True"
-
     def _setup_printer(self, settings: Settings) -> None:
         if self.printer:
             return
@@ -314,7 +312,9 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        settings._apply_settings(wandb.setup().settings)
+        wl = wandb.setup()
+        assert wl is not None
+        settings._apply_settings(wl.settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -424,13 +424,12 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pause_backend(self) -> None:
+    def _pause_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is None:
             return None
 
         # Attempt to save the code on every execution
-        # todo(nexus): remove nexus check once incremental artifact is supported
-        if not self._require_nexus and self.notebook.save_ipynb():  # type: ignore
+        if self.notebook.save_ipynb():  # type: ignore
             assert self.run is not None
             res = self.run.log_code(root=None)
             logger.info("saved code: %s", res)  # type: ignore
@@ -438,7 +437,7 @@ class _WandbInit:
             logger.info("pausing backend")  # type: ignore
             self.backend.interface.publish_pause()
 
-    def _resume_backend(self) -> None:
+    def _resume_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is not None and self.backend.interface is not None:
             logger.info("resuming backend")  # type: ignore
             self.backend.interface.publish_resume()
@@ -448,8 +447,7 @@ class _WandbInit:
         assert self.notebook
         ipython = self.notebook.shell
         self.notebook.save_history()
-        # todo(nexus): remove nexus check once incremental artifact is supported
-        if not self._require_nexus and self.notebook.save_ipynb():
+        if self.notebook.save_ipynb():
             assert self.run is not None
             res = self.run.log_code(root=None)
             logger.info("saved code and history: %s", res)  # type: ignore
@@ -620,7 +618,9 @@ class _WandbInit:
         manager = self._wl._get_manager()
         if manager:
             logger.info("setting up manager")
-            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_init(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
@@ -698,8 +698,8 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if self.settings._require_nexus:
-                tel.feature.nexus = True
+            if self.settings._require_core:
+                tel.feature.core = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -805,7 +805,9 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if manager:
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_start(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         assert backend.interface
         assert run._run_obj
@@ -1043,6 +1045,10 @@ def init(
             together, or applying temporary labels like "baseline" or
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
+            If you are resuming a run, its tags will be overwritten by the tags
+            you pass to `wandb.init()`. If you want to add tags to a resumed run
+            without overwriting its existing tags, use `run.tags += ["new_tag"]`
+            after `wandb.init()`.
         name: (str, optional) A short display name for this run, which is how
             you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the

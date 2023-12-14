@@ -333,6 +333,9 @@ class Api:
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
         self.create_launch_agent_input_info: Optional[List[str]] = None
         self.server_create_run_queue_supports_drc: Optional[bool] = None
+        self.server_create_run_queue_supports_priority: Optional[bool] = None
+        self.server_supports_template_variables: Optional[bool] = None
+        self.server_push_to_run_queue_supports_priority: Optional[bool] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -366,6 +369,7 @@ class Api:
             return self.client.execute(*args, **kwargs)  # type: ignore
         except requests.exceptions.HTTPError as err:
             response = err.response
+            assert response is not None
             logger.error(f"{response.status_code} response executing GraphQL.")
             logger.error(response.text)
             for error in parse_backend_error_messages(response):
@@ -627,7 +631,7 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
-    def create_run_queue_introspection(self) -> Tuple[bool, bool]:
+    def create_run_queue_introspection(self) -> Tuple[bool, bool, bool]:
         _, _, mutations = self.server_info_introspection()
         query_string = """
            query ProbeCreateRunQueueInput {
@@ -639,10 +643,21 @@ class Api:
                 }
             }
         """
-        if self.server_create_run_queue_supports_drc is None:
+        if (
+            self.server_create_run_queue_supports_drc is None
+            or self.server_create_run_queue_supports_priority is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
+            if res is None:
+                raise CommError("Could not get CreateRunQueue input from GQL.")
             self.server_create_run_queue_supports_drc = "defaultResourceConfigID" in [
+                x["name"]
+                for x in (
+                    res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
+            self.server_create_run_queue_supports_priority = "prioritizationMode" in [
                 x["name"]
                 for x in (
                     res.get("CreateRunQueueInputType", {}).get("inputFields", [{}])
@@ -651,6 +666,44 @@ class Api:
         return (
             "createRunQueue" in mutations,
             self.server_create_run_queue_supports_drc,
+            self.server_create_run_queue_supports_priority,
+        )
+
+    @normalize_exceptions
+    def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
+        query_string = """
+            query ProbePushToRunQueueInput {
+                PushToRunQueueInputType: __type(name: "PushToRunQueueInput") {
+                    name
+                    inputFields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if (
+            self.server_supports_template_variables is None
+            or self.server_push_to_run_queue_supports_priority is None
+        ):
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_supports_template_variables = "templateVariableValues" in [
+                x["name"]
+                for x in (
+                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
+            self.server_push_to_run_queue_supports_priority = "priority" in [
+                x["name"]
+                for x in (
+                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
+
+        return (
+            self.server_supports_template_variables,
+            self.server_push_to_run_queue_supports_priority,
         )
 
     @normalize_exceptions
@@ -828,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
@@ -1177,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }
@@ -1351,35 +1406,64 @@ class Api:
 
     @normalize_exceptions
     def create_default_resource_config(
-        self, entity: str, resource: str, config: str
+        self,
+        entity: str,
+        resource: str,
+        config: str,
+        template_variables: Optional[Dict[str, Union[float, int, str]]],
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
-        query = gql(
-            """
-        mutation createDefaultResourceConfig(
-            $entityName: String!
-            $resource: String!
+        supports_template_vars, _ = self.push_to_run_queue_introspection()
+
+        mutation_params = """
+            $entityName: String!,
+            $resource: String!,
             $config: JSONString!
-        ) {
-            createDefaultResourceConfig(
-            input: {
-                entityName: $entityName
-                resource: $resource
-                config: $config
-            }
-            ) {
-            defaultResourceConfigID
-            success
-            }
-        }
         """
-        )
+        mutation_inputs = """
+            entityName: $entityName,
+            resource: $resource,
+            config: $config
+        """
+
+        if supports_template_vars:
+            mutation_params += ", $templateVariables: JSONString"
+            mutation_inputs += ", templateVariables: $templateVariables"
+        else:
+            if template_variables is not None:
+                raise UnsupportedError(
+                    "server does not support template variables, please update server instance to >=0.46"
+                )
+
         variable_values = {
             "entityName": entity,
             "resource": resource,
             "config": config,
         }
+        if supports_template_vars:
+            if template_variables is not None:
+                variable_values["templateVariables"] = json.dumps(template_variables)
+            else:
+                variable_values["templateVariables"] = "{}"
+
+        query = gql(
+            f"""
+        mutation createDefaultResourceConfig(
+            {mutation_params}
+        ) {{
+            createDefaultResourceConfig(
+            input: {{
+                {mutation_inputs}
+            }}
+            ) {{
+            defaultResourceConfigID
+            success
+            }}
+        }}
+        """
+        )
+
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createDefaultResourceConfig"
         ]
@@ -1392,43 +1476,98 @@ class Api:
         project: str,
         queue_name: str,
         access: str,
+        prioritization_mode: Optional[str] = None,
         config_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        (create_run_queue, supports_drc) = self.create_run_queue_introspection()
+        (
+            create_run_queue,
+            supports_drc,
+            supports_prioritization,
+        ) = self.create_run_queue_introspection()
         if not create_run_queue:
             raise UnsupportedError(
-                "run queue creation is not supported by this version of wandb server."
+                "run queue creation is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
             )
         if not supports_drc and config_id is not None:
             raise UnsupportedError(
-                "default resource configurations are not supported by this version of wandb server."
+                "default resource configurations are not supported by this version "
+                "of wandb server. Consider updating to the latest version."
+            )
+        if not supports_prioritization and prioritization_mode is not None:
+            raise UnsupportedError(
+                "launch prioritization is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
             )
 
-        query = gql(
-            """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $defaultResourceConfigID: ID) {
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access,
-                    defaultResourceConfigID: $defaultResourceConfigID
-                }
+        if supports_prioritization:
+            query = gql(
+                """
+            mutation createRunQueue(
+                $entity: String!,
+                $project: String!,
+                $queueName: String!,
+                $access: RunQueueAccessType!,
+                $prioritizationMode: RunQueuePrioritizationMode,
+                $defaultResourceConfigID: ID,
             ) {
-                success
-                queueID
+                createRunQueue(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        queueName: $queueName,
+                        access: $access,
+                        prioritizationMode: $prioritizationMode
+                        defaultResourceConfigID: $defaultResourceConfigID
+                    }
+                ) {
+                    success
+                    queueID
+                }
             }
-        }
-        """
-        )
-        variable_values = {
-            "entity": entity,
-            "project": project,
-            "queueName": queue_name,
-            "access": access,
-            "defaultResourceConfigID": config_id,
-        }
+            """
+            )
+            variable_values = {
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "access": access,
+                "prioritizationMode": prioritization_mode,
+                "defaultResourceConfigID": config_id,
+            }
+        else:
+            query = gql(
+                """
+            mutation createRunQueue(
+                $entity: String!,
+                $project: String!,
+                $queueName: String!,
+                $access: RunQueueAccessType!,
+                $defaultResourceConfigID: ID,
+            ) {
+                createRunQueue(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        queueName: $queueName,
+                        access: $access,
+                        defaultResourceConfigID: $defaultResourceConfigID
+                    }
+                ) {
+                    success
+                    queueID
+                }
+            }
+            """
+            )
+            variable_values = {
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+                "access": access,
+                "defaultResourceConfigID": config_id,
+            }
+
         result: Optional[Dict[str, Any]] = self.gql(query, variable_values)[
             "createRunQueue"
         ]
@@ -1436,42 +1575,82 @@ class Api:
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
-        self, entity: str, project: str, queue_name: str, run_spec: str
+        self,
+        entity: str,
+        project: str,
+        queue_name: str,
+        run_spec: str,
+        template_variables: Optional[Dict[str, Union[int, float, str]]],
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
+        self.push_to_run_queue_introspection()
         """Queryless mutation, should be used before legacy fallback method."""
-        mutation = gql(
-            """
-        mutation pushToRunQueueByName(
+
+        mutation_params = """
             $entityName: String!,
             $projectName: String!,
             $queueName: String!,
-            $runSpec: JSONString!,
-        ) {
-            pushToRunQueueByName(
-                input: {
-                    entityName: $entityName,
-                    projectName: $projectName,
-                    queueName: $queueName,
-                    runSpec: $runSpec
-                }
-            ) {
-                runQueueItemId
-                runSpec
-            }
-        }
+            $runSpec: JSONString!
         """
-        )
-        variables = {
+
+        mutation_input = """
+            entityName: $entityName,
+            projectName: $projectName,
+            queueName: $queueName,
+            runSpec: $runSpec
+        """
+
+        variables: Dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
             "queueName": queue_name,
             "runSpec": run_spec,
         }
+        if self.server_push_to_run_queue_supports_priority:
+            if priority is not None:
+                variables["priority"] = priority
+                mutation_params += ", $priority: Int"
+                mutation_input += ", priority: $priority"
+        else:
+            if priority is not None:
+                raise UnsupportedError(
+                    "server does not support priority, please update server instance to >=0.46"
+                )
+
+        if self.server_supports_template_variables:
+            if template_variables is not None:
+                variables.update(
+                    {"templateVariableValues": json.dumps(template_variables)}
+                )
+                mutation_params += ", $templateVariableValues: JSONString"
+                mutation_input += ", templateVariableValues: $templateVariableValues"
+        else:
+            if template_variables is not None:
+                raise UnsupportedError(
+                    "server does not support template variables, please update server instance to >=0.46"
+                )
+
+        mutation = gql(
+            f"""
+        mutation pushToRunQueueByName(
+          {mutation_params}
+        ) {{
+            pushToRunQueueByName(
+                input: {{
+                    {mutation_input}
+                }}
+            ) {{
+                runQueueItemId
+                runSpec
+            }}
+        }}
+        """
+        )
+
         try:
             result: Optional[Dict[str, Any]] = self.gql(
                 mutation, variables, check_retry_fn=util.no_retry_4xx
             ).get("pushToRunQueueByName")
-
             if not result:
                 return None
 
@@ -1523,13 +1702,16 @@ class Api:
         self,
         queue_name: str,
         launch_spec: Dict[str, str],
+        template_variables: Optional[dict],
         project_queue: str,
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
+        self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project_queue, queue_name, run_spec
+            entity, project_queue, queue_name, run_spec, template_variables, priority
         )
 
         if push_result:
@@ -1582,25 +1764,48 @@ class Api:
             return None
         else:
             queue_id = matching_queues[0]["id"]
+        spec_json = json.dumps(launch_spec)
+        variables = {"queueID": queue_id, "runSpec": spec_json}
+
+        mutation_params = """
+            $queueID: ID!,
+            $runSpec: JSONString!
+        """
+        mutation_input = """
+            queueID: $queueID,
+            runSpec: $runSpec
+        """
+        if self.server_supports_template_variables:
+            if template_variables is not None:
+                mutation_params += ", $templateVariableValues: JSONString"
+                mutation_input += ", templateVariableValues: $templateVariableValues"
+                variables.update(
+                    {"templateVariableValues": json.dumps(template_variables)}
+                )
+        else:
+            if template_variables is not None:
+                raise UnsupportedError(
+                    "server does not support template variables, please update server instance to >=0.46"
+                )
 
         mutation = gql(
-            """
-        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            f"""
+        mutation pushToRunQueue(
+            {mutation_params}
+            ) {{
             pushToRunQueue(
-                input: {
-                    queueID: $queueID,
-                    runSpec: $runSpec
-                }
-            ) {
+                input: {{{mutation_input}}}
+            ) {{
                 runQueueItemId
-            }
-        }
+            }}
+        }}
         """
         )
-        spec_json = json.dumps(launch_spec)
-        response = self.gql(
-            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
-        )
+
+        response = self.gql(mutation, variable_values=variables)
+        if not response.get("pushToRunQueue"):
+            raise CommError(f"Error pushing run queue item to queue {queue_name}.")
+
         result: Optional[Dict[str, Any]] = response["pushToRunQueue"]
         return result
 

@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 import sys
@@ -59,7 +60,6 @@ def test_resume_must_failure(wandb_init):
         wandb_init(reinit=True, resume="must")
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_unlogged_artifact_in_config(wandb_init, test_settings):
     run = wandb_init(settings=test_settings())
     artifact = wandb.Artifact("my-arti", type="dataset")
@@ -185,3 +185,85 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
     run.finish()
+
+
+@pytest.mark.parametrize(
+    "local_info, warn",
+    [
+        (
+            {
+                "outOfDate": True,
+                "latestVersionString": "12.0.0",
+            },
+            True,
+        ),
+        (
+            {
+                "outOfDate": False,
+                "latestVersionString": "12.0.0",
+            },
+            False,
+        ),
+        (None, False),
+        ({}, True),
+    ],
+)
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
+    reason="need to implement versioning in wandb core",
+)
+def test_local_warning(
+    relay_server,
+    inject_graphql_response,
+    wandb_init,
+    capsys,
+    local_info,
+    warn,
+):
+    body = {
+        "viewer": {},
+        "serverInfo": {"cliVersionInfo": {}},
+    }
+    if local_info != "":
+        body["serverInfo"]["latestLocalVersionInfo"] = local_info
+
+    inject_response = inject_graphql_response(
+        body=json.dumps({"data": body}),
+        status=200,
+        query_match_fn=lambda query, _: "query Viewer" in query,
+        application_pattern="1",
+    )
+    # we do not retry 409s on queries, so this should fail
+    with relay_server(inject=[inject_response]):
+        run = wandb_init()
+        run.finish()
+    captured = capsys.readouterr().err
+
+    msg = "version of W&B Server to get the latest features"
+    if warn:
+        assert msg in captured
+    else:
+        assert msg not in captured
+
+
+@pytest.mark.wandb_core_failure(
+    feature="file_uploader",
+    reason="need to implement upload of wandb files",
+)
+def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init):
+    inject_response = inject_graphql_response(
+        body=json.dumps({"errors": ["Server down"]}),
+        status=500,
+        query_match_fn=lambda *_: True,
+        application_pattern="1" * 5 + "2",  # apply once and stop
+    )
+    with relay_server(inject=[inject_response]) as relay:
+        run = wandb_init()
+        run.finish()
+
+        uploaded_files = relay.context.get_run_uploaded_files(run.id)
+
+        assert "wandb-metadata.json" in uploaded_files
+        assert "wandb-summary.json" in uploaded_files
+        assert "requirements.txt" in uploaded_files
+        assert "config.yaml" in uploaded_files

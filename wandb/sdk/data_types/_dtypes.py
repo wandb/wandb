@@ -441,9 +441,7 @@ class ConstType(Type):
     def __init__(self, val: t.Optional[t.Any] = None, is_set: t.Optional[bool] = False):
         if val.__class__ not in [str, int, float, bool, set, list, None.__class__]:
             TypeError(
-                "ConstType only supports str, int, float, bool, set, list, and None types. Found {}".format(
-                    val
-                )
+                f"ConstType only supports str, int, float, bool, set, list, and None types. Found {val}"
             )
         if is_set or isinstance(val, set):
             is_set = True

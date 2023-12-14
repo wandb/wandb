@@ -1,5 +1,4 @@
 """S3 storage handler."""
-import base64
 import os
 import time
 from pathlib import PurePosixPath
@@ -292,12 +291,3 @@ class S3Handler(StorageHandler):
         if hasattr(obj, "version_id") and obj.version_id and obj.version_id != "null":
             extra["versionID"] = obj.version_id
         return extra
-
-    @staticmethod
-    def _content_addressed_path(md5: str) -> FilePathStr:
-        # TODO: is this the structure we want? not at all human
-        # readable, but that's probably OK. don't want people
-        # poking around in the bucket
-        return FilePathStr(
-            "wandb/%s" % base64.b64encode(md5.encode("ascii")).decode("ascii")
-        )

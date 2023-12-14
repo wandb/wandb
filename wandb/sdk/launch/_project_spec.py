@@ -86,6 +86,7 @@ class LaunchProject:
         self.resource = resource
         self.resource_args = resource_args_copy
         self.sweep_id = sweep_id
+        self.author = launch_spec.get("author")
         self.python_version: Optional[str] = launch_spec.get("python_version")
         self.accelerator_base_image: Optional[str] = resource_args_build.get(
             "accelerator", {}
@@ -110,6 +111,9 @@ class LaunchProject:
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
         self.run_id = run_id or generate_id()
+        self._queue_name: Optional[str] = None
+        self._queue_entity: Optional[str] = None
+        self._run_queue_item_id: Optional[str] = None
         self._entry_point: Optional[
             EntryPoint
         ] = None  # todo: keep multiple entrypoint support?
@@ -187,6 +191,30 @@ class LaunchProject:
             assert self.job is not None
             return wandb.util.make_docker_image_name_safe(self.job.split(":")[0])
 
+    @property
+    def queue_name(self) -> Optional[str]:
+        return self._queue_name
+
+    @queue_name.setter
+    def queue_name(self, value: str) -> None:
+        self._queue_name = value
+
+    @property
+    def queue_entity(self) -> Optional[str]:
+        return self._queue_entity
+
+    @queue_entity.setter
+    def queue_entity(self, value: str) -> None:
+        self._queue_entity = value
+
+    @property
+    def run_queue_item_id(self) -> Optional[str]:
+        return self._run_queue_item_id
+
+    @run_queue_item_id.setter
+    def run_queue_item_id(self, value: str) -> None:
+        self._run_queue_item_id = value
+
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
         if not entrypoint:
             return None
@@ -229,6 +257,7 @@ class LaunchProject:
             "run_id": self.run_id,
             "run_name": self.name,
             "image_uri": image,
+            "author": self.author,
         }
         update_dict.update(os.environ)
         result = recursive_macro_sub(self.resource_args, update_dict)
