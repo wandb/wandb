@@ -542,17 +542,8 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
         patched_push_to_run_queue_introspection,
     )
 
-    def patched_create_run_queue_introspection(*args, **kwargs):
-        args[0].server_create_run_queue_supports_drc = True
-        args[0].server_create_run_queue_supports_priority = True
-        return (True, True, True)
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "create_run_queue_introspection",
-        patched_create_run_queue_introspection,
-    )
-
+    # Backend returns 4xx if you attempt to push an item with
+    # non-default priority to a queue that doesn't support priority
     def patched_push_to_run_queue_by_name(*args, **kwargs):
         return None
 
