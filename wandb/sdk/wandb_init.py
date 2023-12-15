@@ -560,6 +560,57 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
+    def _save_conda(self) -> None:
+        import subprocess
+
+        from wandb.sdk.lib.filenames import CONDA_ENVIRONMENTS_FNAME
+
+        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
+        if not current_shell_is_conda:
+            return None
+
+        logger.debug(
+            "Saving list of conda packages installed into the current environment"
+        )
+        try:
+            with open(
+                os.path.join(self.settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
+            ) as f:
+                subprocess.call(
+                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                )
+            self.backend.interface.publish_files(
+                dict(files=[(CONDA_ENVIRONMENTS_FNAME, "now")])
+            )
+        except Exception as e:
+            logger.exception(f"Error saving conda packages: {e}")
+        logger.debug("Saving conda packages done")
+
+    def _save_pip(self) -> None:
+        """Save the current working set of pip packages to {REQUIREMENTS_FNAME}."""
+        logger.debug(
+            "Saving list of pip packages installed into the current environment"
+        )
+        try:
+            import pkg_resources
+
+            from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
+
+            installed_packages = [d for d in iter(pkg_resources.working_set)]
+            installed_packages_list = sorted(
+                f"{i.key}=={i.version}" for i in installed_packages
+            )
+            with open(
+                os.path.join(self.settings.files_dir, REQUIREMENTS_FNAME), "w"
+            ) as f:
+                f.write("\n".join(installed_packages_list))
+            self.backend.interface.publish_files(
+                dict(files=[(REQUIREMENTS_FNAME, "now")])
+            )
+        except Exception as e:
+            logger.exception(f"Error saving pip packages: {e}")
+        logger.debug("Saving pip packages done")
+
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
@@ -843,30 +894,12 @@ class _WandbInit:
         self.backend = backend
         assert self._reporter
         self._reporter.set_context(run=run)
+        if self.settings._save_requirements:
+            self._save_pip()
+            self._save_conda()
         run._on_start()
         logger.info("run started, returning control to user process")
 
-        # _save_pip
-        if self.settings._save_requirements:
-            try:
-                import pkg_resources
-
-                from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
-
-                installed_packages = [d for d in iter(pkg_resources.working_set)]
-                installed_packages_list = sorted(
-                    f"{i.key}=={i.version}" for i in installed_packages
-                )
-                with open(
-                    os.path.join(self.settings.files_dir, REQUIREMENTS_FNAME), "w"
-                ) as f:
-                    f.write("\n".join(installed_packages_list))
-            except Exception as e:
-                logger.exception(f"Error saving pip packages: {e}")
-            logger.debug("Saving pip packages done")
-            self.backend.interface.publish_files(
-                dict(files=[(REQUIREMENTS_FNAME, "now")])
-            )
         return run
 
 

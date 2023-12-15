@@ -17,13 +17,15 @@ type FileHandler struct {
 	final      *service.Record
 	watcher    *watcher.Watcher
 	logger     *observability.CoreLogger
+	settings   *service.Settings
 }
 
-func NewFileHandler(logger *observability.CoreLogger, watcherOutChan chan *service.Record) *FileHandler {
+func NewFileHandler(logger *observability.CoreLogger, settings *service.Settings, watcherOutChan chan *service.Record) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
 		watcher:    watcher.NewWatcher(logger, watcherOutChan),
 		logger:     logger,
+		settings:   settings,
 	}
 }
 
@@ -40,6 +42,22 @@ func (fh *FileHandler) Close() {
 	}
 	fh.watcher.Close()
 	fh.logger.Debug("closed file handler")
+}
+
+func (fh *FileHandler) filterFile(file *service.FilesItem) bool {
+	ignore := false
+	for _, ignoreGlob := range fh.settings.GetIgnoreGlobs().GetValue() {
+		matches, err := filepath.Match(ignoreGlob, file.Path)
+		if err != nil {
+			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", ignoreGlob)
+			continue
+		}
+		if matches {
+			ignore = true
+			break
+		}
+	}
+	return ignore
 }
 
 // Handle handles file uploads preprocessing, depending on their policies:
@@ -68,7 +86,9 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
 			// 	continue
 			// }
-			items = append(items, item)
+			if !fh.filterFile(item) {
+				items = append(items, item)
+			}
 			continue
 		}
 
@@ -84,7 +104,9 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 			}
 			newItem := proto.Clone(item).(*service.FilesItem)
 			newItem.Path = match
-			items = append(items, newItem)
+			if !fh.filterFile(item) {
+				items = append(items, newItem)
+			}
 		}
 	}
 

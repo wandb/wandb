@@ -1,7 +1,5 @@
-import os
 import platform
 import queue
-import subprocess
 import unittest.mock
 
 import pytest
@@ -60,24 +58,7 @@ def send_manager(
     yield send_manager_helper
 
 
-@pytest.mark.wandb_core_failure(feature="file_uploader")
-def test_meta_probe(
-    relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
-):
-    orig_exists = os.path.exists
-    orig_call = subprocess.call
-    monkeypatch.setattr(
-        os.path,
-        "exists",
-        lambda path: True if "conda-meta" in path else orig_exists(path),
-    )
-    monkeypatch.setattr(
-        subprocess,
-        "call",
-        lambda cmd, **kwargs: kwargs["stdout"].write("CONDA YAML")
-        if "conda" in cmd
-        else orig_call(cmd, **kwargs),
-    )
+def test_meta_probe(relay_server, meta, mock_run, send_manager, record_q, user):
     with open("README", "w") as f:
         f.write("Testing")
     with relay_server() as relay:
@@ -93,9 +74,7 @@ def test_meta_probe(
     assert sorted(uploaded_files) == sorted(
         [
             "wandb-metadata.json",
-            "requirements.txt",
             "config.yaml",
-            "conda-environment.yaml",
             "diff.patch",
         ]
     )
