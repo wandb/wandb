@@ -69,6 +69,7 @@ func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 
 func (g *Git) Probe() {
 	filesDirPath := g.settings.GetFilesDir().GetValue()
+	// TODO: get this from the settings or from the program settings
 	repoPath := "."
 
 	// check if repoPath is a git repository

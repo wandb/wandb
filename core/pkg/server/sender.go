@@ -902,6 +902,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 }
 
 func (s *Sender) sendInternalFile(path string) {
+	// TODO: rework this to have proper paths and simply use sendFiles
 	// check if the file exists
 	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {

@@ -486,6 +486,8 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	if !h.settings.GetDisableGit().GetValue() {
 		git := NewGit(h.settings)
 		if git.IsAvailable() {
+			// TODO: return the file paths and error
+			// if there's no error, do sendFile
 			git.Probe()
 		}
 		// TODO: probe will save the diff to the files directory
