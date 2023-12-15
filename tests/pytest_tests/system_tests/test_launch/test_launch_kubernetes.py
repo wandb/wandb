@@ -254,9 +254,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         _mock_get_context_and_client,
     )
 
-    async def mock_create_from_dict(path, jobs_dict, mock_status):
-        with open(path) as path:
-            jobd = yaml.safe_load(path)
+    async def mock_create_from_dict(jobd, jobs_dict, mock_status):
         name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"
