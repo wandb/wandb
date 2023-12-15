@@ -716,7 +716,7 @@ class Api:
 
     def _parse_project_path(self, path):
         """Return project and entity for project specified by path."""
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
@@ -735,7 +735,7 @@ class Api:
 
         Entity is optional and will fall back to the current logged-in user.
         """
-        project = self.settings["project"]
+        project = self.settings["project"] or "uncategorized"
         entity = self.settings["entity"] or self.default_entity
         parts = (
             path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")

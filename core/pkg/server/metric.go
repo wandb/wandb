@@ -76,11 +76,11 @@ func (h *Handler) handleStepMetric(key string) {
 	}
 
 	// already exists no need to add
-	if _, defined := h.mh.definedMetrics[key]; defined {
+	if _, defined := h.metricHandler.definedMetrics[key]; defined {
 		return
 	}
 
-	metric, err := addMetric(key, key, &h.mh.definedMetrics)
+	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
 
 	if err != nil {
 		h.logger.CaptureError("error adding metric to map", err)
@@ -99,22 +99,17 @@ func (h *Handler) handleStepMetric(key string) {
 }
 
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	// on the first metric, initialize the metric handler
-	if h.mh == nil {
-		h.mh = NewMetricHandler()
-	}
-
 	// metric can have a glob name or a name
 	// TODO: replace glob-name/name with one-of field
 	switch {
 	case metric.GetGlobName() != "":
-		if _, err := addMetric(metric, metric.GetGlobName(), &h.mh.globMetrics); err != nil {
+		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
 		h.sendRecord(record)
 	case metric.GetName() != "":
-		if _, err := addMetric(metric, metric.GetName(), &h.mh.definedMetrics); err != nil {
+		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
@@ -143,13 +138,13 @@ func NewMetricSender() *MetricSender {
 // are used to configure the plots in the UI.
 func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
 
-	_, err := addMetric(metric, metric.GetName(), &s.ms.definedMetrics)
+	_, err := addMetric(metric, metric.GetName(), &s.metricSender.definedMetrics)
 	if err != nil {
 		return
 	}
 
 	if metric.GetStepMetric() != "" {
-		index, ok := s.ms.metricIndex[metric.GetStepMetric()]
+		index, ok := s.metricSender.metricIndex[metric.GetStepMetric()]
 		if ok {
 			metric = proto.Clone(metric).(*service.MetricRecord)
 			metric.StepMetric = ""
@@ -158,11 +153,11 @@ func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricReco
 	}
 
 	encodeMetric := corelib.ProtoEncodeToDict(metric)
-	if index, ok := s.ms.metricIndex[metric.GetName()]; ok {
-		s.ms.configMetrics[index] = encodeMetric
+	if index, ok := s.metricSender.metricIndex[metric.GetName()]; ok {
+		s.metricSender.configMetrics[index] = encodeMetric
 	} else {
-		nextIndex := len(s.ms.configMetrics)
-		s.ms.configMetrics = append(s.ms.configMetrics, encodeMetric)
-		s.ms.metricIndex[metric.GetName()] = int32(nextIndex)
+		nextIndex := len(s.metricSender.configMetrics)
+		s.metricSender.configMetrics = append(s.metricSender.configMetrics, encodeMetric)
+		s.metricSender.metricIndex[metric.GetName()] = int32(nextIndex)
 	}
 }
