@@ -45,11 +45,12 @@ func (fh *FileHandler) Close() {
 }
 
 func (fh *FileHandler) filterFile(file *service.FilesItem) bool {
-	for _, ignoreGlob := range fh.settings.GetIgnoreGlobs().GetValue() {
-		if matches, err := filepath.Match(ignoreGlob, file.Path); err != nil {
-			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", ignoreGlob)
+	for _, pattern := range fh.settings.GetIgnoreGlobs().GetValue() {
+		if matches, err := filepath.Match(pattern, file.Path); err != nil {
+			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
 			continue
 		} else if matches {
+			fh.logger.Info("ignoring file", "path", file.Path, "glob", pattern)
 			return true
 		}
 	}
