@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -15,6 +16,9 @@ import (
 )
 
 const (
+	MetaFileName              = "wandb-metadata.json"
+	OutputFileName            = "output.log"
+	diffFileName              = "diff.patch"
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
@@ -312,6 +316,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
+		h.flushOutput()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
 		rec := h.fileHandler.Final()
@@ -446,12 +451,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.fileHandler.Start()
 
 	h.handleCodeSave()
-	h.handleGit()
+	h.handleGit(h.settings.GetRootDir().GetValue())
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 	// initialize the run metadata from settings
-
 	metadata := &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
 		Python:   h.settings.GetXPython().GetValue(),
@@ -485,39 +489,61 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(metadata)
 }
 
-func (h *Handler) handleGit() {
+func (h *Handler) handleGit(repoPath string) {
 	// capture git state
-	// TODO: probe will save the diff to the files directory
-	// we need to send the diff to the server as a file
+	/*
+		Get diff of current working tree vs uncommitted changes
+		git diff HEAD
+
+		If there are submodules, you can use the --submodule=diff option to make git diff recurse into them:
+		git diff HEAD --submodule=diff
+
+		To check if there are submodules:
+		git submodule status
+		(should return nothing if there are no submodules)
+
+		Get diff of current working tree vs last commit on upstream branch
+		git diff @{u}
+	*/
 	if h.settings.GetDisableGit().GetValue() {
 		return
 	}
-	fmt.Println("xxx>>> handleGitState1")
 
-	// TODO: get this from the settings or from the program settings
-	repoPath := "."
-	git := NewGit(repoPath, h.settings)
+	git := NewGit(repoPath, h.logger)
 	if !git.IsAvailable() {
 		return
 	}
 
-	fmt.Println(">>> handleGitState2")
+	files := []*service.FilesItem{}
 
-	// TODO: return the file paths and error if there's no error, do sendFile
-	files := git.GetDiff()
-	fmt.Println("files", files)
+	filesDirPath := h.settings.GetFilesDir().GetValue()
+	file := filepath.Join(filesDirPath, diffFileName)
+	if err := git.SavePatch("HEAD", file); err != nil {
+		h.logger.Error("error generating diff", "error", err)
+	} else {
+		files = append(files, &service.FilesItem{Path: diffFileName})
+	}
+
+	if output, err := git.LatestCommit("@{u}"); err != nil {
+		h.logger.Error("error getting latest commit", "error", err)
+	} else {
+		diffFileName := fmt.Sprintf("diff_%s.patch", output)
+		file = filepath.Join(filesDirPath, diffFileName)
+		if err := git.SavePatch("@{u}", file); err != nil {
+			h.logger.Error("error generating diff", "error", err)
+		} else {
+			files = append(files, &service.FilesItem{Path: diffFileName})
+		}
+	}
+
 	if len(files) == 0 {
 		return
 	}
 
-	fileItems := []*service.FilesItem{}
-	for _, file := range files {
-		fileItems = append(fileItems, &service.FilesItem{Path: file})
-	}
 	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
-				Files: fileItems,
+				Files: files,
 			},
 		},
 		Control: &service.Control{
@@ -577,7 +603,7 @@ func (h *Handler) handleCodeSave() {
 			return
 		}
 	}
-	record := service.Record{
+	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
@@ -588,7 +614,7 @@ func (h *Handler) handleCodeSave() {
 			},
 		},
 	}
-	h.handleFiles(&record)
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleMetadata(request *service.MetadataRequest) {
@@ -598,20 +624,55 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 		return
 	}
 
-	record := service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Metadata{
-					Metadata: request,
+	mo := protojson.MarshalOptions{
+		Indent: "  ",
+		// EmitUnpopulated: true,
+	}
+	jsonBytes, err := mo.Marshal(request)
+	if err != nil {
+		h.logger.CaptureError("error marshalling metadata", err)
+		return
+	}
+	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
+	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
+		h.logger.CaptureError("error writing metadata file", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: MetaFileName,
+					},
+				},
+			},
+		},
+		Control: &service.Control{
+			AlwaysSend: true,
+		},
+	}
+
+	h.handleFiles(record)
+}
+
+func (h *Handler) flushOutput() {
+	fullPath := filepath.Join(h.settings.GetFilesDir().GetValue(), OutputFileName)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		h.logger.Info("handleOutput: output file does not exist", "path", fullPath)
+		return
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: OutputFileName},
 				},
 			},
 		},
 	}
-	h.sendRecordWithControl(&record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
-		},
-	)
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
@@ -680,7 +741,6 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	rec := h.fileHandler.Handle(record)
-	fmt.Println(">>> handleFiles", rec)
 	h.sendRecord(rec)
 }
 

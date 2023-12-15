@@ -1,17 +1,13 @@
 package server
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
-
-const diffFileName = "diff.patch"
 
 func runCommand(command []string, dir, outFile string) error {
 	output, err := runCommandWithOutput(command, dir)
@@ -39,36 +35,25 @@ func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 }
 
 type Git struct {
-	path     string
-	settings *service.Settings
+	path   string
+	logger *observability.CoreLogger
 }
 
-func NewGit(path string, settings *service.Settings) *Git {
+func NewGit(path string, logger *observability.CoreLogger) *Git {
 	return &Git{
-		path:     path,
-		settings: settings,
+		path:   path,
+		logger: logger,
 	}
 }
 
 func (g *Git) IsAvailable() bool {
 	// check if repoPath is a git repository
 	if _, err := git.PlainOpen(g.path); err != nil {
-		fmt.Println("Error opening repository:", err)
+		g.logger.Error("git repo not found", "error", err)
 		return false
 	}
 	return true
 }
-
-// func (g *Git) hasSubmodules(dir string) bool {
-// 	// check if there are submodules
-// 	command := []string{"git", "submodule", "status"}
-// 	output, err := runCommandWithOutput(command, dir)
-// 	if err != nil {
-// 		fmt.Println("Error checking submodules:", err)
-// 		return false
-// 	}
-// 	return len(output) > 0
-// }
 
 func (g *Git) LatestCommit(ref string) (string, error) {
 	// get latest commit
@@ -88,47 +73,4 @@ func (g *Git) SavePatch(ref, output string) error {
 		return err
 	}
 	return nil
-}
-
-/*
-Get diff of current working tree vs uncommitted changes
-git diff HEAD
-
-If there are submodules, you can use the --submodule=diff option to make git diff recurse into them:
-git diff HEAD --submodule=diff
-
-To check if there are submodules:
-git submodule status
-(should return nothing if there are no submodules)
-
-Get diff of current working tree vs last commit on upstream branch
-git diff @{u}
-*/
-
-func (g *Git) GetDiff() []string {
-	filesDirPath := g.settings.GetFilesDir().GetValue()
-
-	diffFiles := []string{}
-
-	// get diff of current working tree vs uncommitted changes
-	file := filepath.Join(filesDirPath, diffFileName)
-	if err := g.SavePatch("HEAD", file); err != nil {
-		fmt.Println("Error generating diff:", err)
-	} else {
-		diffFiles = append(diffFiles, file)
-	}
-
-	// get diff of current working tree vs last commit on upstream branch
-	output, err := g.LatestCommit("@{u}")
-	if err != nil {
-		fmt.Println("Error getting latest commit:", err)
-		return diffFiles
-	}
-	file = filepath.Join(filesDirPath, fmt.Sprintf("diff_%s.patch", output))
-	if err := g.SavePatch("@{u}", file); err != nil {
-		fmt.Println("Error generating diff:", err)
-	} else {
-		diffFiles = append(diffFiles, file)
-	}
-	return diffFiles
 }

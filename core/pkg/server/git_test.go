@@ -9,9 +9,8 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func setupTestRepo() (string, func(), error) {
@@ -63,8 +62,8 @@ func TestIsAvailable(t *testing.T) {
 	}
 	defer cleanup()
 
-	settings := &service.Settings{}
-	git := server.NewGit(repoPath, settings)
+	logger := observability.NewNoOpLogger()
+	git := server.NewGit(repoPath, logger)
 	available := git.IsAvailable()
 	assert.True(t, available)
 }
@@ -76,8 +75,8 @@ func TestLatestCommit(t *testing.T) {
 	}
 	defer cleanup()
 
-	settings := &service.Settings{}
-	git := server.NewGit(repoPath, settings)
+	logger := observability.NewNoOpLogger()
+	git := server.NewGit(repoPath, logger)
 	latest, err := git.LatestCommit("HEAD")
 	assert.NoError(t, err)
 	assert.Len(t, latest, 40)
@@ -104,8 +103,8 @@ func TestSavePatch(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	outputPath := filepath.Join(tempDir, "diff.patch")
 
-	settings := &service.Settings{}
-	git := server.NewGit(repoPath, settings)
+	logger := observability.NewNoOpLogger()
+	git := server.NewGit(repoPath, logger)
 	err = git.SavePatch("HEAD", outputPath)
 	assert.NoError(t, err)
 	assert.FileExists(t, outputPath)
@@ -115,41 +114,4 @@ func TestSavePatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Contains(t, string(patch), "+test content")
-}
-
-func TestGetDiff(t *testing.T) {
-	repoPath, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-
-	// append a line to the temp.txt file
-	tempFile := filepath.Join(repoPath, "temp.txt")
-	err = os.WriteFile(tempFile, []byte("test content\n"), 0644)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tempDir, err := os.MkdirTemp("", "temp_output")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
-	// outputPath := filepath.Join(tempDir, "diff.patch")
-
-	settings := &service.Settings{
-		FilesDir: &wrapperspb.StringValue{
-			Value: tempDir,
-		},
-	}
-
-	git := server.NewGit(repoPath, settings)
-	files := git.GetDiff()
-
-	assert.Len(t, files, 1)
-	for _, file := range files {
-		assert.FileExists(t, file)
-	}
-	// TODO: test upstream diff too
 }
