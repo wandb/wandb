@@ -45,19 +45,15 @@ func (fh *FileHandler) Close() {
 }
 
 func (fh *FileHandler) filterFile(file *service.FilesItem) bool {
-	ignore := false
 	for _, ignoreGlob := range fh.settings.GetIgnoreGlobs().GetValue() {
-		matches, err := filepath.Match(ignoreGlob, file.Path)
-		if err != nil {
+		if matches, err := filepath.Match(ignoreGlob, file.Path); err != nil {
 			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", ignoreGlob)
 			continue
-		}
-		if matches {
-			ignore = true
-			break
+		} else if matches {
+			return true
 		}
 	}
-	return ignore
+	return false
 }
 
 // Handle handles file uploads preprocessing, depending on their policies:

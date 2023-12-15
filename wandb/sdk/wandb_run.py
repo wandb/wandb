@@ -2282,7 +2282,7 @@ class Run:
             )
             import pkg_resources
 
-            self.backend.interface.publish_python_packages(pkg_resources.working_set)
+            self._backend.interface.publish_python_packages(pkg_resources.working_set)
             logger.debug("Saving pip packages done")
 
         if self._backend and self._backend.interface and not self._settings._offline:

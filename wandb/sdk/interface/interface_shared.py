@@ -383,7 +383,6 @@ class InterfaceShared(InterfaceBase):
         self, python_packages: pb.PythonPackagesRequest
     ) -> None:
         rec = self._make_request(python_packages=python_packages)
-        print("rec", rec)
         self._publish(rec)
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
