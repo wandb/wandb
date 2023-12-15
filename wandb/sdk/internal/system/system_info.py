@@ -200,8 +200,36 @@ class SystemInfo:
 
         return data
 
+    def _save_conda(self) -> None:
+        import subprocess
+
+        from wandb.sdk.lib.filenames import CONDA_ENVIRONMENTS_FNAME
+
+        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
+        if not current_shell_is_conda:
+            return None
+
+        logger.debug(
+            "Saving list of conda packages installed into the current environment"
+        )
+        try:
+            with open(
+                os.path.join(self.settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
+            ) as f:
+                subprocess.call(
+                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                )
+            self.backend.interface.publish_files(
+                dict(files=[(CONDA_ENVIRONMENTS_FNAME, "now")])
+            )
+        except Exception as e:
+            logger.exception(f"Error saving conda packages: {e}")
+        logger.debug("Saving conda packages done")
+
     def publish(self, system_info: dict) -> None:
         # save pip, conda, code patches to disk
+        if self.settings._save_requirements:
+            self._save_conda()
         if self.settings.save_code:
             self._save_code()
             self._save_patches()

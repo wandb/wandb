@@ -19,6 +19,7 @@ const (
 	MetaFileName              = "wandb-metadata.json"
 	OutputFileName            = "output.log"
 	diffFileName              = "diff.patch"
+	requirementsFileName      = "requirements.txt"
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
@@ -266,6 +267,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 		response = nil
+	case *service.Request_PythonPackages:
+		h.handlePythonPackages(record, x.PythonPackages)
+		response = nil
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
@@ -450,8 +454,16 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	h.fileHandler.Start()
 
-	h.handleCodeSave()
-	h.handleGit(h.settings.GetRootDir().GetValue())
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+	}
+
+	// save code and patch
+	if h.settings.GetSaveCode().GetValue() {
+		h.handleCodeSave()
+		h.handlePatchSave()
+	}
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
@@ -478,9 +490,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		},
 	}
 
-	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
 		systemInfo := h.systemMonitor.Probe()
 		if systemInfo != nil {
 			proto.Merge(metadata, systemInfo)
@@ -489,7 +499,77 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.handleMetadata(metadata)
 }
 
-func (h *Handler) handleGit(repoPath string) {
+func (h *Handler) handlePythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
+	// write all requirements to a file
+	// send the file as a Files record
+	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), requirementsFileName)
+	file, err := os.Create(filename)
+	if err != nil {
+		h.logger.Error("error creating requirements file", "error", err)
+		return
+	}
+	defer file.Close()
+
+	for _, pkg := range request.Package {
+		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
+		_, err := file.WriteString(line)
+		if err != nil {
+			h.logger.Error("error writing requirements file", "error", err)
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: requirementsFileName,
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handleCodeSave() {
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
+		return
+	}
+
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		return
+	}
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handlePatchSave() {
 	// capture git state
 	/*
 		Get diff of current working tree vs uncommitted changes
@@ -509,7 +589,7 @@ func (h *Handler) handleGit(repoPath string) {
 		return
 	}
 
-	git := NewGit(repoPath, h.logger)
+	git := NewGit(h.settings.GetRootDir().GetValue(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
@@ -553,70 +633,6 @@ func (h *Handler) handleGit(repoPath string) {
 	h.handleFiles(record)
 }
 
-func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
-
-	response.ResponseType = &service.Response_AttachResponse{
-		AttachResponse: &service.AttachResponse{
-			Run: h.runRecord,
-		},
-	}
-}
-
-func (h *Handler) handleCancel(record *service.Record) {
-	h.sendRecord(record)
-}
-
-func (h *Handler) handlePause() {
-	h.timer.Pause()
-	h.systemMonitor.Stop()
-}
-
-func (h *Handler) handleResume() {
-	h.timer.Resume()
-	h.systemMonitor.Do()
-}
-
-func (h *Handler) handleCodeSave() {
-	if !h.settings.GetSaveCode().GetValue() {
-		return
-	}
-
-	programRelative := h.settings.GetProgramRelpath().GetValue()
-	if programRelative == "" {
-		h.logger.Warn("handleCodeSave: program relative path is empty")
-		return
-	}
-
-	programAbsolute := h.settings.GetProgramAbspath().GetValue()
-	if _, err := os.Stat(programAbsolute); err != nil {
-		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
-		return
-	}
-
-	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
-	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
-		return
-	}
-	savedProgram := filepath.Join(codeDir, programRelative)
-	if _, err := os.Stat(savedProgram); err != nil {
-		if err = copyFile(programAbsolute, savedProgram); err != nil {
-			return
-		}
-	}
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: filepath.Join("code", programRelative),
-					},
-				},
-			},
-		},
-	}
-	h.handleFiles(record)
-}
-
 func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
@@ -655,6 +671,29 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 
 	h.handleFiles(record)
+}
+
+func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
+
+	response.ResponseType = &service.Response_AttachResponse{
+		AttachResponse: &service.AttachResponse{
+			Run: h.runRecord,
+		},
+	}
+}
+
+func (h *Handler) handleCancel(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) handlePause() {
+	h.timer.Pause()
+	h.systemMonitor.Stop()
+}
+
+func (h *Handler) handleResume() {
+	h.timer.Resume()
+	h.systemMonitor.Do()
 }
 
 func (h *Handler) flushOutput() {

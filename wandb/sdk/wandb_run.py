@@ -2276,6 +2276,15 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
+        if self._settings._save_requirements:
+            logger.debug(
+                "Saving list of pip packages installed into the current environment"
+            )
+            import pkg_resources
+
+            self.backend.interface.publish_python_packages(pkg_resources.working_set)
+            logger.debug("Saving pip packages done")
+
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
                 interface=self._backend.interface,

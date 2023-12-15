@@ -147,6 +147,7 @@ class InterfaceShared(InterfaceBase):
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
+        python_packages: Optional[pb.PythonPackagesRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -207,6 +208,8 @@ class InterfaceShared(InterfaceBase):
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif sync:
             request.sync.CopyFrom(sync)
+        elif python_packages:
+            request.python_packages.CopyFrom(python_packages)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -374,6 +377,13 @@ class InterfaceShared(InterfaceBase):
     def publish_stats(self, stats_dict: dict) -> None:
         stats = self._make_stats(stats_dict)
         rec = self._make_record(stats=stats)
+        self._publish(rec)
+
+    def _publish_python_packages(
+        self, python_packages: pb.PythonPackagesRequest
+    ) -> None:
+        rec = self._make_request(python_packages=python_packages)
+        print("rec", rec)
         self._publish(rec)
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
