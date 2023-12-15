@@ -53,7 +53,10 @@ func runCommand(command []string, dir, outFile string) error {
 			return err
 		}
 		defer f.Close()
-		f.Write(output)
+		_, err = f.Write(output)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -81,7 +84,6 @@ func (g *Git) Probe() {
 	var hasSubmodules bool
 	if err != nil {
 		fmt.Println("Error checking submodules:", err)
-		hasSubmodules = false
 	}
 	hasSubmodules = len(output) > 0
 
