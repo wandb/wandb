@@ -105,9 +105,9 @@ type PartialJobSource struct {
 type JobBuilder struct {
 	logger *observability.CoreLogger
 
-	Disable          bool
 	PartialJobSource *PartialJobSource
 
+	disable         bool
 	settings        *service.Settings
 	runCodeArtifact *ArtifactInfoForJob
 	aliases         []string
@@ -411,7 +411,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 
 func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
-	if j.Disable {
+	if j.disable {
 		j.logger.Debug("jobBuilder: disabled")
 		return nil, nil
 	}
@@ -429,10 +429,6 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	if err != nil {
 		j.logger.Debug("jobBuilder: error handling metadata file", err)
 		return nil, err
-	} else if metadata == nil {
-		j.logger.Debug("jobBuilder: no metadata file found")
-		fmt.Printf("Ensure read and write access to run files dir: %s, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables\n", j.settings.FilesDir.Value)
-		return nil, nil
 	}
 
 	if metadata.Python == nil {
@@ -553,7 +549,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 	if len(useArtifact.Partial.JobName) == 0 {
 		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
-		j.Disable = true
+		j.disable = true
 		return
 	} else if len(useArtifact.Partial.JobName) == 0 {
 		return

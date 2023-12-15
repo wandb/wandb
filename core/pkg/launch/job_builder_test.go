@@ -59,7 +59,7 @@ func toWrapperPb(val interface{}) interface{} {
 }
 
 func TestJobBuilder(t *testing.T) {
-	t.Run("buildRepoSourcedJob", func(t *testing.T) {
+	t.Run("Build repo sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"python": "3.11.2",
 			"git": map[string]interface{}{
@@ -109,7 +109,7 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("buildRepoSourcedNotebookJob", func(t *testing.T) {
+	t.Run("Build repo sourced notebook job", func(t *testing.T) {
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
@@ -169,7 +169,7 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("buildArtifactSourcedJob", func(t *testing.T) {
+	t.Run("Build artifact sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"python":   "3.11.2",
 			"codePath": "/path/to/train.py",
@@ -223,7 +223,7 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("buildArtifactSourcedNotebookJob", func(t *testing.T) {
+	t.Run("Build artifact sourced notebook job", func(t *testing.T) {
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
@@ -288,7 +288,7 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
-	t.Run("buildImageSourcedJob", func(t *testing.T) {
+	t.Run("Build image sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"docker":   "testImage:testTag",
 			"python":   "3.11.2",
@@ -332,6 +332,49 @@ func TestJobBuilder(t *testing.T) {
 				assert.Equal(t, "testImage:testTag", data["source"].(map[string]interface{})["image"])
 			}
 		}
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		settings := &service.Settings{
+			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.disable = true
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, err)
+		assert.Nil(t, artifact)
+	})
+
+	t.Run("Missing requirements file", func(t *testing.T) {
+		fdir := filepath.Join(os.TempDir(), "test")
+		settings := &service.Settings{
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, artifact)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Missing python in metadata", func(t *testing.T) {
+		metadata := map[string]interface{}{}
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
+
+		defer os.RemoveAll(fdir)
+
+		settings := &service.Settings{
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, artifact)
+		assert.Nil(t, err)
 	})
 
 }
