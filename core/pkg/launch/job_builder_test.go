@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -82,7 +83,7 @@ func TestJobBuilder(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings)
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 		artifact, err := jobBuilder.Build()
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
@@ -142,7 +143,7 @@ func TestJobBuilder(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings)
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 		artifact, err := jobBuilder.Build()
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
@@ -187,7 +188,7 @@ func TestJobBuilder(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings)
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 		artifactRecord := &service.Record{
 			RecordType: &service.Record_Artifact{
 				Artifact: &service.ArtifactRecord{
@@ -252,7 +253,7 @@ func TestJobBuilder(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings)
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 		artifactRecord := &service.Record{
 			RecordType: &service.Record_Artifact{
 				Artifact: &service.ArtifactRecord{
@@ -307,7 +308,7 @@ func TestJobBuilder(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings)
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 		artifact, err := jobBuilder.Build()
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)

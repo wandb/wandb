@@ -110,7 +110,7 @@ func NewSender(ctx context.Context, settings *service.Settings, logger *observab
 		loopbackChan: loopbackChan,
 		outChan:      make(chan *service.Result, BufferSize),
 		telemetry:    &service.TelemetryRecord{CoreVersion: version.Version},
-		jobBuilder:   launch.NewJobBuilder(settings),
+		jobBuilder:   launch.NewJobBuilder(settings, logger),
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -371,7 +371,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_FLUSH_JOB:
 		a, err := s.jobBuilder.Build()
 		if err != nil {
-			fmt.Printf("Encountered error while building job artifact: %s\n", err)
+			s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
 		}
 		if a != nil {
 			saver := artifacts.NewArtifactSaver(
@@ -379,7 +379,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 			)
 			_, err := saver.Save()
 			if err != nil {
-				fmt.Println(err)
+				s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
 			}
 		}
 		request.State++

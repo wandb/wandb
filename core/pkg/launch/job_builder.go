@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/wandb/wandb/core/pkg/artifacts"
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -102,6 +103,8 @@ type PartialJobSource struct {
 }
 
 type JobBuilder struct {
+	logger *observability.CoreLogger
+
 	Disable          bool
 	PartialJobSource *PartialJobSource
 
@@ -143,11 +146,12 @@ func isColabRunFromSettings(settings *service.Settings) bool {
 	return false
 }
 
-func NewJobBuilder(settings *service.Settings) JobBuilder {
+func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) JobBuilder {
 	isNotebookRun := isNotbookRunFromSettings(settings)
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: isNotebookRun,
+		logger:        logger,
 	}
 	return jobBuilder
 }
@@ -290,6 +294,7 @@ func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *str
 }
 
 func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMetadata) (*GitSource, *string, error) {
+	j.logger.Debug("jobBuilder: creating repo job source")
 	fullProgramPath := programRelpath
 	if j.isNotebookRun {
 		cwd, err := os.Getwd()
@@ -343,6 +348,7 @@ func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMeta
 }
 
 func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata RunMetadata) (*ArtifactSource, *string, error) {
+	j.logger.Debug("jobBuilder: creating artifact job source")
 	var fullProgramRelPath string
 	// TODO: should we just always exit early if the path doesn't exist?
 	if j.isNotebookRun && !isColabRunFromSettings(j.settings) {
@@ -377,6 +383,7 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 }
 
 func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *string, error) {
+	j.logger.Debug("jobBuilder: creating image job source")
 	if metadata.Docker == nil {
 		return nil, nil, fmt.Errorf("no docker image provided for image sourced job")
 	}
@@ -403,12 +410,15 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 }
 
 func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
+	j.logger.Debug("jobBuilder: building job artifact")
 	if j.Disable {
+		j.logger.Debug("jobBuilder: disabled")
 		return nil, nil
 	}
 	fileDir := j.settings.FilesDir.GetValue()
 	_, err := os.Stat(filepath.Join(fileDir, REQUIREMENTS_FNAME))
 	if os.IsNotExist(err) {
+		j.logger.Debug("jobBuilder: no requirements.txt found")
 		fmt.Println(
 			"No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
 		)
@@ -417,13 +427,16 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 
 	metadata, err := j.handleMetadataFile()
 	if err != nil {
+		j.logger.Debug("jobBuilder: error handling metadata file", err)
 		return nil, err
 	} else if metadata == nil {
+		j.logger.Debug("jobBuilder: no metadata file found")
 		fmt.Printf("Ensure read and write access to run files dir: %s, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables\n", j.settings.FilesDir.Value)
 		return nil, nil
 	}
 
 	if metadata.Python == nil {
+		j.logger.Debug("jobBuilder: no python version found in metadata")
 		fmt.Println("No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job")
 		return nil, nil
 	}
@@ -440,12 +453,14 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	} else {
 		sourceType = j.getSourceType(*metadata)
 		if sourceType == nil {
+			j.logger.Debug("jobBuilder: unable to determine source type")
 			fmt.Println("No source type found, not creating job artifact")
 			return nil, nil
 		}
 		programRelpath := j.getProgramRelpath(*metadata, *sourceType)
 		// all jobs except image jobs need to specify a program path
 		if *sourceType != ImageSourceType && programRelpath == nil {
+			j.logger.Debug("jobBuilder: no program path found")
 			fmt.Println("No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job")
 			return nil, nil
 		}
@@ -455,6 +470,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 		if err != nil {
 			return nil, err
 		} else if jobSource == nil || name == nil {
+			j.logger.Debug("jobBuilder: no job source or name found")
 			return nil, nil
 		}
 		sourceInfo.Source = jobSource
@@ -527,6 +543,7 @@ func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceI
 }
 
 func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
+	j.logger.Debug("jobBuilder: handling use artifact record")
 	// configure job builder to either not build a job, because a full job has been used
 	// or to configure to build a complete job from a partial job
 	useArtifact := record.GetUseArtifact()
@@ -535,6 +552,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	}
 
 	if len(useArtifact.Partial.JobName) == 0 {
+		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
 		j.Disable = true
 		return
 	} else if len(useArtifact.Partial.JobName) == 0 {
@@ -582,6 +600,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.Record) {
+	j.logger.Debug("jobBuilder: handling log artifact result")
 	artifactRecord := record.GetArtifact()
 	if artifactRecord == nil || response.ErrorMessage != "" {
 		return
