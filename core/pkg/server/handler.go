@@ -495,7 +495,7 @@ func (h *Handler) handleGit() {
 	fmt.Println("xxx>>> handleGitState1")
 
 	// TODO: get this from the settings or from the program settings
-	repoPath := "/Users/kpt/dev/work/wandb"
+	repoPath := "."
 	git := NewGit(repoPath, h.settings)
 	if !git.IsAvailable() {
 		return
