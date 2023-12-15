@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-import yaml
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
