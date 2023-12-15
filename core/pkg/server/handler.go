@@ -483,15 +483,21 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 
 	// capture git state
+	// TODO: probe will save the diff to the files directory
+	// we need to send the diff to the server as a file
 	if !h.settings.GetDisableGit().GetValue() {
-		git := NewGit(h.settings)
+		// TODO: get this from the settings or from the program settings
+		repoPath := "."
+		git := NewGit(repoPath, h.settings)
 		if git.IsAvailable() {
 			// TODO: return the file paths and error
 			// if there's no error, do sendFile
-			git.Probe()
+			files := git.Probe()
+			for _, file := range files {
+				h.handleFiles()
+			}
 		}
-		// TODO: probe will save the diff to the files directory
-		// we need to send the diff to the server as a file
+
 	}
 
 	h.handleMetadata(metadata)
