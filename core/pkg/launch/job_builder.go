@@ -440,7 +440,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 		}
 
 		var jobSource Source
-		jobSource, name, err = j.getSourceAndName(*sourceType, *programRelpath, *metadata)
+		jobSource, name, err = j.getSourceAndName(*sourceType, programRelpath, *metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -510,12 +510,18 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	return artifactBuilder.GetArtifact(), nil
 }
 
-func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath string, metadata RunMetadata) (Source, *string, error) {
+func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *string, metadata RunMetadata) (Source, *string, error) {
 	switch {
 	case sourceType == RepoSourceType:
-		return j.buildRepoJobSource(programRelpath, metadata)
+		if programRelpath == nil {
+			return nil, nil, fmt.Errorf("no program path found for repo sourced job")
+		}
+		return j.buildRepoJobSource(*programRelpath, metadata)
 	case sourceType == ArtifactSourceType:
-		return j.buildArtifactJobSource(programRelpath, metadata)
+		if programRelpath == nil {
+			return nil, nil, fmt.Errorf("no program path found for artifact sourced job")
+		}
+		return j.buildArtifactJobSource(*programRelpath, metadata)
 	case sourceType == ImageSourceType:
 		return j.buildImageJobSource(metadata)
 	default:

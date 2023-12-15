@@ -154,4 +154,51 @@ func TestJobBuilder(t *testing.T) {
 		}
 	})
 
+	t.Run("buildImageSourcedJob", func(t *testing.T) {
+		metadata := map[string]interface{}{
+			"docker":   "testImage:testTag",
+			"python":   "3.11.2",
+			"codePath": "/path/to/train.py",
+		}
+
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
+
+		defer os.RemoveAll(fdir)
+		settings := &service.Settings{
+			Project:  toWrapperPb("testProject"),
+			Entity:   toWrapperPb("testEntity"),
+			RunId:    toWrapperPb("testRunId"),
+			FilesDir: toWrapperPb(fdir),
+		}
+		jobBuilder := NewJobBuilder(settings)
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, err)
+		assert.Equal(t, "job-testImage", artifact.Name)
+		assert.Equal(t, "testProject", artifact.Project)
+		assert.Equal(t, "testEntity", artifact.Entity)
+		assert.Equal(t, "testRunId", artifact.RunId)
+		assert.Equal(t, 2, len(artifact.Manifest.Contents))
+		assert.Equal(t, "88eb8ffd0b505c81017a215206de813b", artifact.Digest)
+		assert.Equal(t, []string{"testTag"}, artifact.Aliases)
+		for _, content := range artifact.Manifest.Contents {
+			if content.Path == "wandb-job.json" {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
+				assert.Nil(t, err)
+				data := make(map[string]interface{})
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				fmt.Printf("%v\n", data)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(t, "image", data["source_type"])
+				assert.Equal(t, "testImage:testTag", data["source"].(map[string]interface{})["image"])
+			}
+		}
+	})
+
 }
