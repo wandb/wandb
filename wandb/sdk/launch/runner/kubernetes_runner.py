@@ -552,9 +552,11 @@ class KubernetesRunner(AbstractRunner):
             )
         except kubernetes_asyncio.utils.FailToCreateError as e:
             for exc in e.api_exceptions:
+                resp = json.loads(exc.body)
+                msg = resp.get("message")
+                code = resp.get("code")
                 raise LaunchError(
-                    f"Failed to create Kubernetes job for run {launch_project.run_id} ({exc.reason}) response:\n\n"
-                    f"{yaml.dump(json.loads(exc.body), indent=2)}\n"
+                    f"Failed to create Kubernetes job for run {launch_project.run_id} ({code} {exc.reason}): {msg}"
                 )
         except Exception as e:
             raise LaunchError(
