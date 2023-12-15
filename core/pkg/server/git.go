@@ -3,10 +3,11 @@ package server
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	git "github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -26,73 +27,94 @@ func NewGit(settings *service.Settings) *Git {
 
 func (g *Git) IsAvailable() bool { return true }
 
+/*
+Get diff of current working tree vs uncommitted changes
+git diff HEAD
+
+If there are submodules, you can use the --submodule=diff option to make git diff recurse into them:
+git diff HEAD --submodule=diff
+
+To check if there are submodules:
+git submodule status
+(should return nothing if there are no submodules)
+
+Get diff of current working tree vs last commit on upstream branch
+git diff @{u}
+*/
+
+func runCommand(command []string, dir, outFile string) error {
+	output, err := runCommandWithOutput(command, dir)
+	if err != nil {
+		return err
+	}
+	if len(output) > 0 {
+		f, err := os.Create(outFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		f.Write(output)
+	}
+	return nil
+}
+
+func runCommandWithOutput(command []string, dir string) ([]byte, error) {
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
+}
+
 func (g *Git) Probe() {
 	filesDirPath := g.settings.GetFilesDir().GetValue()
 	repoPath := "."
-	repo, err := git.PlainOpen(repoPath)
+
+	// check if repoPath is a git repository
+	_, err := git.PlainOpen(repoPath)
 	if err != nil {
 		fmt.Println("Error opening repository:", err)
 		return
 	}
 
-	err = generateAndSaveDiff(repo, filesDirPath, diffFileName)
+	// check if there are submodules
+	command := []string{"git", "submodule", "status"}
+	output, err := runCommandWithOutput(command, repoPath)
+	var hasSubmodules bool
+	if err != nil {
+		fmt.Println("Error checking submodules:", err)
+		hasSubmodules = false
+	}
+	hasSubmodules = len(output) > 0
+
+	// get diff of current working tree vs uncommitted changes
+	command = []string{"git", "diff", "HEAD"}
+	if hasSubmodules {
+		command = append(command, "--submodule=diff")
+	}
+	err = runCommand(command, repoPath, filepath.Join(filesDirPath, diffFileName))
 	if err != nil {
 		fmt.Println("Error generating diff:", err)
 	}
-}
 
-func generateAndSaveDiff(repo *git.Repository, filesDirPath, fileName string) error {
-	headRef, err := repo.Head()
+	// Get the latest commit of the upstream branch
+	command = []string{"git", "rev-parse", "@{u}"}
+	output, err = runCommandWithOutput(command, repoPath)
 	if err != nil {
-		return err
+		fmt.Println("Error getting latest commit of upstream branch:", err)
+		return
 	}
 
-	headCommit, err := repo.CommitObject(headRef.Hash())
+	// get diff of current working tree vs last commit on upstream branch
+	command = []string{"git", "diff", "@{u}"}
+	if hasSubmodules {
+		command = append(command, "--submodule=diff")
+	}
+	outFile := fmt.Sprintf("diff_%s.patch", strings.TrimSpace(string(output)))
+	err = runCommand(
+		command,
+		repoPath,
+		filepath.Join(filesDirPath, outFile),
+	)
 	if err != nil {
-		return err
+		fmt.Println("Error generating diff:", err)
 	}
-
-	headTree, err := headCommit.Tree()
-	if err != nil {
-		return err
-	}
-
-	// Obtain the commit to compare with (e.g., the parent commit)
-	commitToCompare, err := headCommit.Parents().Next()
-	if err != nil {
-		return err
-	}
-
-	compareTree, err := commitToCompare.Tree()
-	if err != nil {
-		return err
-	}
-
-	// Generate the diff
-	diff, err := object.DiffTree(compareTree, headTree)
-	if err != nil {
-		return err
-	}
-
-	// Create and write diff to file
-	diffFilePath := filepath.Join(filesDirPath, fileName)
-	return writeDiffToFile(diff, diffFilePath)
-}
-
-func writeDiffToFile(diff object.Changes, path string) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	for _, change := range diff {
-		action, err := change.Action()
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(file, "%s: %s\n", action, change.To.Name)
-	}
-
-	return nil
 }
