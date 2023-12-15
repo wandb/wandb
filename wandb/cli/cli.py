@@ -35,7 +35,7 @@ from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
 from wandb.integration.magic import magic_install
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
@@ -2406,7 +2406,7 @@ def cache():
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
-    cache = get_artifacts_cache()
+    cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
