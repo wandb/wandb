@@ -10,7 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -20,16 +19,57 @@ const (
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
-type HandlerInterface interface {
-	SetInboundChannels(in <-chan *service.Record, lb chan *service.Record)
-	SetOutboundChannels(fwd chan *service.Record, out chan *service.Result)
-	Handle()
-	Close()
-	GetRun() *service.RunRecord
+type HandlerOption func(*Handler)
+
+func WithHandlerFwdChannel(fwd chan *service.Record) HandlerOption {
+	return func(h *Handler) {
+		h.fwdChan = fwd
+	}
 }
 
-// Handler is the handler for a stream
-// it handles the incoming messages, processes them
+func WithHandlerOutChannel(out chan *service.Result) HandlerOption {
+	return func(h *Handler) {
+		h.outChan = out
+	}
+}
+
+func WithHandlerSettings(settings *service.Settings) HandlerOption {
+	return func(h *Handler) {
+		h.settings = settings
+	}
+}
+
+func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
+	return func(h *Handler) {
+		h.systemMonitor = monitor
+	}
+}
+
+func WithHandlerFileHandler(handler *FileHandler) HandlerOption {
+	return func(h *Handler) {
+		h.fileHandler = handler
+	}
+}
+
+func WithHandlerFileTransferHandler(handler *FileTransferHandler) HandlerOption {
+	return func(h *Handler) {
+		h.fileTransferHandler = handler
+	}
+}
+
+func WithHandlerMetricHandler(handler *MetricHandler) HandlerOption {
+	return func(h *Handler) {
+		h.metricHandler = handler
+	}
+}
+
+func WithHandlerSummaryHandler(handler *SummaryHandler) HandlerOption {
+	return func(h *Handler) {
+		h.summaryHandler = handler
+	}
+}
+
+// Handler is the handler for a stream it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
 	// ctx is the context for the handler
@@ -41,138 +81,73 @@ type Handler struct {
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
 
-	// fwdChan is the channel for forwarding messages to the writer
+	// fwdChan is the channel for forwarding messages to the next component
 	fwdChan chan *service.Record
 
-	// outChan is the channel for results to the client
+	// outChan is the channel for sending results to the client
 	outChan chan *service.Result
-
-	// loopbackChan is the channel for internal loopback messages (from stream and sender)
-	loopbackChan chan *service.Record
-
-	// inChan is the channel for incoming messages received through the stream
-	inChan <-chan *service.Record
 
 	// timer is used to track the run start and execution times
 	timer Timer
 
-	// runRecord is the runRecord record received
-	// from the server
+	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
 
-	// runMetadata is the metadata associated with the run
-	runMetadata *service.MetadataRequest
+	// summaryHandler is the summary handler for the stream
+	summaryHandler *SummaryHandler
 
-	// consolidatedSummary is the full summary (all keys)
-	// TODO(memory): persist this in the future as it will grow with number of distinct keys
-	consolidatedSummary map[string]string
-
-	// summaryDelta is the delta summary (keys updated since the last time we sent summary)
-	summaryDelta map[string]string
-
-	// summaryDebouncer is the debouncer for summary updates
-	summaryDebouncer *debounce.Debouncer
-
-	// historyRecord is the history record used to track
+	// activeHistory is the history record used to track
 	// current active history record for the stream
-	historyRecord *ActiveHistory
+	activeHistory *ActiveHistory
 
 	// sampledHistory is the sampled history for the stream
 	// TODO fix this to be generic type
 	sampledHistory map[string]*ReservoirSampling[float32]
 
-	// mh is the metric handler for the stream
-	mh *MetricHandler
+	// metricHandler is the metric handler for the stream
+	metricHandler *MetricHandler
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// fh is the file handler for the stream
-	fh *FileHandler
+	// fileHandler is the file handler for the stream
+	fileHandler *FileHandler
 
-	// ft is the file transfer info for the stream
-	ft *FileTransferHandler
+	// fileTransferHandler is the file transfer info for the stream
+	fileTransferHandler *FileTransferHandler
 }
 
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	settings *service.Settings,
 	logger *observability.CoreLogger,
+	opts ...HandlerOption,
 ) *Handler {
-	// init the system monitor if stats are enabled
 	h := &Handler{
-		ctx:                 ctx,
-		settings:            settings,
-		logger:              logger,
-		consolidatedSummary: make(map[string]string),
-		summaryDelta:        make(map[string]string),
-		ft:                  NewFileTransferHandler(),
+		ctx:    ctx,
+		logger: logger,
 	}
-
-	// initialize the run metadata from settings
-	h.runMetadata = &service.MetadataRequest{
-		Os:       h.settings.GetXOs().GetValue(),
-		Python:   h.settings.GetXPython().GetValue(),
-		Host:     h.settings.GetHost().GetValue(),
-		Cuda:     h.settings.GetXCuda().GetValue(),
-		Program:  h.settings.GetProgram().GetValue(),
-		CodePath: h.settings.GetProgramAbspath().GetValue(),
-		// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
-		Email:      h.settings.GetEmail().GetValue(),
-		Root:       h.settings.GetRootDir().GetValue(),
-		Username:   h.settings.GetUsername().GetValue(),
-		Docker:     h.settings.GetDocker().GetValue(),
-		Executable: h.settings.GetXExecutable().GetValue(),
-		Args:       h.settings.GetXArgs().GetValue(),
-		Colab:      h.settings.GetColabUrl().GetValue(),
+	for _, opt := range opts {
+		opt(h)
 	}
-
-	h.summaryDebouncer = debounce.NewDebouncer(
-		summaryDebouncerRateLimit,
-		summaryDebouncerBurstSize,
-		logger,
-	)
-
 	return h
 }
 
-func (h *Handler) SetInboundChannels(in <-chan *service.Record, lb chan *service.Record) {
-	h.inChan = in
-	h.loopbackChan = lb
-}
-
-func (h *Handler) SetOutboundChannels(fwd chan *service.Record, out chan *service.Result) {
-	h.fwdChan = fwd
-	h.outChan = out
-}
-
-func (h *Handler) DisableSummaryDebouncer() {
-	h.summaryDebouncer = nil
-}
-
-// Handle starts the handler
-func (h *Handler) Handle() {
+// Do starts the handler
+func (h *Handler) Do(inChan <-chan *service.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-loop:
-	for h.inChan != nil || h.loopbackChan != nil {
-		select {
-		case record, ok := <-h.inChan:
-			if !ok {
-				h.inChan = nil
-				continue
-			}
-			h.handleRecord(record)
-		case record, ok := <-h.loopbackChan:
-			if !ok {
-				// exit the handler loop when loopback goes away
-				// (note: this could leave unread data on in chan)
-				break loop
-			}
-			h.handleRecord(record)
-		}
+	for record := range inChan {
+		h.logger.Debug("handling record", "record", record)
+		h.handleRecord(record)
 	}
+	h.Close()
+}
+
+func (h *Handler) Close() {
+	close(h.outChan)
+	close(h.fwdChan)
+	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
@@ -182,12 +157,6 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 		Uuid:       record.Uuid,
 	}
 	h.outChan <- result
-}
-
-func (h *Handler) Close() {
-	close(h.outChan)
-	close(h.fwdChan)
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
 }
 
 func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
@@ -215,7 +184,7 @@ func (h *Handler) sendRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryDebouncer.Debounce(h.sendSummary)
+	h.summaryHandler.Debounce(h.sendSummary)
 	recordType := record.GetRecordType()
 	h.logger.Debug("handle: got a message", "record_type", recordType)
 	switch x := record.RecordType.(type) {
@@ -273,7 +242,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 
 //gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
-	shutdown := false
 	request := record.GetRequest()
 	response := &service.Response{}
 	switch x := request.RequestType.(type) {
@@ -299,7 +267,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleServerInfo(record)
 		response = nil
 	case *service.Request_Shutdown:
-		shutdown = true
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
 		h.handleLogArtifact(record)
@@ -334,15 +301,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 	if response != nil {
 		h.sendResponse(record, response)
 	}
-
-	// shutdown request indicates that we have gone through the exit path and
-	// have sent all the requests needed to extract the final bits of information
-	// from the stream.  At this point we close the loopback channel as a trigger
-	// to stop processing new incoming messages.
-	// TODO(beta): assess whether this would be better shutdown with a context
-	if shutdown {
-		close(h.loopbackChan)
-	}
 }
 
 func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
@@ -351,20 +309,20 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.historyRecord.Flush()
+		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryDebouncer.Flush(h.sendSummary)
+		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		rec := h.fh.Final()
+		rec := h.fileHandler.Final()
 		h.sendRecord(rec)
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
-		h.fh.Close()
+		h.fileHandler.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 		h.handleFinal()
@@ -405,12 +363,12 @@ func (h *Handler) handlePollExit(record *service.Record) {
 				ResponseType: &service.Response_PollExitResponse{
 					PollExitResponse: &service.PollExitResponse{
 						PusherStats: &service.FilePusherStats{
-							UploadedBytes: h.ft.GetUploadedBytes(),
-							TotalBytes:    h.ft.GetTotalBytes(),
-							DedupedBytes:  h.ft.GetDedupedBytes(),
+							UploadedBytes: h.fileTransferHandler.GetUploadedBytes(),
+							TotalBytes:    h.fileTransferHandler.GetTotalBytes(),
+							DedupedBytes:  h.fileTransferHandler.GetDedupedBytes(),
 						},
-						FileCounts: h.ft.GetFileCounts(),
-						Done:       h.ft.IsDone(),
+						FileCounts: h.fileTransferHandler.GetFileCounts(),
+						Done:       h.fileTransferHandler.IsDone(),
 					},
 				},
 			},
@@ -489,30 +447,46 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 	h.sendRecord(record)
 
-	// NOTE: once this request arrives in the sender,
-	// the latter will start its filestream and uploader
-
-	if request.Run.GetGit() != nil {
-		h.runMetadata.Git = &service.GitRepoRecord{
-			RemoteUrl: run.GetGit().GetRemoteUrl(),
-			Commit:    run.GetGit().GetCommit(),
-		}
-	}
-	h.runMetadata.StartedAt = run.GetStartTime()
+	h.fileHandler.Start()
 
 	h.handleCodeSave()
 
-	// start the system monitor
-	if !h.settings.GetXDisableStats().GetValue() && h.systemMonitor == nil {
-		h.systemMonitor = monitor.NewSystemMonitor(h.settings, h.logger, h.loopbackChan)
-	}
-	h.systemMonitor.Do()
-	systemInfo := h.systemMonitor.Probe()
-	if systemInfo != nil {
-		proto.Merge(h.runMetadata, systemInfo)
+	// NOTE: once this request arrives in the sender,
+	// the latter will start its filestream and uploader
+	// initialize the run metadata from settings
+
+	metadata := &service.MetadataRequest{
+		Os:       h.settings.GetXOs().GetValue(),
+		Python:   h.settings.GetXPython().GetValue(),
+		Host:     h.settings.GetHost().GetValue(),
+		Cuda:     h.settings.GetXCuda().GetValue(),
+		Program:  h.settings.GetProgram().GetValue(),
+		CodePath: h.settings.GetProgramAbspath().GetValue(),
+		// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
+		Email:      h.settings.GetEmail().GetValue(),
+		Root:       h.settings.GetRootDir().GetValue(),
+		Username:   h.settings.GetUsername().GetValue(),
+		Docker:     h.settings.GetDocker().GetValue(),
+		Executable: h.settings.GetXExecutable().GetValue(),
+		Args:       h.settings.GetXArgs().GetValue(),
+		Colab:      h.settings.GetColabUrl().GetValue(),
+		StartedAt:  run.GetStartTime(),
+		Git: &service.GitRepoRecord{
+			RemoteUrl: run.GetGit().GetRemoteUrl(),
+			Commit:    run.GetGit().GetCommit(),
+		},
 	}
 
-	h.handleMetadata()
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+		systemInfo := h.systemMonitor.Probe()
+		if systemInfo != nil {
+			proto.Merge(metadata, systemInfo)
+		}
+	}
+
+	h.handleMetadata(metadata)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -579,7 +553,7 @@ func (h *Handler) handleCodeSave() {
 	h.handleFiles(&record)
 }
 
-func (h *Handler) handleMetadata() {
+func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
 	if h.settings.GetXDisableMeta().GetValue() {
@@ -590,7 +564,7 @@ func (h *Handler) handleMetadata() {
 		RecordType: &service.Record_Request{
 			Request: &service.Request{
 				RequestType: &service.Request_Metadata{
-					Metadata: h.runMetadata,
+					Metadata: request,
 				},
 			},
 		},
@@ -642,12 +616,12 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 
 	// update summary with runtime
 	if !h.settings.GetXSync().GetValue() {
-		summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, []*service.SummaryItem{
+		summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, []*service.SummaryItem{
 			{
 				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 			},
 		})
-		h.updateSummaryDelta(summaryRecord)
+		h.summaryHandler.updateSummaryDelta(summaryRecord)
 	}
 
 	// send the exit record
@@ -667,19 +641,14 @@ func (h *Handler) handleFiles(record *service.Record) {
 		return
 	}
 
-	if h.fh == nil {
-		h.fh = NewFileHandler(h.logger, h.loopbackChan)
-		h.fh.Start()
-	}
-
-	rec := h.fh.Handle(record)
+	rec := h.fileHandler.Handle(record)
 	h.sendRecord(rec)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
 	var items []*service.SummaryItem
 
-	for key, element := range h.consolidatedSummary {
+	for key, element := range h.summaryHandler.consolidatedSummary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
 	response.ResponseType = &service.Response_GetSummaryResponse{
@@ -717,7 +686,7 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	info := record.GetRequest().GetFileTransferInfo()
-	h.ft.Handle(info)
+	h.fileTransferHandler.Handle(info)
 }
 
 func (h *Handler) handleSync(record *service.Record) {
@@ -736,19 +705,12 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) updateSummaryDelta(summaryRecord *service.Record) {
-	for _, item := range summaryRecord.GetSummary().GetUpdate() {
-		h.summaryDelta[item.GetKey()] = item.GetValueJson()
-	}
-	h.summaryDebouncer.SetNeedsDebounce()
-}
-
 func (h *Handler) sendSummary() {
 	summaryRecord := &service.SummaryRecord{
 		Update: []*service.SummaryItem{},
 	}
 
-	for key, value := range h.summaryDelta {
+	for key, value := range h.summaryHandler.summaryDelta {
 		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
 			Key: key, ValueJson: value,
 		})
@@ -760,7 +722,7 @@ func (h *Handler) sendSummary() {
 	}
 	h.sendRecord(record)
 	// reset delta summary
-	h.summaryDelta = make(map[string]string)
+	clear(h.summaryHandler.summaryDelta)
 }
 
 func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -776,8 +738,8 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
 	})
 
-	summaryRecord := corelib.ConsolidateSummaryItems(h.consolidatedSummary, summary.Update)
-	h.updateSummaryDelta(summaryRecord)
+	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
+	h.summaryHandler.updateSummaryDelta(summaryRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
