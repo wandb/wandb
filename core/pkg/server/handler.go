@@ -446,6 +446,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.fileHandler.Start()
 
 	h.handleCodeSave()
+	h.handleGit()
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
@@ -481,26 +482,49 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 			proto.Merge(metadata, systemInfo)
 		}
 	}
+	h.handleMetadata(metadata)
+}
 
+func (h *Handler) handleGit() {
 	// capture git state
 	// TODO: probe will save the diff to the files directory
 	// we need to send the diff to the server as a file
-	if !h.settings.GetDisableGit().GetValue() {
-		// TODO: get this from the settings or from the program settings
-		repoPath := "."
-		git := NewGit(repoPath, h.settings)
-		if git.IsAvailable() {
-			// TODO: return the file paths and error
-			// if there's no error, do sendFile
-			files := git.Probe()
-			for _, file := range files {
-				h.handleFiles()
-			}
-		}
+	if h.settings.GetDisableGit().GetValue() {
+		return
+	}
+	fmt.Println("xxx>>> handleGitState1")
 
+	// TODO: get this from the settings or from the program settings
+	repoPath := "/Users/kpt/dev/work/wandb"
+	git := NewGit(repoPath, h.settings)
+	if !git.IsAvailable() {
+		return
 	}
 
-	h.handleMetadata(metadata)
+	fmt.Println(">>> handleGitState2")
+
+	// TODO: return the file paths and error if there's no error, do sendFile
+	files := git.GetDiff()
+	fmt.Println("files", files)
+	if len(files) == 0 {
+		return
+	}
+
+	fileItems := []*service.FilesItem{}
+	for _, file := range files {
+		fileItems = append(fileItems, &service.FilesItem{Path: file})
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: fileItems,
+			},
+		},
+		Control: &service.Control{
+			AlwaysSend: true,
+		},
+	}
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -656,6 +680,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	}
 
 	rec := h.fileHandler.Handle(record)
+	fmt.Println(">>> handleFiles", rec)
 	h.sendRecord(rec)
 }
 

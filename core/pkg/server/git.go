@@ -80,7 +80,7 @@ func (g *Git) latestCommit(ref string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func (g *Git) SavePatchToFile(ref, output string) error {
+func (g *Git) savePatch(ref, output string) error {
 	// get diff of current working tree vs uncommitted changes
 	command := []string{"git", "diff", ref, "--submodule=diff"}
 	err := runCommand(command, g.path, output)
@@ -105,14 +105,14 @@ Get diff of current working tree vs last commit on upstream branch
 git diff @{u}
 */
 
-func (g *Git) Probe() []string {
+func (g *Git) GetDiff() []string {
 	filesDirPath := g.settings.GetFilesDir().GetValue()
 
-	var diffFiles []string
+	diffFiles := []string{}
 
 	// get diff of current working tree vs uncommitted changes
 	file := filepath.Join(filesDirPath, diffFileName)
-	if err := g.SavePatchToFile("HEAD", file); err != nil {
+	if err := g.savePatch("HEAD", file); err != nil {
 		fmt.Println("Error generating diff:", err)
 	} else {
 		diffFiles = append(diffFiles, file)
@@ -125,7 +125,7 @@ func (g *Git) Probe() []string {
 		return diffFiles
 	}
 	file = filepath.Join(filesDirPath, fmt.Sprintf("diff_%s.patch", output))
-	if err := g.SavePatchToFile("@{u}", file); err != nil {
+	if err := g.savePatch("@{u}", file); err != nil {
 		fmt.Println("Error generating diff:", err)
 	} else {
 		diffFiles = append(diffFiles, file)
