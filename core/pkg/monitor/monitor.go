@@ -3,6 +3,8 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -203,6 +205,21 @@ func (sm *SystemMonitor) Do() {
 	}
 }
 
+func getSlurmEnvVars() map[string]string {
+	slurmVars := make(map[string]string)
+	for _, envVar := range os.Environ() {
+		keyValPair := strings.SplitN(envVar, "=", 2)
+		key := keyValPair[0]
+		value := keyValPair[1]
+
+		if strings.HasPrefix(key, "SLURM_") {
+			suffix := strings.ToLower(strings.TrimPrefix(key, "SLURM_"))
+			slurmVars[suffix] = value
+		}
+	}
+	return slurmVars
+}
+
 func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 	if sm == nil {
 		return nil
@@ -214,6 +231,14 @@ func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 			proto.Merge(&systemInfo, probeResponse)
 		}
 	}
+	// capture SLURM-related environment variables
+	for k, v := range getSlurmEnvVars() {
+		if systemInfo.Slurm == nil {
+			systemInfo.Slurm = make(map[string]string)
+		}
+		systemInfo.Slurm[k] = v
+	}
+
 	return &systemInfo
 }
 
