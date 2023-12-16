@@ -571,20 +571,6 @@ func (h *Handler) handleCodeSave() {
 
 func (h *Handler) handlePatchSave() {
 	// capture git state
-	/*
-		Get diff of current working tree vs uncommitted changes
-		git diff HEAD
-
-		If there are submodules, you can use the --submodule=diff option to make git diff recurse into them:
-		git diff HEAD --submodule=diff
-
-		To check if there are submodules:
-		git submodule status
-		(should return nothing if there are no submodules)
-
-		Get diff of current working tree vs last commit on upstream branch
-		git diff @{u}
-	*/
 	if h.settings.GetDisableGit().GetValue() {
 		return
 	}
