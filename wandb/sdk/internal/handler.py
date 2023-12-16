@@ -192,6 +192,9 @@ class HandleManager:
     def handle_request_login(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_python_packages(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_run(self, record: Record) -> None:
         if self._settings._offline:
             self._run_proto = record.run

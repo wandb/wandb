@@ -118,6 +118,12 @@ func WithRetryClientRetryPolicy(retryPolicy retryablehttp.CheckRetry) RetryClien
 	}
 }
 
+func WithRetryClientBackoff(backoff retryablehttp.Backoff) RetryClientOption {
+	return func(rc *retryablehttp.Client) {
+		rc.Backoff = backoff
+	}
+}
+
 // WithRetryClientResponseLogger is an option to NewRetryClient allowing responses to be logged.
 // logger is an slog.Logger to use for logging, logResponse is a function to determine if the response
 // should be logged.

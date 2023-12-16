@@ -33,8 +33,9 @@ import wandb.env
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public import RunQueue
 from wandb.integration.magic import magic_install
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
@@ -1347,6 +1348,15 @@ def launch_sweep(
     as a launch config. Dictation how the launched run will be configured.""",
 )
 @click.option(
+    "--set-var",
+    "-v",
+    "cli_template_vars",
+    default=None,
+    multiple=True,
+    help="""Set template variable values for queues with allow listing enabled,
+    as key-value pairs e.g. `--set-var key1=value1 --set-var key2=value2`""",
+)
+@click.option(
     "--queue",
     "-q",
     is_flag=False,
@@ -1413,6 +1423,7 @@ def launch(
     project,
     docker_image,
     config,
+    cli_template_vars,
     queue,
     run_async,
     resource_args,
@@ -1484,6 +1495,16 @@ def launch(
         else:
             config["overrides"] = {"dockerfile": dockerfile}
 
+    template_variables = None
+    if cli_template_vars:
+        if queue is None:
+            raise LaunchError("'--set-var' flag requires queue to be set")
+        public_api = PublicApi()
+        runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
+        template_variables = launch_utils.fetch_and_validate_template_variables(
+            runqueue, cli_template_vars
+        )
+
     if queue is None:
         # direct launch
         try:
@@ -1531,7 +1552,7 @@ def launch(
                     uri,
                     job,
                     config,
-                    None,
+                    template_variables,
                     project,
                     entity,
                     queue,
@@ -2292,15 +2313,15 @@ def put(path, name, description, type, alias, run_id, resume):
     else:
         raise ClickException("Path argument must be a file or directory")
 
-    run = wandb.init(
+    with wandb.init(
         entity=entity,
         project=project,
         config={"path": path},
         job_type="cli_put",
         id=run_id,
         resume=resume,
-    )
-    run.log_artifact(artifact, aliases=alias)
+    ) as run:
+        run.log_artifact(artifact, aliases=alias)
     artifact.wait()
 
     wandb.termlog(
@@ -2388,7 +2409,7 @@ def cache():
 @display_error
 def cleanup(target_size, remove_temp):
     target_size = util.from_human_size(target_size)
-    cache = get_artifacts_cache()
+    cache = get_artifact_file_cache()
     reclaimed_bytes = cache.cleanup(target_size, remove_temp)
     print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 

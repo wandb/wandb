@@ -93,10 +93,9 @@ def test_meta_probe(
     assert sorted(uploaded_files) == sorted(
         [
             "wandb-metadata.json",
-            "requirements.txt",
             "config.yaml",
-            "conda-environment.yaml",
             "diff.patch",
+            "conda-environment.yaml",
         ]
     )
 
