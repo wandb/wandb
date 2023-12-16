@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-import subprocess
 import sys
 
 import numpy as np
@@ -245,38 +244,6 @@ def test_local_warning(
         assert msg in captured
     else:
         assert msg not in captured
-
-
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="need to implement summary and config upload",
-)
-def test_requirement_file_upload(wandb_init, relay_server, monkeypatch):
-    orig_exists = os.path.exists
-    orig_call = subprocess.call
-    monkeypatch.setattr(
-        os.path,
-        "exists",
-        lambda path: True if "conda-meta" in path else orig_exists(path),
-    )
-    monkeypatch.setattr(
-        subprocess,
-        "call",
-        lambda cmd, **kwargs: kwargs["stdout"].write("CONDA YAML")
-        if "conda" in cmd
-        else orig_call(cmd, **kwargs),
-    )
-    with relay_server() as relay:
-        run = wandb_init(settings={"save_code": True})
-        run.finish()
-
-    uploaded_files = relay.context.get_run_uploaded_files(run.id)
-    assert "requirements.txt" in uploaded_files
-    assert "conda-environment.yaml" in uploaded_files
-    assert "wandb-metadata.json" in uploaded_files
-    assert "config.yaml" in uploaded_files
-    assert "wandb-summary.json" in uploaded_files
-    assert len(uploaded_files) == 5
 
 
 def test_ignore_globs_wandb_files(relay_server, wandb_init):

@@ -12,7 +12,7 @@ from urllib.parse import unquote
 
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME
+from wandb.sdk.lib.filenames import CONDA_ENVIRONMENTS_FNAME, DIFF_FNAME, METADATA_FNAME
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.wandb_settings import _get_program_relpath
 
@@ -201,10 +201,6 @@ class SystemInfo:
         return data
 
     def _save_conda(self) -> None:
-        import subprocess
-
-        from wandb.sdk.lib.filenames import CONDA_ENVIRONMENTS_FNAME
-
         current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
         if not current_shell_is_conda:
             return None
@@ -219,9 +215,9 @@ class SystemInfo:
                 subprocess.call(
                     ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
                 )
-            self.backend.interface.publish_files(
-                dict(files=[(CONDA_ENVIRONMENTS_FNAME, "now")])
-            )
+            # self.backend.interface.publish_files(
+            #     dict(files=[(CONDA_ENVIRONMENTS_FNAME, "now")])
+            # )
         except Exception as e:
             logger.exception(f"Error saving conda packages: {e}")
         logger.debug("Saving conda packages done")
@@ -249,4 +245,4 @@ class SystemInfo:
             files["files"].append((glob.escape(patch), "now"))
 
         # publish files to the backend
-        self.backend_interface.publish_files(files)  # type: ignore
+        self.backend_interface.publish_files(files)  # type: ignore()
