@@ -42,7 +42,10 @@ try:
         SegmentationValidator,
     )
     from ultralytics.utils.torch_utils import de_parallel
-    from ultralytics.yolo.utils import RANK, __version__
+    try:
+        from ultralytics.yolo.utils import RANK, __version__
+    except ModuleNotFoundError:
+        from ultralytics.utils import RANK, __version__
 
     from wandb.integration.ultralytics.bbox_utils import (
         plot_predictions,
