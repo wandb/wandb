@@ -8,9 +8,7 @@ Include reference to internal ticket "Fixes WB-NNNNN" and/or GitHub issue "Fixes
 
 What does the PR do?
 
-<!--
 Include a concise description of the PR contents
--->
 
 Testing
 -------
