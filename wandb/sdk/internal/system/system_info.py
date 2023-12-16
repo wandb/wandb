@@ -215,9 +215,6 @@ class SystemInfo:
                 subprocess.call(
                     ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
                 )
-            # self.backend.interface.publish_files(
-            #     dict(files=[(CONDA_ENVIRONMENTS_FNAME, "now")])
-            # )
         except Exception as e:
             logger.exception(f"Error saving conda packages: {e}")
         logger.debug("Saving conda packages done")
