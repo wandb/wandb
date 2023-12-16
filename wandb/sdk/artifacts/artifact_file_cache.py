@@ -28,7 +28,7 @@ if TYPE_CHECKING:
             pass
 
 
-class ArtifactsCache:
+class ArtifactFileCache:
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = Path(cache_dir)
         self._obj_dir = self._cache_dir / "obj"
@@ -197,11 +197,11 @@ class ArtifactsCache:
         return helper
 
 
-_artifacts_cache = None
+_artifact_file_cache = None
 
 
-def get_artifacts_cache() -> ArtifactsCache:
-    global _artifacts_cache
-    if _artifacts_cache is None:
-        _artifacts_cache = ArtifactsCache(env.get_cache_dir() / "artifacts")
-    return _artifacts_cache
+def get_artifact_file_cache() -> ArtifactFileCache:
+    global _artifact_file_cache
+    if _artifact_file_cache is None:
+        _artifact_file_cache = ArtifactFileCache(env.get_cache_dir() / "artifacts")
+    return _artifact_file_cache
