@@ -1256,6 +1256,17 @@ class SendManager:
             if self._output_raw_file:
                 self._output_raw_file.write(data.encode("utf-8"))
 
+    def send_request_python_packages(self, record: "Record") -> None:
+        import os
+
+        from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
+
+        installed_packages_list = sorted(
+            f"{r.name}=={r.version}" for r in record.request.python_packages.package
+        )
+        with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as f:
+            f.write("\n".join(installed_packages_list))
+
     def send_output(self, record: "Record") -> None:
         if not self._fs:
             return

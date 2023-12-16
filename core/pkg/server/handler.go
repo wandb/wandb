@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -15,6 +16,10 @@ import (
 )
 
 const (
+	MetaFileName              = "wandb-metadata.json"
+	OutputFileName            = "output.log"
+	diffFileName              = "diff.patch"
+	requirementsFileName      = "requirements.txt"
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
@@ -262,6 +267,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
 		response = nil
+	case *service.Request_PythonPackages:
+		h.handlePythonPackages(record, x.PythonPackages)
+		response = nil
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
 	case *service.Request_LogArtifact:
@@ -312,6 +320,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
+		h.flushOutput()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
 		rec := h.fileHandler.Final()
@@ -445,12 +454,20 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	h.fileHandler.Start()
 
-	h.handleCodeSave()
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+	}
+
+	// save code and patch
+	if h.settings.GetSaveCode().GetValue() {
+		h.handleCodeSave()
+		h.handlePatchSave()
+	}
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 	// initialize the run metadata from settings
-
 	metadata := &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
 		Python:   h.settings.GetXPython().GetValue(),
@@ -473,16 +490,173 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		},
 	}
 
-	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
 		systemInfo := h.systemMonitor.Probe()
 		if systemInfo != nil {
 			proto.Merge(metadata, systemInfo)
 		}
 	}
-
 	h.handleMetadata(metadata)
+}
+
+func (h *Handler) handlePythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
+	// write all requirements to a file
+	// send the file as a Files record
+	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), requirementsFileName)
+	file, err := os.Create(filename)
+	if err != nil {
+		h.logger.Error("error creating requirements file", "error", err)
+		return
+	}
+	defer file.Close()
+
+	for _, pkg := range request.Package {
+		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
+		_, err := file.WriteString(line)
+		if err != nil {
+			h.logger.Error("error writing requirements file", "error", err)
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: requirementsFileName,
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handleCodeSave() {
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
+		return
+	}
+
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		return
+	}
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handlePatchSave() {
+	// capture git state
+	if h.settings.GetDisableGit().GetValue() {
+		return
+	}
+
+	git := NewGit(h.settings.GetRootDir().GetValue(), h.logger)
+	if !git.IsAvailable() {
+		return
+	}
+
+	files := []*service.FilesItem{}
+
+	filesDirPath := h.settings.GetFilesDir().GetValue()
+	file := filepath.Join(filesDirPath, diffFileName)
+	if err := git.SavePatch("HEAD", file); err != nil {
+		h.logger.Error("error generating diff", "error", err)
+	} else {
+		files = append(files, &service.FilesItem{Path: diffFileName})
+	}
+
+	if output, err := git.LatestCommit("@{u}"); err != nil {
+		h.logger.Error("error getting latest commit", "error", err)
+	} else {
+		diffFileName := fmt.Sprintf("diff_%s.patch", output)
+		file = filepath.Join(filesDirPath, diffFileName)
+		if err := git.SavePatch("@{u}", file); err != nil {
+			h.logger.Error("error generating diff", "error", err)
+		} else {
+			files = append(files, &service.FilesItem{Path: diffFileName})
+		}
+	}
+
+	if len(files) == 0 {
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: files,
+			},
+		},
+		Control: &service.Control{
+			AlwaysSend: true,
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handleMetadata(request *service.MetadataRequest) {
+	// TODO: Sending metadata as a request for now, eventually this should be turned into
+	//  a record and stored in the transaction log
+	if h.settings.GetXDisableMeta().GetValue() {
+		return
+	}
+
+	mo := protojson.MarshalOptions{
+		Indent: "  ",
+		// EmitUnpopulated: true,
+	}
+	jsonBytes, err := mo.Marshal(request)
+	if err != nil {
+		h.logger.CaptureError("error marshalling metadata", err)
+		return
+	}
+	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
+	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
+		h.logger.CaptureError("error writing metadata file", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: MetaFileName,
+					},
+				},
+			},
+		},
+		Control: &service.Control{
+			AlwaysSend: true,
+		},
+	}
+
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -508,68 +682,22 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) handleCodeSave() {
-	if !h.settings.GetSaveCode().GetValue() {
+func (h *Handler) flushOutput() {
+	fullPath := filepath.Join(h.settings.GetFilesDir().GetValue(), OutputFileName)
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		h.logger.Info("handleOutput: output file does not exist", "path", fullPath)
 		return
 	}
-
-	programRelative := h.settings.GetProgramRelpath().GetValue()
-	if programRelative == "" {
-		h.logger.Warn("handleCodeSave: program relative path is empty")
-		return
-	}
-
-	programAbsolute := h.settings.GetProgramAbspath().GetValue()
-	if _, err := os.Stat(programAbsolute); err != nil {
-		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
-		return
-	}
-
-	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
-	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
-		return
-	}
-	savedProgram := filepath.Join(codeDir, programRelative)
-	if _, err := os.Stat(savedProgram); err != nil {
-		if err = copyFile(programAbsolute, savedProgram); err != nil {
-			return
-		}
-	}
-	record := service.Record{
+	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
-					{
-						Path: filepath.Join("code", programRelative),
-					},
+					{Path: OutputFileName},
 				},
 			},
 		},
 	}
-	h.handleFiles(&record)
-}
-
-func (h *Handler) handleMetadata(request *service.MetadataRequest) {
-	// TODO: Sending metadata as a request for now, eventually this should be turned into
-	//  a record and stored in the transaction log
-	if h.settings.GetXDisableMeta().GetValue() {
-		return
-	}
-
-	record := service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Metadata{
-					Metadata: request,
-				},
-			},
-		},
-	}
-	h.sendRecordWithControl(&record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
-		},
-	)
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
