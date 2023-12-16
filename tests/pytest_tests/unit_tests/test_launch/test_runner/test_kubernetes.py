@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-import yaml
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
@@ -366,8 +365,8 @@ def mock_maybe_create_image_pullsecret(monkeypatch):
 
 
 @pytest.fixture
-def mock_create_from_yaml(monkeypatch):
-    """Patches the kubernetes create_from_yaml with a mock and returns it."""
+def mock_create_from_dict(monkeypatch):
+    """Patches the kubernetes create_from_dict with a mock and returns it."""
     function_mock = MagicMock()
     function_mock.return_value = [[MockDict({"metadata": {"name": "test-job"}})]]
 
@@ -375,7 +374,7 @@ def mock_create_from_yaml(monkeypatch):
         return function_mock(*args, **kwargs)
 
     monkeypatch.setattr(
-        "kubernetes_asyncio.utils.create_from_yaml",
+        "kubernetes_asyncio.utils.create_from_dict",
         lambda *args, **kwargs: _mock_create_from_yaml(*args, **kwargs),
     )
     return function_mock
@@ -388,7 +387,7 @@ async def test_launch_kube_works(
     mock_batch_api,
     mock_kube_context_and_api_client,
     mock_maybe_create_image_pullsecret,
-    mock_create_from_yaml,
+    mock_create_from_dict,
     test_api,
     manifest,
     clean_monitor,
@@ -481,10 +480,8 @@ async def test_launch_kube_works(
     )
     await asyncio.sleep(0.1)
     assert str(await submitted_run.get_status()) == "finished"
-    assert mock_create_from_yaml.call_count == 1
-    submitted_manifest = mock_create_from_yaml.call_args_list[0][0][1]
-    with open(submitted_manifest) as f:
-        submitted_manifest = yaml.safe_load(f)
+    assert mock_create_from_dict.call_count == 1
+    submitted_manifest = mock_create_from_dict.call_args_list[0][0][1]
     assert submitted_manifest["spec"]["template"]["spec"]["containers"][0]["args"] == [
         "--test_arg",
         "test_value",
@@ -515,7 +512,7 @@ async def test_launch_crd_works(
     mock_batch_api,
     mock_custom_api,
     mock_kube_context_and_api_client,
-    mock_create_from_yaml,
+    mock_create_from_dict,
     test_api,
     volcano_spec,
     clean_monitor,
@@ -617,7 +614,7 @@ async def test_launch_kube_failed(
     monkeypatch,
     mock_batch_api,
     mock_kube_context_and_api_client,
-    mock_create_from_yaml,
+    mock_create_from_dict,
     mock_maybe_create_image_pullsecret,
     mock_event_streams,
     test_api,

@@ -37,8 +37,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
@@ -185,14 +185,14 @@ class Artifact:
         self._final: bool = False
 
         # Cache.
-        artifact_cache[self._client_id] = self
+        artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = artifact_cache.get(artifact_id)
+        artifact = artifact_instance_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -320,7 +320,7 @@ class Artifact:
         # Cache.
 
         assert artifact.id is not None
-        artifact_cache[artifact.id] = artifact
+        artifact_instance_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
