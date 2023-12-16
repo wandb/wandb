@@ -251,6 +251,7 @@ def test_local_warning(
     feature="file_uploader",
     reason="need to implement summary and config upload",
 )
+@pytest.mark.skip(reason="rm the dubious conda mocking and re-enable")
 def test_requirement_file_upload(wandb_init, relay_server, monkeypatch):
     orig_exists = os.path.exists
     orig_call = subprocess.call
