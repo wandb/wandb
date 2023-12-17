@@ -290,9 +290,8 @@ func TestJobBuilder(t *testing.T) {
 
 	t.Run("Build image sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
-			"docker":   "testImage:testTag",
-			"python":   "3.11.2",
-			"codePath": "/path/to/train.py",
+			"docker": "testImage:testTag",
+			"python": "3.11.2",
 		}
 
 		fdir := filepath.Join(os.TempDir(), "test")
@@ -339,9 +338,11 @@ func TestJobBuilder(t *testing.T) {
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
+			DisableJobCreation: &wrapperspb.BoolValue{
+				Value: true,
+			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		jobBuilder.disable = true
 		artifact, err := jobBuilder.Build()
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
@@ -356,6 +357,23 @@ func TestJobBuilder(t *testing.T) {
 		artifact, err := jobBuilder.Build()
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
+	})
+
+	t.Run("Missing metadata file", func(t *testing.T) {
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+
+		settings := &service.Settings{
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, artifact)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "wandb-metadata.json: no such file or directory")
 	})
 
 	t.Run("Missing python in metadata", func(t *testing.T) {
@@ -377,4 +395,74 @@ func TestJobBuilder(t *testing.T) {
 		assert.Nil(t, err)
 	})
 
+	t.Run("Build from partial", func(t *testing.T) {
+		metadata := map[string]interface{}{
+			"python":   "3.11.2",
+			"codePath": "/path/to/train.py",
+		}
+
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
+
+		defer os.RemoveAll(fdir)
+		settings := &service.Settings{
+			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobName",
+						SourceInfo: &service.JobSource{
+							SourceType: "repo",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Git: &service.GitSource{
+									Entrypoint: []string{"a", "b"},
+									GitInfo: &service.GitInfo{
+										Commit: "1234567890",
+										Remote: "example.com",
+									},
+									Notebook: false,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		artifact, err := jobBuilder.Build()
+		assert.Nil(t, err)
+		assert.Equal(t, "job-testJobName", artifact.Name)
+		assert.Equal(t, "testProject", artifact.Project)
+		assert.Equal(t, "testEntity", artifact.Entity)
+		assert.Equal(t, "testRunId", artifact.RunId)
+		assert.Equal(t, 2, len(artifact.Manifest.Contents))
+		assert.Equal(t, "0e0399505d5bc9d1538ec4ab72199589", artifact.Digest)
+		for _, content := range artifact.Manifest.Contents {
+			if content.Path == "wandb-job.json" {
+				jobFile, err := os.Open(content.LocalPath)
+				assert.Nil(t, err)
+				defer jobFile.Close()
+				assert.Nil(t, err)
+				data := make(map[string]interface{})
+				err = json.NewDecoder(jobFile).Decode(&data)
+				assert.Nil(t, err)
+				assert.Equal(t, "3.11.2", data["runtime"])
+				assert.Equal(t, "repo", data["source_type"])
+				assert.Equal(t, []interface{}([]interface{}{"a", "b"}), data["source"].(map[string]interface{})["entrypoint"])
+			}
+		}
+	})
 }

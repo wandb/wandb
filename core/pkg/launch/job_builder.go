@@ -148,10 +148,15 @@ func isColabRunFromSettings(settings *service.Settings) bool {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) JobBuilder {
 	isNotebookRun := isNotbookRunFromSettings(settings)
+	disabled := false
+	if settings.DisableJobCreation != nil {
+		disabled = settings.DisableJobCreation.Value
+	}
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: isNotebookRun,
 		logger:        logger,
+		disable:       disabled,
 	}
 	return jobBuilder
 }
@@ -444,6 +449,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	if j.PartialJobSource != nil {
 		name = &j.PartialJobSource.JobName
 		sourceInfo = j.PartialJobSource.JobSourceInfo
+		fmt.Println("source info", sourceInfo)
 		_sourceType := sourceInfo.Source.GetSourceType()
 		sourceType = &_sourceType
 	} else {
@@ -526,12 +532,12 @@ func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceI
 
 	if sourceType == RepoSourceType {
 		_, err = os.Stat(filepath.Join(fileDir, DIFF_FNAME))
-		if !os.IsNotExist(err) {
+		if err == nil {
 			err = artifactBuilder.AddFile(filepath.Join(fileDir, DIFF_FNAME), DIFF_FNAME)
 			if err != nil {
 				return nil, err
 			}
-		} else if err != nil {
+		} else if !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
@@ -547,11 +553,17 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		return
 	}
 
-	if len(useArtifact.Partial.JobName) == 0 {
-		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
+	if useArtifact.Type == "job" && useArtifact.Partial == nil {
+		j.logger.Debug("jobBuilder: run comes from used, nonpartial, job. Disabling job builder")
 		j.disable = true
 		return
-	} else if len(useArtifact.Partial.JobName) == 0 {
+	}
+
+	// if empty job name, disable job builder
+	if useArtifact.Partial != nil && len(useArtifact.Partial.JobName) == 0 {
+		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
+		fmt.Println("asdasdasdas")
+		j.disable = true
 		return
 	}
 
@@ -564,6 +576,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 	switch sourceInfo.SourceType {
 	case "repo":
+
 		entrypoint := sourceInfo.Source.Git.Entrypoint
 		gitSource := GitSource{
 			Git: GitInfo{
@@ -592,6 +605,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
 		JobSourceInfo: jobSourceMetadata,
 	}
+	fmt.Println("job source metadata", jobSourceMetadata)
 
 }
 
