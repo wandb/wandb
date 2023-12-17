@@ -6,7 +6,7 @@ from urllib.parse import ParseResult
 
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_string
@@ -30,7 +30,7 @@ class FsspecFileHandler(StorageHandler):
         https://github.com/fsspec/filesystem_spec/blob/master/fsspec/registry.py
         """
         self._schemes = available_protocols()
-        self._cache = get_artifacts_cache()
+        self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
         return parsed_url.scheme in self._schemes
