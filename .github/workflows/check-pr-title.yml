@@ -32,7 +32,7 @@ jobs:
             release
           # Product based scopes
           scopes: |
-            nexus
+            core
             sdk
             cli
             public-api

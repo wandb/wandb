@@ -618,7 +618,9 @@ class _WandbInit:
         manager = self._wl._get_manager()
         if manager:
             logger.info("setting up manager")
-            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_init(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
@@ -696,8 +698,8 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if self.settings._require_nexus:
-                tel.feature.nexus = True
+            if self.settings._require_core:
+                tel.feature.core = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -803,7 +805,9 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if manager:
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_start(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         assert backend.interface
         assert run._run_obj

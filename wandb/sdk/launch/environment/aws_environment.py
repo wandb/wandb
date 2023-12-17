@@ -2,13 +2,12 @@
 
 import logging
 import os
-import re
 from typing import Dict, Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import event_loop_thread_exec
+from ..utils import S3_URI_RE, event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 boto3 = get_module(
@@ -23,8 +22,6 @@ botocore = get_module(
 )
 
 _logger = logging.getLogger(__name__)
-
-S3_URI_RE = re.compile(r"s3://([^/]+)(/(.*))?")
 
 
 class AwsEnvironment(AbstractEnvironment):
