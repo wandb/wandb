@@ -1,6 +1,7 @@
 """Storage handler utilizing fsspec."""
 import os
 import time
+from fsspec.registry import available_protocols
 from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 from urllib.parse import ParseResult
 
@@ -21,14 +22,14 @@ if TYPE_CHECKING:
 class FsspecFileHandler(StorageHandler):
     """Handles a variety of different storage solutions."""
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         """Track files or directories on a variety of filesystem.
 
         For now, this handler supports oss (Alibaba Object Storage System)
         A list of all available options can be found under the following link:
         https://github.com/fsspec/filesystem_spec/blob/master/fsspec/registry.py
         """
-        self._scheme = scheme or "oss"
+        self._schemes = available_protocols()
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
