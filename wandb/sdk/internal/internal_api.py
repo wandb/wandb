@@ -1508,7 +1508,7 @@ class Api:
                 $project: String!,
                 $queueName: String!,
                 $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode!,
+                $prioritizationMode: RunQueuePrioritizationMode,
                 $defaultResourceConfigID: ID,
             ) {
                 createRunQueue(

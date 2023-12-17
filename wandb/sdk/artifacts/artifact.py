@@ -37,8 +37,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
@@ -185,14 +185,14 @@ class Artifact:
         self._final: bool = False
 
         # Cache.
-        artifact_cache[self._client_id] = self
+        artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = artifact_cache.get(artifact_id)
+        artifact = artifact_instance_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -320,7 +320,7 @@ class Artifact:
         # Cache.
 
         assert artifact.id is not None
-        artifact_cache[artifact.id] = artifact
+        artifact_instance_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
@@ -1714,7 +1714,7 @@ class Artifact:
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if get_core_path():  # require Nexus
+        if get_core_path():  # require core
             if not run._backend or not run._backend.interface:
                 raise NotImplementedError
             if run._settings._offline:
@@ -1750,9 +1750,9 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in nexus
+        # todo: remove once artifact reference downloads are supported in core
         assert wandb.run is not None
-        require_nexus = get_core_path() != ""
+        require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1804,8 +1804,8 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_nexus and entry.ref is None:
-                        # Handled by nexus
+                    if require_core and entry.ref is None:
+                        # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
