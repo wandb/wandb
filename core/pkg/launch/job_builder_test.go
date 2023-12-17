@@ -397,8 +397,7 @@ func TestJobBuilder(t *testing.T) {
 
 	t.Run("Build from partial", func(t *testing.T) {
 		metadata := map[string]interface{}{
-			"python":   "3.11.2",
-			"codePath": "/path/to/train.py",
+			"python": "3.11.2",
 		}
 
 		fdir := filepath.Join(os.TempDir(), "test")

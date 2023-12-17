@@ -562,7 +562,6 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	// if empty job name, disable job builder
 	if useArtifact.Partial != nil && len(useArtifact.Partial.JobName) == 0 {
 		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
-		fmt.Println("asdasdasdas")
 		j.disable = true
 		return
 	}
