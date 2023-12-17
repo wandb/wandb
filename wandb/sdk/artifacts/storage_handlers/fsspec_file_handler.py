@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 from urllib.parse import ParseResult
 
 from wandb.errors.term import termlog
-from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
+from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_string
@@ -14,7 +14,6 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import fsspec  # type: ignore
-    from fsspec.registry import available_protocols  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -22,18 +21,18 @@ if TYPE_CHECKING:
 class FsspecFileHandler(StorageHandler):
     """Handles a variety of different storage solutions."""
 
-    def __init__(self) -> None:
+    def __init__(self, scheme: Optional[str] = None) -> None:
         """Track files or directories on a variety of filesystem.
 
         For now, this handler supports oss (Alibaba Object Storage System)
         A list of all available options can be found under the following link:
         https://github.com/fsspec/filesystem_spec/blob/master/fsspec/registry.py
         """
-        self._schemes = available_protocols()
+        self._scheme = scheme or "oss"
         self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
-        return parsed_url.scheme in self._schemes
+        return parsed_url.scheme in self._scheme
 
     def load_path(
         self,
