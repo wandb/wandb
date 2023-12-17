@@ -1,7 +1,6 @@
 """Storage handler utilizing fsspec."""
 import os
 import time
-from fsspec.registry import available_protocols
 from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 from urllib.parse import ParseResult
 
@@ -15,6 +14,7 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     import fsspec  # type: ignore
+    from fsspec.registry import available_protocols  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -33,7 +33,7 @@ class FsspecFileHandler(StorageHandler):
         self._cache = get_artifacts_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
-        return parsed_url.scheme in self._scheme
+        return parsed_url.scheme in self._schemes
 
     def load_path(
         self,
