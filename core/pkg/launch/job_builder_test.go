@@ -464,4 +464,128 @@ func TestJobBuilder(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("HandleUseArtifactRecord repo type", func(t *testing.T) {
+		settings := &service.Settings{
+			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameImage",
+						SourceInfo: &service.JobSource{
+							SourceType: "repo",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Git: &service.GitSource{
+									Entrypoint: []string{"a", "b"},
+									GitInfo: &service.GitInfo{
+										Commit: "1234567890",
+										Remote: "example.com",
+									},
+									Notebook: false,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
+		assert.Equal(t, RepoSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
+		assert.Equal(t, RepoSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
+		assert.Equal(t, "1234567890", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit().Commit)
+		assert.Equal(t, "example.com", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit().Remote)
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
+		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
+	})
+
+	t.Run("HandleUseArtifactRecord artifact type", func(t *testing.T) {
+		settings := &service.Settings{
+			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameArtifact",
+						SourceInfo: &service.JobSource{
+							SourceType: "artifact",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Artifact: &service.ArtifactInfo{
+									Artifact:   "testArtifactId:v0",
+									Entrypoint: []string{"a", "b"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.Equal(t, "job-testJobNameArtifact", jobBuilder.PartialJobSource.JobName)
+		assert.Equal(t, ArtifactSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
+		assert.Equal(t, ArtifactSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
+		assert.Equal(t, "testArtifactId:v0", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit())
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
+		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
+	})
+
+	t.Run("HandleUseArtifactRecord image type", func(t *testing.T) {
+		settings := &service.Settings{
+			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameImage",
+						SourceInfo: &service.JobSource{
+							SourceType: "image",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Image: &service.ImageSource{
+									Image: "testImage:v0",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
+		assert.Equal(t, ImageSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
+		assert.Equal(t, ImageSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
+		assert.Equal(t, "testImage:v0", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit())
+		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
+		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
+	})
 }

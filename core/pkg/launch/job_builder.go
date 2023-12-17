@@ -42,6 +42,9 @@ type RunMetadata struct {
 // Define the Source interface with a common method.
 type Source interface {
 	GetSourceType() SourceType
+	GetSourceGit() *GitInfo
+	GetSourceArtifact() *string
+	GetSourceImage() *string
 }
 
 // Define the GitInfo struct.
@@ -61,6 +64,18 @@ func (g GitSource) GetSourceType() SourceType {
 	return RepoSourceType
 }
 
+func (g GitSource) GetSourceGit() *GitInfo {
+	return &g.Git
+}
+
+func (g GitSource) GetSourceArtifact() *string {
+	return nil
+}
+
+func (g GitSource) GetSourceImage() *string {
+	return nil
+}
+
 // Define the ArtifactSource struct that implements the Source interface.
 type ArtifactSource struct {
 	Artifact   string   `json:"artifact"`
@@ -72,6 +87,18 @@ func (a ArtifactSource) GetSourceType() SourceType {
 	return ArtifactSourceType
 }
 
+func (a ArtifactSource) GetSourceGit() *GitInfo {
+	return nil
+}
+
+func (a ArtifactSource) GetSourceArtifact() *string {
+	return &a.Artifact
+}
+
+func (a ArtifactSource) GetSourceImage() *string {
+	return nil
+}
+
 // Define the ImageSource struct that implements the Source interface.
 type ImageSource struct {
 	Image string `json:"image"`
@@ -81,10 +108,25 @@ func (i ImageSource) GetSourceType() SourceType {
 	return ImageSourceType
 }
 
+func (i ImageSource) GetSourceGit() *GitInfo {
+	return nil
+}
+
+func (i ImageSource) GetSourceArtifact() *string {
+	return nil
+}
+
+func (i ImageSource) GetSourceImage() *string {
+	return &i.Image
+}
+
 // Define the JobSourceMetadata struct.
 type JobSourceMetadata struct {
-	Version     string                 `json:"_version"`
-	Source      Source                 `json:"source"`
+	Version string `json:"_version"`
+	Source  Source `json:"source"`
+	// this field is used by launch to determine the flow for launching the job
+	// see public.py.Job for more info
+
 	SourceType  SourceType             `json:"source_type"`
 	InputTypes  map[string]interface{} `json:"input_types"`
 	OutputTypes map[string]interface{} `json:"output_types"`
@@ -449,7 +491,6 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	if j.PartialJobSource != nil {
 		name = &j.PartialJobSource.JobName
 		sourceInfo = j.PartialJobSource.JobSourceInfo
-		fmt.Println("source info", sourceInfo)
 		_sourceType := sourceInfo.Source.GetSourceType()
 		sourceType = &_sourceType
 	} else {
@@ -575,7 +616,11 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 	switch sourceInfo.SourceType {
 	case "repo":
-
+		if sourceInfo.Source.Git == nil {
+			j.logger.Debug("jobBuilder: no git info found in repo type partial use artifact record, disabling job builder")
+			j.disable = true
+			return
+		}
 		entrypoint := sourceInfo.Source.Git.Entrypoint
 		gitSource := GitSource{
 			Git: GitInfo{
@@ -587,6 +632,11 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		}
 		jobSourceMetadata.Source = gitSource
 	case "artifact":
+		if sourceInfo.Source.Artifact == nil {
+			j.logger.Debug("jobBuilder: no git info found in artifact type partial use artifact record, disabling job builder")
+			j.disable = true
+			return
+		}
 		entrypoint := sourceInfo.Source.Artifact.Entrypoint
 		artifactSource := ArtifactSource{
 			Artifact:   sourceInfo.Source.Artifact.Artifact,
@@ -595,6 +645,11 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		}
 		jobSourceMetadata.Source = artifactSource
 	case "image":
+		if sourceInfo.Source.Image == nil {
+			j.logger.Debug("jobBuilder: no git info found in image type partial use artifact record, disabling job builder")
+			j.disable = true
+			return
+		}
 		imageSource := ImageSource{
 			Image: sourceInfo.Source.Image.Image,
 		}
@@ -604,20 +659,16 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
 		JobSourceInfo: jobSourceMetadata,
 	}
-	fmt.Println("job source metadata", jobSourceMetadata)
 
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.Record) {
 	j.logger.Debug("jobBuilder: handling log artifact result")
 	artifactRecord := record.GetArtifact()
-	if artifactRecord == nil || response.ErrorMessage != "" {
+	if artifactRecord == nil || response == nil || response.ErrorMessage != "" {
 		return
 	}
-	switch artifactRecord.Type {
-	case "job":
-		// TODO: handle response to inject job link in run footer
-	case "code":
+	if artifactRecord.Type == "code" {
 		j.runCodeArtifact = &ArtifactInfoForJob{
 			ID:   response.ArtifactId,
 			Name: artifactRecord.Name,
