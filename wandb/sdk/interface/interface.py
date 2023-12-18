@@ -279,6 +279,18 @@ class InterfaceBase:
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
+    def publish_python_packages(self, working_set) -> None:
+        python_packages = pb.PythonPackagesRequest()
+        for pkg in working_set:
+            python_packages.package.add(name=pkg.key, version=pkg.version)
+        self._publish_python_packages(python_packages)
+
+    @abstractmethod
+    def _publish_python_packages(
+        self, python_packages: pb.PythonPackagesRequest
+    ) -> None:
+        raise NotImplementedError
+
     def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
