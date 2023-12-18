@@ -56,7 +56,7 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
 }"""
 
 
-class ProjectArtifactTypes(Paginator):
+class ArtifactTypes(Paginator):
     QUERY = gql(
         """
         query ProjectArtifacts(
@@ -80,7 +80,6 @@ class ProjectArtifactTypes(Paginator):
         client: Client,
         entity: str,
         project: str,
-        name: Optional[str] = None,
         per_page: Optional[int] = 50,
     ):
         self.entity = entity
@@ -128,40 +127,82 @@ class ProjectArtifactTypes(Paginator):
         ]
 
 
-def server_supports_artifact_collections_gql_edges(
-    client: "RetryingClient", warn: bool = False
-) -> bool:
-    # TODO: Validate this version
-    # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
-    # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
-    supported = client.version_supported("0.12.11")  # edges were merged on
-    if not supported and warn:
-        # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
-        wandb.termwarn(
-            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
+class ArtifactType:
+    def __init__(
+        self,
+        client: Client,
+        entity: str,
+        project: str,
+        type_name: str,
+        attrs: Optional[Mapping[str, Any]] = None,
+    ):
+        self.client = client
+        self.entity = entity
+        self.project = project
+        self.type = type_name
+        self._attrs = attrs
+        if self._attrs is None:
+            self.load()
+
+    def load(self):
+        query = gql(
+            """
+        query ProjectArtifactType(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    id
+                    name
+                    description
+                    createdAt
+                }
+            }
+        }
+        """
         )
-    return supported
+        response: Optional[Mapping[str, Any]] = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactTypeName": self.type,
+            },
+        )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifactType") is None
+        ):
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response["project"]["artifactType"]
+        return self._attrs
+
+    @property
+    def id(self):
+        return self._attrs["id"]
+
+    @property
+    def name(self):
+        return self._attrs["name"]
+
+    @normalize_exceptions
+    def collections(self, per_page=50):
+        """Artifact collections."""
+        return ArtifactCollections(self.client, self.entity, self.project, self.type)
+
+    def collection(self, name):
+        return ArtifactCollection(
+            self.client, self.entity, self.project, name, self.type
+        )
+
+    def __repr__(self):
+        return f"<ArtifactType {self.type}>"
 
 
-def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
-    return (
-        "artifactCollection"
-        if server_supports_artifact_collections
-        else "artifactSequence"
-    )
-
-
-def artifact_collection_plural_edge_name(
-    server_supports_artifact_collections: bool,
-) -> str:
-    return (
-        "artifactCollections"
-        if server_supports_artifact_collections
-        else "artifactSequences"
-    )
-
-
-class ProjectArtifactCollections(Paginator):
+class ArtifactCollections(Paginator):
     def __init__(
         self,
         client: Client,
@@ -262,199 +303,6 @@ class ProjectArtifactCollections(Paginator):
         ]
 
 
-class RunArtifacts(Paginator):
-    def __init__(
-        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
-    ):
-        output_query = gql(
-            """
-            query RunOutputArtifacts(
-                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        outputArtifacts(after: $cursor, first: $perPage) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + wandb.Artifact._get_gql_artifact_fragment()
-        )
-
-        input_query = gql(
-            """
-            query RunInputArtifacts(
-                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
-            ) {
-                project(name: $project, entityName: $entity) {
-                    run(name: $runName) {
-                        inputArtifacts(after: $cursor, first: $perPage) {
-                            totalCount
-                            edges {
-                                node {
-                                    ...ArtifactFragment
-                                }
-                                cursor
-                            }
-                            pageInfo {
-                                endCursor
-                                hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-            """
-            + wandb.Artifact._get_gql_artifact_fragment()
-        )
-
-        self.run = run
-        if mode == "logged":
-            self.run_key = "outputArtifacts"
-            self.QUERY = output_query
-        elif mode == "used":
-            self.run_key = "inputArtifacts"
-            self.QUERY = input_query
-        else:
-            raise ValueError("mode must be logged or used")
-
-        variable_values = {
-            "entity": run.entity,
-            "project": run.project,
-            "runName": run.id,
-        }
-
-        super().__init__(client, variable_values, per_page)
-
-    @property
-    def length(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["totalCount"]
-        else:
-            return None
-
-    @property
-    def more(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["pageInfo"][
-                "hasNextPage"
-            ]
-        else:
-            return True
-
-    @property
-    def cursor(self):
-        if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
-                "cursor"
-            ]
-        else:
-            return None
-
-    def convert_objects(self):
-        return [
-            wandb.Artifact._from_attrs(
-                r["node"]["artifactSequence"]["project"]["entityName"],
-                r["node"]["artifactSequence"]["project"]["name"],
-                "{}:v{}".format(
-                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
-                ),
-                r["node"],
-                self.client,
-            )
-            for r in self.last_response["project"]["run"][self.run_key]["edges"]
-        ]
-
-
-class ArtifactType:
-    def __init__(
-        self,
-        client: Client,
-        entity: str,
-        project: str,
-        type_name: str,
-        attrs: Optional[Mapping[str, Any]] = None,
-    ):
-        self.client = client
-        self.entity = entity
-        self.project = project
-        self.type = type_name
-        self._attrs = attrs
-        if self._attrs is None:
-            self.load()
-
-    def load(self):
-        query = gql(
-            """
-        query ProjectArtifactType(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    id
-                    name
-                    description
-                    createdAt
-                }
-            }
-        }
-        """
-        )
-        response: Optional[Mapping[str, Any]] = self.client.execute(
-            query,
-            variable_values={
-                "entityName": self.entity,
-                "projectName": self.project,
-                "artifactTypeName": self.type,
-            },
-        )
-        if (
-            response is None
-            or response.get("project") is None
-            or response["project"].get("artifactType") is None
-        ):
-            raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]
-        return self._attrs
-
-    @property
-    def id(self):
-        return self._attrs["id"]
-
-    @property
-    def name(self):
-        return self._attrs["name"]
-
-    @normalize_exceptions
-    def collections(self, per_page=50):
-        """Artifact collections."""
-        return ProjectArtifactCollections(
-            self.client, self.entity, self.project, self.type
-        )
-
-    def collection(self, name):
-        return ArtifactCollection(
-            self.client, self.entity, self.project, name, self.type
-        )
-
-    def __repr__(self):
-        return f"<ArtifactType {self.type}>"
-
-
 class ArtifactCollection:
     def __init__(
         self,
@@ -480,9 +328,9 @@ class ArtifactCollection:
         return self._attrs["id"]
 
     @normalize_exceptions
-    def versions(self, per_page=50):
-        """Artifact versions."""
-        return ArtifactVersions(
+    def artifacts(self, per_page=50):
+        """Artifacts."""
+        return Artifacts(
             self.client,
             self.entity,
             self.project,
@@ -618,7 +466,7 @@ class ArtifactCollection:
         return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
-class ArtifactVersions(Paginator):
+class Artifacts(Paginator):
     """An iterable collection of artifact versions associated with a project and optional filter.
 
     This is generally used indirectly via the `Api`.artifact_versions method.
@@ -728,6 +576,122 @@ class ArtifactVersions(Paginator):
         ]
 
 
+class RunArtifacts(Paginator):
+    def __init__(
+        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+    ):
+        output_query = gql(
+            """
+            query RunOutputArtifacts(
+                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
+            ) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $runName) {
+                        outputArtifacts(after: $cursor, first: $perPage) {
+                            totalCount
+                            edges {
+                                node {
+                                    ...ArtifactFragment
+                                }
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
+                    }
+                }
+            }
+            """
+            + wandb.Artifact._get_gql_artifact_fragment()
+        )
+
+        input_query = gql(
+            """
+            query RunInputArtifacts(
+                $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
+            ) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $runName) {
+                        inputArtifacts(after: $cursor, first: $perPage) {
+                            totalCount
+                            edges {
+                                node {
+                                    ...ArtifactFragment
+                                }
+                                cursor
+                            }
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                        }
+                    }
+                }
+            }
+            """
+            + wandb.Artifact._get_gql_artifact_fragment()
+        )
+
+        self.run = run
+        if mode == "logged":
+            self.run_key = "outputArtifacts"
+            self.QUERY = output_query
+        elif mode == "used":
+            self.run_key = "inputArtifacts"
+            self.QUERY = input_query
+        else:
+            raise ValueError("mode must be logged or used")
+
+        variable_values = {
+            "entity": run.entity,
+            "project": run.project,
+            "runName": run.id,
+        }
+
+        super().__init__(client, variable_values, per_page)
+
+    @property
+    def length(self):
+        if self.last_response:
+            return self.last_response["project"]["run"][self.run_key]["totalCount"]
+        else:
+            return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response["project"]["run"][self.run_key]["pageInfo"][
+                "hasNextPage"
+            ]
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
+                "cursor"
+            ]
+        else:
+            return None
+
+    def convert_objects(self):
+        return [
+            wandb.Artifact._from_attrs(
+                r["node"]["artifactSequence"]["project"]["entityName"],
+                r["node"]["artifactSequence"]["project"]["name"],
+                "{}:v{}".format(
+                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
+                ),
+                r["node"],
+                self.client,
+            )
+            for r in self.last_response["project"]["run"][self.run_key]["edges"]
+        ]
+
+
 class ArtifactFiles(Paginator):
     QUERY = gql(
         """
@@ -813,3 +777,36 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.path), len(self))
+
+
+def server_supports_artifact_collections_gql_edges(
+    client: "RetryingClient", warn: bool = False
+) -> bool:
+    # TODO: Validate this version
+    # Edges were merged into core on Mar 2, 2022: https://github.com/wandb/core/commit/81c90b29eaacfe0a96dc1ebd83c53560ca763e8b
+    # CLI version was bumped to "0.12.11" on Mar 3, 2022: https://github.com/wandb/core/commit/328396fa7c89a2178d510a1be9c0d4451f350d7b
+    supported = client.version_supported("0.12.11")  # edges were merged on
+    if not supported and warn:
+        # First local release to include the above is 0.9.50: https://github.com/wandb/local/releases/tag/0.9.50
+        wandb.termwarn(
+            "W&B Local Server version does not support ArtifactCollection gql edges; falling back to using legacy ArtifactSequence. Please update server to at least version 0.9.50."
+        )
+    return supported
+
+
+def artifact_collection_edge_name(server_supports_artifact_collections: bool) -> str:
+    return (
+        "artifactCollection"
+        if server_supports_artifact_collections
+        else "artifactSequence"
+    )
+
+
+def artifact_collection_plural_edge_name(
+    server_supports_artifact_collections: bool,
+) -> str:
+    return (
+        "artifactCollections"
+        if server_supports_artifact_collections
+        else "artifactSequences"
+    )

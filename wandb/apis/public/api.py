@@ -894,7 +894,7 @@ class Api:
     @normalize_exceptions
     def artifact_types(self, project=None):
         entity, project = self._parse_project_path(project)
-        return public.ProjectArtifactTypes(self.client, entity, project)
+        return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
     def artifact_type(self, type_name, project=None):
@@ -902,10 +902,33 @@ class Api:
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact_versions(self, type_name, name, per_page=50):
+    def artifact_collections(self, project_name: str, type_name: str, per_page=50):
+        entity, project = self._parse_project_path(project_name)
+        return public.ArtifactCollections(
+            self.client, entity, project, type_name, per_page=per_page
+        )
+
+    @normalize_exceptions
+    def artifact_collection(self, type_name: str, name: str):
         entity, project, collection_name = self._parse_artifact_path(name)
-        artifact_type = public.ArtifactType(self.client, entity, project, type_name)
-        return artifact_type.collection(collection_name).versions(per_page=per_page)
+        return public.ArtifactCollection(
+            self.client, entity, project, collection_name, type_name
+        )
+
+    @normalize_exceptions
+    def artifact_versions(self, type_name, name, per_page=50):
+        """Deprecated, use artifacts(type_name, name) instead."""
+        wandb.termwarn(
+            "Api.artifact_versions(type_name, name) is deprecated, use Api.artifacts(type_name, name) instead."
+        )
+        return self.artifacts(type_name, name, per_page=per_page)
+
+    @normalize_exceptions
+    def artifacts(self, type_name, name, per_page=50):
+        entity, project, collection_name = self._parse_artifact_path(name)
+        return public.Artifacts(
+            self.client, entity, project, collection_name, type_name, per_page=per_page
+        )
 
     @normalize_exceptions
     def artifact(self, name, type=None):

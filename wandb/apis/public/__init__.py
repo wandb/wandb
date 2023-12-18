@@ -3,11 +3,11 @@ from wandb.apis.public.artifacts import (
     ARTIFACT_FILES_FRAGMENT,
     ARTIFACTS_TYPES_FRAGMENT,
     ArtifactCollection,
+    ArtifactCollections,
     ArtifactFiles,
+    Artifacts,
     ArtifactType,
-    ArtifactVersions,
-    ProjectArtifactCollections,
-    ProjectArtifactTypes,
+    ArtifactTypes,
     RunArtifacts,
 )
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
