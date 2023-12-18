@@ -352,6 +352,29 @@ func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *str
 	}
 }
 
+func (j *JobBuilder) handlePathsAboveRoot(programRelpath, root string) (string, error) {
+	// git notebooks set root to the git root,
+	// XJupyterRoot contains the path where the jupyter notebook was started
+	// programRelpath contains the path from XJupyterRoot to the file
+	// fullProgramPath here is actually the relpath from the root to the program
+	rootRelPath, err := filepath.Rel(root, j.settings.XJupyterRoot.Value)
+	if err != nil {
+		return "", err
+	}
+	fullProgramPath := filepath.Clean(filepath.Join(rootRelPath, programRelpath))
+	if strings.HasPrefix(fullProgramPath, "..") {
+		splitPath := strings.Split(fullProgramPath, "/")
+		countDots := 0
+		for _, p := range splitPath {
+			if p == ".." {
+				countDots += 1
+			}
+			fullProgramPath = strings.Join(splitPath[2*countDots:], "/")
+		}
+	}
+	return fullProgramPath, nil
+}
+
 func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMetadata) (*GitSource, *string, error) {
 	j.logger.Debug("jobBuilder: creating repo job source")
 	fullProgramPath := programRelpath
@@ -360,6 +383,7 @@ func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMeta
 		if err != nil {
 			return nil, nil, err
 		}
+
 		_, err = os.Stat(filepath.Join(cwd, filepath.Base(programRelpath)))
 		if os.IsNotExist(err) {
 			fmt.Println("Unable to find program entrypoint in current directory, not creating job artifact.")
@@ -371,24 +395,9 @@ func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMeta
 		if metadata.Root == nil || j.settings.XJupyterRoot == nil {
 			return nil, nil, fmt.Errorf("no root path in metadata, or settings missing jupyter root, not creating job artifact")
 		}
-		// git notebooks set the root to the git root,
-		// jupyter_root contains the path where the jupyter notebook was started
-		// program_relpath contains the path from jupyter_root to the file
-		// full program path here is actually the relpath from the program to the git root
-		rootRelPath, err := filepath.Rel(j.settings.XJupyterRoot.Value, *metadata.Root)
+		fullProgramPath, err = j.handlePathsAboveRoot(programRelpath, *metadata.Root)
 		if err != nil {
 			return nil, nil, err
-		}
-		fullProgramPath = filepath.Clean(filepath.Join(rootRelPath, programRelpath))
-		if strings.HasPrefix(fullProgramPath, "..") {
-			splitPath := strings.Split(fullProgramPath, "/")
-			countDots := 0
-			for _, p := range splitPath {
-				if p == ".." {
-					countDots += 1
-				}
-				fullProgramPath = strings.Join(splitPath[2*countDots:], "/")
-			}
 		}
 	}
 	entryPoint, err := j.getEntrypoint(fullProgramPath, metadata)

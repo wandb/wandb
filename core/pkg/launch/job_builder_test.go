@@ -858,3 +858,34 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		}
 	})
 }
+
+func TestJobBuilderHandlePathsAboveRoot(t *testing.T) {
+	t.Run("handlePathsAboveRoot works when notebook started above git root", func(t *testing.T) {
+		settings := &service.Settings{
+			XJupyterRoot: toWrapperPb("/path/to/jupyterRoot").(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		path, err := jobBuilder.handlePathsAboveRoot("gitRoot/a/notebook.ipynb", "/path/to/jupyterRoot/gitRoot")
+		assert.Nil(t, err)
+		assert.Equal(t, "a/notebook.ipynb", path)
+	})
+	t.Run("handlePathsAboveRoot works when notebook started below git root", func(t *testing.T) {
+		settings := &service.Settings{
+			XJupyterRoot: toWrapperPb("/path/to/gitRoot/jupyterRoot").(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		path, err := jobBuilder.handlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
+		assert.Nil(t, err)
+		assert.Equal(t, "jupyterRoot/a/notebook.ipynb", path)
+	})
+
+	t.Run("handlePathsAboveRoot works when notebook started at git root", func(t *testing.T) {
+		settings := &service.Settings{
+			XJupyterRoot: toWrapperPb("/path/to/gitRoot").(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		path, err := jobBuilder.handlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
+		assert.Nil(t, err)
+		assert.Equal(t, "a/notebook.ipynb", path)
+	})
+}
