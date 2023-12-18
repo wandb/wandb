@@ -1690,22 +1690,27 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        if wandb.run is None:
-            with wandb.init(  # type: ignore
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ):
+        if get_core_path() != "":
+            if wandb.run is None:
+                with wandb.init(  # type: ignore
+                    entity=self._source_entity,
+                    project=self._source_project,
+                    job_type="auto",
+                    settings=wandb.Settings(silent="true"),
+                ):
+                    return self._run_artifact_download(
+                        root=root,
+                        allow_missing_references=allow_missing_references,
+                    )
+            else:
                 return self._run_artifact_download(
                     root=root,
                     allow_missing_references=allow_missing_references,
                 )
-        else:
-            return self._run_artifact_download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
+        return self._download(
+            root=root,
+            allow_missing_references=allow_missing_references,
+        )
 
     def _run_artifact_download(
         self,
@@ -1750,8 +1755,6 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in core
-        assert wandb.run is not None
         require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
