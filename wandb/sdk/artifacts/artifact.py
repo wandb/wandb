@@ -1690,60 +1690,58 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        if wandb.run is None:
-            with wandb.init(  # type: ignore
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ):
-                return self._run_artifact_download(
+        if get_core_path() != "":
+            if wandb.run is None:
+                with wandb.init(  # type: ignore
+                    entity=self._source_entity,
+                    project=self._source_project,
+                    job_type="auto",
+                    settings=wandb.Settings(silent="true"),
+                ):
+                    return self._download_using_core(
+                        root=root,
+                        allow_missing_references=allow_missing_references,
+                    )
+            else:
+                return self._download_using_core(
                     root=root,
                     allow_missing_references=allow_missing_references,
                 )
-        else:
-            return self._run_artifact_download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
+        return self._download(
+            root=root,
+            allow_missing_references=allow_missing_references,
+        )
 
-    def _run_artifact_download(
+    def _download_using_core(
         self,
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if get_core_path():  # require core
-            if not run._backend or not run._backend.interface:
-                raise NotImplementedError
-            if run._settings._offline:
-                raise NotImplementedError("cannot download in offline mode")
-            assert self.id is not None
-            handle = run._backend.interface.deliver_download_artifact(
-                self.id,
-                root,
-                allow_missing_references,
-            )
-            # Start the download process in the user process too, to handle reference downloads
-            self._download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
-            result = handle.wait(timeout=-1)
-            if result is None:
-                handle.abandon()
-            assert result is not None
-            response = result.response.download_artifact_response
-            if response.error_message:
-                raise ValueError(
-                    f"Error downloading artifact: {response.error_message}"
-                )
-            return FilePathStr(root)
-        return self._download(
+        if not run._backend or not run._backend.interface:
+            raise NotImplementedError
+        if run._settings._offline:
+            raise NotImplementedError("cannot download in offline mode")
+        assert self.id is not None
+        handle = run._backend.interface.deliver_download_artifact(
+            self.id,
+            root,
+            allow_missing_references,
+        )
+        # Start the download process in the user process too, to handle reference downloads
+        self._download(
             root=root,
             allow_missing_references=allow_missing_references,
         )
+        result = handle.wait(timeout=-1)
+        if result is None:
+            handle.abandon()
+        assert result is not None
+        response = result.response.download_artifact_response
+        if response.error_message:
+            raise ValueError(f"Error downloading artifact: {response.error_message}")
+        return FilePathStr(root)
 
     def _download(
         self,
@@ -1751,7 +1749,6 @@ class Artifact:
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
-        assert wandb.run is not None
         require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
