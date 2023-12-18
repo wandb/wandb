@@ -50,8 +50,13 @@ def login(
     host: Optional[str] = None,
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
+    verify: bool = False,
 ) -> bool:
-    """Log in to W&B.
+    """Set up W&B login credentials.
+
+    By default, this will only store the credentials locally without
+    verifying them with the W&B server. To verify credentials, pass
+    verify=True.
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
@@ -63,6 +68,7 @@ def login(
         host: (string, optional) The host to connect to.
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
+        verify: (bool) Verify the credentials with the W&B server.
 
     Returns:
         bool: if key is configured
@@ -250,7 +256,8 @@ def _login(
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
     _entity: Optional[str] = None,
-):
+    _verify: bool = False,
+) -> bool:
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
 
