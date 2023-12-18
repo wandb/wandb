@@ -59,7 +59,6 @@ jobs:
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL_LINUX: python core/scripts/build/install_go.py
-          # CIBW_BEFORE_ALL_MACOS: brew update && rm -f /usr/local/bin/go* && brew install go@1.21 && brew --prefix && brew --prefix go && echo $PATH && export PATH="/usr/local/opt/go@1.21/bin:$PATH"
           CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
