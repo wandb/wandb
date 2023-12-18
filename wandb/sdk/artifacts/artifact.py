@@ -1740,9 +1740,7 @@ class Artifact:
         assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
-            raise ValueError(
-                f"Error downloading artifact: {response.error_message}"
-            )
+            raise ValueError(f"Error downloading artifact: {response.error_message}")
         return FilePathStr(root)
 
     def _download(
