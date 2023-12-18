@@ -1496,6 +1496,8 @@ def launch(
     if cli_template_vars:
         if queue is None:
             raise LaunchError("'--set-var' flag requires queue to be set")
+        if entity is None:
+            entity = launch_utils.get_default_entity(api, config)
         public_api = PublicApi()
         runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
         template_variables = launch_utils.fetch_and_validate_template_variables(
