@@ -240,37 +240,49 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 
 }
 
-func (j *JobBuilder) getSourceType(metadata RunMetadata) *SourceType {
+func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
 	var finalSourceType SourceType
 	// user set source type via settings
 	if j.settings.JobSource != nil {
 		sourceType := j.settings.JobSource.Value
 		switch sourceType {
 		case string(ArtifactSourceType):
+			if !j.hasArtifactJobIngredients() {
+				fmt.Println("No artifact job ingredients found, not creating job artifact")
+				return nil, fmt.Errorf("no artifact job ingredients found, but source type set to artifact")
+			}
 			finalSourceType = ArtifactSourceType
-			return &finalSourceType
+			return &finalSourceType, nil
 		case string(RepoSourceType):
+			if !j.hasRepoJobIngredients(metadata) {
+				fmt.Println("No repo job ingredients found, not creating job artifact")
+				return nil, fmt.Errorf("no repo job ingredients found, but source type set to repo")
+			}
 			finalSourceType = RepoSourceType
-			return &finalSourceType
+			return &finalSourceType, nil
 		case string(ImageSourceType):
+			if !j.hasImageJobIngredients(metadata) {
+				fmt.Println("No image job ingredients found, not creating job artifact")
+				return nil, fmt.Errorf("no image job ingredients found, but source type set to image")
+			}
 			finalSourceType = ImageSourceType
-			return &finalSourceType
+			return &finalSourceType, nil
 		}
 	}
 	if j.hasRepoJobIngredients(metadata) {
 		finalSourceType = RepoSourceType
-		return &finalSourceType
+		return &finalSourceType, nil
 	}
 	if j.hasArtifactJobIngredients() {
 		finalSourceType = ArtifactSourceType
-		return &finalSourceType
+		return &finalSourceType, nil
 	}
 	if j.hasImageJobIngredients(metadata) {
 		finalSourceType = ImageSourceType
-		return &finalSourceType
+		return &finalSourceType, nil
 	}
-	// TODO: log
-	return nil
+	j.logger.Debug("jobBuilder: unable to determine source type")
+	return nil, nil
 
 }
 
@@ -494,7 +506,10 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 		_sourceType := sourceInfo.Source.GetSourceType()
 		sourceType = &_sourceType
 	} else {
-		sourceType = j.getSourceType(*metadata)
+		sourceType, err = j.getSourceType(*metadata)
+		if err != nil {
+			return nil, err
+		}
 		if sourceType == nil {
 			j.logger.Debug("jobBuilder: unable to determine source type")
 			fmt.Println("No source type found, not creating job artifact")

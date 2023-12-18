@@ -58,7 +58,7 @@ func toWrapperPb(val interface{}) interface{} {
 	return nil
 }
 
-func TestJobBuilder(t *testing.T) {
+func TestJobBuilderRepo(t *testing.T) {
 	t.Run("Build repo sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"python": "3.11.2",
@@ -168,7 +168,8 @@ func TestJobBuilder(t *testing.T) {
 			}
 		}
 	})
-
+}
+func TestJobBuilderArtifact(t *testing.T) {
 	t.Run("Build artifact sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"python":   "3.11.2",
@@ -287,7 +288,8 @@ func TestJobBuilder(t *testing.T) {
 			}
 		}
 	})
-
+}
+func TestJobBuilderImage(t *testing.T) {
 	t.Run("Build image sourced job", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"docker": "testImage:testTag",
@@ -332,7 +334,8 @@ func TestJobBuilder(t *testing.T) {
 			}
 		}
 	})
-
+}
+func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		settings := &service.Settings{
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
@@ -394,7 +397,9 @@ func TestJobBuilder(t *testing.T) {
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
+}
 
+func TestJobBuilderFromPartial(t *testing.T) {
 	t.Run("Build from partial", func(t *testing.T) {
 		metadata := map[string]interface{}{
 			"python": "3.11.2",
@@ -464,7 +469,8 @@ func TestJobBuilder(t *testing.T) {
 			}
 		}
 	})
-
+}
+func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 	t.Run("HandleUseArtifactRecord repo type", func(t *testing.T) {
 		settings := &service.Settings{
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
@@ -587,5 +593,150 @@ func TestJobBuilder(t *testing.T) {
 		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit())
 		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
 		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
+	})
+}
+func TestJobBuilderGetSourceType(t *testing.T) {
+	t.Run("getSourceType job type specified repo", func(t *testing.T) {
+		sourceType := RepoSourceType
+		noRepoIngrediantsError := "no repo job ingredients found, but source type set to repo"
+		commit := "1234567890"
+		remote := "example.com"
+		settings := &service.Settings{
+			JobSource: &wrapperspb.StringValue{
+				Value: string(sourceType),
+			},
+		}
+
+		testCases := []struct {
+			metadata           RunMetadata
+			expectedSourceType *SourceType
+			expectedError      *string
+		}{
+			{
+				metadata: RunMetadata{
+					Git: &GitInfo{
+						Commit: &commit,
+						Remote: &remote,
+					},
+				},
+				expectedSourceType: &sourceType,
+				expectedError:      nil,
+			},
+			{
+				metadata:           RunMetadata{},
+				expectedSourceType: nil,
+				expectedError:      &noRepoIngrediantsError,
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		for _, testCase := range testCases {
+			res, err := jobBuilder.getSourceType(testCase.metadata)
+			if testCase.expectedSourceType != nil {
+				assert.Equal(t, *testCase.expectedSourceType, *res)
+			} else {
+				assert.Nil(t, res)
+			}
+
+			if testCase.expectedError != nil {
+				assert.Equal(t, *testCase.expectedError, err.Error())
+			} else {
+				assert.Nil(t, err)
+			}
+		}
+	})
+
+	t.Run("getSourceType job type specified artifact", func(t *testing.T) {
+		sourceType := ArtifactSourceType
+		noArtifactIngrediantsError := "no artifact job ingredients found, but source type set to artifact"
+		settings := &service.Settings{
+			JobSource: &wrapperspb.StringValue{
+				Value: string(sourceType),
+			},
+		}
+
+		testCases := []struct {
+			metadata           RunMetadata
+			expectedSourceType *SourceType
+			expectedError      *string
+		}{
+			{
+				metadata:           RunMetadata{},
+				expectedSourceType: &sourceType,
+				expectedError:      nil,
+			},
+			{
+				metadata:           RunMetadata{},
+				expectedSourceType: nil,
+				expectedError:      &noArtifactIngrediantsError,
+			},
+		}
+
+		for index, testCase := range testCases {
+			jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+			if index == 0 {
+				jobBuilder.runCodeArtifact = &ArtifactInfoForJob{
+					ID:   "testID",
+					Name: "testName",
+				}
+			}
+			res, err := jobBuilder.getSourceType(testCase.metadata)
+			if testCase.expectedSourceType != nil {
+				assert.Equal(t, *testCase.expectedSourceType, *res)
+			} else {
+				assert.Nil(t, res)
+			}
+
+			if testCase.expectedError != nil {
+				assert.Equal(t, *testCase.expectedError, err.Error())
+			} else {
+				assert.Nil(t, err)
+			}
+		}
+	})
+
+	t.Run("getSourceType job type specified image", func(t *testing.T) {
+		sourceType := ImageSourceType
+		imageName := "testImage"
+		noImageIngrediantsError := "no image job ingredients found, but source type set to image"
+		settings := &service.Settings{
+			JobSource: &wrapperspb.StringValue{
+				Value: string(sourceType),
+			},
+		}
+
+		testCases := []struct {
+			metadata           RunMetadata
+			expectedSourceType *SourceType
+			expectedError      *string
+		}{
+			{
+				metadata: RunMetadata{
+					Docker: &imageName,
+				},
+				expectedSourceType: &sourceType,
+				expectedError:      nil,
+			},
+			{
+				metadata:           RunMetadata{},
+				expectedSourceType: nil,
+				expectedError:      &noImageIngrediantsError,
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		for _, testCase := range testCases {
+
+			res, err := jobBuilder.getSourceType(testCase.metadata)
+			if testCase.expectedSourceType != nil {
+				assert.Equal(t, *testCase.expectedSourceType, *res)
+			} else {
+				assert.Nil(t, res)
+			}
+
+			if testCase.expectedError != nil {
+				assert.Equal(t, *testCase.expectedError, err.Error())
+			} else {
+				assert.Nil(t, err)
+			}
+		}
 	})
 }
