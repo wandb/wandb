@@ -1102,6 +1102,7 @@ message MetadataRequest {
   GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
+  map<string, string> slurm = 29;
 }
 
 message PythonPackagesRequest {
