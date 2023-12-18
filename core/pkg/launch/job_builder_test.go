@@ -859,7 +859,25 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 	})
 }
 
-func TestJobBuilderHandlePathsAboveRoot(t *testing.T) {
+func TestUtilFunctions(t *testing.T) {
+
+	t.Run("isColabRunFromSettings works", func(t *testing.T) {
+		settings := &service.Settings{
+			XColab: toWrapperPb(true).(*wrapperspb.BoolValue),
+		}
+		assert.True(t, isColabRunFromSettings(settings))
+
+		settings = &service.Settings{
+			XColab: toWrapperPb(false).(*wrapperspb.BoolValue),
+		}
+		assert.False(t, isColabRunFromSettings(settings))
+	})
+
+	t.Run("makeArtifactNameSafe truncates to 128 characters", func(t *testing.T) {
+		name := makeArtifactNameSafe("this is a very long name that is longer than 128 characters and should be truncated down to one hundred and twenty eight characters with the first 63 chars, and the last 63 chars separated by ..")
+		assert.Equal(t, "this_is_a_very_long_name_that_is_longer_than_128_characters_and.._with_the_first_63_chars__and_the_last_63_chars_separated_by_..", name)
+
+	})
 	t.Run("handlePathsAboveRoot works when notebook started above git root", func(t *testing.T) {
 		settings := &service.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/jupyterRoot").(*wrapperspb.StringValue),
