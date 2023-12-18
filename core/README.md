@@ -17,7 +17,7 @@ the package in your environment. The `wandb` library will automatically detect a
 pip install -U wandb wandb-core
 ```
 
-Note: ensure you have `wandb>=0.16.0`.
+Note: ensure you have `wandb>=0.16.1`.
 
 ### Platform Compatibility
 
@@ -46,7 +46,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b4`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b5`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
