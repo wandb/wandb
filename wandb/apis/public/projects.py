@@ -111,7 +111,7 @@ class Project(Attrs):
 
     @normalize_exceptions
     def artifacts_types(self, per_page=50):
-        return public.ProjectArtifactTypes(self.client, self.entity, self.name)
+        return public.ArtifactTypes(self.client, self.entity, self.name)
 
     @normalize_exceptions
     def sweeps(self):
