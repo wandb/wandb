@@ -222,7 +222,20 @@ ignore_errors = false
 
 # wandb/testing.*
 [[tool.mypy.overrides]]
-module = "wandb.testing.*"
+module = [
+    "wandb.testing.*",
+    "wandb.integration.*",
+    "wandb/apis.*",
+    "wandb/proto.*",
+    "wandb.sklearn.*",
+    "wandb/beta.*",
+    "wandb/cli.*",
+    "wandb/wandb_torch.*",
+    "wandb/wandb_controller.*",
+    "wandb/wandb_agent.*",
+    "wandb/sdk/verify.*",
+    "wandb/vendor.*",
+]
 ignore_errors = true
 
 # wandb/env
@@ -264,8 +277,7 @@ module = [
     "grpc.*",
     "setproctitle.*",
     "ultralytics.*",
-    "wandb.vendor.*",
     "wandb_gql.*",
-    "wandb_graphql.*"
+    "wandb_graphql.*",
 ]
 ignore_missing_imports = true
