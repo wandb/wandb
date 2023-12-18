@@ -594,6 +594,124 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
 		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
 	})
+
+	t.Run("HandleUseArtifactRecord disabeld when use non partial artifact job", func(t *testing.T) {
+		settings := &service.Settings{}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:      "testID",
+					Type:    "job",
+					Name:    "partialArtifact",
+					Partial: nil,
+				},
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.True(t, jobBuilder.disable)
+
+	})
+
+	t.Run("HandleUseArtifactRecord disables job builder when handling partial job with no name", func(t *testing.T) {
+		settings := &service.Settings{}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "",
+						SourceInfo: &service.JobSource{
+							SourceType: "image",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Image: &service.ImageSource{
+									Image: "testImage:v0",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.True(t, jobBuilder.disable)
+	})
+
+	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating repo type without git info", func(t *testing.T) {
+		settings := &service.Settings{}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameImage",
+						SourceInfo: &service.JobSource{
+							SourceType: "repo",
+							Runtime:    "3.11.2",
+							Source:     &service.Source{},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.True(t, jobBuilder.disable)
+	})
+
+	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating artifact type without artifact info", func(t *testing.T) {
+		settings := &service.Settings{}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameImage",
+						SourceInfo: &service.JobSource{
+							SourceType: "artifact",
+							Runtime:    "3.11.2",
+							Source:     &service.Source{},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.True(t, jobBuilder.disable)
+	})
+
+	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating image type without image info", func(t *testing.T) {
+		settings := &service.Settings{}
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobNameImage",
+						SourceInfo: &service.JobSource{
+							SourceType: "image",
+							Runtime:    "3.11.2",
+							Source:     &service.Source{},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		assert.True(t, jobBuilder.disable)
+	})
 }
 func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("getSourceType job type specified repo", func(t *testing.T) {

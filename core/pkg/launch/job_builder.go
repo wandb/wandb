@@ -648,7 +648,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		jobSourceMetadata.Source = gitSource
 	case "artifact":
 		if sourceInfo.Source.Artifact == nil {
-			j.logger.Debug("jobBuilder: no git info found in artifact type partial use artifact record, disabling job builder")
+			j.logger.Debug("jobBuilder: no artifact info found in artifact type partial use artifact record, disabling job builder")
 			j.disable = true
 			return
 		}
@@ -661,7 +661,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		jobSourceMetadata.Source = artifactSource
 	case "image":
 		if sourceInfo.Source.Image == nil {
-			j.logger.Debug("jobBuilder: no git info found in image type partial use artifact record, disabling job builder")
+			j.logger.Debug("jobBuilder: no image info found in image type partial use artifact record, disabling job builder")
 			j.disable = true
 			return
 		}
