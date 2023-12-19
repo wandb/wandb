@@ -8,7 +8,7 @@ one for the main process and one for the internal process.
 plugin:
   - wandb
 env:
-  - WANDB_ERROR_REPORTING="true"
+  - WANDB_ERROR_REPORTING: "true"
 tag:
   shards:
     - default
