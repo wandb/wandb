@@ -13,7 +13,6 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -31,8 +30,6 @@ import (
 )
 
 const (
-	MetaFilename = "wandb-metadata.json"
-	OutputFile   = "output.log"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -297,8 +294,6 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendNetworkStatusRequest(x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
-	case *service.Request_Metadata:
-		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
@@ -348,16 +343,6 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
 }
 
-func (s *Sender) sendMetadata(request *service.MetadataRequest) {
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
-	jsonBytes, _ := mo.Marshal(request)
-	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendInternalFile(MetaFilename)
-}
-
 func (s *Sender) sendDefer(request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
@@ -383,7 +368,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		s.sendInternalFile(OutputFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -777,7 +761,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 		return
 	}
 
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFile)
+	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
 	// append line to file
 	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -898,24 +882,6 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		} else {
 			s.sendFile(file.GetPath(), filetransfer.OtherFile)
 		}
-	}
-}
-
-func (s *Sender) sendInternalFile(path string) {
-	// check if the file exists
-	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		s.logger.Info("sender: sendInternalFile: file does not exist", "path", path)
-		return
-	}
-	s.fwdChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: path},
-				},
-			},
-		},
 	}
 }
 
