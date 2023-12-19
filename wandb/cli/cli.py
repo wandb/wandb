@@ -1413,7 +1413,8 @@ def launch_sweep(
     "-P",
     default=None,
     type=click.Choice(["critical", "high", "medium", "low"]),
-    help="When --queue is passed, set the priority of the job. Higher priority jobs are run first.",
+    help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
+    are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
 @display_error
 def launch(
