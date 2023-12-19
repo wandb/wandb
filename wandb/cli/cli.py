@@ -234,7 +234,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
     login_settings = dict(
         _cli_only_mode=True,
-        _disable_viewer=relogin,
+        _disable_viewer=relogin and not verify,
         anonymous=anon_mode,
     )
     if host is not None:
