@@ -1,6 +1,10 @@
 """file_stream tests."""
 
 import json
+import unittest.mock
+
+import pytest
+import wandb
 
 
 def generate_history():
@@ -24,8 +28,6 @@ def assert_history(relay_server, run, publish_util, dropped=None, inject=None):
     with relay_server(inject=inject) as relay:
         history = generate_history()
         publish_util(run=run, history=history)
-
-    print(relay.context.raw_data)
 
     context_history = relay.context.get_run_history(run.id, include_private=True)
     context_history.drop(columns=["__run_id"], inplace=True)
@@ -116,3 +118,42 @@ def test_fstream_status_429(
         run=run, status=429, application_pattern="112"
     )
     assert_history(relay_server, run, publish_util, inject=[injected_response])
+
+
+@pytest.mark.wandb_core_failure(
+    "file_stream", reason="need to implement dropped in file_stream"
+)
+@pytest.mark.skip(reason="need to verify that history is correct and fix dropped count")
+def test_fstream_status_404(
+    relay_server,
+    mock_run,
+    publish_util,
+    inject_file_stream_response,
+):
+    run = mock_run(use_magic_mock=True)
+    injected_response = inject_file_stream_response(
+        run=run, status=404, application_pattern="112"
+    )
+    assert_history(
+        relay_server, run, publish_util, inject=[injected_response], dropped=1
+    )
+
+
+@pytest.mark.skip(reason="need to verify that history is correct and fix dropped count")
+def test_fstream_status_max_retries(
+    relay_server,
+    mock_run,
+    publish_util,
+    inject_file_stream_response,
+):
+    # set short max sleep so we can exhaust retries
+    with unittest.mock.patch.object(
+        wandb.sdk.internal.file_stream, "MAX_SLEEP_SECONDS", 1e-2
+    ):
+        run = mock_run(use_magic_mock=True)
+        injected_response = inject_file_stream_response(
+            run=run, status=500, application_pattern="1"
+        )
+        assert_history(
+            relay_server, run, publish_util, inject=[injected_response], dropped=1
+        )

@@ -303,9 +303,10 @@ class StreamMux:
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
             exit_handles.append(handle)
 
-            Run._footer_exit_status_info(
-                exit_code, settings=stream._settings, printer=printer  # type: ignore
-            )
+            # this message is confusing, we should remove it
+            # Run._footer_exit_status_info(
+            #     exit_code, settings=stream._settings, printer=printer  # type: ignore
+            # )
 
         # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
         # timeout = max(stream._settings._exit_timeout for stream in streams.values())

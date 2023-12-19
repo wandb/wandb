@@ -3,7 +3,6 @@ import asyncio
 import base64
 import json
 import logging
-import tempfile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -19,6 +18,7 @@ from wandb.sdk.launch.runner.abstract import Status
 from wandb.sdk.launch.runner.kubernetes_monitor import (
     WANDB_K8S_LABEL_AGENT,
     WANDB_K8S_LABEL_MONITOR,
+    WANDB_K8S_RUN_ID,
     CustomResource,
     LaunchKubernetesMonitor,
 )
@@ -333,6 +333,7 @@ class KubernetesRunner(AbstractRunner):
 
         # Add labels to job metadata
         job_metadata.setdefault("labels", {})
+        job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
         if LaunchAgent.initialized():
             job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
@@ -387,7 +388,7 @@ class KubernetesRunner(AbstractRunner):
         )
         for cont in containers:
             # Add our env vars to user supplied env vars
-            env = cont.get("env", [])
+            env = cont.get("env") or []
             env.extend(
                 [{"name": key, "value": value} for key, value in env_vars.items()]
             )
@@ -545,15 +546,23 @@ class KubernetesRunner(AbstractRunner):
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
         _logger.info(msg)
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
-            f.write(yaml.dump(job))
-            job_yaml_path = f.name
-
-        job_response = (
-            await kubernetes_asyncio.utils.create_from_yaml(
-                api_client, job_yaml_path, namespace=namespace
+        try:
+            response = await kubernetes_asyncio.utils.create_from_dict(
+                api_client, job, namespace=namespace
             )
-        )[0][0]
+        except kubernetes_asyncio.utils.FailToCreateError as e:
+            for exc in e.api_exceptions:
+                resp = json.loads(exc.body)
+                msg = resp.get("message")
+                code = resp.get("code")
+                raise LaunchError(
+                    f"Failed to create Kubernetes job for run {launch_project.run_id} ({code} {exc.reason}): {msg}"
+                )
+        except Exception as e:
+            raise LaunchError(
+                f"Unexpected exception when creating Kubernetes job: {str(e)}\n"
+            )
+        job_response = response[0][0]
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(

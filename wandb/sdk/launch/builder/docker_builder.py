@@ -7,6 +7,7 @@ import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
@@ -84,8 +85,17 @@ class DockerBuilder(AbstractBuilder):
         Returns:
             DockerBuilder: The DockerBuilder.
         """
-        # TODO the config for the docker builder as of yet is empty
-        # but ultimately we should add things like target platform, base image, etc.
+        # If the user provided a destination URI in the builder config
+        # we use that as the registry.
+        image_uri = config.get("destination")
+        if image_uri:
+            if registry is not None:
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Overriding registry from registry config"
+                    f" with {image_uri} from builder config."
+                )
+            registry = registry_from_uri(image_uri)
+
         return cls(environment, registry, config)
 
     async def verify(self) -> None:
@@ -113,6 +123,7 @@ class DockerBuilder(AbstractBuilder):
             launch_project (LaunchProject): The project to build.
             entrypoint (EntryPoint): The entrypoint to use.
         """
+        await self.verify()
         await self.login()
 
         dockerfile_str = generate_dockerfile(

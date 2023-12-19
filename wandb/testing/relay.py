@@ -84,6 +84,8 @@ class RunAttrs:
     sweep_name: str
     project: Dict[str, Any]
     config: Dict[str, Any]
+    remote: Optional[str] = None
+    commit: Optional[str] = None
 
 
 class Context:
@@ -103,9 +105,13 @@ class Context:
         self._events: Optional[pd.DataFrame] = None
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
+        self._output: Optional[Any] = None
 
     def upsert(self, entry: Dict[str, Any]) -> None:
-        entry_id: str = entry["name"]
+        try:
+            entry_id: str = entry["name"]
+        except KeyError:
+            entry_id = entry["id"]
         self._entries[entry_id] = wandb.util.merge_dicts(entry, self._entries[entry_id])
 
     # mapping interface
@@ -172,6 +178,14 @@ class Context:
         )
 
         return deepcopy(self._summary)
+
+    @property
+    def output(self) -> pd.DataFrame:
+        if self._output is not None:
+            return deepcopy(self._output)
+
+        self._output = self.get_file_contents("output.log")
+        return deepcopy(self._output)
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -247,7 +261,12 @@ class Context:
             sweep_name=run_entry["sweepName"],
             project=run_entry["project"],
             config=run_entry["config"],
+            remote=run_entry.get("repo"),
+            commit=run_entry.get("commit"),
         )
+
+    def get_run(self, run_id: str) -> Dict[str, Any]:
+        return self._entries.get(run_id, {})
 
     # todo: add getter (by run_id) utilities for other properties
 
@@ -288,6 +307,10 @@ class QueryResolver:
                 "name": "create_artifact",
                 "resolver": self.resolve_create_artifact,
             },
+            {
+                "name": "delete_run",
+                "resolver": self.resolve_delete_run,
+            },
         ]
 
     @staticmethod
@@ -298,8 +321,27 @@ class QueryResolver:
             return None
         query = response_data.get("data", {}).get("upsertBucket") is not None
         if query:
-            data = response_data["data"]["upsertBucket"].get("bucket")
-            data["config"] = json.loads(data["config"])
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["upsertBucket"].get("bucket"))
+            if "config" in data:
+                data["config"] = json.loads(data["config"])
+            return data
+        return None
+
+    @staticmethod
+    def resolve_delete_run(
+        request_data: Dict[str, Any], response_data: Dict[str, Any], **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(request_data, dict) or not isinstance(response_data, dict):
+            return None
+        query = "query" in request_data and "deleteRun" in request_data["query"]
+        if query:
+            data = {
+                k: v for (k, v) in request_data["variables"].items() if v is not None
+            }
+            data.update(response_data["data"]["deleteRun"])
             return data
         return None
 
@@ -309,21 +351,24 @@ class QueryResolver:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(request_data, dict):
             return None
+
         query = request_data.get("files") is not None
         if query:
             # todo: refactor this 🤮🤮🤮🤮🤮 eventually?
             name = kwargs.get("path").split("/")[2]
-            files = {
-                file_name: [
-                    {
-                        "content": [
-                            json.loads(k) for k in file_value.get("content", [])
-                        ],
-                        "offset": file_value.get("offset"),
-                    }
-                ]
-                for file_name, file_value in request_data["files"].items()
-            }
+            files = defaultdict(list)
+            for file_name, file_value in request_data["files"].items():
+                content = []
+                for k in file_value.get("content", []):
+                    try:
+                        content.append(json.loads(k))
+                    except json.decoder.JSONDecodeError:
+                        content.append([k])
+
+                files[file_name].append(
+                    {"offset": file_value.get("offset"), "content": content}
+                )
+
             post_processed_data = {
                 "name": name,
                 "dropped": [request_data["dropped"]]
@@ -682,6 +727,7 @@ class RelayServer:
                     print("*****************")
                 # rotate the injection pattern
                 injected_response.application_pattern.next()
+                # TODO: allow access to the request object when making the mocked response
                 if should_apply:
                     with responses.RequestsMock() as mocked_responses:
                         # do the actual injection

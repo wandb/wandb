@@ -12,7 +12,7 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
+import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -1388,8 +1388,9 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with pytest.raises(FileNotFoundError, match="Unable to find"):
-        artifact.download()
+    with wandb_init(project="test") as run:
+        with pytest.raises(FileNotFoundError, match="Unable to find"):
+            artifact.download()
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
@@ -1413,7 +1414,8 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    artifact.download(allow_missing_references=True)
+    with wandb_init(project="test") as run:
+        artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
     assert "Unable to find my_object.pb" in capsys.readouterr().err
@@ -1423,7 +1425,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
+    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
@@ -1489,9 +1491,9 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
-    monkeypatch.setattr(artifacts_cache, "_artifacts_cache", cache)
-    assert cache == artifacts_cache.get_artifacts_cache()
+    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache == artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")

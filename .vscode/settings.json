@@ -34,5 +34,7 @@
   },
   "rust-analyzer.linkedProjects": [
     "./client/Cargo.toml"
-  ]
+  ],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "off",
 }
