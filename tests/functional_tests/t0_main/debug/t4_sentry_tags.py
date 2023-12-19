@@ -6,7 +6,7 @@ id: 0.debug.04-sentry-tags
 plugin:
   - wandb
 env:
-  - WANDB_ERROR_REPORTING="true"
+  - WANDB_ERROR_REPORTING: "true"
 tag:
   platforms:
     - linux
