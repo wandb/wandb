@@ -5,8 +5,6 @@
 id: 0.debug.04-sentry-tags
 plugin:
   - wandb
-env:
-  - WANDB_ERROR_REPORTING: "true"
 tag:
   platforms:
     - linux
@@ -14,6 +12,8 @@ tag:
 var:
   - num_sentry_events:
       :fn:len: :wandb:sentry_events
+env:
+  - WANDB_ERROR_REPORTING: "true"
 assert:
   - :wandb:runs_len: 1
   - :num_sentry_events: 1
