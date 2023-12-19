@@ -16,7 +16,7 @@ else:
 import click
 
 import wandb
-from wandb.errors import UsageError
+from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from ..apis import InternalApi
@@ -74,13 +74,26 @@ def login(
         bool: if key is configured
 
     Raises:
+        AuthenticationError - if api_key fails verification with the server
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True
     kwargs = dict(locals())
+    _verify = kwargs.pop("verify", False)
     configured = _login(**kwargs)
+
+    if _verify:
+        from . import wandb_setup
+
+        singleton = wandb_setup._WandbSetup._instance
+        assert singleton is not None
+        viewer = singleton._server._viewer
+        if not viewer:
+            raise AuthenticationError(
+                "API key verification failed. Make sure your API key is valid."
+            )
     return True if configured else False
 
 
