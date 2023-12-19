@@ -10,7 +10,10 @@ import urllib3
 
 from wandb.apis import InternalApi
 from wandb.errors.term import termwarn
-from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache, get_artifacts_cache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
@@ -63,10 +66,10 @@ class WandbStoragePolicy(StoragePolicy):
     def __init__(
         self,
         config: Optional[Dict] = None,
-        cache: Optional[ArtifactsCache] = None,
+        cache: Optional[ArtifactFileCache] = None,
         api: Optional[InternalApi] = None,
     ) -> None:
-        self._cache = cache or get_artifacts_cache()
+        self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
         self._session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
