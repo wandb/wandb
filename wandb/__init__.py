@@ -17,6 +17,13 @@ _minimum_core_version = "0.17.0b5"
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
+if "dev" in __version__:
+    import os
+
+    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
+        "WANDB_ERROR_REPORTING", "false"
+    )
+
 from typing import Optional
 
 from wandb.errors import Error
