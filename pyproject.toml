@@ -220,21 +220,28 @@ exclude = '''
 module = "wandb.*"
 ignore_errors = false
 
-# wandb/testing.*
 [[tool.mypy.overrides]]
 module = [
     "wandb.testing.*",
     "wandb.integration.*",
-    "wandb/apis.*",
-    "wandb/proto.*",
+    "wandb.apis.*",
+    "wandb.proto.*",
     "wandb.sklearn.*",
-    "wandb/beta.*",
-    "wandb/cli.*",
-    "wandb/wandb_torch.*",
-    "wandb/wandb_controller.*",
-    "wandb/wandb_agent.*",
-    "wandb/sdk/verify.*",
-    "wandb/vendor.*",
+    "wandb.beta.*",
+    "wandb.sdk.wandb_login",
+    "wandb.cli.*",
+    "wandb.wandb_torch.*",
+    "wandb.wandb_controller.*",
+    "wandb.wandb_agent.*",
+    "wandb.sdk.verify.*",
+    "wandb.trigger.*",
+    "wandb.wandb_summary.*",
+    "wandb.jupyter.*",
+    "wandb.sync.*",
+    "wandb.sdk.integration_utils.*",
+    "wandb.plot.*",
+    "wandb.plots.*",
+    "wandb.old.*",
 ]
 ignore_errors = true
 
@@ -279,5 +286,7 @@ module = [
     "ultralytics.*",
     "wandb_gql.*",
     "wandb_graphql.*",
+    "wandb.vendor.*",
+    "wandb.vendor.pynvml.pynvml.*",
 ]
 ignore_missing_imports = true

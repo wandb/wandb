@@ -28,7 +28,7 @@ from wandb import sdk as wandb_sdk
 
 import wandb
 
-wandb.wandb_lib = wandb_sdk.lib
+wandb.wandb_lib = wandb_sdk.lib  # type: ignore
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
@@ -52,8 +52,8 @@ Config = wandb_sdk.Config
 from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
-_preinit = wandb.wandb_lib.preinit
-_lazyloader = wandb.wandb_lib.lazyloader
+_preinit = wandb.wandb_lib.preinit  # type: ignore
+_lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 
 # Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
@@ -127,39 +127,39 @@ api = InternalApi()
 run: Optional["wandb_sdk.wandb_run.Run"] = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
-log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
-save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
+log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)  # type: ignore
+save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)  # type: ignore
 restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
-    "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact
+    "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact  # type: ignore
 )
 log_artifact = _preinit.PreInitCallable(
-    "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
+    "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact  # type: ignore
 )
 log_model = _preinit.PreInitCallable(
-    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model
+    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model  # type: ignore
 )
 use_model = _preinit.PreInitCallable(
-    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model
+    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model  # type: ignore
 )
 link_model = _preinit.PreInitCallable(
-    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model
+    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model  # type: ignore
 )
 define_metric = _preinit.PreInitCallable(
-    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
+    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric  # type: ignore
 )
 
 mark_preempting = _preinit.PreInitCallable(
-    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting
+    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting  # type: ignore
 )
 
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
-alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
+alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)  # type: ignore
 
 # record of patched libraries
-patched = {"tensorboard": [], "keras": [], "gym": []}
+patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore
 
 keras = _lazyloader.LazyLoader("wandb.keras", globals(), "wandb.integration.keras")
 sklearn = _lazyloader.LazyLoader("wandb.sklearn", globals(), "wandb.sklearn")
@@ -201,7 +201,7 @@ def load_ipython_extension(ipython):
 
 
 if wandb_sdk.lib.ipython.in_notebook():
-    from IPython import get_ipython
+    from IPython import get_ipython  # type: ignore[import-not-found]
 
     load_ipython_extension(get_ipython())
 
