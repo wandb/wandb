@@ -445,6 +445,8 @@ class RunQueue:
 
     @property
     def prioritization_mode(self) -> RunQueuePrioritizationMode:
+        if self._prioritization_mode is None:
+            self._get_metadata()
         return self._prioritization_mode
 
     @property
@@ -528,6 +530,7 @@ class RunQueue:
                         id
                         access
                         defaultResourceConfigID
+                        prioritizationMode
                     }
                 }
             }
@@ -546,6 +549,7 @@ class RunQueue:
         ]
         if self._default_resource_config_id is None:
             self._default_resource_config = {}
+        self._prioritization_mode = res["project"]["runQueue"]["prioritizationMode"]
 
     @normalize_exceptions
     def _get_default_resource_config(self):
