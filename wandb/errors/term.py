@@ -1,6 +1,6 @@
 import logging
 import sys
-from typing import Any, Set
+from typing import Any
 
 import click
 
