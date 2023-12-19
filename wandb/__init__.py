@@ -12,7 +12,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 __version__ = "0.16.2.dev1"
-_minimum_core_version = "0.17.0b4"
+_minimum_core_version = "0.17.0b5"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -207,6 +207,13 @@ if wandb_sdk.lib.ipython.in_notebook():
 
 
 from .analytics import Sentry as _Sentry
+
+if "dev" in __version__:
+    import os
+
+    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
+        "WANDB_ERROR_REPORTING", "false"
+    )
 
 _sentry = _Sentry()
 _sentry.setup()
