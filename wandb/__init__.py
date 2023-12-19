@@ -208,6 +208,13 @@ if wandb_sdk.lib.ipython.in_notebook():
 
 from .analytics import Sentry as _Sentry
 
+if "dev" in __version__:
+    import os
+
+    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
+        "WANDB_ERROR_REPORTING", "false"
+    )
+
 _sentry = _Sentry()
 _sentry.setup()
 
