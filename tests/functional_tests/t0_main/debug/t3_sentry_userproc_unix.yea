@@ -1,6 +1,8 @@
 id: 0.debug.03-sentry-userproc-unix
 plugin:
   - wandb
+env:
+  - WANDB_ERROR_REPORTING="true"
 tag:
   platforms:
     - linux

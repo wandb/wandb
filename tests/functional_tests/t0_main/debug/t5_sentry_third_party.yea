@@ -1,6 +1,8 @@
 id: 0.debug.05-sentry-third-party
 plugin:
   - wandb
+env:
+  - WANDB_ERROR_REPORTING="true"
 tag:
   platforms:
     - linux
