@@ -269,7 +269,6 @@ def _login(
     _silent: Optional[bool] = None,
     _disable_warning: Optional[bool] = None,
     _entity: Optional[str] = None,
-    _verify: bool = False,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
