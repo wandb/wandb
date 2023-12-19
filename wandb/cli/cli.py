@@ -220,8 +220,9 @@ def projects(entity, display=True):
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
-def login(key, host, cloud, relogin, anonymously, no_offline=False):
+def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -245,7 +246,14 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         wandb.termerror(str(e))
         sys.exit(1)
 
-    wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
+    wandb.login(
+        relogin=relogin,
+        key=key,
+        anonymous=anon_mode,
+        host=host,
+        force=True,
+        verify=verify,
+    )
 
 
 @cli.command(
