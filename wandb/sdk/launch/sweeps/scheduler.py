@@ -695,6 +695,8 @@ class Scheduler(ABC):
 
         # override resource and args of job
         _job_launch_config = self._wandb_run.config.get("launch") or {}
+        
+        _priority = int(launch_config.get("priority", 2)) # default = medium
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
@@ -711,7 +713,7 @@ class Scheduler(ABC):
             resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
-            priority=launch_config.get("priority", 2), # default = medium
+            priority=_priority,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state
