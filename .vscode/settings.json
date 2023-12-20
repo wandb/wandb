@@ -32,4 +32,6 @@
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true
   },
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "off",
 }

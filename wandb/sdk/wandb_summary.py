@@ -124,7 +124,7 @@ class Summary(SummaryDict):
         return self._get_current_summary_callback()
 
     def _update(self, record: SummaryRecord):
-        if self._update_callback:
+        if self._update_callback:  # type: ignore
             self._update_callback(record)
 
 

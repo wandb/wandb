@@ -248,7 +248,7 @@ def write_key(
 
 def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
     if settings is None:
-        settings = wandb.setup().settings
+        settings = wandb.setup().settings  # type: ignore
         assert settings is not None
     if settings.api_key:
         return settings.api_key

@@ -208,7 +208,7 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
         ({}, True),
     ],
 )
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="version_check",
     reason="need to implement versioning in wandb core",
 )
@@ -246,7 +246,15 @@ def test_local_warning(
         assert msg not in captured
 
 
-@pytest.mark.nexus_failure(
+def test_ignore_globs_wandb_files(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
+        run.finish()
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert "requirements.txt" not in uploaded_files
+
+
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="need to implement upload of wandb files",
 )
