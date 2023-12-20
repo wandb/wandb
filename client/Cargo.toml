@@ -2,6 +2,9 @@
 name = "wandb"
 version = "0.17.0"
 edition = "2021"
+# TODO: include wandb-core binary properly
+# For now, see core/setup.py
+include = ["wandb-core"]
 
 [lib]
 path = "src/lib.rs"
@@ -24,7 +27,7 @@ uuid = "1.4.1"
 fork = "0.1.22"
 tracing = "0.1.39"
 tracing-subscriber = "0.3.17"
-sentry = "0.31.7"
+sentry = "0.32.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 colored = "2.0.4"

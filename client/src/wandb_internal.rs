@@ -107,13 +107,13 @@ pub struct Settings {
     #[prost(message, optional, tag = "15")]
     pub file_stream_timeout_seconds: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "150")]
-    pub file_uploader_retry_max: ::core::option::Option<i32>,
+    pub file_transfer_retry_max: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "151")]
-    pub file_uploader_retry_wait_min_seconds: ::core::option::Option<i32>,
+    pub file_transfer_retry_wait_min_seconds: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "152")]
-    pub file_uploader_retry_wait_max_seconds: ::core::option::Option<i32>,
+    pub file_transfer_retry_wait_max_seconds: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "153")]
-    pub file_uploader_timeout_seconds: ::core::option::Option<i32>,
+    pub file_transfer_timeout_seconds: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "16")]
     pub flow_control_custom: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "17")]
@@ -167,7 +167,7 @@ pub struct Settings {
     #[prost(message, optional, tag = "35")]
     pub runqueue_item_id: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "36")]
-    pub require_nexus: ::core::option::Option<bool>,
+    pub require_core: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "37")]
     pub save_requirements: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "38")]
@@ -695,9 +695,11 @@ pub struct Feature {
     /// user sets run name via wandb.run.tags = ...
     #[prost(bool, tag = "18")]
     pub set_run_tags: bool,
-    /// users set key in run config via run.config.key or run.config\["key"\]
+    /// users set key in run config via run.config.key
     #[prost(bool, tag = "19")]
     pub set_config_item: bool,
+    /// or run.config\["key"\]
+    ///
     /// run is created through wandb launch
     #[prost(bool, tag = "20")]
     pub launch: bool,
@@ -803,15 +805,21 @@ pub struct Feature {
     /// HuggingFace Autologging
     #[prost(bool, tag = "54")]
     pub hf_pipeline_autolog: bool,
-    /// Using wandb nexus internal process
+    /// Using wandb core internal process
     #[prost(bool, tag = "55")]
-    pub nexus: bool,
+    pub core: bool,
     /// Using c wandb library
     #[prost(bool, tag = "56")]
     pub lib_c: bool,
     /// Using cpp wandb library
     #[prost(bool, tag = "57")]
     pub lib_cpp: bool,
+    /// Using openai finetuning WandbLogger
+    #[prost(bool, tag = "58")]
+    pub openai_finetuning: bool,
+    /// Using Diffusers autologger
+    #[prost(bool, tag = "59")]
+    pub diffusers_autolog: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -912,13 +920,13 @@ pub struct Deprecated {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Issues {
-    /// validation warnings for settings?
+    /// validation warnings for settings
     #[prost(bool, tag = "1")]
     pub settings_validation_warnings: bool,
-    /// unexpected settings init args?
+    /// unexpected settings init args
     #[prost(bool, tag = "2")]
     pub settings_unexpected_args: bool,
-    /// preprocessing warnings for settings?
+    /// settings preprocessing warnings
     #[prost(bool, tag = "3")]
     pub settings_preprocessing_warnings: bool,
 }
@@ -1832,7 +1840,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 20, 21, 22, 23, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1867,6 +1875,8 @@ pub mod request {
         CheckVersion(super::CheckVersionRequest),
         #[prost(message, tag = "13")]
         LogArtifact(super::LogArtifactRequest),
+        #[prost(message, tag = "14")]
+        DownloadArtifact(super::DownloadArtifactRequest),
         #[prost(message, tag = "17")]
         Keepalive(super::KeepaliveRequest),
         #[prost(message, tag = "20")]
@@ -1877,6 +1887,8 @@ pub mod request {
         Metadata(super::MetadataRequest),
         #[prost(message, tag = "23")]
         InternalMessages(super::InternalMessagesRequest),
+        #[prost(message, tag = "24")]
+        PythonPackages(super::PythonPackagesRequest),
         #[prost(message, tag = "64")]
         Shutdown(super::ShutdownRequest),
         #[prost(message, tag = "65")]
@@ -1899,6 +1911,10 @@ pub mod request {
         JobInfo(super::JobInfoRequest),
         #[prost(message, tag = "74")]
         GetSystemMetrics(super::GetSystemMetricsRequest),
+        #[prost(message, tag = "75")]
+        FileTransferInfo(super::FileTransferInfoRequest),
+        #[prost(message, tag = "76")]
+        Sync(super::SyncRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -1910,7 +1926,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 35, 36, 37, 64, 65, 66, 67, 68, 69, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 70, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1939,6 +1955,8 @@ pub mod response {
         CheckVersionResponse(super::CheckVersionResponse),
         #[prost(message, tag = "30")]
         LogArtifactResponse(super::LogArtifactResponse),
+        #[prost(message, tag = "31")]
+        DownloadArtifactResponse(super::DownloadArtifactResponse),
         #[prost(message, tag = "35")]
         RunStatusResponse(super::RunStatusResponse),
         #[prost(message, tag = "36")]
@@ -1957,6 +1975,8 @@ pub mod response {
         JobInfoResponse(super::JobInfoResponse),
         #[prost(message, tag = "69")]
         GetSystemMetricsResponse(super::GetSystemMetricsResponse),
+        #[prost(message, tag = "70")]
+        SyncResponse(super::SyncResponse),
         #[prost(message, tag = "1000")]
         TestInjectResponse(super::TestInjectResponse),
     }
@@ -2221,7 +2241,43 @@ pub struct PollExitResponse {
 /// Sender requests
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SyncOverwrite {
+    #[prost(string, tag = "1")]
+    pub run_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub entity: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub project: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SyncSkip {
+    #[prost(bool, tag = "1")]
+    pub output_raw: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SenderMarkRequest {}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SyncRequest {
+    #[prost(int64, tag = "1")]
+    pub start_offset: i64,
+    #[prost(int64, tag = "2")]
+    pub final_offset: i64,
+    #[prost(message, optional, tag = "3")]
+    pub overwrite: ::core::option::Option<SyncOverwrite>,
+    #[prost(message, optional, tag = "4")]
+    pub skip: ::core::option::Option<SyncSkip>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SyncResponse {
+    #[prost(string, tag = "1")]
+    pub url: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub error: ::core::option::Option<ErrorInfo>,
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SenderReadRequest {
@@ -2313,6 +2369,67 @@ pub struct FilePusherStats {
     pub total_bytes: i64,
     #[prost(int64, tag = "3")]
     pub deduped_bytes: i64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilesUploaded {
+    #[prost(string, repeated, tag = "1")]
+    pub files: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FileTransferInfoRequest {
+    #[prost(enumeration = "file_transfer_info_request::TransferType", tag = "1")]
+    pub r#type: i32,
+    #[prost(string, tag = "2")]
+    pub path: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub url: ::prost::alloc::string::String,
+    #[prost(int64, tag = "4")]
+    pub size: i64,
+    #[prost(int64, tag = "5")]
+    pub processed: i64,
+    #[prost(message, optional, tag = "6")]
+    pub file_counts: ::core::option::Option<FileCounts>,
+}
+/// Nested message and enum types in `FileTransferInfoRequest`.
+pub mod file_transfer_info_request {
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum TransferType {
+        Upload = 0,
+        Download = 1,
+    }
+    impl TransferType {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                TransferType::Upload => "Upload",
+                TransferType::Download => "Download",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "Upload" => Some(Self::Upload),
+                "Download" => Some(Self::Download),
+                _ => None,
+            }
+        }
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2518,6 +2635,8 @@ pub struct LogArtifactRequest {
     pub artifact: ::core::option::Option<ArtifactRecord>,
     #[prost(int64, tag = "2")]
     pub history_step: i64,
+    #[prost(string, tag = "3")]
+    pub staging_dir: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
@@ -2527,6 +2646,26 @@ pub struct LogArtifactResponse {
     #[prost(string, tag = "1")]
     pub artifact_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
+    pub error_message: ::prost::alloc::string::String,
+}
+///
+/// DownloadArtifact:
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DownloadArtifactRequest {
+    #[prost(string, tag = "1")]
+    pub artifact_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub download_root: ::prost::alloc::string::String,
+    #[prost(bool, tag = "4")]
+    pub allow_missing_references: bool,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RequestInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DownloadArtifactResponse {
+    #[prost(string, tag = "1")]
     pub error_message: ::prost::alloc::string::String,
 }
 ///
@@ -2672,6 +2811,8 @@ pub struct GpuAppleInfo {
     pub gpu_type: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub vendor: ::prost::alloc::string::String,
+    #[prost(uint32, tag = "3")]
+    pub cores: u32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2680,6 +2821,36 @@ pub struct GpuNvidiaInfo {
     pub name: ::prost::alloc::string::String,
     #[prost(uint64, tag = "2")]
     pub memory_total: u64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GpuAmdInfo {
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub unique_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub vbios_version: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub performance_level: ::prost::alloc::string::String,
+    #[prost(string, tag = "5")]
+    pub gpu_overdrive: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub gpu_memory_overdrive: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub max_power: ::prost::alloc::string::String,
+    #[prost(string, tag = "8")]
+    pub series: ::prost::alloc::string::String,
+    #[prost(string, tag = "9")]
+    pub model: ::prost::alloc::string::String,
+    #[prost(string, tag = "10")]
+    pub vendor: ::prost::alloc::string::String,
+    #[prost(string, tag = "11")]
+    pub sku: ::prost::alloc::string::String,
+    #[prost(string, tag = "12")]
+    pub sclk_range: ::prost::alloc::string::String,
+    #[prost(string, tag = "13")]
+    pub mclk_range: ::prost::alloc::string::String,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2738,6 +2909,30 @@ pub struct MetadataRequest {
     pub gpu_apple: ::core::option::Option<GpuAppleInfo>,
     #[prost(message, repeated, tag = "27")]
     pub gpu_nvidia: ::prost::alloc::vec::Vec<GpuNvidiaInfo>,
+    #[prost(message, repeated, tag = "28")]
+    pub gpu_amd: ::prost::alloc::vec::Vec<GpuAmdInfo>,
+    #[prost(map = "string, string", tag = "29")]
+    pub slurm: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PythonPackagesRequest {
+    #[prost(message, repeated, tag = "1")]
+    pub package: ::prost::alloc::vec::Vec<python_packages_request::PythonPackage>,
+}
+/// Nested message and enum types in `PythonPackagesRequest`.
+pub mod python_packages_request {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct PythonPackage {
+        #[prost(string, tag = "1")]
+        pub name: ::prost::alloc::string::String,
+        #[prost(string, tag = "2")]
+        pub version: ::prost::alloc::string::String,
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
