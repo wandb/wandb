@@ -334,15 +334,15 @@ pub fn print_footer(
     println!("{}", empty);
 
     // TODO: this is for the demo and should be implemented properly
-    let total_size = 23123123;
-    let pb = Printer::start_progress_bar(total_size, "Syncing run".to_string());
-    let mut downloaded = 0;
-    while downloaded < total_size {
-        let new = min(downloaded + 223211, total_size);
-        downloaded = new;
-        pb.set_position(new);
-        std::thread::sleep(Duration::from_millis(12));
-    }
+    // let total_size = 23123123;
+    // let pb = Printer::start_progress_bar(total_size, "Syncing run".to_string());
+    // let mut downloaded = 0;
+    // while downloaded < total_size {
+    //     let new = min(downloaded + 223211, total_size);
+    //     downloaded = new;
+    //     pb.set_position(new);
+    //     std::thread::sleep(Duration::from_millis(12));
+    // }
     pb.finish_and_clear();
 
     let mut run = styled_string::new(&format!(
