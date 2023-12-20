@@ -2406,6 +2406,8 @@ class Run:
         else:
             return artifact
 
+    # Add a recurring callback (probe) to poll the backend process
+    # for its status using the "poll_exit" message.
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
@@ -2417,6 +2419,8 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
+    # Handles the progress message from the backend process and prints
+    # the current status to the terminal footer
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         probe_handles = progress_handle.get_probe_handles()
         assert probe_handles and len(probe_handles) == 1

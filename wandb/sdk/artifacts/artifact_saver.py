@@ -72,7 +72,9 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future]]:
+    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
+        server_artifact = None
+        commit_fut = None
         try:
             server_artifact, commit_fut = self._save_internal(
                 type,
@@ -113,7 +115,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Optional[Dict], Optional[concurrent.futures.Future]]:
+    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})
@@ -243,9 +245,9 @@ class ArtifactSaver:
             result_future=commit_result,
         )
 
-        def done_callback(_: concurrent.futures.Future) -> None:
+        def done_callback(fut: concurrent.futures.Future) -> None:
             step_prepare.shutdown()
-            if finalize and use_after_commit:
+            if fut.exception() is None and finalize and use_after_commit:
                 self._api.use_artifact(artifact_id)
 
         # do not wait for the commit to finish, return the future so callers can decide what to do
