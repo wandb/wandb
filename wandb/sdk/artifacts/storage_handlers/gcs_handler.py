@@ -112,7 +112,8 @@ class GCSHandler(StorageHandler):
             logging.error("Error loading URI: %s", manifest_entry.ref)
             raise e
         finally:
-            logging.info("Finished loading URI: %s in %.1fs", manifest_entry.ref, time.time() - start_time)
+            elapsed_time = time.time() - start_time
+            logging.info("Finished loading URI: %s in %.1fs", manifest_entry.ref, elapsed_time)
             return path
 
     def store_path(
