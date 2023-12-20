@@ -696,7 +696,8 @@ class Scheduler(ABC):
         # override resource and args of job
         _job_launch_config = self._wandb_run.config.get("launch") or {}
 
-        _priority = int(launch_config.get("priority", 2))  # default = medium
+        # default priority is "medium"
+        _priority = int(launch_config.get("priority", 2))  # type: ignore
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
