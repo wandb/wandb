@@ -343,7 +343,7 @@ pub fn print_footer(
     //     pb.set_position(new);
     //     std::thread::sleep(Duration::from_millis(12));
     // }
-    pb.finish_and_clear();
+    // pb.finish_and_clear();
 
     let mut run = styled_string::new(&format!(
         "Run synced - {} {}",
