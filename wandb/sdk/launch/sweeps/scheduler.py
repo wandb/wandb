@@ -711,6 +711,7 @@ class Scheduler(ABC):
             resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
+            priority=launch_config.get("priority", 2), # default = medium
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state
