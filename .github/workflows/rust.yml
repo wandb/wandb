@@ -1,0 +1,43 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install maturin
+        run: pip install maturin
+      - name: Activate python venv
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+      - name: Build python package with maturin
+        working-directory: ./client
+        run: maturin develop
+      # - name: Build rust binary for testing
+      #   working-directory: ./client
+      #   run: cargo build --verbose
+      # - name: Run tests
+      #   working-directory: ./client
+      #   run: cargo test --verbose

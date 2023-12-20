@@ -127,6 +127,7 @@ func NewSender(
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
 	}
+
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
@@ -151,6 +152,11 @@ func NewSender(
 		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+
+		// TODO: review this for async file stream
+		// useAsyncFileStreamHeader := map[string]string{
+		// 	"X-WANDB-USE-ASYNC-FILESTREAM": "true",
+		// }
 
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),

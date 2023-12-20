@@ -39,6 +39,26 @@ def install_core(session: nox.Session) -> None:
     )
 
 
+@nox.session(python=False, name="install-client")
+def install_client(session: nox.Session) -> None:
+    session.cd("client")
+    session.run(
+        "maturin",
+        "develop",
+        "--release",
+        "--strip",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="develop")
+def develop(session: nox.Session) -> None:
+    """Developers! Developers! Developers!"""
+    session.notify("build-core")
+    session.notify("install-core")
+    session.notify("install-client")
+
+
 @nox.session(python=False, name="list-failing-tests-wandb-core")
 def list_failing_tests_wandb_core(session: nox.Session) -> None:
     """Lists the core failing tests grouped by feature."""
