@@ -104,6 +104,9 @@ impl Connection {
         tracing::debug!(">>> Waiting for result...");
         // TODO: this should be recv_timeout(timeout)
         return receiver.recv().unwrap();
+        // return receiver
+        //     .recv_timeout(std::time::Duration::from_secs(10))
+        //     .unwrap();
     }
 
     pub fn send_message(&self, message: &wandb_internal::ServerRequest) -> Result<(), ()> {

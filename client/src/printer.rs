@@ -224,8 +224,8 @@ pub fn print_header(name: &str, url: &str) {
     let active_msg = format!("Creating run...");
     let pb = Printer::start_spinner(active_msg);
 
-    // // TODO: this is for the demo and should be implemented properly
-    std::thread::sleep(Duration::from_millis(800));
+    // TODO: this is for the demo and should be implemented properly
+    // std::thread::sleep(Duration::from_millis(800));
     pb.finish_and_clear();
 
     let mut run = styled_string::new(&format!(
