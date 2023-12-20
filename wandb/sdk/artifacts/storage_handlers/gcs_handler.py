@@ -1,6 +1,9 @@
 """GCS storage handler."""
 import base64
 import time
+import logging
+
+
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult, urlparse
@@ -18,7 +21,7 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 class GCSHandler(StorageHandler):
     _client: Optional["gcs_module.client.Client"]
     _versioning_enabled: Optional[bool]
@@ -64,45 +67,53 @@ class GCSHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
-        if not local:
+        start_time = time.time()  # Start timing
+        logging.info("Starting to load URI: %s", manifest_entry.ref)
+        try:
+            if not local:
+                assert manifest_entry.ref is not None
+                return manifest_entry.ref
+
+            path, hit, cache_open = self._cache.check_md5_obj_path(
+                B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+                manifest_entry.size if manifest_entry.size is not None else 0,
+            )
+            if hit:
+                return path
+
+            self.init_gcs()
+            assert self._client is not None  # mypy: unwraps optionality
             assert manifest_entry.ref is not None
-            return manifest_entry.ref
+            bucket, key, _ = self._parse_uri(manifest_entry.ref)
+            version = manifest_entry.extra.get("versionID")
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
-        )
-        if hit:
-            return path
+            obj = None
+            # First attempt to get the generation specified, this will return None if versioning is not enabled
+            if version is not None:
+                obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
-        self.init_gcs()
-        assert self._client is not None  # mypy: unwraps optionality
-        assert manifest_entry.ref is not None
-        bucket, key, _ = self._parse_uri(manifest_entry.ref)
-        version = manifest_entry.extra.get("versionID")
-
-        obj = None
-        # First attempt to get the generation specified, this will return None if versioning is not enabled
-        if version is not None:
-            obj = self._client.bucket(bucket).get_blob(key, generation=version)
-
-        if obj is None:
-            # Object versioning is disabled on the bucket, so just get
-            # the latest version and make sure the MD5 matches.
-            obj = self._client.bucket(bucket).get_blob(key)
             if obj is None:
-                raise ValueError(
-                    f"Unable to download object {manifest_entry.ref} with generation {version}"
-                )
-            md5 = obj.md5_hash
-            if md5 != manifest_entry.digest:
-                raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
-                )
+                # Object versioning is disabled on the bucket, so just get
+                # the latest version and make sure the MD5 matches.
+                obj = self._client.bucket(bucket).get_blob(key)
+                if obj is None:
+                    raise ValueError(
+                        f"Unable to download object {manifest_entry.ref} with generation {version}"
+                    )
+                md5 = obj.md5_hash
+                if md5 != manifest_entry.digest:
+                    raise ValueError(
+                        f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
+                    )
 
-        with cache_open(mode="wb") as f:
-            obj.download_to_file(f)
-        return path
+            with cache_open(mode="wb") as f:
+                obj.download_to_file(f)
+        except Exception as e:
+            logging.error("Error loading URI: %s", manifest_entry.ref)
+            raise e
+        finally:
+            logging.info("Finished loading URI: %s in %.1fs", manifest_entry.ref, time.time() - start_time)
+            return path
 
     def store_path(
         self,
