@@ -1386,7 +1386,7 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
             error_response={"Error": {"Code": "404", "Message": "Not Found"}},
         )
 
-    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+    monkeypatch.setattr(S3Handler, "_etag_from_obj_version", bad_request)
 
     with wandb_init(project="test") as run:
         with pytest.raises(FileNotFoundError, match="Unable to find"):
@@ -1412,7 +1412,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
             error_response={"Error": {"Code": "404", "Message": "Not Found"}},
         )
 
-    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+    monkeypatch.setattr(S3Handler, "_etag_from_obj_version", bad_request)
 
     with wandb_init(project="test") as run:
         artifact.download(allow_missing_references=True)
