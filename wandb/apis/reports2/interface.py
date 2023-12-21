@@ -723,7 +723,6 @@ BlockTypes = Union[
     SoundCloud,
     Gallery,
     PanelGrid,
-    Block,
     TableOfContents,
     BlockQuote,
     Twitter,
@@ -749,7 +748,6 @@ block_mapping = {
     internal.Spotify: Spotify,
     internal.Twitter: Twitter,
     internal.SoundCloud: SoundCloud,
-    internal.Block: Block,
     internal.UnknownBlock: UnknownBlock,
 }
 
