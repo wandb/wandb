@@ -20,10 +20,7 @@ if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
-logger = logging.getLogger("wandb")
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 
 class GCSHandler(StorageHandler):
@@ -36,7 +33,6 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
-
     def versioning_enabled(self, bucket_path: str) -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
@@ -45,22 +41,6 @@ class GCSHandler(StorageHandler):
         bucket = self._client.bucket(bucket_path)
         bucket.reload()
         self._versioning_enabled = bucket.versioning_enabled
-        bucket_policy = bucket.get_iam_policy()
-        # Get the list of files in the bucket
-        files = bucket.list_blobs()
-        # Print bucket information
-        # Print file information
-        logging.info(f"Files in the bucket:{len(list(files))}")
-        logging.info("Bucket Name:", bucket.name)
-        logging.info("Bucket Location:", bucket.location)
-        logging.info("Bucket Storage Class:", bucket.storage_class)
-        logging.info("Bucket Policy:", list(bucket_policy.items()))
-        logging.info("Bucket Versioning Enabled:", bucket.versioning_enabled)
-        logging.info("Bucket Requester Pays Status:", bucket.requester_pays)
-        logging.info("Default Event-based Hold:", bucket.default_event_based_hold)
-        logging.info("Logging Configuration:", bucket.get_logging())
-        logging.info("CORS Configuration:", bucket.cors)
-        logging.info("Lifecycle Rules:", list(bucket.lifecycle_rules))    
         return self._versioning_enabled
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
@@ -89,7 +69,7 @@ class GCSHandler(StorageHandler):
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
         start_time = time.time()  # Start timing
-        logging.info("Starting to load URI: %s", manifest_entry.ref)
+        logger.info("Starting to load URI: %s", manifest_entry.ref)
         try:
             if not local:
                 assert manifest_entry.ref is not None
@@ -99,9 +79,6 @@ class GCSHandler(StorageHandler):
                 B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
                 manifest_entry.size if manifest_entry.size is not None else 0,
             )
-            if hit:
-                logging.info("*** hitting cache")
-                return path
 
             self.init_gcs()
             assert self._client is not None  # mypy: unwraps optionality
@@ -109,10 +86,27 @@ class GCSHandler(StorageHandler):
             bucket, key, _ = self._parse_uri(manifest_entry.ref)
             version = manifest_entry.extra.get("versionID")
 
+            _bucket = self._client.get_bucket(bucket)
+            _bucket_policy = _bucket.get_iam_policy()
+            _files = len(list(_bucket.list_blobs()))
+
+            logger.info(f"file in bucket {str(_bucket.name)}:{str(_files)}")
+            logger.info("Bucket Name: %s", _bucket.name)
+            logger.info("Bucket Location: %s", _bucket.location)
+            logger.info("Bucket Storage Class: %s", _bucket.storage_class)
+            logger.info("Bucket Policy: %s", list(_bucket_policy.items()))
+            logger.info("Bucket Versioning Enabled: %s", _bucket.versioning_enabled)
+            logger.info("Bucket Requester Pays Status: %s", _bucket.requester_pays)
+            logger.info("CORS Configuration: %s", _bucket.cors)
+
+            if hit:
+                logger.info("*** hitting cache")
+                return path
+
             obj = None
             # First attempt to get the generation specified, this will return None if versioning is not enabled
             if version is not None:
-                logging.info("*** versioning is enabled")
+                logger.info("*** versioning is enabled")
                 obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
             if obj is None:
@@ -130,15 +124,15 @@ class GCSHandler(StorageHandler):
                     )
 
             with cache_open(mode="wb") as f:
-                logging.info("*** start downloading the file %s", manifest_entry.ref)
+                logger.info("*** start downloading the file %s", manifest_entry.ref)
                 obj.download_to_file(f)
-                logging.info("*** done downloading the file %s", manifest_entry.ref)
+                logger.info("*** done downloading the file %s", manifest_entry.ref)
         except Exception as e:
-            logging.error("Error loading URI: %s", manifest_entry.ref)
+            logger.error("Error loading URI: %s", manifest_entry.ref)
             raise e
         finally:
             elapsed_time = time.time() - start_time
-            logging.info(
+            logger.info(
                 "Finished loading URI: %s in %.1fs", manifest_entry.ref, elapsed_time
             )
             return path
