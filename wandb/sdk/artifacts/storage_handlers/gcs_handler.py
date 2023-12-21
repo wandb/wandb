@@ -36,6 +36,7 @@ class GCSHandler(StorageHandler):
         self._versioning_enabled = None
         self._cache = get_artifacts_cache()
 
+
     def versioning_enabled(self, bucket_path: str) -> bool:
         if self._versioning_enabled is not None:
             return self._versioning_enabled
@@ -44,6 +45,22 @@ class GCSHandler(StorageHandler):
         bucket = self._client.bucket(bucket_path)
         bucket.reload()
         self._versioning_enabled = bucket.versioning_enabled
+        bucket_policy = bucket.get_iam_policy()
+        # Get the list of files in the bucket
+        files = bucket.list_blobs()
+        # Print bucket information
+        # Print file information
+        logging.info(f"Files in the bucket:{len(list(files))}")
+        logging.info("Bucket Name:", bucket.name)
+        logging.info("Bucket Location:", bucket.location)
+        logging.info("Bucket Storage Class:", bucket.storage_class)
+        logging.info("Bucket Policy:", list(bucket_policy.items()))
+        logging.info("Bucket Versioning Enabled:", bucket.versioning_enabled)
+        logging.info("Bucket Requester Pays Status:", bucket.requester_pays)
+        logging.info("Default Event-based Hold:", bucket.default_event_based_hold)
+        logging.info("Logging Configuration:", bucket.get_logging())
+        logging.info("CORS Configuration:", bucket.cors)
+        logging.info("Lifecycle Rules:", list(bucket.lifecycle_rules))    
         return self._versioning_enabled
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
