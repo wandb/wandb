@@ -2,6 +2,7 @@ package observability_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"log/slog"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestNewCoreLoggerWithTags(t *testing.T) {
 	// Mock logger for testing
 	var buf bytes.Buffer
 	mockLogger := slog.New(
-		slog.NewTextHandler(&buf,
+		slog.NewJSONHandler(&buf,
 			&slog.HandlerOptions{
 				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 					if a.Key == slog.TimeKey && len(groups) == 0 {
@@ -97,5 +98,19 @@ func TestNewCoreLoggerWithTags(t *testing.T) {
 
 	// Assert that the slog logger has the expected tags
 	logger.Info("Test message")
-	assert.Equal(t, "level=INFO msg=\"Test message\" key1=value1 key2=value2\n", buf.String(), "Unexpected log message")
+	type LogMessage struct {
+		Level string `json:"level"`
+		Msg   string `json:"msg"`
+		Key1  string `json:"key1"`
+		Key2  string `json:"key2"`
+	}
+	var logMessage LogMessage
+	err := json.Unmarshal(buf.Bytes(), &logMessage)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+	assert.Equal(t, "INFO", logMessage.Level, "Unexpected log level")
+	assert.Equal(t, "Test message", logMessage.Msg, "Unexpected log message")
+	assert.Equal(t, "value1", logMessage.Key1, "Unexpected value for key1")
+	assert.Equal(t, "value2", logMessage.Key2, "Unexpected value for key2")
 }

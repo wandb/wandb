@@ -25,17 +25,14 @@ func makeHandler(
 	outChan chan *service.Result,
 	debounce bool,
 ) *server.Handler {
-	logger := observability.NewNoOpLogger()
-	h := server.NewHandler(context.Background(), &service.Settings{}, logger)
+	h := server.NewHandler(context.Background(),
+		observability.NewNoOpLogger(),
+		server.WithHandlerSettings(&service.Settings{}),
+		server.WithHandlerFwdChannel(fwdChan),
+		server.WithHandlerOutChannel(outChan),
+	)
 
-	h.SetInboundChannels(inChan, loopbackChan)
-	h.SetOutboundChannels(fwdChan, outChan)
-
-	if !debounce {
-		h.DisableSummaryDebouncer()
-	}
-
-	go h.Handle()
+	go h.Do(inChan)
 
 	return h
 }

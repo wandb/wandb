@@ -9,11 +9,11 @@ from wandb.sdk.internal.job_builder import JobBuilder
 def test_configure_notebook_repo_job(mocker, tmp_path):
     new_fname = "test.py"
     mocker.patch(
-        "wandb.apis.public.convert_jupyter_notebook_to_script",
+        "wandb.apis.public.jobs.convert_jupyter_notebook_to_script",
         lambda fname, project_dir: new_fname,
     )
     mocker.patch(
-        "wandb.apis.public._fetch_git_repo", lambda dst_dir, uri, version: version
+        "wandb.apis.public.jobs._fetch_git_repo", lambda dst_dir, uri, version: version
     )
 
     job_source = {
@@ -64,7 +64,7 @@ def test_configure_notebook_repo_job(mocker, tmp_path):
 def test_configure_notebook_artifact_job(mocker, tmp_path):
     new_fname = "test.py"
     mocker.patch(
-        "wandb.apis.public.convert_jupyter_notebook_to_script",
+        "wandb.apis.public.jobs.convert_jupyter_notebook_to_script",
         lambda fname, project_dir: new_fname,
     )
 

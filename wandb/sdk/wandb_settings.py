@@ -653,7 +653,7 @@ class Settings(SettingsData):
             _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
             # A 3 minute timeout for all filestream post requests
             _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
-            _file_transfer_retry_max={"value": 10, "preprocessor": int},
+            _file_transfer_retry_max={"value": 20, "preprocessor": int},
             _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": int},
             _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": int},
             _file_transfer_timeout_seconds={"value": 0, "preprocessor": int},
@@ -665,7 +665,7 @@ class Settings(SettingsData):
                 "hook": lambda _: bool(self._network_buffer),
                 "auto_hook": True,
             },
-            _graphql_retry_max={"value": 10, "preprocessor": int},
+            _graphql_retry_max={"value": 20, "preprocessor": int},
             _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": int},
             _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": int},
             _graphql_timeout_seconds={"value": 30.0, "preprocessor": int},
