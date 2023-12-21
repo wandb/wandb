@@ -776,8 +776,8 @@ class GradientPoint(Base):
 @dataclass(config=dataclass_config)
 class LinePlot(Panel):
     title: Optional[str] = None
-    x: Optional[MetricType] = None
-    y: Union[LList[MetricType], MetricType] = Field(default_factory=list)
+    x: Optional[MetricType] = "Step"
+    y: LList[MetricType] = Field(default_factory=list)
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     log_x: Optional[bool] = None

@@ -28,8 +28,9 @@ def show_welcome_message():
         cleandoc(
             """
             Thanks for trying out Report API v2!
-            See a tutorial and the changes here: https://colab.research.google.com/drive/1CzyJx1nuOS4pdkXa2XPaRQyZdmFmLmXV
+            See a tutorial and the changes here: http://wandb.me/report-api-quickstart
             For bugs/feature requests, please create an issue on github: https://github.com/wandb/wandb/issues
+            You can disable this message by setting the env var WANDB_DISABLE_REPORT_API_MESSAGE=True
             """
         )
     )

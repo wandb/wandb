@@ -1,20 +1,35 @@
 # flake8: noqa
-from inspect import cleandoc
+import os
 
-from ... import termwarn
-from . import blocks, helpers, panels, templates
-from .blocks import *
-from .helpers import LineKey, PCColumn
-from .panels import *
-from .report import Report
-from .runset import Runset
-from .templates import *
-from .util import InlineCode, InlineLaTeX, Link
 
-termwarn(
-    cleandoc(
-        """
-        The v1 API is deprecated and will be removed in a future release.  Please move to v2 using `import wandb.apis.reports2 as wr2`
-        """
-    )
-)
+if os.getenv("WANDB_REPORT_API_V2"):
+    from wandb.apis.reports2 import *
+
+else:
+    # Use legacy report api
+    from inspect import cleandoc
+
+    from ... import termwarn
+    from . import blocks, helpers, panels, templates
+    from .blocks import *
+    from .helpers import LineKey, PCColumn
+    from .panels import *
+    from .report import Report
+    from .runset import Runset
+    from .templates import *
+    from .util import InlineCode, InlineLaTeX, Link
+
+    def show_welcome_message():
+        if os.getenv("WANDB_DISABLE_REPORT_API_MESSAGE"):
+            return
+
+        termwarn(
+            cleandoc(
+                """
+                The v1 API is deprecated and will be removed in a future release.  Please move to v2 by setting the env var WANDB_REPORT_API_V2=True.  This will be on by default in a future release.
+                You can disable this message by setting the env var WANDB_DISABLE_REPORT_API_MESSAGE=True
+                """
+            )
+        )
+
+    show_welcome_message()
