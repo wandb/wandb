@@ -48,7 +48,6 @@ func NewServer(ctx context.Context, addr string, portFile string) *Server {
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
-	fmt.Println("port:", port)
 	writePortFile(portFile, port)
 	s.wg.Add(1)
 	go s.Serve()
