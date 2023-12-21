@@ -19,6 +19,10 @@ from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class ArtifactManifestEntry:
     """A single entry in an artifact manifest."""
@@ -122,6 +126,7 @@ class ArtifactManifestEntry:
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
+            logger.info("*** file in the cache: %s", self.ref)
             return FilePathStr(dest_path)
 
         if self.ref is not None:
