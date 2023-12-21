@@ -21,7 +21,11 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+
 class GCSHandler(StorageHandler):
     _client: Optional["gcs_module.client.Client"]
     _versioning_enabled: Optional[bool]
@@ -79,6 +83,7 @@ class GCSHandler(StorageHandler):
                 manifest_entry.size if manifest_entry.size is not None else 0,
             )
             if hit:
+                logging.info("*** hitting cache")
                 return path
 
             self.init_gcs()
@@ -90,6 +95,7 @@ class GCSHandler(StorageHandler):
             obj = None
             # First attempt to get the generation specified, this will return None if versioning is not enabled
             if version is not None:
+                logging.info("*** versioning is enabled")
                 obj = self._client.bucket(bucket).get_blob(key, generation=version)
 
             if obj is None:
@@ -107,13 +113,17 @@ class GCSHandler(StorageHandler):
                     )
 
             with cache_open(mode="wb") as f:
+                logging.info("*** start downloading the file %s", manifest_entry.ref)
                 obj.download_to_file(f)
+                logging.info("*** done downloading the file %s", manifest_entry.ref)
         except Exception as e:
             logging.error("Error loading URI: %s", manifest_entry.ref)
             raise e
         finally:
             elapsed_time = time.time() - start_time
-            logging.info("Finished loading URI: %s in %.1fs", manifest_entry.ref, elapsed_time)
+            logging.info(
+                "Finished loading URI: %s in %.1fs", manifest_entry.ref, elapsed_time
+            )
             return path
 
     def store_path(

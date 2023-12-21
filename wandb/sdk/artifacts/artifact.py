@@ -62,6 +62,9 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+import logging
+
+logger = logging.getLogger(__name__)
 
 reset_path = util.vendor_setup()
 
@@ -1708,7 +1711,7 @@ class Artifact:
             _thread_local_api_settings.api_key = api_key
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
-
+            logger.info("*** download entry: %s", entry)
             try:
                 entry.download(root)
             except FileNotFoundError as e:
@@ -1746,6 +1749,7 @@ class Artifact:
                         active_futures.remove(future)
                         if len(active_futures) <= max_backlog:
                             break
+            logger.info("*** Finish downloading threads")
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
@@ -2163,6 +2167,7 @@ class Artifact:
         for entry in self.manifest.entries.values():
             referenced_id = entry._referenced_artifact_id()
             if referenced_id:
+                logger.info("*** there are reference artifacts")
                 assert self._client is not None
                 dep_artifact = self._from_id(referenced_id, client=self._client)
                 assert dep_artifact is not None
