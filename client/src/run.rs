@@ -426,12 +426,13 @@ impl Run {
                         sampled_history_response,
                     )) => sampled_history_response.item,
                     _ => {
-                        tracing::warn!("Unexpected response type");
-                        return;
+                        tracing::debug!("Unexpected response type");
+                        return ();
                     }
                 }
             }
             Some(_) => {
+                print!("Unexpected result type");
                 tracing::warn!("Unexpected result type");
                 return;
             }

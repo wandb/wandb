@@ -30,11 +30,6 @@ pub fn get_core_address() -> String {
         .into_os_string()
         .into_string()
         .expect("Failed to convert path to string");
-    print!("core_cmd: {}", core_cmd);
-    // print if it exists
-    if let Ok(core_cmd) = std::fs::read_to_string(&core_cmd) {
-        print!("IT EXISTS: {}", core_cmd);
-    }
 
     let launcher = Launcher { command: core_cmd };
     let port = launcher.start();
