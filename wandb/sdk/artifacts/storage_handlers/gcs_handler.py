@@ -164,7 +164,6 @@ class GCSHandler(StorageHandler):
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
-        self.versioning_enabled(bucket)
         multi = obj is None
         if multi:
             start_time = time.time()

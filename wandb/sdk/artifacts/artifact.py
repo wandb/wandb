@@ -1687,9 +1687,8 @@ class Artifact:
 
         root = root or self._default_root()
         self._add_download_root(root)
-        nfiles = len(self.manifest.entries)
-        # _, _, bucket = list(self.manifest.entries.values())[0].ref.split("/")
 
+        nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         logger.info(
             "Downloading artifact %s, %s files, %s bytes...",
@@ -1717,6 +1716,7 @@ class Artifact:
             _thread_local_api_settings.api_key = api_key
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
+
             logger.info("*** download entry: %s", entry)
             try:
                 entry.download(root)
