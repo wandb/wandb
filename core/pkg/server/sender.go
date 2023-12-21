@@ -153,11 +153,6 @@ func NewSender(
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
-		// TODO: review this for async file stream
-		// useAsyncFileStreamHeader := map[string]string{
-		// 	"X-WANDB-USE-ASYNC-FILESTREAM": "true",
-		// }
-
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
