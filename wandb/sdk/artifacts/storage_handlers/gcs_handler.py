@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
-
+logger = logging.getLogger("wandb")
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -170,6 +170,7 @@ class GCSHandler(StorageHandler):
 
         start_time = None
         obj = self._client.bucket(bucket).get_blob(key, generation=version)
+        self.versioning_enabled(bucket)
         multi = obj is None
         if multi:
             start_time = time.time()

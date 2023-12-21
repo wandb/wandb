@@ -28,8 +28,8 @@ from typing import (
     cast,
 )
 from urllib.parse import urlparse
-
 import requests
+from google.cloud import storage
 
 import wandb
 from wandb import data_types, env, util
@@ -1688,9 +1688,35 @@ class Artifact:
 
         root = root or self._default_root()
         self._add_download_root(root)
-
         nfiles = len(self.manifest.entries)
+        logger = logging.getLogger("wandb")
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+        )
+
+        _, _ , bucket, blob, file  = list(self.manifest.entries.values())[0].ref.split('/')
+        _client = storage.Client()
+        _bucket = _client.get_bucket(bucket)
+        _bucket_policy = _bucket.get_iam_policy()
+        _files = len(list(_bucket.list_blobs()))
+
+        print(f'file in bucket {str(_bucket.name)}:{str(_files)}')
+        print("Bucket Name:", str(_bucket.name))
+        print("Bucket Location:", str(_bucket.location))
+        print("Bucket Storage Class:", str(_bucket.storage_class))
+        print("Bucket Policy:", str(list(_bucket_policy.items())))
+        print("Bucket Versioning Enabled:", str(_bucket.versioning_enabled))
+        print("Bucket Requester Pays Status:", str(_bucket.requester_pays))
+        print("CORS Configuration:", str(_bucket.cors))
+
+
         size = sum(e.size or 0 for e in self.manifest.entries.values())
+        logger.info(
+            "Downloading artifact %s, %s files, %s bytes...",
+            self.name,
+            nfiles,
+            size,
+        )
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
