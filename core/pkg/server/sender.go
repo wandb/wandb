@@ -127,7 +127,6 @@ func NewSender(
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
 	}
-
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
