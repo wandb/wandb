@@ -1475,9 +1475,7 @@ class SendManager:
 
         def _respond_result(fut: concurrent.futures.Future):
             if fut.exception() is not None:
-                result.response.log_artifact_response.error_message = (
-                    f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}'
-                )
+                result.response.log_artifact_response.error_message = (f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}')
             self._respond_result(result)
 
         if future is not None:
@@ -1524,7 +1522,7 @@ class SendManager:
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return None, None
+                return {}, None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         res, future = saver.save(
