@@ -212,12 +212,12 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases")
+@cli.command(context_settings=CONTEXT, help="Login to Weights & Biases. Use the --relogin and --host options when connecting to a Dedicated Cloud or Self-managed deployment.")
 @click.argument("key", nargs=-1)
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
-@click.option("--host", default=None, help="Login to a specific instance of W&B")
+@click.option("--host", default=None, help="Login to a specific instance of W&B. This is needed when connecting to a Dedicated Cloud or Self-managed deployment.")
 @click.option(
-    "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
+    "--relogin", default=None, is_flag=True, help="Force relogin if already logged in, especially when using different API keys across environments."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
