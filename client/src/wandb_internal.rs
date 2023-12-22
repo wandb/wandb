@@ -945,7 +945,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -996,6 +996,10 @@ pub mod record {
         LinkArtifact(super::LinkArtifactRecord),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        StreamTable(super::StreamTableRecord),
+        #[prost(message, tag = "27")]
+        StreamData(super::StreamDataRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1040,7 +1044,7 @@ pub struct Result {
     pub uuid: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<ResultInfo>,
-    #[prost(oneof = "result::ResultType", tags = "17, 18, 20, 21, 22, 23, 100")]
+    #[prost(oneof = "result::ResultType", tags = "17, 18, 20, 21, 22, 23, 25, 100")]
     pub result_type: ::core::option::Option<result::ResultType>,
 }
 /// Nested message and enum types in `Result`.
@@ -1060,6 +1064,8 @@ pub mod result {
         OutputResult(super::OutputResult),
         #[prost(message, tag = "23")]
         ConfigResult(super::ConfigResult),
+        #[prost(message, tag = "25")]
+        StreamTableResult(super::StreamTableResult),
         /// response field does not belong here longterm
         #[prost(message, tag = "100")]
         Response(super::Response),
@@ -1207,6 +1213,54 @@ pub mod error_info {
                 _ => None,
             }
         }
+    }
+}
+///
+/// StreamTableRecord
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamTableRecord {
+    #[prost(string, tag = "1")]
+    pub run_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub table: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub entity: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub project: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamTableResult {}
+///
+/// StreamDataRecord
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamDataRecord {
+    #[prost(map = "string, message", tag = "1")]
+    pub items: ::std::collections::HashMap<::prost::alloc::string::String, StreamValue>,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StreamValue {
+    #[prost(oneof = "stream_value::StreamValueType", tags = "1, 2, 3")]
+    pub stream_value_type: ::core::option::Option<stream_value::StreamValueType>,
+}
+/// Nested message and enum types in `StreamValue`.
+pub mod stream_value {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum StreamValueType {
+        #[prost(int64, tag = "1")]
+        Int64Value(i64),
+        #[prost(double, tag = "2")]
+        DoubleValue(f64),
+        #[prost(string, tag = "3")]
+        StringValue(::prost::alloc::string::String),
     }
 }
 ///
