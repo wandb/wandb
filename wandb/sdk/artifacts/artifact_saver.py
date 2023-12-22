@@ -245,15 +245,25 @@ class ArtifactSaver:
             result_future=commit_result,
         )
 
-        def done_callback(fut: concurrent.futures.Future) -> None:
-            step_prepare.shutdown()
-            if fut.exception() is None and finalize and use_after_commit:
-                self._api.use_artifact(artifact_id)
+        saver_future: concurrent.futures.Future[None] = concurrent.futures.Future()
 
-        # do not wait for the commit to finish, return the future so callers can decide what to do
-        commit_result.add_done_callback(done_callback)
+        # do not wait for the commit to finish. Instead, once the commit is finished, set the result in the
+        # a future returned by this function. This allows the caller to decide if they should
+        # synchronously wait for the result of the saver or let it run async in the background
+        def on_commit_result(fut: concurrent.futures.Future) -> None:
+            try:
+                res = fut.result()
+                if finalize and use_after_commit:
+                    self._api.use_artifact(artifact_id)
+                saver_future.set_result(res)
+            except Exception as e:
+                saver_future.set_exception(e)
+            finally:
+                step_prepare.shutdown()
 
-        return self._server_artifact, commit_result
+        commit_result.add_done_callback(on_commit_result(commit_result))
+
+        return self._server_artifact, saver_future
 
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:
