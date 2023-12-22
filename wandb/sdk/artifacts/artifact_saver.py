@@ -261,7 +261,7 @@ class ArtifactSaver:
             finally:
                 step_prepare.shutdown()
 
-        commit_result.add_done_callback(on_commit_result(commit_result))
+        commit_result.add_done_callback(on_commit_result)
 
         return self._server_artifact, saver_future
 
