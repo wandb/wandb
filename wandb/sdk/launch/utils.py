@@ -1,5 +1,6 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import asyncio
+import json
 import logging
 import os
 import platform
@@ -17,8 +18,9 @@ from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
+from wandb.sdk.wandb_config import Config
 
 from .builder.templates._wandb_bootstrap import (
     FAILED_PACKAGES_POSTFIX,
@@ -54,6 +56,26 @@ API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
+AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
+    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+)
+
+ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
+    r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$"
+)
+
+GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
+    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+    re.IGNORECASE,
+)
+
+S3_URI_RE = re.compile(r"s3://([^/]+)(/(.*))?")
+GCS_URI_RE = re.compile(r"gs://([^/]+)(?:/(.*))?")
+AZURE_BLOB_REGEX = re.compile(
+    r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
+)
+
+
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 
 LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
@@ -64,6 +86,42 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
+
+
+def load_wandb_config() -> Config:
+    """Load wandb config from WANDB_CONFIG environment variable(s).
+
+    The WANDB_CONFIG environment variable is a json string that can contain
+    multiple config keys. The WANDB_CONFIG_[0-9]+ environment variables are
+    used for environments where there is a limit on the length of environment
+    variables. In that case, we shard the contents of WANDB_CONFIG into
+    multiple environment variables numbered from 0.
+
+    Returns:
+        A dictionary of wandb config values.
+    """
+    config_str = os.environ.get("WANDB_CONFIG")
+    if config_str is None:
+        config_str = ""
+        idx = 0
+        while True:
+            chunk = os.environ.get(f"WANDB_CONFIG_{idx}")
+            if chunk is None:
+                break
+            config_str += chunk
+            idx += 1
+        if idx < 1:
+            raise LaunchError(
+                "No WANDB_CONFIG or WANDB_CONFIG_[0-9]+ environment variables found"
+            )
+    wandb_config = Config()
+    try:
+        env_config = json.loads(config_str)
+    except json.JSONDecodeError as e:
+        raise LaunchError(f"Failed to parse WANDB_CONFIG: {e}") from e
+
+    wandb_config.update(env_config)
+    return wandb_config
 
 
 def event_loop_thread_exec(func: Any) -> Any:
@@ -146,10 +204,7 @@ def set_project_entity_defaults(
             config_project = launch_config.get("project")
         project = config_project or source_uri or ""
     if entity is None:
-        config_entity = None
-        if launch_config:
-            config_entity = launch_config.get("entity")
-        entity = config_entity or api.default_entity
+        entity = get_default_entity(api, launch_config)
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
@@ -157,6 +212,13 @@ def set_project_entity_defaults(
         f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
     )
     return project, entity
+
+
+def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
+    config_entity = None
+    if launch_config:
+        config_entity = launch_config.get("entity")
+    return config_entity or api.default_entity
 
 
 def construct_launch_spec(
@@ -466,25 +528,23 @@ def _make_refspec_from_version(version: Optional[str]) -> List[str]:
     ]
 
 
-def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> str:
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[str]:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
-    checks out commit ``version`` (or defaults to the head commit of the repository's
-    master branch if version is unspecified). Assumes authentication parameters are
+    checks out commit ``version``. Assumes authentication parameters are
     specified by the environment, e.g. by a Git credential helper.
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
 
     _logger.info("Fetching git repo")
-    ref = GitHubReference.parse(uri)
+    ref = GitReference(uri, version)
     if ref is None:
         raise LaunchError(f"Unable to parse git uri: {uri}")
-    if version:
-        ref.update_ref(version)
     ref.fetch(dst_dir)
-    assert version is not None or ref.ref is not None or ref.default_branch is not None
-    return version or ref.ref or ref.default_branch  # type: ignore
+    if version is None:
+        version = ref.ref
+    return version
 
 
 def merge_parameters(
@@ -738,3 +798,37 @@ def recursive_macro_sub(source: Any, sub_dict: Dict[str, Optional[str]]) -> Any:
         }
     else:
         return source
+
+
+def fetch_and_validate_template_variables(
+    runqueue: Any, fields: dict
+) -> Dict[str, Any]:
+    template_variables = {}
+
+    variable_schemas = {}
+    for tv in runqueue.template_variables:
+        variable_schemas[tv["name"]] = json.loads(tv["schema"])
+
+    for field in fields:
+        field_parts = field.split("=")
+        if len(field_parts) != 2:
+            raise LaunchError(
+                f'--set-var value must be in the format "--set-var key1=value1", instead got: {field}'
+            )
+        key, val = field_parts
+        if key not in variable_schemas:
+            raise LaunchError(
+                f"Queue {runqueue.name} does not support overriding {key}."
+            )
+        schema = variable_schemas.get(key, {})
+        field_type = schema.get("type")
+        try:
+            if field_type == "integer":
+                val = int(val)
+            elif field_type == "number":
+                val = float(val)
+
+        except ValueError:
+            raise LaunchError(f"Value for {key} must be of type {field_type}.")
+        template_variables[key] = val
+    return template_variables

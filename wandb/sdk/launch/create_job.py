@@ -10,7 +10,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.utils import _is_git_uri
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
@@ -109,15 +109,19 @@ def _create_job(
 
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
-    metadata, requirements = _make_metadata_for_partial_job(
-        job_type=job_type,
-        tempdir=tempdir,
-        git_hash=git_hash,
-        runtime=runtime,
-        path=path,
-        entrypoint=entrypoint,
-    )
-    if not metadata:
+    try:
+        metadata, requirements = _make_metadata_for_partial_job(
+            job_type=job_type,
+            tempdir=tempdir,
+            git_hash=git_hash,
+            runtime=runtime,
+            path=path,
+            entrypoint=entrypoint,
+        )
+        if not metadata:
+            return None, "", []
+    except Exception as e:
+        wandb.termerror(f"Error creating job: {e}")
         return None, "", []
 
     _dump_metadata_and_requirements(
@@ -146,7 +150,7 @@ def _create_job(
             job_builder=job_builder,
             path=path,
             entrypoint=entrypoint,
-            run=run,
+            run=run,  # type: ignore
             entity=entity,
             project=project,
             name=name,
@@ -177,7 +181,7 @@ def _create_job(
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
-        run_name=run.id,  # run will be deleted after creation
+        run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
         is_user_created=True,
@@ -193,12 +197,12 @@ def _create_job(
         # is the same as latestArtifact, so no changes detected
         action = "Updated"
 
-    run.log_artifact(artifact, aliases=aliases)
+    run.log_artifact(artifact, aliases=aliases)  # type: ignore
     artifact.wait()
-    run.finish()
+    run.finish()  # type: ignore
 
     # fetch, then delete hidden run
-    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
+    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")  # type: ignore
     _run.delete()
 
     return artifact, action, aliases
@@ -272,26 +276,21 @@ def _create_repo_metadata(
         wandb.termerror("Path must be a git URI")
         return None
 
-    ref = GitHubReference.parse(path)
+    ref = GitReference(path, git_hash)
     if not ref:
         wandb.termerror("Could not parse git URI")
         return None
 
     ref.fetch(tempdir)
 
-    commit = git_hash
+    commit = ref.commit_hash
     if not commit:
         if not ref.commit_hash:
             wandb.termerror("Could not find git commit hash")
             return None
         commit = ref.commit_hash
 
-    local_dir = os.path.join(tempdir, ref.directory or "")
-    src_dir = ref.directory or ""
-    filename = ref.file
-    if not filename and path.endswith(".py"):
-        filename = os.path.basename(path)
-
+    local_dir = os.path.join(tempdir, ref.path or "")
     python_version = runtime
     if not python_version:
         if os.path.exists(os.path.join(local_dir, "runtime.txt")):
@@ -307,31 +306,10 @@ def _create_repo_metadata(
     python_version = _clean_python_version(python_version)
 
     # check if entrypoint is valid
-    if entrypoint:
-        if not os.path.exists(os.path.join(local_dir, entrypoint)):
-            wandb.termerror(f"Invalid entrypoint: {entrypoint}")
-            return None
-        # prepend working dir (specified in path)
-        entrypoint = os.path.join(src_dir, entrypoint)
-    elif not filename:
-        if path.endswith(".py"):
-            wandb.termerror("Invalid entrypoint provided in path")
-        else:
-            wandb.termerror(
-                "Invalid entrypoint. Provide an entrypoint in the path or use -E"
-            )
+    assert entrypoint is not None
+    if not os.path.exists(os.path.join(local_dir, entrypoint)):
+        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
         return None
-    else:  # try to make one from the path, assumes working dir is parent of file
-        rel_entrypoint = os.path.join(src_dir, filename)
-        if rel_entrypoint.startswith("/"):
-            rel_entrypoint = rel_entrypoint[1:]
-
-        if not os.path.exists(os.path.join(tempdir, rel_entrypoint)):
-            wandb.termerror(
-                f"Entrypoint {rel_entrypoint} not valid, specify one in the path or use -E"
-            )
-            return None
-        entrypoint = rel_entrypoint
 
     # check if requirements.txt exists
     # start at the location of the python file and recurse up to the git root
@@ -343,11 +321,7 @@ def _create_repo_metadata(
         req_dir = os.path.dirname(req_dir)
 
     if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
-        wandb.termerror(
-            "Could not find requirements.txt file in git repo at "
-            f"{os.path.join(os.path.dirname(path), 'requirements.txt')} "
-            "or parent directories."
-        )
+        wandb.termerror(f"Could not find requirements.txt file in git repo at {path}")
         return None
 
     wandb.termlog(
@@ -359,7 +333,6 @@ def _create_repo_metadata(
             "commit": commit,
             "remote": ref.url,
         },
-        "root": ref.repo,
         "codePathLocal": entrypoint,  # not in git context, optionally also set local
         "codePath": entrypoint,
         "entrypoint": [f"python{python_version}", entrypoint],
@@ -437,7 +410,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
-        settings=settings,
+        settings=settings,  # type: ignore
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
@@ -500,7 +473,7 @@ def _make_code_artifact(
     )
     run.log_artifact(code_artifact)
     code_artifact.wait()
-    job_builder._handle_server_artifact(res, code_artifact)
+    job_builder._handle_server_artifact(res, code_artifact)  # type: ignore
 
     # code artifacts have "code" prefix, remove it and alias
     if not name:

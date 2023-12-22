@@ -94,7 +94,7 @@ def test_lazy_artifact_passthrough(user):
         testable_methods_valid = ["finalize", "is_draft"]
         # These methods should be valid only after logging
         testable_methods_invalid = [
-            "get_path",
+            "get_entry",
             "get",
             "download",
             "checkout",
@@ -104,7 +104,7 @@ def test_lazy_artifact_passthrough(user):
             "logged_by",
             "json_encode",
         ]
-        params = {"get_path": ["t1.table.json"], "get": ["t1"], "delete": [True]}
+        params = {"get_entry": ["t1.table.json"], "get": ["t1"], "delete": [True]}
 
         for valid_getter in testable_getters_valid:
             _ = getattr(art, valid_getter)
@@ -179,14 +179,14 @@ def test_reference_download(user):
 
     with wandb.init() as run:
         artifact = run.use_artifact("test_reference_download:latest")
-        entry = artifact.get_path("StarWars3.wav")
+        entry = artifact.get_entry("StarWars3.wav")
         entry.download()
         assert (
             entry.ref_target()
             == "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
         )
 
-        entry = artifact.get_path("file1.txt")
+        entry = artifact.get_entry("file1.txt")
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()

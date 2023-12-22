@@ -18,7 +18,6 @@ def worker(initial: int):
 
 def main():
     mp.set_start_method("spawn")
-    wandb.require("service")
     with ThreadPoolExecutor(max_workers=4) as e:
         e.map(worker, [12, 2, 40, 17])
 

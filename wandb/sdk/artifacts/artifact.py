@@ -37,8 +37,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
@@ -62,6 +62,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -147,7 +148,6 @@ class Artifact:
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
         self._save_handle: Optional["MailboxHandle"] = None
-        self._dependent_artifacts: Set[Artifact] = set()
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -185,14 +185,14 @@ class Artifact:
         self._final: bool = False
 
         # Cache.
-        artifact_cache[self._client_id] = self
+        artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = artifact_cache.get(artifact_id)
+        artifact = artifact_instance_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -320,7 +320,7 @@ class Artifact:
         # Cache.
 
         assert artifact.id is not None
-        artifact_cache[artifact.id] = artifact
+        artifact_instance_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
@@ -737,7 +737,7 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=project or self._source_project,
                 job_type="auto",
@@ -1288,7 +1288,7 @@ class Artifact:
 
         Arguments:
             uri: The URI path of the reference to add. Can be an object returned from
-                Artifact.get_path to store a reference to another artifact's entry.
+                Artifact.get_entry to store a reference to another artifact's entry.
             name: The path within the artifact to place the contents of this reference
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
@@ -1519,6 +1519,13 @@ class Artifact:
             self.manifest.remove_entry(entry)
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
+        """Deprecated, use get_entry(name) instead."""
+        termwarn(
+            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        )
+        return self.get_entry(name)
+
+    def get_entry(self, name: StrPath) -> ArtifactManifestEntry:
         """Get the entry with the given name.
 
         Arguments:
@@ -1540,13 +1547,13 @@ class Artifact:
             # Run using the artifact
             with wandb.init() as r:
                 artifact = r.use_artifact("my_dataset:latest")
-                path = artifact.get_path("file.txt")
+                entry = artifact.get_entry("file.txt")
 
                 # Can now download 'file.txt' directly:
-                path.download()
+                entry.download()
             ```
         """
-        self._ensure_logged("get_path")
+        self._ensure_logged("get_entry")
 
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
@@ -1603,10 +1610,10 @@ class Artifact:
         # `artifact.download`. In the future, we should refactor the deserialization
         # pattern such that this special case is not needed.
         if wb_class == wandb.Table:
-            self.download(recursive=True)
+            self.download()
 
         # Get the ArtifactManifestEntry
-        item = self.get_path(entry.path)
+        item = self.get_entry(entry.path)
         item_path = item.download()
 
         # Load the object from the JSON blob
@@ -1667,7 +1674,6 @@ class Artifact:
     def download(
         self,
         root: Optional[str] = None,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
@@ -1678,8 +1684,6 @@ class Artifact:
 
         Arguments:
             root: The directory in which to download this artifact's files.
-            recursive: If true, then all dependent artifacts are eagerly downloaded.
-                Otherwise, the dependent artifacts are downloaded as needed.
 
         Returns:
             The path to the downloaded contents.
@@ -1692,77 +1696,66 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        if wandb.run is None:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ):
-                return self._run_artifact_download(
+        if get_core_path() != "":
+            if wandb.run is None:
+                with wandb.init(  # type: ignore
+                    entity=self._source_entity,
+                    project=self._source_project,
+                    job_type="auto",
+                    settings=wandb.Settings(silent="true"),
+                ):
+                    return self._download_using_core(
+                        root=root,
+                        allow_missing_references=allow_missing_references,
+                    )
+            else:
+                return self._download_using_core(
                     root=root,
-                    recursive=recursive,
                     allow_missing_references=allow_missing_references,
                 )
-        else:
-            return self._run_artifact_download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
+        return self._download(
+            root=root,
+            allow_missing_references=allow_missing_references,
+        )
 
-    def _run_artifact_download(
+    def _download_using_core(
         self,
         root: str,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if run._settings._require_nexus:
-            if not run._backend or not run._backend.interface:
-                raise NotImplementedError
-            if run._settings._offline:
-                raise NotImplementedError("cannot download in offline mode")
-            handle = run._backend.interface.deliver_download_artifact(
-                self.qualified_name,
-                root,
-                recursive,
-                allow_missing_references,
-            )
-            # Start the download process in the user process too, to handle reference downloads
-            self._download(
-                root=root,
-                recursive=recursive,
-                allow_missing_references=allow_missing_references,
-            )
-            result = handle.wait(timeout=-1)
-            if result is None:
-                handle.abandon()
-            assert result is not None
-            response = result.response.download_artifact_response
-            if response.error_message:
-                raise ValueError(
-                    f"Error downloading artifact: {response.error_message}"
-                )
-            download_path = response.file_download_path
-            return FilePathStr(download_path)
-        return self._download(
+        if not run._backend or not run._backend.interface:
+            raise NotImplementedError
+        if run._settings._offline:
+            raise NotImplementedError("cannot download in offline mode")
+        assert self.id is not None
+        handle = run._backend.interface.deliver_download_artifact(
+            self.id,
+            root,
+            allow_missing_references,
+        )
+        # Start the download process in the user process too, to handle reference downloads
+        self._download(
             root=root,
-            recursive=recursive,
             allow_missing_references=allow_missing_references,
         )
+        result = handle.wait(timeout=-1)
+        if result is None:
+            handle.abandon()
+        assert result is not None
+        response = result.response.download_artifact_response
+        if response.error_message:
+            raise ValueError(f"Error downloading artifact: {response.error_message}")
+        return FilePathStr(root)
 
     def _download(
         self,
         root: str,
-        recursive: bool = False,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in nexus
-        require_nexus = False
-        if wandb.run is not None:
-            require_nexus = wandb.run._settings._require_nexus
+        # todo: remove once artifact reference downloads are supported in core
+        require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1813,9 +1806,9 @@ class Artifact:
                 has_next_page = attrs["pageInfo"]["hasNextPage"]
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
-                    entry = self.get_path(edge["node"]["name"])
-                    if require_nexus and entry.ref is None:
-                        # Handled by nexus
+                    entry = self.get_entry(edge["node"]["name"])
+                    if require_core and entry.ref is None:
+                        # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
@@ -1830,10 +1823,6 @@ class Artifact:
             # Check for errors.
             for future in concurrent.futures.as_completed(active_futures):
                 future.result()
-
-        if recursive:
-            for dependent_artifact in self._dependent_artifacts:
-                dependent_artifact.download()
 
         if log:
             now = datetime.now()
@@ -1906,7 +1895,7 @@ class Artifact:
                 full_path = os.path.join(dirpath, file)
                 artifact_path = os.path.relpath(full_path, start=root)
                 try:
-                    self.get_path(artifact_path)
+                    self.get_entry(artifact_path)
                 except KeyError:
                     # File is not part of the artifact, remove it.
                     os.remove(full_path)
@@ -1938,7 +1927,7 @@ class Artifact:
                 full_path = os.path.join(dirpath, file)
                 artifact_path = os.path.relpath(full_path, start=root)
                 try:
-                    self.get_path(artifact_path)
+                    self.get_entry(artifact_path)
                 except KeyError:
                     raise ValueError(
                         "Found file {} which is not a member of artifact {}".format(
@@ -1978,10 +1967,10 @@ class Artifact:
         if len(self.manifest.entries) > 1:
             raise ValueError(
                 "This artifact contains more than one file, call `.download()` to get "
-                'all files or call .get_path("filename").download()'
+                'all files or call .get_entry("filename").download()'
             )
 
-        return self.get_path(list(self.manifest.entries)[0]).download(root)
+        return self.get_entry(list(self.manifest.entries)[0]).download(root)
 
     def files(
         self, names: Optional[List[str]] = None, per_page: int = 50
@@ -2088,7 +2077,7 @@ class Artifact:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
         if wandb.run is None:
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",
@@ -2241,13 +2230,6 @@ class Artifact:
             self._manifest = ArtifactManifest.from_manifest_json(
                 json.loads(util.ensure_text(request.content))
             )
-        for entry in self.manifest.entries.values():
-            referenced_id = entry._referenced_artifact_id()
-            if referenced_id:
-                assert self._client is not None
-                dep_artifact = self._from_id(referenced_id, client=self._client)
-                assert dep_artifact is not None
-                self._dependent_artifacts.add(dep_artifact)
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:

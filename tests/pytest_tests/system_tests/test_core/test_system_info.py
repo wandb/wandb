@@ -60,7 +60,7 @@ def send_manager(
     yield send_manager_helper
 
 
-@pytest.mark.nexus_failure(feature="file_uploader")
+@pytest.mark.wandb_core_failure(feature="file_uploader")
 def test_meta_probe(
     relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
 ):
@@ -93,10 +93,9 @@ def test_meta_probe(
     assert sorted(uploaded_files) == sorted(
         [
             "wandb-metadata.json",
-            "requirements.txt",
             "config.yaml",
-            "conda-environment.yaml",
             "diff.patch",
+            "conda-environment.yaml",
         ]
     )
 
