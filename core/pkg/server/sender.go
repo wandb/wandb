@@ -791,7 +791,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
+		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 	// TODO: handle invalid alert levels
@@ -880,7 +880,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		if strings.HasPrefix(file.GetPath(), "media") {
 			s.sendFile(file.GetPath(), filetransfer.MediaFile)
 		} else {
-			s.sendFile(file.GetPath(), filetransfer.OtherFile)
+			s.sendFile(file.GetPath(), filetransfer.FileType(file.Type))
 		}
 	}
 }
@@ -970,7 +970,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
-	artifactID, err := saver.Save()
+	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {

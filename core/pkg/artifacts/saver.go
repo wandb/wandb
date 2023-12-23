@@ -112,7 +112,7 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string) error {
+func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, outChan chan<- *service.Record) error {
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
@@ -194,6 +194,29 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				task.AddCompletionCallback(func(task *filetransfer.Task) {
 					taskResultsChan <- TaskResult{task, name}
 				})
+				task.AddCompletionCallback(
+					func(*filetransfer.Task) {
+						fileCounts := &service.FileCounts{
+							ArtifactCount: 1,
+						}
+						request := &service.Request{
+							RequestType: &service.Request_FileTransferInfo{
+								FileTransferInfo: &service.FileTransferInfoRequest{
+									Type:       service.FileTransferInfoRequest_Upload,
+									Path:       *entry.LocalPath,
+									Size:       task.Size,
+									Processed:  task.Size,
+									FileCounts: fileCounts,
+								},
+							},
+						}
+
+						rec := &service.Record{
+							RecordType: &service.Record_Request{Request: request},
+						}
+						outChan <- rec
+					},
+				)
 				as.FileTransferManager.AddTask(task)
 			}
 		}
@@ -249,7 +272,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
+func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, outChan chan<- *service.Record) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
 		Type:     filetransfer.UploadTask,
@@ -261,6 +284,30 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 	task.AddCompletionCallback(func(task *filetransfer.Task) {
 		resultChan <- task
 	})
+	task.AddCompletionCallback(
+		func(*filetransfer.Task) {
+			fileCounts := &service.FileCounts{
+				ArtifactCount: 1,
+			}
+			request := &service.Request{
+				RequestType: &service.Request_FileTransferInfo{
+					FileTransferInfo: &service.FileTransferInfoRequest{
+						Type:       service.FileTransferInfoRequest_Upload,
+						Path:       manifestFile,
+						Size:       task.Size,
+						Processed:  task.Size,
+						FileCounts: fileCounts,
+					},
+				},
+			}
+
+			rec := &service.Record{
+				RecordType: &service.Record_Request{Request: request},
+			}
+			outChan <- rec
+		},
+	)
+
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
@@ -285,7 +332,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -332,7 +379,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
+	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
@@ -350,7 +397,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
-	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders)
+	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
