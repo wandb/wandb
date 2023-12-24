@@ -1,6 +1,8 @@
 package watcher
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 
 	fw "github.com/radovskyb/watcher"
@@ -36,7 +38,7 @@ func New(opts ...WatcherServiceOption) *WatcherService {
 func (w *WatcherService) handleEvent(event fw.Event) error {
 	w.logger.Debug("got event", "event", event)
 	if fn, ok := w.registry.events[event.Path]; ok {
-		return fn()
+		return fn(event)
 	}
 	return nil
 }
@@ -62,7 +64,31 @@ func (w *WatcherService) watch() error {
 	}
 }
 
+func (w *WatcherService) manualTriggerEvent(event fw.Event) error {
+	path := event.Name()
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	if fn, ok := w.registry.events[absPath]; ok {
+		return fn(event)
+	}
+
+	if fn, ok := w.registry.events[path]; ok {
+		fnAbs := func(event fw.Event) error {
+			event.Path = path
+			return fn(event)
+		}
+		w.registry.register(absPath, fnAbs)
+		return fnAbs(event)
+	}
+	return nil
+}
+
 func (w *WatcherService) Start() error {
+	w.registry.register("-", w.manualTriggerEvent)
+
 	w.wg.Add(1)
 	go func() {
 		w.logger.Debug("starting watcher")
@@ -89,9 +115,18 @@ func (w *WatcherService) Close() {
 	w.logger.Debug("watcher closed")
 }
 
-func (w *WatcherService) Add(path string, fn func() error) error {
+func (w *WatcherService) Add(path string, fn func(fw.Event) error) error {
 	if err := w.watcher.Add(path); err != nil {
 		return err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
+		e := &EventFileInfo{FileInfo: info, name: path}
+		w.watcher.TriggerEvent(fw.Create, e)
 	}
 	w.registry.register(path, fn)
 
@@ -99,9 +134,9 @@ func (w *WatcherService) Add(path string, fn func() error) error {
 }
 
 type registry struct {
-	events map[string]func() error
+	events map[string]func(fw.Event) error
 }
 
-func (r *registry) register(name string, fn func() error) {
+func (r *registry) register(name string, fn func(fw.Event) error) {
 	r.events[name] = fn
 }
