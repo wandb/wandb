@@ -289,7 +289,7 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 						RequestType: &service.Request_FileTransferInfo{
 							FileTransferInfo: &service.FileTransferInfoRequest{
 								Type:       service.FileTransferInfoRequest_Upload,
-								Path:       manifestFile,
+								Path:       task.Path,
 								Size:       task.Size,
 								Processed:  task.Size,
 								FileCounts: &service.FileCounts{ArtifactCount: 1},
