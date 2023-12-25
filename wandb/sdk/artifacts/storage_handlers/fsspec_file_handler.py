@@ -67,7 +67,9 @@ class FsspecFileHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        padded_checksum = manifest_entry.digest + '=' * (4 - len(manifest_entry.digest) % 4)
+        padded_checksum = manifest_entry.digest + "=" * (
+            4 - len(manifest_entry.digest) % 4
+        )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(padded_checksum),  # TODO(spencerpearson): unsafe cast
