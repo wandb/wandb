@@ -18,14 +18,16 @@ type FileHandler struct {
 	watcher    *watcher.Watcher
 	logger     *observability.CoreLogger
 	settings   *service.Settings
+	outChan    chan *service.Record
 }
 
-func NewFileHandler(logger *observability.CoreLogger, settings *service.Settings, watcherOutChan chan *service.Record) *FileHandler {
+func NewFileHandler(logger *observability.CoreLogger, settings *service.Settings, outChan chan *service.Record) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
-		watcher:    watcher.NewWatcher(logger, watcherOutChan),
+		watcher:    watcher.New(watcher.WithLogger(logger)),
 		logger:     logger,
 		settings:   settings,
+		outChan:    outChan,
 	}
 }
 
@@ -122,7 +124,24 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
 			}
-			err := fh.watcher.Add(item.Path)
+			err := fh.watcher.Add(item.Path, func(event watcher.Event) error {
+				if event.IsCreate() || event.IsWrite() {
+					rec := &service.Record{
+						RecordType: &service.Record_Files{
+							Files: &service.FilesRecord{
+								Files: []*service.FilesItem{
+									{
+										Policy: service.FilesItem_NOW,
+										Path:   item.Path,
+									},
+								},
+							},
+						},
+					}
+					fh.outChan <- rec
+				}
+				return nil
+			})
 			if err != nil {
 				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
 				continue
