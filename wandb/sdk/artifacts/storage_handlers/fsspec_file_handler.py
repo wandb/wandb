@@ -89,7 +89,7 @@ class FsspecFileHandler(StorageHandler):
                 "fsspec file reference: Failed to find file at path %s" % fs_path
             )
 
-        md5 = fs.checksum(fs_path)
+        md5 = str(fs.checksum(fs_path))
         if md5 != manifest_entry.digest:
             raise ValueError(
                 f"fsspec file reference: Digest mismatch for path {manifest_entry.path}: expected {manifest_entry.digest} but found {md5}"
@@ -158,7 +158,7 @@ class FsspecFileHandler(StorageHandler):
                         path=relative_path,
                         ref=FilePathStr(os.path.join(path, relative_path)),
                         size=fs.info(physical_path)["size"],
-                        digest=fs.checksum(physical_path),
+                        digest=str(md5(physical_path)),
                     )
                     entries.append(entry)
             if checksum:
@@ -169,7 +169,7 @@ class FsspecFileHandler(StorageHandler):
                 path=name,
                 ref=path,
                 size=fs.info(fs_path)["size"],
-                digest=md5(fs_path),
+                digest=str(md5(fs_path)),
             )
             entries.append(entry)
         else:
