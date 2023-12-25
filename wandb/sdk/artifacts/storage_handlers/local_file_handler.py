@@ -37,8 +37,7 @@ class LocalFileHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
-        if manifest_entry.ref is None:
-            raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
+        assert manifest_entry.ref is not None
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
             raise ValueError(
