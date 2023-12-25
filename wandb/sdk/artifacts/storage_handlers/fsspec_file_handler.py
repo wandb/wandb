@@ -93,6 +93,16 @@ class FsspecFileHandler(StorageHandler):
 
         return path
 
+    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
+        url = urlparse(uri)
+        query = dict(parse_qsl(url.query))
+
+        bucket = url.netloc
+        key = url.path[1:]  # strip leading slash
+        version = query.get("versionId")
+
+        return bucket, key, version
+
     def store_path(
         self,
         artifact: "Artifact",
