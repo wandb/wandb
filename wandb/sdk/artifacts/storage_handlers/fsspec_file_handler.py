@@ -1,9 +1,10 @@
 """Storage handler utilizing fsspec."""
 import os
 import time
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
-from urllib.parse import ParseResult
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple, Union
+from urllib.parse import ParseResult, parse_qsl, urlparse
 
+from wandb import util
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -102,15 +103,16 @@ class FsspecFileHandler(StorageHandler):
 
         return path
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
+    def _parse_uri(self, uri: str) -> Tuple[str, str, str, Optional[str]]:
         url = urlparse(uri)
         query = dict(parse_qsl(url.query))
 
         bucket = url.netloc
         key = url.path[1:]  # strip leading slash
         version = query.get("versionId")
+        schema = url.scheme
 
-        return bucket, key, version
+        return schema, bucket, key, version
 
     def store_path(
         self,
@@ -122,7 +124,19 @@ class FsspecFileHandler(StorageHandler):
     ) -> Sequence[ArtifactManifestEntry]:
         self.init_fsspec()
         assert self._fsspec is not None  # mypy: unwraps optionality
+
+        # The passed in path might have query string parameters.
+        # We only need to care about a subset, like version, when
+        # parsing. Once we have that, we can store the rest of the
+        # metadata in the artifact entry itself.
+        schema, bucket, key, _ = self._parse_uri(path)
+        path = URIStr(f"{schema}://{bucket}/{key}")
+
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
+        if not checksum:
+            entry_path = name or (key if key != "" else bucket)
+            return [ArtifactManifestEntry(path=entry_path, ref=path, digest=path)]
+
         # We have a single file or directory
         entries = []
         fs, fs_path = self._fsspec.core.url_to_fs(path)
