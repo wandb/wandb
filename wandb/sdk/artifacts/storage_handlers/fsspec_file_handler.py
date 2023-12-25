@@ -11,7 +11,7 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_string
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
     import fsspec  # type: ignore
@@ -171,8 +171,8 @@ class FsspecFileHandler(StorageHandler):
                         relative_path = os.path.join(name, relative_path)
 
                     entry = ArtifactManifestEntry(
-                        path=relative_path,
-                        ref=FilePathStr(os.path.join(path, relative_path)),
+                        path=LogicalPath(relative_path),
+                        ref=FilePathStr(f"{path}/{relative_path}"),
                         size=fs.info(physical_path)["size"],
                         digest=str(md5(physical_path)),
                     )
