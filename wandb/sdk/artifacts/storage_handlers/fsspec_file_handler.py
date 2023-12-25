@@ -82,6 +82,13 @@ class FsspecFileHandler(StorageHandler):
         if hit:
             return path
 
+        fs, fs_path = self._fsspec.core.url_to_fs(str(manifest_entry.ref))
+
+        if not fs.exists(fs_path):
+            raise FileNotFoundError(
+                "fsspec file reference: Failed to find file at path %s" % fs_path
+            )
+
         md5 = fs.checksum(fs_path)
         if md5 != manifest_entry.digest:
             raise ValueError(

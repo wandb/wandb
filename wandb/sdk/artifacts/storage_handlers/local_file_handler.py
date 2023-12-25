@@ -40,7 +40,7 @@ class LocalFileHandler(StorageHandler):
         assert manifest_entry.ref is not None
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
-            raise ValueError(
+            raise FileNotFoundError(
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
