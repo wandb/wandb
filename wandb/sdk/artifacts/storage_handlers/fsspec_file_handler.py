@@ -96,7 +96,9 @@ class FsspecFileHandler(StorageHandler):
             )
 
         filesystem.mkdir_exists_ok(os.path.dirname(path))
-        fs.get_file(fs_path, path)
+
+        with cache_open() as f:
+            fs.get_file(fs_path, f.name)
 
         return path
 
