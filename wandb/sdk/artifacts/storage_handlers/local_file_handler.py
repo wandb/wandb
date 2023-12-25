@@ -85,7 +85,6 @@ class LocalFileHandler(StorageHandler):
             )
 
         if os.path.isdir(local_path):
-            i = 0
             start_time = time.time()
             if checksum:
                 termlog(
@@ -95,8 +94,7 @@ class LocalFileHandler(StorageHandler):
                 )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
-                    i += 1
-                    if i > max_objects:
+                    if len(entries) == max_objects:
                         raise ValueError(
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
