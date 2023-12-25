@@ -21,18 +21,29 @@ if TYPE_CHECKING:
 class FsspecFileHandler(StorageHandler):
     """Handles a variety of different storage solutions."""
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         """Track files or directories on a variety of filesystem.
 
         For now, this handler supports oss (Alibaba Object Storage System)
         A list of all available options can be found under the following link:
         https://github.com/fsspec/filesystem_spec/blob/master/fsspec/registry.py
         """
-        self._scheme = scheme or "oss"
+        self._fsspec = None
         self._cache = get_artifact_file_cache()
 
+    def init_fsspec(self) -> "fsspec":
+        if self._fsspec is not None:
+            return self._fsspec
+        self._fsspec: fsspec = util.get_module(
+            "fsspec",
+            required="Your selected URI requires the fsspec library, run pip install wandb[fsspec]",
+            lazy=False,
+        )
+        return self._fsspec
+
     def can_handle(self, parsed_url: "ParseResult") -> bool:
-        return parsed_url.scheme in self._scheme
+        self.init_fsspec()
+        return parsed_url.scheme in self._fsspec.available_protocols()
 
     def load_path(
         self,
@@ -49,8 +60,10 @@ class FsspecFileHandler(StorageHandler):
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
         """
+        self.init_fsspec()
+        assert self._fsspec is not None  # mypy: unwraps optionality
+        assert manifest_entry.ref is not None
         if not local:
-            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
         if manifest_entry.ref is None:
@@ -88,10 +101,12 @@ class FsspecFileHandler(StorageHandler):
         checksum: bool = True,
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactManifestEntry]:
+        self.init_fsspec()
+        assert self._fsspec is not None  # mypy: unwraps optionality
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         entries = []
-        fs, fs_path = fsspec.core.url_to_fs(path)
+        fs, fs_path = self._fsspec.core.url_to_fs(path)
 
         def md5(path: str) -> Any:
             return (
