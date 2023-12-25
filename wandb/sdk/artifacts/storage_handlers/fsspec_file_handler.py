@@ -67,17 +67,10 @@ class FsspecFileHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        if manifest_entry.ref is None:
-            raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
-        fs, fs_path = fsspec.core.url_to_fs(str(manifest_entry.ref))
-
-        if not fs.exists(fs_path):
-            raise ValueError(
-                "fsspec file reference: Failed to find file at path %s" % fs_path
-            )
+        padded_checksum = manifest_entry.digest + '=' * (4 - len(manifest_entry.digest) % 4)
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
+            B64MD5(padded_checksum),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
