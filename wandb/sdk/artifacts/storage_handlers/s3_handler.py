@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
-import wandb
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -286,7 +285,7 @@ class S3Handler(StorageHandler):
         ]
     ) -> ETag:
         etag: ETag
-        if hasattr(obj, "load"):
+        if hasattr(obj, "e_tag"):
             etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         else:
             etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
