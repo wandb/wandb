@@ -101,7 +101,7 @@ class S3Handler(StorageHandler):
 
         try:
             etag = (
-                self._etag_from_obj_version(obj_version)
+                self._load_etag_from_obj(obj_version)
                 if version
                 else self._etag_from_obj(obj)
             )
@@ -279,15 +279,21 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]) -> ETag:
+    def _etag_from_obj(
+        obj: Union[
+            "boto3.s3.Object", "boto3.s3.ObjectVersion", "boto3.s3.ObjectSummary"
+        ]
+    ) -> ETag:
         etag: ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
     @staticmethod
-    def _etag_from_obj_version(obj_version: "boto3.s3.ObjectVersion") -> ETag:
+    def _load_etag_from_obj(
+        obj: Union["boto3.s3.Object", "boto3.s3.ObjectVersion"]
+    ) -> ETag:
         etag: ETag
-        etag = obj_version.get()["ETag"][1:-1]  # escape leading and trailing quote
+        etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
         return etag
 
     def _extra_from_obj(
