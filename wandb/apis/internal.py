@@ -127,6 +127,9 @@ class Api:
 
     def upsert_sweep(self, *args, **kwargs):
         return self.api.upsert_sweep(*args, **kwargs)
+    
+    def upsert_sweep_convert(self, *args, **kwargs):
+        return self.api.upsert_sweep_convert(*args, **kwargs)
 
     def set_sweep_state(self, *args, **kwargs):
         return self.api.set_sweep_state(*args, **kwargs)
@@ -202,6 +205,9 @@ class Api:
 
     def create_run_queue(self, *args, **kwargs):
         return self.api.create_run_queue(*args, **kwargs)
+    
+    def delete_run_queue(self, *args, **kwargs):
+        return self.api.delete_run_queue(*args, **kwargs)
 
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)

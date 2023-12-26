@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from multiprocessing import Event
 from typing import Any, Dict, List, Optional, Union
 
+from itsdangerous import base64_decode, base64_encode
+
 import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
@@ -775,6 +777,17 @@ class LaunchAgent:
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+
+                    # delete temp sweep queue if converted vanilla sweep
+                    if launch_spec.get("resource") == "local-process" and launch_spec.get("queue") == str(base64_encode(launch_spec.get("sweep_id"))):
+                        try:
+                            self._api.delete_run_queue(
+                                queue_name=launch_spec["queue"],
+                                entity=launch_spec["entity"],
+                            )
+                        except Exception as e:
+                            raise LaunchError(f"Failed to update sweep state: {e}")
+
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:

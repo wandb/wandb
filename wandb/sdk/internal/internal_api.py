@@ -31,6 +31,7 @@ from typing import (
 
 import click
 import requests
+from torch import normal
 import yaml
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
@@ -1572,6 +1573,53 @@ class Api:
             "createRunQueue"
         ]
         return result
+    
+    @normalize_exceptions
+    def delete_run_queue(
+        self, 
+        queue_name: str,
+        entity: str,
+    ):
+        query = gql(
+            """
+            query deleteRunQueues(
+                $queueIDs: String!,
+            ) {
+                deleteRunQueues(
+                    input: {
+                        queueIDs: $queueIDs,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+
+        mutation = gql(
+            """
+            mutation deleteRunQueues(
+                $queueIDs: String!,
+            ) {
+                deleteRunQueues(
+                    input: {
+                        queueIDs: $queueIDs,
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "queueName": queue_name,
+        }
+
+        result: Optional[Dict[str, Any]] = self.gql(mutation, variable_values)[
+            "deleteRunQueue"
+        ]
+        return result
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
@@ -3042,6 +3090,58 @@ class Api:
                             % parameter_name
                         )
         return config
+    
+    @normalize_exceptions
+    def upsert_sweep_convert(
+        self, 
+        config: dict,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+        obj_id: Optional[str] = None,
+    ):
+        mutation = """
+        mutation UpsertSweepConvert(
+            $id: ID,
+            $config: String,
+            $description: String,
+            $entityName: String,
+            $projectName: String,
+        ) {
+            upsertSweepConvert(input: {
+                id: $id,
+                config: $config,
+                description: $description,
+                entityName: $entityName,
+                projectName: $projectName,
+            }) {
+                sweep {
+                    name
+                }
+                configValidationWarnings
+            }
+        }
+        """
+
+
+        config = self._validate_config_and_fill_distribution(config)
+        config_str = yaml.dump(json.loads(json.dumps(config)))
+
+        variables = {
+            "id": obj_id,
+            "config": config_str,
+            "description": config.get("description"),
+            "entityName": entity or self.settings("entity"),
+            "projectName": project or self.settings("project"),
+        }
+
+        response = self.gql(
+            mutation,
+            variable_values=variables,
+            check_retry_fn=util.no_retry_4xx,
+        )
+
+        warnings = response["upsertSweepConvert"].get("configValidationWarnings", [])
+        return response["upsertSweepConvert"]["sweep"]["name"], warnings
 
     @normalize_exceptions
     def upsert_sweep(
