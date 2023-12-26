@@ -4,7 +4,7 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence, Tuple
 
 import wandb
 import wandb.filesync.step_prepare
@@ -72,9 +72,11 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
+    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
+        server_artifact = None
+        commit_fut = None
         try:
-            return self._save_internal(
+            server_artifact, commit_fut = self._save_internal(
                 type,
                 name,
                 client_id,
@@ -90,8 +92,12 @@ class ArtifactSaver:
                 history_step,
                 base_id,
             )
+            return server_artifact, commit_fut
         finally:
-            self._cleanup_staged_entries()
+            if commit_fut is not None:
+                commit_fut.add_done_callback(lambda _: self._cleanup_staged_entries())
+            else:
+                self._cleanup_staged_entries()
 
     def _save_internal(
         self,
@@ -109,7 +115,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
+    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})
@@ -137,7 +143,7 @@ class ArtifactSaver:
         if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
-            return self._server_artifact
+            return self._server_artifact, None
         if (
             self._server_artifact["state"] != "PENDING"
             # For old servers, see https://github.com/wandb/wandb/pull/6190
@@ -239,17 +245,25 @@ class ArtifactSaver:
             result_future=commit_result,
         )
 
-        # Block until all artifact files are uploaded and the
-        # artifact is committed.
-        try:
-            commit_result.result()
-        finally:
-            step_prepare.shutdown()
+        saver_future: concurrent.futures.Future[None] = concurrent.futures.Future()
 
-        if finalize and use_after_commit:
-            self._api.use_artifact(artifact_id)
+        # do not wait for the commit to finish. Instead, once the commit is finished, set the result in the
+        # a future returned by this function. This allows the caller to decide if they should
+        # synchronously wait for the result of the saver or let it run async in the background
+        def on_commit_result(fut: concurrent.futures.Future) -> None:
+            try:
+                res = fut.result()
+                if finalize and use_after_commit:
+                    self._api.use_artifact(artifact_id)
+                saver_future.set_result(res)
+            except Exception as e:
+                saver_future.set_exception(e)
+            finally:
+                step_prepare.shutdown()
 
-        return self._server_artifact
+        commit_result.add_done_callback(on_commit_result)
+
+        return self._server_artifact, saver_future
 
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:
