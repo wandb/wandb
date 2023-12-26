@@ -7,7 +7,6 @@ from wandb.sdk.wandb_run import Run
 
 
 class FakeArtifact:
-
     def wait(self):
         pass
 

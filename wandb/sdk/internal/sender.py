@@ -1466,7 +1466,7 @@ class SendManager:
         try:
             res, future = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res["id"]
+            result.response.log_artifact_response.artifact_id = res.get("id", None)
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
