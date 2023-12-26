@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
+import wandb
 from wandb.errors import CommError
 from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
@@ -101,7 +102,7 @@ class S3Handler(StorageHandler):
 
         try:
             etag = (
-                self._load_etag_from_obj(obj_version)
+                self._etag_from_obj(obj_version)
                 if version
                 else self._etag_from_obj(obj)
             )
@@ -285,15 +286,10 @@ class S3Handler(StorageHandler):
         ]
     ) -> ETag:
         etag: ETag
-        etag = obj.e_tag[1:-1]  # escape leading and trailing quote
-        return etag
-
-    @staticmethod
-    def _load_etag_from_obj(
-        obj: Union["boto3.s3.Object", "boto3.s3.ObjectVersion"]
-    ) -> ETag:
-        etag: ETag
-        etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
+        if hasattr(obj, "load"):
+            etag = obj.e_tag[1:-1]  # escape leading and trailing quote
+        else:
+            etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
         return etag
 
     def _extra_from_obj(
