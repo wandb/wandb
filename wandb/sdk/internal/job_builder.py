@@ -121,9 +121,7 @@ class JobBuilder:
     def disable(self, val: bool) -> None:
         self._disable = val
 
-    def _handle_server_artifact(
-        self, res: Dict, artifact: "ArtifactRecord"
-    ) -> None:
+    def _handle_server_artifact(self, res: Dict, artifact: "ArtifactRecord") -> None:
         if artifact.type == "job" and res is not None:
             try:
                 if res["artifactSequence"]["latestArtifact"] is None:
