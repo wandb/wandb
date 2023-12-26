@@ -1475,7 +1475,7 @@ class SendManager:
 
         def _respond_result(fut: concurrent.futures.Future):
             if fut.exception() is not None:
-                result.response.log_artifact_response.error_message = (f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}')
+                result.response.log_artifact_response.error_message = f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}'
             self._respond_result(result)
 
         if future is not None:
