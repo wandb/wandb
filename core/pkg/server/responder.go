@@ -21,28 +21,6 @@ type Dispatcher struct {
 	logger     *observability.CoreLogger
 }
 
-// do is the main loop of the dispatcher to process incoming messages
-func (d *Dispatcher) do(hChan, sChan <-chan *service.Result) {
-	defer d.logger.Reraise()
-	for hChan != nil || sChan != nil {
-		select {
-		case result, ok := <-hChan:
-			if !ok {
-				hChan = nil
-				continue
-			}
-			d.handleRespond(result)
-		case result, ok := <-sChan:
-			if !ok {
-				sChan = nil
-				continue
-			}
-			d.handleRespond(result)
-		}
-	}
-	d.logger.Debug("dispatch: finished")
-}
-
 // AddResponders adds the given responders to the stream's dispatcher.
 func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
 	if d.responders == nil {

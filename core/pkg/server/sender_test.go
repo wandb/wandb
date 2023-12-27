@@ -16,16 +16,18 @@ import (
 )
 
 func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
+	ctx, cancel := context.WithCancel(context.Background())
 	logger := observability.NewNoOpLogger()
 	sender := server.NewSender(
-		context.Background(),
+		ctx,
+		cancel,
+		logger,
 		&service.Settings{
 			RunId: &wrapperspb.StringValue{Value: "run1"},
 		},
-		logger,
-		make(chan *service.Record, 1),
+		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
+		server.WithSenderOutChannel(resultChan),
 	)
-	sender.SetOutboundChannel(resultChan)
 	sender.SetGraphqlClient(client)
 	return sender
 }

@@ -147,6 +147,7 @@ class InterfaceShared(InterfaceBase):
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
+        python_packages: Optional[pb.PythonPackagesRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -207,6 +208,8 @@ class InterfaceShared(InterfaceBase):
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif sync:
             request.sync.CopyFrom(sync)
+        elif python_packages:
+            request.python_packages.CopyFrom(python_packages)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -376,21 +379,27 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(stats=stats)
         self._publish(rec)
 
+    def _publish_python_packages(
+        self, python_packages: pb.PythonPackagesRequest
+    ) -> None:
+        rec = self._make_request(python_packages=python_packages)
+        self._publish(rec)
+
     def _publish_files(self, files: pb.FilesRecord) -> None:
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
         rec = self._make_record(link_artifact=link_artifact)
         self._publish(rec)
 
-    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
+    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._communicate_async(rec)
+        return self._deliver_record(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest

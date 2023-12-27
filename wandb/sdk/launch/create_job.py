@@ -321,11 +321,7 @@ def _create_repo_metadata(
         req_dir = os.path.dirname(req_dir)
 
     if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
-        wandb.termerror(
-            "Could not find requirements.txt file in git repo at "
-            f"{os.path.join(os.path.dirname(path), 'requirements.txt')} "
-            "or parent directories."
-        )
+        wandb.termerror(f"Could not find requirements.txt file in git repo at {path}")
         return None
 
     wandb.termlog(
