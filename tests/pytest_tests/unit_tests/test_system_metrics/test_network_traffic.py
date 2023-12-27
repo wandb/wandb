@@ -23,9 +23,7 @@ def test_network_metrics(test_settings):
     )
     shutdown_event = threading.Event()
 
-    network = Network(
-        interface=interface, settings=settings, shutdown_event=shutdown_event
-    )
+    network = Network(interface=interface, settings=settings, shutdown_event=shutdown_event)
 
     assert network.is_available()
 
