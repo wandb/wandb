@@ -285,9 +285,9 @@ class S3Handler(StorageHandler):
         ]
     ) -> ETag:
         etag: ETag
-        if hasattr(obj, "e_tag"):
+        try:
             etag = obj.e_tag[1:-1]  # escape leading and trailing quote
-        else:
+        except:
             etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
         return etag
 
