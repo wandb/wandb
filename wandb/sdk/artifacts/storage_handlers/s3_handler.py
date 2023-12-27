@@ -285,11 +285,11 @@ class S3Handler(StorageHandler):
         ]
     ) -> ETag:
         etag: ETag
-        boto = util.get_module("boto3")
-        try:
-            etag = obj.e_tag[1:-1]  # escape leading and trailing quote
-        except boto.exceptions.ResourceLoadException:
+        if hasattr(obj, "meta") and obj.meta.data is None:
+            # obj.meta.data is None for ObjectVersion while using s3.ObjectVersion()
             etag = obj.get()["ETag"][1:-1]  # escape leading and trailing
+        else:
+            etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
     def _extra_from_obj(
