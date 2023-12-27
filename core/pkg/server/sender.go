@@ -289,6 +289,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 
 	switch x := request.RequestType.(type) {
 	case *service.Request_RunStart:
+		fmt.Printf("\n runstartrecord: %v\n", s.RunRecord)
 		s.sendRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
 		s.sendNetworkStatusRequest(x.NetworkStatus)
@@ -329,6 +330,11 @@ func (s *Sender) updateSettingsStartTime() {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
+	fmt.Printf("\n runstartrecord sender method: %v\n", s.RunRecord)
+	fmt.Printf("\n baseurl: %s\n", s.settings.GetBaseUrl().GetValue())
+	fmt.Printf("\n entity: %s\n", s.RunRecord.Entity)
+	fmt.Printf("\n project: %s\n", s.RunRecord.Project)
+	fmt.Printf("\n RunID: %s\n", s.RunRecord.RunId)
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 

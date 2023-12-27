@@ -459,6 +459,7 @@ class InterfaceShared(InterfaceBase):
 
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         record = self._make_request(run_start=run_start)
+        wandb.termwarn(f"\n\nrun start record: {record}")
         return self._deliver_record(record)
 
     def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:

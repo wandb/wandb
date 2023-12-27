@@ -37,6 +37,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.proto.v3.wandb_internal_pb2 import RunRecord
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
@@ -1723,11 +1724,13 @@ class Artifact:
             stream_id = generate_id()
             settings = wl.settings.to_proto()
             # todo: update dir and file values after testing
-            settings.sync_file.value = "./stream-test.wandb"
-            settings.sync_dir.value = "./"
-            settings.files_dir.value = "./files"
+            settings.sync_file.value = "./sync-download/stream-test.wandb"
+            settings.sync_dir.value = "./sync-download/"
+            settings.files_dir.value = "./sync-download/files"
             settings._sync.value = True
             settings.run_id.value = stream_id # TODO: remove this
+            # Only for testing. How to handle for local? 
+            settings.base_url.value = "https://api.wandb.ai"
             manager = wl._get_manager()
             manager._inform_init(settings=settings, run_id=stream_id)
 
@@ -1737,8 +1740,19 @@ class Artifact:
 
             assert backend.interface
             backend.interface._stream_id = stream_id # type: ignore
-
             mailbox.enable_keepalive()
+
+            stream_run_obj = RunRecord()
+            wandb.termwarn(f"\n\n entity: {self.entity}")
+            stream_run_obj.entity = self.entity
+            stream_run_obj.project = self.project
+            stream_run_obj.run_id = stream_id
+            # stream_run_obj.settings = settings
+            wandb.termwarn(f"\n\n run obj: {stream_run_obj}")
+            run_start_handle = backend.interface.deliver_run_start(stream_run_obj)
+            run_start_result = run_start_handle.wait(timeout=30)
+            if run_start_result is None:
+                run_start_handle.abandon()
             handle = backend.interface.deliver_download_artifact(
                 self.id,
                 root,
@@ -1768,6 +1782,9 @@ class Artifact:
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
+        if manager:
+            wandb.termwarn(f"\n\n closing stream with id: {stream_id}")
+            manager._inform_finish(run_id=stream_id)
         return FilePathStr(root)
 
     def _download(

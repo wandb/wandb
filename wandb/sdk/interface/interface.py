@@ -14,6 +14,7 @@ import sys
 import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
+import wandb
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -751,6 +752,7 @@ class InterfaceBase:
     def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
+        wandb.termwarn(f"\n\nrun start message: {run_start}")
         return self._deliver_run_start(run_start)
 
     @abstractmethod
