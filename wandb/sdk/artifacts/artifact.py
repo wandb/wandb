@@ -1715,7 +1715,7 @@ class Artifact:
     ) -> FilePathStr:
         from wandb.sdk import wandb_setup
         from wandb.sdk.backend.backend import Backend
-
+        handle: MailboxHandle
         if wandb.run is None:
             # Try to create a stream instead of a run
             wl = wandb_setup.setup()
@@ -1728,9 +1728,8 @@ class Artifact:
             settings.sync_dir.value = "./sync-download/"
             settings.files_dir.value = "./sync-download/files"
             settings._sync.value = True
-            settings.run_id.value = stream_id # TODO: remove this
-            # Only for testing. How to handle for local? 
-            settings.base_url.value = "https://api.wandb.ai"
+            settings.run_id.value = stream_id
+
             manager = wl._get_manager()
             manager._inform_init(settings=settings, run_id=stream_id)
 
@@ -1742,17 +1741,10 @@ class Artifact:
             backend.interface._stream_id = stream_id # type: ignore
             mailbox.enable_keepalive()
 
-            stream_run_obj = RunRecord()
-            wandb.termwarn(f"\n\n entity: {self.entity}")
-            stream_run_obj.entity = self.entity
-            stream_run_obj.project = self.project
-            stream_run_obj.run_id = stream_id
-            # stream_run_obj.settings = settings
-            wandb.termwarn(f"\n\n run obj: {stream_run_obj}")
-            run_start_handle = backend.interface.deliver_run_start(stream_run_obj)
-            run_start_result = run_start_handle.wait(timeout=30)
-            if run_start_result is None:
-                run_start_handle.abandon()
+            # run_start_handle = backend.interface.deliver_run_start(stream_run_obj)
+            # run_start_result = run_start_handle.wait(timeout=30)
+            # if run_start_result is None:
+            #     run_start_handle.abandon()
             handle = backend.interface.deliver_download_artifact(
                 self.id,
                 root,
@@ -1783,6 +1775,7 @@ class Artifact:
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
         if manager:
+            # todo: fix - it doesn't close the stream
             wandb.termwarn(f"\n\n closing stream with id: {stream_id}")
             manager._inform_finish(run_id=stream_id)
         return FilePathStr(root)
@@ -1847,6 +1840,7 @@ class Artifact:
                     entry = self.get_entry(edge["node"]["name"])
                     if require_core and entry.ref is None:
                         # Handled by core
+                        wandb.termwarn("\n\n downloading via nexus")
                         continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
