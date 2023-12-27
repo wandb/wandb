@@ -93,13 +93,18 @@ class S3Handler(StorageHandler):
 
         extra_args = {}
         if version:
-            obj = self._s3.ObjectVersion(bucket, key, version).Object()
+            obj_version = self._s3.ObjectVersion(bucket, key, version)
             extra_args["VersionId"] = version
+            obj = obj_version.Object()
         else:
             obj = self._s3.Object(bucket, key)
 
         try:
-            etag = self._etag_from_obj(obj)
+            etag = (
+                self._etag_from_obj(obj_version)
+                if version
+                else self._etag_from_obj(obj)
+            )
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 raise FileNotFoundError(
@@ -274,9 +279,16 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]) -> ETag:
+    def _etag_from_obj(
+        obj: Union[
+            "boto3.s3.Object", "boto3.s3.ObjectVersion", "boto3.s3.ObjectSummary"
+        ]
+    ) -> ETag:
         etag: ETag
-        etag = obj.e_tag[1:-1]  # escape leading and trailing quote
+        if hasattr(obj, "e_tag"):
+            etag = obj.e_tag[1:-1]  # escape leading and trailing quote
+        else:
+            etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
         return etag
 
     def _extra_from_obj(
