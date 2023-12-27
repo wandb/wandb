@@ -285,10 +285,11 @@ class S3Handler(StorageHandler):
         ]
     ) -> ETag:
         etag: ETag
+        boto = util.get_module("boto3")
         try:
             etag = obj.e_tag[1:-1]  # escape leading and trailing quote
-        except:
-            etag = obj.get()["ETag"][1:-1]  # escape leading and trailing quote
+        except boto.exceptions.ResourceLoadException:
+            etag = obj.get()["ETag"][1:-1]  # escape leading and trailing
         return etag
 
     def _extra_from_obj(
