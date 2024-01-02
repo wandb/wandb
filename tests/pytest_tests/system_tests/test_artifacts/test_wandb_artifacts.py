@@ -1372,7 +1372,7 @@ def test_http_storage_handler_uses_etag_for_digest(
 def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
@@ -1398,7 +1398,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 ):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
