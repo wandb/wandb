@@ -21,10 +21,15 @@ type FileHandler struct {
 	outChan    chan *service.Record
 }
 
-func NewFileHandler(logger *observability.CoreLogger, settings *service.Settings, outChan chan *service.Record) *FileHandler {
+func NewFileHandler(
+	logger *observability.CoreLogger,
+	settings *service.Settings,
+	watcher *watcher.Watcher,
+	outChan chan *service.Record,
+) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
-		watcher:    watcher.New(watcher.WithLogger(logger)),
+		watcher:    watcher,
 		logger:     logger,
 		settings:   settings,
 		outChan:    outChan,

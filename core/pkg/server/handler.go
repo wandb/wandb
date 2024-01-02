@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -47,6 +48,12 @@ func WithHandlerSettings(settings *service.Settings) HandlerOption {
 func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	return func(h *Handler) {
 		h.systemMonitor = monitor
+	}
+}
+
+func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
+	return func(h *Handler) {
+		h.watcher = watcher
 	}
 }
 
@@ -114,6 +121,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// watcher is the file watcher for the stream
+	watcher *watcher.Watcher
 
 	// fileHandler is the file handler for the stream
 	fileHandler *FileHandler
