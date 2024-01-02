@@ -29,6 +29,7 @@ from . import internal, progress, protocols
 from .config import Namespace
 from .logs import _thread_local_settings, import_logger, wandb_logger
 from .protocols import ArtifactSequence, parallelize
+from .utils import _merge_dfs
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -94,7 +95,6 @@ class WandbRun:
             self._parquet_history_paths = list(self._get_parquet_history_paths())
 
         if self._parquet_history_paths:
-            print("yielding from metrics df")
             yield from self._get_metrics_from_parquet_history_paths()
         else:
             yield from self._get_metrics_from_scan_history_fallback()
@@ -243,8 +243,8 @@ class WandbRun:
             return
 
         files_dir = f"./wandb-importer/{self.run_id()}/files"
-        self._files = []
 
+        self._files = []
         for f in self.run.files():
             if self._should_skip_file(f):
                 continue
@@ -273,28 +273,6 @@ class WandbRun:
         with open(fname) as f:
             yield from f.readlines()
 
-    def _merge_dfs(self, dfs: List[pl.DataFrame]) -> pl.DataFrame:
-        # Ensure there are DataFrames in the list
-        if len(dfs) == 0:
-            return pl.DataFrame()
-
-        if len(dfs) == 1:
-            return dfs[0]
-
-        merged_df = dfs[0]
-        for df in dfs[1:]:
-            merged_df = merged_df.join(df, how="outer", on=["_step"])
-            col_pairs = [
-                (c, f"{c}_right")
-                for c in merged_df.columns
-                if f"{c}_right" in merged_df.columns
-            ]
-            for col, right in col_pairs:
-                new_col = merged_df[col].fill_null(merged_df[right])
-                merged_df = merged_df.with_columns(new_col).drop(right)
-
-        return merged_df
-
     def _get_metrics_df_from_parquet_history_paths(self) -> None:
         if self._parquet_history_paths is None:
             self._parquet_history_paths = list(self._get_parquet_history_paths())
@@ -309,7 +287,7 @@ class WandbRun:
                 df = pl.read_parquet(p)
                 dfs.append(df)
 
-        return self._merge_dfs(dfs).sort("_step")
+        return _merge_dfs(dfs).sort("_step")
 
     def _get_metrics_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         df = self._get_metrics_df_from_parquet_history_paths()
@@ -328,15 +306,14 @@ class WandbRun:
             df = pl.DataFrame(hist).sort("_step")
         except Exception as e:
             import_logger.error(f"problem with scan history {e=}")
-            for row in hist:
-                row = remove_keys_with_none_values(row)
-                row = self._modify_table_artifact_paths(row)
-                yield row
+            rows = hist
         else:
-            for row in df.iter_rows(named=True):
-                row = remove_keys_with_none_values(row)
-                row = self._modify_table_artifact_paths(row)
-                yield row
+            rows = df.iter_rows(named=True)
+
+        for row in rows:
+            row = remove_keys_with_none_values(row)
+            row = self._modify_table_artifact_paths(row)
+            yield row
 
     def _get_parquet_history_paths(self) -> List[str]:
         paths = []
@@ -360,8 +337,7 @@ class WandbRun:
                 continue
             with patch("click.echo"):
                 try:
-                    cache = get_artifacts_cache()
-                    cache.cleanup(target_size=target_size)
+                    cleanup_cache()
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     import_logger.error(
@@ -386,9 +362,6 @@ class WandbRun:
             if isinstance(v, (dict)) and v.get("_type") == "table-file":
                 table_keys.append(k)
 
-        if table_keys:
-            print(f"{table_keys=}")
-
         for table_key in table_keys:
             obj = row[table_key]["artifact_path"]
             obj_name = obj.split("/")[-1]
@@ -396,18 +369,9 @@ class WandbRun:
             new_table_key = table_key.replace("/", "")
             art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{new_table_key}:latest"
             art = None
-
-            print(f"{table_key=}")
-            print(f"{new_table_key=}")
-            print(f"{obj=}")
-            print(f"{obj_name=}")
-            print(f"{art_path=}")
-            print(f"{art=}")
-
             # Try to pick up the artifact within 6 seconds
             for _ in range(3):
                 try:
-                    print(f"trying to get artifact {art_path=}")
                     art = self.dst_api.artifact(art_path, type="run_table")
                 except wandb.errors.CommError:
                     wandb.termwarn(f"Waiting for artifact {art_path}...")
@@ -425,8 +389,6 @@ class WandbRun:
                 else:
                     break
 
-            print(f"got it {art_path=}")
-
             # If we can't find after timeout, just skip it.
             if art is None:
                 wandb_logger.error(
@@ -438,9 +400,6 @@ class WandbRun:
                     },
                 )
                 continue
-
-            print(f"{obj_name=}")
-            print(f"{art.manifest.entries=}")
 
             url = art.get_path(obj_name).ref_url()
             base, name = url.rsplit("/", 1)
@@ -487,8 +446,7 @@ class WandbRun:
     def _download_and_process_artifact(self, art: Artifact) -> Optional[Artifact]:
         with patch("click.echo"):
             try:
-                cache = get_artifacts_cache()
-                cache.cleanup(target_size=target_size)
+                cleanup_cache()
                 path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
             except Exception as e:
                 self._log_error(f"Error downloading artifact ({art}) -- {e}")
@@ -546,7 +504,7 @@ class WandbImporter:
             **custom_api_kwargs,
         )
 
-        # There is probably a less redundant way of doing this
+        # There is probably a better way of doing this
         _thread_local_settings.src_api_key = src_api_key
         _thread_local_settings.src_base_url = src_base_url
         _thread_local_settings.dst_api_key = dst_api_key
@@ -560,8 +518,8 @@ class WandbImporter:
     def _import_run(
         self,
         run: WandbRun,
-        namespace: Optional[Namespace] = None,
         *,
+        namespace: Optional[Namespace] = None,
         metadata: bool = True,
         files: bool = True,
         media: bool = True,
@@ -612,8 +570,7 @@ class WandbImporter:
                 if a.type == "wandb-history":
                     with patch("click.echo"):
                         try:
-                            cache = get_artifacts_cache()
-                            cache.cleanup(target_size=target_size)
+                            cleanup_cache()
                             path = a.download(
                                 root=f"./artifacts/src/{a.name}", cache=False
                             )
@@ -766,8 +723,7 @@ class WandbImporter:
                     wandb_run = placeholder_run
 
                 try:
-                    cache = get_artifacts_cache()
-                    cache.cleanup(target_size=target_size)
+                    cleanup_cache()
                     path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
                 except Exception as e:
                     import_logger.error(f"Error downloading artifact {art=} {e=}")
@@ -1332,6 +1288,7 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
+        namespace_remapping: Optional[dict] = None,
     ):
         import_logger.debug(f"Starting to import runs for {namespaces=}")
         self._clear_run_errors()
@@ -1362,6 +1319,7 @@ class WandbImporter:
             history=history,
             summary=summary,
             terminal_output=terminal_output,
+            namespace_remapping=namespace_remapping,
         )
         import_logger.debug(f"Finished runs {namespaces=}")
 
@@ -1509,8 +1467,6 @@ class WandbImporter:
         ]
 
         df2 = pl.DataFrame(data)
-        print(df2.columns)
-        print(df.columns)
         results = df2.join(df, how="anti", on=["entity", "project", "run_id"])
         if not results.is_empty():
             results = results.filter(~results["run_id"].is_null())
@@ -1597,8 +1553,7 @@ class WandbImporter:
             with progress.track_subsubtask(
                 f"Validate artifact: Downloading src {src_art=}"
             ):
-                cache = get_artifacts_cache()
-                cache.cleanup(target_size=target_size)
+                cleanup_cache()
                 src_dir = src_art.download(
                     root=f"./artifacts/src/{src_art.name}", cache=False
                 )
@@ -1607,8 +1562,7 @@ class WandbImporter:
                 with progress.track_subsubtask(
                     f"Validate artifact: Downloading dst {dst_art=}"
                 ):
-                    cache = get_artifacts_cache()
-                    cache.cleanup(target_size=target_size)
+                    cleanup_cache()
                     dst_dir = dst_art.download(
                         root=f"./artifacts/dst/{dst_art.name}", cache=False
                     )
@@ -1677,10 +1631,16 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
+        namespace_remapping: Optional[dict] = None,
     ):
         def _import_run_wrapped(run):
+            namespace = Namespace(run.entity(), run.project())
+            if namespace_remapping and namespace in namespace_remapping:
+                namespace = namespace_remapping[namespace]
+
             return self._import_run(
                 run,
+                namespace=namespace,
                 metadata=metadata,
                 files=files,
                 media=media,
@@ -1841,31 +1801,6 @@ class WandbImporter:
 
         runs = itertools.islice(_runs(), limit)
         yield from progress.task_progress(runs, description="Collect runs")
-
-    def _collect_runs_old(
-        self,
-        namespace: Namespace,
-        *,
-        limit: Optional[int] = None,
-        skip_ids: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        api: Optional[Api] = None,
-    ):
-        api = coalesce(api, self.src_api)
-
-        filters: Dict[str, Any] = {}
-        if skip_ids is not None:
-            filters["name"] = {"$nin": skip_ids}
-        if start_date is not None:
-            filters["createdAt"] = {"$gte": start_date}
-
-        def runs():
-            for run in api.runs(
-                f"{namespace.entity}/{namespace.project}", filters=filters
-            ):
-                yield WandbRun(run)
-
-        yield from itertools.islice(runs(), limit)
 
     def _collect_run(
         self,
@@ -2304,9 +2239,13 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
         # No runs previously checked
         if "empty string is not a valid JSON value" in str(e):
             return None
-        elif "error parsing ndjson" in str(e):
+        if "error parsing ndjson" in str(e):
             return None
-        else:
-            raise e
+        raise e
 
     return df
+
+
+def cleanup_cache():
+    cache = get_artifacts_cache()
+    cache.cleanup(target_size=target_size)
