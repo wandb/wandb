@@ -74,5 +74,9 @@ func (g *Git) SavePatch(ref, output string) error {
 	if err != nil {
 		return err
 	}
+	// check if a file was created
+	if _, err := os.Stat(output); os.IsNotExist(err) {
+		return fmt.Errorf("no diff found")
+	}
 	return nil
 }
