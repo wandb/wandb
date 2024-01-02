@@ -21,7 +21,7 @@ from .panels import *  # noqa
 
 
 def show_welcome_message():
-    if os.getenv("WANDB_DISABLE_REPORT_API_MESSAGE"):
+    if os.getenv("WANDB_REPORT_API_DISABLE_MESSAGE"):
         return
 
     termlog(
@@ -30,7 +30,7 @@ def show_welcome_message():
             Thanks for trying out Report API v2!
             See a tutorial and the changes here: http://wandb.me/report-api-quickstart
             For bugs/feature requests, please create an issue on github: https://github.com/wandb/wandb/issues
-            You can disable this message by setting the env var WANDB_DISABLE_REPORT_API_MESSAGE=True
+            You can disable this message by setting the env var WANDB_REPORT_API_DISABLE_MESSAGE=True
             """
         )
     )

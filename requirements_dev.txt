@@ -43,7 +43,6 @@ responses
 respx
 prometheus_client
 google-cloud-aiplatform
-pydantic>=2.0.0
 polyfactory; python_version >= '3.8'
 aiohttp==3.9.0b0; python_version >= '3.12'
 
@@ -52,3 +51,4 @@ aiohttp==3.9.0b0; python_version >= '3.12'
 .[launch]
 .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]
+.[reports]
