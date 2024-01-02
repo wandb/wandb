@@ -242,4 +242,4 @@ class SystemInfo:
             files["files"].append((glob.escape(patch), "now"))
 
         # publish files to the backend
-        self.backend_interface.publish_files(files)  # type: ignore()
+        self.backend_interface.publish_files(files)  # type: ignore

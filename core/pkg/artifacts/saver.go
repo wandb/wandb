@@ -112,7 +112,7 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string) error {
+func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, outChan chan<- *service.Record) error {
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
@@ -185,15 +185,36 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				}
 				numInProgress++
 				task := &filetransfer.Task{
-					Type:     filetransfer.UploadTask,
-					Path:     *entry.LocalPath,
-					Url:      *edge.Node.UploadUrl,
-					Headers:  edge.Node.UploadHeaders,
-					FileType: filetransfer.ArtifactFile,
+					Type:    filetransfer.UploadTask,
+					Path:    *entry.LocalPath,
+					Url:     *edge.Node.UploadUrl,
+					Headers: edge.Node.UploadHeaders,
 				}
 				task.AddCompletionCallback(func(task *filetransfer.Task) {
 					taskResultsChan <- TaskResult{task, name}
 				})
+				task.AddCompletionCallback(
+					func(*filetransfer.Task) {
+						record := &service.Record{
+							RecordType: &service.Record_Request{
+								Request: &service.Request{
+									RequestType: &service.Request_FileTransferInfo{
+										FileTransferInfo: &service.FileTransferInfoRequest{
+											Type:      service.FileTransferInfoRequest_Upload,
+											Path:      task.Path,
+											Size:      task.Size,
+											Processed: task.Size,
+											FileCounts: &service.FileCounts{
+												ArtifactCount: 1,
+											},
+										},
+									},
+								},
+							},
+						}
+						outChan <- record
+					},
+				)
 				as.FileTransferManager.AddTask(task)
 			}
 		}
@@ -249,18 +270,38 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
+func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, outChan chan<- *service.Record) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
-		Type:     filetransfer.UploadTask,
-		Path:     manifestFile,
-		Url:      *uploadUrl,
-		Headers:  uploadHeaders,
-		FileType: filetransfer.ArtifactFile,
+		Type:    filetransfer.UploadTask,
+		Path:    manifestFile,
+		Url:     *uploadUrl,
+		Headers: uploadHeaders,
 	}
 	task.AddCompletionCallback(func(task *filetransfer.Task) {
 		resultChan <- task
 	})
+	task.AddCompletionCallback(
+		func(*filetransfer.Task) {
+			record := &service.Record{
+				RecordType: &service.Record_Request{
+					Request: &service.Request{
+						RequestType: &service.Request_FileTransferInfo{
+							FileTransferInfo: &service.FileTransferInfoRequest{
+								Type:       service.FileTransferInfoRequest_Upload,
+								Path:       task.Path,
+								Size:       task.Size,
+								Processed:  task.Size,
+								FileCounts: &service.FileCounts{ArtifactCount: 1},
+							},
+						},
+					},
+				},
+			}
+			outChan <- record
+		},
+	)
+
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
 	return task.Err
@@ -285,7 +326,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -332,7 +373,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
+	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
@@ -350,7 +391,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
-	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders)
+	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
