@@ -524,6 +524,7 @@ func (h *Handler) handlePythonPackages(_ *service.Record, request *service.Pytho
 				Files: []*service.FilesItem{
 					{
 						Path: requirementsFileName,
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -561,6 +562,7 @@ func (h *Handler) handleCodeSave() {
 				Files: []*service.FilesItem{
 					{
 						Path: filepath.Join("code", programRelative),
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -587,7 +589,7 @@ func (h *Handler) handlePatchSave() {
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &service.FilesItem{Path: diffFileName})
+		files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
 	}
 
 	if output, err := git.LatestCommit("@{u}"); err != nil {
@@ -598,7 +600,7 @@ func (h *Handler) handlePatchSave() {
 		if err := git.SavePatch("@{u}", file); err != nil {
 			h.logger.Error("error generating diff", "error", err)
 		} else {
-			files = append(files, &service.FilesItem{Path: diffFileName})
+			files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
 		}
 	}
 
@@ -647,6 +649,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 				Files: []*service.FilesItem{
 					{
 						Path: MetaFileName,
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -692,7 +695,10 @@ func (h *Handler) flushOutput() {
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
-					{Path: OutputFileName},
+					{
+						Path: OutputFileName,
+						Type: service.FilesItem_WANDB,
+					},
 				},
 			},
 		},
