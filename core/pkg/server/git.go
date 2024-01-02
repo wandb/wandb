@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -69,6 +70,7 @@ func (g *Git) SavePatch(ref, output string) error {
 	// get diff of current working tree vs uncommitted changes
 	command := []string{"git", "diff", ref, "--submodule=diff"}
 	err := runCommand(command, g.path, output)
+	fmt.Println("command", command, "dir", g.path, "output", output, "err", err)
 	if err != nil {
 		return err
 	}
