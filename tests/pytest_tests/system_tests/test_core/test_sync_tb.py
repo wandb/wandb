@@ -1,4 +1,7 @@
-import tensorflow as tf
+import pytest
+
+pytest.importorskip("wandb_core")
+tf = pytest.importorskip("tensorflow")
 
 
 def create_model():
