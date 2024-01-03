@@ -153,3 +153,7 @@ func (w *Watcher) Close() {
 	w.wg.Wait()
 	w.logger.Debug("watcher closed")
 }
+
+func (w *Watcher) TriggerEvent(eventType fw.Op, info os.FileInfo) {
+	w.watcher.TriggerEvent(eventType, info)
+}
