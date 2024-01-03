@@ -1,6 +1,6 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 import wandb
@@ -117,7 +117,7 @@ class ImporterRun(Protocol):
     def gpus_used(self) -> Optional[str]:
         ...
 
-    def cpus_used(self) -> Optional[int]:  # can we get the model?
+    def cpus_used(self) -> Optional[int]:
         ...
 
     def memory_used(self) -> Optional[int]:
@@ -149,28 +149,6 @@ class Importer(Protocol):
 
     def import_run(self, run: ImporterRun, config: Optional[Namespace]) -> None:
         ...
-
-
-def import_runs(
-    importer,
-    runs: Iterable[ImporterRun],
-    namespace: Optional[Namespace] = None,
-    max_workers: Optional[int] = None,
-) -> None:
-    """Import a collection of runs.
-
-    Use `config` to specify alternate settings like where the report should be uploaded
-
-    Optional:
-    - `max_workers` -- set number of worker threads
-    """
-    parallelize(
-        importer._import_run,
-        runs,
-        namespace=namespace,
-        max_workers=max_workers,
-        description="Runs",
-    )
 
 
 def parallelize(

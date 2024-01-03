@@ -1,3 +1,5 @@
+"""Tooling for the W&B Importer."""
+
 import filecmp
 import itertools
 import json
@@ -8,6 +10,7 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from datetime import datetime as dt
+from functools import partialmethod
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from unittest.mock import patch
@@ -25,7 +28,7 @@ from wandb.apis.public import Run
 from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.util import coalesce, remove_keys_with_none_values
 
-from . import internal, progress, protocols
+from . import internal, progress
 from .config import Namespace
 from .logs import _thread_local_settings, import_logger, wandb_logger
 from .protocols import ArtifactSequence, parallelize
@@ -129,7 +132,10 @@ class WandbRun:
         try:
             self._artifacts = list(self.run.logged_artifacts())
         except Exception as e:
-            self._log_error(f"Error downloading artifacts -- {e}")
+            self._log_error(
+                "Error downloading artifacts",
+                extras={"e": e, "artifacts": self._artifacts},
+            )
             return []
 
         new_arts = []
@@ -149,7 +155,10 @@ class WandbRun:
         try:
             self._used_artifacts = list(self.run.used_artifacts())
         except Exception as e:
-            self._log_error(f"Error downloading used artifacts -- {e}")
+            self._log_error(
+                "Error downloading used artifacts",
+                extras={"e": e, "artifacts": self._used_artifacts},
+            )
             return []
 
         new_arts = []
@@ -246,24 +255,18 @@ class WandbRun:
 
         self._files = []
         for f in self.run.files():
-            if self._should_skip_file(f):
+            # These optimizations are intended to avoid rate limiting when importing many runs in parallel
+            # Don't carry over empty files
+            if f.size == 0:
+                continue
+            # Skip deadlist to avoid overloading S3
+            if "wandb_manifest.json.deadlist" in f.name:
                 continue
 
             file_and_policy = self._download_and_log_file(f, files_dir)
             if file_and_policy:
                 self._files.append(file_and_policy)
                 yield file_and_policy
-
-    def _should_skip_file(self, f) -> bool:
-        # Don't carry over empty files
-        if f.size == 0:
-            return True
-
-        # Skip deadlist to avoid overloading S3
-        if "wandb_manifest.json.deadlist" in f.name:
-            return True
-
-        return False
 
     def logs(self) -> Optional[Iterable[str]]:
         fname = self._find_in_files("output.log")
@@ -423,25 +426,23 @@ class WandbRun:
 
         return None
 
-    def _log_error(self, msg: str):
-        wandb_logger.error(
+    def _log(self, msg: str, kind="error", extras=None):
+        if extras is None:
+            extras = {}
+
+        f = getattr(wandb_logger, kind)
+        f(
             msg,
             extra={
                 "entity": self.entity(),
                 "project": self.project(),
                 "run_id": self.run_id(),
+                **extras,
             },
         )
 
-    def _log_warning(self, msg: str):
-        wandb_logger.warn(
-            msg,
-            extra={
-                "entity": self.entity(),
-                "project": self.project(),
-                "run_id": self.run_id(),
-            },
-        )
+    _log_error = partialmethod(_log, kind="error")
+    _log_warning = partialmethod(_log, kind="warn")
 
     def _download_and_process_artifact(self, art: Artifact) -> Optional[Artifact]:
         with patch("click.echo"):
@@ -449,7 +450,9 @@ class WandbRun:
                 cleanup_cache()
                 path = art.download(root=f"./artifacts/src/{art.name}", cache=False)
             except Exception as e:
-                self._log_error(f"Error downloading artifact ({art}) -- {e}")
+                self._log_error(
+                    "Error downloading artifact", extras={"e": e, "artifact": art}
+                )
                 return None
 
             new_art = _make_new_art(art)
@@ -462,7 +465,10 @@ class WandbRun:
         try:
             result = f.download(files_dir, exist_ok=True, timeout=60)
         except Exception as e:
-            self.log_error(f"Error downloading file ({f}) -- {e}")
+            self._log_error(
+                "Error downloading file",
+                extras={"e": e, "file": f},
+            )
             return None
 
         return (result.name, "now")
@@ -510,11 +516,6 @@ class WandbImporter:
         _thread_local_settings.dst_api_key = dst_api_key
         _thread_local_settings.dst_base_url = dst_base_url
 
-    def __repr__(self):
-        return "W&B Importer"
-
-    import_runs = protocols.import_runs
-
     def _import_run(
         self,
         run: WandbRun,
@@ -550,6 +551,10 @@ class WandbImporter:
             terminal_output=terminal_output,
         )
 
+        if not history:
+            return
+
+        # 1a. Upload run history
         run_str = f"{run.entity()}/{run.project()}/{run.run_id()}"
         t = progress.subsubtask_pbar.add_task(f"Upload history ({run_str})", total=None)
         internal.send_run_with_send_manager(
@@ -561,63 +566,58 @@ class WandbImporter:
         import_logger.info(f"W&B Importer: Finished uploading history ({run_str})")
         progress.subsubtask_pbar.remove_task(t)
 
-        if history:
-            t = progress.subsubtask_pbar.add_task(
-                f"Collect history artifacts ({run_str})", total=None
-            )
-            history_arts = []
-            for a in run.artifacts():
-                if a.type == "wandb-history":
-                    with patch("click.echo"):
-                        try:
-                            cleanup_cache()
-                            path = a.download(
-                                root=f"./artifacts/src/{a.name}", cache=False
-                            )
-                        except Exception as e:
-                            wandb_logger.error(
-                                f"Error downloading history artifact ({a}) -- {e}",
-                                extra={
-                                    "entity": self.entity(),
-                                    "project": self.project(),
-                                    "run_id": self.run_id(),
-                                },
-                            )
-                            continue
+        # 1b. Upload run history artifacts
+        t = progress.subsubtask_pbar.add_task(
+            f"Collect history artifacts ({run_str})", total=None
+        )
+        history_arts = []
+        for a in run.artifacts():
+            if a.type == "wandb-history":
+                with patch("click.echo"):
+                    try:
+                        cleanup_cache()
+                        path = a.download(root=f"./artifacts/src/{a.name}", cache=False)
+                    except Exception as e:
+                        self._log_error(
+                            "Error downloading history artifact",
+                            extra={"e": e, "artifact": a},
+                        )
+                        continue
 
-                    new_art = _make_new_art(a)
+                new_art = _make_new_art(a)
 
-                    # empty artifact paths are not dirs
-                    if Path(path).is_dir():
-                        new_art.add_dir(path)
+                # empty artifact paths are not dirs
+                if Path(path).is_dir():
+                    new_art.add_dir(path)
 
-                    history_arts.append(new_art)
-            import_logger.info(
-                f"W&B Importer: Finished collecting history artifacts ({run_str})"
-            )
-            progress.subsubtask_pbar.remove_task(t)
+                history_arts.append(new_art)
+        import_logger.info(
+            f"W&B Importer: Finished collecting history artifacts ({run_str})"
+        )
+        progress.subsubtask_pbar.remove_task(t)
 
-            t = progress.subsubtask_pbar.add_task(
-                f"Upload history artifacts ({run_str})",
-                total=None,
-            )
-            internal.send_artifacts_with_send_manager(
-                history_arts,
-                run,
-                overrides=namespace.send_manager_overrides,
-                settings_override={**settings_override, "resumed": True},
-                config=internal.SendManagerConfig(log_artifacts=True),
-            )
-            import_logger.info(
-                f"W&B Importer: Finished uploading history artifacts ({run_str})"
-            )
-            progress.subsubtask_pbar.remove_task(t)
+        t = progress.subsubtask_pbar.add_task(
+            f"Upload history artifacts ({run_str})",
+            total=None,
+        )
+        internal.send_artifacts_with_send_manager(
+            history_arts,
+            run,
+            overrides=namespace.send_manager_overrides,
+            settings_override={**settings_override, "resumed": True},
+            config=internal.SendManagerConfig(log_artifacts=True),
+        )
+        import_logger.info(
+            f"W&B Importer: Finished uploading history artifacts ({run_str})"
+        )
+        progress.subsubtask_pbar.remove_task(t)
 
     def _delete_collection_in_dst(
         self,
         src_art: Artifact,
         namespace: Optional[Namespace] = None,
     ):
+        """Deletes the equivalent artifact collection in destination.  Intended to clear the destination when an uploaded artifact does not pass validation."""
         entity = coalesce(namespace.entity, src_art.entity)
         project = coalesce(namespace.project, src_art.project)
 
@@ -703,11 +703,9 @@ class WandbImporter:
         base_descr = f"Artifact Sequence ({entity}/{project}/{_type}/{name})"
 
         total = len(groups_of_artifacts)
-        i = 0
-        for group in progress.subtask_progress(
-            groups_of_artifacts, description=base_descr, total=total
+        for i, group in progress.subtask_progress(
+            list(enumerate(groups_of_artifacts)), description=base_descr, total=total
         ):
-            i += 1
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
                 run = WandbRun(placeholder_run)
@@ -1274,7 +1272,7 @@ class WandbImporter:
         )
 
     @progress.with_progress
-    def true_import_runs(
+    def import_runs(
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
@@ -1324,19 +1322,19 @@ class WandbImporter:
         import_logger.debug(f"Finished runs {namespaces=}")
 
     @progress.with_progress
-    def true_import_reports(
+    def import_reports(
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
     ):
         import_logger.debug(f"Starting to import reports for {namespaces=}")
-        reports = self._true_collect_reports(namespaces=namespaces, limit=limit)
-        self.import_reports(reports)
+        reports = self._collect_reports(namespaces=namespaces, limit=limit)
+        self._import_reports(reports)
         import_logger.debug(f"Finished reports {namespaces=}")
 
     @progress.with_progress
-    def true_import_artifact_sequences(
+    def import_artifact_sequences(
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
@@ -1348,7 +1346,7 @@ class WandbImporter:
 
         # Collect artifacts from source and validate against destination
         import_logger.debug(f"Starting to collect artifact sequences for {namespaces=}")
-        seqs = self._true_collect_artifact_sequences(namespaces=namespaces)
+        seqs = self._collect_artifact_sequences(namespaces=namespaces)
         seqs = list(seqs)
         import_logger.debug(
             f"Starting to validate artifact sequences for {namespaces=} {len(seqs)=}"
@@ -1398,17 +1396,17 @@ class WandbImporter:
         # errors = None
         while True:
             if runs:
-                self.true_import_runs(
+                self.import_runs(
                     namespaces=namespaces,
                     incremental=incremental,
                     max_workers=max_workers,
                 )
 
             if reports:
-                self.true_import_reports(namespaces=namespaces)
+                self.import_reports(namespaces=namespaces)
 
             if artifacts:
-                self.true_import_artifact_sequences(
+                self.import_artifact_sequences(
                     namespaces=namespaces,
                     incremental=incremental,
                     max_workers=max_workers,
@@ -1420,7 +1418,7 @@ class WandbImporter:
             # if not errors:
             #     break
 
-    def _true_validate_run(self, src_run: Run) -> None:
+    def _validate_run(self, src_run: Run) -> None:
         entity = src_run.entity
         project = src_run.project
         run_id = src_run.id
@@ -1600,7 +1598,7 @@ class WandbImporter:
         base_runs = list(base_runs)
 
         parallelize(
-            self._true_validate_run,
+            self._validate_run,
             base_runs,
             description="Validate runs",
         )
@@ -1824,7 +1822,7 @@ class WandbImporter:
         for p in projects:
             yield Namespace(p.entity, p.name)
 
-    def _true_collect_reports(
+    def _collect_reports(
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
@@ -1841,39 +1839,7 @@ class WandbImporter:
 
         yield from itertools.islice(reports(), limit)
 
-    def _collect_reports(
-        self,
-        entity: str,
-        project: str,
-        *,
-        limit: Optional[int] = None,
-        api: Optional[Api] = None,
-    ):
-        api = coalesce(api, self.src_api)
-
-        def reports():
-            for r in api.reports(f"{entity}/{project}"):
-                yield wr.Report.from_url(r.url, api=api)
-
-        yield from itertools.islice(reports(), limit)
-
-    def _collect_artifact_sequence(
-        self,
-        entity,
-        project,
-        type,
-        name,
-        *,
-        api: Optional[Api] = None,
-    ):
-        api = coalesce(api, self.src_api)
-        art_type = api.artifact_type(type_name=type, project=f"{entity}/{project}")
-
-        c = art_type.collection(name)
-        arts = [a for a in c.versions()]
-        return ArtifactSequence(arts, entity, project, type, name)
-
-    def _true_collect_artifact_sequences(
+    def _collect_artifact_sequences(
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
@@ -1965,7 +1931,7 @@ class WandbImporter:
             description="Import artifact sequences",
         )
 
-    def import_reports(
+    def _import_reports(
         self,
         reports: Iterable[Report],
         namespace: Optional[Namespace] = None,
