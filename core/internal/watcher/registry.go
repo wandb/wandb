@@ -15,3 +15,10 @@ func (r *registry) register(name string, fn func(Event) error) {
 	}
 	r.events[name] = fn
 }
+
+func (r *registry) get(name string) (func(Event) error, bool) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	fn, ok := r.events[name]
+	return fn, ok
+}

@@ -43,10 +43,10 @@ func New(opts ...WatcherOption) *Watcher {
 // handler function.
 func (w *Watcher) handleEvent(event Event) error {
 	w.logger.Debug("got event", "event", event)
-	if fn, ok := w.registry.events[event.Path]; ok {
+	if fn, ok := w.registry.get(event.Path); ok {
 		return fn(event)
 	}
-	if fn, ok := w.registry.events[filepath.Dir(event.Path)]; ok {
+	if fn, ok := w.registry.get(filepath.Dir(event.Path)); ok {
 		return fn(event)
 	}
 
@@ -109,11 +109,11 @@ func (w *Watcher) handleManualTriggerEventFn(event Event) error {
 		return err
 	}
 
-	if fn, ok := w.registry.events[absPath]; ok {
+	if fn, ok := w.registry.get(absPath); ok {
 		return fn(event)
 	}
 
-	if fn, ok := w.registry.events[path]; ok {
+	if fn, ok := w.registry.get(path); ok {
 		fnAbs := func(event Event) error {
 			event.Path = path
 			return fn(event)
