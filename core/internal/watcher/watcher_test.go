@@ -1,7 +1,6 @@
 package watcher_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -93,8 +92,6 @@ func TestWatchDir(t *testing.T) {
 	wg.Add(1)
 
 	handler := func(event watcher.Event) error {
-		fmt.Println(event)
-
 		if !event.IsDir() {
 			require.Equal(t, filepath.Join("", path), filepath.Base(filepath.Dir(event.Path)))
 			wg.Done()
