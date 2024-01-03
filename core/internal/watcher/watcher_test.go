@@ -1,6 +1,7 @@
 package watcher_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -90,6 +91,7 @@ func TestWatchDir(t *testing.T) {
 
 	handlerCalled := 0
 	handler := func(event watcher.Event) error {
+		fmt.Println(event)
 		handlerCalled += 1
 		if event.IsDir() {
 			// first event is triggered on the directory itself
@@ -108,20 +110,19 @@ func TestWatchDir(t *testing.T) {
 	err := os.Mkdir(path, 0755)
 	require.NoError(t, err, "Creating directory should be successful")
 
-	// write a file in the directory.
-	// TODO: it is now ignored. should it be handled?
-	err = os.WriteFile(filepath.Join(path, "test1.txt"), []byte("testing1\n"), 0644)
-	require.NoError(t, err, "Writing file should be successful")
-
 	err = w.Add(path, handler)
 	require.NoError(t, err, "Registering path should be successful")
 
 	// write a file in the directory
-	err = os.WriteFile(filepath.Join(path, "test2.txt"), []byte("testing2\n"), 0644)
+	err = os.WriteFile(filepath.Join(path, "test.txt"), []byte("testing"), 0644)
 	require.NoError(t, err, "Writing file should be successful")
 
+	// trigger event on the file in the directory
+	info, _ := os.Stat(filepath.Join(path, "test.txt"))
+	w.TriggerEvent(fw.Write, info)
+
 	wg.Wait()
-	require.GreaterOrEqual(t, 1, handlerCalled, "Dir event should have been handled once or twice and set handlerCalled to 2")
+	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice.")
 
 	w.Close()
 }
