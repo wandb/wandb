@@ -73,3 +73,49 @@ func TestWatchFile(t *testing.T) {
 
 	w.Close()
 }
+
+func TestWatchDir(t *testing.T) {
+	defer setupTest(t)()
+
+	options := []watcher.WatcherOption{
+		watcher.WithLogger(observability.NewNoOpLogger()),
+	}
+	w := watcher.New(options...)
+	path := "test"
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	handlerCalled := 0
+	handler := func(event watcher.Event) error {
+		handlerCalled += 1
+		if event.IsDir() {
+			// first event is triggered on the directory itself
+			require.Equal(t, filepath.Join("", path), filepath.Base(event.Path))
+		} else {
+			// second event is triggered on the newly created file in the directory
+			require.Equal(t, filepath.Join("", path), filepath.Base(filepath.Dir(event.Path)))
+		}
+
+		wg.Done()
+		return nil
+	}
+
+	w.Start()
+
+	// write a file in the directory.
+	// TODO: it is now ignored. should it be handled?
+	os.WriteFile(filepath.Join(path, "test1.txt"), []byte("testing1\n"), 0644)
+
+	os.Mkdir(path, 0755)
+	err := w.Add(path, handler)
+	require.NoError(t, err, "Registering path should be successful")
+
+	// write a file in the directory
+	os.WriteFile(filepath.Join(path, "test2.txt"), []byte("testing2\n"), 0644)
+
+	wg.Wait()
+	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice and set handlerCalled to 2")
+
+	w.Close()
+}
