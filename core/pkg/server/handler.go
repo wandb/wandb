@@ -739,6 +739,7 @@ func (h *Handler) handleRun(record *service.Record) {
 
 func (h *Handler) handleConfig(record *service.Record) {
 	h.sendRecord(record)
+	// TODO: handle config
 }
 
 func (h *Handler) handleAlert(record *service.Record) {
