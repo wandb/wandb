@@ -46,6 +46,10 @@ func (w *Watcher) handleEvent(event Event) error {
 	if fn, ok := w.registry.events[event.Path]; ok {
 		return fn(event)
 	}
+	if fn, ok := w.registry.events[filepath.Dir(event.Path)]; ok {
+		return fn(event)
+	}
+
 	return nil
 }
 
@@ -85,8 +89,13 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 		e := &EventFileInfo{FileInfo: info, name: path}
 		w.watcher.TriggerEvent(fw.Create, e)
 	}
-	// TODO: handle case where path is a directory
-	w.registry.register(path, fn)
+
+	// register with the absolute path
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	w.registry.register(absPath, fn)
 	return nil
 }
 
