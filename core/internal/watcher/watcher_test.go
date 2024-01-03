@@ -20,7 +20,8 @@ func setupTest(t *testing.T) func() {
 	require.NoError(t, os.Chdir(tmpDir), "cannot switch to temp directory")
 
 	cleanup := func() {
-		os.Chdir(cwd)
+		err := os.Chdir(cwd)
+		require.NoError(t, err, "cannot switch back to original directory")
 		os.RemoveAll(tmpDir)
 	}
 	return cleanup
@@ -112,7 +113,8 @@ func TestWatchDir(t *testing.T) {
 	require.NoError(t, err, "Registering path should be successful")
 
 	// write a file in the directory
-	os.WriteFile(filepath.Join(path, "test2.txt"), []byte("testing2\n"), 0644)
+	err = os.WriteFile(filepath.Join(path, "test2.txt"), []byte("testing2\n"), 0644)
+	require.NoError(t, err, "Writing file should be successful")
 
 	wg.Wait()
 	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice and set handlerCalled to 2")
