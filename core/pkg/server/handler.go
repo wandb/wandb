@@ -884,7 +884,10 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 }
 
 func (h *Handler) handleTbrecord(record *service.Record) {
-	h.tbHandler.Handle(record)
+	err := h.tbHandler.Handle(record)
+	if err != nil {
+		h.logger.CaptureError("error handling tbrecord", err)
+	}
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
