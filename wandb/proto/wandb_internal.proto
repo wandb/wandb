@@ -983,10 +983,15 @@ message ImageSource {
   string image = 1;
 }
 
+message UriSource {
+  string uri = 1;
+}
+
 message Source {
   GitSource git = 1;
   ArtifactInfo artifact = 2;
   ImageSource image = 3;
+  UriSource uri = 4;
 }
 
 /*

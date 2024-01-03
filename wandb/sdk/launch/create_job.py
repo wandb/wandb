@@ -260,6 +260,10 @@ def _make_metadata_for_partial_job(
             )
         metadata.update({"python": runtime or "", "docker": path})
         return metadata, None
+    
+    if job_type == "uri":
+        metadata.update({"uri": "griffin/woah/job", "python": runtime or ".".join(get_current_python_version()), "codePath": os.path.join(path, entrypoint)})
+        return metadata, None
 
     wandb.termerror(f"Invalid job type: {job_type}")
     return None, None
@@ -444,7 +448,6 @@ def _make_code_artifact(
     # Update path and entrypoint vars to match metadata
     # TODO(gst): consolidate into one place
     path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
-
     try:
         code_artifact.add_dir(path)
     except Exception as e:

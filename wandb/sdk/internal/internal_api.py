@@ -3099,7 +3099,7 @@ class Api:
         entity: Optional[str] = None,
         obj_id: Optional[str] = None,
     ):
-        mutation = """
+        mutation = gql("""
         mutation UpsertSweepConvert(
             $id: ID,
             $config: String,
@@ -3120,7 +3120,7 @@ class Api:
                 configValidationWarnings
             }
         }
-        """
+        """)
 
 
         config = self._validate_config_and_fill_distribution(config)

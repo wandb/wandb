@@ -51,6 +51,8 @@ class LocalProcessRunner(AbstractRunner):
             or launch_project.get_single_entry_point()
         )
 
+        print("lp", entry_point, launch_project.project_dir)
+
         cmd: List[Any] = []
 
         if launch_project.project_dir is None:

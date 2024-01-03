@@ -20,6 +20,7 @@ from functools import wraps
 from typing import Any, Dict, Optional
 
 import click
+from itsdangerous import base64_decode, base64_encode
 import yaml
 from click.exceptions import ClickException
 
@@ -28,6 +29,7 @@ from dockerpycreds.utils import find_executable
 
 import wandb
 import wandb.env
+from wandb.sdk.launch.create_job import _create_job
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -818,8 +820,11 @@ def sync(
 
 
 @cli.command(context_settings=CONTEXT, help="Create a sweep")
+@click.option("--project", "-p", default=None, help="The project of the sweep.")
+@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.argument("config_yaml")
-def sweep(ctx, config_yaml):
+@click.pass_context
+def sweep(ctx, project, entity, config_yaml):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep feature")
@@ -850,6 +855,23 @@ def sweep(ctx, config_yaml):
     )
     sweep_utils.handle_sweep_config_violations(warnings)
 
+    # create job
+    artifact, action, aliases = _create_job(
+        api=api,
+        path='.',
+        entity=entity,
+        project=project,
+        name=sweep_id,
+        job_type="uri",
+        description=f"auto generated job for sweep: {sweep_id}",
+        aliases=["latest"],
+        entrypoint=config.get("program"),
+    )
+    if not artifact:
+        wandb.termerror("Job creation failed")
+        return
+    
+    
     if entity and project:
         sweep_path = f"{entity}/{project}/{sweep_id}"
     elif project:
@@ -862,8 +884,6 @@ def sweep(ctx, config_yaml):
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
-    
-
 
 
 # @cli.command(context_settings=CONTEXT, help="Create a sweep")
@@ -1757,12 +1777,13 @@ def launch_agent(
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project of the sweep.")
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@click.option("--launch", "-l", is_flag=True, default=False, help="Secret!")
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, sweep_id):
+def agent(ctx, project, entity, launch, count, sweep_id):
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
@@ -1770,8 +1791,23 @@ def agent(ctx, project, entity, count, sweep_id):
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
-    wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    if not launch:
+        wandb_agent.agent(sweep_id, entity=entity, project=project, count=count)
+    else:
+        id_ = sweep_id.split("/")[-1]
+        queue = base64_encode(id_).decode("utf-8") + "="
+        import wandb.sdk.launch._launch as _launch
 
+        wandb.termlog("Starting launch agent ✨")
+        try:
+            agent_config, api = _launch.resolve_agent_config(
+                entity, sweep_id.split("/")[1], 1, [queue], None
+            )
+            _launch.create_and_run_agent(api, agent_config)
+        except Exception as e:
+            wandb._sentry.exception(e)
+            raise e
+        
     # you can send local commands like so:
     # agent_api.command({'type': 'run', 'program': 'train.py',
     #                'args': ['--max_epochs=10']})

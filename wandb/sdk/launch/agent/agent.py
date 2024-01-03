@@ -779,7 +779,7 @@ class LaunchAgent:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
 
                     # delete temp sweep queue if converted vanilla sweep
-                    if launch_spec.get("resource") == "local-process" and launch_spec.get("queue") == str(base64_encode(launch_spec.get("sweep_id"))):
+                    if launch_spec.get("resource") == "local-process" and launch_spec.get("queue") == str(base64_encode(launch_spec.get("sweep_id"))) + "=":
                         try:
                             self._api.delete_run_queue(
                                 queue_name=launch_spec["queue"],

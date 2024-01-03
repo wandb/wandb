@@ -372,6 +372,8 @@ class JobBuilder:
                 )
             elif source_type == "image" and self._has_image_job_ingredients(metadata):
                 source, name = self._build_image_job_source(metadata)
+            elif source_type == "uri":
+                source, name = {"uri": metadata.get("uri")}, self._make_job_name(metadata.get("uri"))
             else:
                 source = None
 
@@ -517,6 +519,11 @@ def convert_use_artifact_to_job_source(
             "image": source_info.source.image.image,
         }
         source_info_dict.update({"source": image_source})
+    elif source_info.source_type == "uri":
+        uri_source: Dict[str, str] = {
+            "uri": source_info.source.uri,
+        }
+        source_info_dict.update({"source": uri_source})
 
     partal_job_source_dict: PartialJobSourceDict = {
         "job_name": use_artifact.partial.job_name.split(":")[0],
