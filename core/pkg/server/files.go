@@ -22,9 +22,9 @@ type FileHandler struct {
 }
 
 func NewFileHandler(
+	watcher *watcher.Watcher,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
-	watcher *watcher.Watcher,
 	outChan chan *service.Record,
 ) *FileHandler {
 	return &FileHandler{

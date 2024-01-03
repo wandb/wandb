@@ -11,7 +11,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -51,9 +50,9 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
-func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
+func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	return func(h *Handler) {
-		h.watcher = watcher
+		h.tbHandler = handler
 	}
 }
 
@@ -122,8 +121,8 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// watcher is the file watcher for the stream
-	watcher *watcher.Watcher
+	// tbHandler is the tensorboard handler
+	tbHandler *TBHandler
 
 	// fileHandler is the file handler for the stream
 	fileHandler *FileHandler
@@ -238,6 +237,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
+		h.handleTbrecord(record)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -325,6 +325,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
+		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 		h.summaryHandler.Flush(h.sendSummary)
@@ -880,6 +881,10 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 
 	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
 	h.summaryHandler.updateSummaryDelta(summaryRecord)
+}
+
+func (h *Handler) handleTbrecord(record *service.Record) {
+	h.tbHandler.Handle(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
