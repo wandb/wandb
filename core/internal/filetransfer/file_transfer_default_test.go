@@ -43,9 +43,8 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 			},
 			args: args{
 				task: &Task{
-					Path:     "./test-download-file.txt",
-					Url:      "https://wandb.ai",
-					FileType: ArtifactFile,
+					Path: "./test-download-file.txt",
+					Url:  "https://wandb.ai",
 				},
 			},
 			wantErr: false,
