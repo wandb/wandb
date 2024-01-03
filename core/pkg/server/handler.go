@@ -56,7 +56,7 @@ func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	}
 }
 
-func WithHandlerFileHandler(handler *FileHandler) HandlerOption {
+func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
 	return func(h *Handler) {
 		h.fileHandler = handler
 	}
@@ -125,7 +125,7 @@ type Handler struct {
 	tbHandler *TBHandler
 
 	// fileHandler is the file handler for the stream
-	fileHandler *FileHandler
+	fileHandler *FilesHandler
 
 	// fileTransferHandler is the file transfer info for the stream
 	fileTransferHandler *FileTransferHandler
@@ -462,8 +462,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
 	}
 	h.sendRecord(record)
-
-	h.fileHandler.Start()
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
