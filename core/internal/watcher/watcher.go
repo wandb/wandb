@@ -1,147 +1,160 @@
 package watcher
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/observability"
-
 	fw "github.com/radovskyb/watcher"
-	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 const pollingInterval = time.Millisecond * 100
 
 type Watcher struct {
-	watcher *fw.Watcher
-	pathMap map[string]string
-	outChan chan *service.Record
-	wg      *sync.WaitGroup
-	logger  *observability.CoreLogger
+	watcher  *fw.Watcher
+	wg       *sync.WaitGroup
+	logger   *observability.CoreLogger
+	registry *registry
 }
 
-func NewWatcher(logger *observability.CoreLogger, outChan chan *service.Record) *Watcher {
-	return &Watcher{
-		watcher: fw.New(),
-		pathMap: make(map[string]string),
-		outChan: outChan,
-		wg:      &sync.WaitGroup{},
-		logger:  logger,
+type WatcherOption func(*Watcher)
+
+func WithLogger(logger *observability.CoreLogger) WatcherOption {
+	return func(w *Watcher) {
+		w.logger = logger
 	}
 }
 
-// Start starts the watcher and forwards upload requests
-// when watched files are created or written to.
-func (w *Watcher) Start() {
-	w.wg.Add(1)
-	go func() {
-		w.logger.Debug("starting watcher")
-	loop:
-		for {
-			select {
-			case event := <-w.watcher.Event:
-				// Only trigger on create and write events.
-				// The record we send on the channel must contain the relative path
-				// to comply with the backend's expectations
-				if event.Op == fw.Create || event.Op == fw.Write {
-					path := event.Path
-					// The first time we see a file, it comes from a manual trigger
-					// where event.Path is not defined. We compute the absolute path
-					// and store a map of absolute path to the user-provided relative path.
-					// On subsequent events, we use the map to get the relative path.
-					if path == "-" {
-						path = event.Name()
-						absolutePath, err := filepath.Abs(path)
-						if err != nil {
-							w.logger.CaptureError("error getting absolute path", err, "path", path)
-							continue
-						}
-						if _, ok := w.pathMap[absolutePath]; !ok {
-							w.pathMap[absolutePath] = path
-						}
-						path = absolutePath
-					}
-					// skip directories and files that don't exist
-					if fileInfo, err := os.Stat(path); err != nil || fileInfo.IsDir() {
-						continue
-					}
+func New(opts ...WatcherOption) *Watcher {
+	w := &Watcher{
+		watcher:  fw.New(),
+		wg:       &sync.WaitGroup{},
+		registry: &registry{},
+	}
+	for _, opt := range opts {
+		opt(w)
+	}
+	return w
+}
 
-					// at this point, we know that the file needs to be uploaded,
-					// so we send a Files record on the channel with the NOW policy
-					rec := &service.Record{
-						RecordType: &service.Record_Files{
-							Files: &service.FilesRecord{
-								Files: []*service.FilesItem{},
-							},
-						},
-					}
-					rec.GetFiles().Files = append(
-						rec.GetFiles().Files,
-						&service.FilesItem{
-							Policy: service.FilesItem_NOW,
-							Path:   w.pathMap[path],
-						},
-					)
-					w.outChan <- rec
-				}
-			case err := <-w.watcher.Error:
-				w.logger.Error("error watching file", "err", err)
-			case <-w.watcher.Closed:
-				break loop
+// handleEvent handles an event from the watcher and calls the appropriate
+// handler function.
+func (w *Watcher) handleEvent(event Event) error {
+	w.logger.Debug("got event", "event", event)
+	if fn, ok := w.registry.get(event.Path); ok {
+		return fn(event)
+	}
+	if fn, ok := w.registry.get(filepath.Dir(event.Path)); ok {
+		return fn(event)
+	}
+
+	return nil
+}
+
+// watch watches for events from the watcher and calls the appropriate
+// handler function. It returns when the watcher is closed or an error occurs.
+// It returns an error if an error occurs.
+func (w *Watcher) watch() error {
+	w.logger.Debug("starting watcher")
+	for {
+		select {
+		case event := <-w.watcher.Event:
+			w.logger.Debug("got event", "event", event)
+			if err := w.handleEvent(Event{Event: event}); err != nil {
+				w.logger.CaptureError("error handling event", err, "event", event)
 			}
+		case err := <-w.watcher.Error:
+			w.logger.CaptureError("error from watcher", err)
+			return err
+		case <-w.watcher.Closed:
+			w.logger.Debug("watcher closed")
+			return nil
 		}
-		w.wg.Done()
-	}()
-
-	// Start the watching process - it'll check for changes every pollingInterval ms.
-	go func() {
-		if err := w.watcher.Start(pollingInterval); err != nil {
-			w.logger.Error("error starting watcher", "err", err)
-		}
-	}()
-	w.watcher.Wait()
-	w.logger.Debug("watcher started")
+	}
 }
 
-// Close closes the watcher
-func (w *Watcher) Close() {
-	w.watcher.Close()
-	w.wg.Wait()
-	w.logger.Debug("watcher closed")
-}
-
-type EventFileInfo struct {
-	fs.FileInfo
-	name string
-}
-
-func (e *EventFileInfo) Name() string {
-	return e.name
-}
-
-// Add adds a path to the watcher's watch list
-func (w *Watcher) Add(path string) error {
-	fileInfo, err := os.Stat(path)
+// Add adds a path to the watcher and registers a handler function for it.
+func (w *Watcher) Add(path string, fn func(Event) error) error {
+	if err := w.watcher.Add(path); err != nil {
+		return err
+	}
+	info, err := os.Stat(path)
 	if err != nil {
 		return err
 	}
-	if !fileInfo.IsDir() {
-		err := w.watcher.Add(path)
-		if err != nil {
-			return err
-		}
+	if !info.IsDir() {
 		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
-		e := &EventFileInfo{FileInfo: fileInfo, name: path}
+		e := &EventFileInfo{FileInfo: info, name: path}
 		w.watcher.TriggerEvent(fw.Create, e)
-	} else {
-		// w.watcher.AddRecursive() does trigger events for existing files
-		err := w.watcher.AddRecursive(path)
-		if err != nil {
-			return err
+	}
+
+	// register with the absolute path
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	w.registry.register(absPath, fn)
+	return nil
+}
+
+// handleManualTriggerEventFn handler function for manual trigger events.
+// This is used when a file is added to the watcher manually, and we need
+// to register a handler function for it.
+func (w *Watcher) handleManualTriggerEventFn(event Event) error {
+	path := event.Name()
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+
+	if fn, ok := w.registry.get(absPath); ok {
+		return fn(event)
+	}
+
+	if fn, ok := w.registry.get(path); ok {
+		fnAbs := func(event Event) error {
+			event.Path = path
+			return fn(event)
 		}
+		w.registry.register(absPath, fnAbs)
+		return fnAbs(event)
 	}
 	return nil
+}
+
+func (w *Watcher) Start() {
+	// Start the watching process - it'll check for changes every pollingInterval ms.
+	go func() {
+		if err := w.watcher.Start(pollingInterval); err != nil {
+			w.logger.CaptureError("error starting watcher", err)
+		}
+	}()
+	w.watcher.Wait()
+
+	// The first time we see a file, it comes from a manual trigger
+	// where event.Path is not defined (it's "-"). So we register a
+	// handler function for it here.
+	w.registry.register("-", w.handleManualTriggerEventFn)
+
+	w.wg.Add(1)
+	go func() {
+		w.logger.Debug("starting watcher")
+		defer w.wg.Done()
+		if err := w.watch(); err != nil {
+			w.logger.CaptureError("error watching", err)
+		}
+	}()
+}
+
+func (w *Watcher) Close() {
+	w.watcher.Close()
+	w.wg.Wait()
+	w.registry.clear()
+	w.logger.Debug("watcher closed")
+}
+
+func (w *Watcher) TriggerEvent(eventType fw.Op, info os.FileInfo) {
+	w.watcher.TriggerEvent(eventType, info)
 }

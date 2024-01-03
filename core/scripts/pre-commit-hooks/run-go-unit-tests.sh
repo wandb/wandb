@@ -17,6 +17,6 @@ for f in $(echo $@| xargs -n1 dirname | sort -u); do
     rest=$(echo $f | cut -d/ -f2-)
     cd $base
     mod=$(go list)
-    go test -tags=unit -timeout 30s -short -v $mod/$rest || fail
+    go test -race -tags=unit -timeout 30s -short -v $mod/$rest || fail
     cd -
 done
