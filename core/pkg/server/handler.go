@@ -50,6 +50,12 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
+func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
+	return func(h *Handler) {
+		h.tbHandler = handler
+	}
+}
+
 func WithHandlerFileHandler(handler *FileHandler) HandlerOption {
 	return func(h *Handler) {
 		h.fileHandler = handler
@@ -114,6 +120,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// tbHandler is the tensorboard handler
+	tbHandler *TBHandler
 
 	// fileHandler is the file handler for the stream
 	fileHandler *FileHandler
@@ -228,6 +237,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
+		h.handleTbrecord(record)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -315,6 +325,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
+		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 		h.summaryHandler.Flush(h.sendSummary)
@@ -870,6 +881,13 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 
 	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
 	h.summaryHandler.updateSummaryDelta(summaryRecord)
+}
+
+func (h *Handler) handleTbrecord(record *service.Record) {
+	err := h.tbHandler.Handle(record)
+	if err != nil {
+		h.logger.CaptureError("error handling tbrecord", err)
+	}
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
