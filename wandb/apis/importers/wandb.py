@@ -325,13 +325,9 @@ class WandbRun:
                 self._artifacts = list(self.run.logged_artifacts())
             except Exception as e:
                 import_logger.error(f"exeception downloading metrics artifacts {e=}")
-                wandb_logger.error(
-                    f"Error downloading metrics artifacts -- {e}",
-                    extra={
-                        "entity": self.entity(),
-                        "project": self.project(),
-                        "run_id": self.run_id(),
-                    },
+                self._log_error(
+                    "Error downloading metrics artifacts",
+                    extras={"e": e},
                 )
                 return []
 
@@ -346,13 +342,9 @@ class WandbRun:
                     import_logger.error(
                         f"exeception downloading metrics artifacts {e=}"
                     )
-                    wandb_logger.error(
-                        f"Error downloading metrics artifact ({art}) -- {e}",
-                        extra={
-                            "entity": self.entity(),
-                            "project": self.project(),
-                            "run_id": self.run_id(),
-                        },
+                    self._log_error(
+                        "Error downloading metrics artifact",
+                        extras={"art": art, "e": e},
                     )
                     continue
                 paths.append(path)
@@ -639,7 +631,8 @@ class WandbImporter:
             run = art.logged_by()
         except ValueError as e:
             import_logger.warning(
-                f"Trying to log {art=}, but {run=} doesn't exist! {e=}"
+                "can't log artifact because run doesn't exist",
+                extra={"art": art, "run": run, "e": e},
             )
 
         if run is None:
@@ -1147,7 +1140,8 @@ class WandbImporter:
             except ValueError as e:
                 if "Could not find project" in str(e):
                     import_logger.warning(
-                        f"Could not get runs for {ns.entity}/{ns.project} (is it empty?) {e=}"
+                        "Failed to get runs, is the project empty?",
+                        extra={"entity": ns.entity, "project": ns.project, "e": e},
                     )
                     continue
             except Exception as e:
