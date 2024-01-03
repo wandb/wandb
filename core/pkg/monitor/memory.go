@@ -38,6 +38,7 @@ func (m *Memory) SampleMetrics() {
 	// process memory usage in MB
 	m.metrics["proc.memory.rssMB"] = append(
 		m.metrics["proc.memory.rssMB"],
+		// this sometimes panics:
 		float64(procMem.RSS)/1024/1024,
 	)
 	// process memory usage in percent
