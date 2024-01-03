@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -65,12 +66,18 @@ func (g *Git) LatestCommit(ref string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+// SavePatch saves a patch file of the diff between the current working tree and
+// the given ref. Returns an error if the operation fails, or if no diff is found.
 func (g *Git) SavePatch(ref, output string) error {
 	// get diff of current working tree vs uncommitted changes
 	command := []string{"git", "diff", ref, "--submodule=diff"}
 	err := runCommand(command, g.path, output)
 	if err != nil {
 		return err
+	}
+	// check if a file was created
+	if _, err := os.Stat(output); os.IsNotExist(err) {
+		return fmt.Errorf("no diff found")
 	}
 	return nil
 }

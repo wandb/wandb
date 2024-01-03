@@ -50,6 +50,12 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
+func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
+	return func(h *Handler) {
+		h.tbHandler = handler
+	}
+}
+
 func WithHandlerFileHandler(handler *FileHandler) HandlerOption {
 	return func(h *Handler) {
 		h.fileHandler = handler
@@ -114,6 +120,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// tbHandler is the tensorboard handler
+	tbHandler *TBHandler
 
 	// fileHandler is the file handler for the stream
 	fileHandler *FileHandler
@@ -228,6 +237,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
+		h.handleTbrecord(record)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -315,6 +325,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
+		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 		h.summaryHandler.Flush(h.sendSummary)
@@ -524,6 +535,7 @@ func (h *Handler) handlePythonPackages(_ *service.Record, request *service.Pytho
 				Files: []*service.FilesItem{
 					{
 						Path: requirementsFileName,
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -561,6 +573,7 @@ func (h *Handler) handleCodeSave() {
 				Files: []*service.FilesItem{
 					{
 						Path: filepath.Join("code", programRelative),
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -587,7 +600,7 @@ func (h *Handler) handlePatchSave() {
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &service.FilesItem{Path: diffFileName})
+		files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
 	}
 
 	if output, err := git.LatestCommit("@{u}"); err != nil {
@@ -598,7 +611,7 @@ func (h *Handler) handlePatchSave() {
 		if err := git.SavePatch("@{u}", file); err != nil {
 			h.logger.Error("error generating diff", "error", err)
 		} else {
-			files = append(files, &service.FilesItem{Path: diffFileName})
+			files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
 		}
 	}
 
@@ -647,6 +660,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 				Files: []*service.FilesItem{
 					{
 						Path: MetaFileName,
+						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
@@ -692,7 +706,10 @@ func (h *Handler) flushOutput() {
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
-					{Path: OutputFileName},
+					{
+						Path: OutputFileName,
+						Type: service.FilesItem_WANDB,
+					},
 				},
 			},
 		},
@@ -864,6 +881,13 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 
 	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
 	h.summaryHandler.updateSummaryDelta(summaryRecord)
+}
+
+func (h *Handler) handleTbrecord(record *service.Record) {
+	err := h.tbHandler.Handle(record)
+	if err != nil {
+		h.logger.CaptureError("error handling tbrecord", err)
+	}
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
