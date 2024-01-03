@@ -105,13 +105,14 @@ func TestWatchDir(t *testing.T) {
 
 	w.Start()
 
+	err := os.Mkdir(path, 0755)
+	require.NoError(t, err, "Creating directory should be successful")
+
 	// write a file in the directory.
 	// TODO: it is now ignored. should it be handled?
-	err := os.WriteFile(filepath.Join(path, "test1.txt"), []byte("testing1\n"), 0644)
+	err = os.WriteFile(filepath.Join(path, "test1.txt"), []byte("testing1\n"), 0644)
 	require.NoError(t, err, "Writing file should be successful")
 
-	err = os.Mkdir(path, 0755)
-	require.NoError(t, err, "Creating directory should be successful")
 	err = w.Add(path, handler)
 	require.NoError(t, err, "Registering path should be successful")
 
