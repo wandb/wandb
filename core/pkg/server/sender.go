@@ -791,7 +791,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
+		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 	// TODO: handle invalid alert levels
@@ -878,15 +878,14 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 	files := filesRecord.GetFiles()
 	for _, file := range files {
 		if strings.HasPrefix(file.GetPath(), "media") {
-			s.sendFile(file.GetPath(), filetransfer.MediaFile)
-		} else {
-			s.sendFile(file.GetPath(), filetransfer.OtherFile)
+			file.Type = service.FilesItem_MEDIA
 		}
+		s.sendFile(file)
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
+func (s *Sender) sendFile(file *service.FilesItem) {
 	if s.graphqlClient == nil || s.fileTransferManager == nil {
 		return
 	}
@@ -896,68 +895,72 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{name})
+	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{file.GetPath()})
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	for _, file := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+	for _, f := range data.GetCreateRunFiles().GetFiles() {
+		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
+		task := &filetransfer.Task{
+			Type: filetransfer.UploadTask,
+			Path: fullPath,
+			Name: f.Name,
+			Url:  *f.UploadUrl,
+		}
 
 		task.SetProgressCallback(
 			func(processed, total int) {
 				if processed == 0 {
 					return
 				}
-				request := &service.Request{
-					RequestType: &service.Request_FileTransferInfo{
-						FileTransferInfo: &service.FileTransferInfoRequest{
-							Type: service.FileTransferInfoRequest_Upload,
-							Path: fullPath,
-							// Url:       *file.UploadUrl,
-							Size:      int64(total),
-							Processed: int64(processed),
+				record := &service.Record{
+					RecordType: &service.Record_Request{
+						Request: &service.Request{
+							RequestType: &service.Request_FileTransferInfo{
+								FileTransferInfo: &service.FileTransferInfoRequest{
+									Type:      service.FileTransferInfoRequest_Upload,
+									Path:      fullPath,
+									Size:      int64(total),
+									Processed: int64(processed),
+								},
+							},
 						},
 					},
 				}
-
-				rec := &service.Record{
-					RecordType: &service.Record_Request{Request: request},
-				}
-				s.fwdChan <- rec
+				s.fwdChan <- record
 			},
 		)
 		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
 		task.AddCompletionCallback(
 			func(*filetransfer.Task) {
 				fileCounts := &service.FileCounts{}
-				switch fileType {
-				case filetransfer.MediaFile:
+				switch file.GetType() {
+				case service.FilesItem_MEDIA:
 					fileCounts.MediaCount = 1
-				case filetransfer.OtherFile:
+				case service.FilesItem_OTHER:
 					fileCounts.OtherCount = 1
-				case filetransfer.WandbFile:
+				case service.FilesItem_WANDB:
 					fileCounts.WandbCount = 1
 				}
 
-				request := &service.Request{
-					RequestType: &service.Request_FileTransferInfo{
-						FileTransferInfo: &service.FileTransferInfoRequest{
-							Type:       service.FileTransferInfoRequest_Upload,
-							Path:       fullPath,
-							Size:       task.Size,
-							Processed:  task.Size,
-							FileCounts: fileCounts,
+				record := &service.Record{
+					RecordType: &service.Record_Request{
+						Request: &service.Request{
+							RequestType: &service.Request_FileTransferInfo{
+								FileTransferInfo: &service.FileTransferInfoRequest{
+									Type:       service.FileTransferInfoRequest_Upload,
+									Path:       fullPath,
+									Size:       task.Size,
+									Processed:  task.Size,
+									FileCounts: fileCounts,
+								},
+							},
 						},
 					},
 				}
-
-				rec := &service.Record{
-					RecordType: &service.Record_Request{Request: request},
-				}
-				s.fwdChan <- rec
+				s.fwdChan <- record
 			},
 		)
 
@@ -970,7 +973,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
-	artifactID, err := saver.Save()
+	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {
