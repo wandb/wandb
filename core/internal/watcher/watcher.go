@@ -151,6 +151,7 @@ func (w *Watcher) Start() {
 func (w *Watcher) Close() {
 	w.watcher.Close()
 	w.wg.Wait()
+	w.registry.clear()
 	w.logger.Debug("watcher closed")
 }
 

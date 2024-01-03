@@ -92,6 +92,10 @@ func TestWatchDir(t *testing.T) {
 	handlerCalled := 0
 	handler := func(event watcher.Event) error {
 		fmt.Println(event)
+		if event.IsRemove() {
+			return nil
+		}
+
 		handlerCalled += 1
 		if event.IsDir() {
 			// first event is triggered on the directory itself
@@ -122,7 +126,6 @@ func TestWatchDir(t *testing.T) {
 	w.TriggerEvent(fw.Write, info)
 
 	wg.Wait()
-	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice.")
-
 	w.Close()
+	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice.")
 }

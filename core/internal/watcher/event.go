@@ -22,6 +22,10 @@ func (e *Event) IsCreate() bool {
 	return e.Event.Op == fw.Create
 }
 
+func (e *Event) IsRemove() bool {
+	return e.Event.Op == fw.Remove
+}
+
 type EventFileInfo struct {
 	fs.FileInfo
 	name string
