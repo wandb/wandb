@@ -9,8 +9,7 @@ import wandb
 from wandb.util import get_module
 
 from . import internal, protocols
-
-# from .config import ImportConfig
+from .config import ImportConfig
 
 with patch("click.echo"):
     pass
