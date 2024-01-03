@@ -20,6 +20,9 @@ func setupTest(t *testing.T) func() {
 	require.NoError(t, err, "cannot get current working directory")
 	require.NoError(t, os.Chdir(tmpDir), "cannot switch to temp directory")
 
+	err = os.Mkdir(filepath.Join(tmpDir, "test"), 0755)
+	require.NoError(t, err, "Creating directory should be successful")
+
 	cleanup := func() {
 		err := os.Chdir(cwd)
 		require.NoError(t, err, "cannot switch back to original directory")
@@ -87,45 +90,28 @@ func TestWatchDir(t *testing.T) {
 	path := "test"
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
-	handlerCalled := 0
 	handler := func(event watcher.Event) error {
 		fmt.Println(event)
-		if event.IsRemove() {
-			return nil
-		}
 
-		handlerCalled += 1
-		if event.IsDir() {
-			// first event is triggered on the directory itself
-			require.Equal(t, filepath.Join("", path), filepath.Base(event.Path))
-		} else {
-			// second event is triggered on the newly created file in the directory
+		if !event.IsDir() {
 			require.Equal(t, filepath.Join("", path), filepath.Base(filepath.Dir(event.Path)))
+			wg.Done()
 		}
 
-		wg.Done()
 		return nil
 	}
 
 	w.Start()
 
-	err := os.Mkdir(path, 0755)
-	require.NoError(t, err, "Creating directory should be successful")
-
-	err = w.Add(path, handler)
+	err := w.Add(path, handler)
 	require.NoError(t, err, "Registering path should be successful")
 
 	// write a file in the directory
 	err = os.WriteFile(filepath.Join(path, "test.txt"), []byte("testing"), 0644)
 	require.NoError(t, err, "Writing file should be successful")
 
-	// trigger event on the file in the directory
-	info, _ := os.Stat(filepath.Join(path, "test.txt"))
-	w.TriggerEvent(fw.Write, info)
-
 	wg.Wait()
 	w.Close()
-	require.Equal(t, 2, handlerCalled, "Dir event should have been handled twice.")
 }

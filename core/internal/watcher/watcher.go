@@ -125,6 +125,14 @@ func (w *Watcher) handleManualTriggerEventFn(event Event) error {
 }
 
 func (w *Watcher) Start() {
+	// Start the watching process - it'll check for changes every pollingInterval ms.
+	go func() {
+		if err := w.watcher.Start(pollingInterval); err != nil {
+			w.logger.CaptureError("error starting watcher", err)
+		}
+	}()
+	w.watcher.Wait()
+
 	// The first time we see a file, it comes from a manual trigger
 	// where event.Path is not defined (it's "-"). So we register a
 	// handler function for it here.
@@ -138,14 +146,6 @@ func (w *Watcher) Start() {
 			w.logger.CaptureError("error watching", err)
 		}
 	}()
-
-	// Start the watching process - it'll check for changes every pollingInterval ms.
-	go func() {
-		if err := w.watcher.Start(pollingInterval); err != nil {
-			w.logger.CaptureError("error starting watcher", err)
-		}
-	}()
-	w.watcher.Wait()
 }
 
 func (w *Watcher) Close() {
