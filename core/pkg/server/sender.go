@@ -1300,7 +1300,7 @@ func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecor
 	}
 
 	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.fileTransferManager, builder.GetArtifact(), 0, "")
-	_, err = saver.Save()
+	_, err = saver.Save(s.fwdChan)
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
 	}
