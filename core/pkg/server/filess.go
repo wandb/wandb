@@ -13,10 +13,10 @@ import (
 type FilesHandler struct {
 	nowSet        map[string]struct{}
 	endSet        map[string]struct{}
+	logger        *observability.CoreLogger
 	watcher       *watcher.Watcher
 	handleFn      func(*service.Record)
 	filterPattern []string
-	logger        *observability.CoreLogger
 }
 
 func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger) *FilesHandler {
@@ -25,6 +25,27 @@ func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger)
 		endSet:  make(map[string]struct{}),
 		logger:  logger,
 		watcher: watcher,
+	}
+	return fh
+}
+
+type FilesHandlerOption func(*FilesHandler)
+
+func WithFilesHandlerHandleFn(fn func(*service.Record)) FilesHandlerOption {
+	return func(fh *FilesHandler) {
+		fh.handleFn = fn
+	}
+}
+
+func WithFilesHandlerFilterPattern(patterns []string) FilesHandlerOption {
+	return func(fh *FilesHandler) {
+		fh.filterPattern = patterns
+	}
+}
+
+func (fh *FilesHandler) With(opts ...FilesHandlerOption) *FilesHandler {
+	for _, opt := range opts {
+		opt(fh)
 	}
 	return fh
 }
@@ -114,7 +135,7 @@ func (fh *FilesHandler) makeRecord(paths map[string]struct{}) *service.Record {
 }
 
 func (fh *FilesHandler) handleLive(path string) {
-	record := fh.makeRecord(map[string]struct{}{path: struct{}{}})
+	record := fh.makeRecord(map[string]struct{}{path: {}})
 	fh.watcher.Add(path, func(event watcher.Event) error {
 		if event.IsCreate() || event.IsWrite() {
 			fh.handleFn(record)
@@ -141,4 +162,12 @@ func (fh *FilesHandler) handleEnd() {
 
 func (fh *FilesHandler) Flush() {
 	fh.handleEnd()
+}
+
+func (fh *FilesHandler) Close() {
+	if fh == nil {
+		return
+	}
+	fh.watcher.Close()
+	fh.logger.Debug("closed file handler")
 }

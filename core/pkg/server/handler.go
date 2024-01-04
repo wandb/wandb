@@ -334,8 +334,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.flushOutput()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		rec := h.fileHandler.Final()
-		h.sendRecord(rec)
+		h.fileHandler.Flush()
 	case service.DeferRequest_FLUSH_FP:
 	case service.DeferRequest_JOIN_FP:
 		h.fileHandler.Close()
@@ -462,6 +461,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
 	}
 	h.sendRecord(record)
+
+	h.fileHandler = h.fileHandler.With(
+		WithFilesHandlerFilterPattern(h.settings.GetIgnoreGlobs().GetValue()),
+		WithFilesHandlerHandleFn(h.sendRecord),
+	)
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -780,8 +784,8 @@ func (h *Handler) handleFiles(record *service.Record) {
 		return
 	}
 
-	rec := h.fileHandler.Handle(record)
-	h.sendRecord(rec)
+	h.fileHandler.Handle(record)
+
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
