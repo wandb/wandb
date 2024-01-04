@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,9 +19,11 @@ import (
 
 const (
 	MetaFileName              = "wandb-metadata.json"
+	SummaryFileName           = "wandb-summary.json"
 	OutputFileName            = "output.log"
-	diffFileName              = "diff.patch"
-	requirementsFileName      = "requirements.txt"
+	DiffFileName              = "diff.patch"
+	RequirementsFileName      = "requirements.txt"
+	ConfigFileName            = "config.yaml"
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
@@ -247,7 +250,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
-		h.handleTbrecord(record)
+		h.handleTBrecord(record)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -269,17 +272,17 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
 		h.handleDefer(record, x.Defer)
-		return
+		response = nil
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
 	case *service.Request_PartialHistory:
 		h.handlePartialHistory(record, x.PartialHistory)
-		return
+		response = nil
 	case *service.Request_PollExit:
 		h.handlePollExit(record)
-		return
+		response = nil
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
@@ -475,13 +478,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.watcher.Start()
 
 	h.filesHandler = h.filesHandler.With(
-		WithFilesHandlerHandleFn(func(rec *service.Record) {
-			h.sendRecordWithControl(rec,
-				func(control *service.Control) {
-					control.AlwaysSend = true
-				},
-			)
-		}),
+		WithFilesHandlerHandleFn(h.sendRecord),
 	)
 
 	// start the system monitor
@@ -532,7 +529,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 func (h *Handler) handlePythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
 	// write all requirements to a file
 	// send the file as a Files record
-	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), requirementsFileName)
+	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), RequirementsFileName)
 	file, err := os.Create(filename)
 	if err != nil {
 		h.logger.Error("error creating requirements file", "error", err)
@@ -553,7 +550,7 @@ func (h *Handler) handlePythonPackages(_ *service.Record, request *service.Pytho
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
 					{
-						Path: requirementsFileName,
+						Path: RequirementsFileName,
 						Type: service.FilesItem_WANDB,
 					},
 				},
@@ -615,11 +612,11 @@ func (h *Handler) handlePatchSave() {
 	files := []*service.FilesItem{}
 
 	filesDirPath := h.settings.GetFilesDir().GetValue()
-	file := filepath.Join(filesDirPath, diffFileName)
+	file := filepath.Join(filesDirPath, DiffFileName)
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
+		files = append(files, &service.FilesItem{Path: DiffFileName, Type: service.FilesItem_WANDB})
 	}
 
 	if output, err := git.LatestCommit("@{u}"); err != nil {
@@ -790,7 +787,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-	h.filesHandler.HandleSend(record)
+	h.filesHandler.Handle(record)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
@@ -862,6 +859,41 @@ func (h *Handler) sendSummary() {
 			Key: key, ValueJson: value,
 		})
 	}
+
+	// write summary record into a file wandb-summary.json the file could be already existing
+	// should overwrite it
+	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
+	// check if file exists
+	if _, err := os.Stat(filename); err != nil {
+		h.filesHandler.Handle(&service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{
+					Files: []*service.FilesItem{
+						{
+							Path:   SummaryFileName,
+							Type:   service.FilesItem_WANDB,
+							Policy: service.FilesItem_END,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	file, err := os.Create(filename)
+	if err != nil {
+		h.logger.Error("error creating summary file", "error", err)
+	} else {
+		jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
+		if err != nil {
+			h.logger.Error("error marshalling summary", "error", err)
+		} else if _, err := file.Write(jsonBytes); err != nil {
+			h.logger.Error("error writing summary file", "error", err)
+		}
+	}
+
+	defer file.Close()
+
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
 			Summary: summaryRecord,
@@ -889,7 +921,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 	h.summaryHandler.updateSummaryDelta(summaryRecord)
 }
 
-func (h *Handler) handleTbrecord(record *service.Record) {
+func (h *Handler) handleTBrecord(record *service.Record) {
 	err := h.tbHandler.Handle(record)
 	if err != nil {
 		h.logger.CaptureError("error handling tbrecord", err)

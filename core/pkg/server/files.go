@@ -114,11 +114,11 @@ func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
 	return false
 }
 
-// HandleSend handles file uploads preprocessing, depending on their policies:
+// Handle handles file uploads preprocessing, depending on their policies:
 // - NOW: upload immediately
 // - END: upload at the end of the run
 // - LIVE: upload immediately, on changes, and at the end of the run
-func (fh *FilesHandler) HandleSend(record *service.Record) {
+func (fh *FilesHandler) Handle(record *service.Record) {
 	files := fh.globs(record.GetFiles().GetFiles())
 	nowSet := make(map[string]*service.FilesItem)
 	for _, file := range files {
