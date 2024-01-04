@@ -400,7 +400,7 @@ class KubernetesRunner(AbstractRunner):
                             "name": key,
                             "valueFrom": {
                                 "secretKeyRef": {
-                                    "name": f"wandb-api-key-{agent_name}",
+                                    "name": f"wandb-api-key",
                                     "key": "password",
                                 }
                             },
@@ -628,7 +628,7 @@ async def create_api_key_secret(
     secret = client.V1Secret(
         data=secret_data,
         metadata=client.V1ObjectMeta(
-            name=f"wandb-api-key-{agent_id}", namespace=namespace
+            name=f"wandb-api-key, namespace=namespace
         ),
         kind="Secret",
         type="kubernetes.io/basic-auth",
@@ -641,7 +641,7 @@ async def create_api_key_secret(
             # 409 = conflict = secret already exists
             if e.status == 409:
                 return await core_api.read_namespaced_secret(
-                    name=f"wandb-api-key-{agent_id}", namespace=namespace
+                    name=f"wandb-api-key", namespace=namespace
                 )
             raise
     except Exception as e:
