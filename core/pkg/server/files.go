@@ -98,10 +98,6 @@ func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
 		return false
 	}
 
-	// if _, err := os.Stat(file.Path); err != nil {
-	// 	return true
-	// }
-
 	for _, pattern := range filterPattern {
 		if matches, err := filepath.Match(pattern, file.Path); err != nil {
 			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)

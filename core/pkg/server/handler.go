@@ -347,7 +347,6 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
-		// h.handleOutputFlush()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
 		h.watcher.Close()
@@ -872,8 +871,7 @@ func (h *Handler) sendSummary() {
 			h.logger.Error("error writing summary file", "error", err)
 		}
 	}
-
-	// defer file.Close()
+	defer file.Close()
 
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
