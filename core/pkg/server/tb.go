@@ -20,11 +20,13 @@ type TBHandler struct {
 }
 
 func NewTBHandler(
+	watcher *watcher.Watcher,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	outChan chan *service.Record,
 ) *TBHandler {
 	tb := &TBHandler{
+		watcher:  watcher,
 		tracked:  make(map[string]struct{}),
 		outChan:  outChan,
 		logger:   logger,
@@ -36,21 +38,6 @@ func NewTBHandler(
 		logger.CaptureError("error getting working directory", err)
 	}
 	tb.workingDir = workingDir
-	return tb
-}
-
-type TBHandlerOption func(*TBHandler)
-
-func WithTBHandlerWatcher(watcher *watcher.Watcher) TBHandlerOption {
-	return func(tb *TBHandler) {
-		tb.watcher = watcher
-	}
-}
-
-func (tb *TBHandler) With(opts ...TBHandlerOption) *TBHandler {
-	for _, opt := range opts {
-		opt(tb)
-	}
 	return tb
 }
 

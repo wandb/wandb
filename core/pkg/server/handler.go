@@ -65,13 +65,13 @@ func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 
 func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
 	return func(h *Handler) {
-		h.fileHandler = handler
+		h.filesHandler = handler
 	}
 }
 
-func WithHandlerFileTransferHandler(handler *FileTransferHandler) HandlerOption {
+func WithHandlerFilesInfoHandler(handler *FilesInfoHandler) HandlerOption {
 	return func(h *Handler) {
-		h.fileTransferHandler = handler
+		h.filesInfoHandler = handler
 	}
 }
 
@@ -134,11 +134,11 @@ type Handler struct {
 	// tbHandler is the tensorboard handler
 	tbHandler *TBHandler
 
-	// fileHandler is the file handler for the stream
-	fileHandler *FilesHandler
+	// filesHandler is the file handler for the stream
+	filesHandler *FilesHandler
 
-	// fileTransferHandler is the file transfer info for the stream
-	fileTransferHandler *FileTransferHandler
+	// filesInfoHandler is the file transfer info for the stream
+	filesInfoHandler *FilesInfoHandler
 }
 
 // NewHandler creates a new handler
@@ -349,7 +349,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_DIR:
 		h.watcher.Close()
 	case service.DeferRequest_FLUSH_FP:
-		h.fileHandler.Flush()
+		h.filesHandler.Flush()
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
@@ -390,13 +390,9 @@ func (h *Handler) handlePollExit(record *service.Record) {
 			Response: &service.Response{
 				ResponseType: &service.Response_PollExitResponse{
 					PollExitResponse: &service.PollExitResponse{
-						PusherStats: &service.FilePusherStats{
-							UploadedBytes: h.fileTransferHandler.GetUploadedBytes(),
-							TotalBytes:    h.fileTransferHandler.GetTotalBytes(),
-							DedupedBytes:  h.fileTransferHandler.GetDedupedBytes(),
-						},
-						FileCounts: h.fileTransferHandler.GetFileCounts(),
-						Done:       h.fileTransferHandler.IsDone(),
+						PusherStats: h.filesInfoHandler.GetFilesStats(),
+						FileCounts:  h.filesInfoHandler.GetFilesCount(),
+						Done:        h.filesInfoHandler.GetDone(),
 					},
 				},
 			},
@@ -478,7 +474,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// start the tensorboard handler
 	h.watcher.Start()
 
-	h.fileHandler = h.fileHandler.With(
+	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(func(rec *service.Record) {
 			h.sendRecordWithControl(rec,
 				func(control *service.Control) {
@@ -486,11 +482,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 				},
 			)
 		}),
-		WithFilesHandlerWatcher(h.watcher),
-	)
-
-	h.tbHandler = h.tbHandler.With(
-		WithTBHandlerWatcher(h.watcher),
 	)
 
 	// start the system monitor
@@ -799,9 +790,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-
-	h.fileHandler.Handle(record)
-
+	h.filesHandler.HandleSend(record)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
@@ -844,8 +833,7 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 }
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
-	info := record.GetRequest().GetFileTransferInfo()
-	h.fileTransferHandler.Handle(info)
+	h.filesInfoHandler.Handle(record)
 }
 
 func (h *Handler) handleSync(record *service.Record) {
