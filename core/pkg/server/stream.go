@@ -80,7 +80,7 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings, s.loopBackChan)),
-		WithHandlerFileHandler(NewFilesHandler(s.logger)),
+		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger)),
 		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings, s.loopBackChan)),
 		WithHandlerFileTransferHandler(NewFileTransferHandler()),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),

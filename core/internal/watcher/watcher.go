@@ -43,10 +43,10 @@ func New(opts ...WatcherOption) *Watcher {
 // handler function.
 func (w *Watcher) handleEvent(event Event) error {
 	w.logger.Debug("got event", "event", event)
-	if fn, ok := w.registry.events[event.Path]; ok {
+	if fn, ok := w.registry.get(event.Path); ok {
 		return fn(event)
 	}
-	if fn, ok := w.registry.events[filepath.Dir(event.Path)]; ok {
+	if fn, ok := w.registry.get(filepath.Dir(event.Path)); ok {
 		return fn(event)
 	}
 
@@ -80,14 +80,10 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 	if err := w.watcher.Add(path); err != nil {
 		return err
 	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
-	}
-	if !info.IsDir() {
-		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
-		e := &EventFileInfo{FileInfo: info, name: path}
-		w.watcher.TriggerEvent(fw.Create, e)
 	}
 
 	// register with the absolute path
@@ -96,6 +92,13 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 		return err
 	}
 	w.registry.register(absPath, fn)
+
+	if !info.IsDir() {
+		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
+		e := &EventFileInfo{FileInfo: info, name: path}
+		w.watcher.TriggerEvent(fw.Create, e)
+	}
+
 	return nil
 }
 
@@ -109,11 +112,11 @@ func (w *Watcher) handleManualTriggerEventFn(event Event) error {
 		return err
 	}
 
-	if fn, ok := w.registry.events[absPath]; ok {
+	if fn, ok := w.registry.get(absPath); ok {
 		return fn(event)
 	}
 
-	if fn, ok := w.registry.events[path]; ok {
+	if fn, ok := w.registry.get(path); ok {
 		fnAbs := func(event Event) error {
 			event.Path = path
 			return fn(event)
@@ -125,6 +128,14 @@ func (w *Watcher) handleManualTriggerEventFn(event Event) error {
 }
 
 func (w *Watcher) Start() {
+	// Start the watching process - it'll check for changes every pollingInterval ms.
+	go func() {
+		if err := w.watcher.Start(pollingInterval); err != nil {
+			w.logger.CaptureError("error starting watcher", err)
+		}
+	}()
+	w.watcher.Wait()
+
 	// The first time we see a file, it comes from a manual trigger
 	// where event.Path is not defined (it's "-"). So we register a
 	// handler function for it here.
@@ -138,18 +149,15 @@ func (w *Watcher) Start() {
 			w.logger.CaptureError("error watching", err)
 		}
 	}()
-
-	// Start the watching process - it'll check for changes every pollingInterval ms.
-	go func() {
-		if err := w.watcher.Start(pollingInterval); err != nil {
-			w.logger.CaptureError("error starting watcher", err)
-		}
-	}()
-	w.watcher.Wait()
 }
 
 func (w *Watcher) Close() {
 	w.watcher.Close()
 	w.wg.Wait()
+	w.registry.clear()
 	w.logger.Debug("watcher closed")
+}
+
+func (w *Watcher) TriggerEvent(eventType fw.Op, info os.FileInfo) {
+	w.watcher.TriggerEvent(eventType, info)
 }

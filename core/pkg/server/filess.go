@@ -10,106 +10,36 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// type FilesSet struct {
-// 	set map[string]struct{}
-// 	fn  func(map[string]struct{})
-// }
-
-// func NewFilesSet() *FilesSet {
-// 	return &FilesSet{
-// 		set: make(map[string]struct{}),
-// 		fn:  func(map[string]struct{}) {},
-// 	}
-// }
-
-// func (fs *FilesSet) Add(file *service.FilesItem) {
-// 	if _, ok := fs.set[file.Path]; !ok {
-// 		fs.set[file.Path] = struct{}{}
-// 	}
-// }
-
-// func (fs *FilesSet) Set() map[string]struct{} {
-// 	return fs.set
-// }
-
-// func (fs *FilesSet) Flush() {
-// 	if len(fs.set) == 0 {
-// 		return
-// 	}
-// 	fs.fn(fs.set)
-// 	clear(fs.set)
-// }
-
-// type FilesHandlerOption func(*FilesHandler)
-
-// func WithFilesHandlerFilterFn(fn func(*service.FilesItem) bool) FilesHandlerOption {
-// 	return func(fh *FilesHandler) {
-// 		fh.filterFn = fn
-// 	}
-// }
-
-// func WithFilesHandlerLiveFn(fn func(map[string]struct{})) FilesHandlerOption {
-// 	return func(fh *FilesHandler) {
-// 		fh.liveSet.fn = fn
-// 	}
-// }
-
-// func WithFilesHandlerNowFn(fn func(map[string]struct{})) FilesHandlerOption {
-// 	return func(fh *FilesHandler) {
-// 		fh.nowSet.fn = fn
-// 	}
-// }
-
-// func WithEndFn(fn func(map[string]struct{})) FilesHandlerOption {
-// 	return func(fh *FilesHandler) {
-// 		fh.endSet.fn = fn
-// 	}
-// }
-
-// func WithLogger(logger *observability.CoreLogger) FilesHandlerOption {
-// 	return func(fh *FilesHandler) {
-// 		fh.logger = logger
-// 	}
-// }
-
 type FilesHandler struct {
-	nowSet   map[string]struct{}
-	endSet   map[string]struct{}
-	watcher  *watcher.Watcher
-	outChan  chan *service.Record
-	filterFn func(*service.FilesItem) bool
-	logger   *observability.CoreLogger
+	nowSet        map[string]struct{}
+	endSet        map[string]struct{}
+	watcher       *watcher.Watcher
+	handleFn      func(*service.Record)
+	filterPattern []string
+	logger        *observability.CoreLogger
 }
 
-func NewFilesHandler(logger *observability.CoreLogger) *FilesHandler {
+func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger) *FilesHandler {
 	fh := &FilesHandler{
-		// endSet:  NewFilesSet(),
-		// nowSet:  NewFilesSet(),
-		// liveSet: NewFilesSet(),
 		nowSet:  make(map[string]struct{}),
 		endSet:  make(map[string]struct{}),
-		watcher: watcher.New(),
-		outChan: make(chan *service.Record, BufferSize),
-		filterFn: func(*service.FilesItem) bool {
-			return false
-		},
-		logger: logger,
+		logger:  logger,
+		watcher: watcher,
 	}
 	return fh
 }
 
-// func (fh *FilesHandler) Start(opts ...FilesHandlerOption) {
-// 	for _, opt := range opts {
-// 		opt(fh)
-// 	}
-// }
-
 func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 	var files []*service.FilesItem
 	for _, glob := range globs {
+		if glob.Path == "" {
+			continue
+		}
 		matches, err := filepath.Glob(glob.Path)
 		if len(matches) == 0 {
-			files = append(files, glob)
+			if !fh.filterFn(glob) {
+				files = append(files, glob)
+			}
 			continue
 		}
 		if err != nil {
@@ -117,88 +47,98 @@ func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 			continue
 		}
 		for _, match := range matches {
-			file := proto.Clone(glob).(*service.FilesItem)
-			file.Path = match
-			files = append(files, file)
+			if !fh.filterFn(glob) {
+				file := proto.Clone(glob).(*service.FilesItem)
+				file.Path = match
+				files = append(files, file)
+			}
 		}
 	}
 	return files
 }
 
-func (fh *FilesHandler) Handle(record *service.Record) error {
-	files := fh.globs(record.GetFiles().GetFiles())
-	if err := fh.add(files); err != nil {
-		return err
+func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
+	for _, pattern := range fh.filterPattern {
+		if matches, err := filepath.Match(pattern, file.Path); err != nil {
+			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
+			continue
+		} else if matches {
+			fh.logger.Info("ignoring file", "path", file.Path, "glob", pattern)
+			return true
+		}
 	}
-	// 	fh.nowSet.Flush()
-	// 	fh.liveSet.Flush()
-	return nil
+	return false
 }
 
-// func (fh *FilesHandler) Flush() error {
-// 	fh.endSet.Flush()
-// 	return nil
-// }
-
-func (fh *FilesHandler) add(files []*service.FilesItem) error {
+func (fh *FilesHandler) Handle(record *service.Record) {
+	files := fh.globs(record.GetFiles().GetFiles())
 	for _, file := range files {
-		if fh.filterFn(file) {
-			continue
-		}
 		switch file.Policy {
 		case service.FilesItem_NOW:
-			fh.addNow(file)
+			fh.nowSet[file.Path] = struct{}{}
 		case service.FilesItem_END:
-			fh.addEnd(file)
+			fh.endSet[file.Path] = struct{}{}
 		case service.FilesItem_LIVE:
-			fh.addLive(file)
+			fh.endSet[file.Path] = struct{}{}
+			fh.handleLive(file.Path)
 		default:
 			err := fmt.Errorf("unknown policy: %s", file.Policy)
 			fh.logger.CaptureError("unknown policy", err, "policy", file.Policy)
 			continue
 		}
 	}
-	return nil
+	fh.handleNow()
 }
 
-func (fh *FilesHandler) addNow(file *service.FilesItem) {
+func (fh *FilesHandler) makeRecord(paths map[string]struct{}) *service.Record {
+	if len(paths) == 0 {
+		return nil
+	}
 
-	rec := &service.Record{
+	files := make([]*service.FilesItem, 0, len(paths))
+	for path := range paths {
+		files = append(files, &service.FilesItem{
+			Policy: service.FilesItem_NOW,
+			Path:   path,
+		})
+	}
+
+	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Policy: service.FilesItem_NOW,
-						Path:   file.Path,
-					},
-				},
+				Files: files,
 			},
 		},
 	}
-	fh.outChan <- rec
+	return record
 }
 
-func (fh *FilesHandler) addEnd(file *service.FilesItem) {
-
-}
-
-func (fh *FilesHandler) addLive(file *service.FilesItem) {
-	fh.watcher.Add(file.Path, func(event watcher.Event) error {
+func (fh *FilesHandler) handleLive(path string) {
+	record := fh.makeRecord(map[string]struct{}{path: struct{}{}})
+	fh.watcher.Add(path, func(event watcher.Event) error {
 		if event.IsCreate() || event.IsWrite() {
-			rec := &service.Record{
-				RecordType: &service.Record_Files{
-					Files: &service.FilesRecord{
-						Files: []*service.FilesItem{
-							{
-								Policy: service.FilesItem_LIVE,
-								Path:   file.Path,
-							},
-						},
-					},
-				},
-			}
-			fh.outChan <- rec
+			fh.handleFn(record)
 		}
 		return nil
 	})
+}
+
+func (fh *FilesHandler) handleNow() {
+	record := fh.makeRecord(fh.nowSet)
+	if record != nil {
+		fh.handleFn(record)
+		clear(fh.nowSet)
+	}
+}
+
+func (fh *FilesHandler) handleEnd() {
+	record := fh.makeRecord(fh.endSet)
+	if record != nil {
+		fh.handleFn(record)
+		clear(fh.endSet)
+	}
+}
+
+func (fh *FilesHandler) Flush() {
+	fh.handleEnd()
 }
