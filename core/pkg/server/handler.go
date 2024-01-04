@@ -334,10 +334,10 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.flushOutput()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		h.fileHandler.Flush()
-	case service.DeferRequest_FLUSH_FP:
-	case service.DeferRequest_JOIN_FP:
 		h.fileHandler.Close()
+	case service.DeferRequest_FLUSH_FP:
+		h.fileHandler.Flush()
+	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 		h.handleFinal()

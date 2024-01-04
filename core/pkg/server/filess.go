@@ -10,23 +10,23 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type FilesHandler struct {
-	nowSet        map[string]struct{}
-	endSet        map[string]struct{}
-	logger        *observability.CoreLogger
-	watcher       *watcher.Watcher
-	handleFn      func(*service.Record)
-	filterPattern []string
-}
-
-func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger) *FilesHandler {
-	fh := &FilesHandler{
-		nowSet:  make(map[string]struct{}),
-		endSet:  make(map[string]struct{}),
-		logger:  logger,
-		watcher: watcher,
+func makeRecord(fileSet map[string]*service.FilesItem) *service.Record {
+	if len(fileSet) == 0 {
+		return nil
 	}
-	return fh
+	files := make([]*service.FilesItem, 0, len(fileSet))
+	for _, file := range fileSet {
+		file.Policy = service.FilesItem_NOW
+		files = append(files, file)
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: files,
+			},
+		},
+	}
+	return record
 }
 
 type FilesHandlerOption func(*FilesHandler)
@@ -43,6 +43,23 @@ func WithFilesHandlerFilterPattern(patterns []string) FilesHandlerOption {
 	}
 }
 
+type FilesHandler struct {
+	endSet        map[string]*service.FilesItem
+	logger        *observability.CoreLogger
+	watcher       *watcher.Watcher
+	handleFn      func(*service.Record)
+	filterPattern []string
+}
+
+func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger) *FilesHandler {
+	fh := &FilesHandler{
+		endSet:  make(map[string]*service.FilesItem),
+		logger:  logger,
+		watcher: watcher,
+	}
+	return fh
+}
+
 func (fh *FilesHandler) With(opts ...FilesHandlerOption) *FilesHandler {
 	for _, opt := range opts {
 		opt(fh)
@@ -50,6 +67,7 @@ func (fh *FilesHandler) With(opts ...FilesHandlerOption) *FilesHandler {
 	return fh
 }
 
+// globs expands globs in the given list of files and returns the expanded list.
 func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 	var files []*service.FilesItem
 	for _, glob := range globs {
@@ -57,6 +75,7 @@ func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 			continue
 		}
 		matches, err := filepath.Glob(glob.Path)
+		// if no matches, just add the item assuming it's not a glob
 		if len(matches) == 0 {
 			if !fh.filterFn(glob) {
 				files = append(files, glob)
@@ -79,6 +98,14 @@ func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 }
 
 func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
+	if fh.filterPattern == nil {
+		return false
+	}
+
+	// if _, err := os.Stat(file.Path); err != nil {
+	// 	return true
+	// }
+
 	for _, pattern := range fh.filterPattern {
 		if matches, err := filepath.Match(pattern, file.Path); err != nil {
 			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
@@ -91,69 +118,57 @@ func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
 	return false
 }
 
+// Handle handles file uploads preprocessing, depending on their policies:
+// - NOW: upload immediately
+// - END: upload at the end of the run
+// - LIVE: upload immediately, on changes, and at the end of the run
 func (fh *FilesHandler) Handle(record *service.Record) {
 	files := fh.globs(record.GetFiles().GetFiles())
+	nowSet := make(map[string]*service.FilesItem)
 	for _, file := range files {
 		switch file.Policy {
 		case service.FilesItem_NOW:
-			fh.nowSet[file.Path] = struct{}{}
+			nowSet[file.Path] = file
 		case service.FilesItem_END:
-			fh.endSet[file.Path] = struct{}{}
+			fh.endSet[file.Path] = file
 		case service.FilesItem_LIVE:
-			fh.endSet[file.Path] = struct{}{}
-			fh.handleLive(file.Path)
+			fh.endSet[file.Path] = file
+			fh.handleLive(file)
 		default:
 			err := fmt.Errorf("unknown policy: %s", file.Policy)
 			fh.logger.CaptureError("unknown policy", err, "policy", file.Policy)
 			continue
 		}
 	}
-	fh.handleNow()
+	fh.handleNow(nowSet)
 }
 
-func (fh *FilesHandler) makeRecord(paths map[string]struct{}) *service.Record {
-	if len(paths) == 0 {
-		return nil
+func (fh *FilesHandler) handleLive(file *service.FilesItem) {
+	record := makeRecord(map[string]*service.FilesItem{file.Path: file})
+	if record == nil {
+		return
 	}
-
-	files := make([]*service.FilesItem, 0, len(paths))
-	for path := range paths {
-		files = append(files, &service.FilesItem{
-			Policy: service.FilesItem_NOW,
-			Path:   path,
-		})
-	}
-
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: files,
-			},
-		},
-	}
-	return record
-}
-
-func (fh *FilesHandler) handleLive(path string) {
-	record := fh.makeRecord(map[string]struct{}{path: {}})
-	fh.watcher.Add(path, func(event watcher.Event) error {
+	err := fh.watcher.Add(file.Path, func(event watcher.Event) error {
 		if event.IsCreate() || event.IsWrite() {
 			fh.handleFn(record)
 		}
 		return nil
 	})
+	if err != nil {
+		fh.logger.CaptureError("error adding path to watcher", err, "file", file)
+	}
 }
 
-func (fh *FilesHandler) handleNow() {
-	record := fh.makeRecord(fh.nowSet)
+func (fh *FilesHandler) handleNow(files map[string]*service.FilesItem) {
+	record := makeRecord(files)
 	if record != nil {
 		fh.handleFn(record)
-		clear(fh.nowSet)
+		clear(files)
 	}
 }
 
 func (fh *FilesHandler) handleEnd() {
-	record := fh.makeRecord(fh.endSet)
+	record := makeRecord(fh.endSet)
 	if record != nil {
 		fh.handleFn(record)
 		clear(fh.endSet)

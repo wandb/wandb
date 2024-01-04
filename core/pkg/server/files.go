@@ -1,178 +1,120 @@
 package server
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-
-	"github.com/wandb/wandb/core/pkg/observability"
-
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/proto"
 )
 
-type FileHandler struct {
-	savedFiles map[string]interface{}
-	final      *service.Record
-	watcher    *watcher.Watcher
-	logger     *observability.CoreLogger
-	settings   *service.Settings
-	outChan    chan *service.Record
-}
+// // Start starts the file handler and the watcher
+// func (fh *FileHandler) Start() {
+// 	fh.logger.Debug("starting file handler")
+// 	fh.watcher.Start()
+// }
 
-func NewFileHandler(
-	watcher *watcher.Watcher,
-	logger *observability.CoreLogger,
-	settings *service.Settings,
-	outChan chan *service.Record,
-) *FileHandler {
-	return &FileHandler{
-		savedFiles: make(map[string]interface{}),
-		watcher:    watcher,
-		logger:     logger,
-		settings:   settings,
-		outChan:    outChan,
-	}
-}
+// // Close closes the file handler and the watcher
+// func (fh *FileHandler) Close() {
+// 	if fh == nil {
+// 		return
+// 	}
+// 	fh.watcher.Close()
+// 	fh.logger.Debug("closed file handler")
+// }
 
-// Start starts the file handler and the watcher
-func (fh *FileHandler) Start() {
-	fh.logger.Debug("starting file handler")
-	fh.watcher.Start()
-}
+// func (fh *FileHandler) Handle(record *service.Record) *service.Record {
+// 	if fh.final == nil {
+// 		fh.final = &service.Record{
+// 			RecordType: &service.Record_Files{
+// 				Files: &service.FilesRecord{
+// 					Files: []*service.FilesItem{},
+// 				},
+// 			},
+// 		}
+// 	}
 
-// Close closes the file handler and the watcher
-func (fh *FileHandler) Close() {
-	if fh == nil {
-		return
-	}
-	fh.watcher.Close()
-	fh.logger.Debug("closed file handler")
-}
+// 	// expand globs
+// 	var items []*service.FilesItem
+// 	for _, item := range record.GetFiles().GetFiles() {
+// 		matches, err := filepath.Glob(item.Path)
 
-func (fh *FileHandler) filterFile(file *service.FilesItem) bool {
-	for _, pattern := range fh.settings.GetIgnoreGlobs().GetValue() {
-		if matches, err := filepath.Match(pattern, file.Path); err != nil {
-			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
-			continue
-		} else if matches {
-			fh.logger.Info("ignoring file", "path", file.Path, "glob", pattern)
-			return true
-		}
-	}
-	return false
-}
+// 		if len(matches) == 0 {
+// 			// TODO: fix this. if item.Path is a relative path, it will be relative to the current working directory
+// 			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
+// 			// 	continue
+// 			// }
+// 			if !fh.filterFile(item) {
+// 				items = append(items, item)
+// 			}
+// 			continue
+// 		}
 
-// Handle handles file uploads preprocessing, depending on their policies:
-// - NOW: upload immediately
-// - END: upload at the end of the run
-// - LIVE: upload immediately, on changes, and at the end of the run
-func (fh *FileHandler) Handle(record *service.Record) *service.Record {
-	if fh.final == nil {
-		fh.final = &service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{},
-				},
-			},
-		}
-	}
+// 		if err != nil {
+// 			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
+// 			continue
+// 		}
 
-	// expand globs
-	var items []*service.FilesItem
-	for _, item := range record.GetFiles().GetFiles() {
-		matches, err := filepath.Glob(item.Path)
+// 		// expand globs
+// 		for _, match := range matches {
+// 			if fileInfo, err := os.Stat(match); err != nil || fileInfo.IsDir() {
+// 				continue
+// 			}
+// 			newItem := proto.Clone(item).(*service.FilesItem)
+// 			newItem.Path = match
+// 			if !fh.filterFile(item) {
+// 				items = append(items, newItem)
+// 			}
+// 		}
+// 	}
 
-		// if no matches, just add the item assuming it's not a glob
-		if len(matches) == 0 {
-			// TODO: fix this. if item.Path is a relative path, it will be relative to the current working directory
-			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
-			// 	continue
-			// }
-			if !fh.filterFile(item) {
-				items = append(items, item)
-			}
-			continue
-		}
+// 	var files []*service.FilesItem
+// 	for _, item := range items {
+// 		switch item.Policy {
+// 		case service.FilesItem_NOW:
+// 			files = append(files, item)
+// 		case service.FilesItem_END:
+// 			if _, ok := fh.savedFiles[item.Path]; !ok {
+// 				fh.savedFiles[item.Path] = nil
+// 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
+// 			}
+// 		case service.FilesItem_LIVE:
+// 			if _, ok := fh.savedFiles[item.Path]; !ok {
+// 				fh.savedFiles[item.Path] = nil
+// 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
+// 			}
+// 			err := fh.watcher.Add(item.Path, func(event watcher.Event) error {
+// 				if event.IsCreate() || event.IsWrite() {
+// 					rec := &service.Record{
+// 						RecordType: &service.Record_Files{
+// 							Files: &service.FilesRecord{
+// 								Files: []*service.FilesItem{
+// 									{
+// 										Policy: service.FilesItem_NOW,
+// 										Path:   item.Path,
+// 									},
+// 								},
+// 							},
+// 						},
+// 					}
+// 					fh.outChan <- rec
+// 				}
+// 				return nil
+// 			})
+// 			if err != nil {
+// 				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
+// 				continue
+// 			}
+// 		default:
+// 			err := fmt.Errorf("unknown file policy: %s", item.Policy)
+// 			fh.logger.CaptureError("unknown file policy", err, "policy", item.Policy)
+// 		}
+// 	}
 
-		if err != nil {
-			fh.logger.CaptureError("error expanding glob", err, "path", item.Path)
-			continue
-		}
+// 	if files == nil {
+// 		return nil
+// 	}
 
-		// expand globs
-		for _, match := range matches {
-			if fileInfo, err := os.Stat(match); err != nil || fileInfo.IsDir() {
-				continue
-			}
-			newItem := proto.Clone(item).(*service.FilesItem)
-			newItem.Path = match
-			if !fh.filterFile(item) {
-				items = append(items, newItem)
-			}
-		}
-	}
-
-	var files []*service.FilesItem
-	for _, item := range items {
-		switch item.Policy {
-		case service.FilesItem_NOW:
-			files = append(files, item)
-		case service.FilesItem_END:
-			if _, ok := fh.savedFiles[item.Path]; !ok {
-				fh.savedFiles[item.Path] = nil
-				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
-			}
-		case service.FilesItem_LIVE:
-			if _, ok := fh.savedFiles[item.Path]; !ok {
-				fh.savedFiles[item.Path] = nil
-				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
-			}
-			err := fh.watcher.Add(item.Path, func(event watcher.Event) error {
-				if event.IsCreate() || event.IsWrite() {
-					rec := &service.Record{
-						RecordType: &service.Record_Files{
-							Files: &service.FilesRecord{
-								Files: []*service.FilesItem{
-									{
-										Policy: service.FilesItem_NOW,
-										Path:   item.Path,
-									},
-								},
-							},
-						},
-					}
-					fh.outChan <- rec
-				}
-				return nil
-			})
-			if err != nil {
-				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
-				continue
-			}
-		default:
-			err := fmt.Errorf("unknown file policy: %s", item.Policy)
-			fh.logger.CaptureError("unknown file policy", err, "policy", item.Policy)
-		}
-	}
-
-	if files == nil {
-		return nil
-	}
-
-	rec := proto.Clone(record).(*service.Record)
-	rec.GetFiles().Files = files
-	return rec
-}
-
-// Final returns the stored record to be uploaded at the end of the run (DeferRequest_FLUSH_DIR)
-func (fh *FileHandler) Final() *service.Record {
-	if fh == nil {
-		return nil
-	}
-	return fh.final
-}
+// 	rec := proto.Clone(record).(*service.Record)
+// 	rec.GetFiles().Files = files
+// 	return rec
+// }
 
 type FileTransferHandler struct {
 	info          map[string]*service.FileTransferInfoRequest
