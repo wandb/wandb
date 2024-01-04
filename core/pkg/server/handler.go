@@ -347,7 +347,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
-		h.handleOutputFlush()
+		// h.handleOutputFlush()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
 		h.watcher.Close()
@@ -480,6 +480,26 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(h.sendRecord),
 	)
+
+	// add summary file to the files handler to be uploaded at the end of the run
+	h.filesHandler.Handle(&service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path:   SummaryFileName,
+						Type:   service.FilesItem_WANDB,
+						Policy: service.FilesItem_END,
+					},
+					{
+						Path:   OutputFileName,
+						Type:   service.FilesItem_WANDB,
+						Policy: service.FilesItem_END,
+					},
+				},
+			},
+		},
+	})
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -706,27 +726,6 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) handleOutputFlush() {
-	fullPath := filepath.Join(h.settings.GetFilesDir().GetValue(), OutputFileName)
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		h.logger.Info("handleOutput: output file does not exist", "path", fullPath)
-		return
-	}
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: OutputFileName,
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-	h.handleFiles(record)
-}
-
 func (h *Handler) handleSystemMetrics(record *service.Record) {
 	h.sendRecord(record)
 }
@@ -860,26 +859,8 @@ func (h *Handler) sendSummary() {
 		})
 	}
 
-	// write summary record into a file wandb-summary.json the file could be already existing
-	// should overwrite it
+	// write summary to file
 	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-	// check if file exists
-	if _, err := os.Stat(filename); err != nil {
-		h.filesHandler.Handle(&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
-						{
-							Path:   SummaryFileName,
-							Type:   service.FilesItem_WANDB,
-							Policy: service.FilesItem_END,
-						},
-					},
-				},
-			},
-		})
-	}
-
 	file, err := os.Create(filename)
 	if err != nil {
 		h.logger.Error("error creating summary file", "error", err)
@@ -892,7 +873,7 @@ func (h *Handler) sendSummary() {
 		}
 	}
 
-	defer file.Close()
+	// defer file.Close()
 
 	record := &service.Record{
 		RecordType: &service.Record_Summary{

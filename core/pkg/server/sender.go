@@ -887,6 +887,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 }
 
 // sendFile sends a file to the server
+// TODO: improve this to handle multiple files and send them in one request
 func (s *Sender) sendFile(file *service.FilesItem) {
 	if s.graphqlClient == nil || s.fileTransferManager == nil {
 		return
@@ -897,7 +898,20 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{file.GetPath()})
+	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.GetPath())
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		s.logger.Warn("sender: sendFile: file does not exist", "path", fullPath)
+		return
+	}
+
+	data, err := gql.CreateRunFiles(
+		s.ctx,
+		s.graphqlClient,
+		s.RunRecord.Entity,
+		s.RunRecord.Project,
+		s.RunRecord.RunId,
+		[]string{file.GetPath()},
+	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
