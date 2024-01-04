@@ -3,7 +3,7 @@ import platform
 
 import nox
 
-CORE_VERSION = "0.17.0b5"
+CORE_VERSION = "0.17.0b6"
 
 
 @nox.session(python=False, name="build-core")
