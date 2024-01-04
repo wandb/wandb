@@ -37,25 +37,25 @@ func WithFilesHandlerHandleFn(fn func(*service.Record)) FilesHandlerOption {
 	}
 }
 
-func WithFilesHandlerFilterPattern(patterns []string) FilesHandlerOption {
+func WithFilesHandlerWatcher(watcher *watcher.Watcher) FilesHandlerOption {
 	return func(fh *FilesHandler) {
-		fh.filterPattern = patterns
+		fh.watcher = watcher
 	}
 }
 
 type FilesHandler struct {
-	endSet        map[string]*service.FilesItem
-	logger        *observability.CoreLogger
-	watcher       *watcher.Watcher
-	handleFn      func(*service.Record)
-	filterPattern []string
+	endSet   map[string]*service.FilesItem
+	logger   *observability.CoreLogger
+	watcher  *watcher.Watcher
+	handleFn func(*service.Record)
+	settings *service.Settings
 }
 
-func NewFilesHandler(watcher *watcher.Watcher, logger *observability.CoreLogger) *FilesHandler {
+func NewFilesHandler(logger *observability.CoreLogger, settings *service.Settings) *FilesHandler {
 	fh := &FilesHandler{
-		endSet:  make(map[string]*service.FilesItem),
-		logger:  logger,
-		watcher: watcher,
+		endSet:   make(map[string]*service.FilesItem),
+		logger:   logger,
+		settings: settings,
 	}
 	return fh
 }
@@ -98,7 +98,8 @@ func (fh *FilesHandler) globs(globs []*service.FilesItem) []*service.FilesItem {
 }
 
 func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
-	if fh.filterPattern == nil {
+	filterPattern := fh.settings.GetIgnoreGlobs().GetValue()
+	if len(filterPattern) == 0 {
 		return false
 	}
 
@@ -106,7 +107,7 @@ func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
 	// 	return true
 	// }
 
-	for _, pattern := range fh.filterPattern {
+	for _, pattern := range filterPattern {
 		if matches, err := filepath.Match(pattern, file.Path); err != nil {
 			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
 			continue
@@ -177,12 +178,4 @@ func (fh *FilesHandler) handleEnd() {
 
 func (fh *FilesHandler) Flush() {
 	fh.handleEnd()
-}
-
-func (fh *FilesHandler) Close() {
-	if fh == nil {
-		return
-	}
-	fh.watcher.Close()
-	fh.logger.Debug("closed file handler")
 }

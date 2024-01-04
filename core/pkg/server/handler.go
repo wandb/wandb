@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -47,6 +48,12 @@ func WithHandlerSettings(settings *service.Settings) HandlerOption {
 func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	return func(h *Handler) {
 		h.systemMonitor = monitor
+	}
+}
+
+func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
+	return func(h *Handler) {
+		h.watcher = watcher
 	}
 }
 
@@ -120,6 +127,9 @@ type Handler struct {
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
+
+	// watcher is the watcher for the stream
+	watcher *watcher.Watcher
 
 	// tbHandler is the tensorboard handler
 	tbHandler *TBHandler
@@ -322,6 +332,9 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
+		// stop the system monitor to ensure that we don't send any more system metrics
+		// after the run has exited
+		h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
@@ -331,10 +344,10 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.summaryHandler.Flush(h.sendSummary)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
-		h.flushOutput()
+		h.handleOutputFlush()
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		h.fileHandler.Close()
+		h.watcher.Close()
 	case service.DeferRequest_FLUSH_FP:
 		h.fileHandler.Flush()
 	case service.DeferRequest_JOIN_FP:
@@ -462,9 +475,22 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 	h.sendRecord(record)
 
+	// start the tensorboard handler
+	h.watcher.Start()
+
 	h.fileHandler = h.fileHandler.With(
-		WithFilesHandlerFilterPattern(h.settings.GetIgnoreGlobs().GetValue()),
-		WithFilesHandlerHandleFn(h.sendRecord),
+		WithFilesHandlerHandleFn(func(rec *service.Record) {
+			h.sendRecordWithControl(rec,
+				func(control *service.Control) {
+					control.AlwaysSend = true
+				},
+			)
+		}),
+		WithFilesHandlerWatcher(h.watcher),
+	)
+
+	h.tbHandler = h.tbHandler.With(
+		WithTBHandlerWatcher(h.watcher),
 	)
 
 	// start the system monitor
@@ -627,9 +653,6 @@ func (h *Handler) handlePatchSave() {
 				Files: files,
 			},
 		},
-		Control: &service.Control{
-			AlwaysSend: true,
-		},
 	}
 	h.handleFiles(record)
 }
@@ -667,9 +690,6 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 				},
 			},
 		},
-		Control: &service.Control{
-			AlwaysSend: true,
-		},
 	}
 
 	h.handleFiles(record)
@@ -698,7 +718,7 @@ func (h *Handler) handleResume() {
 	h.systemMonitor.Do()
 }
 
-func (h *Handler) flushOutput() {
+func (h *Handler) handleOutputFlush() {
 	fullPath := filepath.Join(h.settings.GetFilesDir().GetValue(), OutputFileName)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		h.logger.Info("handleOutput: output file does not exist", "path", fullPath)
@@ -748,10 +768,6 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
-	// stop the system monitor to ensure that we don't send any more system metrics
-	// after the run has exited
-	h.systemMonitor.Stop()
-
 	// stop the run timer and set the runtime
 	h.timer.Pause()
 	runtime := int32(h.timer.Elapsed().Seconds())
