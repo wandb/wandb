@@ -34,7 +34,6 @@ from wandb.util import (
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
 
@@ -279,6 +278,18 @@ class InterfaceBase:
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
+    def publish_python_packages(self, working_set) -> None:
+        python_packages = pb.PythonPackagesRequest()
+        for pkg in working_set:
+            python_packages.package.add(name=pkg.key, version=pkg.version)
+        self._publish_python_packages(python_packages)
+
+    @abstractmethod
+    def _publish_python_packages(
+        self, python_packages: pb.PythonPackagesRequest
+    ) -> None:
+        raise NotImplementedError
+
     def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
@@ -441,7 +452,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_artifact(
+    def deliver_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -450,7 +461,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -467,13 +478,11 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._communicate_artifact(log_artifact)
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_download_artifact(
@@ -712,6 +721,33 @@ class InterfaceBase:
     def deliver_run(self, run: "Run") -> MailboxHandle:
         run_record = self._make_run(run)
         return self._deliver_run(run_record)
+
+    def deliver_sync(
+        self,
+        start_offset: int,
+        final_offset: int,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run_id: Optional[str] = None,
+        skip_output_raw: Optional[bool] = None,
+    ) -> MailboxHandle:
+        sync = pb.SyncRequest(
+            start_offset=start_offset,
+            final_offset=final_offset,
+        )
+        if entity:
+            sync.overwrite.entity = entity
+        if project:
+            sync.overwrite.project = project
+        if run_id:
+            sync.overwrite.run_id = run_id
+        if skip_output_raw:
+            sync.skip.output_raw = skip_output_raw
+        return self._deliver_sync(sync)
+
+    @abstractmethod
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:

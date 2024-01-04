@@ -1,6 +1,5 @@
 import json
 import os
-import tempfile
 from unittest import mock
 
 import pytest
@@ -8,7 +7,6 @@ import wandb
 import wandb.sdk.launch._launch as _launch
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.data_types._dtypes import TypeRegistry
-from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.errors import LaunchError
 
 from tests.pytest_tests.unit_tests_old import utils
@@ -78,7 +76,8 @@ def test_fetch_job_fail(api):
     with pytest.raises(LaunchError) as e_info:
         launch_project._fetch_job()
     assert (
-        "Job mock_server_entity/Test_project/test:v0 not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+        "Error accessing job mock_server_entity/Test_project/test:v0: "
+        "Job artifact mock_server_entity/Test_project/test:v0 not found"
         in str(e_info.value)
     )
 
@@ -209,38 +208,3 @@ def test_launch_job_container(
     }
     mock_with_run_info = _launch.launch(**kwargs)
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
-
-
-def test_launch_add_container_queued_run(
-    live_mock_server, mocked_public_artifact, monkeypatch
-):
-    def job_download_func(root=None):
-        if root is None:
-            root = tempfile.mkdtemp()
-        with open(os.path.join(root, "wandb-job.json"), "w") as f:
-            source = {
-                "_version": "v0",
-                "source_type": "image",
-                "source": {"image": "my-test-image:latest"},
-                "input_types": INPUT_TYPES,
-                "output_types": OUTPUT_TYPES,
-            }
-            f.write(json.dumps(source))
-        with open(os.path.join(root, "requirements.frozen.txt"), "w") as f:
-            f.write(utils.fixture_open("requirements.txt").read())
-
-        return root
-
-    mocked_public_artifact(job_download_func)
-
-    def patched_push_to_run_queue_by_name(*args, **kwargs):
-        return {"runQueueItemId": "1"}
-
-    monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
-        "push_to_run_queue_by_name",
-        lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
-    )
-
-    queued_run = launch_add(job="test/test/test-job:v0")
-    assert queued_run

@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -63,3 +64,36 @@ def test_create_run_queue(monkeypatch):
             "defaultResourceConfigID": "test-config-id",
         },
     )
+
+
+def test_push_to_run_queue_by_name(monkeypatch):
+    _api = internal.Api()
+    mock_run_spec = {"test-key": "test-value"}
+    mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
+    _api.api.gql = MagicMock(return_value=mock_gql_response)
+    _api.api.push_to_run_queue_introspection = MagicMock()
+    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
+
+    _api.api.server_push_to_run_queue_supports_priority = True
+    push_kwargs = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queue_name": "test-queue",
+        "run_spec": "{}",
+        "template_variables": None,
+        "priority": 2,
+    }
+
+    resp = _api.api.push_to_run_queue_by_name(**push_kwargs)
+
+    assert resp == {"runSpec": mock_run_spec}
+    call_args = _api.api.gql.call_args[0]
+    assert "$priority: Int" in call_args[0]
+    assert "priority: $priority" in call_args[0]
+    assert call_args[1] == {
+        "entityName": "test-entity",
+        "projectName": "test-project",
+        "queueName": "test-queue",
+        "runSpec": "{}",
+        "priority": 2,
+    }

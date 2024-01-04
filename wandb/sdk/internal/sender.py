@@ -1,5 +1,6 @@
 """sender."""
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -149,6 +150,7 @@ class ResumeState:
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
+    tags: Optional[List[str]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -161,6 +163,7 @@ class ResumeState:
         self.wandb_runtime = None
         self.summary = None
         self.config = None
+        self.tags = None
 
     def __str__(self) -> str:
         obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
@@ -330,13 +333,12 @@ class SendManager:
             _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(settings.to_proto())
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=settings,
+            settings=SettingsStatic(settings.to_proto()),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
@@ -542,7 +544,9 @@ class SendManager:
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
+                name=self._run.run_id,
+                config=config_value_dict,
+                **self._api_settings,  # type: ignore
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
@@ -760,7 +764,9 @@ class SendManager:
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
+            entity=entity,  # type: ignore
+            project_name=run.project,
+            name=run.run_id,
         )
 
         if not resume_status:
@@ -809,6 +815,7 @@ class SendManager:
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
                 self._resume_state.wandb_runtime = new_runtime
+            tags = resume_status.get("tags") or []
 
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
@@ -829,6 +836,7 @@ class SendManager:
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
         self._resume_state.summary = summary
+        self._resume_state.tags = tags
         self._resume_state.resumed = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
@@ -1012,6 +1020,10 @@ class SendManager:
         ) - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
+
+        if self._resume_state and self._resume_state.tags and not run.tags:
+            run.tags.extend(self._resume_state.tags)
+
         server_run, inserted, server_messages = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
@@ -1245,6 +1257,17 @@ class SendManager:
             if self._output_raw_file:
                 self._output_raw_file.write(data.encode("utf-8"))
 
+    def send_request_python_packages(self, record: "Record") -> None:
+        import os
+
+        from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
+
+        installed_packages_list = sorted(
+            f"{r.name}=={r.version}" for r in record.request.python_packages.package
+        )
+        with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as f:
+            f.write("\n".join(installed_packages_list))
+
     def send_output(self, record: "Record") -> None:
         if not self._fs:
             return
@@ -1434,27 +1457,40 @@ class SendManager:
             )
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp
+        assert record.control.mailbox_slot
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
 
+        future = None
         try:
-            res = self._send_artifact(artifact, history_step)
+            res, future = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res["id"]
+            result.response.log_artifact_response.artifact_id = res.get("id", None)
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
                 f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
-        self._respond_result(result)
+        def _respond_result(fut: concurrent.futures.Future):
+            if fut.exception() is not None:
+                result.response.log_artifact_response.error_message = f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}'
+            self._respond_result(result)
+
+        if future is not None:
+            # respond to the request only after the artifact is fully committed
+            future.add_done_callback(_respond_result)
+        else:
+            self._respond_result(result)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
-            res = self._send_artifact(artifact)
+            res, future = self._send_artifact(artifact)
+            # wait for future to complete in send artifact
+            if future is not None:
+                future.result()
             logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
@@ -1465,7 +1501,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Optional[Dict]:
+    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
         from pkg_resources import parse_version
 
         assert self._pusher
@@ -1486,10 +1522,10 @@ class SendManager:
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return None
+                return {}, None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        res = saver.save(
+        res, future = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1507,7 +1543,7 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
-        return res
+        return res, future
 
     def send_alert(self, record: "Record") -> None:
         from pkg_resources import parse_version

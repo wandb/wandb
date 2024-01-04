@@ -337,8 +337,15 @@ message FilesItem {
     END = 1;
     LIVE = 2;
   }
+  enum FileType {
+    OTHER = 0;
+    WANDB = 1;
+    MEDIA = 2;
+    ARTIFACT = 3;
+  }
   string path = 1;
   PolicyType policy = 2;
+  FileType type = 3;
   string external_path = 16;
 }
 
@@ -486,6 +493,7 @@ message Request {
     CancelRequest cancel = 21;
     MetadataRequest metadata = 22;
     InternalMessagesRequest internal_messages = 23;
+    PythonPackagesRequest python_packages = 24;
     ShutdownRequest shutdown = 64;
     AttachRequest attach = 65;
     StatusRequest status = 66;
@@ -498,6 +506,7 @@ message Request {
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
+    SyncRequest sync = 76;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -527,6 +536,7 @@ message Response {
     ServerInfoResponse server_info_response = 67;
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
+    SyncResponse sync_response = 70;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -681,7 +691,29 @@ message PollExitResponse {
 /*
  * Sender requests
  */
+message SyncOverwrite {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+}
+
+message SyncSkip {
+  bool output_raw = 1;
+}
+
 message SenderMarkRequest {}
+
+message SyncRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  SyncOverwrite overwrite = 3;
+  SyncSkip skip = 4;
+}
+
+message SyncResponse {
+  string url = 1;
+  ErrorInfo error = 2;
+}
 
 message SenderReadRequest {
   int64 start_offset = 1;
@@ -1024,11 +1056,28 @@ message CpuInfo {
 message GpuAppleInfo {
   string gpuType = 1;
   string vendor = 2;
+  uint32 cores = 3;
 }
 
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+}
+
+message GpuAmdInfo {
+  string id = 1;
+  string unique_id = 2;
+  string vbios_version = 3;
+  string performance_level = 4;
+  string gpu_overdrive = 5;
+  string gpu_memory_overdrive = 6;
+  string max_power = 7;
+  string series = 8;
+  string model = 9;
+  string vendor = 10;
+  string sku = 11;
+  string sclk_range = 12;
+  string mclk_range = 13;
 }
 
 message MetadataRequest {
@@ -1059,4 +1108,14 @@ message MetadataRequest {
   CpuInfo cpu = 25;
   GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
+  repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
+  map<string, string> slurm = 29;
+}
+
+message PythonPackagesRequest {
+  message PythonPackage {
+    string name = 1;
+    string version = 2;
+  }
+  repeated PythonPackage package = 1;
 }

@@ -37,8 +37,8 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
@@ -62,6 +62,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -70,7 +71,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.message_future import MessageFuture
+    from wandb.sdk.lib.mailbox import MailboxHandle
 
 
 class Artifact:
@@ -146,7 +147,7 @@ class Artifact:
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_future: Optional[MessageFuture] = None
+        self._save_handle: Optional["MailboxHandle"] = None
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -184,14 +185,14 @@ class Artifact:
         self._final: bool = False
 
         # Cache.
-        artifact_cache[self._client_id] = self
+        artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
     def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
-        artifact = artifact_cache.get(artifact_id)
+        artifact = artifact_instance_cache.get(artifact_id)
         if artifact is not None:
             return artifact
 
@@ -319,7 +320,7 @@ class Artifact:
         # Cache.
 
         assert artifact.id is not None
-        artifact_cache[artifact.id] = artifact
+        artifact_instance_cache[artifact.id] = artifact
         return artifact
 
     def new_draft(self) -> "Artifact":
@@ -708,7 +709,7 @@ class Artifact:
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_future is not None
+        return self._save_handle is not None
 
     def save(
         self,
@@ -736,7 +737,7 @@ class Artifact:
         if wandb.run is None:
             if settings is None:
                 settings = wandb.Settings(silent="true")
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=project or self._source_project,
                 job_type="auto",
@@ -751,10 +752,10 @@ class Artifact:
         else:
             wandb.run.log_artifact(self)
 
-    def _set_save_future(
-        self, save_future: "MessageFuture", client: RetryingClient
+    def _set_save_handle(
+        self, save_handle: "MailboxHandle", client: RetryingClient
     ) -> None:
-        self._save_future = save_future
+        self._save_handle = save_handle
         self._client = client
 
     def wait(self, timeout: Optional[int] = None) -> "Artifact":
@@ -764,9 +765,13 @@ class Artifact:
             timeout: Wait up to this long.
         """
         if self.is_draft():
-            if self._save_future is None:
+            if self._save_handle is None:
                 raise ArtifactNotLoggedError(self, "wait")
-            result = self._save_future.get(timeout)
+
+            if timeout is None:
+                timeout = -1
+            termlog(f"Waiting for artifact {self.name} to be committed...")
+            result = self._save_handle.wait(timeout=timeout)
             if not result:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
@@ -775,6 +780,8 @@ class Artifact:
             if response.error_message:
                 raise ValueError(response.error_message)
             self._populate_after_save(response.artifact_id)
+            termlog(prefix=False, newline=True)
+            termlog(f"Committed artifact {self.qualified_name}")
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
@@ -1689,69 +1696,66 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        if wandb.run is None:
-            with wandb.init(
-                entity=self._source_entity,
-                project=self._source_project,
-                job_type="auto",
-                settings=wandb.Settings(silent="true"),
-            ):
-                return self._run_artifact_download(
+        if get_core_path() != "":
+            if wandb.run is None:
+                with wandb.init(  # type: ignore
+                    entity=self._source_entity,
+                    project=self._source_project,
+                    job_type="auto",
+                    settings=wandb.Settings(silent="true"),
+                ):
+                    return self._download_using_core(
+                        root=root,
+                        allow_missing_references=allow_missing_references,
+                    )
+            else:
+                return self._download_using_core(
                     root=root,
                     allow_missing_references=allow_missing_references,
                 )
-        else:
-            return self._run_artifact_download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
+        return self._download(
+            root=root,
+            allow_missing_references=allow_missing_references,
+        )
 
-    def _run_artifact_download(
+    def _download_using_core(
         self,
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
         assert wandb.run is not None, "failed to initialize run"
         run = wandb.run
-        if run._settings._require_nexus:
-            if not run._backend or not run._backend.interface:
-                raise NotImplementedError
-            if run._settings._offline:
-                raise NotImplementedError("cannot download in offline mode")
-            assert self.id is not None
-            handle = run._backend.interface.deliver_download_artifact(
-                self.id,
-                root,
-                allow_missing_references,
-            )
-            # Start the download process in the user process too, to handle reference downloads
-            self._download(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
-            result = handle.wait(timeout=-1)
-            if result is None:
-                handle.abandon()
-            assert result is not None
-            response = result.response.download_artifact_response
-            if response.error_message:
-                raise ValueError(
-                    f"Error downloading artifact: {response.error_message}"
-                )
-            return FilePathStr(root)
-        return self._download(
+        if not run._backend or not run._backend.interface:
+            raise NotImplementedError
+        if run._settings._offline:
+            raise NotImplementedError("cannot download in offline mode")
+        assert self.id is not None
+        handle = run._backend.interface.deliver_download_artifact(
+            self.id,
+            root,
+            allow_missing_references,
+        )
+        # Start the download process in the user process too, to handle reference downloads
+        self._download(
             root=root,
             allow_missing_references=allow_missing_references,
         )
+        result = handle.wait(timeout=-1)
+        if result is None:
+            handle.abandon()
+        assert result is not None
+        response = result.response.download_artifact_response
+        if response.error_message:
+            raise ValueError(f"Error downloading artifact: {response.error_message}")
+        return FilePathStr(root)
 
     def _download(
         self,
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in nexus
-        assert wandb.run is not None
-        require_nexus = wandb.run._settings._require_nexus
+        # todo: remove once artifact reference downloads are supported in core
+        require_core = get_core_path() != ""
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1803,8 +1807,8 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_nexus and entry.ref is None:
-                        # Handled by nexus
+                    if require_core and entry.ref is None:
+                        # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
                     active_futures.add(executor.submit(download_entry, entry))
@@ -2073,7 +2077,7 @@ class Artifact:
             ArtifactNotLoggedError: if the artifact has not been logged
         """
         if wandb.run is None:
-            with wandb.init(
+            with wandb.init(  # type: ignore
                 entity=self._source_entity,
                 project=self._source_project,
                 job_type="auto",

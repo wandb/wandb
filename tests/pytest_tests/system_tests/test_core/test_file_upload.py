@@ -2,10 +2,7 @@
 
 import os
 
-import pytest
 
-
-@pytest.mark.nexus_failure(feature="file_uploader")
 def test_file_upload_good(mock_run, publish_util, relay_server, user):
     run = mock_run(use_magic_mock=True)
 

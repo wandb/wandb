@@ -3,6 +3,8 @@ file upload tests.
 """
 import os
 
+import pytest
+
 
 def test_file_upload_inject(mocked_run, publish_util, mock_server, inject_requests):
     def begin_fn(interface):
@@ -18,6 +20,7 @@ def test_file_upload_inject(mocked_run, publish_util, mock_server, inject_reques
     assert "test.txt" in ctx_util.file_names
 
 
+@pytest.mark.skip(reason="update the azure dependency")
 def test_file_upload_azure_good(mocked_run, publish_util, mock_server):
     mock_server.set_context("emulate_azure", True)
 
@@ -30,6 +33,7 @@ def test_file_upload_azure_good(mocked_run, publish_util, mock_server):
     assert "test.txt" in ctx_util.file_names
 
 
+@pytest.mark.skip(reason="update the azure dependency")
 def test_file_upload_azure_inject(
     mocked_run, publish_util, mock_server, inject_requests
 ):

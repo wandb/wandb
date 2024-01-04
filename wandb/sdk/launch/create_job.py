@@ -150,7 +150,7 @@ def _create_job(
             job_builder=job_builder,
             path=path,
             entrypoint=entrypoint,
-            run=run,
+            run=run,  # type: ignore
             entity=entity,
             project=project,
             name=name,
@@ -181,7 +181,7 @@ def _create_job(
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
-        run_name=run.id,  # run will be deleted after creation
+        run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
         is_user_created=True,
@@ -197,12 +197,12 @@ def _create_job(
         # is the same as latestArtifact, so no changes detected
         action = "Updated"
 
-    run.log_artifact(artifact, aliases=aliases)
+    run.log_artifact(artifact, aliases=aliases)  # type: ignore
     artifact.wait()
-    run.finish()
+    run.finish()  # type: ignore
 
     # fetch, then delete hidden run
-    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
+    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")  # type: ignore
     _run.delete()
 
     return artifact, action, aliases
@@ -321,11 +321,7 @@ def _create_repo_metadata(
         req_dir = os.path.dirname(req_dir)
 
     if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
-        wandb.termerror(
-            "Could not find requirements.txt file in git repo at "
-            f"{os.path.join(os.path.dirname(path), 'requirements.txt')} "
-            "or parent directories."
-        )
+        wandb.termerror(f"Could not find requirements.txt file in git repo at {path}")
         return None
 
     wandb.termlog(
@@ -414,7 +410,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
-        settings=settings,
+        settings=settings,  # type: ignore
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
@@ -477,7 +473,7 @@ def _make_code_artifact(
     )
     run.log_artifact(code_artifact)
     code_artifact.wait()
-    job_builder._handle_server_artifact(res, code_artifact)
+    job_builder._handle_server_artifact(res, code_artifact)  # type: ignore
 
     # code artifacts have "code" prefix, remove it and alias
     if not name:
