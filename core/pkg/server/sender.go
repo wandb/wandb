@@ -305,6 +305,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_Cancel:
+		// TODO: audit this
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
