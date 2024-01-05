@@ -588,7 +588,11 @@ def sync_beta(
 @click.option("--id", "run_id", help="The run you want to upload to.")
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
-@click.option("--job_type", "job_type", help="Specifies the type of run for grouping related runs together.")
+@click.option(
+    "--job_type",
+    "job_type",
+    help="Specifies the type of run for grouping related runs together.",
+)
 @click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
@@ -648,7 +652,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
-    job_type=None, # trace this back to SyncManager
+    job_type=None,  # trace this back to SyncManager
     sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
