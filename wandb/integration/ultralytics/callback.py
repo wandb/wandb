@@ -42,6 +42,7 @@ try:
         SegmentationValidator,
     )
     from ultralytics.utils.torch_utils import de_parallel
+
     try:
         from ultralytics.yolo.utils import RANK, __version__
     except ModuleNotFoundError:
