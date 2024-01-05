@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Tuple
 
 import numpy as np
-import wandb as wb
+import wandb
 from tqdm.auto import tqdm
 
 from ultralytics.engine.results import Results
@@ -76,11 +76,11 @@ def get_boxes_and_masks(result: Results) -> Tuple[Dict, Dict, Dict]:
 
 
 def plot_mask_predictions(
-    result: Results, model_name: str, table: Optional[wb.Table] = None
-) -> Tuple[wb.Image, Dict, Dict, Dict]:
+    result: Results, model_name: str, table: Optional[wandb.Table] = None
+) -> Tuple[wandb.Image, Dict, Dict, Dict]:
     result = result.to("cpu")
     boxes, masks, mean_confidence_map = get_boxes_and_masks(result)
-    image = wb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
+    image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes, masks=masks)
     if table is not None:
         table.add_data(
             model_name,
@@ -117,11 +117,13 @@ def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
     return image, wb_box_data
 
 
-def plot_sam_predictions(result: Results, prompt: Dict, table: wb.Table) -> wb.Table:
+def plot_sam_predictions(
+    result: Results, prompt: Dict, table: wandb.Table
+) -> wandb.Table:
     result = result.to("cpu")
     image = result.orig_img[:, :, ::-1]
     image, wb_box_data = structure_prompts_and_image(image, prompt)
-    image = wb.Image(
+    image = wandb.Image(
         image,
         boxes=wb_box_data,
         masks={
@@ -140,7 +142,7 @@ def plot_segmentation_validation_results(
     class_label_map,
     model_name: str,
     predictor: SegmentationPredictor,
-    table: wb.Table,
+    table: wandb.Table,
     max_validation_batches: int,
     epoch: Optional[int] = None,
 ):
@@ -151,6 +153,7 @@ def plot_segmentation_validation_results(
         prediction_results = predictor(batch["im_file"])
         progress_bar_result_iterable = tqdm(
             enumerate(prediction_results),
+            total=len(prediction_results),
             desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
         )
         for img_idx, prediction_result in progress_bar_result_iterable:
@@ -165,7 +168,7 @@ def plot_segmentation_validation_results(
                 ground_truth_data = get_ground_truth_bbox_annotations(
                     img_idx, batch["im_file"][img_idx], batch, class_label_map
                 )
-                wandb_image = wb.Image(
+                wandb_image = wandb.Image(
                     batch["im_file"][img_idx],
                     boxes={
                         "ground-truth": {

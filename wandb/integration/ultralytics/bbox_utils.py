@@ -167,6 +167,7 @@ def plot_detection_validation_results(
         prediction_results = predictor(batch["im_file"])
         progress_bar_result_iterable = tqdm(
             enumerate(prediction_results),
+            total=len(prediction_results),
             desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
         )
         for img_idx, prediction_result in progress_bar_result_iterable:
