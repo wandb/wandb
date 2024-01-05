@@ -49,9 +49,10 @@ try:
         from ultralytics.utils import RANK, __version__
 
     from wandb.integration.ultralytics.bbox_utils import (
-        plot_predictions,
-        plot_validation_results,
+        plot_bbox_predictions,
+        plot_detection_validation_results,
     )
+
     from wandb.integration.ultralytics.classification_utils import (
         plot_classification_predictions,
         plot_classification_validation_results,
@@ -64,7 +65,7 @@ try:
         plot_pose_predictions,
         plot_pose_validation_results,
     )
-except ImportError as e:
+except Exception as e:
     wandb.Error(e)
 
 
@@ -278,7 +279,7 @@ class WandBUltralyticsCallback:
                         epoch=trainer.epoch,
                     )
                 elif self.task == "detect":
-                    self.train_validation_table = plot_validation_results(
+                    self.train_validation_table = plot_detection_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
@@ -335,7 +336,7 @@ class WandBUltralyticsCallback:
                         max_validation_batches=self.max_validation_batches,
                     )
                 elif self.task == "detect":
-                    self.validation_table = plot_validation_results(
+                    self.validation_table = plot_detection_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
