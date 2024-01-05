@@ -1416,13 +1416,13 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
+    def _get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
         if len(keys) == 1:
             return d[keys[0]]
         else:
-            return self.get_nested_value(d[keys[0]], keys[1:])
+            return self._get_nested_value(d[keys[0]], keys[1:])
 
-    def set_nested_value(
+    def _set_nested_value(
         self, d: Dict[str, Any], keys: List[str], value: Any, split_table: bool
     ) -> None:
         if len(keys) == 1:
@@ -1432,7 +1432,7 @@ class Run:
                 d[keys[0] + "_table"] = value
             d.pop(keys[0])
         else:
-            self.set_nested_value(d[keys[0]], keys[1:], value, split_table)
+            self._set_nested_value(d[keys[0]], keys[1:], value, split_table)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         chart_keys = set()
@@ -1476,9 +1476,9 @@ class Run:
             value = self.get_nested_value(row, klist)
 
             if k in split_table_set:
-                self.set_nested_value(row, klist, value, split_table=True)
+                self._set_nested_value(row, klist, value, split_table=True)
             else:
-                self.set_nested_value(row, klist, value, split_table=False)
+                self._set_nested_value(row, klist, value, split_table=False)
 
         return row
 
