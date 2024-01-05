@@ -13,7 +13,6 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -31,8 +30,6 @@ import (
 )
 
 const (
-	MetaFilename = "wandb-metadata.json"
-	OutputFile   = "output.log"
 	// RFC3339Micro Modified from time.RFC3339Nano
 	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -297,8 +294,6 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendNetworkStatusRequest(x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
-	case *service.Request_Metadata:
-		s.sendMetadata(x.Metadata)
 	case *service.Request_LogArtifact:
 		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
@@ -310,6 +305,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_Cancel:
+		// TODO: audit this
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -348,16 +345,6 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
 }
 
-func (s *Sender) sendMetadata(request *service.MetadataRequest) {
-	mo := protojson.MarshalOptions{
-		Indent: "  ",
-		// EmitUnpopulated: true,
-	}
-	jsonBytes, _ := mo.Marshal(request)
-	_ = os.WriteFile(filepath.Join(s.settings.GetFilesDir().GetValue(), MetaFilename), jsonBytes, 0644)
-	s.sendInternalFile(MetaFilename)
-}
-
 func (s *Sender) sendDefer(request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
@@ -383,7 +370,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		s.sendInternalFile(OutputFile)
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -777,7 +763,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 		return
 	}
 
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFile)
+	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
 	// append line to file
 	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -807,7 +793,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
+		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 	// TODO: handle invalid alert levels
@@ -894,33 +880,14 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 	files := filesRecord.GetFiles()
 	for _, file := range files {
 		if strings.HasPrefix(file.GetPath(), "media") {
-			s.sendFile(file.GetPath(), filetransfer.MediaFile)
-		} else {
-			s.sendFile(file.GetPath(), filetransfer.OtherFile)
+			file.Type = service.FilesItem_MEDIA
 		}
-	}
-}
-
-func (s *Sender) sendInternalFile(path string) {
-	// check if the file exists
-	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), path)
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		s.logger.Info("sender: sendInternalFile: file does not exist", "path", path)
-		return
-	}
-	s.fwdChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: path},
-				},
-			},
-		},
+		s.sendFile(file)
 	}
 }
 
 // sendFile sends a file to the server
-func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
+func (s *Sender) sendFile(file *service.FilesItem) {
 	if s.graphqlClient == nil || s.fileTransferManager == nil {
 		return
 	}
@@ -930,68 +897,72 @@ func (s *Sender) sendFile(name string, fileType filetransfer.FileType) {
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{name})
+	data, err := gql.CreateRunFiles(s.ctx, s.graphqlClient, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId, []string{file.GetPath()})
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
 		s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
-	for _, file := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.Name)
-		task := &filetransfer.Task{Type: filetransfer.UploadTask, Path: fullPath, Name: file.Name, Url: *file.UploadUrl, FileType: fileType}
+	for _, f := range data.GetCreateRunFiles().GetFiles() {
+		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
+		task := &filetransfer.Task{
+			Type: filetransfer.UploadTask,
+			Path: fullPath,
+			Name: f.Name,
+			Url:  *f.UploadUrl,
+		}
 
 		task.SetProgressCallback(
 			func(processed, total int) {
 				if processed == 0 {
 					return
 				}
-				request := &service.Request{
-					RequestType: &service.Request_FileTransferInfo{
-						FileTransferInfo: &service.FileTransferInfoRequest{
-							Type: service.FileTransferInfoRequest_Upload,
-							Path: fullPath,
-							// Url:       *file.UploadUrl,
-							Size:      int64(total),
-							Processed: int64(processed),
+				record := &service.Record{
+					RecordType: &service.Record_Request{
+						Request: &service.Request{
+							RequestType: &service.Request_FileTransferInfo{
+								FileTransferInfo: &service.FileTransferInfoRequest{
+									Type:      service.FileTransferInfoRequest_Upload,
+									Path:      fullPath,
+									Size:      int64(total),
+									Processed: int64(processed),
+								},
+							},
 						},
 					},
 				}
-
-				rec := &service.Record{
-					RecordType: &service.Record_Request{Request: request},
-				}
-				s.fwdChan <- rec
+				s.fwdChan <- record
 			},
 		)
 		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
 		task.AddCompletionCallback(
 			func(*filetransfer.Task) {
 				fileCounts := &service.FileCounts{}
-				switch fileType {
-				case filetransfer.MediaFile:
+				switch file.GetType() {
+				case service.FilesItem_MEDIA:
 					fileCounts.MediaCount = 1
-				case filetransfer.OtherFile:
+				case service.FilesItem_OTHER:
 					fileCounts.OtherCount = 1
-				case filetransfer.WandbFile:
+				case service.FilesItem_WANDB:
 					fileCounts.WandbCount = 1
 				}
 
-				request := &service.Request{
-					RequestType: &service.Request_FileTransferInfo{
-						FileTransferInfo: &service.FileTransferInfoRequest{
-							Type:       service.FileTransferInfoRequest_Upload,
-							Path:       fullPath,
-							Size:       task.Size,
-							Processed:  task.Size,
-							FileCounts: fileCounts,
+				record := &service.Record{
+					RecordType: &service.Record_Request{
+						Request: &service.Request{
+							RequestType: &service.Request_FileTransferInfo{
+								FileTransferInfo: &service.FileTransferInfoRequest{
+									Type:       service.FileTransferInfoRequest_Upload,
+									Path:       fullPath,
+									Size:       task.Size,
+									Processed:  task.Size,
+									FileCounts: fileCounts,
+								},
+							},
 						},
 					},
 				}
-
-				rec := &service.Record{
-					RecordType: &service.Record_Request{Request: request},
-				}
-				s.fwdChan <- rec
+				s.fwdChan <- record
 			},
 		)
 
@@ -1004,7 +975,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
-	artifactID, err := saver.Save()
+	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {

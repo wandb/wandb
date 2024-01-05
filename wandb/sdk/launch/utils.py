@@ -204,10 +204,7 @@ def set_project_entity_defaults(
             config_project = launch_config.get("project")
         project = config_project or source_uri or ""
     if entity is None:
-        config_entity = None
-        if launch_config:
-            config_entity = launch_config.get("entity")
-        entity = config_entity or api.default_entity
+        entity = get_default_entity(api, launch_config)
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
@@ -215,6 +212,13 @@ def set_project_entity_defaults(
         f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
     )
     return project, entity
+
+
+def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
+    config_entity = None
+    if launch_config:
+        config_entity = launch_config.get("entity")
+    return config_entity or api.default_entity
 
 
 def construct_launch_spec(

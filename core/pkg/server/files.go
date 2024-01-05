@@ -17,13 +17,22 @@ type FileHandler struct {
 	final      *service.Record
 	watcher    *watcher.Watcher
 	logger     *observability.CoreLogger
+	settings   *service.Settings
+	outChan    chan *service.Record
 }
 
-func NewFileHandler(logger *observability.CoreLogger, watcherOutChan chan *service.Record) *FileHandler {
+func NewFileHandler(
+	watcher *watcher.Watcher,
+	logger *observability.CoreLogger,
+	settings *service.Settings,
+	outChan chan *service.Record,
+) *FileHandler {
 	return &FileHandler{
 		savedFiles: make(map[string]interface{}),
-		watcher:    watcher.NewWatcher(logger, watcherOutChan),
+		watcher:    watcher,
 		logger:     logger,
+		settings:   settings,
+		outChan:    outChan,
 	}
 }
 
@@ -40,6 +49,19 @@ func (fh *FileHandler) Close() {
 	}
 	fh.watcher.Close()
 	fh.logger.Debug("closed file handler")
+}
+
+func (fh *FileHandler) filterFile(file *service.FilesItem) bool {
+	for _, pattern := range fh.settings.GetIgnoreGlobs().GetValue() {
+		if matches, err := filepath.Match(pattern, file.Path); err != nil {
+			fh.logger.CaptureError("error matching glob", err, "path", file.Path, "glob", pattern)
+			continue
+		} else if matches {
+			fh.logger.Info("ignoring file", "path", file.Path, "glob", pattern)
+			return true
+		}
+	}
+	return false
 }
 
 // Handle handles file uploads preprocessing, depending on their policies:
@@ -68,7 +90,9 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 			// if fileInfo, err := os.Stat(item.Path); err != nil || fileInfo.IsDir() {
 			// 	continue
 			// }
-			items = append(items, item)
+			if !fh.filterFile(item) {
+				items = append(items, item)
+			}
 			continue
 		}
 
@@ -84,7 +108,9 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 			}
 			newItem := proto.Clone(item).(*service.FilesItem)
 			newItem.Path = match
-			items = append(items, newItem)
+			if !fh.filterFile(item) {
+				items = append(items, newItem)
+			}
 		}
 	}
 
@@ -103,7 +129,24 @@ func (fh *FileHandler) Handle(record *service.Record) *service.Record {
 				fh.savedFiles[item.Path] = nil
 				fh.final.GetFiles().Files = append(fh.final.GetFiles().Files, item)
 			}
-			err := fh.watcher.Add(item.Path)
+			err := fh.watcher.Add(item.Path, func(event watcher.Event) error {
+				if event.IsCreate() || event.IsWrite() {
+					rec := &service.Record{
+						RecordType: &service.Record_Files{
+							Files: &service.FilesRecord{
+								Files: []*service.FilesItem{
+									{
+										Policy: service.FilesItem_NOW,
+										Path:   item.Path,
+									},
+								},
+							},
+						},
+					}
+					fh.outChan <- rec
+				}
+				return nil
+			})
 			if err != nil {
 				fh.logger.CaptureError("error adding path to watcher", err, "path", item.Path)
 				continue
