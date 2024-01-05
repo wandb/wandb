@@ -220,8 +220,9 @@ def projects(entity, display=True):
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
+@click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
-def login(key, host, cloud, relogin, anonymously, no_offline=False):
+def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -233,7 +234,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
     login_settings = dict(
         _cli_only_mode=True,
-        _disable_viewer=relogin,
+        _disable_viewer=relogin and not verify,
         anonymous=anon_mode,
     )
     if host is not None:
@@ -245,7 +246,14 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         wandb.termerror(str(e))
         sys.exit(1)
 
-    wandb.login(relogin=relogin, key=key, anonymous=anon_mode, host=host, force=True)
+    wandb.login(
+        relogin=relogin,
+        key=key,
+        anonymous=anon_mode,
+        host=host,
+        force=True,
+        verify=verify,
+    )
 
 
 @cli.command(
@@ -1411,6 +1419,14 @@ def launch_sweep(
     default=None,
     help="Path to the Dockerfile used to build the job, relative to the job's root",
 )
+@click.option(
+    "--priority",
+    "-P",
+    default=None,
+    type=click.Choice(["critical", "high", "medium", "low"]),
+    help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
+    are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
+)
 @display_error
 def launch(
     uri,
@@ -1431,6 +1447,7 @@ def launch(
     repository,
     project_queue,
     dockerfile,
+    priority,
 ):
     """Start a W&B run from the given URI.
 
@@ -1459,6 +1476,9 @@ def launch(
         raise LaunchError(
             "Cannot use --queue and --docker together without a project. Please specify a project with --project or -p."
         )
+
+    if priority is not None and queue is None:
+        raise LaunchError("--priority flag requires --queue to be set")
 
     if resource_args is not None:
         resource_args = util.load_json_yaml_dict(resource_args)
@@ -1495,10 +1515,21 @@ def launch(
         else:
             config["overrides"] = {"dockerfile": dockerfile}
 
+    if priority is not None:
+        priority_map = {
+            "critical": 0,
+            "high": 1,
+            "medium": 2,
+            "low": 3,
+        }
+        priority = priority_map[priority.lower()]
+
     template_variables = None
     if cli_template_vars:
         if queue is None:
             raise LaunchError("'--set-var' flag requires queue to be set")
+        if entity is None:
+            entity = launch_utils.get_default_entity(api, config)
         public_api = PublicApi()
         runqueue = RunQueue(client=public_api.client, name=queue, entity=entity)
         template_variables = launch_utils.fetch_and_validate_template_variables(
@@ -1566,6 +1597,7 @@ def launch(
                     build=build,
                     run_id=run_id,
                     repository=repository,
+                    priority=priority,
                 )
             )
         except Exception as e:

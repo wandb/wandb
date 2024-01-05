@@ -2,18 +2,23 @@
 default_stages:
   - pre-push
 repos:
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+    - id: clippy
+      args: ['--manifest-path=client/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.0.284"
+    rev: "v0.1.0"
     hooks:
       - id: ruff
         args: [ --fix]
   - repo: https://github.com/psf/black
-    rev: 23.7.0
+    rev: 23.10.0
     hooks:
       - id: black-jupyter
         exclude: ^(wandb/vendor/|wandb/proto/v.*/.*_pb2\.py|wandb/proto/v.*/.*_pb2_grpc\.py|wandb/proto/wandb_deprecated.py)
   - repo: https://github.com/asottile/blacken-docs
-    rev: 1.15.0
+    rev: 1.16.0
     hooks:
       - id: blacken-docs
         exclude: ^(wandb/vendor/)
@@ -23,7 +28,7 @@ repos:
       - id: clang-format
         types_or: [proto]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
@@ -53,7 +58,7 @@ repos:
       - id: forbid-submodules
         name: forbid-submodules
   - repo: https://github.com/psf/black
-    rev: 23.7.0
+    rev: 23.10.0
     hooks:
       - id: black
         files: '^core/'

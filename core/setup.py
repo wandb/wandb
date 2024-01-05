@@ -14,7 +14,7 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # wandb-core versioning
 # ---------------------
-CORE_VERSION = "0.17.0b4"
+CORE_VERSION = "0.17.0b6"
 
 
 PACKAGE: str = "wandb_core"
@@ -90,6 +90,17 @@ class WBCoreBase:
         log.info(f"Building for {goos}-{goarch}")
         log.info(f"Running command: {' '.join(cmd)}")
         subprocess.check_call(cmd, cwd=src_dir, env=env)
+
+        # TODO: this is a temporary hack
+        # copy the binary to ../client
+        client_path = src_dir.parent / "client"
+        if client_path.exists():
+            log.info("Copying wandb-core binary")
+            # mkdir core_path / "wandb":
+            os.makedirs(client_path / "wandb", exist_ok=True)
+            subprocess.check_call(
+                ["cp", str(core_path / "wandb-core"), str(client_path / "wandb")]
+            )
 
         # on arm macs, copy over the stats monitor binary, if available
         # it is built separately with `nox -s build-apple-stats-monitor` to avoid
