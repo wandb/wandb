@@ -213,9 +213,12 @@ class WandBUltralyticsCallback:
     def _make_predictor(self, model: YOLO):
         overrides = copy.deepcopy(model.overrides)
         overrides["conf"] = 0.1
-        self.predictor = self.task_map[self.task]["predictor"](
-            overrides=overrides, _callbacks=None
-        )
+        self.predictor = self.task_map[self.task]["predictor"](overrides=overrides)
+        self.predictor.callbacks = {}
+        self.predictor.args.save = False
+        self.predictor.args.save_txt = False
+        self.predictor.args.save_crop = False
+        self.predictor.args.verbose = None
 
     def _save_model(self, trainer: TRAINER_TYPE):
         model_checkpoint_artifact = wandb.Artifact(
@@ -361,6 +364,13 @@ class WandBUltralyticsCallback:
                     )
             wandb.log({"Validation-Table": self.validation_table})
 
+    def on_predict_start(self, predictor: PREDICTOR_TYPE):
+        wandb.run or wandb.init(
+            project=predictor.args.project or "YOLOv8",
+            config=vars(predictor.args),
+            job_type="prediction_" + predictor.args.task,
+        )
+
     def on_predict_end(self, predictor: PREDICTOR_TYPE):
         wandb.config.prediction_configs = vars(predictor.args)
         if self.task in self.supported_tasks:
@@ -394,8 +404,9 @@ class WandBUltralyticsCallback:
             "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,
             "on_train_end": self.on_train_end,
-            "on_val_start": on_val_start,
+            "on_val_start": self.on_val_start,
             "on_val_end": self.on_val_end,
+            "on_predict_start": self.on_predict_start,
             "on_predict_end": self.on_predict_end,
         }
 
@@ -468,8 +479,10 @@ def add_wandb_callback(
             _ = callbacks.pop("on_fit_epoch_end")
             _ = callbacks.pop("on_train_end")
         if not enable_validation_logging:
+            _ = callbacks.pop("on_val_start")
             _ = callbacks.pop("on_val_end")
         if not enable_prediction_logging:
+            _ = callbacks.pop("on_predict_start")
             _ = callbacks.pop("on_predict_end")
         for event, callback_fn in callbacks.items():
             model.add_callback(event, callback_fn)
