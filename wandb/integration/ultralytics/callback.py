@@ -41,6 +41,7 @@ try:
         SegmentationTrainer,
         SegmentationValidator,
     )
+    from ultralytics.models.sam.predict import Predictor as SAMPredictor
     from ultralytics.utils.torch_utils import de_parallel
 
     try:
@@ -77,7 +78,11 @@ VALIDATOR_TYPE = Union[
     ClassificationValidator, DetectionValidator, SegmentationValidator, PoseValidator
 ]
 PREDICTOR_TYPE = Union[
-    ClassificationPredictor, DetectionPredictor, SegmentationPredictor, PosePredictor
+    ClassificationPredictor,
+    DetectionPredictor,
+    SegmentationPredictor,
+    PosePredictor,
+    SAMPredictor,
 ]
 
 
@@ -133,10 +138,15 @@ class WandBUltralyticsCallback:
         self.visualize_skeleton = visualize_skeleton
         self.task = model.task
         self.task_map = model.task_map
-        self.model_name = model.overrides["model"].split(".")[0]
+        self.model_name = (
+            model.overrides["model"].split(".")[0]
+            if "model" in model.overrides
+            else None
+        )
         self._make_tables()
         self._make_predictor(model)
         self.supported_tasks = ["detect", "segment", "pose", "classify"]
+        self.prompts = None
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -318,6 +328,9 @@ class WandBUltralyticsCallback:
             config=vars(validator.args),
             job_type="validation_" + validator.args.task,
         )
+        if isinstance(self.predictor, SAMPredictor):
+            self.prompts = deepcopy(predictor.prompts)
+            self.prediction_table = wb.Table(columns=["Image"])
 
     def on_val_end(self, trainer: VALIDATOR_TYPE):
         if self.task in self.supported_tasks:
@@ -371,6 +384,9 @@ class WandBUltralyticsCallback:
             config=vars(predictor.args),
             job_type="prediction_" + predictor.args.task,
         )
+        if isinstance(predictor, SAMPredictor):
+            self.prompts = copy.deepcopy(predictor.prompts)
+            self.prediction_table = wandb.Table(columns=["Image"])
 
     def on_predict_end(self, predictor: PREDICTOR_TYPE):
         wandb.config.prediction_configs = vars(predictor.args)
@@ -384,9 +400,14 @@ class WandBUltralyticsCallback:
                         self.prediction_table,
                     )
                 elif self.task == "segment":
-                    self.prediction_table = plot_mask_predictions(
-                        result, self.model_name, self.prediction_table
-                    )
+                    if isinstance(predictor, SegmentationPredictor):
+                        self.prediction_table = plot_mask_predictions(
+                            result, self.model_name, self.prediction_table
+                        )
+                    elif isinstance(predictor, SAMPredictor):
+                        self.prediction_table = plot_sam_predictions(
+                            result, self.prompts, self.prediction_table
+                        )
                 elif self.task == "detect":
                     self.prediction_table = plot_bbox_predictions(
                         result, self.model_name, self.prediction_table
