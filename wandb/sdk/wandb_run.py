@@ -1473,7 +1473,7 @@ class Run:
 
         for k in chart_keys:
             klist = k.split("®")
-            value = self.get_nested_value(row, klist)
+            value = self._get_nested_value(row, klist)
 
             if k in split_table_set:
                 self._set_nested_value(row, klist, value, split_table=True)
