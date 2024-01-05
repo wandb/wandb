@@ -1416,40 +1416,70 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
+    def get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
+        if len(keys) == 1:
+            return d[keys[0]]
+        else:
+            return self.get_nested_value(d[keys[0]], keys[1:])
+
+    def set_nested_value(
+        self, d: Dict[str, Any], keys: List[str], value: Any, split_table: bool
+    ) -> None:
+        if len(keys) == 1:
+            if split_table:
+                d[f"Custom Chart Tables/{keys[0]}_table"] = value
+            else:
+                d[keys[0] + "_table"] = value
+            d.pop(keys[0])
+        else:
+            self.set_nested_value(d[keys[0]], keys[1:], value, split_table)
+
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        # TODO(jhr): move visualize hack somewhere else
         chart_keys = set()
         split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
-                chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                # print(key)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
+
+        def transform(key: str, value: Any) -> Any:
+            if isinstance(value, dict):
+                return {k: transform(f"{key}®{k}", v) for k, v in value.items()}
+            if isinstance(value, Visualize):
+                config_key = value.get_config_key(key)
+                config_value = value.get_config_value(key)
+                value = value._data
+                self._config_callback(val=config_value, key=config_key)
+                return value
+            elif isinstance(value, CustomChart):
+                formatted_key = key.replace("®", ".")
+
+                chart_keys.add(key)
+                config_key = value.get_config_key(key)
+                if value._split_table:
+                    config_value = value.get_config_value(
+                        "Vega2",
+                        value.user_query(f"Custom Chart Tables/{formatted_key}_table"),
                     )
-                    split_table_set.add(k)
+                    split_table_set.add(key)
                 else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
+                    config_value = value.get_config_value(
+                        "Vega2", value.user_query(f"{formatted_key}_table")
                     )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+                value = value._data
+                self._config_callback(val=config_value, key=config_key)
+                return value
+            else:
+                return value
+
+        for k, v in row.items():
+            row[k] = transform(k, v)
 
         for k in chart_keys:
-            # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
+            klist = k.split("®")
+            value = self.get_nested_value(row, klist)
+
             if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+                self.set_nested_value(row, klist, value, split_table=True)
             else:
-                row[f"{k}_table"] = row.pop(k)
+                self.set_nested_value(row, klist, value, split_table=False)
+
         return row
 
     def _partial_history_callback(
@@ -1459,58 +1489,20 @@ class Run:
         commit: Optional[bool] = None,
     ) -> None:
         row = row.copy()
-        # print(f"before{row}")
+        print("ajsidjsalkdjkl")
+        if row:
+            row = self._visualization_hack(row)
 
-        # check if we have a custom chart in our nested dictionary
-        datatype_to_check = CustomChart  
-        result = any(isinstance(value, datatype_to_check) for d in row.values() for value in d.values())
+        if self._backend and self._backend.interface:
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
 
-        if result:
-            print("oh no we have a nested custom chart!")
-            def nestedCustomChartScenario(d):
-                for k, v in d.items():
-                    if isinstance(v, dict):
-                        nestedCustomChartScenario(v)
-                    else:
-                        if v:
-                            # print("{0} : {1}".format(k, v))
-
-                            row = self._visualization_hack({k:v})
-                            # print(row)
-                            if self._backend and self._backend.interface:
-                                not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-                                self._backend.interface.publish_partial_history(
-                                    row,
-                                    user_step=self._step,
-                                    step=step,
-                                    flush=commit,
-                                    publish_step=not_using_tensorboard,
-                                )
-            nestedCustomChartScenario(row)
-        else:
-            if row:
-                row = self._visualization_hack(row)
-            # print(row)
-            if self._backend and self._backend.interface:
-                not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-
-                self._backend.interface.publish_partial_history(
-                    row,
-                    user_step=self._step,
-                    step=step,
-                    flush=commit,
-                    publish_step=not_using_tensorboard,
-                )
-
-    # def _partial_history_callback(
-    #     self,
-    #     row: Dict[str, Any],
-    #     step: Optional[int] = None,
-    #     commit: Optional[bool] = None,
-    # ) -> None:
-    #     row = row.copy()
-    #     print(f"before{row}")
+            self._backend.interface.publish_partial_history(
+                row,
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=not_using_tensorboard,
+            )
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
