@@ -1,12 +1,13 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import wandb
 from tqdm.auto import tqdm
 
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.detect import DetectionPredictor
 from ultralytics.utils import ops
+
+import wandb
 
 
 def scale_bounding_box_to_original_image_shape(

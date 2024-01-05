@@ -1,7 +1,6 @@
 from typing import Any, Optional
 
 import numpy as np
-import wandb
 from PIL import Image
 from tqdm.auto import tqdm
 
@@ -9,6 +8,7 @@ from ultralytics.engine.results import Results
 from ultralytics.models.yolo.pose import PosePredictor
 from ultralytics.utils.plotting import Annotator
 
+import wandb
 from wandb.integration.ultralytics.bbox_utils import (
     get_boxes,
     get_ground_truth_bbox_annotations,

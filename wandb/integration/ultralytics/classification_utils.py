@@ -1,11 +1,12 @@
 from typing import Any, Optional
 
 import numpy as np
-import wandb
 from tqdm.auto import tqdm
 
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.classify import ClassificationPredictor
+
+import wandb
 
 
 def plot_classification_predictions(
