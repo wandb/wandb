@@ -308,6 +308,13 @@ class WandBUltralyticsCallback:
         if self.task in self.supported_tasks:
             wandb.log({"Train-Validation-Table": self.train_validation_table})
 
+    def on_val_start(self, validator: VALIDATOR_TYPE):
+        wandb.run or wandb.init(
+            project=validator.args.project or "YOLOv8",
+            config=vars(validator.args),
+            job_type="validation_" + validator.args.task,
+        )
+
     def on_val_end(self, trainer: VALIDATOR_TYPE):
         if self.task in self.supported_tasks:
             validator = trainer
@@ -387,6 +394,7 @@ class WandBUltralyticsCallback:
             "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,
             "on_train_end": self.on_train_end,
+            "on_val_start": on_val_start,
             "on_val_end": self.on_val_end,
             "on_predict_end": self.on_predict_end,
         }
