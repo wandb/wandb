@@ -59,7 +59,8 @@ try:
     )
     from wandb.integration.ultralytics.mask_utils import (
         plot_mask_predictions,
-        plot_mask_validation_results,
+        plot_sam_predictions,
+        plot_segmentation_validation_results,
     )
     from wandb.integration.ultralytics.pose_utils import (
         plot_pose_predictions,
@@ -272,7 +273,7 @@ class WandBUltralyticsCallback:
                         epoch=trainer.epoch,
                     )
                 elif self.task == "segment":
-                    self.train_validation_table = plot_mask_validation_results(
+                    self.train_validation_table = plot_segmentation_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
@@ -337,7 +338,7 @@ class WandBUltralyticsCallback:
                         max_validation_batches=self.max_validation_batches,
                     )
                 elif self.task == "segment":
-                    self.validation_table = plot_mask_validation_results(
+                    self.validation_table = plot_segmentation_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
