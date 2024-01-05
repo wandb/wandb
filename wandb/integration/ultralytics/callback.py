@@ -370,7 +370,7 @@ class WandBUltralyticsCallback:
                         result, self.model_name, self.prediction_table
                     )
                 elif self.task == "detect":
-                    self.prediction_table = plot_predictions(
+                    self.prediction_table = plot_bbox_predictions(
                         result, self.model_name, self.prediction_table
                     )
                 elif self.task == "classify":
