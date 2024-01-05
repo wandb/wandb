@@ -1,10 +1,11 @@
 from typing import Any, Optional
 
 import numpy as np
+import wandb
+from tqdm.auto import tqdm
+
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.classify import ClassificationPredictor
-
-import wandb
 
 
 def plot_classification_predictions(
@@ -41,17 +42,25 @@ def plot_classification_validation_results(
     table: wandb.Table,
     max_validation_batches: int,
     epoch: Optional[int] = None,
-):
+) -> wandb.Table:
     """Plot classification results to a `wandb.Table`."""
     data_idx = 0
-    predictor.args.save = False
-    predictor.args.show = False
+    num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size
+    max_validation_batches = min(max_validation_batches, num_dataloader_batches)
     for batch_idx, batch in enumerate(dataloader):
         image_batch = batch["img"].numpy()
         ground_truth = batch["cls"].numpy().tolist()
-        for img_idx in range(image_batch.shape[0]):
-            image = np.transpose(image_batch[img_idx], (1, 2, 0))
-            prediction_result = predictor(image, show=False)[0]
+        images = [
+            np.transpose(image_batch[img_idx], (1, 2, 0))
+            for img_idx in range(max_validation_batches)
+        ]
+        prediction_results = predictor(images)
+        progress_bar_result_iterable = tqdm(
+            range(max_validation_batches),
+            desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
+        )
+        for img_idx in progress_bar_result_iterable:
+            prediction_result = prediction_results[img_idx]
             class_id_to_label, table_row = plot_classification_predictions(
                 prediction_result, model_name
             )
