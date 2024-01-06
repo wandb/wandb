@@ -1744,7 +1744,7 @@ class Artifact:
         mailbox.enable_keepalive()
 
         handle = backend.interface.deliver_download_artifact(
-            self.id,
+            self.id,  # type: ignore
             root,
             allow_missing_references,
         )
