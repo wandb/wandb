@@ -2,7 +2,6 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 from tqdm.auto import tqdm
-
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.segment import SegmentationPredictor
 from ultralytics.utils.ops import scale_image

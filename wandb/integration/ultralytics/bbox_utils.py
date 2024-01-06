@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from tqdm.auto import tqdm
-
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.detect import DetectionPredictor
 from ultralytics.utils import ops
@@ -16,8 +15,7 @@ def scale_bounding_box_to_original_image_shape(
     original_image_shape: Tuple,
     ratio_pad: bool,
 ) -> List[int]:
-    """
-    YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
+    """YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
 
     This function rescales the bounding box labels to the original
     image shape.
@@ -131,8 +129,7 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
 def plot_bbox_predictions(
     result: Results, model_name: str, table: Optional[wandb.Table] = None
 ) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
-    """
-    Plot the images with the W&B overlay system.
+    """Plot the images with the W&B overlay system.
 
     The `wandb.Image` is either added to a `wandb.Table` or returned.
     """

@@ -25,6 +25,7 @@ try:
         )
 
     from ultralytics.models import YOLO
+    from ultralytics.models.sam.predict import Predictor as SAMPredictor
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
         ClassificationTrainer,
@@ -41,7 +42,6 @@ try:
         SegmentationTrainer,
         SegmentationValidator,
     )
-    from ultralytics.models.sam.predict import Predictor as SAMPredictor
     from ultralytics.utils.torch_utils import de_parallel
 
     try:
@@ -53,7 +53,6 @@ try:
         plot_bbox_predictions,
         plot_detection_validation_results,
     )
-
     from wandb.integration.ultralytics.classification_utils import (
         plot_classification_predictions,
         plot_classification_validation_results,

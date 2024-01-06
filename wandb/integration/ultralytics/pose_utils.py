@@ -3,7 +3,6 @@ from typing import Any, Optional
 import numpy as np
 from PIL import Image
 from tqdm.auto import tqdm
-
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.pose import PosePredictor
 from ultralytics.utils.plotting import Annotator
