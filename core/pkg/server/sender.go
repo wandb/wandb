@@ -745,6 +745,11 @@ func (s *Sender) upsertConfig() {
 }
 
 func (s *Sender) writeAndSendConfigFile() {
+	if s.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
 	config := s.serializeConfig("yaml")
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {

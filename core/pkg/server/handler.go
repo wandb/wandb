@@ -845,6 +845,11 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 }
 
 func (h *Handler) writeAndSendSummaryFile() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
 	// write summary to file
 	summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
 
