@@ -15,6 +15,7 @@ def create_model():
     )
 
 
+@pytest.mark.xfail(reason="flaky test, depends on an external service")
 def test_sync_tensorboard(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(sync_tensorboard=True)
