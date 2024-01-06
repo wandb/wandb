@@ -30,6 +30,7 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
+from wandb.sdk import interface
 
 import wandb
 from wandb import data_types, env, util
@@ -1717,31 +1718,34 @@ class Artifact:
 
         from wandb.sdk.backend.backend import Backend
 
-        # ensure wandb-core is up and running
-        wl = wandb.sdk.wandb_setup.setup()
-        assert wl is not None
+        if wandb.run is None:
+            # ensure wandb-core is up and running
+            wl = wandb.sdk.wandb_setup.setup()
+            assert wl is not None
 
-        stream_id = generate_id()
+            stream_id = generate_id()
 
-        settings = wl.settings.to_proto()
-        # TODO: remove this
-        tmp_dir = pathlib.Path(tempfile.mkdtemp())
-        settings.sync_dir.value = str(tmp_dir)
-        settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
-        settings.files_dir.value = str(tmp_dir / "files")
-        settings.run_id.value = stream_id
+            settings = wl.settings.to_proto()
+            # TODO: remove this
+            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            settings.sync_dir.value = str(tmp_dir)
+            settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
+            settings.files_dir.value = str(tmp_dir / "files")
+            settings.run_id.value = stream_id
 
-        manager = wl._get_manager()
-        manager._inform_init(settings=settings, run_id=stream_id)
+            manager = wl._get_manager()
+            manager._inform_init(settings=settings, run_id=stream_id)
 
-        mailbox = Mailbox()
-        backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
-        backend.ensure_launched()
+            mailbox = Mailbox()
+            backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
+            backend.ensure_launched()
 
-        assert backend.interface
-        backend.interface._stream_id = stream_id  # type: ignore
+            assert backend.interface
+            backend.interface._stream_id = stream_id  # type: ignore
 
-        mailbox.enable_keepalive()
+            mailbox.enable_keepalive()
+        else:
+            backend = wandb.run._backend
 
         handle = backend.interface.deliver_download_artifact(
             self.id,  # type: ignore
@@ -1762,10 +1766,10 @@ class Artifact:
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
 
-        backend.cleanup()
-
-        # TODO: remove this
-        shutil.rmtree(tmp_dir)
+        if wandb.run is None:
+            backend.cleanup()
+            # TODO: remove this
+            shutil.rmtree(tmp_dir)
 
         return FilePathStr(root)
 
