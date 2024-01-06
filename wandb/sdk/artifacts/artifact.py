@@ -1744,8 +1744,10 @@ class Artifact:
 
             mailbox.enable_keepalive()
         else:
+            assert wandb.run._backend
             backend = wandb.run._backend
 
+        assert backend.interface
         handle = backend.interface.deliver_download_artifact(
             self.id,  # type: ignore
             root,
