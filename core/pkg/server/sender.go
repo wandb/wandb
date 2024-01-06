@@ -1011,6 +1011,9 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 }
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+	// TODO: this should be handled by a separate service starup mechanism
+	s.fileTransferManager.Start()
+
 	var response service.DownloadArtifactResponse
 	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
 	err := downloader.Download()
