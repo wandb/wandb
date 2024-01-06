@@ -30,7 +30,6 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
-from wandb.sdk import interface
 
 import wandb
 from wandb import data_types, env, util
