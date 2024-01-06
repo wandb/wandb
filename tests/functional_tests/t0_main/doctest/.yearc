@@ -1,0 +1,4 @@
+[yea]
+
+# tests in this directory are yeadoc only
+yeadoc = true

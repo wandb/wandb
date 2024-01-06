@@ -1,20 +1,20 @@
-#
 import json
 import logging
 import os
+from typing import Any, Dict, Optional
 
-import six
-from wandb.errors import Error
-from wandb.util import load_yaml
 import yaml
 
-from . import filesystem
+import wandb
+from wandb.errors import Error
+from wandb.util import load_yaml
 
+from . import filesystem
 
 logger = logging.getLogger("wandb")
 
 
-class ConfigError(Error):  # type: ignore
+class ConfigError(Error):
     pass
 
 
@@ -51,14 +51,14 @@ def update_from_proto(config_dict, config_proto):
 
 def dict_add_value_dict(config_dict):
     d = dict()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         d[k] = dict(desc=None, value=v)
     return d
 
 
 def dict_strip_value_dict(config_dict):
     d = dict()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         d[k] = v["value"]
     return d
 
@@ -68,9 +68,6 @@ def dict_no_value_from_proto_list(obj_list):
     for item in obj_list:
         possible_dict = json.loads(item.value_json)
         if not isinstance(possible_dict, dict) or "value" not in possible_dict:
-            # (tss) TODO: This is protecting against legacy 'wandb_version' field.
-            # Should investigate why the config payload even has 'wandb_version'.
-            logger.warning("key '{}' has no 'value' attribute".format(item.key))
             continue
         d[item.key] = possible_dict["value"]
 
@@ -87,14 +84,17 @@ def save_config_file_from_dict(config_filename, config_dict):
             default_flow_style=False,
             allow_unicode=True,
             encoding="utf-8",
+            sort_keys=False,
         )
     data = s.decode("utf-8")
-    filesystem._safe_makedirs(os.path.dirname(config_filename))
+    filesystem.mkdir_exists_ok(os.path.dirname(config_filename))
     with open(config_filename, "w") as conf_file:
         conf_file.write(data)
 
 
-def dict_from_config_file(filename, must_exist=False):
+def dict_from_config_file(
+    filename: str, must_exist: bool = False
+) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
             raise ConfigError("config file %s doesn't exist" % filename)
@@ -108,10 +108,15 @@ def dict_from_config_file(filename, must_exist=False):
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:
         raise ConfigError("Invalid YAML in config yaml")
+    if loaded is None:
+        wandb.termwarn(
+            "Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
+        )
+        return None
     config_version = loaded.pop("wandb_version", None)
     if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")
     data = dict()
-    for k, v in six.iteritems(loaded):
+    for k, v in loaded.items():
         data[k] = v["value"]
     return data

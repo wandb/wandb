@@ -50,7 +50,7 @@ class Filter(object):
         self.options = options
 
     def filter(self, lexer, stream):
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class FunctionFilter(Filter):

@@ -20,7 +20,7 @@ res_q | result_q | [backend.py] | Queue to pass results from internal process
 
 ### Records/Results
 
-Datatypes are encoded as protocol buffers within the client library.
+Datatypes are encoded as protocol buffers within the wandb library.
 
 There are a few conventions:
 - Record is for data that is persisted

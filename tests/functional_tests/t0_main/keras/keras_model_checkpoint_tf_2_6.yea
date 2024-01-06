@@ -1,0 +1,16 @@
+id: 0.keras.modelcheckpoint.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_model_checkpoint.py
+depend:
+    requirements:
+        - tensorflow>=2.6.2
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 39  # keras_model_checkpoint
+    - :wandb:runs[0][exitcode]: 0

@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """InternalRun - Internal-only run object.
 
 Semi-stubbed run for internal process use.
@@ -12,7 +11,7 @@ from .. import wandb_run
 
 class InternalRun(wandb_run.Run):
     def __init__(self, run_obj, settings, datatypes_cb):
-        super(InternalRun, self).__init__(settings=settings)
+        super().__init__(settings=settings)
         self._run_obj = run_obj
 
         # TODO: This overwrites what's done in the constructor of wandb_run.Run.

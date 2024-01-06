@@ -1,49 +1,60 @@
-#
-# -*- coding: utf-8 -*-
-"""Backend Sender - Send to internal process
+"""Interface base class - Used to send messages to the internal process.
 
-Manage backend sender.
+InterfaceBase: The abstract class
+InterfaceShared: Common routines for socket and queue based implementations
+InterfaceQueue: Use multiprocessing queues to send and receive messages
+InterfaceSock: Use socket to send and receive messages
+InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-from abc import abstractmethod
-import json
 import logging
-from multiprocessing.process import BaseProcess
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
-from typing import cast
-from typing import TYPE_CHECKING
+import sys
+import time
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
 
-import six
-import wandb
-from wandb import data_types
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
+from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.lib import json_util as json
 from wandb.util import (
+    WandBJSONEncoderOld,
     get_h5_typename,
     json_dumps_safer,
     json_dumps_safer_history,
     json_friendly,
     json_friendly_val,
     maybe_compress_summary,
-    WandBJSONEncoderOld,
 )
 
+from ..data_types.utils import history_dict_to_json, val_to_json
+from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
-from .artifacts import ArtifactManifest
-from .router import MessageFuture, MessageRouter
-from ..wandb_artifacts import Artifact
+
+GlobStr = NewType("GlobStr", str)
 
 if TYPE_CHECKING:
     from ..wandb_run import Run
-    from six.moves.queue import Queue
+
+    if sys.version_info >= (3, 8):
+        from typing import Literal, TypedDict
+    else:
+        from typing_extensions import Literal, TypedDict
+
+    PolicyName = Literal["now", "live", "end"]
+
+    class FilesDict(TypedDict):
+        files: Iterable[Tuple[GlobStr, PolicyName]]
 
 
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: "PolicyName") -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -53,9 +64,9 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
     if enum == pb.FilesItem.PolicyType.NOW:
-        policy = "now"
+        policy: PolicyName = "now"
     elif enum == pb.FilesItem.PolicyType.END:
         policy = "end"
     elif enum == pb.FilesItem.PolicyType.LIVE:
@@ -63,11 +74,13 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class BackendSenderBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
+    _drop: bool
 
     def __init__(self) -> None:
         self._run = None
+        self._drop = False
 
     def _hack_set_run(self, run: "Run") -> None:
         self._run = run
@@ -82,21 +95,6 @@ class BackendSenderBase(object):
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def communicate_check_version(
-        self, current_version: str = None
-    ) -> Optional[pb.CheckVersionResponse]:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
-        ret = self._communicate_check_version(check_version)
-        return ret
-
-    @abstractmethod
-    def _communicate_check_version(
-        self, current_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        raise NotImplementedError
-
     def communicate_status(self) -> Optional[pb.StatusResponse]:
         status = pb.StatusRequest()
         resp = self._communicate_status(status)
@@ -108,41 +106,19 @@ class BackendSenderBase(object):
     ) -> Optional[pb.StatusResponse]:
         raise NotImplementedError
 
-    def communicate_stop_status(self) -> Optional[pb.StopStatusResponse]:
-        status = pb.StopStatusRequest()
-        resp = self._communicate_stop_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        raise NotImplementedError
-
-    def communicate_network_status(self) -> Optional[pb.NetworkStatusResponse]:
-        status = pb.NetworkStatusRequest()
-        resp = self._communicate_network_status(status)
-        return resp
-
-    @abstractmethod
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
-        raise NotImplementedError
-
     def _make_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-        obj: pb.ConfigRecord = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
+        obj: Optional[pb.ConfigRecord] = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
-            for k, v in six.iteritems(data):
+            for k, v in data.items():
                 update = config.update.add()
                 update.key = k
-                update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
+                update.value_json = json_dumps_safer(json_friendly(v)[0])
         if key:
             update = config.update.add()
             if isinstance(key, tuple):
@@ -150,7 +126,7 @@ class BackendSenderBase(object):
                     update.nested_key.append(k)
             else:
                 update.key = key
-            update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
+            update.value_json = json_dumps_safer(json_friendly(val)[0])
         return config
 
     def _make_run(self, run: "Run") -> pb.RunRecord:
@@ -165,19 +141,27 @@ class BackendSenderBase(object):
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
-        self._publish_run(run)
+    def publish_run(self, run: "Run") -> None:
+        run_record = self._make_run(run)
+        self._publish_run(run_record)
 
     @abstractmethod
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def publish_cancel(self, cancel_slot: str) -> None:
+        cancel = pb.CancelRequest(cancel_slot=cancel_slot)
+        self._publish_cancel(cancel)
+
+    @abstractmethod
+    def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
+        raise NotImplementedError
+
     def publish_config(
         self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
+        data: Optional[dict] = None,
+        key: Optional[Union[Tuple[str, ...], str]] = None,
+        val: Optional[Any] = None,
     ) -> None:
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -191,44 +175,9 @@ class BackendSenderBase(object):
     def _publish_metric(self, metric: pb.MetricRecord) -> None:
         raise NotImplementedError
 
-    def communicate_attach(self, attach_id: str) -> Optional[pb.AttachResponse]:
-        attach = pb.AttachRequest(attach_id=attach_id)
-        resp = self._communicate_attach(attach)
-        return resp
-
-    @abstractmethod
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        raise NotImplementedError
-
-    def communicate_run(
-        self, run_obj: "Run", timeout: int = None
-    ) -> Optional[pb.RunUpdateResult]:
-        run = self._make_run(run_obj)
-        return self._communicate_run(run, timeout=timeout)
-
-    @abstractmethod
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
-    ) -> Optional[pb.RunUpdateResult]:
-        raise NotImplementedError
-
-    def communicate_run_start(self, run_pb: pb.RunRecord) -> bool:
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
-        result = self._communicate_run_start(run_start)
-        return result is not None
-
-    @abstractmethod
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
-        raise NotImplementedError
-
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
         summary = pb.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
+        for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
@@ -245,25 +194,22 @@ class BackendSenderBase(object):
             A new tree of dict's with large objects replaced with dictionaries
             with "_type" entries that say which type the original data was.
         """
-
         # Constructs a new `dict` tree in `json_value` that discards and/or
         # encodes objects that aren't JSON serializable.
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in six.iteritems(value):
+            for key, value in value.items():  # noqa: B020
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
             return json_value
         else:
-            friendly_value, converted = json_friendly(  # type: ignore
-                data_types.val_to_json(
-                    self._run, path_from_root, value, namespace="summary"
-                )
+            friendly_value, converted = json_friendly(
+                val_to_json(self._run, path_from_root, value, namespace="summary")
             )
-            json_value, compressed = maybe_compress_summary(  # type: ignore
-                friendly_value, get_h5_typename(value)  # type: ignore
+            json_value, compressed = maybe_compress_summary(
+                friendly_value, get_h5_typename(value)
             )
             if compressed:
                 # TODO(jhr): impleement me
@@ -291,7 +237,8 @@ class BackendSenderBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -315,28 +262,7 @@ class BackendSenderBase(object):
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         raise NotImplementedError
 
-    def communicate_get_summary(self) -> Optional[pb.GetSummaryResponse]:
-        get_summary = pb.GetSummaryRequest()
-        return self._communicate_get_summary(get_summary)
-
-    @abstractmethod
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        raise NotImplementedError
-
-    def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
-        sampled_history = pb.SampledHistoryRequest()
-        resp = self._communicate_sampled_history(sampled_history)
-        return resp
-
-    @abstractmethod
-    def _communicate_sampled_history(
-        self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
-        raise NotImplementedError
-
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: "FilesDict") -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -344,7 +270,7 @@ class BackendSenderBase(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: dict) -> None:
+    def publish_files(self, files_dict: "FilesDict") -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 
@@ -352,7 +278,19 @@ class BackendSenderBase(object):
     def _publish_files(self, files: pb.FilesRecord) -> None:
         raise NotImplementedError
 
-    def _make_artifact(self, artifact: Artifact) -> pb.ArtifactRecord:
+    def publish_python_packages(self, working_set) -> None:
+        python_packages = pb.PythonPackagesRequest()
+        for pkg in working_set:
+            python_packages.package.add(name=pkg.key, version=pkg.version)
+        self._publish_python_packages(python_packages)
+
+    @abstractmethod
+    def _publish_python_packages(
+        self, python_packages: pb.PythonPackagesRequest
+    ) -> None:
+        raise NotImplementedError
+
+    def _make_artifact(self, artifact: "Artifact") -> pb.ArtifactRecord:
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
@@ -364,16 +302,24 @@ class BackendSenderBase(object):
         if artifact.description:
             proto_artifact.description = artifact.description
         if artifact.metadata:
-            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))  # type: ignore
+            proto_artifact.metadata = json.dumps(json_friendly_val(artifact.metadata))
+        if artifact._base_id:
+            proto_artifact.base_id = artifact._base_id
+
+        ttl_duration_input = artifact._ttl_duration_seconds_to_gql()
+        if ttl_duration_input:
+            proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
     def _make_artifact_manifest(
-        self, artifact_manifest: ArtifactManifest, obj: pb.ArtifactManifest = None
+        self,
+        artifact_manifest: ArtifactManifest,
+        obj: Optional[pb.ArtifactManifest] = None,
     ) -> pb.ArtifactManifest:
         proto_manifest = obj or pb.ArtifactManifest()
-        proto_manifest.version = artifact_manifest.version()  # type: ignore
+        proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -381,7 +327,7 @@ class BackendSenderBase(object):
             cfg.key = k
             cfg.value_json = json.dumps(v)
 
-        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):  # type: ignore
+        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
@@ -399,15 +345,123 @@ class BackendSenderBase(object):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def communicate_artifact(
+    def publish_link_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: "Artifact",
+        portfolio_name: str,
         aliases: Iterable[str],
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> None:
+        link_artifact = pb.LinkArtifactRecord()
+        if artifact.is_draft():
+            link_artifact.client_id = artifact._client_id
+        else:
+            link_artifact.server_id = artifact.id if artifact.id else ""
+        link_artifact.portfolio_name = portfolio_name
+        link_artifact.portfolio_entity = entity or run.entity
+        link_artifact.portfolio_project = project or run.project
+        link_artifact.portfolio_aliases.extend(aliases)
+
+        self._publish_link_artifact(link_artifact)
+
+    @abstractmethod
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def _make_partial_source_str(
+        source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> str:
+        """Construct use_artifact.partial.source_info.sourc as str."""
+        source_type = job_info.get("source_type", "").strip()
+        if source_type == "artifact":
+            info_source = job_info.get("source", {})
+            source.artifact.artifact = info_source.get("artifact", "")
+            source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
+            source.artifact.notebook = info_source.get("notebook", False)
+        elif source_type == "repo":
+            source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
+            source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
+            source.git.entrypoint.extend(metadata.get("entrypoint", []))
+            source.git.notebook = metadata.get("notebook", False)
+        elif source_type == "image":
+            source.image.image = metadata.get("docker", "")
+        else:
+            raise ValueError("Invalid source type")
+
+        source_str: str = source.SerializeToString()
+        return source_str
+
+    def _make_proto_use_artifact(
+        self,
+        use_artifact: pb.UseArtifactRecord,
+        job_name: str,
+        job_info: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> pb.UseArtifactRecord:
+        use_artifact.partial.job_name = job_name
+        use_artifact.partial.source_info._version = job_info.get("_version", "")
+        use_artifact.partial.source_info.source_type = job_info.get("source_type", "")
+        use_artifact.partial.source_info.runtime = job_info.get("runtime", "")
+
+        src_str = self._make_partial_source_str(
+            source=use_artifact.partial.source_info.source,
+            job_info=job_info,
+            metadata=metadata,
+        )
+        use_artifact.partial.source_info.source.ParseFromString(src_str)
+
+        return use_artifact
+
+    def publish_use_artifact(
+        self,
+        artifact: "Artifact",
+    ) -> None:
+        assert artifact.id is not None, "Artifact must have an id"
+
+        use_artifact = pb.UseArtifactRecord(
+            id=artifact.id,
+            type=artifact.type,
+            name=artifact.name,
+        )
+
+        # TODO(gst): move to internal process
+        if "_partial" in artifact.metadata:
+            # Download source info from logged partial job artifact
+            job_info = {}
+            try:
+                path = artifact.get_entry("wandb-job.json").download()
+                with open(path) as f:
+                    job_info = json.load(f)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+            use_artifact = self._make_proto_use_artifact(
+                use_artifact=use_artifact,
+                job_name=artifact.name,
+                job_info=job_info,
+                metadata=artifact.metadata,
+            )
+
+        self._publish_use_artifact(use_artifact)
+
+    @abstractmethod
+    def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
+        raise NotImplementedError
+
+    def deliver_artifact(
+        self,
+        run: "Run",
+        artifact: "Artifact",
+        aliases: Iterable[str],
+        history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MessageFuture:
+    ) -> MailboxHandle:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -421,19 +475,39 @@ class BackendSenderBase(object):
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
-        resp = self._communicate_artifact(log_artifact)
+        if history_step is not None:
+            log_artifact.history_step = history_step
+        log_artifact.staging_dir = get_staging_dir()
+        resp = self._deliver_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _communicate_artifact(
-        self, log_artifact: pb.LogArtifactRequest
-    ) -> MessageFuture:
+    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_download_artifact(
+        self,
+        artifact_id: str,
+        download_root: str,
+        allow_missing_references: bool,
+    ) -> MailboxHandle:
+        download_artifact = pb.DownloadArtifactRequest()
+        download_artifact.artifact_id = artifact_id
+        download_artifact.download_root = download_root
+        download_artifact.allow_missing_references = allow_missing_references
+        resp = self._deliver_download_artifact(download_artifact)
+        return resp
+
+    @abstractmethod
+    def _deliver_download_artifact(
+        self, download_artifact: pb.DownloadArtifactRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def publish_artifact(
         self,
         run: "Run",
-        artifact: Artifact,
+        artifact: "Artifact",
         aliases: Iterable[str],
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -455,13 +529,11 @@ class BackendSenderBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str]
-    ) -> None:
+    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
+        tbrecord.root_dir = root_logdir
         self._publish_tbdata(tbrecord)
 
     @abstractmethod
@@ -472,20 +544,59 @@ class BackendSenderBase(object):
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
-    def publish_history(
-        self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
+    def publish_partial_history(
+        self,
+        data: dict,
+        user_step: int,
+        step: Optional[int] = None,
+        flush: Optional[bool] = None,
+        publish_step: bool = True,
+        run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
+        data.pop("_step", None)
+
+        # add timestamp to the history request, if not already present
+        # the timestamp might come from the tensorboard log logic
+        if "_timestamp" not in data:
+            data["_timestamp"] = time.time()
+
+        partial_history = pb.PartialHistoryRequest()
+        for k, v in data.items():
+            item = partial_history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)
+
+        if publish_step and step is not None:
+            partial_history.step.num = step
+        if flush is not None:
+            partial_history.action.flush = flush
+        self._publish_partial_history(partial_history)
+
+    @abstractmethod
+    def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
+        raise NotImplementedError
+
+    def publish_history(
+        self,
+        data: dict,
+        step: Optional[int] = None,
+        run: Optional["Run"] = None,
+        publish_step: bool = True,
+    ) -> None:
+        run = run or self._run
+        data = history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None
             history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
+            item.value_json = json_dumps_safer_history(v)
         self._publish_history(history)
 
     @abstractmethod
@@ -518,6 +629,26 @@ class BackendSenderBase(object):
 
     @abstractmethod
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
+        raise NotImplementedError
+
+    def publish_output_raw(self, name: str, data: str) -> None:
+        # from vendor.protobuf import google3.protobuf.timestamp
+        # ts = timestamp.Timestamp()
+        # ts.GetCurrentTime()
+        # now = datetime.now()
+        if name == "stdout":
+            otype = pb.OutputRawRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRawRecord.OutputType.STDERR
+        else:
+            # TODO(jhr): throw error?
+            print("unknown type")
+        o = pb.OutputRawRecord(output_type=otype, line=data)
+        o.timestamp.GetCurrentTime()
+        self._publish_output_raw(o)
+
+    @abstractmethod
+    def _publish_output_raw(self, outdata: pb.OutputRawRecord) -> None:
         raise NotImplementedError
 
     def publish_pause(self) -> None:
@@ -564,438 +695,184 @@ class BackendSenderBase(object):
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         raise NotImplementedError
 
-    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
-        poll_exit = pb.PollExitRequest()
-        resp = self._communicate_poll_exit(poll_exit)
-        return resp
+    def publish_keepalive(self) -> None:
+        keepalive = pb.KeepaliveRequest()
+        self._publish_keepalive(keepalive)
 
     @abstractmethod
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
+    def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         raise NotImplementedError
 
     def join(self) -> None:
-        self._communicate_shutdown()
+        # Drop indicates that the internal process has already been shutdown
+        if self._drop:
+            return
+        _ = self._communicate_shutdown()
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
+    def deliver_run(self, run: "Run") -> MailboxHandle:
+        run_record = self._make_run(run)
+        return self._deliver_run(run_record)
 
-class BackendSender(BackendSenderBase):
-    record_q: Optional["Queue[pb.Record]"]
-    result_q: Optional["Queue[pb.Result]"]
-    process: Optional[BaseProcess]
-    _router: Optional[MessageRouter]
-    _process_check: bool
-
-    def __init__(
+    def deliver_sync(
         self,
-        record_q: "Queue[pb.Record]" = None,
-        result_q: "Queue[pb.Result]" = None,
-        process: BaseProcess = None,
-        process_check: bool = True,
-    ) -> None:
-        super(BackendSender, self).__init__()
-        self.record_q = record_q
-        self.result_q = result_q
-        self._process = process
-        self._router = None
-        self._process_check = process_check
+        start_offset: int,
+        final_offset: int,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        run_id: Optional[str] = None,
+        skip_output_raw: Optional[bool] = None,
+    ) -> MailboxHandle:
+        sync = pb.SyncRequest(
+            start_offset=start_offset,
+            final_offset=final_offset,
+        )
+        if entity:
+            sync.overwrite.entity = entity
+        if project:
+            sync.overwrite.project = project
+        if run_id:
+            sync.overwrite.run_id = run_id
+        if skip_output_raw:
+            sync.skip.output_raw = skip_output_raw
+        return self._deliver_sync(sync)
 
-        self._init_router()
+    @abstractmethod
+    def _deliver_sync(self, sync: pb.SyncRequest) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _init_router(self) -> None:
-        if self.record_q and self.result_q:
-            self._router = MessageRouter(self.record_q, self.result_q)
+    @abstractmethod
+    def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _publish_output(self, outdata: pb.OutputRecord) -> None:
-        rec = pb.Record()
-        rec.output.CopyFrom(outdata)
-        self._publish(rec)
+    def deliver_run_start(self, run_pb: pb.RunRecord) -> MailboxHandle:
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        return self._deliver_run_start(run_start)
 
-    def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
-        rec = self._make_record(tbrecord=tbrecord)
-        self._publish(rec)
+    @abstractmethod
+    def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _publish_history(self, history: pb.HistoryRecord) -> None:
-        rec = self._make_record(history=history)
-        self._publish(rec)
+    def deliver_attach(self, attach_id: str) -> MailboxHandle:
+        attach = pb.AttachRequest(attach_id=attach_id)
+        return self._deliver_attach(attach)
 
-    def _publish_preempting(self, preempt_rec: pb.RunPreemptingRecord) -> None:
-        rec = self._make_record(preempting=preempt_rec)
-        self._publish(rec)
+    @abstractmethod
+    def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
-        rec = self._make_record(telemetry=telem)
-        self._publish(rec)
+    def deliver_check_version(
+        self, current_version: Optional[str] = None
+    ) -> MailboxHandle:
+        check_version = pb.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
+        return self._deliver_check_version(check_version)
 
-    def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
-        stats = pb.StatsRecord()
-        stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
-        stats.timestamp.GetCurrentTime()
-        for k, v in six.iteritems(stats_dict):
-            item = stats.item.add()
-            item.key = k
-            item.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
-        return stats
-
-    def _make_login(self, api_key: str = None) -> pb.LoginRequest:
-        login = pb.LoginRequest()
-        if api_key:
-            login.api_key = api_key
-        return login
-
-    def _make_request(
-        self,
-        login: pb.LoginRequest = None,
-        get_summary: pb.GetSummaryRequest = None,
-        pause: pb.PauseRequest = None,
-        resume: pb.ResumeRequest = None,
-        status: pb.StatusRequest = None,
-        stop_status: pb.StopStatusRequest = None,
-        network_status: pb.NetworkStatusRequest = None,
-        poll_exit: pb.PollExitRequest = None,
-        sampled_history: pb.SampledHistoryRequest = None,
-        run_start: pb.RunStartRequest = None,
-        check_version: pb.CheckVersionRequest = None,
-        log_artifact: pb.LogArtifactRequest = None,
-        defer: pb.DeferRequest = None,
-        attach: pb.AttachRequest = None,
-    ) -> pb.Record:
-        request = pb.Request()
-        if login:
-            request.login.CopyFrom(login)
-        elif get_summary:
-            request.get_summary.CopyFrom(get_summary)
-        elif pause:
-            request.pause.CopyFrom(pause)
-        elif resume:
-            request.resume.CopyFrom(resume)
-        elif status:
-            request.status.CopyFrom(status)
-        elif stop_status:
-            request.stop_status.CopyFrom(stop_status)
-        elif network_status:
-            request.network_status.CopyFrom(network_status)
-        elif poll_exit:
-            request.poll_exit.CopyFrom(poll_exit)
-        elif sampled_history:
-            request.sampled_history.CopyFrom(sampled_history)
-        elif run_start:
-            request.run_start.CopyFrom(run_start)
-        elif check_version:
-            request.check_version.CopyFrom(check_version)
-        elif log_artifact:
-            request.log_artifact.CopyFrom(log_artifact)
-        elif defer:
-            request.defer.CopyFrom(defer)
-        elif attach:
-            request.attach.CopyFrom(attach)
-        else:
-            raise Exception("Invalid request")
-        record = self._make_record(request=request)
-        # All requests do not get persisted
-        record.control.local = True
-        return record
-
-    def _make_record(
-        self,
-        run: pb.RunRecord = None,
-        config: pb.ConfigRecord = None,
-        files: pb.FilesRecord = None,
-        summary: pb.SummaryRecord = None,
-        history: pb.HistoryRecord = None,
-        stats: pb.StatsRecord = None,
-        exit: pb.RunExitRecord = None,
-        artifact: pb.ArtifactRecord = None,
-        tbrecord: pb.TBRecord = None,
-        alert: pb.AlertRecord = None,
-        final: pb.FinalRecord = None,
-        metric: pb.MetricRecord = None,
-        header: pb.HeaderRecord = None,
-        footer: pb.FooterRecord = None,
-        request: pb.Request = None,
-        telemetry: tpb.TelemetryRecord = None,
-        preempting: pb.RunPreemptingRecord = None,
-    ) -> pb.Record:
-        record = pb.Record()
-        if run:
-            record.run.CopyFrom(run)
-        elif config:
-            record.config.CopyFrom(config)
-        elif summary:
-            record.summary.CopyFrom(summary)
-        elif history:
-            record.history.CopyFrom(history)
-        elif files:
-            record.files.CopyFrom(files)
-        elif stats:
-            record.stats.CopyFrom(stats)
-        elif exit:
-            record.exit.CopyFrom(exit)
-        elif artifact:
-            record.artifact.CopyFrom(artifact)
-        elif tbrecord:
-            record.tbrecord.CopyFrom(tbrecord)
-        elif alert:
-            record.alert.CopyFrom(alert)
-        elif final:
-            record.final.CopyFrom(final)
-        elif header:
-            record.header.CopyFrom(header)
-        elif footer:
-            record.footer.CopyFrom(footer)
-        elif request:
-            record.request.CopyFrom(request)
-        elif telemetry:
-            record.telemetry.CopyFrom(telemetry)
-        elif metric:
-            record.metric.CopyFrom(metric)
-        elif preempting:
-            record.preempting.CopyFrom(preempting)
-        else:
-            raise Exception("Invalid record")
-        return record
-
-    def _publish(self, record: pb.Record, local: bool = None) -> None:
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        if local:
-            record.control.local = local
-        if self.record_q:
-            self.record_q.put(record)
-
-    def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 5, local: bool = None
-    ) -> Optional[pb.Result]:
-        return self._communicate_async(rec, local=local).get(timeout=timeout)
-
-    def _communicate_async(self, rec: pb.Record, local: bool = None) -> MessageFuture:
-        assert self._router
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        future = self._router.send_and_receive(rec, local=local)
-        return future
-
-    def communicate_login(
-        self, api_key: str = None, timeout: Optional[int] = 15
-    ) -> pb.LoginResponse:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        result = self._communicate(rec, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
-            )
-        login_response = result.response.login_response
-        assert login_response
-        return login_response
-
-    def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
-        defer = pb.DeferRequest(state=state)
-        rec = self._make_request(defer=defer)
-        self._publish(rec, local=True)
-
-    def publish_defer(self, state: int = 0) -> None:
-        self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))
-
-    def _publish_header(self, header: pb.HeaderRecord) -> None:
-        rec = self._make_record(header=header)
-        self._publish(rec)
-
-    def publish_footer(self) -> None:
-        footer = pb.FooterRecord()
-        rec = self._make_record(footer=footer)
-        self._publish(rec)
-
-    def publish_final(self) -> None:
-        final = pb.FinalRecord()
-        rec = self._make_record(final=final)
-        self._publish(rec)
-
-    def publish_login(self, api_key: str = None) -> None:
-        login = self._make_login(api_key)
-        rec = self._make_request(login=login)
-        self._publish(rec)
-
-    def _publish_pause(self, pause: pb.PauseRequest) -> None:
-        rec = self._make_request(pause=pause)
-        self._publish(rec)
-
-    def _publish_resume(self, resume: pb.ResumeRequest) -> None:
-        rec = self._make_request(resume=resume)
-        self._publish(rec)
-
-    def _publish_run(self, run: pb.RunRecord) -> None:
-        rec = self._make_record(run=run)
-        self._publish(rec)
-
-    def _publish_config(self, cfg: pb.ConfigRecord) -> None:
-        rec = self._make_record(config=cfg)
-        self._publish(rec)
-
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
-        self._publish_summary(pb_summary_record)
-
-    def _publish_summary(self, summary: pb.SummaryRecord) -> None:
-        rec = self._make_record(summary=summary)
-        self._publish(rec)
-
-    def _publish_metric(self, metric: pb.MetricRecord) -> None:
-        rec = self._make_record(metric=metric)
-        self._publish(rec)
-
-    def _communicate_attach(
-        self, attach: pb.AttachRequest
-    ) -> Optional[pb.AttachResponse]:
-        req = self._make_request(attach=attach)
-        resp = self._communicate(req)
-        if resp is None:
-            return None
-        return resp.response.attach_response
-
-    def _communicate_run(
-        self, run: pb.RunRecord, timeout: int = None
-    ) -> Optional[pb.RunUpdateResult]:
-        """Send synchronous run object waiting for a response.
-
-        Arguments:
-            run: RunRecord object
-            timeout: number of seconds to wait
-
-        Returns:
-            RunRecord object
-        """
-
-        req = self._make_record(run=run)
-        resp = self._communicate(req, timeout=timeout)
-        if resp is None:
-            logger.info("couldn't get run from backend")
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        assert resp.HasField("run_result")
-        return resp.run_result
-
-    def publish_stats(self, stats_dict: dict) -> None:
-        stats = self._make_stats(stats_dict)
-        rec = self._make_record(stats=stats)
-        self._publish(rec)
-
-    def _publish_files(self, files: pb.FilesRecord) -> None:
-        rec = self._make_record(files=files)
-        self._publish(rec)
-
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
-        rec = self._make_request(log_artifact=log_artifact)
-        return self._communicate_async(rec)
-
-    def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
-        rec = self._make_record(artifact=proto_artifact)
-        self._publish(rec)
-
-    def _publish_alert(self, proto_alert: pb.AlertRecord) -> None:
-        rec = self._make_record(alert=proto_alert)
-        self._publish(rec)
-
-    def _communicate_status(
-        self, status: pb.StatusRequest
-    ) -> Optional[pb.StatusResponse]:
-        req = self._make_request(status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.status_response
-        return resp.response.status_response
-
-    def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
-        req = self._make_request(stop_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.stop_status_response
-        return resp.response.stop_status_response
-
-    def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
-        req = self._make_request(network_status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.network_status_response
-        return resp.response.network_status_response
-
-    def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
-        rec = self._make_record(exit=exit_data)
-        self._publish(rec)
-
-    def _communicate_poll_exit(
-        self, poll_exit: pb.PollExitRequest
-    ) -> Optional[pb.PollExitResponse]:
-        rec = self._make_request(poll_exit=poll_exit)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        poll_exit_response = result.response.poll_exit_response
-        assert poll_exit_response
-        return poll_exit_response
-
-    def _communicate_check_version(
+    @abstractmethod
+    def _deliver_check_version(
         self, check_version: pb.CheckVersionRequest
-    ) -> Optional[pb.CheckVersionResponse]:
-        rec = self._make_request(check_version=check_version)
-        result = self._communicate(rec)
-        if result is None:
-            # Note: timeouts handled by callers: wandb_init.py
-            return None
-        return result.response.check_version_response
+    ) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _communicate_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.RunStartResponse]:
-        rec = self._make_request(run_start=run_start)
-        result = self._communicate(rec)
-        if result is None:
-            return None
-        run_start_response = result.response.run_start_response
-        return run_start_response
+    def deliver_stop_status(self) -> MailboxHandle:
+        status = pb.StopStatusRequest()
+        return self._deliver_stop_status(status)
 
-    def _communicate_get_summary(
-        self, get_summary: pb.GetSummaryRequest
-    ) -> Optional[pb.GetSummaryResponse]:
-        record = self._make_request(get_summary=get_summary)
-        result = self._communicate(record, timeout=10)
-        if result is None:
-            return None
-        get_summary_response = result.response.get_summary_response
-        assert get_summary_response
-        return get_summary_response
+    @abstractmethod
+    def _deliver_stop_status(self, status: pb.StopStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _communicate_sampled_history(
+    def deliver_network_status(self) -> MailboxHandle:
+        status = pb.NetworkStatusRequest()
+        return self._deliver_network_status(status)
+
+    @abstractmethod
+    def _deliver_network_status(self, status: pb.NetworkStatusRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_internal_messages(self) -> MailboxHandle:
+        internal_message = pb.InternalMessagesRequest()
+        return self._deliver_internal_messages(internal_message)
+
+    @abstractmethod
+    def _deliver_internal_messages(
+        self, internal_message: pb.InternalMessagesRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_summary(self) -> MailboxHandle:
+        get_summary = pb.GetSummaryRequest()
+        return self._deliver_get_summary(get_summary)
+
+    @abstractmethod
+    def _deliver_get_summary(self, get_summary: pb.GetSummaryRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_get_system_metrics(self) -> MailboxHandle:
+        get_summary = pb.GetSystemMetricsRequest()
+        return self._deliver_get_system_metrics(get_summary)
+
+    @abstractmethod
+    def _deliver_get_system_metrics(
+        self, get_summary: pb.GetSystemMetricsRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_exit(self, exit_code: Optional[int]) -> MailboxHandle:
+        exit_data = self._make_exit(exit_code)
+        return self._deliver_exit(exit_data)
+
+    @abstractmethod
+    def _deliver_exit(self, exit_data: pb.RunExitRecord) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_poll_exit(self) -> MailboxHandle:
+        poll_exit = pb.PollExitRequest()
+        return self._deliver_poll_exit(poll_exit)
+
+    @abstractmethod
+    def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_server_info(self) -> MailboxHandle:
+        server_info = pb.ServerInfoRequest()
+        return self._deliver_request_server_info(server_info)
+
+    @abstractmethod
+    def _deliver_request_server_info(
+        self, server_info: pb.ServerInfoRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def deliver_request_sampled_history(self) -> MailboxHandle:
+        sampled_history = pb.SampledHistoryRequest()
+        return self._deliver_request_sampled_history(sampled_history)
+
+    @abstractmethod
+    def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
-    ) -> Optional[pb.SampledHistoryResponse]:
-        record = self._make_request(sampled_history=sampled_history)
-        result = self._communicate(record)
-        if result is None:
-            return None
-        sampled_history_response = result.response.sampled_history_response
-        assert sampled_history_response
-        return sampled_history_response
+    ) -> MailboxHandle:
+        raise NotImplementedError
 
-    def _communicate_shutdown(self) -> None:
-        # shutdown
-        request = pb.Request(shutdown=pb.ShutdownRequest())
-        record = self._make_record(request=request)
-        _ = self._communicate(record)
+    def deliver_request_run_status(self) -> MailboxHandle:
+        run_status = pb.RunStatusRequest()
+        return self._deliver_request_run_status(run_status)
 
-    def join(self) -> None:
-        super(BackendSender, self).join()
+    @abstractmethod
+    def _deliver_request_run_status(
+        self, run_status: pb.RunStatusRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError
 
-        if self._router:
-            self._router.join()
+    def deliver_request_job_info(self) -> MailboxHandle:
+        job_info = pb.JobInfoRequest()
+        return self._deliver_request_job_info(job_info)
+
+    @abstractmethod
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
+        raise NotImplementedError

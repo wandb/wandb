@@ -1,0 +1,22 @@
+id: 0.keras.metricsloggerepochwise.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_metrics_logger_epochwise.py
+depend:
+    requirements:
+        - tensorflow>=2.8.0
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][epoch/epoch]: 1
+    - :wandb:runs[0][summary][epoch/accuracy]: 0.11999999731779099
+    - :wandb:runs[0][summary][epoch/loss]: 2.3033387660980225
+    - :wandb:runs[0][summary][epoch/val_accuracy]: 0.11999999731779099
+    - :wandb:runs[0][summary][epoch/val_loss]: 2.3033266067504883
+    - :wandb:runs[0][summary][epoch/learning_rate]: 1.0000000656873453e-05
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 38  # keras
+    - :wandb:runs[0][exitcode]: 0

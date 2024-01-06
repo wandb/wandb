@@ -1,0 +1,17 @@
+id: boundingbox-2d
+plugin:
+    - wandb
+tag:
+  shard: docs
+depend:
+    requirements:
+        - numpy
+        - pillow
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - driving_scene
+    - :op:contains:
+      - :wandb:runs[0][summary][driving_scene]
+      - boxes

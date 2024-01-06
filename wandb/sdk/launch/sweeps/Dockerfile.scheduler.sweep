@@ -1,0 +1,19 @@
+FROM python:3.9-slim-bullseye
+LABEL maintainer='Weights & Biases <support@wandb.com>'
+LABEL version="0.1"
+
+# install git
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y git \
+    && apt-get -qy autoremove \
+    && apt-get clean && rm -r /var/lib/apt/lists/*
+
+# required pip packages
+RUN pip install --no-cache-dir wandb[launch]
+# user set up
+RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 wandb_scheduler
+USER wandb_scheduler
+WORKDIR /home/wandb_scheduler
+RUN chown -R wandb_scheduler /home/wandb_scheduler
+
+ENTRYPOINT ["wandb", "scheduler"]

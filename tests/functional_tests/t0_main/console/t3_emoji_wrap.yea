@@ -1,0 +1,25 @@
+id: 0.console.t3_emoji_wrap
+tag:
+  skips:
+    - platform: win
+plugin:
+  - wandb
+command:
+  program: test_emoji.py
+env:
+  - WANDB_CONSOLE: wrap
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      this: 2
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains_regex:
+    - :wandb:runs[0][output][stderr]
+    - after emoji 
+  - :op:contains_regex:
+    - :wandb:runs[0][output][stdout]
+    - before emoji 
+  - :op:contains_regex:
+    - :wandb:runs[0][output][stdout]
+    - "line-92-😀"

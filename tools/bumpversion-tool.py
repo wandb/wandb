@@ -4,8 +4,7 @@ import argparse
 import configparser
 import sys
 
-import bumpversion
-
+from bumpversion.cli import main as bumpversion_main
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--to-dev", action="store_true", help="bump the dev version")
@@ -15,7 +14,7 @@ args = parser.parse_args()
 
 
 def version_problem(current_version):
-    print("Unhandled version string: {}".format(current_version))
+    print(f"Unhandled version string: {current_version}")
     sys.exit(1)
 
 
@@ -32,12 +31,12 @@ def bump_release_to_dev(current_version):
     except ValueError:
         version_problem(current_version)
 
-    new_version = "{}.{}.{}.dev1".format(major, minor, patch_num + 1)
+    new_version = f"{major}.{minor}.{patch_num + 1}.dev1"
     bump_args = []
     if args.debug:
         bump_args += ["--allow-dirty", "--dry-run", "--verbose"]
     bump_args += ["--new-version", new_version, "dev"]
-    bumpversion.main(bump_args)
+    bumpversion_main(bump_args)
 
 
 def bump_release_from_dev(current_version):
@@ -47,12 +46,12 @@ def bump_release_from_dev(current_version):
         version_problem(current_version)
     major, minor, patch, _ = parts
 
-    new_version = "{}.{}.{}".format(major, minor, patch)
+    new_version = f"{major}.{minor}.{patch}"
     bump_args = []
     if args.debug:
         bump_args += ["--allow-dirty", "--dry-run", "--verbose"]
     bump_args += ["--new-version", new_version, "patch"]
-    bumpversion.main(bump_args)
+    bumpversion_main(bump_args)
 
 
 def main():

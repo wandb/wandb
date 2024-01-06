@@ -1,0 +1,40 @@
+# Indicates changes to make to the base launch agent from wandb/sdk/launch/deploys/kubernetes/launch-agent.yaml
+metadata:
+  name: launch-agent-release-testing
+  namespace: wandb-release-testing
+spec:
+  template:
+    spec:
+      containers:
+        - name: launch-agent
+          image: wandb-launch-agent:release-testing
+          imagePullPolicy: Never
+          resources:
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wandb-api-key
+                  key: password
+            - name: WANDB_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: wandb-launch-configmap
+                  key: wandb-base-url
+          volumeMounts:
+            - name: wandb-launch-config
+              mountPath: /home/launch_agent/.config/wandb
+            - name: aws-secret # if you intend on using kaniko with ecr create a secret containing your aws credentials, with this name
+              mountPath: /home/launch_agent/.aws
+              readOnly: true

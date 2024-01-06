@@ -1,0 +1,27 @@
+language: python
+sudo: false
+python:
+- 2.7
+- 3.5
+- 3.6
+- 3.7
+- 3.8
+- pypy
+cache: pip
+install:
+- pip install -e .[test]
+script:
+- py.test --cov=promise tests
+after_success:
+- coveralls
+matrix:
+  fast_finish: true
+  include:
+  - python: '3.8'
+    script: |
+      # pip install pyre-check
+      # pyre --source-directory promise check
+      pip install flake8
+      flake8
+      pip install mypy
+      mypy promise  --ignore-missing-imports

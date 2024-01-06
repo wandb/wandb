@@ -1,4 +1,3 @@
-#
 """Feature Flags Module.
 
 This module implements a feature flag system for the wandb library to require experimental features
@@ -10,15 +9,15 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
-import os
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 import wandb
-from wandb.errors import RequireError
+from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
+from wandb.sdk.lib.wburls import wburls
 
 
-class _Requires(object):
+class _Requires:
     """Internal feature class."""
 
     _features: Sequence[str]
@@ -32,7 +31,6 @@ class _Requires(object):
         pass
 
     def _require_service(self) -> None:
-        os.environ["WANDB_REQUIRE_SERVICE"] = "True"
         wandb.teardown = wandb._teardown  # type: ignore
         wandb.attach = wandb._attach  # type: ignore
         wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
@@ -49,21 +47,21 @@ class _Requires(object):
             func_str = "require_{}".format(feature.replace("-", "_"))
             func = getattr(self, func_str, None)
             if not func:
-                last_message = "require() unsupported requirement: {}".format(feature)
+                last_message = f"require() unsupported requirement: {feature}"
                 wandb.termwarn(last_message)
                 continue
             func()
 
         if last_message:
             wandb.termerror(
-                "Supported wandb.require() features can be found at: http://wandb.me/library-require"
+                f"Supported wandb.require() features can be found at: {wburls.get('doc_require')}"
             )
-            raise RequireError(last_message)
+            raise UnsupportedError(last_message)
 
 
 def require(
-    requirement: Union[str, Sequence[str]] = None,
-    experiment: Union[str, Sequence[str]] = None,
+    requirement: Optional[Union[str, Sequence[str]]] = None,
+    experiment: Optional[Union[str, Sequence[str]]] = None,
 ) -> None:
     """Indicate which experimental features are used by the script.
 
@@ -72,7 +70,7 @@ def require(
         experiment: (str or list) Features to require
 
     Raises:
-        wandb.errors.RequireError: if not supported or other error
+        wandb.errors.UnsupportedError: if not supported
     """
     features = requirement or experiment
     if not features:
@@ -86,6 +84,4 @@ def _import_module_hook() -> None:
     """On wandb import, setup anything needed based on parent process require calls."""
     # TODO: optimize by caching which pids this has been done for or use real import hooks
     # TODO: make this more generic, but for now this works
-    req_service = os.environ.get("WANDB_REQUIRE_SERVICE")
-    if req_service:
-        require("service")
+    require("service")

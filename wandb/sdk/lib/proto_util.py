@@ -1,18 +1,31 @@
 #
 import json
-from typing import Any, Dict, Union
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Union
+
+from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.proto import wandb_internal_pb2 as pb
+    from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
+    from google.protobuf.message import Message
+
     from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
-def dict_from_proto_list(obj_list):
-    d = dict()
-    for item in obj_list:
-        d[item.key] = json.loads(item.value_json)
-    return d
+def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
+    return {item.key: json.loads(item.value_json) for item in obj_list}
+
+
+def _result_from_record(record: "pb.Record") -> "pb.Result":
+    result = pb.Result(uuid=record.uuid, control=record.control)
+    return result
+
+
+def _assign_record_num(record: "pb.Record", record_num: int) -> None:
+    record.num = record_num
+
+
+def _assign_end_offset(record: "pb.Record", end_offset: int) -> None:
+    record.control.end_offset = end_offset
 
 
 def proto_encode_to_dict(
@@ -45,3 +58,12 @@ def proto_encode_to_dict(
                     md[d.number] = v
                 data[desc.number] = md
     return data
+
+
+def message_to_dict(
+    message: "Message",
+) -> Dict[str, Any]:
+    """Convert a protobuf message into a dictionary."""
+    from google.protobuf.json_format import MessageToDict
+
+    return MessageToDict(message, preserving_proto_field_name=True)

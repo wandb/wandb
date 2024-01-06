@@ -1,0 +1,27 @@
+plugin:
+  - wandb
+tag:
+  shard: mitm
+option:
+  - :wandb:mitm
+command:
+  program: fs_inject.py
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+env:
+  # WANDB__FILE_STREAM_TIMEOUT_SECONDS is set to a large value so that the
+  # filestream request will not time out, and once MITM's delay has passed,
+  # the request will return successfully.
+  - WANDB__FILE_STREAM_TIMEOUT_SECONDS: "86400"
+  - SHOULD_RETRY: "false"
+trigger:
+  - file_stream:
+      command: pause
+      service: file_stream
+      count: 1
+      time: 30
+      skip: 10
+      one_shot: 1
+      # on the 10th filestream request, inject a one_shot delay of 60 seconds
+      # this will cause a retry (with the new filestream logic that is being added)

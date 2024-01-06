@@ -1,0 +1,13 @@
+id: 0.fastai.01-v1
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+    - platform: mac
+depend:
+    requirements:
+        - fastai==1.0.61
+assert:
+  - :yea:exit: 0
+  - :wandb:runs_len: 1

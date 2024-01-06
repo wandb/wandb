@@ -1,9 +1,10 @@
+import urllib.parse
 from typing import Callable, Dict, Optional, Union
 
-from six.moves import urllib
+import wandb
 from wandb import env
 from wandb.apis import InternalApi
-from wandb.util import handle_sweep_config_violations
+from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
 
@@ -28,7 +29,9 @@ def _get_sweep_url(api, sweep_id):
 
 
 def sweep(
-    sweep: Union[dict, Callable], entity: str = None, project: str = None,
+    sweep: Union[dict, Callable],
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -41,7 +44,7 @@ def sweep(
       sweep: dict, SweepConfig, or callable. The sweep configuration
         (or configuration generator). If a dict or SweepConfig,
         should conform to the W&B sweep config specification
-        (https://docs.wandb.ai/guides/sweeps/configuration). If a
+        (https://docs.wandb.ai/guides/sweeps/define-sweep-configuration). If a
         callable, should take no arguments and return a dict that
         conforms to the W&B sweep config spec.
       entity: str (optional). An entity is a username or team name
@@ -50,7 +53,7 @@ def sweep(
         team in the UI before starting to log runs.  If you don't
         specify an entity, the run will be sent to your default
         entity, which is usually your username. Change your default
-        entity in [Settings](wandb.ai/settings) under "default
+        entity in [Settings](https://wandb.ai/settings) under "default
         location to create new projects".
       project: str (optional). The name of the project where you're
         sending the new run. If the project is not specified, the
@@ -61,29 +64,48 @@ def sweep(
 
     Examples:
         Basic usage
+        <!--yeadoc-test:one-parameter-sweep-->
         ```python
-        # this line initializes the sweep
-        sweep_id = wandb.sweep({'name': 'my-awesome-sweep',
-                                'metric': {'name': 'accuracy', 'goal': 'maximize'},
-                                'method': 'grid',
-                                'parameters': {'a': {'values': [1, 2, 3, 4]}}})
+        import wandb
 
-        # this line actually runs it -- parameters are available to
-        # my_train_func via wandb.config
+        sweep_configuration = {
+            "name": "my-awesome-sweep",
+            "metric": {"name": "accuracy", "goal": "maximize"},
+            "method": "grid",
+            "parameters": {"a": {"values": [1, 2, 3, 4]}},
+        }
+
+
+        def my_train_func():
+            # read the current value of parameter "a" from wandb.config
+            wandb.init()
+            a = wandb.config.a
+
+            wandb.log({"a": a, "accuracy": a + 1})
+
+
+        sweep_id = wandb.sweep(sweep_configuration)
+
+        # run the sweep
         wandb.agent(sweep_id, function=my_train_func)
         ```
     """
-
     if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""
+
+    # Project may be only found in the sweep config.
+    if project is None and isinstance(sweep, dict):
+        project = sweep.get("project", None)
+
     if entity:
         env.set_entity(entity)
     if project:
         env.set_project(project)
 
     # Make sure we are logged in
-    wandb_login._login(_silent=True)
+    if wandb.run is None:
+        wandb_login._login(_silent=True)
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
@@ -102,12 +124,15 @@ def controller(
     """Public sweep controller constructor.
 
     Usage:
+        ```python
         import wandb
+
         tuner = wandb.controller(...)
         print(tuner.sweep_config)
         print(tuner.sweep_id)
         tuner.configure_search(...)
         tuner.configure_stopping(...)
+        ```
 
     """
     from ..wandb_controller import _WandbController

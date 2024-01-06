@@ -1,4 +1,3 @@
-#
 """leveldb log datastore.
 
 Format is described at:
@@ -16,14 +15,21 @@ header :=
   magic: uint16
   version: uint8
 """
-from __future__ import print_function
+
+# TODO: possibly restructure code by porting the C++ or go implementation
 
 import logging
 import os
 import struct
 import zlib
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
+
+if TYPE_CHECKING:
+    from typing import IO, Any
+
+    from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +63,15 @@ except Exception:
     # bytestostr = str
 
 
-class DataStore(object):
-    def __init__(self):
+class DataStore:
+    _index: int
+    _flush_offset: int
+
+    def __init__(self) -> None:
         self._opened_for_scan = False
-        self._fp = None
+        self._fp: Optional["IO[Any]"] = None
         self._index = 0
+        self._flush_offset = 0
         self._size_bytes = 0
 
         self._crc = [0] * (LEVELDBLOG_LAST + 1)
@@ -69,10 +79,10 @@ class DataStore(object):
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
 
         assert (
-            wandb._assert_is_internal_process
+            wandb._assert_is_internal_process  # type: ignore
         ), "DataStore can only be used in the internal process"
 
-    def open_for_write(self, fname):
+    def open_for_write(self, fname: str) -> None:
         self._fname = fname
         logger.info("open: %s", fname)
         open_flags = "xb"
@@ -89,15 +99,22 @@ class DataStore(object):
     def open_for_scan(self, fname):
         self._fname = fname
         logger.info("open for scan: %s", fname)
-        self._fp = open(fname, "rb")
+        self._fp = open(fname, "r+b")
         self._index = 0
         self._size_bytes = os.stat(fname).st_size
         self._opened_for_scan = True
         self._read_header()
 
+    def seek(self, offset: int) -> None:
+        self._fp.seek(offset)  # type: ignore
+        self._index = offset
+
+    def get_offset(self) -> int:
+        offset = self._fp.tell()  # type: ignore
+        return offset
+
     def in_last_block(self):
-        """When reading, we want to know if we're in the last block to
-           handle in progress writes"""
+        """Determine if we're in the last block to handle in-progress writes."""
         return self._index > self._size_bytes - LEVELDBLOG_DATA_LEN
 
     def scan_record(self):
@@ -133,7 +150,7 @@ class DataStore(object):
             pad_check = strtobytes("\x00" * space_left)
             pad = self._fp.read(space_left)
             # verify they are zero
-            assert pad == pad_check, "invald padding"
+            assert pad == pad_check, "invalid padding"
             self._index += space_left
 
         record = self.scan_record()
@@ -145,7 +162,7 @@ class DataStore(object):
 
         assert (
             dtype == LEVELDBLOG_FIRST
-        ), "expected record to be type {} but found {}".format(LEVELDBLOG_FIRST, dtype)
+        ), f"expected record to be type {LEVELDBLOG_FIRST} but found {dtype}"
         while True:
             offset = self._index % LEVELDBLOG_BLOCK_LEN
             record = self.scan_record()
@@ -157,9 +174,7 @@ class DataStore(object):
                 break
             assert (
                 dtype == LEVELDBLOG_MIDDLE
-            ), "expected record to be type {} but found {}".format(
-                LEVELDBLOG_MIDDLE, dtype
-            )
+            ), f"expected record to be type {LEVELDBLOG_MIDDLE} but found {dtype}"
             data += new_data
         return data
 
@@ -172,9 +187,7 @@ class DataStore(object):
         )
         assert (
             len(data) == LEVELDBLOG_HEADER_LEN
-        ), "header size is {} bytes, expected {}".format(
-            len(data), LEVELDBLOG_HEADER_LEN
-        )
+        ), f"header size is {len(data)} bytes, expected {LEVELDBLOG_HEADER_LEN}"
         self._fp.write(data)
         self._index += len(data)
 
@@ -214,9 +227,7 @@ class DataStore(object):
         self._index += LEVELDBLOG_HEADER_LEN + len(s)
 
     def _write_data(self, s):
-        file_offset = self._index
-        flush_index = 0
-        flush_offset = 0
+        start_offset = self._index
 
         offset = self._index % LEVELDBLOG_BLOCK_LEN
         space_left = LEVELDBLOG_BLOCK_LEN - offset
@@ -246,7 +257,7 @@ class DataStore(object):
             # write middles (if any)
             while data_left > LEVELDBLOG_DATA_LEN:
                 self._write_record(
-                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],  # noqa: E203
+                    s[data_used : data_used + LEVELDBLOG_DATA_LEN],
                     LEVELDBLOG_MIDDLE,
                 )
                 data_used += LEVELDBLOG_DATA_LEN
@@ -256,17 +267,21 @@ class DataStore(object):
             self._write_record(s[data_used:], LEVELDBLOG_LAST)
             self._fp.flush()
             os.fsync(self._fp.fileno())
+            self._flush_offset = self._index
 
-        return file_offset, self._index - file_offset, flush_index, flush_offset
+        return start_offset, self._index, self._flush_offset
 
-    def write(self, obj):
+    def ensure_flushed(self, off: int) -> None:
+        self._fp.flush()  # type: ignore
+
+    def write(self, obj: "Record") -> Tuple[int, int, int]:
         """Write a protocol buffer.
 
         Arguments:
             obj: Protocol buffer to write.
 
         Returns:
-            (file_offset, length, flush_index, flush_offset) if successful,
+            (start_offset, end_offset, flush_offset) if successful,
             None otherwise
 
         """
@@ -276,7 +291,7 @@ class DataStore(object):
         ret = self._write_data(s)
         return ret
 
-    def close(self):
+    def close(self) -> None:
         if self._fp is not None:
             logger.info("close: %s", self._fname)
             self._fp.close()

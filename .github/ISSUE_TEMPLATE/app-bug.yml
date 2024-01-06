@@ -1,0 +1,75 @@
+---
+name: 🐞 App Bug — in the Web App
+description: Create a report to help us improve W&B by reproducing and fixing bugs
+title: "[App]: "
+labels:
+  - "app"
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thanks :heart: for taking the time to fill out this bug report!**
+        We kindly ask that you search to see if an issue [already exists](https://github.com/wandb/wandb/issues?q=is%3Aissue+sort%3Acreated-desc+) for the bug you encountered.
+
+  - type: textarea
+    attributes:
+      label: Current Behavior
+      description: |
+        A clear and concise description of the issue you're experiencing.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Expected Behavior
+      description: |
+        A clear and concise description of what you expected to happen.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Screenshots
+      description: |
+        If applicable, add screenshots to help explain your problem.
+
+        Tip: You can attach images or log files by clicking this area to highlight it and then dragging files in.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Environment
+      description: |
+        Information about your environment where you see the bug.
+
+      value: |
+        OS:
+
+        Browsers:
+
+        Version:
+
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context about the problem here.
+    validations:
+      required: false

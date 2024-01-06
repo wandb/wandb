@@ -1,22 +1,15 @@
-#
-# -*- coding: utf-8 -*-
-"""
-metric.
-"""
+"""metric."""
 
 import logging
 from typing import Callable, Optional, Sequence, Tuple
 
 from wandb.proto import wandb_internal_pb2 as pb
 
-
 logger = logging.getLogger("wandb")
 
 
-class Metric(object):
-    """
-    Metric object
-    """
+class Metric:
+    """Metric object."""
 
     _callback: Optional[Callable[[pb.MetricRecord], None]]
     _name: str
@@ -30,12 +23,12 @@ class Metric(object):
     def __init__(
         self,
         name: str,
-        step_metric: str = None,
-        step_sync: bool = None,
-        hidden: bool = None,
-        summary: Sequence[str] = None,
-        goal: str = None,
-        overwrite: bool = None,
+        step_metric: Optional[str] = None,
+        step_sync: Optional[bool] = None,
+        hidden: Optional[bool] = None,
+        summary: Optional[Sequence[str]] = None,
+        goal: Optional[str] = None,
+        overwrite: Optional[bool] = None,
     ) -> None:
         self._callback = None
         self._name = name

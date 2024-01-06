@@ -1,26 +1,47 @@
-# -*- coding: utf-8 -*-
-"""
-keras init
-"""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+"""keras init."""
 
 import logging
-import numpy as np
 import operator
 import os
+import shutil
 import sys
 from itertools import chain
-from pkg_resources import parse_version
+
+import numpy as np
+import tensorflow as tf
+import tensorflow.keras.backend as K  # noqa: N812
 
 import wandb
-from wandb.util import add_import_hook, is_numeric_array
-
-
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
+from wandb.util import add_import_hook
+
+
+def _check_keras_version():
+    from keras import __version__ as keras_version
+    from pkg_resources import parse_version
+
+    if parse_version(keras_version) < parse_version("2.4.0"):
+        wandb.termwarn(
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
+        )
+
+
+def _can_compute_flops() -> bool:
+    """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.0.0"):
+        return True
+
+    return False
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +60,7 @@ def is_dataset(data):
 def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
-    types = (keras.utils.Sequence,)
+    types = (tf.keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -51,13 +72,15 @@ def is_generator_like(data):
     return hasattr(data, "next") or hasattr(data, "__next__") or isinstance(data, types)
 
 
-def patch_tf_keras():
-
+def patch_tf_keras():  # noqa: C901
+    from pkg_resources import parse_version
     from tensorflow.python.eager import context
 
-    from tensorflow import __version__ as tf_version
-
-    if parse_version(tf_version) >= parse_version("2.6.0"):
+    if (
+        parse_version("2.6.0")
+        <= parse_version(tf.__version__)
+        < parse_version("2.13.0")
+    ):
         keras_engine = "keras.engine"
         try:
             from keras.engine import training
@@ -81,8 +104,10 @@ def patch_tf_keras():
             )
         except (ImportError, AttributeError):
             try:
-                from tensorflow.python.keras.engine import training_arrays
-                from tensorflow.python.keras.engine import training_generator
+                from tensorflow.python.keras.engine import (
+                    training_arrays,
+                    training_generator,
+                )
             except (ImportError, AttributeError):
                 wandb.termerror("Unable to patch Tensorflow/Keras")
                 logger.exception("exception while trying to patch_tf_keras")
@@ -167,34 +192,39 @@ def patch_tf_keras():
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
-def _check_keras_version():
-    from keras import __version__ as keras_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
-        wandb.termwarn(
-            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
-        )
+def _array_has_dtype(array):
+    return hasattr(array, "dtype")
 
 
 def _update_if_numeric(metrics, key, values):
+    if not _array_has_dtype(values):
+        _warn_not_logging(key)
+        return
+
     if not is_numeric_array(values):
-        wandb.termwarn(
-            "Non-numeric values found in layer: {}, not logging this layer".format(key),
-            repeat=False,
-        )
+        _warn_not_logging_non_numeric(key)
         return
 
     metrics[key] = wandb.Histogram(values)
 
 
-if "keras" in sys.modules:
-    _check_keras_version()
-else:
-    add_import_hook("keras", _check_keras_version)
+def is_numeric_array(array):
+    return np.issubdtype(array.dtype, np.number)
 
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
+
+def _warn_not_logging_non_numeric(name):
+    wandb.termwarn(
+        f"Non-numeric values found in layer: {name}, not logging this layer",
+        repeat=False,
+    )
+
+
+def _warn_not_logging(name):
+    wandb.termwarn(
+        f"Layer {name} has undetermined datatype not logging this layer",
+        repeat=False,
+    )
+
 
 tf_logger = tf.get_logger()
 
@@ -204,9 +234,23 @@ patch_tf_keras()
 ### For gradient logging ###
 
 
-class _CustomOptimizer(tf.keras.optimizers.Optimizer):
+def _get_custom_optimizer_parent_class():
+    from pkg_resources import parse_version
+
+    if parse_version(tf.__version__) >= parse_version("2.9.0"):
+        custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+    else:
+        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
+
+    return custom_optimizer_parent_class
+
+
+_custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
+
+
+class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
-        super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+        super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
         self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
@@ -214,22 +258,19 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
         var.assign(grad)
 
     # this needs to be implemented to prevent a NotImplementedError when
-    # using Lookup layers. Since these
+    # using Lookup layers.
     def _resource_apply_sparse(self, grad, var, indices):
         pass
 
     def get_config(self):
-        return super(_CustomOptimizer, self).get_config()
+        return super().get_config()
 
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
-    """
-    Accumulates gradients during a fit() call when used in conjunction with
-    the CustomOptimizer above.
-    """
+    """Accumulates gradients during a fit() call when used in conjunction with the CustomOptimizer above."""
 
     def set_model(self, model):
-        super(_GradAccumulatorCallback, self).set_model(model)
+        super().set_model(model)
         self.og_weights = model.get_weights()
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
@@ -245,15 +286,16 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
 ###
 
 
-class WandbCallback(keras.callbacks.Callback):
+class WandbCallback(tf.keras.callbacks.Callback):
     """`WandbCallback` automatically integrates keras with wandb.
 
     Example:
         ```python
-        model.fit(X_train,
+        model.fit(
+            X_train,
             y_train,
             validation_data=(X_test, y_test),
-            callbacks=[WandbCallback()]
+            callbacks=[WandbCallback()],
         )
         ```
 
@@ -261,7 +303,7 @@ class WandbCallback(keras.callbacks.Callback):
     metrics collected by keras: loss and anything passed into `keras_model.compile()`.
 
     `WandbCallback` will set summary metrics for the run associated with the "best" training
-    step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
+    step, where "best" is defined by the `monitor` and `mode` attributes.  This defaults
     to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model
     associated with the best `epoch`.
 
@@ -288,10 +330,13 @@ class WandbCallback(keras.callbacks.Callback):
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
         validation_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
-            make a small number of predictions and save the results for later visualization.
+            make a small number of predictions and save the results for later visualization. In case
+            you are working with image data, please also set `input_type` and `output_type` in order
+            to log correctly.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
             generator should return tuples `(X,y)`.  Either `validate_data` or generator should
-            be set for wandb to visualize specific data examples.
+            be set for wandb to visualize specific data examples. In case you are working with image data,
+            please also set `input_type` and `output_type` in order to log correctly.
         validation_steps: (int) if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
         labels: (list) If you are visualizing your data with wandb this list of labels
@@ -302,11 +347,11 @@ class WandbCallback(keras.callbacks.Callback):
         predictions: (int) the number of predictions to make for visualization each epoch, max
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
-            (`image`, `images`, `segmentation_mask`).
-        output_type: (string) type of the model output to help visualziation. can be one of:
-            (`image`, `images`, `segmentation_mask`).
+            (`image`, `images`, `segmentation_mask`, `auto`).
+        output_type: (string) type of the model output to help visualization. can be one of:
+            (`image`, `images`, `segmentation_mask`, `label`).
         log_evaluation: (boolean) if True, save a Table containing validation data and the
-            model's preditions at each epoch. See `validation_indexes`,
+            model's predictions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
         class_colors: ([float, float, float]) if the input or output is a segmentation mask,
             an array containing an rgb tuple (range 0-1) for each class.
@@ -335,6 +380,7 @@ class WandbCallback(keras.callbacks.Callback):
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
             Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
+        compute_flops: (bool) Compute the FLOPs of your Keras Sequential or Functional model in GigaFLOPs unit.
     """
 
     def __init__(
@@ -348,8 +394,7 @@ class WandbCallback(keras.callbacks.Callback):
         save_model=True,
         training_data=None,
         validation_data=None,
-        labels=[],
-        data_type=None,
+        labels=None,
         predictions=36,
         generator=None,
         input_type=None,
@@ -365,6 +410,8 @@ class WandbCallback(keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        compute_flops=False,
+        **kwargs,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -377,7 +424,8 @@ class WandbCallback(keras.callbacks.Callback):
                 generator = validation_data
             else:
                 self.validation_data = validation_data
-
+        if labels is None:
+            labels = []
         self.labels = labels
         self.predictions = min(predictions, 100)
 
@@ -389,19 +437,43 @@ class WandbCallback(keras.callbacks.Callback):
         wandb.save("model-best.h5")
         self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
+        if save_model:
+            deprecate(
+                field_name=Deprecated.keras_callback__save_model,
+                warning_message=(
+                    "The save_model argument by default saves the model in the HDF5 format that cannot save "
+                    "custom objects like subclassed models and custom layers. This behavior will be deprecated "
+                    "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
+                    "as W&B files and the SavedModel as W&B Artifacts."
+                ),
+            )
+
+        self.save_model_as_artifact = True
         self.log_weights = log_weights
         self.log_gradients = log_gradients
         self.training_data = training_data
         self.generator = generator
         self._graph_rendered = False
 
-        self.input_type = input_type or data_type
+        data_type = kwargs.get("data_type", None)
+        if data_type is not None:
+            deprecate(
+                field_name=Deprecated.keras_callback__data_type,
+                warning_message=(
+                    "The data_type argument of wandb.keras.WandbCallback is deprecated "
+                    "and will be removed in a future release. Please use input_type instead.\n"
+                    "Setting input_type = data_type."
+                ),
+            )
+            input_type = data_type
+        self.input_type = input_type
         self.output_type = output_type
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
         self.class_colors = np.array(class_colors) if class_colors is not None else None
         self.log_batch_frequency = log_batch_frequency
         self.log_best_prefix = log_best_prefix
+        self.compute_flops = compute_flops
 
         self._prediction_batch_size = None
 
@@ -424,9 +496,7 @@ class WandbCallback(keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(
-                "WandbCallback mode %s is unknown, " "fallback to auto mode." % (mode)
-            )
+            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
             mode = "auto"
 
         if mode == "min":
@@ -443,9 +513,7 @@ class WandbCallback(keras.callbacks.Callback):
                 self.monitor_op = operator.lt
                 self.best = float("inf")
         # Get the previous best metric for resumed runs
-        previous_best = wandb.run.summary.get(
-            "%s%s" % (self.log_best_prefix, self.monitor)
-        )
+        previous_best = wandb.run.summary.get(f"{self.log_best_prefix}{self.monitor}")
         if previous_best is not None:
             self.best = previous_best
 
@@ -508,7 +576,9 @@ class WandbCallback(keras.callbacks.Callback):
             except Exception as e:
                 wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            logs = {}
         if self.log_weights:
             wandb.log(self._log_weights(), commit=False)
 
@@ -545,9 +615,9 @@ class WandbCallback(keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
                 wandb.run.summary[
-                    "%s%s" % (self.log_best_prefix, self.monitor)
+                    f"{self.log_best_prefix}{self.monitor}"
                 ] = self.current
-                wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
+                wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
                         "Epoch %05d: %s improved from %0.5f to %0.5f"
@@ -555,6 +625,10 @@ class WandbCallback(keras.callbacks.Callback):
                     )
             if self.save_model:
                 self._save_model(epoch)
+
+            if self.save_model and self.save_model_as_artifact:
+                self._save_model_as_artifact(epoch)
+
             self.best = self.current
 
     # This is what keras used pre tensorflow.keras
@@ -604,12 +678,13 @@ class WandbCallback(keras.callbacks.Callback):
                 elif self.generator:
                     if not self.validation_steps:
                         wandb.termwarn(
-                            "WandbCallback is unable to log validation data. When using a generator for validation_data, you must pass validation_steps"
+                            "WandbCallback is unable to log validation data. "
+                            "When using a generator for validation_data, you must pass validation_steps"
                         )
                     else:
                         x = None
                         y_true = None
-                        for i in range(self.validation_steps):
+                        for _ in range(self.validation_steps):
                             bx, by_true = next(self.generator)
                             if x is None:
                                 x, y_true = bx, by_true
@@ -621,7 +696,9 @@ class WandbCallback(keras.callbacks.Callback):
                         validation_data = (x, y_true)
                 else:
                     wandb.termwarn(
-                        "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
+                        "WandbCallback is unable to read validation_data from trainer "
+                        "and therefore cannot log validation data. Ensure Keras is properly "
+                        "patched by calling `from wandb.keras import WandbCallback` at the top of your script."
                     )
                 if validation_data:
                     self._validation_data_logger = ValidationDataLogger(
@@ -635,25 +712,20 @@ class WandbCallback(keras.callbacks.Callback):
                     )
             except Exception as e:
                 wandb.termwarn(
-                    "Error initializing ValidationDataLogger in WandbCallback. Skipping logging validation data. Error: "
-                    + str(e)
+                    "Error initializing ValidationDataLogger in WandbCallback. "
+                    f"Skipping logging validation data. Error: {str(e)}"
                 )
+
+        if self.compute_flops and _can_compute_flops():
+            try:
+                wandb.summary["GFLOPs"] = self.get_flops()
+            except Exception as e:
+                wandb.termwarn("Unable to compute FLOPs for this model.")
+                logger.exception(e)
 
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
             self._attempt_evaluation_log()
-
-    def on_test_begin(self, logs=None):
-        pass
-
-    def on_test_end(self, logs=None):
-        pass
-
-    def on_test_batch_begin(self, batch, logs=None):
-        pass
-
-    def on_test_batch_end(self, batch, logs=None):
-        pass
 
     def on_predict_begin(self, logs=None):
         pass
@@ -680,7 +752,8 @@ class WandbCallback(keras.callbacks.Callback):
             else:
                 if len(self.labels) != 0:
                     wandb.termwarn(
-                        'keras model is producing a single output, so labels should be a length two array: ["False label", "True label"].'
+                        "keras model is producing a single output, "
+                        'so labels should be a length two array: ["False label", "True label"].'
                     )
                 captions = [logit[0] for logit in logits]
         else:
@@ -713,7 +786,7 @@ class WandbCallback(keras.callbacks.Callback):
         return imgs
 
     def _log_images(self, num_images=36):
-        validation_X = self.validation_data[0]
+        validation_X = self.validation_data[0]  # noqa: N806
         validation_y = self.validation_data[1]
 
         validation_length = len(validation_X)
@@ -832,23 +905,18 @@ class WandbCallback(keras.callbacks.Callback):
     def _log_weights(self):
         metrics = {}
         for layer in self.model.layers:
-            weights = layer.weights
-            for index, w in enumerate(weights):
-                if hasattr(w, "name"):
-                    # in tf 2.6 lookup layers create empty Variable tensors which should not be logged
-                    if w.name.startswith("Variable"):
-                        continue
-                    name_string = (
-                        w.name.replace("/kernel", ".weights")
-                        .replace("/bias", ".bias")
-                        .split(":")[0]
-                    )
-                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
-                else:
-                    # handle case where weight does not have name by logging the layer name
-                    # and weight index. Happens with all TrackableWeightHandler weights
-                    # eg. https://github.com/tensorflow/tensorboard/issues/4530
-                    _update_if_numeric(metrics, f"parameters/{layer.name}:{index}", w)
+            weights = layer.get_weights()
+            if len(weights) == 1:
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
+            elif len(weights) == 2:
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".bias", weights[1]
+                )
         return metrics
 
     def _log_gradients(self):
@@ -862,12 +930,11 @@ class WandbCallback(keras.callbacks.Callback):
             verbose=0,
             callbacks=[self._grad_accumulator_callback],
         )
-
         tf_logger.setLevel(og_level)
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
-        for (weight, grad) in zip(weights, grads):
+        for weight, grad in zip(weights, grads):
             metrics[
                 "gradients/" + weight.name.split(":")[0] + ".gradient"
             ] = wandb.Histogram(grad)
@@ -882,11 +949,12 @@ class WandbCallback(keras.callbacks.Callback):
         elif self.generator:
             if not self.validation_steps:
                 wandb.termwarn(
-                    "when using a generator for validation data with dataframes, you must pass validation_steps. skipping"
+                    "when using a generator for validation data with dataframes, "
+                    "you must pass validation_steps. skipping"
                 )
                 return None
 
-            for i in range(self.validation_steps):
+            for _ in range(self.validation_steps):
                 bx, by_true = next(self.generator)
                 by_pred = self.model.predict(bx)
                 if x is None:
@@ -915,8 +983,7 @@ class WandbCallback(keras.callbacks.Callback):
             )
         else:
             wandb.termwarn(
-                "unknown dataframe type for input_type=%s and output_type=%s"
-                % (self.input_type, self.output_type)
+                f"unknown dataframe type for input_type={self.input_type} and output_type={self.output_type}"
             )
             return None
 
@@ -937,6 +1004,75 @@ class WandbCallback(keras.callbacks.Callback):
                 self.model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
-        except (ImportError, RuntimeError, TypeError) as e:
-            wandb.termerror("Can't save model, h5py returned error: %s" % e)
-            self.save_model = False
+        except (ImportError, RuntimeError, TypeError, AttributeError) as e:
+            wandb.termerror(
+                "Can't save model in the h5py format. The model will be saved as "
+                "as an W&B Artifact in the 'tf' format."
+            )
+            logger.exception(e)
+
+    def _save_model_as_artifact(self, epoch):
+        if wandb.run.disabled:
+            return
+
+        # Save the model in the SavedModel format.
+        # TODO: Replace this manual artifact creation with the `log_model` method
+        # after `log_model` is released from beta.
+        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+
+        # Log the model as artifact.
+        name = wandb.util.make_artifact_name_safe(f"model-{wandb.run.name}")
+        model_artifact = wandb.Artifact(name, type="model")
+        model_artifact.add_dir(self.filepath[:-3])
+        wandb.run.log_artifact(model_artifact, aliases=["latest", f"epoch_{epoch}"])
+
+        # Remove the SavedModel from wandb dir as we don't want to log it to save memory.
+        shutil.rmtree(self.filepath[:-3])
+
+    def get_flops(self) -> float:
+        """Calculate FLOPS [GFLOPs] for a tf.keras.Model or tf.keras.Sequential model in inference mode.
+
+        It uses tf.compat.v1.profiler under the hood.
+        """
+        if not hasattr(self, "model"):
+            raise wandb.Error("self.model must be set before using this method.")
+
+        if not isinstance(
+            self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
+        ):
+            raise ValueError(
+                "Calculating FLOPS is only supported for "
+                "`tf.keras.Model` and `tf.keras.Sequential` instances."
+            )
+
+        from tensorflow.python.framework.convert_to_constants import (
+            convert_variables_to_constants_v2_as_graph,
+        )
+
+        # Compute FLOPs for one sample
+        batch_size = 1
+        inputs = [
+            tf.TensorSpec([batch_size] + inp.shape[1:], inp.dtype)
+            for inp in self.model.inputs
+        ]
+
+        # convert tf.keras model into frozen graph to count FLOPs about operations used at inference
+        real_model = tf.function(self.model).get_concrete_function(inputs)
+        frozen_func, _ = convert_variables_to_constants_v2_as_graph(real_model)
+
+        # Calculate FLOPs with tf.profiler
+        run_meta = tf.compat.v1.RunMetadata()
+        opts = (
+            tf.compat.v1.profiler.ProfileOptionBuilder(
+                tf.compat.v1.profiler.ProfileOptionBuilder().float_operation()
+            )
+            .with_empty_output()
+            .build()
+        )
+
+        flops = tf.compat.v1.profiler.profile(
+            graph=frozen_func.graph, run_meta=run_meta, cmd="scope", options=opts
+        )
+
+        # convert to GFLOPs
+        return (flops.total_float_ops / 1e9) / 2

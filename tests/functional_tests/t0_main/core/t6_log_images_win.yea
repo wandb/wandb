@@ -1,0 +1,20 @@
+id: 0.core.06-log-images-win
+plugin:
+  - wandb
+tag:
+  platforms:
+    - win
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - pillow
+command:
+  program: t6_log_images.py
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary][normal][_type]: image-file
+  - :wandb:runs[0][summary][normal][size]: 71
+  - :wandb:runs[0][summary][with/forward/slash][_type]: image-file
+  - :wandb:runs[0][summary][with/forward/slash][size]: 71

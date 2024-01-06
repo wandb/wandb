@@ -1,35 +1,36 @@
-#
-"""
-tensor b watcher.
-"""
+"""tensorboard watcher."""
 
+import glob
 import logging
 import os
+import queue
 import socket
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import six
-from six.moves import queue
 import wandb
 from wandb import util
-from wandb.viz import custom_chart_panel_config, CustomChart
+from wandb.sdk.interface.interface import GlobStr
+from wandb.sdk.lib import filesystem
+from wandb.viz import CustomChart
 
 from . import run as internal_run
 
-
 if TYPE_CHECKING:
-    from ..interface.interface import BackendSender
-    from .settings_static import SettingsStatic
-    from typing import Dict, List, Optional
-    from wandb.proto.wandb_internal_pb2 import RunRecord
-    from six.moves.queue import PriorityQueue
-    from tensorboard.compat.proto.event_pb2 import ProtoEvent
-    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+    from queue import PriorityQueue
 
-    HistoryDict = Dict[str, object]
+    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from wandb.sdk.interface.interface import FilesDict
+
+    from ..interface.interface_queue import InterfaceQueue
+    from .settings_static import SettingsStatic
+
+    HistoryDict = Dict[str, Any]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -39,14 +40,14 @@ logger = logging.getLogger(__name__)
 
 
 def _link_and_save_file(
-    path: str, base_path: str, interface: "BackendSender", settings: "SettingsStatic"
+    path: str, base_path: str, interface: "InterfaceQueue", settings: "SettingsStatic"
 ) -> None:
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
     file_name = os.path.relpath(path, base_path)
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
-    util.mkdir_exists_ok(os.path.dirname(wandb_path))
+    filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
     # We overwrite existing symlinks because namespaces can change in Tensorboard
     if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
         os.remove(wandb_path)
@@ -54,15 +55,19 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(file_name, "live")]))
+    interface.publish_files(dict(files=[(GlobStr(glob.escape(file_name)), "live")]))
 
 
-def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
-    """Checks if a path is a tfevents file created by hostname.
+def is_tfevents_file_created_by(
+    path: str, hostname: Optional[str], start_time: Optional[float]
+) -> bool:
+    """Check if a path is a tfevents file.
+
+    Optionally checks that it was created by [hostname] after [start_time].
 
     tensorboard tfevents filename format:
         https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/event_file_writer.py#L81
-    tensorflow tfevents fielname format:
+    tensorflow tfevents filename format:
         https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
     """
     if not path:
@@ -76,26 +81,30 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     except ValueError:
         return False
     # check the hostname, which may have dots
-    for i, part in enumerate(hostname.split(".")):
+    if hostname is not None:
+        for i, part in enumerate(hostname.split(".")):
+            try:
+                fname_component_part = fname_components[tfevents_idx + 2 + i]
+            except IndexError:
+                return False
+            if part != fname_component_part:
+                return False
+    if start_time is not None:
         try:
-            fname_component_part = fname_components[tfevents_idx + 2 + i]
-        except IndexError:
+            created_time = int(fname_components[tfevents_idx + 1])
+        except (ValueError, IndexError):
             return False
-        if part != fname_component_part:
+        # Ensure that the file is newer then our start time, and that it was
+        # created from the same hostname.
+        # TODO: we should also check the PID (also contained in the tfevents
+        #     filename). Can we assume that our parent pid is the user process
+        #     that wrote these files?
+        if created_time < int(start_time):
             return False
-    try:
-        created_time = int(fname_components[tfevents_idx + 1])
-    except (ValueError, IndexError):
-        return False
-    # Ensure that the file is newer then our start time, and that it was
-    # created from the same hostname.
-    # TODO: we should also check the PID (also contained in the tfevents
-    #     filename). Can we assume that our parent pid is the user process
-    #     that wrote these files?
-    return created_time >= int(start_time)  # noqa: W503
+    return True
 
 
-class TBWatcher(object):
+class TBWatcher:
     _logdirs: "Dict[str, TBDirWatcher]"
     _watcher_queue: "PriorityQueue"
 
@@ -103,11 +112,11 @@ class TBWatcher(object):
         self,
         settings: "SettingsStatic",
         run_proto: "RunRecord",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         force: bool = False,
     ) -> None:
         self._logdirs = {}
-        self._consumer = None
+        self._consumer: Optional[TBEventConsumer] = None
         self._settings = settings
         self._interface = interface
         self._run_proto = run_proto
@@ -116,8 +125,8 @@ class TBWatcher(object):
         self._watcher_queue = queue.PriorityQueue()
         wandb.tensorboard.reset_state()
 
-    def _calculate_namespace(self, logdir: str, rootdir: str) -> "Optional[str]":
-        namespace: "Optional[str]"
+    def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
+        namespace: Optional[str]
         dirs = list(self._logdirs) + [logdir]
 
         if os.path.isfile(logdir):
@@ -135,6 +144,7 @@ class TBWatcher(object):
             # Note that we strip '/' instead of os.sep, because elsewhere we've
             # converted paths to forward slash.
             namespace = logdir.replace(filename, "").replace(rootdir, "").strip("/")
+
             # TODO: revisit this heuristic, it exists because we don't know the
             # root log directory until more than one tfevents file is written to
             if len(dirs) == 1 and namespace not in ["train", "validation"]:
@@ -165,21 +175,21 @@ class TBWatcher(object):
         tbdir_watcher.start()
 
     def finish(self) -> None:
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.shutdown()
-        for tbdirwatcher in six.itervalues(self._logdirs):
+        for tbdirwatcher in self._logdirs.values():
             tbdirwatcher.finish()
         if self._consumer:
             self._consumer.finish()
 
 
-class TBDirWatcher(object):
+class TBDirWatcher:
     def __init__(
         self,
         tbwatcher: "TBWatcher",
         logdir: str,
         save: bool,
-        namespace: "Optional[str]",
+        namespace: Optional[str],
         queue: "PriorityQueue",
         force: bool = False,
     ) -> None:
@@ -207,23 +217,27 @@ class TBDirWatcher(object):
         self._logdir = logdir
         self._hostname = socket.gethostname()
         self._force = force
+        self._process_events_lock = threading.Lock()
 
     def start(self) -> None:
         self._thread.start()
 
     def _is_our_tfevents_file(self, path: str) -> bool:
-        """Checks if a path has been modified since launch and contains tfevents"""
+        """Check if a path has been modified since launch and contains tfevents."""
         if not path:
             raise ValueError("Path must be a nonempty string")
-        if self._force:
-            return True
         path = self.tf_compat.tf.compat.as_str_any(path)
-        return is_tfevents_file_created_by(
-            path, self._hostname, self._tbwatcher._settings._start_time
-        )
+        if self._force:
+            return is_tfevents_file_created_by(path, None, None)
+        else:
+            return is_tfevents_file_created_by(
+                path, self._hostname, self._tbwatcher._settings._start_time
+            )
 
-    def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
-        """Incredibly hacky class generator to optionally save / prefix tfevent files"""
+    def _loader(
+        self, save: bool = True, namespace: Optional[str] = None
+    ) -> "EventFileLoader":
+        """Incredibly hacky class generator to optionally save / prefix tfevent files."""
         _loader_interface = self._tbwatcher._interface
         _loader_settings = self._tbwatcher._settings
         try:
@@ -233,7 +247,7 @@ class TBDirWatcher(object):
 
         class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
-                super(EventFileLoader, self).__init__(file_path)
+                super().__init__(file_path)
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -257,8 +271,9 @@ class TBDirWatcher(object):
 
     def _process_events(self, shutdown_call: bool = False) -> None:
         try:
-            for event in self._generator.Load():
-                self.process_event(event)
+            with self._process_events_lock:
+                for event in self._generator.Load():
+                    self.process_event(event)
         except (
             self.directory_watcher.DirectoryDeletedError,
             StopIteration,
@@ -278,8 +293,8 @@ class TBDirWatcher(object):
             raise e
 
     def _thread_body(self) -> None:
-        """Check for new events every second"""
-        shutdown_time: "Optional[float]" = None
+        """Check for new events every second."""
+        shutdown_time: Optional[float] = None
         while True:
             self._process_events()
             if self._shutdown.is_set():
@@ -310,10 +325,10 @@ class TBDirWatcher(object):
         self._thread.join()
 
 
-class Event(object):
-    """An event wrapper to enable priority queueing"""
+class Event:
+    """An event wrapper to enable priority queueing."""
 
-    def __init__(self, event: "ProtoEvent", namespace: "Optional[str]"):
+    def __init__(self, event: "ProtoEvent", namespace: Optional[str]):
         self.event = event
         self.namespace = namespace
         self.created_at = time.time()
@@ -324,11 +339,12 @@ class Event(object):
         return False
 
 
-class TBEventConsumer(object):
-    """Consumes tfevents from a priority queue.  There should always
-    only be one of these per run_manager.  We wait for 10 seconds of queued
-    events to reduce the chance of multiple tfevent files triggering
-    out of order steps.
+class TBEventConsumer:
+    """Consume tfevents from a priority queue.
+
+    There should always only be one of these per run_manager.  We wait for 10 seconds of
+    queued events to reduce the chance of multiple tfevent files triggering out of order
+    steps.
     """
 
     def __init__(
@@ -349,11 +365,13 @@ class TBEventConsumer(object):
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
+        def datatypes_cb(fname: GlobStr) -> None:
+            files: FilesDict = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
+        # this is only used for logging artifacts
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
+        self._internal_run._set_internal_run_interface(self._tbwatcher._interface)
 
     def start(self) -> None:
         self._start_time = time.time()
@@ -362,16 +380,16 @@ class TBEventConsumer(object):
     def finish(self) -> None:
         self._delay = 0
         self._shutdown.set()
-        try:
-            event = self._queue.get(True, 1)
-        except queue.Empty:
-            event = None
-        if event:
-            self._handle_event(event, history=self.tb_history)
-            items = self.tb_history._get_and_reset()
-            for item in items:
-                self._save_row(item,)
         self._thread.join()
+        while not self._queue.empty():
+            event = self._queue.get(True, 1)
+            if event:
+                self._handle_event(event, history=self.tb_history)
+                items = self.tb_history._get_and_reset()
+                for item in items:
+                    self._save_row(
+                        item,
+                    )
 
     def _thread_except_body(self) -> None:
         try:
@@ -400,15 +418,19 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(item,)
+                    self._save_row(
+                        item,
+                    )
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
         for item in items:
             self._save_row(item)
 
-    def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
-        wandb.tensorboard.log(
+    def _handle_event(
+        self, event: "ProtoEvent", history: Optional["TBHistory"] = None
+    ) -> None:
+        wandb.tensorboard._log(
             event.event,
             step=event.event.step,
             namespace=event.namespace,
@@ -416,28 +438,26 @@ class TBEventConsumer(object):
         )
 
     def _save_row(self, row: "HistoryDict") -> None:
-        chart_keys = []
-        for key, item in row.items():
-            if isinstance(item, CustomChart):
-                panel_config = custom_chart_panel_config(item, key, key + "_table")
-                config = {"panel_type": "Vega2", "panel_config": panel_config}
-                chart_keys.append(key)
-                self._tbwatcher._interface.publish_config(
-                    val=config, key=("_wandb", "visualize", key)
+        chart_keys = set()
+        for k in row:
+            if isinstance(row[k], CustomChart):
+                chart_keys.add(k)
+                key = row[k].get_config_key(k)
+                value = row[k].get_config_value(
+                    "Vega2", row[k].user_query(f"{k}_table")
                 )
-                row[key] = item.table
+                row[k] = row[k]._data
+                self._tbwatcher._interface.publish_config(val=value, key=key)
 
-        for chart_key in chart_keys:
-            table = row[chart_key]
-            row.pop(chart_key)
-            row[chart_key + "_table"] = table
+        for k in chart_keys:
+            row[f"{k}_table"] = row.pop(k)
 
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )
 
 
-class TBHistory(object):
+class TBHistory:
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 

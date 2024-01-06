@@ -1,0 +1,7 @@
+id: run-object-basic
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 1

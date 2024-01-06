@@ -1,0 +1,30 @@
+id: 0.llm.01-cohere-openai-jerome-battle
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skips:
+    - platform: win
+depend:
+  requirements:
+    - "cohere"
+    - "openai>=0.27.4"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[0][history][0][trace][_type]: wb_trace_tree
+    - :op:contains:
+        - :wandb:runs[0][history][0][trace]
+        - root_span_dumps
+    - :op:contains:
+        - :wandb:runs[0][history][0][trace]
+        - model_dict_dumps
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # features
+        - 51  # openai autolog
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # features
+        - 53  # cohere autolog
+    - :op:contains:
+        - :wandb:runs[0][history][1]
+        - Generations

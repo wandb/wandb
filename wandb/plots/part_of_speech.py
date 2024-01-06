@@ -1,27 +1,27 @@
 import wandb
 from wandb import util
 from wandb.plots.utils import (
+    deprecation_notice,
+    encode_labels,
     test_missing,
     test_types,
-    encode_labels,
-    deprecation_notice,
 )
 
 
 def part_of_speech(docs):
     """
-        Adds support for spaCy's dependency visualizer which shows
-            part-of-speech tags and syntactic dependencies.
+    Adds support for spaCy's dependency visualizer which shows
+        part-of-speech tags and syntactic dependencies.
 
-        Arguments:
-         docs (list, Doc, Span): Document(s) to visualize.
+    Arguments:
+     docs (list, Doc, Span): Document(s) to visualize.
 
-        Returns:
-         Nothing. To see plots, go to your W&B run page.
+    Returns:
+     Nothing. To see plots, go to your W&B run page.
 
-        Example:
-         wandb.log({'part_of_speech': wandb.plots.POS(docs=doc)})
-        """
+    Example:
+     wandb.log({'part_of_speech': wandb.plots.POS(docs=doc)})
+    """
     deprecation_notice()
 
     spacy = util.get_module(

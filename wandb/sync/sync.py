@@ -1,27 +1,23 @@
-"""
-sync.
-"""
-
-from __future__ import print_function
+"""sync."""
 
 import datetime
 import fnmatch
 import os
+import queue
 import sys
+import tempfile
 import threading
 import time
+from typing import List, Optional
+from urllib.parse import quote as url_quote
 
-from six.moves import queue
-from six.moves.urllib.parse import quote as url_quote
 import wandb
-from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.sdk.interface import interface
-from wandb.sdk.internal import datastore
-from wandb.sdk.internal import handler
-from wandb.sdk.internal import sender
-from wandb.sdk.internal import tb_watcher
-from wandb.util import check_and_warn_old, mkdir_exists_ok
+from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib import filesystem
+from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -29,7 +25,7 @@ TFEVENT_SUBSTRING = ".tfevents."
 TMPDIR = tempfile.TemporaryDirectory()
 
 
-class _LocalRun(object):
+class _LocalRun:
     def __init__(self, path, synced=None):
         self.path = path
         self.synced = synced
@@ -49,11 +45,15 @@ class SyncThread(threading.Thread):
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         view=None,
         verbose=None,
         mark_synced=None,
         app_url=None,
         sync_tensorboard=None,
+        log_path=None,
+        append=None,
+        skip_console=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -62,11 +62,15 @@ class SyncThread(threading.Thread):
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._view = view
         self._verbose = verbose
         self._mark_synced = mark_synced
         self._app_url = app_url
         self._sync_tensorboard = sync_tensorboard
+        self._log_path = log_path
+        self._append = append
+        self._skip_console = skip_console
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -85,7 +89,11 @@ class SyncThread(threading.Thread):
                 pb.run.project = self._project
             if self._entity:
                 pb.run.entity = self._entity
+            if self._job_type:
+                pb.run.job_type = self._job_type
             pb.control.req_resp = True
+        elif record_type in ("output", "output_raw") and self._skip_console:
+            return pb, exit_pb, True
         elif record_type == "exit":
             exit_pb = pb
             return pb, exit_pb, True
@@ -121,15 +129,15 @@ class SyncThread(threading.Thread):
         return tb_event_files, tb_logdirs, tb_root
 
     def _setup_tensorboard(self, tb_root, tb_logdirs, tb_event_files, sync_item):
-        """Returns true if this sync item can be synced as tensorboard"""
+        """Return true if this sync item can be synced as tensorboard."""
         if tb_root is not None:
             if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
                 wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
             else:
-                print("Found {} tfevent files in {}".format(tb_event_files, tb_root))
+                print(f"Found {tb_event_files} tfevent files in {tb_root}")
                 if len(tb_logdirs) > 3:
                     wandb.termwarn(
-                        "Found {} directories containing tfevent files. "
+                        f"Found {len(tb_logdirs)} directories containing tfevent files. "
                         "If these represent multiple experiments, sync them "
                         "individually or pass a list of paths."
                     )
@@ -138,12 +146,13 @@ class SyncThread(threading.Thread):
 
     def _send_tensorboard(self, tb_root, tb_logdirs, send_manager):
         if self._entity is None:
-            viewer, server_info = send_manager._api.viewer_server_info()
+            viewer, _ = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+        proto_run.telemetry.feature.sync_tfevents = True
 
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
@@ -158,9 +167,14 @@ class SyncThread(threading.Thread):
         # file types (like images)... but we need to remake the send_manager
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
-        new_interface = interface.BackendSender(record_q)
+        new_interface = InterfaceQueue(record_q)
+        context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
-            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+            settings=send_manager._settings,
+            record_q=sender_record_q,
+            result_q=queue.Queue(),
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
@@ -170,11 +184,19 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
+        settings_static = SettingsStatic(settings.to_proto())
+
         handle_manager = handler.HandleManager(
-            settings, record_q, None, False, sender_record_q, None, new_interface
+            settings=settings_static,
+            record_q=record_q,
+            result_q=None,
+            stopped=False,
+            writer_q=sender_record_q,
+            interface=new_interface,
+            context_keeper=context_keeper,
         )
 
-        mkdir_exists_ok(settings.files_dir)
+        filesystem.mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
 
@@ -207,21 +229,21 @@ class SyncThread(threading.Thread):
         send_manager.finish()
 
     def _robust_scan(self, ds):
-        """Attempt to scan data, handling incomplete files"""
+        """Attempt to scan data, handling incomplete files."""
         try:
             return ds.scan_data()
         except AssertionError as e:
             if ds.in_last_block():
                 wandb.termwarn(
-                    ".wandb file is incomplete ({}), be sure to sync this run again once it's finished".format(
-                        e
-                    )
+                    f".wandb file is incomplete ({e}), be sure to sync this run again once it's finished"
                 )
                 return None
             else:
                 raise e
 
     def run(self):
+        if self._log_path is not None:
+            print(f"Find logs at: {self._log_path}")
         for sync_item in self._sync_list:
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
@@ -230,7 +252,7 @@ class SyncThread(threading.Thread):
                 if tb_root is None and (
                     check_and_warn_old(files) or len(filtered_files) != 1
                 ):
-                    print("Skipping directory: {}".format(sync_item))
+                    print(f"Skipping directory: {sync_item}")
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
@@ -239,7 +261,12 @@ class SyncThread(threading.Thread):
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
-            sm = sender.SendManager.setup(root_dir)
+
+            # When appending we are allowing a possible resume, ie the run
+            # doesnt have to exist already
+            resume = "allow" if self._append else None
+
+            sm = sender.SendManager.setup(root_dir, resume=resume)
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
@@ -248,7 +275,7 @@ class SyncThread(threading.Thread):
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
-                print(".wandb file is empty ({}), skipping: {}".format(e, sync_item))
+                print(f".wandb file is empty ({e}), skipping: {sync_item}")
                 continue
 
             # save exit for final send
@@ -282,13 +309,13 @@ class SyncThread(threading.Thread):
                             url_quote(r.project),
                             url_quote(r.run_id),
                         )
-                        print("Syncing: %s ..." % url, end="")
+                        print("Syncing: %s ... " % url, end="")
                         sys.stdout.flush()
                         shown = True
             sm.finish()
             # Only mark synced if the run actually finished
             if self._mark_synced and not self._view and finished:
-                synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)
+                synced_file = f"{sync_item}{SYNCED_SUFFIX}"
                 with open(synced_file, "w"):
                     pass
             print("done.")
@@ -300,22 +327,30 @@ class SyncManager:
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         mark_synced=None,
         app_url=None,
         view=None,
         verbose=None,
         sync_tensorboard=None,
+        log_path=None,
+        append=None,
+        skip_console=None,
     ):
         self._sync_list = []
         self._thread = None
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._mark_synced = mark_synced
         self._app_url = app_url
         self._view = view
         self._verbose = verbose
         self._sync_tensorboard = sync_tensorboard
+        self._log_path = log_path
+        self._append = append
+        self._skip_console = skip_console
 
     def status(self):
         pass
@@ -330,11 +365,15 @@ class SyncManager:
             project=self._project,
             entity=self._entity,
             run_id=self._run_id,
+            job_type=self._job_type,
             view=self._view,
             verbose=self._verbose,
             mark_synced=self._mark_synced,
             app_url=self._app_url,
             sync_tensorboard=self._sync_tensorboard,
+            log_path=self._log_path,
+            append=self._append,
+            skip_console=self._skip_console,
         )
         self._thread.start()
 
@@ -347,25 +386,23 @@ class SyncManager:
 
 
 def get_runs(
-    include_offline=None,
-    include_online=None,
-    include_synced=None,
-    include_unsynced=None,
-    exclude_globs=None,
-    include_globs=None,
+    include_offline: bool = True,
+    include_online: bool = True,
+    include_synced: bool = False,
+    include_unsynced: bool = True,
+    exclude_globs: Optional[List[str]] = None,
+    include_globs: Optional[List[str]] = None,
 ):
     # TODO(jhr): grab dir info from settings
-    base = "wandb"
-    if os.path.exists(".wandb"):
-        base = ".wandb"
+    base = ".wandb" if os.path.exists(".wandb") else "wandb"
     if not os.path.exists(base):
         return ()
     all_dirs = os.listdir(base)
     dirs = []
     if include_offline:
-        dirs += filter(lambda d: d.startswith("offline-run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("offline-run-"), all_dirs)
     if include_online:
-        dirs += filter(lambda d: d.startswith("run-"), all_dirs)
+        dirs += filter(lambda _d: _d.startswith("run-"), all_dirs)
     # find run file in each dir
     fnames = []
     dirs.sort()
@@ -388,9 +425,9 @@ def get_runs(
     for f in fnames:
         dname = os.path.dirname(f)
         # TODO(frz): online runs are assumed to be synced, verify from binary log.
-        if os.path.exists("{}{}".format(f, SYNCED_SUFFIX)) or os.path.basename(
-            dname
-        ).startswith("run-"):
+        if os.path.exists(f"{f}{SYNCED_SUFFIX}") or os.path.basename(dname).startswith(
+            "run-"
+        ):
             if include_synced:
                 filtered.append(_LocalRun(dname, True))
         else:

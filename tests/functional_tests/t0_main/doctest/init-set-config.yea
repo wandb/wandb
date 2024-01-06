@@ -1,0 +1,10 @@
+id: init-set-config
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config]: {lr: 0.0003, batch_size: 32, architecture: resnet, depth: 34}
+    - :wandb:runs[0][exitcode]: 0
+    - :yea:exit: 0

@@ -1,0 +1,8 @@
+id: 0.login.01-timeout
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+assert:
+  - :yea:exit: 0

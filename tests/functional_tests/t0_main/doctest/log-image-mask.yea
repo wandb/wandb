@@ -1,0 +1,17 @@
+id: log-image-mask
+plugin:
+    - wandb
+tag:
+  shard: docs
+depend:
+    requirements:
+        - numpy
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - img_with_masks
+    - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+      - :wandb:runs[0][summary][img_with_masks]
+      - masks

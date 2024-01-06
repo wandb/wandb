@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-"""
-api.
-"""
+"""api."""
 
 from wandb.integration.tensorboard import log  # noqa: F401
 

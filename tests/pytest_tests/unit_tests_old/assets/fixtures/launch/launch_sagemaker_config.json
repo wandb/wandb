@@ -1,0 +1,28 @@
+{
+    "uri": "<uri>",
+    "resource": "sagemaker",
+    "entity": "mock_server_entity",
+    "project": "test",
+    "resource_args": {
+        "sagemaker": {
+            "AlgorithmSpecification": {
+                "TrainingInputMode": "File"
+            },
+            "ecr_repo_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+            "OutputDataConfig": {
+                "S3OutputPath": "s3://test-bucket/test-output"
+            },
+            "StoppingCondition": {
+                "MaxRuntimeInSeconds": 60
+            },
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10
+            }
+        }
+    }
+}

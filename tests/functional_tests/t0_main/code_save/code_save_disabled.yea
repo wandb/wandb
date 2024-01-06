@@ -1,0 +1,22 @@
+id: 0.code-save.1-disabled
+plugin:
+  - wandb
+command:
+  program: code_save.py
+env:
+  - WANDB_DISABLE_CODE: "true"
+parametrize:
+  permute:
+    - :wandb:mock_server:code_saving_enabled:
+      - null
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]: {}
+  - :wandb:runs[0][exitcode]: 0
+  - :op:not_contains:
+    - :wandb:runs[0][config_wandb]
+    - code_path
+  - :op:not_contains:
+    - :wandb:runs[0][files]
+    - code/functional_tests/t0_main/code_save/code_save.py

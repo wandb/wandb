@@ -1,0 +1,86 @@
+id: 0.yolov8.pose
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: test_ultralytics_pose.py
+depend:
+    requirements:
+        - "ultralytics>=8.0.167"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][batch]: 64
+    - :wandb:runs[0][config][task]: pose
+    - :wandb:runs[0][config][epochs]: 2
+    - :wandb:runs[0][summary][model/parameters]: 3295470
+    - :wandb:runs[0][summary][Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Validation-Table][nrows]: 4
+    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 12
+    - :op:>=:
+        - :wandb:runs[0][summary][model/GFLOPs]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][model/speed_PyTorch(ms)]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/box_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/cls_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/kobj_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][train/pose_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/box_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/dfl_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/cls_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/kobj_loss]
+        - 0.0
+    - :op:>=:
+        - :wandb:runs[0][summary][val/pose_loss]
+        - 0.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50-95(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/precision(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/recall(B)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50(P)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/mAP50-95(P)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/precision(P)]
+        - 1.0
+    - :op:<=:
+        - :wandb:runs[0][summary][metrics/recall(P)]
+        - 1.0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 47  # yolov8 used
+    - :wandb:runs[0][exitcode]: 0

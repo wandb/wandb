@@ -1,31 +1,38 @@
-import os
-
 import configparser
+import getpass
+import os
+import tempfile
+from typing import Any, Optional
 
-from wandb import util
-from wandb.old import core
 from wandb import env
+from wandb.old import core
+from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.runid import generate_id
 
 
-class Settings(object):
+class Settings:
     """Global W&B settings stored under $WANDB_CONFIG_DIR/settings."""
 
     DEFAULT_SECTION = "default"
 
     _UNSET = object()
 
-    def __init__(self, load_settings=True, root_dir=None):
+    def __init__(
+        self, load_settings: bool = True, root_dir: Optional[str] = None
+    ) -> None:
         self._global_settings = Settings._settings()
         self._local_settings = Settings._settings()
         self.root_dir = root_dir
 
         if load_settings:
-            self._global_settings.read([Settings._global_path()])
+            global_path = Settings._global_path()
+            if global_path is not None:
+                self._global_settings.read([global_path])
             # Only attempt to read if there is a directory existing
             if os.path.isdir(core.wandb_dir(self.root_dir)):
                 self._local_settings.read([Settings._local_path(self.root_dir)])
 
-    def get(self, section, key, fallback=_UNSET):
+    def get(self, section: str, key: str, fallback: Any = _UNSET) -> Any:
         # Try the local settings first. If we can't find the key, then try the global settings.
         # If a fallback is provided, return it if we can't find the key in either the local or global
         # settings.
@@ -40,33 +47,50 @@ class Settings(object):
                 else:
                     raise
 
-    def set(self, section, key, value, globally=False, persist=False):
-        """Persists settings to disk if persist = True"""
+    def _persist_settings(self, settings, settings_path) -> None:
+        # write a temp file and then move it to the settings path
+        target_dir = os.path.dirname(settings_path)
+        with tempfile.NamedTemporaryFile(
+            "w+", suffix=".tmp", delete=False, dir=target_dir
+        ) as fp:
+            path = os.path.abspath(fp.name)
+            with open(path, "w+") as f:
+                settings.write(f)
+        try:
+            os.replace(path, settings_path)
+        except AttributeError:
+            os.rename(path, settings_path)
+
+    def set(self, section, key, value, globally=False, persist=False) -> None:
+        """Persist settings to disk if persist = True"""
 
         def write_setting(settings, settings_path, persist):
             if not settings.has_section(section):
                 Settings._safe_add_section(settings, Settings.DEFAULT_SECTION)
             settings.set(section, key, str(value))
+
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
-            write_setting(self._global_settings, Settings._global_path(), persist)
+            global_path = Settings._global_path()
+            if global_path is not None:
+                write_setting(self._global_settings, global_path, persist)
         else:
             write_setting(
                 self._local_settings, Settings._local_path(self.root_dir), persist
             )
 
-    def clear(self, section, key, globally=False, persist=False):
+    def clear(self, section, key, globally=False, persist=False) -> None:
         def clear_setting(settings, settings_path, persist):
             settings.remove_option(section, key)
             if persist:
-                with open(settings_path, "w+") as f:
-                    settings.write(f)
+                self._persist_settings(settings, settings_path)
 
         if globally:
-            clear_setting(self._global_settings, Settings._global_path(), persist)
+            global_path = Settings._global_path()
+            if global_path is not None:
+                clear_setting(self._global_settings, global_path, persist)
         else:
             clear_setting(
                 self._local_settings, Settings._local_path(self.root_dir), persist
@@ -103,14 +127,47 @@ class Settings(object):
         return settings
 
     @staticmethod
-    def _global_path():
-        config_dir = os.environ.get(
-            env.CONFIG_DIR, os.path.join(os.path.expanduser("~"), ".config", "wandb")
-        )
-        util.mkdir_exists_ok(config_dir)
-        return os.path.join(config_dir, "settings")
+    def _global_path() -> Optional[str]:
+        def try_create_dir(path) -> bool:
+            try:
+                os.makedirs(path, exist_ok=True)
+                if os.access(path, os.W_OK):
+                    return True
+            except OSError:
+                pass
+            return False
+
+        def get_username() -> str:
+            try:
+                return getpass.getuser()
+            except (ImportError, KeyError):
+                return generate_id()
+
+        try:
+            home_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
+
+            if not try_create_dir(home_config_dir):
+                temp_config_dir = os.path.join(
+                    tempfile.gettempdir(), ".config", "wandb"
+                )
+
+                if not try_create_dir(temp_config_dir):
+                    username = get_username()
+                    config_dir = os.path.join(
+                        tempfile.gettempdir(), username, ".config", "wandb"
+                    )
+                    try_create_dir(config_dir)
+                else:
+                    config_dir = temp_config_dir
+            else:
+                config_dir = home_config_dir
+
+            config_dir = os.environ.get(env.CONFIG_DIR, config_dir)
+            return os.path.join(config_dir, "settings")
+        except Exception:
+            return None
 
     @staticmethod
     def _local_path(root_dir=None):
-        util.mkdir_exists_ok(core.wandb_dir(root_dir))
+        filesystem.mkdir_exists_ok(core.wandb_dir(root_dir))
         return os.path.join(core.wandb_dir(root_dir), "settings")

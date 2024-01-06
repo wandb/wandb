@@ -1,8 +1,4 @@
-#
-# -*- coding: utf-8 -*-
-"""
-console.
-"""
+"""console."""
 
 import os
 

@@ -1,6 +1,5 @@
 import os
 
-import six
 import wandb
 from wandb import env
 
@@ -13,7 +12,6 @@ def sagemaker_auth(overrides=None, path=".", api_key=None):
                                     to secrets.env
         path (str, optional): The path to write the secrets file.
     """
-
     settings = wandb.setup().settings
     current_api_key = wandb.wandb_lib.apikey.api_key(settings=settings)
 
@@ -26,5 +24,5 @@ def sagemaker_auth(overrides=None, path=".", api_key=None):
         )
     overrides[env.API_KEY] = api_key
     with open(os.path.join(path, "secrets.env"), "w") as file:
-        for k, v in six.iteritems(overrides):
-            file.write("{}={}\n".format(k, v))
+        for k, v in overrides.items():
+            file.write(f"{k}={v}\n")

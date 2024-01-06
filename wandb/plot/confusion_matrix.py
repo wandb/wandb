@@ -1,18 +1,27 @@
+from typing import Optional, Sequence
+
 import wandb
 from wandb import util
 
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, title=None):
-    """
-    Computes a multi-run confusion matrix.
+def confusion_matrix(
+    probs: Optional[Sequence[Sequence]] = None,
+    y_true: Optional[Sequence] = None,
+    preds: Optional[Sequence] = None,
+    class_names: Optional[Sequence[str]] = None,
+    title: Optional[str] = None,
+    split_table: Optional[bool] = False,
+):
+    """Compute a multi-run confusion matrix.
 
     Arguments:
         probs (2-d arr): Shape [n_examples, n_classes]
         y_true (arr): Array of label indices.
         preds (arr): Array of predicted label indices.
         class_names (arr): Array of class names.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -27,7 +36,6 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
         wandb.log({'confusion_matrix': wandb.plot.confusion_matrix(probs, y_true=y_true, class_names=labels)})
         ```
     """
-
     np = util.get_module(
         "numpy",
         required="confusion matrix requires the numpy library, install with `pip install numpy`",
@@ -61,7 +69,7 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
     else:
         class_inds = set(preds).union(set(y_true))
         n_classes = len(class_inds)
-        class_names = ["Class_{}".format(i) for i in range(1, n_classes + 1)]
+        class_names = [f"Class_{i}" for i in range(1, n_classes + 1)]
 
     # get mapping of inds to class index in case user has weird prediction indices
     class_mapping = {}
@@ -87,4 +95,5 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, titl
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
         {"title": title},
+        split_table=split_table,
     )

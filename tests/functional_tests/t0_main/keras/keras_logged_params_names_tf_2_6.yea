@@ -1,0 +1,23 @@
+id: 0.keras.parameter_gradient_names.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_log_names.py
+depend:
+    requirements:
+        - tensorflow>=2.6.2,<2.7
+        - pandas
+        - pillow
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][parameters/dense.bias][_type]: histogram
+    - :wandb:runs[0][summary][parameters/dense.weights][_type]: histogram
+    - :wandb:runs[0][summary][parameters/conv2d.bias][_type]: histogram
+    - :wandb:runs[0][summary][parameters/conv2d.weights][_type]: histogram
+    - :wandb:runs[0][summary][gradients/dense/bias.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/dense/kernel.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/conv2d/bias.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/conv2d/kernel.gradient][_type]: histogram
+    - :wandb:runs[0][exitcode]: 0

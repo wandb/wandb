@@ -1,24 +1,24 @@
-import json
 import logging
 import multiprocessing
 import os
 import platform
+import queue
+import re
 import signal
 import socket
 import subprocess
 import sys
 import time
 import traceback
+from typing import Any, Dict, List
 
-import six
-from six.moves import queue
+import yaml
+
 import wandb
-from wandb import util
-from wandb import wandb_lib
-from wandb import wandb_sdk
+from wandb import util, wandb_lib, wandb_sdk
 from wandb.agents.pyagent import pyagent
 from wandb.apis import InternalApi
-import yaml
+from wandb.sdk.launch.sweeps import utils as sweep_utils
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class AgentError(Exception):
     pass
 
 
-class AgentProcess(object):
+class AgentProcess:
     """Launch and manage a process."""
 
     def __init__(
@@ -121,13 +121,20 @@ class AgentProcess(object):
         return self._proc.terminate()
 
 
-class Agent(object):
+class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
     KILL_DELAY = 30
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5
+    DEFAULT_SWEEP_COMMAND: List[str] = [
+        "${env}",
+        "${interpreter}",
+        "${program}",
+        "${args}",
+    ]
+    SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
     def __init__(
         self, api, queue, sweep_id=None, function=None, in_jupyter=None, count=None
@@ -162,8 +169,11 @@ class Agent(object):
             os.environ["WANDB_DIR"] = os.path.abspath(os.getcwd())
 
     def is_flapping(self):
-        """Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0
-            exit codes in the first FLAPPING_MAX_SECONDS"""
+        """Determine if the process is flapping.
+
+        Flapping occurs if the agents receives FLAPPING_MAX_FAILURES non-0 exit codes in
+        the first FLAPPING_MAX_SECONDS.
+        """
         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
             return False
         if time.time() < wandb.START_TIME + self.FLAPPING_MAX_SECONDS:
@@ -176,7 +186,6 @@ class Agent(object):
         )
 
     def run(self):  # noqa: C901
-
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         sweep_obj = self._api.sweep(self._sweep_id, "{}")
         if sweep_obj:
@@ -208,7 +217,7 @@ class Agent(object):
                     logger.info("Running runs: %s", list(self._run_processes.keys()))
                     self._last_report_time = now
                 run_status = {}
-                for run_id, run_process in list(six.iteritems(self._run_processes)):
+                for run_id, run_process in list(self._run_processes.items()):
                     poll_result = run_process.poll()
                     if poll_result is None:
                         run_status[run_id] = True
@@ -241,6 +250,22 @@ class Agent(object):
                             self._running = False
                             break
                     logger.info("Cleaning up finished run: %s", run_id)
+
+                    # wandb.teardown() was added with wandb service and is a hammer to make
+                    # sure that active runs are finished before moving on to another agent run
+                    #
+                    # In the future, a lighter weight way to implement this could be to keep a
+                    # service process open for all the agent instances and inform_finish when
+                    # the run should be marked complete.  This however could require
+                    # inform_finish on every run created by this process.
+                    if hasattr(wandb, "teardown"):
+                        exit_code = 0
+                        if isinstance(poll_result, int):
+                            exit_code = poll_result
+                        elif isinstance(poll_result, bool):
+                            exit_code = -1
+                        wandb.teardown(exit_code)
+
                     del self._run_processes[run_id]
                     self._last_report_time = None
                     self._finished += 1
@@ -261,7 +286,7 @@ class Agent(object):
                 wandb.termlog(
                     "Ctrl-c pressed. Waiting for runs to end. Press ctrl-c again to terminate them."
                 )
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 pass
@@ -269,16 +294,16 @@ class Agent(object):
             try:
                 if not self._in_jupyter:
                     wandb.termlog("Terminating and syncing runs. Press ctrl-c to kill.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.terminate()
                     except OSError:
                         pass  # if process is already dead
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     run_process.wait()
             except KeyboardInterrupt:
                 wandb.termlog("Killing runs and quitting.")
-                for _, run_process in six.iteritems(self._run_processes):
+                for _, run_process in self._run_processes.items():
                     try:
                         run_process.kill()
                     except OSError:
@@ -309,7 +334,7 @@ class Agent(object):
         except Exception:
             logger.exception("Exception while processing command: %s", command)
             ex_type, ex, tb = sys.exc_info()
-            response["exception"] = "{}: {}".format(ex_type.__name__, str(ex))
+            response["exception"] = f"{ex_type.__name__}: {str(ex)}"
             response["traceback"] = traceback.format_tb(tb)
             del tb
 
@@ -337,13 +362,8 @@ class Agent(object):
                 )
             )
 
-        # setup default sweep command if not configured
-        sweep_command = self._sweep_command or [
-            "${env}",
-            "${interpreter}",
-            "${program}",
-            "${args}",
-        ]
+        # Setup sweep command
+        sweep_command: List[str] = sweep_utils.create_sweep_command(self._sweep_command)
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
@@ -366,17 +386,11 @@ class Agent(object):
 
         env = dict(os.environ)
 
-        flags_list = [
-            (param, config["value"]) for param, config in command["args"].items()
-        ]
-        flags_no_hyphens = ["{}={}".format(param, value) for param, value in flags_list]
-        flags = ["--" + flag for flag in flags_no_hyphens]
-        flags_dict = dict(flags_list)
-        flags_json = json.dumps(flags_dict)
+        sweep_vars: Dict[str, Any] = sweep_utils.create_sweep_command_args(command)
 
         if "${args_json_file}" in sweep_command:
             with open(json_file, "w") as fp:
-                fp.write(flags_json)
+                fp.write(sweep_vars["args_json"][0])
 
         if self._function:
             # make sure that each run regenerates setup singleton
@@ -388,17 +402,11 @@ class Agent(object):
                 in_jupyter=self._in_jupyter,
             )
         else:
-            sweep_vars = dict(
-                interpreter=["python"],
-                program=[command["program"]],
-                args=flags,
-                args_no_hyphens=flags_no_hyphens,
-                args_json=[flags_json],
-                args_json_file=[json_file],
-                env=["/usr/bin/env"],
-            )
-            if platform.system() == "Windows":
-                del sweep_vars["env"]
+            sweep_vars["interpreter"] = ["python"]
+            sweep_vars["program"] = [command["program"]]
+            sweep_vars["args_json_file"] = [json_file]
+            if not platform.system() == "Windows":
+                sweep_vars["env"] = ["/usr/bin/env"]
             command_list = []
             for c in sweep_command:
                 c = str(c)
@@ -443,7 +451,7 @@ class Agent(object):
 
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
-        for _, proc in six.iteritems(self._run_processes):
+        for _, proc in self._run_processes.items():
             try:
                 proc.kill()
             except OSError:
@@ -452,7 +460,7 @@ class Agent(object):
         self._running = False
 
 
-class AgentApi(object):
+class AgentApi:
     def __init__(self, queue):
         self._queue = queue
         self._command_id = 0
@@ -479,7 +487,7 @@ def run_agent(
     sweep_id, function=None, in_jupyter=None, entity=None, project=None, count=None
 ):
     parts = dict(entity=entity, project=project, name=sweep_id)
-    err = util.parse_sweep_id(parts)
+    err = sweep_utils.parse_sweep_id(parts)
     if err:
         wandb.termerror(err)
         return
@@ -524,11 +532,9 @@ def run_agent(
 
 
 def agent(sweep_id, function=None, entity=None, project=None, count=None):
-    """
-    Generic agent entrypoint, used for CLI or jupyter.
+    """Run a function or program with configuration parameters specified by server.
 
-    Will run a function or program with configuration parameters specified
-    by server.
+    Generic agent entrypoint, used for CLI or jupyter.
 
     Arguments:
         sweep_id: (dict) Sweep ID generated by CLI or sweep API
@@ -540,16 +546,30 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
 
     Examples:
         Run a sample sweep over a function:
-        ```
-        def train():
-            with wandb.init() as run:
-                print("config:", dict(run.config))
-                for epoch in range(35):
-                    print("running", epoch)
-                    wandb.log({"metric": run.config.param1, "epoch": epoch})
-                    time.sleep(1)
+        <!--yeadoc-test:one-parameter-sweep-agent-->
+        ```python
+        import wandb
 
-        wandb.agent(sweep_id, function=train)
+        sweep_configuration = {
+            "name": "my-awesome-sweep",
+            "metric": {"name": "accuracy", "goal": "maximize"},
+            "method": "grid",
+            "parameters": {"a": {"values": [1, 2, 3, 4]}},
+        }
+
+
+        def my_train_func():
+            # read the current value of parameter "a" from wandb.config
+            wandb.init()
+            a = wandb.config.a
+
+            wandb.log({"a": a, "accuracy": a + 1})
+
+
+        sweep_id = wandb.sweep(sweep_configuration)
+
+        # run the sweep
+        wandb.agent(sweep_id, function=my_train_func)
         ```
     """
     global _INSTANCES

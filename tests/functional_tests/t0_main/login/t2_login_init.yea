@@ -1,0 +1,9 @@
+id: 0.login.02-login-init
+plugin:
+  - wandb
+tag:
+  skips:
+    - platform: win
+assert:
+  - :wandb:runs_len: 1
+  - :yea:exit: 0

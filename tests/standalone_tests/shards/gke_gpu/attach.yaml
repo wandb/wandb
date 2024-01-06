@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "gpu-pod-attach-pod"
+spec:
+  restartPolicy: Never
+  containers:
+  - name: "gpu-pod-attach-container"
+    image: "alpine:latest"
+    command: ["/bin/sh"]
+    args: ["-c", "sleep 600"]
+    volumeMounts:
+    - name: gpu-pod-results-volumeclaim-name
+      mountPath: "/wandb-store"
+  volumes:
+    - name: gpu-pod-results-volumeclaim-name
+      persistentVolumeClaim:
+       claimName: gpu-pod-results-volumeclaim

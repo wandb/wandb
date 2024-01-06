@@ -1,6 +1,4 @@
-"""
-wandb integration sagemaker module.
-"""
+"""wandb integration sagemaker module."""
 
 from .auth import sagemaker_auth
 from .config import parse_sm_config

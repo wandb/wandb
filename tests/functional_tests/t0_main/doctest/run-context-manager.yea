@@ -1,0 +1,8 @@
+id: run-context-manager
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 2
+    - :yea:exit: 0

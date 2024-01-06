@@ -1,4 +1,3 @@
-#
 """Summary Record.
 
 This module implements a summary record as an intermediate format before being converted
@@ -8,8 +7,8 @@ to a protocol buffer.
 import typing as t
 
 
-class SummaryRecord(object):
-    """Encodes a diff -- analogous to the SummaryRecord protobuf message"""
+class SummaryRecord:
+    """Encodes a diff -- analogous to the SummaryRecord protobuf message."""
 
     update: t.List["SummaryItem"]
     remove: t.List["SummaryItem"]

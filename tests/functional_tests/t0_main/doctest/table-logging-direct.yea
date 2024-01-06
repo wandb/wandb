@@ -1,0 +1,23 @@
+id: table-logging-direct
+plugin:
+    - wandb
+tag:
+  shard: docs
+depend:
+    requirements:
+        - pandas
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0]
+      - summary
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - classifier_out
+    - :op:contains:
+      - :wandb:runs[0][summary][classifier_out]
+      - _type
+    - :wandb:runs[0][summary][classifier_out][_type]: table-file
+    - :wandb:runs[0][summary][classifier_out][nrows]: 2
+    - :wandb:runs[0][summary][classifier_out][ncols]: 2
+    - :yea:exit: 0

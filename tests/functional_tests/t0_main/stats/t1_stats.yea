@@ -1,0 +1,17 @@
+id: 0.stats.01-stats
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      m1: 1
+      m2: 2
+  - :wandb:runs[0][exitcode]: 0
+  - :op:>:
+    - :op:len:
+      - :wandb:runs[0][stats]
+    - 0
+  - :op:>=:
+    - :wandb:runs[0][stats][0][system.cpu]:
+    - 0

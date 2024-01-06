@@ -1,0 +1,21 @@
+id: 0.keras.nonnumericlayers.tf25
+tag:
+    shard: tf25
+plugin:
+    - wandb
+command:
+    program: test_keras_nonnumeric.py
+depend:
+    requirements:
+        - tensorflow==2.5.0
+        - pandas
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains_regex:
+        - :wandb:runs[0][output][stderr]
+        - .*Non-numeric values found in layer.*parameters/lookupsex.*, not logging this layer.*
+    - :wandb:runs[0][summary][parameters/linear_model_1.bias][_type]: histogram
+    - :wandb:runs[0][summary][parameters/linear_model_1.weights][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1/bias.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1/kernel.gradient][_type]: histogram
+    - :wandb:runs[0][exitcode]: 0

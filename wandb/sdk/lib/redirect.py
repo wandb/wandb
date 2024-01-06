@@ -1,23 +1,23 @@
 try:
     import fcntl
     import pty
-    import tty
     import termios
+    import tty
 except ImportError:  # windows
     pty = tty = termios = fcntl = None  # type: ignore
 
-from collections import defaultdict
 import itertools
 import logging
 import os
+import queue
 import re
 import signal
 import struct
 import sys
 import threading
 import time
+from collections import defaultdict
 
-from six.moves import queue
 import wandb
 
 
@@ -34,7 +34,7 @@ class _Numpy:  # fallback in case numpy is not available
                 if isinstance(s, slice):
                     self._start = s.start
                     return self
-                return super(Arr, self).__getitem__(s)
+                return super().__getitem__(s)
 
             def __getslice__(self, i, j):
                 self._start = i
@@ -50,7 +50,7 @@ class _Numpy:  # fallback in case numpy is not available
 try:
     import numpy as np  # type: ignore
 except ImportError:
-    np = _Numpy()
+    np = _Numpy()  # type: ignore
 
 
 logger = logging.getLogger("wandb")
@@ -66,7 +66,7 @@ _LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n"
 SEP_RE = re.compile(
     "\r|\n|"
     # Unprintable ascii characters:
-    + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
+    + "|".join([chr(i) for i in range(2**8) if repr(chr(i)).startswith("'\\x")])
 )
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
@@ -103,10 +103,8 @@ def _get_char(code):
     return "\033[" + str(code) + "m"
 
 
-class Char(object):
-    """
-    Class encapsulating a single character, its foreground, background and style attributes
-    """
+class Char:
+    """Class encapsulating a single character, its foreground, background and style attributes."""
 
     __slots__ = (
         "data",
@@ -173,18 +171,18 @@ class Char(object):
 _defchar = Char()
 
 
-class Cursor(object):
-    """
-    2D cursor
+class Cursor:
+    """A 2D cursor.
+
+    Attributes:
+        x: x-coordinate.
+        y: y-coordinate.
+        char: the character to inherit colors and styles from.
     """
 
     __slots__ = ("x", "y", "char")
 
     def __init__(self, x=0, y=0, char=None):
-        """
-        x, y - 2D coordinates
-        char - Next character to be written will inherit colors and styles from this character
-        """
         if char is None:
             char = Char()
         self.x = x
@@ -192,9 +190,10 @@ class Cursor(object):
         self.char = char
 
 
-class TerminalEmulator(object):
-    """
-    An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
+class TerminalEmulator:
+    """An FSM emulating a terminal.
+
+    Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
     _MAX_LINES = 100
@@ -486,10 +485,9 @@ class TerminalEmulator(object):
 _MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
-class RedirectBase(object):
+class RedirectBase:
     def __init__(self, src, cbs=()):
-        """
-        # Arguments
+        """# Arguments.
 
         `src`: Source stream to be redirected. "stdout" or "stderr".
         `cbs`: tuple/list of callbacks. Each callback should take exactly 1 argument (bytes).
@@ -511,6 +509,9 @@ class RedirectBase(object):
     def src_wrapped_stream(self):
         return getattr(sys, self.src)
 
+    def save(self):
+        pass
+
     def install(self):
         curr_redirect = _redirects.get(self.src)
         if curr_redirect and curr_redirect != self:
@@ -523,26 +524,11 @@ class RedirectBase(object):
         _redirects[self.src] = None
 
 
-class _WrappedStream(object):
-    """
-    For python 2.7 only.
-    """
-
-    def __init__(self, stream, write_f):
-        object.__setattr__(self, "write", write_f)
-        object.__setattr__(self, "_stream", stream)
-
-    def __getattr__(self, attr):
-        return getattr(self._stream, attr)
-
-
 class StreamWrapper(RedirectBase):
-    """
-    Patches the write method of current sys.stdout/sys.stderr
-    """
+    """Patches the write method of current sys.stdout/sys.stderr."""
 
     def __init__(self, src, cbs=()):
-        super(StreamWrapper, self).__init__(src=src, cbs=cbs)
+        super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
 
@@ -572,7 +558,7 @@ class StreamWrapper(RedirectBase):
             time.sleep(_MIN_CALLBACK_INTERVAL)
 
     def install(self):
-        super(StreamWrapper, self).install()
+        super().install()
         if self._installed:
             return
         stream = self.src_wrapped_stream
@@ -584,11 +570,7 @@ class StreamWrapper(RedirectBase):
             self._old_write(data)
             self._queue.put(data)
 
-        if sys.version_info[0] > 2:
-            stream.write = write
-        else:
-            self._old_stream = stream
-            setattr(sys, self.src, _WrappedStream(stream, write))
+        stream.write = write
 
         self._queue = queue.Queue()
         self._stopped = threading.Event()
@@ -619,24 +601,63 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        if sys.version_info[0] > 2:
-            self.src_wrapped_stream.write = self._old_write
-        else:
-            setattr(sys, self.src, self._old_stream)
+        self.src_wrapped_stream.write = self._old_write
 
         self._stopped.set()
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
-            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            wandb.termlog(f"Processing terminal output ({self.src})...")
             self._emulator_write_thread.join()
             wandb.termlog("Done.")
         self.flush()
 
         self._installed = False
-        super(StreamWrapper, self).uninstall()
+        super().uninstall()
 
 
-class _WindowSizeChangeHandler(object):
+class StreamRawWrapper(RedirectBase):
+    """Patches the write method of current sys.stdout/sys.stderr.
+
+    Captures data in a raw form rather than using the emulator
+    """
+
+    def __init__(self, src, cbs=()):
+        super().__init__(src=src, cbs=cbs)
+        self._installed = False
+
+    def save(self):
+        stream = self.src_wrapped_stream
+        self._old_write = stream.write
+
+    def install(self):
+        super().install()
+        if self._installed:
+            return
+        stream = self.src_wrapped_stream
+        self._prev_callback_timestamp = time.time()
+
+        def write(data):
+            self._old_write(data)
+            for cb in self.cbs:
+                try:
+                    cb(data)
+                except Exception:
+                    # TODO: Figure out why this was needed and log or error out appropriately
+                    # it might have been strange terminals? maybe shutdown cases?
+                    pass
+
+        stream.write = write
+        self._installed = True
+
+    def uninstall(self):
+        if not self._installed:
+            return
+        self.src_wrapped_stream.write = self._old_write
+        self._installed = False
+        super().uninstall()
+
+
+class _WindowSizeChangeHandler:
     def __init__(self):
         self._fds = set()
 
@@ -671,7 +692,7 @@ class _WindowSizeChangeHandler(object):
             win_size = fcntl.ioctl(0, termios.TIOCGWINSZ, "\0" * 8)
             rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
         # Note: IOError not subclass of OSError in python 2.x
-        except (OSError, IOError):  # eg. in MPI we can't do this. # noqa
+        except OSError:  # eg. in MPI we can't do this.
             return
         if cols == 0:
             return
@@ -684,12 +705,10 @@ _WSCH = _WindowSizeChangeHandler()
 
 
 class Redirect(RedirectBase):
-    """
-    Redirects low level file descriptors.
-    """
+    """Redirect low level file descriptors."""
 
     def __init__(self, src, cbs=()):
-        super(Redirect, self).__init__(src=src, cbs=cbs)
+        super().__init__(src=src, cbs=cbs)
         self._installed = False
         self._emulator = TerminalEmulator()
 
@@ -701,7 +720,7 @@ class Redirect(RedirectBase):
         return r, w
 
     def install(self):
-        super(Redirect, self).install()
+        super().install()
         if self._installed:
             return
         self._pipe_read_fd, self._pipe_write_fd = self._pipe()
@@ -746,13 +765,13 @@ class Redirect(RedirectBase):
 
         self._emulator_write_thread.join(timeout=5)
         if self._emulator_write_thread.is_alive():
-            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            wandb.termlog(f"Processing terminal output ({self.src})...")
             self._emulator_write_thread.join()
             wandb.termlog("Done.")
         self.flush()
 
         _WSCH.remove_fd(self._pipe_read_fd)
-        super(Redirect, self).uninstall()
+        super().uninstall()
 
     def flush(self, data=None):
         if data is None:
