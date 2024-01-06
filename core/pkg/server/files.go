@@ -115,6 +115,9 @@ func (fh *FilesHandler) filterFn(file *service.FilesItem) bool {
 // - END: upload at the end of the run
 // - LIVE: upload immediately, on changes, and at the end of the run
 func (fh *FilesHandler) Handle(record *service.Record) {
+	if fh == nil || fh.handleFn == nil {
+		return
+	}
 	files := fh.globs(record.GetFiles().GetFiles())
 	nowSet := make(map[string]*service.FilesItem)
 	for _, file := range files {
