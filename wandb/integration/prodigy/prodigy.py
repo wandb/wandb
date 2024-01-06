@@ -16,7 +16,6 @@ wandb.finish()
 """
 
 import base64
-import collections.abc
 import io
 import urllib
 from copy import deepcopy
@@ -28,6 +27,11 @@ import wandb
 from wandb import util
 from wandb.plots.utils import test_missing
 from wandb.sdk.lib import telemetry as wb_telemetry
+
+try:
+    from collections import Mapping  # noqa: UP035
+except ImportError:
+    from collections.abc import Mapping
 
 
 def named_entity(docs):
@@ -59,7 +63,7 @@ def merge(dict1, dict2):
     result = deepcopy(dict1)
 
     for key, value in dict2.items():
-        if isinstance(value, collections.abc.Mapping):
+        if isinstance(value, Mapping):
             result[key] = merge(result.get(key, {}), value)
         else:
             result[key] = deepcopy(dict2[key])
