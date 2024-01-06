@@ -327,9 +327,6 @@ class WandBUltralyticsCallback:
             config=vars(validator.args),
             job_type="validation_" + validator.args.task,
         )
-        if isinstance(self.predictor, SAMPredictor):
-            self.prompts = deepcopy(predictor.prompts)
-            self.prediction_table = wb.Table(columns=["Image"])
 
     def on_val_end(self, trainer: VALIDATOR_TYPE):
         if self.task in self.supported_tasks:
