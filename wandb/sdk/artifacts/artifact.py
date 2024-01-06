@@ -30,6 +30,7 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
+from sympy import im
 
 import wandb
 from wandb import data_types, env, util
@@ -1703,22 +1704,6 @@ class Artifact:
                 root=root,
                 allow_missing_references=allow_missing_references,
             )
-            # if wandb.run is None:
-            #     with wandb.init(  # type: ignore
-            #         entity=self._source_entity,
-            #         project=self._source_project,
-            #         job_type="auto",
-            #         settings=wandb.Settings(silent="true"),
-            #     ):
-            #         return self._download_using_core(
-            #             root=root,
-            #             allow_missing_references=allow_missing_references,
-            #         )
-            # else:
-            #     return self._download_using_core(
-            #         root=root,
-            #         allow_missing_references=allow_missing_references,
-            #     )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
@@ -1734,20 +1719,18 @@ class Artifact:
         from wandb.sdk.backend.backend import Backend
 
         # ensure wandb-core is up and running
-        # wl stands for "wandb library", nuff said
         wl = wandb.sdk.wandb_setup.setup()
         assert wl is not None
 
         stream_id = generate_id()
 
         settings = wl.settings.to_proto()
-        # TODO: feed it some crap?
+        # TODO: remove this
         tmp_dir = pathlib.Path(tempfile.mkdtemp())
-        print("hunka-junka: ", tmp_dir)
         settings.sync_dir.value = str(tmp_dir)
         settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
         settings.files_dir.value = str(tmp_dir / "files")
-        settings.run_id.value = stream_id  # TODO: remove this
+        settings.run_id.value = stream_id
 
         manager = wl._get_manager()
         manager._inform_init(settings=settings, run_id=stream_id)
@@ -1761,13 +1744,6 @@ class Artifact:
 
         mailbox.enable_keepalive()
 
-        # assert wandb.run is not None, "failed to initialize run"
-        # run = wandb.run
-        # if not run._backend or not run._backend.interface:
-        #     raise NotImplementedError
-        # if run._settings._offline:
-        #     raise NotImplementedError("cannot download in offline mode")
-        # assert self.id is not None
         handle = backend.interface.deliver_download_artifact(
             self.id,
             root,
@@ -1779,12 +1755,19 @@ class Artifact:
             allow_missing_references=allow_missing_references,
         )
         result = handle.wait(timeout=-1)
+
         if result is None:
             handle.abandon()
         assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
+
+        backend.cleanup()
+
+        # TODO: remove this
+        shutil.rmtree(tmp_dir)
+
         return FilePathStr(root)
 
     def _download(
