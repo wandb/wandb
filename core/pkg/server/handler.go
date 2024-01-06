@@ -345,6 +345,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 		h.summaryHandler.Flush(h.sendSummary)
+		h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -480,25 +481,21 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		WithFilesHandlerHandleFn(h.sendRecord),
 	)
 
-	// add summary file to the files handler to be uploaded at the end of the run
-	h.filesHandler.Handle(&service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path:   SummaryFileName,
-						Type:   service.FilesItem_WANDB,
-						Policy: service.FilesItem_END,
-					},
-					{
-						Path:   OutputFileName,
-						Type:   service.FilesItem_WANDB,
-						Policy: service.FilesItem_END,
+	if h.settings.GetConsole().GetValue() != "off" {
+		h.filesHandler.Handle(&service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{
+					Files: []*service.FilesItem{
+						{
+							Path:   OutputFileName,
+							Type:   service.FilesItem_WANDB,
+							Policy: service.FilesItem_END,
+						},
 					},
 				},
 			},
-		},
-	})
+		})
+	}
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -847,6 +844,35 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) writeAndSendSummaryFile() {
+	// write summary to file
+	summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
+
+	jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
+	if err != nil {
+		h.logger.Error("handler: writeAndSendSummaryFile: error marshalling summary", "error", err)
+		return
+	}
+
+	if err := os.WriteFile(summaryFile, []byte(jsonBytes), 0644); err != nil {
+		h.logger.Error("handler: writeAndSendSummaryFile: failed to write config file", "error", err)
+	}
+
+	// send summary file
+	h.filesHandler.Handle(&service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	})
+}
+
 func (h *Handler) sendSummary() {
 	summaryRecord := &service.SummaryRecord{
 		Update: []*service.SummaryItem{},
@@ -857,21 +883,6 @@ func (h *Handler) sendSummary() {
 			Key: key, ValueJson: value,
 		})
 	}
-
-	// write summary to file
-	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-	file, err := os.Create(filename)
-	if err != nil {
-		h.logger.Error("error creating summary file", "error", err)
-	} else {
-		jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
-		if err != nil {
-			h.logger.Error("error marshalling summary", "error", err)
-		} else if _, err := file.Write(jsonBytes); err != nil {
-			h.logger.Error("error writing summary file", "error", err)
-		}
-	}
-	defer file.Close()
 
 	record := &service.Record{
 		RecordType: &service.Record_Summary{

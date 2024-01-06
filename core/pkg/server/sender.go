@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/segmentio/encoding/json"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -367,6 +368,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
+		s.writeAndSendConfigFile()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -500,18 +502,26 @@ func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
 
 // serializeConfig serializes the config map to a json string
 // that can be sent to the server
-func (s *Sender) serializeConfig() string {
+func (s *Sender) serializeConfig(format string) string {
 	valueConfig := make(map[string]map[string]interface{})
 	for key, elem := range s.configMap {
 		valueConfig[key] = make(map[string]interface{})
 		valueConfig[key]["value"] = elem
 	}
-	configJson, err := json.Marshal(valueConfig)
+	var serializedConfig []byte
+	var err error
+	if format == "yaml" {
+		serializedConfig, err = yaml.Marshal(valueConfig)
+	} else {
+		// json
+		serializedConfig, err = json.Marshal(valueConfig)
+	}
+
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
-	return string(configJson)
+	return string(serializedConfig)
 }
 
 func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
@@ -581,7 +591,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate(run.Telemetry)
-		config := s.serializeConfig()
+		config := s.serializeConfig("json")
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -703,7 +713,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig()
+	config := s.serializeConfig("json")
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
@@ -732,6 +742,28 @@ func (s *Sender) upsertConfig() {
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
 	}
+}
+
+func (s *Sender) writeAndSendConfigFile() {
+	config := s.serializeConfig("yaml")
+	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
+	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
+		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: ConfigFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdChan <- record
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
