@@ -42,7 +42,7 @@ WANDB_API_KEY=your-secret-key \
 ./a.out
 ```
 
-## Capabilties and Limitations
+## Capabilities and Limitations
 
 Only a small subset of W&B functionality is available in the alpha release.  The functionality falls into
 these few categories

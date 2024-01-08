@@ -3,7 +3,7 @@ import platform
 
 import nox
 
-CORE_VERSION = "0.17.0b4"
+CORE_VERSION = "0.17.0b6"
 
 
 @nox.session(python=False, name="build-core")
@@ -37,6 +37,26 @@ def install_core(session: nox.Session) -> None:
         f"./core/dist/{wheel_file}",
         external=True,
     )
+
+
+@nox.session(python=False, name="install-client")
+def install_client(session: nox.Session) -> None:
+    session.cd("client")
+    session.run(
+        "maturin",
+        "develop",
+        "--release",
+        "--strip",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="develop")
+def develop(session: nox.Session) -> None:
+    """Developers! Developers! Developers!"""
+    session.notify("build-core")
+    session.notify("install-core")
+    session.notify("install-client")
 
 
 @nox.session(python=False, name="list-failing-tests-wandb-core")

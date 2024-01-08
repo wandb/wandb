@@ -337,8 +337,15 @@ message FilesItem {
     END = 1;
     LIVE = 2;
   }
+  enum FileType {
+    OTHER = 0;
+    WANDB = 1;
+    MEDIA = 2;
+    ARTIFACT = 3;
+  }
   string path = 1;
   PolicyType policy = 2;
+  FileType type = 3;
   string external_path = 16;
 }
 
@@ -486,6 +493,7 @@ message Request {
     CancelRequest cancel = 21;
     MetadataRequest metadata = 22;
     InternalMessagesRequest internal_messages = 23;
+    PythonPackagesRequest python_packages = 24;
     ShutdownRequest shutdown = 64;
     AttachRequest attach = 65;
     StatusRequest status = 66;
@@ -1101,4 +1109,13 @@ message MetadataRequest {
   GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
+  map<string, string> slurm = 29;
+}
+
+message PythonPackagesRequest {
+  message PythonPackage {
+    string name = 1;
+    string version = 2;
+  }
+  repeated PythonPackage package = 1;
 }

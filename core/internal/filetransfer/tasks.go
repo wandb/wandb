@@ -1,14 +1,5 @@
 package filetransfer
 
-type FileType int
-
-const (
-	OtherFile FileType = iota
-	WandbFile
-	MediaFile
-	ArtifactFile
-)
-
 type TaskType int
 
 const (
@@ -32,9 +23,6 @@ type Task struct {
 
 	// Headers to send on the upload
 	Headers []string
-
-	// FileType is the type of file
-	FileType FileType
 
 	// Size is the size of the file
 	Size int64

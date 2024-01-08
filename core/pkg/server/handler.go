@@ -2,19 +2,28 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (
+	MetaFileName              = "wandb-metadata.json"
+	SummaryFileName           = "wandb-summary.json"
+	OutputFileName            = "output.log"
+	DiffFileName              = "diff.patch"
+	RequirementsFileName      = "requirements.txt"
+	ConfigFileName            = "config.yaml"
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
@@ -45,15 +54,27 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
-func WithHandlerFileHandler(handler *FileHandler) HandlerOption {
+func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
 	return func(h *Handler) {
-		h.fileHandler = handler
+		h.watcher = watcher
 	}
 }
 
-func WithHandlerFileTransferHandler(handler *FileTransferHandler) HandlerOption {
+func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	return func(h *Handler) {
-		h.fileTransferHandler = handler
+		h.tbHandler = handler
+	}
+}
+
+func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
+	return func(h *Handler) {
+		h.filesHandler = handler
+	}
+}
+
+func WithHandlerFilesInfoHandler(handler *FilesInfoHandler) HandlerOption {
+	return func(h *Handler) {
+		h.filesInfoHandler = handler
 	}
 }
 
@@ -110,11 +131,17 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// fileHandler is the file handler for the stream
-	fileHandler *FileHandler
+	// watcher is the watcher for the stream
+	watcher *watcher.Watcher
 
-	// fileTransferHandler is the file transfer info for the stream
-	fileTransferHandler *FileTransferHandler
+	// tbHandler is the tensorboard handler
+	tbHandler *TBHandler
+
+	// filesHandler is the file handler for the stream
+	filesHandler *FilesHandler
+
+	// filesInfoHandler is the file transfer info for the stream
+	filesInfoHandler *FilesInfoHandler
 }
 
 // NewHandler creates a new handler
@@ -223,6 +250,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
+		h.handleTBrecord(record)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -244,23 +272,26 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_CheckVersion:
 	case *service.Request_Defer:
 		h.handleDefer(record, x.Defer)
-		return
+		response = nil
 	case *service.Request_GetSummary:
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
 	case *service.Request_PartialHistory:
 		h.handlePartialHistory(record, x.PartialHistory)
-		return
+		response = nil
 	case *service.Request_PollExit:
 		h.handlePollExit(record)
-		return
+		response = nil
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
 		h.handleSampledHistory(record, response)
 	case *service.Request_ServerInfo:
 		h.handleServerInfo(record)
+		response = nil
+	case *service.Request_PythonPackages:
+		h.handlePythonPackages(record, x.PythonPackages)
 		response = nil
 	case *service.Request_Shutdown:
 	case *service.Request_StopStatus:
@@ -304,21 +335,25 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
 	case service.DeferRequest_FLUSH_STATS:
+		// stop the system monitor to ensure that we don't send any more system metrics
+		// after the run has exited
+		h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		h.activeHistory.Flush()
 	case service.DeferRequest_FLUSH_TB:
+		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
 		h.summaryHandler.Flush(h.sendSummary)
+		h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		rec := h.fileHandler.Final()
-		h.sendRecord(rec)
+		h.watcher.Close()
 	case service.DeferRequest_FLUSH_FP:
+		h.filesHandler.Flush()
 	case service.DeferRequest_JOIN_FP:
-		h.fileHandler.Close()
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
 		h.handleFinal()
@@ -358,13 +393,9 @@ func (h *Handler) handlePollExit(record *service.Record) {
 			Response: &service.Response{
 				ResponseType: &service.Response_PollExitResponse{
 					PollExitResponse: &service.PollExitResponse{
-						PusherStats: &service.FilePusherStats{
-							UploadedBytes: h.fileTransferHandler.GetUploadedBytes(),
-							TotalBytes:    h.fileTransferHandler.GetTotalBytes(),
-							DedupedBytes:  h.fileTransferHandler.GetDedupedBytes(),
-						},
-						FileCounts: h.fileTransferHandler.GetFileCounts(),
-						Done:       h.fileTransferHandler.IsDone(),
+						PusherStats: h.filesInfoHandler.GetFilesStats(),
+						FileCounts:  h.filesInfoHandler.GetFilesCount(),
+						Done:        h.filesInfoHandler.GetDone(),
 					},
 				},
 			},
@@ -443,14 +474,43 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 	h.sendRecord(record)
 
-	h.fileHandler.Start()
+	// start the tensorboard handler
+	h.watcher.Start()
 
-	h.handleCodeSave()
+	h.filesHandler = h.filesHandler.With(
+		WithFilesHandlerHandleFn(h.sendRecord),
+	)
+
+	if h.settings.GetConsole().GetValue() != "off" {
+		h.filesHandler.Handle(&service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{
+					Files: []*service.FilesItem{
+						{
+							Path:   OutputFileName,
+							Type:   service.FilesItem_WANDB,
+							Policy: service.FilesItem_END,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+	}
+
+	// save code and patch
+	if h.settings.GetSaveCode().GetValue() {
+		h.handleCodeSave()
+		h.handlePatchSave()
+	}
 
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 	// initialize the run metadata from settings
-
 	metadata := &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
 		Python:   h.settings.GetXPython().GetValue(),
@@ -473,16 +533,170 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		},
 	}
 
-	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
 		systemInfo := h.systemMonitor.Probe()
 		if systemInfo != nil {
 			proto.Merge(metadata, systemInfo)
 		}
 	}
-
 	h.handleMetadata(metadata)
+}
+
+func (h *Handler) handlePythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
+	// write all requirements to a file
+	// send the file as a Files record
+	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), RequirementsFileName)
+	file, err := os.Create(filename)
+	if err != nil {
+		h.logger.Error("error creating requirements file", "error", err)
+		return
+	}
+	defer file.Close()
+
+	for _, pkg := range request.Package {
+		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
+		_, err := file.WriteString(line)
+		if err != nil {
+			h.logger.Error("error writing requirements file", "error", err)
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: RequirementsFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handleCodeSave() {
+	programRelative := h.settings.GetProgramRelpath().GetValue()
+	if programRelative == "" {
+		h.logger.Warn("handleCodeSave: program relative path is empty")
+		return
+	}
+
+	programAbsolute := h.settings.GetProgramAbspath().GetValue()
+	if _, err := os.Stat(programAbsolute); err != nil {
+		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
+		return
+	}
+
+	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
+	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
+		return
+	}
+	savedProgram := filepath.Join(codeDir, programRelative)
+	if _, err := os.Stat(savedProgram); err != nil {
+		if err = copyFile(programAbsolute, savedProgram); err != nil {
+			return
+		}
+	}
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("code", programRelative),
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handlePatchSave() {
+	// capture git state
+	if h.settings.GetDisableGit().GetValue() {
+		return
+	}
+
+	git := NewGit(h.settings.GetRootDir().GetValue(), h.logger)
+	if !git.IsAvailable() {
+		return
+	}
+
+	files := []*service.FilesItem{}
+
+	filesDirPath := h.settings.GetFilesDir().GetValue()
+	file := filepath.Join(filesDirPath, DiffFileName)
+	if err := git.SavePatch("HEAD", file); err != nil {
+		h.logger.Error("error generating diff", "error", err)
+	} else {
+		files = append(files, &service.FilesItem{Path: DiffFileName, Type: service.FilesItem_WANDB})
+	}
+
+	if output, err := git.LatestCommit("@{u}"); err != nil {
+		h.logger.Error("error getting latest commit", "error", err)
+	} else {
+		diffFileName := fmt.Sprintf("diff_%s.patch", output)
+		file = filepath.Join(filesDirPath, diffFileName)
+		if err := git.SavePatch("@{u}", file); err != nil {
+			h.logger.Error("error generating diff", "error", err)
+		} else {
+			files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
+		}
+	}
+
+	if len(files) == 0 {
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: files,
+			},
+		},
+	}
+	h.handleFiles(record)
+}
+
+func (h *Handler) handleMetadata(request *service.MetadataRequest) {
+	// TODO: Sending metadata as a request for now, eventually this should be turned into
+	//  a record and stored in the transaction log
+	if h.settings.GetXDisableMeta().GetValue() {
+		return
+	}
+
+	mo := protojson.MarshalOptions{
+		Indent: "  ",
+		// EmitUnpopulated: true,
+	}
+	jsonBytes, err := mo.Marshal(request)
+	if err != nil {
+		h.logger.CaptureError("error marshalling metadata", err)
+		return
+	}
+	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
+	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
+		h.logger.CaptureError("error writing metadata file", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: MetaFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+
+	h.handleFiles(record)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
@@ -506,70 +720,6 @@ func (h *Handler) handlePause() {
 func (h *Handler) handleResume() {
 	h.timer.Resume()
 	h.systemMonitor.Do()
-}
-
-func (h *Handler) handleCodeSave() {
-	if !h.settings.GetSaveCode().GetValue() {
-		return
-	}
-
-	programRelative := h.settings.GetProgramRelpath().GetValue()
-	if programRelative == "" {
-		h.logger.Warn("handleCodeSave: program relative path is empty")
-		return
-	}
-
-	programAbsolute := h.settings.GetProgramAbspath().GetValue()
-	if _, err := os.Stat(programAbsolute); err != nil {
-		h.logger.Warn("handleCodeSave: program absolute path does not exist", "path", programAbsolute)
-		return
-	}
-
-	codeDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "code")
-	if err := os.MkdirAll(filepath.Join(codeDir, filepath.Dir(programRelative)), os.ModePerm); err != nil {
-		return
-	}
-	savedProgram := filepath.Join(codeDir, programRelative)
-	if _, err := os.Stat(savedProgram); err != nil {
-		if err = copyFile(programAbsolute, savedProgram); err != nil {
-			return
-		}
-	}
-	record := service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: filepath.Join("code", programRelative),
-					},
-				},
-			},
-		},
-	}
-	h.handleFiles(&record)
-}
-
-func (h *Handler) handleMetadata(request *service.MetadataRequest) {
-	// TODO: Sending metadata as a request for now, eventually this should be turned into
-	//  a record and stored in the transaction log
-	if h.settings.GetXDisableMeta().GetValue() {
-		return
-	}
-
-	record := service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Metadata{
-					Metadata: request,
-				},
-			},
-		},
-	}
-	h.sendRecordWithControl(&record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
-		},
-	)
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
@@ -601,10 +751,6 @@ func (h *Handler) handleAlert(record *service.Record) {
 }
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
-	// stop the system monitor to ensure that we don't send any more system metrics
-	// after the run has exited
-	h.systemMonitor.Stop()
-
 	// stop the run timer and set the runtime
 	h.timer.Pause()
 	runtime := int32(h.timer.Elapsed().Seconds())
@@ -636,9 +782,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-
-	rec := h.fileHandler.Handle(record)
-	h.sendRecord(rec)
+	h.filesHandler.Handle(record)
 }
 
 func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
@@ -681,8 +825,7 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 }
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
-	info := record.GetRequest().GetFileTransferInfo()
-	h.fileTransferHandler.Handle(info)
+	h.filesInfoHandler.Handle(record)
 }
 
 func (h *Handler) handleSync(record *service.Record) {
@@ -701,6 +844,40 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
+func (h *Handler) writeAndSendSummaryFile() {
+	if h.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
+	// write summary to file
+	summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
+
+	jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
+	if err != nil {
+		h.logger.Error("handler: writeAndSendSummaryFile: error marshalling summary", "error", err)
+		return
+	}
+
+	if err := os.WriteFile(summaryFile, []byte(jsonBytes), 0644); err != nil {
+		h.logger.Error("handler: writeAndSendSummaryFile: failed to write config file", "error", err)
+	}
+
+	// send summary file
+	h.filesHandler.Handle(&service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	})
+}
+
 func (h *Handler) sendSummary() {
 	summaryRecord := &service.SummaryRecord{
 		Update: []*service.SummaryItem{},
@@ -711,6 +888,7 @@ func (h *Handler) sendSummary() {
 			Key: key, ValueJson: value,
 		})
 	}
+
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
 			Summary: summaryRecord,
@@ -736,6 +914,13 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 
 	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
 	h.summaryHandler.updateSummaryDelta(summaryRecord)
+}
+
+func (h *Handler) handleTBrecord(record *service.Record) {
+	err := h.tbHandler.Handle(record)
+	if err != nil {
+		h.logger.CaptureError("error handling tbrecord", err)
+	}
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

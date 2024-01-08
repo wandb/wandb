@@ -30,31 +30,37 @@ func (m *Memory) SampleMetrics() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	virtualMem, _ := mem.VirtualMemory()
+	virtualMem, err := mem.VirtualMemory()
+
+	if err == nil {
+		// total system memory usage in percent
+		m.metrics["memory_percent"] = append(
+			m.metrics["memory_percent"],
+			virtualMem.UsedPercent,
+		)
+		// total system memory available in MB
+		m.metrics["proc.memory.availableMB"] = append(
+			m.metrics["proc.memory.availableMB"],
+			float64(virtualMem.Available)/1024/1024,
+		)
+	}
 
 	// process-related metrics
 	proc := process.Process{Pid: int32(m.settings.XStatsPid.GetValue())}
-	procMem, _ := proc.MemoryInfo()
-	// process memory usage in MB
-	m.metrics["proc.memory.rssMB"] = append(
-		m.metrics["proc.memory.rssMB"],
-		float64(procMem.RSS)/1024/1024,
-	)
-	// process memory usage in percent
-	m.metrics["proc.memory.percent"] = append(
-		m.metrics["proc.memory.percent"],
-		float64(procMem.RSS)/float64(virtualMem.Total)*100,
-	)
-	// total system memory usage in percent
-	m.metrics["memory_percent"] = append(
-		m.metrics["memory_percent"],
-		virtualMem.UsedPercent,
-	)
-	// total system memory available in MB
-	m.metrics["proc.memory.availableMB"] = append(
-		m.metrics["proc.memory.availableMB"],
-		float64(virtualMem.Available)/1024/1024,
-	)
+	procMem, err := proc.MemoryInfo()
+	if err == nil {
+		// process memory usage in MB
+		m.metrics["proc.memory.rssMB"] = append(
+			m.metrics["proc.memory.rssMB"],
+			// this sometimes panics:
+			float64(procMem.RSS)/1024/1024,
+		)
+		// process memory usage in percent
+		m.metrics["proc.memory.percent"] = append(
+			m.metrics["proc.memory.percent"],
+			float64(procMem.RSS)/float64(virtualMem.Total)*100,
+		)
+	}
 }
 
 func (m *Memory) AggregateMetrics() map[string]float64 {
@@ -80,7 +86,10 @@ func (m *Memory) ClearMetrics() {
 func (m *Memory) IsAvailable() bool { return true }
 
 func (m *Memory) Probe() *service.MetadataRequest {
-	virtualMem, _ := mem.VirtualMemory()
+	virtualMem, err := mem.VirtualMemory()
+	if err != nil {
+		return nil
+	}
 	// total := virtualMem.Total / 1024 / 1024 / 1024
 	total := virtualMem.Total
 
