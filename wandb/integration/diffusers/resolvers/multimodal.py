@@ -488,6 +488,44 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-actions": [None, None],
     },
+    "StableDiffusionXLControlNetPipeline": {
+        "table-schema": [
+            "Prompt-1",
+            "Prompt-2",
+            "Control-Image",
+            "Negative-Prompt-1",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "prompt_2",
+            "image",
+            "negative_prompt",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, wandb.Image, None, None],
+    },
+    "StableDiffusionXLControlNetImg2ImgPipeline": {
+        "table-schema": [
+            "Prompt-1",
+            "Prompt-2",
+            "Input-Image",
+            "Control-Image",
+            "Negative-Prompt-1",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "prompt_2",
+            "image",
+            "control_image",
+            "negative_prompt",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, wandb.Image, wandb.Image, None, None],
+    },
 }
 
 

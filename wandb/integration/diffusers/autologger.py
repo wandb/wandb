@@ -66,6 +66,8 @@ autolog = AutologAPI(
         "TextToVideoZeroPipeline.__call__",
         "StableVideoDiffusionPipeline.__call__",
         "AmusedPipeline.__call__",
+        "StableDiffusionXLControlNetPipeline.__call__",
+        "StableDiffusionXLControlNetImg2ImgPipeline.__call__",
     ),
     resolver=DiffusersPipelineResolver(),
     telemetry_feature="diffusers_autolog",
