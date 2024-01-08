@@ -29,7 +29,7 @@ def get_updated_kwargs(
     if "generator" in kwargs:
         generator = kwargs.pop("generator", None)
         kwargs["seed"] = (
-            generator.get_state().to("cpu").tolist()[0]
+            generator.initial_seed()
             if generator is not None
             else None
         )
