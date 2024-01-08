@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -108,6 +109,9 @@ type Sender struct {
 	syncService *SyncService
 
 	store *Store
+
+	// TODO: move this somewhere else
+	streamTableClientId string
 }
 
 // NewSender creates a new Sender with the given settings
@@ -275,6 +279,10 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+	case *service.Record_StreamTable:
+		s.sendStreamTable(record, x.StreamTable)
+	case *service.Record_StreamData:
+		s.sendStreamData(record)
 	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
@@ -317,6 +325,36 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	}
 }
 
+func (s *Sender) startFileStream(fsPath string, useAsync bool) {
+	headers := map[string]string{}
+	if useAsync {
+		headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
+
+	fileStreamRetryClient := clients.NewRetryClient(
+		clients.WithRetryClientLogger(s.logger),
+		clients.WithRetryClientRetryMax(int(s.settings.GetXFileStreamRetryMax().GetValue())),
+		clients.WithRetryClientRetryWaitMin(time.Duration(s.settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientRetryWaitMax(time.Duration(s.settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientHttpTimeout(time.Duration(s.settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientHttpAuthTransport(s.settings.GetApiKey().GetValue(), headers),
+		// TODO(nexus:beta): add jitter to DefaultBackoff scheme
+		// retryClient.BackOff = fs.GetBackoffFunc()
+		// TODO(nexus:beta): add custom retry function
+		// retryClient.CheckRetry = fs.GetCheckRetryFunc()
+	)
+	s.fileStream = fs.NewFileStream(
+		fs.WithSettings(s.settings),
+		fs.WithLogger(s.logger),
+		fs.WithHttpClient(fileStreamRetryClient),
+		fs.WithPath(fsPath),
+		fs.WithOffsets(s.resumeState.GetFileStreamOffset()),
+		fs.WithClientId(s.streamTableClientId),
+	)
+
+	s.fileStream.Start()
+}
+
 // updateSettingsStartTime sets run start time in the settings if it is not set
 func (s *Sender) updateSettingsStartTime() {
 	// TODO: rewrite in a cleaner way
@@ -339,7 +377,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
 	s.updateSettingsStartTime()
-	s.fileStream.Start()
+	s.startFileStream(fsPath, false)
 	s.fileTransferManager.Start()
 }
 
@@ -1215,4 +1253,123 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendStreamTable(record *service.Record, streamTable *service.StreamTableRecord) {
+	run := streamTable
+	zero := ""
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
+	_, err := gql.UpsertBucket(
+		ctx,                          // ctx
+		s.graphqlClient,              // client
+		nil,                          // id
+		&run.RunId,                   // name
+		utils.NilIfZero(run.Project), // project
+		utils.NilIfZero(run.Entity),  // entity
+		utils.NilIfZero(zero),        // groupName
+		nil,                          // description
+		utils.NilIfZero(zero),        // displayName
+		utils.NilIfZero(zero),        // notes
+		utils.NilIfZero(zero),        // commit
+		nil,                          // config
+		utils.NilIfZero(zero),        // host
+		nil,                          // debug
+		utils.NilIfZero(zero),        // program
+		utils.NilIfZero(zero),        // repo
+		utils.NilIfZero(zero),        // jobType
+		nil,                          // state
+		nil,                          // sweep
+		nil,                          // tags []string,
+		nil,                          // summaryMetrics
+	)
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: upsertBucket: could not create stream", err)
+	}
+
+	s.startStreamTable(streamTable)
+	result := &service.Result{
+		ResultType: &service.Result_RunResult{},
+		Control:    record.Control,
+		Uuid:       record.Uuid,
+	}
+	s.createStreamTableArtifact(streamTable)
+	s.outChan <- result
+}
+
+func (s *Sender) createStreamTableArtifact(streamTable *service.StreamTableRecord) {
+	// TODO: convert to proper json struct
+	weaveObjectData := map[string]interface{}{
+		"_type":        "stream_table",
+		"table_name":   streamTable.Table,
+		"project_name": streamTable.Project,
+		"entity_name":  streamTable.Entity,
+	}
+	weaveTypeData := map[string]interface{}{
+		"type": "stream_table",
+		"_base_type": map[string]interface{}{
+			"type": "Object",
+		},
+		"_is_object":   true,
+		"table_name":   "string",
+		"project_name": "string",
+		"entity_name":  "string",
+	}
+	metadata := map[string]interface{}{
+		"_weave_meta": map[string]interface{}{
+			"is_panel":     false,
+			"is_weave_obj": true,
+			"type_name":    "stream_table",
+		},
+	}
+	metadataJson, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave meta", err)
+	}
+
+	sequenceClientId := shared.ShortID(32)
+	baseArtifact := &service.ArtifactRecord{
+		Manifest: &service.ArtifactManifest{
+			Version:       1,
+			StoragePolicy: "wandb-storage-policy-v1",
+			StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
+				Key:       "storageLayout",
+				ValueJson: "\"V2\"",
+			}},
+		},
+		Entity:           streamTable.Entity,
+		Project:          streamTable.Project,
+		RunId:            streamTable.RunId,
+		Name:             streamTable.Table,
+		Metadata:         string(metadataJson),
+		Type:             "stream_table",
+		Aliases:          []string{"latest"},
+		Finalize:         true,
+		ClientId:         s.streamTableClientId,
+		SequenceClientId: sequenceClientId,
+	}
+	builder := artifacts.NewArtifactBuilder(baseArtifact)
+	if err := builder.AddData("obj.object.json", weaveObjectData); err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave object", err)
+	}
+	if err := builder.AddData("obj.type.json", weaveTypeData); err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: bad weave type", err)
+	}
+
+	saver := artifacts.NewArtifactSaver(s.ctx, s.graphqlClient, s.fileTransferManager, builder.GetArtifact(), 0, "")
+	_, err = saver.Save(s.fwdChan)
+	if err != nil {
+		s.logger.CaptureFatalAndPanic("sender: createStreamTableArtifact: could not create stream artifact", err)
+	}
+}
+
+func (s *Sender) startStreamTable(streamTable *service.StreamTableRecord) {
+	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
+		s.settings.GetBaseUrl().GetValue(), streamTable.Entity, streamTable.Project, streamTable.Table)
+	s.streamTableClientId = shared.ShortID(32)
+	s.startFileStream(fsPath, true)
+	s.fileTransferManager.Start()
+}
+
+func (s *Sender) sendStreamData(record *service.Record) {
+	s.fileStream.StreamRecord(record)
 }

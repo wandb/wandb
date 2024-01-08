@@ -91,6 +91,9 @@ type FileStream struct {
 	maxItemsPerPush int
 	delayProcess    time.Duration
 	heartbeatTime   time.Duration
+
+	// TODO: rethink this
+	streamTableClientId string
 }
 
 type FileStreamOption func(fs *FileStream)
@@ -142,6 +145,12 @@ func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
 		for k, v := range offsetMap {
 			fs.offsetMap[k] = v
 		}
+	}
+}
+
+func WithClientId(clientId string) FileStreamOption {
+	return func(fs *FileStream) {
+		fs.streamTableClientId = clientId
 	}
 }
 

@@ -39,6 +39,8 @@ func (fs *FileStream) processRecord(record *service.Record) {
 		fs.streamFinish(x.Exit)
 	case *service.Record_Preempting:
 		fs.streamPreempting(x.Preempting)
+	case *service.Record_StreamData:
+		fs.streamStreamData(x.StreamData)
 	case nil:
 		err := fmt.Errorf("filestream: field not set")
 		fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -148,5 +150,37 @@ func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,
+	})
+}
+
+func (fs *FileStream) streamStreamData(msg *service.StreamDataRecord) {
+	row := make(map[string]interface{})
+	for k, v := range msg.Items {
+		switch x := v.StreamValueType.(type) {
+		case *service.StreamValue_Int64Value:
+			row[k] = x.Int64Value
+		case *service.StreamValue_DoubleValue:
+			row[k] = x.DoubleValue
+		case *service.StreamValue_StringValue:
+			row[k] = x.StringValue
+		}
+	}
+	if fs.streamTableClientId != "" {
+		row["_client_id"] = fs.streamTableClientId
+	}
+	// fmt.Printf("SEND %+v\n", row)
+	jsonBytes, err := json.Marshal(row)
+	if err != nil {
+		panic("badness")
+	}
+	line := string(jsonBytes)
+	// fmt.Printf("LINE %+v\n", line)
+
+	if err != nil {
+		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+	}
+	fs.addTransmit(processedChunk{
+		fileType: HistoryChunk,
+		fileLine: line,
 	})
 }
