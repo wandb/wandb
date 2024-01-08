@@ -1186,7 +1186,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_job_source(value: str) -> bool:
-        valid_sources = ["repo", "artifact", "image"]
+        valid_sources = ["repo", "artifact", "image", "uri"]
         if value not in valid_sources:
             raise UsageError(
                 f"Settings field `job_source`: {value!r} not in {valid_sources}"

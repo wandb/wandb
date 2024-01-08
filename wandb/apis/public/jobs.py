@@ -77,6 +77,8 @@ class Job:
             self._set_configure_launch_project(self._configure_launch_project_repo)
         if self._job_info.get("source_type") == "image":
             self._set_configure_launch_project(self._configure_launch_project_container)
+        if self._job_info.get("source_type") == "uri":
+            self._set_configure_launch_project(self._configure_launch_project_uri)
 
     @property
     def name(self):
@@ -146,6 +148,13 @@ class Job:
             raise LaunchError(
                 "Job had malformed source dictionary without an image key"
             )
+        if self._entrypoint:
+            launch_project.set_entry_point(self._entrypoint)
+
+    def _configure_launch_project_uri(self, launch_project):
+        launch_project.uri = self._job_info.get("source", {}).get("uri")
+        if launch_project.uri is None:
+            raise LaunchError("Job had malformed source dictionary without a uri key")
         if self._entrypoint:
             launch_project.set_entry_point(self._entrypoint)
 
