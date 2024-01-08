@@ -15,6 +15,3 @@ pandas
 responses
 
 coverage[toml]
-polyfactory; python_version >= '3.8'
-
-.[reports]
