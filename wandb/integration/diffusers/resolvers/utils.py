@@ -28,8 +28,8 @@ def get_updated_kwargs(
             kwargs[pipeline_parameter[0]] = pipeline_parameter[1].default
     if "generator" in kwargs:
         generator = kwargs.pop("generator", None)
-        kwargs["seed"] = (
-            generator.initial_seed()
+        kwargs["generator"] = (
+            {"seed": generator.initial_seed(), "device": generator.device()}
             if generator is not None
             else None
         )
