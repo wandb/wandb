@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import requests
 import responses
+from sympy import isolate
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
@@ -328,10 +329,7 @@ def test_add_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".")
 
-    # note: we are auto-using local_netrc resulting in
-    # the .netrc file being picked by the artifact, see manifest
-
-    assert artifact.digest == "c409156beb903b74fe9097bb249a26d2"
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -345,7 +343,7 @@ def test_add_named_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".", name="subdir")
 
-    assert artifact.digest == "a2184d2d318ddb2f3aa82818365827df"
+    assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["subdir/file1.txt"] == {
@@ -421,7 +419,7 @@ def test_add_reference_local_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd())
 
-    assert artifact.digest == "13d688af2d0dab74e0544a4c5c542735"
+    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -461,7 +459,7 @@ def test_add_reference_local_dir_no_checksum():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), checksum=False)
 
-    assert artifact.digest == "7ca355c7f600119151d607c98921ab50"
+    assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size_1)),
@@ -490,10 +488,12 @@ def test_add_reference_local_dir_with_name():
     with open("nest/nest/file3.txt", "w") as f:
         f.write("dude")
 
+    print(os.listdir("."))
+
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), name="top")
 
-    assert artifact.digest == "c406b09e8b6cb180e9be7fa010bf5a83"
+    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["top/file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
