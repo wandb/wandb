@@ -526,6 +526,32 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-actions": [None, None, wandb.Image, wandb.Image, None, None],
     },
+    "Kandinsky3Pipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [None, None],
+    },
+    "Kandinsky3Img2ImgPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Input-Image",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "image",
+        ],
+        "kwarg-actions": [None, None, wandb.Image],
+    },
 }
 
 

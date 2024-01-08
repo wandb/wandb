@@ -42,6 +42,8 @@ autolog = AutologAPI(
         "KandinskyInpaintCombinedPipeline.__call__",
         "KandinskyV22Img2ImgCombinedPipeline.__call__",
         "KandinskyV22InpaintCombinedPipeline.__call__",
+        "Kandinsky3Pipeline.__call__",
+        "Kandinsky3Img2ImgPipeline.__call__",
         "AnimateDiffPipeline.__call__",
         "AudioLDMPipeline.__call__",
         "AudioLDM2Pipeline.__call__",
