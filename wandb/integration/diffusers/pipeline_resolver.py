@@ -18,6 +18,7 @@ class DiffusersPipelineResolver:
 
     def __init__(self) -> None:
         self.wandb_table = None
+        self.pipeline_call_count = 1
 
     def __call__(
         self,
@@ -43,7 +44,10 @@ class DiffusersPipelineResolver:
         pipeline_name = args[0].__class__.__name__
         resolver = None
         if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
-            resolver = DiffusersMultiModalPipelineResolver(pipeline_name)
+            resolver = DiffusersMultiModalPipelineResolver(
+                pipeline_name, self.pipeline_call_count
+            )
+            self.pipeline_call_count += 1
         elif pipeline_name in SUPPORTED_SDXL_PIPELINES:
             resolver = SDXLResolver(pipeline_name)
         loggable_dict = resolver(args, kwargs, response, start_time, time_elapsed)
