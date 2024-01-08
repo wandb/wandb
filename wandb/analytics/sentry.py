@@ -136,7 +136,7 @@ class Sentry:
         status = status or ("crashed" if not handled else "errored")  # type: ignore
         self.mark_session(status=status)
 
-        client, _ = self.hub._stack[-1]
+        client, _ = self.hub._stack[-1]  # type: ignore
         client.flush()
 
         return None

@@ -93,13 +93,18 @@ class S3Handler(StorageHandler):
 
         extra_args = {}
         if version:
-            obj = self._s3.ObjectVersion(bucket, key, version).Object()
+            obj_version = self._s3.ObjectVersion(bucket, key, version)
             extra_args["VersionId"] = version
+            obj = obj_version.Object()
         else:
             obj = self._s3.Object(bucket, key)
 
         try:
-            etag = self._etag_from_obj(obj)
+            etag = (
+                obj_version.head()["ETag"][1:-1]  # escape leading and trailing
+                if version
+                else self._etag_from_obj(obj)
+            )
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 raise FileNotFoundError(

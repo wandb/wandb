@@ -337,8 +337,15 @@ message FilesItem {
     END = 1;
     LIVE = 2;
   }
+  enum FileType {
+    OTHER = 0;
+    WANDB = 1;
+    MEDIA = 2;
+    ARTIFACT = 3;
+  }
   string path = 1;
   PolicyType policy = 2;
+  FileType type = 3;
   string external_path = 16;
 }
 
