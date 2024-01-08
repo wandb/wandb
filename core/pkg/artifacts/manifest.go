@@ -77,6 +77,7 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 func loadManifestFromURL(url string) (Manifest, error) {
+	// TODO: this should use a retryable HTTP client from internal/clients
 	resp, err := http.Get(url)
 	if err != nil {
 		return Manifest{}, err

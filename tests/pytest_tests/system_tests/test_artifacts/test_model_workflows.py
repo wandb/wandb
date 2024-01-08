@@ -21,7 +21,6 @@ def test_offline_link_artifact(wandb_init):
     run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="models")
 def test_log_model(
     wandb_init: Callable[..., Run],
     tmp_path: pathlib.Path,
@@ -39,7 +38,6 @@ def test_log_model(
     run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="models")
 def test_use_model(
     wandb_init: Callable[..., Run],
     tmp_path: pathlib.Path,
@@ -56,7 +54,6 @@ def test_use_model(
     run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="models")
 def test_use_model_error_artifact_type(
     wandb_init: Callable[..., Run],
     tmp_path: pathlib.Path,
@@ -72,7 +69,6 @@ def test_use_model_error_artifact_type(
     run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="models")
 def test_link_model(
     wandb_init: Callable[..., Run],
     tmp_path: pathlib.Path,

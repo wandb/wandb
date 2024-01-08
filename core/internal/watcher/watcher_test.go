@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	fw "github.com/radovskyb/watcher"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -21,6 +20,9 @@ func setupTest(t *testing.T) func() {
 
 	err = os.Mkdir(filepath.Join(tmpDir, "test"), 0755)
 	require.NoError(t, err, "Creating directory should be successful")
+
+	err = os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("testing"), 0644)
+	require.NoError(t, err, "Writing file should be successful")
 
 	cleanup := func() {
 		err := os.Chdir(cwd)
@@ -53,29 +55,27 @@ func TestWatchFile(t *testing.T) {
 	path := "test.txt"
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
-	handlerCalled := 0
 	handler := func(event watcher.Event) error {
-		handlerCalled += 1
-		require.Equal(t, filepath.Join("", path), event.Name())
-		wg.Done()
+		if !event.IsDir() {
+			require.Equal(t, filepath.Join("", path), event.Name())
+			wg.Done()
+		}
+
 		return nil
 	}
 
 	w.Start()
 
-	err := os.WriteFile(path, []byte("testing\n"), 0644)
-	require.NoError(t, err, "Writing file should be successful")
-	err = w.Add(path, handler)
+	err := w.Add(path, handler)
 	require.NoError(t, err, "Registering path should be successful")
 
-	info, _ := os.Stat(path)
-	w.TriggerEvent(fw.Write, info)
+	// write a file in the directory
+	err = os.WriteFile(path, []byte("testing"), 0644)
+	require.NoError(t, err, "Writing file should be successful")
 
 	wg.Wait()
-	require.Equal(t, 2, handlerCalled, "File event should have been handled twice and set handlerCalled to 2")
-
 	w.Close()
 }
 
