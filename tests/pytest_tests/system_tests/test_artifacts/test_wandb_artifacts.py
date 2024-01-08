@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import requests
 import responses
-from sympy import isolate
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
