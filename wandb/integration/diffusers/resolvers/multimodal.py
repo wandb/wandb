@@ -476,6 +476,18 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-logging": ["prompt", "negative_prompt", "video_length"],
     },
+    "AmusedPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Guidance Scale",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "guidance_scale",
+        ],
+        "kwarg-actions": [None, None],
+    },
 }
 
 
