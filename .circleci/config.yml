@@ -708,9 +708,6 @@ jobs:
       python_version_minor:
         type: integer
         default: 7
-      codecov_args:
-        type: string
-        default: ""
     machine:
       image: ubuntu-2004:202104-01
       docker_layer_caching: true
