@@ -1489,7 +1489,6 @@ class Run:
         commit: Optional[bool] = None,
     ) -> None:
         row = row.copy()
-        print("ajsidjsalkdjkl")
         if row:
             row = self._visualization_hack(row)
 
@@ -2208,7 +2207,6 @@ class Run:
             self._err_redir = err_redir
             logger.info("Redirects installed.")
         except Exception as e:
-            print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
 
