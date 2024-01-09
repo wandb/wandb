@@ -17,9 +17,9 @@ try:
     import ultralytics
     from tqdm.auto import tqdm
 
-    if version.parse(ultralytics.__version__) > version.parse("8.0.235"):
+    if version.parse(ultralytics.__version__) > version.parse("8.0.238"):
         wandb.termwarn(
-            """This integration is tested and supported for ultralytics v8.0.235 and below.
+            """This integration is tested and supported for ultralytics v8.0.238 and below.
             Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
             repeat=False,
         )
