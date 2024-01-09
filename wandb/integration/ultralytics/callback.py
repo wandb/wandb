@@ -382,6 +382,7 @@ class WandBUltralyticsCallback:
         )
         if isinstance(predictor, SAMPredictor):
             self.prompts = copy.deepcopy(predictor.prompts)
+            print(self.prompts, "\n\n\n\n\n\n")
             self.prediction_table = wandb.Table(columns=["Image"])
 
     def on_predict_end(self, predictor: PREDICTOR_TYPE):

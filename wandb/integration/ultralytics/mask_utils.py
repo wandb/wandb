@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Tuple
 
+import cv2
 import numpy as np
 from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
@@ -94,7 +95,7 @@ def plot_mask_predictions(
 
 def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
     wb_box_data = []
-    if "bboxes" in prompt:
+    if prompt["bboxes"] is not None:
         wb_box_data.append(
             {
                 "position": {
@@ -106,6 +107,11 @@ def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
                 "class_id": 1,
                 "box_caption": "Prompt-Box",
             }
+        )
+    if prompt["points"] is not None:
+        image = image.copy().astype(np.uint8)
+        image = cv2.circle(
+            image, tuple(prompt["points"]), 5, (0, 255, 0), -1, lineType=cv2.LINE_AA
         )
     wb_box_data = {
         "prompts": {
