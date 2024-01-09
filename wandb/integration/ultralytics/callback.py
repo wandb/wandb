@@ -233,9 +233,7 @@ class WandBUltralyticsCallback:
         self.predictor.args.verbose = None
 
     def _save_model(self, trainer: TRAINER_TYPE):
-        model_checkpoint_artifact = wandb.Artifact(
-            f"run_{wandb.run.id}_model", "model", metadata=vars(trainer.args)
-        )
+        model_checkpoint_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", "model")
         checkpoint_dict = {
             "epoch": trainer.epoch,
             "best_fitness": trainer.best_fitness,
@@ -260,62 +258,60 @@ class WandBUltralyticsCallback:
         wandb.config.train = vars(trainer.args)
         self.run_id = wandb.run.id
 
+    @torch.no_grad()
     def on_fit_epoch_end(self, trainer: DetectionTrainer):
         if self.task in self.supported_tasks and self.train_epoch != trainer.epoch:
             self.train_epoch = trainer.epoch
             validator = trainer.validator
             dataloader = validator.dataloader
             class_label_map = validator.names
-            with torch.no_grad():
-                self.device = next(trainer.model.parameters()).device
-                if isinstance(trainer.model, torch.nn.parallel.DistributedDataParallel):
-                    model = trainer.model.module
-                else:
-                    model = trainer.model
-                self.model = copy.deepcopy(model).eval().to(self.device)
-                self.predictor.setup_model(model=self.model, verbose=False)
-                if self.task == "pose":
-                    self.train_validation_table = plot_pose_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        visualize_skeleton=self.visualize_skeleton,
-                        table=self.train_validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                        epoch=trainer.epoch,
-                    )
-                elif self.task == "segment":
-                    self.train_validation_table = plot_segmentation_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.train_validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                        epoch=trainer.epoch,
-                    )
-                elif self.task == "detect":
-                    self.train_validation_table = plot_detection_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.train_validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                        epoch=trainer.epoch,
-                    )
-                elif self.task == "classify":
-                    self.train_validation_table = (
-                        plot_classification_validation_results(
-                            dataloader=dataloader,
-                            model_name=self.model_name,
-                            predictor=self.predictor,
-                            table=self.train_validation_table,
-                            max_validation_batches=self.max_validation_batches,
-                            epoch=trainer.epoch,
-                        )
-                    )
+            self.device = next(trainer.model.parameters()).device
+            if isinstance(trainer.model, torch.nn.parallel.DistributedDataParallel):
+                model = trainer.model.module
+            else:
+                model = trainer.model
+            self.model = copy.deepcopy(model).eval().to(self.device)
+            self.predictor.setup_model(model=self.model, verbose=False)
+            if self.task == "pose":
+                self.train_validation_table = plot_pose_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    visualize_skeleton=self.visualize_skeleton,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            elif self.task == "segment":
+                self.train_validation_table = plot_segmentation_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            elif self.task == "detect":
+                self.train_validation_table = plot_detection_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
+            elif self.task == "classify":
+                self.train_validation_table = plot_classification_validation_results(
+                    dataloader=dataloader,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.train_validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                    epoch=trainer.epoch,
+                )
             if self.enable_model_checkpointing:
                 self._save_model(trainer)
             self.model.to("cpu")
@@ -328,52 +324,51 @@ class WandBUltralyticsCallback:
     def on_val_start(self, validator: VALIDATOR_TYPE):
         wandb.run or wandb.init(
             project=validator.args.project or "YOLOv8",
-            id=self.run_id,
-            resume="allow"
+            job_type="validation_" + validator.args.task,
         )
 
+    @torch.no_grad()
     def on_val_end(self, trainer: VALIDATOR_TYPE):
         if self.task in self.supported_tasks:
             validator = trainer
             dataloader = validator.dataloader
             class_label_map = validator.names
-            with torch.no_grad():
-                if self.task == "pose":
-                    self.validation_table = plot_pose_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        visualize_skeleton=self.visualize_skeleton,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "segment":
-                    self.validation_table = plot_segmentation_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "detect":
-                    self.validation_table = plot_detection_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "classify":
-                    self.validation_table = plot_classification_validation_results(
-                        dataloader=dataloader,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
+            if self.task == "pose":
+                self.validation_table = plot_pose_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    visualize_skeleton=self.visualize_skeleton,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "segment":
+                self.validation_table = plot_segmentation_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "detect":
+                self.validation_table = plot_detection_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "classify":
+                self.validation_table = plot_classification_validation_results(
+                    dataloader=dataloader,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
             wandb.log({"Validation-Table": self.validation_table}, commit=False)
 
     def on_predict_start(self, predictor: PREDICTOR_TYPE):
@@ -432,6 +427,7 @@ class WandBUltralyticsCallback:
         }
 
 
+# TODO: Add epoch interval
 def add_wandb_callback(
     model: YOLO,
     enable_model_checkpointing: bool = False,
