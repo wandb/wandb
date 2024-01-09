@@ -115,15 +115,16 @@ class WandBUltralyticsCallback:
     model(["img1.jpeg", "img2.jpeg"])
     ```
 
-    Args:
-        model: YOLO Model of type `:class:ultralytics.yolo.engine.model.YOLO`.
-        epoch_logging_interval: interval to log the prediction visualizations
+    Arguments:
+        model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
+            `ultralytics.yolo.engine.model.YOLO`.
+        epoch_logging_interval: (int) interval to log the prediction visualizations
             during training.
-        max_validation_batches: maximum number of validation batches to log to
+        max_validation_batches: (int) maximum number of validation batches to log to
             a table per epoch.
-        enable_model_checkpointing: enable logging model checkpoints as
+        enable_model_checkpointing: (bool) enable logging model checkpoints as
             artifacts at the end of eveny epoch if set to `True`.
-        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+        visualize_skeleton: (bool) visualize pose skeleton by drawing lines connecting
             keypoints for human pose.
     """
 
@@ -468,30 +469,34 @@ def add_wandb_callback(
     model(["img1.jpeg", "img2.jpeg"])
     ```
 
-    Args:
-        model: YOLO Model of type `:class:ultralytics.yolo.engine.model.YOLO`.
-        epoch_logging_interval: interval to log the prediction visualizations
+    Arguments:
+        model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
+            `ultralytics.yolo.engine.model.YOLO`.
+        epoch_logging_interval: (int) interval to log the prediction visualizations
             during training.
-        enable_model_checkpointing: enable logging model checkpoints as
+        enable_model_checkpointing: (bool) enable logging model checkpoints as
             artifacts at the end of eveny epoch if set to `True`.
-        enable_train_validation_logging: enable logging the predictions and
+        enable_train_validation_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from
             the validation dataloader to a `wandb.Table` along with
             mean-confidence of the predictions per-class at the end of each
             training epoch.
-        enable_validation_logging: enable logging the predictions and
+        enable_validation_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from the
             validation dataloader to a `wandb.Table` along with
             mean-confidence of the predictions per-class at the end of
             validation.
-        enable_prediction_logging: enable logging the predictions and
+        enable_prediction_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from the
             validation dataloader to a `wandb.Table` along with mean-confidence
             of the predictions per-class at the end of each prediction.
-        max_validation_batches: maximum number of validation batches to log to
+        max_validation_batches: (Optional[int]) maximum number of validation batches to log to
             a table per epoch.
-        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+        visualize_skeleton: (Optional[bool]) visualize pose skeleton by drawing lines connecting
             keypoints for human pose.
+
+    Returns:
+        An instance of `ultralytics.yolo.engine.model.YOLO` with the `WandBUltralyticsCallback`.
     """
     if RANK in [-1, 0]:
         wandb_callback = WandBUltralyticsCallback(
