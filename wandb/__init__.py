@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.2"
+__version__ = "0.16.3.dev1"
 _minimum_core_version = "0.17.0b6"
 
 # Used with pypi checks and other messages related to pip
