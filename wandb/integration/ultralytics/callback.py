@@ -146,6 +146,7 @@ class WandBUltralyticsCallback:
         self._make_predictor(model)
         self.supported_tasks = ["detect", "segment", "pose", "classify"]
         self.prompts = None
+        self.run_id = None
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -256,6 +257,7 @@ class WandBUltralyticsCallback:
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.ultralytics_yolov8 = True
         wandb.config.train = vars(trainer.args)
+        self.run_id = wandb.run.id
 
     def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
         if self.task in self.supported_tasks:
@@ -324,8 +326,8 @@ class WandBUltralyticsCallback:
     def on_val_start(self, validator: VALIDATOR_TYPE):
         wandb.run or wandb.init(
             project=validator.args.project or "YOLOv8",
-            config=vars(validator.args),
-            job_type="validation_" + validator.args.task,
+            id=self.run_id,
+            resume="allow"
         )
 
     def on_val_end(self, trainer: VALIDATOR_TYPE):
