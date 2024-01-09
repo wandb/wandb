@@ -632,6 +632,9 @@ def json_friendly(  # noqa: C901
         )
     elif isinstance(obj, float) and math.isnan(obj):
         obj = None
+    # For types that are float-like, but not techincally the builtin float
+    elif isinstance(obj, float):
+        obj = float(obj)
     elif isinstance(obj, dict) and np:
         obj, converted = _sanitize_numpy_keys(obj)
     elif isinstance(obj, set):
