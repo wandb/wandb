@@ -876,3 +876,13 @@ class InterfaceBase:
     @abstractmethod
     def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError
+
+    def deliver_file_transfer_manager_start(self) -> MailboxHandle:
+        ftm_start = pb.FileTransferManagerStartRequest()
+        return self._deliver_file_transfer_manager_start(ftm_start)
+
+    @abstractmethod
+    def _deliver_file_transfer_manager_start(
+        self, ftm_start: pb.FileTransferManagerStartRequest
+    ) -> MailboxHandle:
+        raise NotImplementedError

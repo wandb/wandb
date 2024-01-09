@@ -306,6 +306,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_FileTransferManagerStart:
+		s.sendFileTransferManagerStart(x.FileTransferManagerStart)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -1048,9 +1050,6 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 }
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service starup mechanism
-	s.fileTransferManager.Start()
-
 	var response service.DownloadArtifactResponse
 	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
 	err := downloader.Download()
@@ -1165,6 +1164,10 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			return
 		}
 	}
+}
+
+func (s *Sender) sendFileTransferManagerStart(_ *service.FileTransferManagerStartRequest) {
+	s.fileTransferManager.Start()
 }
 
 func (s *Sender) getServerInfo() {

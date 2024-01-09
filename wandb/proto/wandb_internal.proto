@@ -507,6 +507,7 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
     SyncRequest sync = 76;
+    FileTransferManagerStartRequest file_transfer_manager_start = 77;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -792,6 +793,15 @@ message FileTransferInfoRequest {
   int64 processed = 5;
   FileCounts file_counts = 6;
 }
+
+/*
+ * FileTransferManagerStartRequest:
+ */
+message FileTransferManagerStartRequest {
+  _RequestInfo _info = 200;
+}
+
+message FileTransferManagerResponse {}
 
 message LocalInfo {
   string version = 1;

@@ -1748,6 +1748,10 @@ class Artifact:
             backend = wandb.run._backend
 
         assert backend.interface
+        ftm_start_handle = backend.interface.deliver_file_transfer_manager_start()
+        ftm_start_result = ftm_start_handle.wait(timeout=30)
+        if ftm_start_result is None:
+            ftm_start_handle.abandon()
         handle = backend.interface.deliver_download_artifact(
             self.id,  # type: ignore
             root,

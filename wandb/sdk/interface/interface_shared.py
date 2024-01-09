@@ -148,6 +148,7 @@ class InterfaceShared(InterfaceBase):
         job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
+        ftm_start: Optional[pb.FileTransferManagerStartRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -210,6 +211,8 @@ class InterfaceShared(InterfaceBase):
             request.sync.CopyFrom(sync)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
+        elif ftm_start:
+            request.file_transfer_manager_start.CopyFrom(ftm_start)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -526,6 +529,12 @@ class InterfaceShared(InterfaceBase):
     def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
+
+    def _deliver_file_transfer_manager_start(
+        self, ftm_start: pb.FileTransferManagerStartRequest
+    ) -> None:
+        rec = self._make_request(ftm_start=ftm_start)
+        return self._deliver_record(rec)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
         if self._transport_failed:
