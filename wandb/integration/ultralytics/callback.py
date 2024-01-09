@@ -17,9 +17,9 @@ try:
     import ultralytics
     from tqdm.auto import tqdm
 
-    if version.parse(ultralytics.__version__) > version.parse("8.0.186"):
+    if version.parse(ultralytics.__version__) > version.parse("8.0.235"):
         wandb.termwarn(
-            """This integration is tested and supported for ultralytics v8.0.186 and below.
+            """This integration is tested and supported for ultralytics v8.0.235 and below.
             Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
             repeat=False,
         )
@@ -147,6 +147,7 @@ class WandBUltralyticsCallback:
         self.supported_tasks = ["detect", "segment", "pose", "classify"]
         self.prompts = None
         self.run_id = None
+        self.train_epoch = None
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -259,8 +260,9 @@ class WandBUltralyticsCallback:
         wandb.config.train = vars(trainer.args)
         self.run_id = wandb.run.id
 
-    def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
-        if self.task in self.supported_tasks:
+    def on_fit_epoch_end(self, trainer: DetectionTrainer):
+        if self.task in self.supported_tasks and self.train_epoch != trainer.epoch:
+            self.train_epoch = trainer.epoch
             validator = trainer.validator
             dataloader = validator.dataloader
             class_label_map = validator.names
@@ -321,7 +323,7 @@ class WandBUltralyticsCallback:
 
     def on_train_end(self, trainer: TRAINER_TYPE):
         if self.task in self.supported_tasks:
-            wandb.log({"Train-Validation-Table": self.train_validation_table})
+            wandb.log({"Train-Table": self.train_validation_table}, commit=False)
 
     def on_val_start(self, validator: VALIDATOR_TYPE):
         wandb.run or wandb.init(
@@ -336,8 +338,6 @@ class WandBUltralyticsCallback:
             dataloader = validator.dataloader
             class_label_map = validator.names
             with torch.no_grad():
-                self.model.to(self.device)
-                self.predictor.setup_model(model=self.model, verbose=False)
                 if self.task == "pose":
                     self.validation_table = plot_pose_validation_results(
                         dataloader=dataloader,
@@ -374,7 +374,7 @@ class WandBUltralyticsCallback:
                         table=self.validation_table,
                         max_validation_batches=self.max_validation_batches,
                     )
-            wandb.log({"Validation-Table": self.validation_table})
+            wandb.log({"Validation-Table": self.validation_table}, commit=False)
 
     def on_predict_start(self, predictor: PREDICTOR_TYPE):
         wandb.run or wandb.init(
@@ -416,7 +416,7 @@ class WandBUltralyticsCallback:
                         result, self.model_name, self.prediction_table
                     )
 
-            wandb.log({"Prediction-Table": self.prediction_table})
+            wandb.log({"Prediction-Table": self.prediction_table}, commit=False)
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
