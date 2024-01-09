@@ -1512,6 +1512,19 @@ workflows:
           codecov_args: "-F unit"
 
       #
+      # Unit tests for reports on linux
+      #
+      - tox-base:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7]
+          name: "unit-linux-reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+
+      #
       # Unit tests with pytest on Windows and MacOS
       #
       # - win:
