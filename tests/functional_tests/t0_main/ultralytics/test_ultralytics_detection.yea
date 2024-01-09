@@ -18,8 +18,8 @@ assert:
     - :wandb:runs[0][summary][model/parameters]: 3157200
     - :wandb:runs[0][summary][Validation-Table][_type]: table-file
     - :wandb:runs[0][summary][Validation-Table][nrows]: 126
-    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
-    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 378
+    - :wandb:runs[0][summary][Train-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Table][nrows]: 252
     - :op:>=:
         - :wandb:runs[0][summary][model/GFLOPs]
         - 0
