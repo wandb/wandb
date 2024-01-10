@@ -9,12 +9,9 @@ pytest-openfiles
 pytest-flakefinder
 pytest-rerunfailures
 parameterized
-polyfactory; python_version >= '3.8'
 
 flask>2.0.0
 pandas
 responses
 
 coverage[toml]
-
-.[reports]
