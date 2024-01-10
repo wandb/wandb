@@ -42,7 +42,7 @@ class WandbStatsHandler:
             # For evaluation
             val_wandb_stats_handler = WandbStatsHandler(
                 output_transform=lambda x: None,
-                global_epoch_transform=lambda x: trainer.state.epoch
+                global_epoch_transform=lambda x: trainer.state.epoch,
             )
             val_wandb_stats_handler.attach(evaluator)
             ```
