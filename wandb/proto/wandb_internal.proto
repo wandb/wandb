@@ -507,6 +507,7 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
     SyncRequest sync = 76;
+    TypeInfoRequest type_info = 77;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -537,6 +538,7 @@ message Response {
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
     SyncResponse sync_response = 70;
+    TypeInfoResponse type_info_response = 71;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -891,6 +893,18 @@ message RunStatusResponse {
   // int64 sync_history_step = 3;
   // google.protobuf.Timestamp sync_history_time = 4;
 }
+
+/*
+ * TypeInfoRequest:
+ */
+message TypeInfoRequest {
+  map<string, string> input_json_types = 1;
+  map<string, string> output_json_types = 2;
+
+  _RequestInfo _info = 200;
+}
+
+message TypeInfoResponse {}
 
 /*
  * RunStartRequest: start the run
