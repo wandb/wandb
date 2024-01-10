@@ -100,16 +100,6 @@ class Artifact:
 
     Returns:
         An `Artifact` object.
-
-    Examples:
-        Basic usage:
-        ```python
-        wandb.init()
-
-        artifact = wandb.Artifact("mnist", type="dataset")
-        artifact.add_dir("mnist/")
-        wandb.log_artifact(artifact)
-        ```
     """
 
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
