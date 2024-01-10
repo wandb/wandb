@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from distutils.util import strtobool
-from functools import reduce
+from functools import partial, reduce
 from typing import (
     Any,
     Callable,
@@ -56,6 +56,11 @@ if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
 else:
     from typing_extensions import get_args, get_origin, get_type_hints
+
+
+import sys
+
+sys.setrecursionlimit(200)
 
 
 class SettingsPreprocessingError(UsageError):
@@ -186,6 +191,16 @@ def _get_program_relpath(
     if _logger is not None:
         _logger.warning(f"Could not find program at {program}")
     return None
+
+
+def helper(value: Any, hint: Any) -> bool:
+    try:
+        is_valid = is_instance_recursive(value, hint)
+    except Exception:
+        # instance check failed, but let's not crash and only print a warning
+        is_valid = False
+
+    return is_valid
 
 
 def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
@@ -603,6 +618,196 @@ class Property:
 class Settings(SettingsData):
     """A class to represent modifiable settings."""
 
+    def check_aws_lambda(self, _):
+        return is_aws_lambda()
+
+    def check_colab(self, _):
+        return "google.colab" in sys.modules
+
+    def check_disable_machine_info_or(self, x):
+        return self._disable_machine_info or x
+
+    def check_flow_control_disabled(self, _):
+        return self._network_buffer == 0
+
+    def check_flow_control_custom(self, _):
+        return bool(self._network_buffer)
+
+    def check_ipython(self, _):
+        return _get_python_type() == "ipython"
+
+    def check_jupyter(self, _):
+        return _get_python_type() == "jupyter"
+
+    def check_kaggle(self, _):
+        return util._is_likely_kaggle()
+
+    def check_noop(self, _):
+        return self.mode == "disabled"
+
+    def check_notebook(self, _):
+        return self._ipython or self._jupyter or self._colab or self._kaggle
+
+    def check_offline(self, _):
+        return True if self.disabled or (self.mode in ("dryrun", "offline")) else False
+
+    def check_windows(self, _):
+        return platform.system() == "Windows"
+
+    def check_stats_neuron_monitor_config_path(self, x):
+        return self._path_convert(x)
+
+    def check_tmp_code_dir(self, x):
+        return self._path_convert(self.tmp_dir, x)
+
+    def check_colab_url(self, _):
+        return self._get_colab_url()
+
+    def check_console(self, x):
+        return self._convert_console(x)
+
+    def check_deployment(self, _):
+        return "local" if self.is_local else "cloud"
+
+    def check_run_mode(self, _):
+        return "offline-run" if self._offline else "run"
+
+    def check_run_url(self, _):
+        return self._run_url()
+
+    def check_sweep_url(self, _):
+        return self._sweep_url()
+
+    def check_sync_dir(self, _):
+        return self._path_convert(
+            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+        )
+
+    def check_sync_file(self, _):
+        return self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
+
+    def check_sync_symlink_latest(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def check_timespec(self, _):
+        return self._start_datetime
+
+    def check_files_dir(self, x):
+        return self._path_convert(
+            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+        )
+
+    def check_tmp_dir(self, x):
+        return (
+            self._path_convert(
+                self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+            )
+            or tempfile.gettempdir()
+        )
+
+    def check_wandb_dir(self, _):
+        return _get_wandb_dir(self.root_dir or "")
+
+    def check_is_local(self, _):
+        return (
+            self.base_url != "https://api.wandb.ai"
+            if self.base_url is not None
+            else False
+        )
+
+    def logdir_hook(self, x):
+        return self._path_convert(
+            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+        )
+
+    def log_internal_hook(self, x):
+        return self._path_convert(self.log_dir, x)
+
+    def log_symlink_internal_hook(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def log_symlink_user_hook(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def log_user_hook(self, x):
+        return self._path_convert(self.log_dir, x)
+
+    def preprocess_ignore_globs(self, x):
+        return tuple(x) if not isinstance(x, tuple) else x
+
+    def preprocessor_login_timeout(self, x):
+        return float(x)
+
+    def hook_get_program(self, x):
+        return self._get_program(x)
+
+    def hook_project_url(self, _):
+        return self._project_url()
+
+    def preprocessor_resume(self, x):
+        return None if x is False else x
+
+    def hook_resume_fname(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def preprocessor_root_dir(self, x):
+        return str(x)
+
+    def preprocessor_run_tags(self, x):
+        return tuple(x) if not isinstance(x, tuple) else x
+
+    def preprocessor_summary_timeout(self, x):
+        return int(x)
+
+    def preprocessor_summary_warnings(self, x):
+        return int(x)
+
+    def hook_settings_system(self, x):
+        return self._path_convert(x)
+
+    def hook_settings_workspace(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def hook_sync_dir(self, _):
+        return self._path_convert(
+            self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+        )
+
+    def hook_sync_file(self, _):
+        return self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb")
+
+    def hook_sync_symlink_latest(self, x):
+        return self._path_convert(self.wandb_dir, x)
+
+    def hook_tmp_dir(self, x):
+        return (
+            self._path_convert(
+                self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+            )
+            or tempfile.gettempdir()
+        )
+
+    def hook_wandb_dir(self, _):
+        return _get_wandb_dir(self.root_dir or "")
+
+    def hook_run_mode(self, _):
+        return "offline-run" if self._offline else "run"
+
+    def hook_run_url(self, _):
+        return self._run_url()
+
+    def hook_sweep_url(self, _):
+        return self._sweep_url()
+
+    def preprocessor_init_timeout(self, x):
+        return float(x)
+
+    def preprocessor_base_url(self, x):
+        return str(x).strip().rstrip("/")
+
+    def hook_timespec(self, _):
+        return self._start_datetime
+
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
 
@@ -615,11 +820,11 @@ class Settings(SettingsData):
                 "validator": self._validate__async_upload_concurrency_limit,
             },
             _aws_lambda={
-                "hook": lambda _: is_aws_lambda(),
+                "hook": self.check_aws_lambda,
                 "auto_hook": True,
             },
             _colab={
-                "hook": lambda _: "google.colab" in sys.modules,
+                "hook": self.check_colab,
                 "auto_hook": True,
             },
             _disable_machine_info={
@@ -629,7 +834,7 @@ class Settings(SettingsData):
             _disable_meta={
                 "value": False,
                 "preprocessor": _str_as_bool,
-                "hook": lambda x: self._disable_machine_info or x,
+                "hook": self.check_disable_machine_info_or,
             },
             _disable_service={
                 "value": False,
@@ -640,7 +845,7 @@ class Settings(SettingsData):
             _disable_stats={
                 "value": False,
                 "preprocessor": _str_as_bool,
-                "hook": lambda x: self._disable_machine_info or x,
+                "hook": self.check_disable_machine_info_or,
             },
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
@@ -658,11 +863,11 @@ class Settings(SettingsData):
             _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": int},
             _file_transfer_timeout_seconds={"value": 0, "preprocessor": int},
             _flow_control_disabled={
-                "hook": lambda _: self._network_buffer == 0,
+                "hook": self.check_flow_control_disabled,
                 "auto_hook": True,
             },
             _flow_control_custom={
-                "hook": lambda _: bool(self._network_buffer),
+                "hook": self.check_flow_control_custom,
                 "auto_hook": True,
             },
             _graphql_retry_max={"value": 20, "preprocessor": int},
@@ -672,30 +877,23 @@ class Settings(SettingsData):
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
-                "hook": lambda _: _get_python_type() == "ipython",
+                "hook": self.check_ipython,
                 "auto_hook": True,
             },
             _jupyter={
-                "hook": lambda _: _get_python_type() == "jupyter",
+                "hook": self.check_jupyter,
                 "auto_hook": True,
             },
-            _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _kaggle={"hook": self.check_kaggle, "auto_hook": True},
             _log_level={"value": logging.DEBUG},
             _network_buffer={"preprocessor": int},
-            _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
+            _noop={"hook": self.check_noop, "auto_hook": True},
             _notebook={
-                "hook": lambda _: self._ipython
-                or self._jupyter
-                or self._colab
-                or self._kaggle,
+                "hook": self.check_notebook,
                 "auto_hook": True,
             },
             _offline={
-                "hook": (
-                    lambda _: True
-                    if self.disabled or (self.mode in ("dryrun", "offline"))
-                    else False
-                ),
+                "hook": (self.check_offline),
                 "auto_hook": True,
             },
             _platform={"value": util.get_platform_name()},
@@ -722,7 +920,7 @@ class Settings(SettingsData):
             },
             _stats_join_assets={"value": True, "preprocessor": _str_as_bool},
             _stats_neuron_monitor_config_path={
-                "hook": lambda x: self._path_convert(x),
+                "hook": self.check_stats_neuron_monitor_config_path
             },
             _stats_open_metrics_endpoints={
                 "preprocessor": _str_as_json,
@@ -743,71 +941,65 @@ class Settings(SettingsData):
             _sync={"value": False},
             _tmp_code_dir={
                 "value": "code",
-                "hook": lambda x: self._path_convert(self.tmp_dir, x),
+                "hook": self.check_tmp_code_dir,
             },
             _windows={
-                "hook": lambda _: platform.system() == "Windows",
+                "hook": self.check_windows,
                 "auto_hook": True,
             },
             anonymous={"validator": self._validate_anonymous},
             api_key={"validator": self._validate_api_key},
             base_url={
                 "value": "https://api.wandb.ai",
-                "preprocessor": lambda x: str(x).strip().rstrip("/"),
+                "preprocessor": self.preprocessor_base_url,
                 "validator": self._validate_base_url,
             },
             colab_url={
-                "hook": lambda _: self._get_colab_url(),
+                "hook": self.check_colab_url,
                 "auto_hook": True,
             },
             config_paths={"preprocessor": _str_as_tuple},
             console={
                 "value": "auto",
                 "validator": self._validate_console,
-                "hook": lambda x: self._convert_console(x),
+                "hook": self.check_console,
                 "auto_hook": True,
             },
             deployment={
-                "hook": lambda _: "local" if self.is_local else "cloud",
+                "hook": self.check_deployment,
                 "auto_hook": True,
             },
             disable_code={
                 "value": False,
                 "preprocessor": _str_as_bool,
-                "hook": lambda x: self._disable_machine_info or x,
+                "hook": self.check_disable_machine_info_or,
             },
             disable_hints={"preprocessor": _str_as_bool},
             disable_git={
                 "value": False,
                 "preprocessor": _str_as_bool,
-                "hook": lambda x: self._disable_machine_info or x,
+                "hook": self.check_disable_machine_info_or,
             },
             disable_job_creation={
                 "value": False,
                 "preprocessor": _str_as_bool,
-                "hook": lambda x: self._disable_machine_info or x,
+                "hook": self.check_disable_machine_info_or,
             },
             disabled={"value": False, "preprocessor": _str_as_bool},
             files_dir={
                 "value": "files",
-                "hook": lambda x: self._path_convert(
-                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
-                ),
+                "hook": self.check_files_dir,
             },
             force={"preprocessor": _str_as_bool},
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             ignore_globs={
                 "value": tuple(),
-                "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
+                "preprocessor": self.preprocess_ignore_globs,
             },
-            init_timeout={"value": 90, "preprocessor": lambda x: float(x)},
+            init_timeout={"value": 90, "preprocessor": self.preprocessor_init_timeout},
             is_local={
-                "hook": (
-                    lambda _: self.base_url != "https://api.wandb.ai"
-                    if self.base_url is not None
-                    else False
-                ),
+                "hook": self.check_is_local,
                 "auto_hook": True,
             },
             job_name={"preprocessor": str},
@@ -816,68 +1008,59 @@ class Settings(SettingsData):
             launch={"preprocessor": _str_as_bool},
             log_dir={
                 "value": "logs",
-                "hook": lambda x: self._path_convert(
-                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
-                ),
+                "hook": self.logdir_hook,
             },
             log_internal={
                 "value": "debug-internal.log",
-                "hook": lambda x: self._path_convert(self.log_dir, x),
+                "hook": self.logdir_hook,
             },
             log_symlink_internal={
                 "value": "debug-internal.log",
-                "hook": lambda x: self._path_convert(self.wandb_dir, x),
+                "hook": self.log_symlink_internal_hook,
             },
             log_symlink_user={
                 "value": "debug.log",
-                "hook": lambda x: self._path_convert(self.wandb_dir, x),
+                "hook": self.log_symlink_user_hook,
             },
             log_user={
                 "value": "debug.log",
-                "hook": lambda x: self._path_convert(self.log_dir, x),
+                "hook": self.log_user_hook,
             },
-            login_timeout={"preprocessor": lambda x: float(x)},
+            login_timeout={"preprocessor": self.preprocessor_login_timeout},
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
-            program={
-                "hook": lambda x: self._get_program(x),
-            },
+            program={"hook": self.hook_get_program},
             project={"validator": self._validate_project},
-            project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
+            project_url={"hook": self.hook_project_url, "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
             # todo: hack to make to_proto() always happy
-            resume={"preprocessor": lambda x: None if x is False else x},
-            resume_fname={
-                "value": "wandb-resume.json",
-                "hook": lambda x: self._path_convert(self.wandb_dir, x),
-            },
+            resume={"preprocessor": self.preprocessor_resume},
+            resume_fname={"value": "wandb-resume.json", "hook": self.hook_resume_fname},
             resumed={"value": "False", "preprocessor": _str_as_bool},
             root_dir={
-                "preprocessor": lambda x: str(x),
+                "preprocessor": self.preprocessor_root_dir,
                 "value": os.path.abspath(os.getcwd()),
             },
             run_id={
                 "validator": self._validate_run_id,
             },
             run_mode={
-                "hook": lambda _: "offline-run" if self._offline else "run",
+                "hook": self.hook_run_mode,
                 "auto_hook": True,
             },
-            run_tags={
-                "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
-            },
-            run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
+            run_tags={"preprocessor": self.preprocessor_run_tags},
+            run_url={"hook": self.hook_run_url, "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool},
             settings_system={
                 "value": os.path.join("~", ".config", "wandb", "settings"),
-                "hook": lambda x: self._path_convert(x),
+                "hook": self.hook_settings_system,
             },
             settings_workspace={
                 "value": "settings",
-                "hook": lambda x: self._path_convert(self.wandb_dir, x),
+                "hook": self.hook_settings_workspace,
             },
             show_colors={"preprocessor": _str_as_bool},
             show_emoji={"preprocessor": _str_as_bool},
@@ -887,31 +1070,28 @@ class Settings(SettingsData):
             silent={"value": "False", "preprocessor": _str_as_bool},
             start_method={"validator": self._validate_start_method},
             strict={"preprocessor": _str_as_bool},
-            summary_timeout={"value": 60, "preprocessor": lambda x: int(x)},
+            summary_timeout={
+                "value": 60,
+                "preprocessor": self.preprocessor_summary_timeout,
+            },
             summary_warnings={
                 "value": 5,
-                "preprocessor": lambda x: int(x),
+                "preprocessor": self.preprocessor_summary_warnings,
                 "is_policy": True,
             },
-            sweep_url={"hook": lambda _: self._sweep_url(), "auto_hook": True},
+            sweep_url={"hook": self.hook_sweep_url, "auto_hook": True},
             symlink={"preprocessor": _str_as_bool},
             sync_dir={
-                "hook": [
-                    lambda _: self._path_convert(
-                        self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
-                    )
-                ],
+                "hook": [self.hook_sync_dir],
                 "auto_hook": True,
             },
             sync_file={
-                "hook": lambda _: self._path_convert(
-                    self.sync_dir, f"run-{self.run_id}.wandb"
-                ),
+                "hook": self.hook_sync_file,
                 "auto_hook": True,
             },
             sync_symlink_latest={
                 "value": "latest-run",
-                "hook": lambda x: self._path_convert(self.wandb_dir, x),
+                "hook": self.hook_sync_symlink_latest,
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
@@ -920,42 +1100,22 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_bool,
             },
             timespec={
-                "hook": lambda _: self._start_datetime,
+                "hook": self.hook_timespec,
                 "auto_hook": True,
             },
             tmp_dir={
                 "value": "tmp",
-                "hook": lambda x: (
-                    self._path_convert(
-                        self.wandb_dir,
-                        f"{self.run_mode}-{self.timespec}-{self.run_id}",
-                        x,
-                    )
-                    or tempfile.gettempdir()
-                ),
+                "hook": self.hook_tmp_dir,
             },
-            wandb_dir={
-                "hook": lambda _: _get_wandb_dir(self.root_dir or ""),
-                "auto_hook": True,
-            },
+            wandb_dir={"hook": self.hook_wandb_dir, "auto_hook": True},
         )
         return props
 
     # helper methods for validating values
     @staticmethod
-    def _validator_factory(hint: Any) -> Callable[[Any], bool]:  # noqa: C901
+    def _validator_factory(hint: Any) -> Callable[[Any], bool]:
         """Return a factory for setting type validators."""
-
-        def helper(value: Any) -> bool:
-            try:
-                is_valid = is_instance_recursive(value, hint)
-            except Exception:
-                # instance check failed, but let's not crash and only print a warning
-                is_valid = False
-
-            return is_valid
-
-        return helper
+        return partial(helper, hint=hint)
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
