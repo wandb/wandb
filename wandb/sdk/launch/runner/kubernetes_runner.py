@@ -4,7 +4,6 @@ import base64
 import json
 import logging
 import os
-import tempfile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
