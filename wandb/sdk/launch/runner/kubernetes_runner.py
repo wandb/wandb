@@ -631,9 +631,7 @@ async def create_api_key_secret(
     secret_data = {"password": base64.b64encode(api_key.encode()).decode()}
     secret = client.V1Secret(
         data=secret_data,
-        metadata=client.V1ObjectMeta(
-            name=secret_name, namespace=namespace
-        ),
+        metadata=client.V1ObjectMeta(name=secret_name, namespace=namespace),
         kind="Secret",
         type="kubernetes.io/basic-auth",
     )
