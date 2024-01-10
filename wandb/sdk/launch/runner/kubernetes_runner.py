@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import tempfile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
@@ -336,10 +337,8 @@ class KubernetesRunner(AbstractRunner):
         job_metadata.setdefault("labels", {})
         job_metadata["labels"][WANDB_K8S_RUN_ID] = launch_project.run_id
         job_metadata["labels"][WANDB_K8S_LABEL_MONITOR] = "true"
-        agent_name = ""
         if LaunchAgent.initialized():
-            agent_name = LaunchAgent.name()
-            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = agent_name
+            job_metadata["labels"][WANDB_K8S_LABEL_AGENT] = LaunchAgent.name()
         # name precedence: name in spec > generated name
         if not job_metadata.get("name"):
             job_metadata["generateName"] = make_name_dns_safe(
@@ -394,13 +393,18 @@ class KubernetesRunner(AbstractRunner):
             for key, value in env_vars.items():
                 if key == "WANDB_API_KEY" and value:
                     # Override API key with secret. TODO: Do the same for other runners
-                    await create_api_key_secret(core_api, agent_name, namespace, value)
+                    release_name = os.environ.get("WANDB_RELEASE_NAME")
+                    secret_name = "wandb-api-key"
+                    if release_name:
+                        secret_name += f"-{release_name}"
+
+                    await create_api_key_secret(core_api, secret_name, namespace, value)
                     env.append(
                         {
                             "name": key,
                             "valueFrom": {
                                 "secretKeyRef": {
-                                    "name": f"wandb-api-key",
+                                    "name": secret_name,
                                     "key": "password",
                                 }
                             },
@@ -427,7 +431,7 @@ class KubernetesRunner(AbstractRunner):
             add_label_to_pods(
                 job,
                 WANDB_K8S_LABEL_AGENT,
-                agent_name,
+                LaunchAgent.name(),
             )
 
         return job, secret
@@ -610,7 +614,7 @@ def inject_entrypoint_and_args(
 
 async def create_api_key_secret(
     core_api: "CoreV1Api",
-    agent_id: str,
+    secret_name: str,
     namespace: str,
     api_key: str,
 ) -> "V1Secret":
@@ -628,7 +632,7 @@ async def create_api_key_secret(
     secret = client.V1Secret(
         data=secret_data,
         metadata=client.V1ObjectMeta(
-            name=f"wandb-api-key, namespace=namespace
+            name=secret_name, namespace=namespace
         ),
         kind="Secret",
         type="kubernetes.io/basic-auth",
@@ -641,7 +645,7 @@ async def create_api_key_secret(
             # 409 = conflict = secret already exists
             if e.status == 409:
                 return await core_api.read_namespaced_secret(
-                    name=f"wandb-api-key", namespace=namespace
+                    name=secret_name, namespace=namespace
                 )
             raise
     except Exception as e:

@@ -701,7 +701,7 @@ async def test_maybe_create_imagepull_secret_given_creds():
 @pytest.mark.asyncio
 async def test_create_api_key_secret():
     api = MockCoreV1Api()
-    await create_api_key_secret(api, "testagent", "wandb", "testsecret")
+    await create_api_key_secret(api, "wandb-api-key-testagent", "wandb", "testsecret")
     namespace, secret = api.secrets[0]
     assert namespace == "wandb"
     assert secret.metadata.name == "wandb-api-key-testagent"
