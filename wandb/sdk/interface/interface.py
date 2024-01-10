@@ -558,7 +558,6 @@ class InterfaceBase:
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
-
         # add timestamp to the history request, if not already present
         # the timestamp might come from the tensorboard log logic
         if "_timestamp" not in data:
