@@ -29,7 +29,11 @@ def get_updated_kwargs(
     if "generator" in kwargs:
         generator = kwargs["generator"]
         kwargs["generator"] = (
-            {"seed": generator.initial_seed(), "device": generator.device}
+            {
+                "seed": generator.initial_seed(),
+                "device": generator.device,
+                "random_state": generator.get_state().cpu().numpy().tolist(),
+            }
             if generator is not None
             else None
         )
