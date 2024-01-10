@@ -357,7 +357,7 @@ class StreamMux:
             type_info_request = type_info.make_type_info(final_config, final_summary)
             # TODO: deliver and wait on response?
             print("DEBUG: IMPLICIT_FINISH TYPE_INFO", type_info_request)
-            
+
             Run._footer(
                 sampled_history=sampled_history,
                 final_summary=final_summary,

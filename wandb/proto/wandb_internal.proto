@@ -904,8 +904,7 @@ message TypeInfoRequest {
   _RequestInfo _info = 200;
 }
 
-message TypeInfoResponse {
-}
+message TypeInfoResponse {}
 
 /*
  * RunStartRequest: start the run
