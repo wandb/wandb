@@ -80,14 +80,10 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 	if err := w.watcher.Add(path); err != nil {
 		return err
 	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
-	}
-	if !info.IsDir() {
-		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
-		e := &EventFileInfo{FileInfo: info, name: path}
-		w.watcher.TriggerEvent(fw.Create, e)
 	}
 
 	// register with the absolute path
@@ -96,6 +92,13 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 		return err
 	}
 	w.registry.register(absPath, fn)
+
+	if !info.IsDir() {
+		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
+		e := &EventFileInfo{FileInfo: info, name: path}
+		w.watcher.TriggerEvent(fw.Create, e)
+	}
+
 	return nil
 }
 

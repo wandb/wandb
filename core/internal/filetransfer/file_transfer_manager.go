@@ -44,6 +44,9 @@ type FileTransferManager struct {
 
 	// wg is the wait group
 	wg *sync.WaitGroup
+
+	// active is true if the file transfer is active
+	active bool
 }
 
 type FileTransferManagerOption func(fm *FileTransferManager)
@@ -89,8 +92,12 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) *FileTransferMana
 
 // Start is the main loop for the fileTransfer
 func (fm *FileTransferManager) Start() {
+	if fm.active {
+		return
+	}
 	fm.wg.Add(1)
 	go func() {
+		fm.active = true
 		for task := range fm.inChan {
 			// add a task to the wait group
 			fm.wg.Add(1)
@@ -146,6 +153,9 @@ func (fm *FileTransferManager) Close() {
 	if fm == nil {
 		return
 	}
+	if !fm.active {
+		return
+	}
 	fm.logger.Debug("fileTransfer: Close")
 	if fm.inChan == nil {
 		return
@@ -153,6 +163,7 @@ func (fm *FileTransferManager) Close() {
 	// todo: review this, we don't want to cause a panic
 	close(fm.inChan)
 	fm.wg.Wait()
+	fm.active = false
 }
 
 // transfer uploads/downloads a file to/from the server
