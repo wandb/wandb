@@ -78,6 +78,7 @@ parameters:
     default: true
   wandb_server_tag:
     type: string
+    # TODO: use an old tag to test backwards compatibility
     default: "master"
 
 commands:
