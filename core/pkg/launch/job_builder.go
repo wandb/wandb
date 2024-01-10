@@ -172,33 +172,12 @@ func makeArtifactNameSafe(name string) string {
 
 }
 
-func isNotbookRunFromSettings(settings *service.Settings) bool {
-	xJupyter := settings.GetXJupyter()
-	if xJupyter != nil {
-		return xJupyter.Value
-	}
-	return false
-}
-
-func isColabRunFromSettings(settings *service.Settings) bool {
-	xColab := settings.GetXColab()
-	if xColab != nil {
-		return xColab.Value
-	}
-	return false
-}
-
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) JobBuilder {
-	isNotebookRun := isNotbookRunFromSettings(settings)
-	disabled := false
-	if settings.DisableJobCreation != nil {
-		disabled = settings.DisableJobCreation.Value
-	}
 	jobBuilder := JobBuilder{
 		settings:      settings,
-		isNotebookRun: isNotebookRun,
+		isNotebookRun: settings.GetXJupyter().GetValue(),
 		logger:        logger,
-		disable:       disabled,
+		disable:       settings.GetDisableJobCreation().GetValue(),
 	}
 	return jobBuilder
 }
@@ -243,32 +222,33 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
 	var finalSourceType SourceType
 	// user set source type via settings
-	if j.settings.JobSource != nil {
-		sourceType := j.settings.JobSource.Value
-		switch sourceType {
-		case string(ArtifactSourceType):
-			if !j.hasArtifactJobIngredients() {
-				fmt.Println("No artifact job ingredients found, not creating job artifact")
-				return nil, fmt.Errorf("no artifact job ingredients found, but source type set to artifact")
-			}
-			finalSourceType = ArtifactSourceType
-			return &finalSourceType, nil
-		case string(RepoSourceType):
-			if !j.hasRepoJobIngredients(metadata) {
-				fmt.Println("No repo job ingredients found, not creating job artifact")
-				return nil, fmt.Errorf("no repo job ingredients found, but source type set to repo")
-			}
-			finalSourceType = RepoSourceType
-			return &finalSourceType, nil
-		case string(ImageSourceType):
-			if !j.hasImageJobIngredients(metadata) {
-				fmt.Println("No image job ingredients found, not creating job artifact")
-				return nil, fmt.Errorf("no image job ingredients found, but source type set to image")
-			}
-			finalSourceType = ImageSourceType
-			return &finalSourceType, nil
+	fmt.Println("source type", j.settings.GetJobSource().GetValue())
+	switch j.settings.GetJobSource().GetValue() {
+	case string(ArtifactSourceType):
+		if !j.hasArtifactJobIngredients() {
+			fmt.Println("No artifact job ingredients found, not creating job artifact")
+			return nil, fmt.Errorf("no artifact job ingredients found, but source type set to artifact")
 		}
+		finalSourceType = ArtifactSourceType
+		return &finalSourceType, nil
+	case string(RepoSourceType):
+		if !j.hasRepoJobIngredients(metadata) {
+			fmt.Println("No repo job ingredients found, not creating job artifact")
+			return nil, fmt.Errorf("no repo job ingredients found, but source type set to repo")
+		}
+		finalSourceType = RepoSourceType
+		return &finalSourceType, nil
+	case string(ImageSourceType):
+		if !j.hasImageJobIngredients(metadata) {
+			fmt.Println("No image job ingredients found, not creating job artifact")
+			return nil, fmt.Errorf("no image job ingredients found, but source type set to image")
+		}
+		finalSourceType = ImageSourceType
+		return &finalSourceType, nil
+	default:
+		// no source type set, try to determine source type
 	}
+
 	if j.hasRepoJobIngredients(metadata) {
 		finalSourceType = RepoSourceType
 		return &finalSourceType, nil
@@ -281,6 +261,7 @@ func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
 		finalSourceType = ImageSourceType
 		return &finalSourceType, nil
 	}
+	fmt.Println("No job ingredients found, not creating job artifact")
 	j.logger.Debug("jobBuilder: unable to determine source type")
 	return nil, nil
 
@@ -419,7 +400,7 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	j.logger.Debug("jobBuilder: creating artifact job source")
 	var fullProgramRelPath string
 	// TODO: should we just always exit early if the path doesn't exist?
-	if j.isNotebookRun && !isColabRunFromSettings(j.settings) {
+	if j.isNotebookRun && !j.settings.GetXColab().GetValue() {
 		fullProgramRelPath = programRelPath
 		// if the resolved path doesn't exist, then we shouldn't make a job because it will fail
 		// but we should check because when users call log code in a notebook the code artifact
