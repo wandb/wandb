@@ -25,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -108,6 +109,8 @@ type Sender struct {
 	syncService *SyncService
 
 	store *Store
+
+	jobBuilder launch.JobBuilder
 }
 
 // NewSender creates a new Sender with the given settings
@@ -127,6 +130,7 @@ func NewSender(
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
+		jobBuilder: launch.NewJobBuilder(settings, logger),
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -275,6 +279,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+		s.jobBuilder.HandleUseArtifactRecord(record)
 	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
@@ -375,6 +380,19 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
+		a, err := s.jobBuilder.Build()
+		if err != nil {
+			s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		}
+		if a != nil {
+			saver := artifacts.NewArtifactSaver(
+				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, "",
+			)
+			_, err := saver.Save()
+			if err != nil {
+				s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+			}
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
@@ -1044,6 +1062,8 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
+	s.jobBuilder.HandleLogArtifactResult(&response, record)
+	fmt.Printf("sender: sendLogArtifact: result: %v\n", result)
 	s.outChan <- result
 }
 
