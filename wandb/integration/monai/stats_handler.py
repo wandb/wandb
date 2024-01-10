@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING, Any, Callable, Sequence, Union
+from typing import Any, Callable, Sequence, Union
 
 import torch
-
 from monai.utils import is_scalar
 
 import wandb
@@ -182,7 +181,7 @@ class WandbStatsHandler:
                         "ignoring non-scalar output in WandbStatsHandler,"
                         " make sure `output_transform(engine.state.output)` returns"
                         " a scalar or dictionary of key and scalar pairs to avoid this warning."
-                        " {}:{}".format(key, type(value)),
+                        f" {key}:{type(value)}",
                         repeat=False,
                     )
                     continue
@@ -198,7 +197,7 @@ class WandbStatsHandler:
                 "ignoring non-scalar output in WandbStatsHandler,"
                 " make sure `output_transform(engine.state.output)` returns"
                 " a scalar or a dictionary of key and scalar pairs to avoid this warning."
-                " {}".format(type(loss)),
+                f" {type(loss)}",
                 repeat=False,
             )
 
