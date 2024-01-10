@@ -9,14 +9,21 @@ import wandb
 
 
 def plot_classification_predictions(
-    result: Results, model_name: str, table: Optional[wandb.Table] = None, original_image: Optional[np.array] = None
+    result: Results,
+    model_name: str,
+    table: Optional[wandb.Table] = None,
+    original_image: Optional[np.array] = None,
 ):
     """Plot classification prediction results to a `wandb.Table` if the table is passed otherwise return the data."""
     result = result.to("cpu")
     probabilities = result.probs
     probabilities_list = probabilities.data.numpy().tolist()
     class_id_to_label = {int(k): str(v) for k, v in result.names.items()}
-    original_image = wandb.Image(original_image) if original_image is not None else wandb.Image(result.orig_img)
+    original_image = (
+        wandb.Image(original_image)
+        if original_image is not None
+        else wandb.Image(result.orig_img)
+    )
     table_row = [
         model_name,
         original_image,
@@ -49,7 +56,9 @@ def plot_classification_validation_results(
     num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size
     max_validation_batches = min(max_validation_batches, num_dataloader_batches)
     for batch_idx, batch in enumerate(dataloader):
-        image_batch = [image for image in np.transpose(batch["img"].numpy(), (0, 2, 3, 1))]
+        image_batch = [
+            image for image in np.transpose(batch["img"].numpy(), (0, 2, 3, 1))
+        ]
         ground_truth = batch["cls"].numpy().tolist()
         progress_bar_result_iterable = tqdm(
             range(max_validation_batches),
