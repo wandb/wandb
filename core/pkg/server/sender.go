@@ -83,6 +83,8 @@ type Sender struct {
 	fileTransferManager *filetransfer.FileTransferManager
 
 	// RunRecord is the run record
+	// TODO: remove this and use properly updated settings
+	//       + a flag indicating whether the run has started
 	RunRecord *service.RunRecord
 
 	// resumeState is the resume state
@@ -322,6 +324,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	}
 }
 
+// updateSettings updates the settings from the run record upon a run start
+// with the information from the server
 func (s *Sender) updateSettings() {
 	if s.settings == nil || s.RunRecord == nil {
 		return
