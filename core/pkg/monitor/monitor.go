@@ -144,8 +144,8 @@ type SystemMonitor struct {
 
 // NewSystemMonitor creates a new SystemMonitor with the given settings
 func NewSystemMonitor(
-	settings *service.Settings,
 	logger *observability.CoreLogger,
+	settings *service.Settings,
 	outChan chan *service.Record,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
