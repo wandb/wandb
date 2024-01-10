@@ -174,7 +174,7 @@ class LaunchAgent:
             config: Config dictionary for the agent.
         """
         self._entity = config["entity"]
-        self._project = config["project"]
+        self._project = config.get("project", LAUNCH_DEFAULT_PROJECT)
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
@@ -205,11 +205,18 @@ class LaunchAgent:
         )
 
         self._queues: List[str] = config.get("queues", ["default"])
+
+        # remove project field from agent config before sending to back end
+        # because otherwise it shows up in the config in the UI and confuses users
+        sent_config = config.copy()
+        if "project" in sent_config:
+            del sent_config["project"]
+
         create_response = self._api.create_launch_agent(
             self._entity,
             self._project,
             self._queues,
-            self.default_config,
+            sent_config,
             self.version,
             self.gorilla_supports_agents,
         )
