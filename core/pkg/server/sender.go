@@ -388,7 +388,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 			saver := artifacts.NewArtifactSaver(
 				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, "",
 			)
-			_, err := saver.Save()
+			_, err := saver.Save(s.fwdChan)
 			if err != nil {
 				s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
 			}
