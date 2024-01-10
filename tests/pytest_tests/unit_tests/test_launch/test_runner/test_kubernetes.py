@@ -368,7 +368,7 @@ def mock_maybe_create_image_pullsecret(monkeypatch):
 def mock_create_from_dict(monkeypatch):
     """Patches the kubernetes create_from_dict with a mock and returns it."""
     function_mock = MagicMock()
-    function_mock.return_value = [[MockDict({"metadata": {"name": "test-job"}})]]
+    function_mock.return_value = [MockDict({"metadata": {"name": "test-job"}})]
 
     async def _mock_create_from_yaml(*args, **kwargs):
         return function_mock(*args, **kwargs)
