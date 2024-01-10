@@ -10,7 +10,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 
 
 def make_type_info(config_response, summary_response) -> None:
-    type_info =pb2.TypeInfoRequest()
+    type_info = pb2.TypeInfoRequest()
     # TODO: should have this in a protolib probably
     final_summary = {
         item.key: json.loads(item.value_json)
