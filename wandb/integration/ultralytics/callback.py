@@ -93,27 +93,26 @@ class WandBUltralyticsCallback:
     to Weights & Biases Tables during training, validation and prediction
     for a `ultratytics` workflow.
 
-    **Usage:**
+    Example:
+        ```python
+        from ultralytics.yolo.engine.model import YOLO
+        from wandb.yolov8 import add_wandb_callback
 
-    ```python
-    from ultralytics.yolo.engine.model import YOLO
-    from wandb.yolov8 import add_wandb_callback
+        # initialize YOLO model
+        model = YOLO("yolov8n.pt")
 
-    # initialize YOLO model
-    model = YOLO("yolov8n.pt")
+        # add wandb callback
+        add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
 
-    # add wandb callback
-    add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
+        # train
+        model.train(data="coco128.yaml", epochs=5, imgsz=640)
 
-    # train
-    model.train(data="coco128.yaml", epochs=5, imgsz=640)
+        # validate
+        model.val()
 
-    # validate
-    model.val()
-
-    # perform inference
-    model(["img1.jpeg", "img2.jpeg"])
-    ```
+        # perform inference
+        model(["img1.jpeg", "img2.jpeg"])
+        ```
 
     Arguments:
         model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
@@ -447,27 +446,26 @@ def add_wandb_callback(
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
 
-    **Usage:**
+    Example:
+        ```python
+        from ultralytics.yolo.engine.model import YOLO
+        from wandb.yolov8 import add_wandb_callback
 
-    ```python
-    from ultralytics.yolo.engine.model import YOLO
-    from wandb.yolov8 import add_wandb_callback
+        # initialize YOLO model
+        model = YOLO("yolov8n.pt")
 
-    # initialize YOLO model
-    model = YOLO("yolov8n.pt")
+        # add wandb callback
+        add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
 
-    # add wandb callback
-    add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
+        # train
+        model.train(data="coco128.yaml", epochs=5, imgsz=640)
 
-    # train
-    model.train(data="coco128.yaml", epochs=5, imgsz=640)
+        # validate
+        model.val()
 
-    # validate
-    model.val()
-
-    # perform inference
-    model(["img1.jpeg", "img2.jpeg"])
-    ```
+        # perform inference
+        model(["img1.jpeg", "img2.jpeg"])
+        ```
 
     Arguments:
         model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type

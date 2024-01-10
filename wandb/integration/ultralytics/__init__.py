@@ -3,6 +3,9 @@
 Ultralytics is a computer vision framework for training and deploying YOLOv8 models.
 """
 
-from wandb.integration.ultralytics.callback import add_wandb_callback
+from wandb.integration.ultralytics.callback import (
+    WandBUltralyticsCallback,
+    add_wandb_callback,
+)
 
-__all__ = ("add_wandb_callback",)
+__all__ = ("WandBUltralyticsCallback", "add_wandb_callback")
