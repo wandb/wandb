@@ -67,7 +67,7 @@ def plot_classification_validation_results(
                 table_row = [model_name] + table_row
                 table.add_data(*table_row)
                 data_idx += 1
-            except Exception as e:
+            except Exception:
                 pass
         if batch_idx + 1 == max_validation_batches:
             break
