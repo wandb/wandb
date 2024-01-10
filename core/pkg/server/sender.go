@@ -322,17 +322,26 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	}
 }
 
-// updateSettingsStartTime sets run start time in the settings if it is not set
-func (s *Sender) updateSettingsStartTime() {
-	// TODO: rewrite in a cleaner way
-	if s.settings == nil || s.settings.XStartTime != nil {
+func (s *Sender) updateSettings() {
+	if s.settings == nil || s.RunRecord == nil {
 		return
 	}
-	if s.RunRecord == nil || s.RunRecord.StartTime == nil {
-		return
+
+	if s.settings.XStartTime == nil && s.RunRecord.StartTime != nil {
+		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
-	startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
-	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+
+	// TODO: verify that this is the correct update logic
+	if s.RunRecord.GetEntity() != "" {
+		s.settings.Entity = &wrapperspb.StringValue{Value: s.RunRecord.Entity}
+	}
+	if s.RunRecord.GetProject() != "" && s.settings.Project == nil {
+		s.settings.Project = &wrapperspb.StringValue{Value: s.RunRecord.Project}
+	}
+	if s.RunRecord.GetDisplayName() != "" && s.settings.RunName == nil {
+		s.settings.RunName = &wrapperspb.StringValue{Value: s.RunRecord.DisplayName}
+	}
 }
 
 // sendRun starts up all the resources for a run
@@ -343,7 +352,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
-	s.updateSettingsStartTime()
+	s.updateSettings()
 	s.fileStream.Start()
 	s.fileTransferManager.Start()
 }

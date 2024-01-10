@@ -557,7 +557,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	sourceInfo.OutputTypes = make(map[string]interface{})
 
 	baseArtifact := &service.ArtifactRecord{
-		Entity:   j.settings.Entity.Value,
+		Entity:   j.settings.GetEntity().GetValue(),
 		Project:  j.settings.Project.Value,
 		RunId:    j.settings.RunId.Value,
 		Name:     *name,
