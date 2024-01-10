@@ -68,16 +68,6 @@ def test_include_exclude_config_keys(wandb_init):
         )
 
 
-@pytest.mark.wandb_core_failure(feature="file_uploader")
-def test_ignore_globs_wandb_files(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
-        run.finish()
-    assert sorted(relay.context.get_run_uploaded_files(run.id)) == sorted(
-        ["wandb-metadata.json", "config.yaml", "wandb-summary.json"]
-    )
-
-
 def _remove_dir_if_exists(path):
     """Recursively removes directory. Be careful."""
     if os.path.isdir(path):

@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import kubernetes_asyncio
 import pytest
-import yaml
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch.runner import kubernetes_monitor, kubernetes_runner
@@ -243,8 +242,8 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     )
     monkeypatch.setattr(
         kubernetes_asyncio.utils,
-        "create_from_yaml",
-        lambda _, yaml_objects, namespace: mock_create_from_yaml(
+        "create_from_dict",
+        lambda _, yaml_objects, namespace: mock_create_from_dict(
             yaml_objects, jobs, mock_job_base
         ),
     )
@@ -263,9 +262,7 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
         _mock_get_context_and_client,
     )
 
-    async def mock_create_from_yaml(path, jobs_dict, mock_status):
-        with open(path) as path:
-            jobd = yaml.safe_load(path)
+    async def mock_create_from_dict(jobd, jobs_dict, mock_status):
         name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"

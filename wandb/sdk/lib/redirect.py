@@ -50,7 +50,7 @@ class _Numpy:  # fallback in case numpy is not available
 try:
     import numpy as np  # type: ignore
 except ImportError:
-    np = _Numpy()
+    np = _Numpy()  # type: ignore
 
 
 logger = logging.getLogger("wandb")

@@ -566,15 +566,23 @@ class KubernetesRunner(AbstractRunner):
         if "name" in resource_args:
             msg += f": {resource_args['name']}"
         _logger.info(msg)
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
-            f.write(yaml.dump(job))
-            job_yaml_path = f.name
-
-        job_response = (
-            await kubernetes_asyncio.utils.create_from_yaml(
-                api_client, job_yaml_path, namespace=namespace
+        try:
+            response = await kubernetes_asyncio.utils.create_from_dict(
+                api_client, job, namespace=namespace
             )
-        )[0][0]
+        except kubernetes_asyncio.utils.FailToCreateError as e:
+            for exc in e.api_exceptions:
+                resp = json.loads(exc.body)
+                msg = resp.get("message")
+                code = resp.get("code")
+                raise LaunchError(
+                    f"Failed to create Kubernetes job for run {launch_project.run_id} ({code} {exc.reason}): {msg}"
+                )
+        except Exception as e:
+            raise LaunchError(
+                f"Unexpected exception when creating Kubernetes job: {str(e)}\n"
+            )
+        job_response = response[0][0]
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(

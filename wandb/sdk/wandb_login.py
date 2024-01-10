@@ -16,7 +16,7 @@ else:
 import click
 
 import wandb
-from wandb.errors import UsageError
+from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from ..apis import InternalApi
@@ -50,8 +50,13 @@ def login(
     host: Optional[str] = None,
     force: Optional[bool] = None,
     timeout: Optional[int] = None,
+    verify: bool = False,
 ) -> bool:
-    """Log in to W&B.
+    """Set up W&B login credentials.
+
+    By default, this will only store the credentials locally without
+    verifying them with the W&B server. To verify credentials, pass
+    verify=True.
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
@@ -63,18 +68,32 @@ def login(
         host: (string, optional) The host to connect to.
         force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
+        verify: (bool) Verify the credentials with the W&B server.
 
     Returns:
         bool: if key is configured
 
     Raises:
+        AuthenticationError - if api_key fails verification with the server
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True
     kwargs = dict(locals())
+    _verify = kwargs.pop("verify", False)
     configured = _login(**kwargs)
+
+    if _verify:
+        from . import wandb_setup
+
+        singleton = wandb_setup._WandbSetup._instance
+        assert singleton is not None
+        viewer = singleton._server._viewer
+        if not viewer:
+            raise AuthenticationError(
+                "API key verification failed. Make sure your API key is valid."
+            )
     return True if configured else False
 
 

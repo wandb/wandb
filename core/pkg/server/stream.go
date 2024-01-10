@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -72,15 +73,18 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
+	watcher := watcher.New(watcher.WithLogger(s.logger))
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
-		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.settings, s.logger, s.loopBackChan)),
-		WithHandlerFileHandler(NewFileHandler(s.logger, s.loopBackChan)),
-		WithHandlerFileTransferHandler(NewFileTransferHandler()),
+		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings, s.loopBackChan)),
+		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings)),
+		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings, s.loopBackChan)),
+		WithHandlerFilesInfoHandler(NewFilesInfoHandler()),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
+		WithHandlerWatcher(watcher),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,

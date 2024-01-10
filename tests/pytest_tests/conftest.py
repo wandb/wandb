@@ -76,22 +76,11 @@ def local_settings(filesystem_isolate):
 @pytest.fixture(scope="function", autouse=True)
 def local_netrc(filesystem_isolate):
     """Never use our real credentials, put them in their own isolated dir."""
-    original_expanduser = os.path.expanduser  # TODO: this seems overkill...
-
-    open(".netrc", "wb").close()  # Touch that netrc file
-
-    def expand(path):
-        if "netrc" in path:
-            try:
-                full_path = os.path.realpath("netrc")
-            except OSError:
-                full_path = original_expanduser(path)
-        else:
-            full_path = original_expanduser(path)
-        return full_path
-
-    # monkeypatch.setattr(os.path, "expanduser", expand)
-    with unittest.mock.patch.object(os.path, "expanduser", expand):
+    # patch os.environ NETRC
+    with unittest.mock.patch.dict(
+        "os.environ",
+        {"NETRC": os.path.realpath("netrc")},
+    ):
         yield
 
 

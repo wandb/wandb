@@ -6,8 +6,8 @@ from urllib.parse import ParseResult, parse_qsl, urlparse
 
 import wandb
 from wandb import util
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -34,7 +34,7 @@ class AzureHandler(StorageHandler):
         if not local:
             return manifest_entry.ref
 
-        path, hit, cache_open = get_artifacts_cache().check_etag_obj_path(
+        path, hit, cache_open = get_artifact_file_cache().check_etag_obj_path(
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size or 0,
