@@ -56,7 +56,14 @@ func (g *GPUAMD) Name() string { return g.name }
 
 func (g *GPUAMD) IsAvailable() bool {
 	_, err := exec.LookPath(rocmSMICmd)
-	return err == nil
+	if err != nil {
+		return false
+	}
+	rawStats, err := g.GetROCMSMIStatsFunc()
+	if err != nil {
+		return false
+	}
+	return len(rawStats) > 0
 }
 
 func (g *GPUAMD) getCards() map[int]Stats {
@@ -253,8 +260,8 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 }
 
 func (g *GPUAMD) SampleMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	cards := g.getCards()
 
