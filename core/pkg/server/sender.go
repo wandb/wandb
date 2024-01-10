@@ -351,6 +351,23 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
 }
 
+func (s *Sender) sendJobFlush() {
+	artifact, err := s.jobBuilder.Build()
+	if err != nil {
+		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+	}
+	if artifact == nil {
+		s.logger.Info("sender: sendDefer: no job artifact to save")
+		return
+	}
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
+	)
+	if _, err = saver.Save(s.fwdChan); err != nil {
+		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+	}
+}
+
 func (s *Sender) sendDefer(request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
@@ -380,19 +397,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
-		a, err := s.jobBuilder.Build()
-		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
-		}
-		if a != nil {
-			saver := artifacts.NewArtifactSaver(
-				s.ctx, s.graphqlClient, s.fileTransferManager, a, 0, "",
-			)
-			_, err := saver.Save(s.fwdChan)
-			if err != nil {
-				s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
-			}
-		}
+		s.sendJobFlush()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
