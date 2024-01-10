@@ -15,9 +15,13 @@ class WandbModelCheckpoint(ignite_handlers.ModelCheckpoint):
 
     Example:
         ```python
-        checkpoint_handler = WandbModelCheckpoint("./runs_dict/", "net", n_saved=10, require_empty=False)
+        checkpoint_handler = WandbModelCheckpoint(
+            "./runs_dict/", "net", n_saved=10, require_empty=False
+        )
         trainer.add_event_handler(
-            event_name=Events.EPOCH_COMPLETED, handler=checkpoint_handler, to_save={"net": net, "opt": opt}
+            event_name=Events.EPOCH_COMPLETED,
+            handler=checkpoint_handler,
+            to_save={"net": net, "opt": opt},
         )
         ```
 
