@@ -83,7 +83,6 @@ def resolve_agent_config(  # noqa: C901
         "queues": [],
         "registry": {},
         "builder": {},
-        "runner": {},
     }
     user_set_project = False
     resolved_config: Dict[str, Any] = defaults
@@ -163,7 +162,6 @@ def create_and_run_agent(
             "Please install with `pip install wandb[launch]`"
         )
     try:
-        config.pop("runner", None)
         agent_config.AgentConfig(**config)
     except agent_config.ValidationError as e:
         errors = e.errors()
