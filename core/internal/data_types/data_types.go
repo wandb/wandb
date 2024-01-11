@@ -9,7 +9,9 @@ func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
 	return generateTypeRepresentation(data)
 }
 
-func generateTypeRepresentation(data interface{}) TypeRepresentation {
+func generateTypeRepresentation(data interface{}, invalid ...bool) TypeRepresentation {
+	encounteredInvalid := len(invalid) > 0 && invalid[0]
+
 	switch v := data.(type) {
 	case map[string]interface{}:
 		typedDict := TypeRepresentation{
@@ -26,9 +28,31 @@ func generateTypeRepresentation(data interface{}) TypeRepresentation {
 		return typedDict
 
 	case []interface{}:
-		elemType := TypeRepresentation{}
-		if len(v) > 0 {
-			elemType = generateTypeRepresentation(v[0])
+		if len(v) == 0 {
+			return TypeRepresentation{
+				WbType: "list",
+				Params: map[string]interface{}{
+					"element_type": TypeRepresentation{WbType: "none"},
+					"length":       0,
+				},
+			}
+		}
+		elemType := generateTypeRepresentation(v[0])
+		isInvalid := elemType.WbType == "invalid"
+		for _, elem := range v[1:] {
+			elemRep := generateTypeRepresentation(elem, isInvalid)
+			if elemRep.WbType != elemType.WbType {
+				elemType = TypeRepresentation{
+					WbType: "union",
+					Params: map[string]interface{}{
+						"allowed_types": []TypeRepresentation{elemType, elemRep},
+					},
+				}
+				break
+			}
+		}
+		if encounteredInvalid {
+			elemType.WbType = "invalid"
 		}
 		return TypeRepresentation{
 			WbType: "list",
@@ -58,5 +82,13 @@ func generateTypeRepresentation(data interface{}) TypeRepresentation {
 			WbType: "none",
 		}
 	}
-	return TypeRepresentation{}
+
+	if encounteredInvalid {
+		return TypeRepresentation{
+			WbType: "unknown",
+		}
+	}
+	return TypeRepresentation{
+		WbType: "invalid",
+	}
 }

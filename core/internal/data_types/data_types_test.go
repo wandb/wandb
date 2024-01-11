@@ -7,6 +7,8 @@ import (
 	"github.com/wandb/wandb/core/internal/data_types"
 )
 
+type CustomType struct{}
+
 func TestGenerateTypeRepresentation(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -103,19 +105,32 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 			},
 		},
 		{
-			name: "Deeply Nested Maps and Lists",
+			name: "Unknown Type",
 			input: map[string]interface{}{
-				"a": map[string]interface{}{
-					"aa": []interface{}{
+				"a": CustomType{},
+			},
+			expected: data_types.TypeRepresentation{
+				WbType: "typedDict",
+				Params: map[string]interface{}{
+					"type_map": map[string]interface{}{
+						"a": data_types.TypeRepresentation{
+							WbType: "invalid",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Complex Nested Map and List",
+			input: map[string]interface{}{
+				"deep": map[string]interface{}{
+					"numbers": []interface{}{1, 2, 3},
+					"mixed": []interface{}{
 						map[string]interface{}{
-							"aaa": "hello",
+							"a": 1,
+							"b": "text",
 						},
-						[]interface{}{
-							1, 2, 3,
-							[]interface{}{
-								true, false,
-							},
-						},
+						[]interface{}{4, 5, 6},
 					},
 				},
 			},
@@ -123,18 +138,40 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				WbType: "typedDict",
 				Params: map[string]interface{}{
 					"type_map": map[string]interface{}{
-						"a": data_types.TypeRepresentation{
+						"deep": data_types.TypeRepresentation{
 							WbType: "typedDict",
 							Params: map[string]interface{}{
 								"type_map": map[string]interface{}{
-									"aa": data_types.TypeRepresentation{
+									"numbers": data_types.TypeRepresentation{
+										WbType: "list",
+										Params: map[string]interface{}{
+											"element_type": data_types.TypeRepresentation{WbType: "number"},
+											"length":       3,
+										},
+									},
+									"mixed": data_types.TypeRepresentation{
 										WbType: "list",
 										Params: map[string]interface{}{
 											"element_type": data_types.TypeRepresentation{
-												WbType: "typedDict",
+												WbType: "union",
 												Params: map[string]interface{}{
-													"type_map": map[string]interface{}{
-														"aaa": data_types.TypeRepresentation{WbType: "string"},
+													"allowed_types": []data_types.TypeRepresentation{
+														{
+															WbType: "typedDict",
+															Params: map[string]interface{}{
+																"type_map": map[string]interface{}{
+																	"a": data_types.TypeRepresentation{WbType: "number"},
+																	"b": data_types.TypeRepresentation{WbType: "string"},
+																},
+															},
+														},
+														{
+															WbType: "list",
+															Params: map[string]interface{}{
+																"element_type": data_types.TypeRepresentation{WbType: "number"},
+																"length":       3,
+															},
+														},
 													},
 												},
 											},

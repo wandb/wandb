@@ -19,6 +19,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -749,6 +750,15 @@ func (s *Sender) writeAndSendConfigFile() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
+
+	fmt.Println(s.serializeConfig("json"))
+
+	result := data_types.GenerateTypeRepresentation(s.configMap)
+	resultJSON, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(resultJSON))
 
 	config := s.serializeConfig("yaml")
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)

@@ -319,6 +319,9 @@ class JobBuilder:
         input_types = TypeRegistry.type_of(self._config).to_json()
         output_types = TypeRegistry.type_of(self._summary).to_json()
 
+        print("input_types", input_types)
+        print("output_types", output_types)
+
         name: Optional[str] = None
         source_info: Optional[JobSourceDict] = None
 
