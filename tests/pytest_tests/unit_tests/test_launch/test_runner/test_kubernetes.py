@@ -697,14 +697,15 @@ async def test_maybe_create_imagepull_secret_given_creds():
 # Test monitor class.
 
 
-def job_factory(name, statuses):
+def job_factory(name, statuses, type="MODIFIED"):
     """Factory for creating job events."""
     return MockDict(
         {
+            "type": f"{type}",
             "object": {
                 "status": {f"{status}": 1 for status in statuses},
                 "metadata": {"name": name},
-            }
+            },
         }
     )
 
@@ -831,6 +832,26 @@ async def test_monitor_running(
     )
     await asyncio.sleep(0.1)
     assert LaunchKubernetesMonitor.get_status("job-name").state == "running"
+
+
+@pytest.mark.asyncio
+async def test_monitor_job_deleted(
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    clean_monitor,
+):
+    """Test if the monitor thread detects a job being deleted."""
+    await LaunchKubernetesMonitor.ensure_initialized()
+    LaunchKubernetesMonitor.monitor_namespace("wandb")
+    job_event_stream, pod_event_stream = mock_event_streams
+    await asyncio.sleep(0.1)
+    await pod_event_stream.add(pod_factory("ADDED", "job-name", [], []))
+    await asyncio.sleep(0.1)
+    await job_event_stream.add(job_factory("job-name", ["active"], type="DELETED"))
+    await asyncio.sleep(0.1)
+    assert LaunchKubernetesMonitor.get_status("job-name").state == "failed"
 
 
 # Test util functions
