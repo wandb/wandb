@@ -19,7 +19,6 @@ import wandb
 import wandb.util
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib import type_info
 from wandb.sdk.lib.mailbox import (
     Mailbox,
     MailboxProbe,
@@ -354,9 +353,11 @@ class StreamMux:
             # Build input output types and pass to internal process
             # TODO: do we need to query this?
             final_config = {}
-            type_info_request = type_info.make_type_info(final_config, final_summary)
             # TODO: deliver and wait on response?
-            print("DEBUG: IMPLICIT_FINISH TYPE_INFO", type_info_request)
+            job_type_handle = stream.interface.deliver_request_types_info(
+                final_config, final_summary
+            )
+            result = job_type_handle.wait(timeout=-1)
 
             Run._footer(
                 sampled_history=sampled_history,

@@ -313,6 +313,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_TypesInfo:
+		s.sendTypesInfo(record, x.TypesInfo)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -410,6 +412,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
+		fmt.Println("flushing job")
 		s.sendJobFlush()
 		request.State++
 		s.sendRequestDefer(request)
@@ -1228,6 +1231,25 @@ func (s *Sender) getServerInfo() {
 // 	}
 // 	return s.serverInfo.GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
 // }
+
+func (s *Sender) sendTypesInfo(record *service.Record, request *service.TypesInfoRequest) {
+	s.jobBuilder.SetTypesInfo(request)
+	fmt.Println("sender: sendTypesInfo: request: ", request)
+	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+		result := &service.Result{
+			ResultType: &service.Result_Response{
+				Response: &service.Response{
+					ResponseType: &service.Response_TypesInfoResponse{
+						TypesInfoResponse: &service.TypesInfoResponse{},
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.outChan <- result
+	}
+}
 
 func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
 

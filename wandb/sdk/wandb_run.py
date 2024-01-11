@@ -81,7 +81,6 @@ from .lib import (
     proto_util,
     redirect,
     telemetry,
-    type_info,
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.gitlib import GitRepo
@@ -2500,16 +2499,18 @@ class Run:
         assert result
         self._final_summary = result.response.get_summary_response
 
-        # Build input output types and pass to internal process
-        # TODO: do we need to query this?
-        final_config = {}
-        type_info_request = type_info.make_type_info(final_config, self._final_summary)
-        # TODO: deliver and wait on response?
-        print("DEBUG: EXPLICIT_FINISH TYPE_INFO", type_info_request)
-
         result = job_info_handle.wait(timeout=-1)
         assert result
         self._job_info = result.response.job_info_response
+
+        # Build input output types and pass to internal process
+        final_config = {}
+        # TODO: deliver and wait on response?
+        # TODO: do we need to query this?
+        job_type_handle = self._backend.interface.deliver_request_types_info(
+            final_config, self._final_summary
+        )
+        result = job_type_handle.wait(timeout=-1)
 
         if self._backend:
             self._backend.cleanup()

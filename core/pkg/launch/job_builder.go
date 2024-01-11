@@ -156,6 +156,9 @@ type JobBuilder struct {
 	runCodeArtifact *ArtifactInfoForJob
 	aliases         []string
 	isNotebookRun   bool
+
+	InputTypes  map[string]string
+	OutputTypes map[string]string
 }
 
 func makeArtifactNameSafe(name string) string {
@@ -248,20 +251,20 @@ func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
 		return &finalSourceType, nil
 	default:
 		// no source type set, try to determine source type
+		if j.hasRepoJobIngredients(metadata) {
+			finalSourceType = RepoSourceType
+			return &finalSourceType, nil
+		}
+		if j.hasArtifactJobIngredients() {
+			finalSourceType = ArtifactSourceType
+			return &finalSourceType, nil
+		}
+		if j.hasImageJobIngredients(metadata) {
+			finalSourceType = ImageSourceType
+			return &finalSourceType, nil
+		}
 	}
 
-	if j.hasRepoJobIngredients(metadata) {
-		finalSourceType = RepoSourceType
-		return &finalSourceType, nil
-	}
-	if j.hasArtifactJobIngredients() {
-		finalSourceType = ArtifactSourceType
-		return &finalSourceType, nil
-	}
-	if j.hasImageJobIngredients(metadata) {
-		finalSourceType = ImageSourceType
-		return &finalSourceType, nil
-	}
 	fmt.Println("No job ingredients found, not creating job artifact")
 	j.logger.Debug("jobBuilder: unable to determine source type")
 	return nil, nil
@@ -538,6 +541,9 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	sourceInfo.InputTypes = make(map[string]interface{})
 	sourceInfo.OutputTypes = make(map[string]interface{})
 
+	fmt.Println("Creating job artifact...")
+	fmt.Println("Job name:", sourceInfo.InputTypes, sourceInfo.OutputTypes, *name)
+
 	baseArtifact := &service.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
 		Project:          j.settings.Project.Value,
@@ -552,6 +558,14 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	}
 
 	return j.buildArtifact(baseArtifact, sourceInfo, fileDir, *sourceType)
+}
+
+func (j *JobBuilder) SetTypesInfo(typesInfo *service.TypesInfoRequest) {
+	if j.disable {
+		return
+	}
+	j.InputTypes = typesInfo.InputJsonTypes
+	j.OutputTypes = typesInfo.OutputJsonTypes
 }
 
 func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceInfo JobSourceMetadata, fileDir string, sourceType SourceType) (*service.ArtifactRecord, error) {
