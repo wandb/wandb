@@ -42,10 +42,6 @@ def main(
             # project="core",
             # config={"core.yo.mahyo": 420},
             settings=wandb.Settings(
-                # sdk@wandb.ai service account:
-                # api_key="5aa1b2c7f93c301e066f63389f1102c7eb523864",
-                # dima@wandb.com account:
-                # api_key="6424a54872e1ed544337ba036df35e6c12dce73d",
                 init_timeout=600,
                 mode="offline" if offline else "online",
                 console=console,
