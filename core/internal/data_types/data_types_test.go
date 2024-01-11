@@ -102,6 +102,52 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Deeply Nested Maps and Lists",
+			input: map[string]interface{}{
+				"a": map[string]interface{}{
+					"aa": []interface{}{
+						map[string]interface{}{
+							"aaa": "hello",
+						},
+						[]interface{}{
+							1, 2, 3,
+							[]interface{}{
+								true, false,
+							},
+						},
+					},
+				},
+			},
+			expected: data_types.TypeRepresentation{
+				WbType: "typedDict",
+				Params: map[string]interface{}{
+					"type_map": map[string]interface{}{
+						"a": data_types.TypeRepresentation{
+							WbType: "typedDict",
+							Params: map[string]interface{}{
+								"type_map": map[string]interface{}{
+									"aa": data_types.TypeRepresentation{
+										WbType: "list",
+										Params: map[string]interface{}{
+											"element_type": data_types.TypeRepresentation{
+												WbType: "typedDict",
+												Params: map[string]interface{}{
+													"type_map": map[string]interface{}{
+														"aaa": data_types.TypeRepresentation{WbType: "string"},
+													},
+												},
+											},
+											"length": 2,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
