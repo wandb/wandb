@@ -1,10 +1,11 @@
 package launch
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/observability"
