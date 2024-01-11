@@ -95,7 +95,6 @@ func (t *Trainium) SampleMetrics() {
 		return
 	}
 
-
 }
 
 func (t *Trainium) AggregateMetrics() map[string]float64 {
