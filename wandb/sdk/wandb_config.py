@@ -1,7 +1,8 @@
 """config."""
 
 import logging
-from typing import Optional
+from optparse import Option
+from typing import Dict, Optional, TYPE_CHECKING
 
 import wandb
 from wandb.util import (
@@ -14,6 +15,107 @@ from . import wandb_helper
 from .lib import config_util
 
 logger = logging.getLogger("wandb")
+
+IMMUTABLE_ERROR_MESSAGE = "This object is immutable"
+
+if TYPE_CHECKING:
+    KeyTree = Optional[Dict[str, "KeyTree"]]
+else:
+    KeyTree = None
+
+a: KeyTree = 1
+
+
+def freeze(data, current_path: KeyTree = None, paths: KeyTree = None):
+    if isinstance(data, Config):
+        return Config(freeze(dict(data), paths=paths))
+    elif isinstance(data, dict):
+        if paths is None:
+            return ImmutableDict({key: freeze(value) for key, value in data.items()})
+        else:
+            for key, value in data.items():
+                pass
+    elif isinstance(data, list):
+        return ImmutableList([freeze(value, paths=paths[1:]) for value in data])
+    else:
+        return data
+
+
+def unfreeze(data, paths: Optional[list[str]] = None):
+    if isinstance(data, Config):
+        return Config(unfreeze(data, paths=paths))
+    elif isinstance(data, dict):  # also covers ImmutableDict
+        return {key: unfreeze(value) for key, value in data.items()}
+    elif isinstance(data, list):  # also covers ImmutableList
+        return [unfreeze(value) for value in data]
+    else:
+        return data
+
+
+class ImmutableBase:
+    def mutable_copy(self):
+        return unfreeze(self)
+
+
+class ImmutableDict(dict, ImmutableBase):
+    def __setitem__(self, key, value):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def __delitem__(self, key):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def update(self, *args, **kwargs):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def pop(self, *args, **kwargs):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def popitem(self, *args, **kwargs):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def setdefault(self, *args, **kwargs):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def clear(self):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def __repr__(self):
+        return "ImmutableDict(" + super().__repr__() + ")"
+
+
+class ImmutableList(list, ImmutableBase):
+    def __setitem__(self, index, value):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def __delitem__(self, index):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def append(self, value):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def extend(self, values):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def insert(self, index, value):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def remove(self, value):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def pop(self, *args):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def sort(self, *args, **kwargs):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def reverse(self):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def clear(self):
+        raise TypeError(IMMUTABLE_ERROR_MESSAGE)
+
+    def __repr__(self):
+        return "ImmutableList(" + super().__repr__() + ")"
 
 
 # TODO(jhr): consider a callback for persisting changes?
