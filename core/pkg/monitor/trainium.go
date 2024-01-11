@@ -65,18 +65,20 @@ type Stats struct {
 // }
 
 type Trainium struct {
-	name     string
-	settings *service.Settings
-	metrics  map[string][]float64
+	name       string
+	settings   *service.Settings
+	metrics    map[string][]float64
+	rawSamples []string
 	// GetStatsFunc func() (Stats, error)
 	mutex sync.RWMutex
 }
 
 func NewTrainium(settings *service.Settings) *Trainium {
 	t := &Trainium{
-		name:     "trainium",
-		settings: settings,
-		metrics:  make(map[string][]float64),
+		name:       "trainium",
+		settings:   settings,
+		metrics:    make(map[string][]float64),
+		rawSamples: make([]string, 0),
 		// this is done this way to be able to mock the function in tests
 		// GetStatsFunc: getStats,
 	}
@@ -88,6 +90,12 @@ func (t *Trainium) Name() string { return t.name }
 func (t *Trainium) SampleMetrics() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+
+	if len(t.rawSamples) == 0 {
+		return
+	}
+
+
 }
 
 func (t *Trainium) AggregateMetrics() map[string]float64 {
@@ -104,7 +112,11 @@ func (t *Trainium) ClearMetrics() {
 	t.metrics = make(map[string][]float64)
 }
 
-func (t *Trainium) IsAvailable() bool { return false }
+func (t *Trainium) IsAvailable() bool {
+	// only run neuron-monitor if it's not running already and if it is available
+	go runNeuronMonitor(&t.mutex, t.rawSamples)
+	return true
+}
 
 func (t *Trainium) Probe() *service.MetadataRequest {
 	return nil
@@ -114,14 +126,15 @@ func (t *Trainium) Probe() *service.MetadataRequest {
 // 	return Stats{}, nil
 // }
 
-func runNeuronMonitor(rawSamples []string) error {
+func runNeuronMonitor(mutex *sync.RWMutex, rawSamples []string) error {
 	// t.WriteNeuronMonitorConfig()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// cmd := exec.CommandContext(ctx, NeuronMonitorPath, "-c", neuronMonitorConfigPath)
-	cmd := exec.CommandContext(ctx, "/Users/dimaduev/dev/sdk/trn.py")
+	// TODO: dev only
+	cmd := exec.CommandContext(ctx, "python", "/Users/dimaduev/dev/sdk/trn.py")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("neuron-monitor failed: %v", err)
@@ -145,7 +158,10 @@ func runNeuronMonitor(rawSamples []string) error {
 			continue
 		}
 
+		mutex.Lock()
 		rawSamples = append(rawSamples, scanner.Text())
+		mutex.Unlock()
+		fmt.Println(rawSamples)
 	}
 
 	return nil

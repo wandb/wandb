@@ -178,6 +178,7 @@ func NewSystemMonitor(
 		NewGPUNvidia(settings),
 		NewGPUAMD(settings),
 		NewGPUApple(settings),
+		NewTrainium(settings),
 	}
 
 	// if asset is available, add it to the list of assets to monitor
@@ -221,6 +222,7 @@ func getSlurmEnvVars() map[string]string {
 }
 
 func (sm *SystemMonitor) Probe() *service.MetadataRequest {
+	// TODO: (potentially) add telemetry to the probes
 	if sm == nil {
 		return nil
 	}
