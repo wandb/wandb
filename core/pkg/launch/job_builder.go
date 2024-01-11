@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type SourceType string
@@ -222,7 +223,6 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
 	var finalSourceType SourceType
 	// user set source type via settings
-	fmt.Println("source type", j.settings.GetJobSource().GetValue())
 	switch j.settings.GetJobSource().GetValue() {
 	case string(ArtifactSourceType):
 		if !j.hasArtifactJobIngredients() {
@@ -538,14 +538,16 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	sourceInfo.OutputTypes = make(map[string]interface{})
 
 	baseArtifact := &service.ArtifactRecord{
-		Entity:   j.settings.GetEntity().GetValue(),
-		Project:  j.settings.Project.Value,
-		RunId:    j.settings.RunId.Value,
-		Name:     *name,
-		Metadata: "",
-		Type:     "job",
-		Aliases:  j.aliases,
-		Finalize: true,
+		Entity:           j.settings.GetEntity().GetValue(),
+		Project:          j.settings.Project.Value,
+		RunId:            j.settings.RunId.Value,
+		Name:             *name,
+		Metadata:         "",
+		Type:             "job",
+		Aliases:          j.aliases,
+		Finalize:         true,
+		ClientId:         utils.GenerateAlphanumericSequence(128),
+		SequenceClientId: utils.GenerateAlphanumericSequence(128),
 	}
 
 	return j.buildArtifact(baseArtifact, sourceInfo, fileDir, *sourceType)

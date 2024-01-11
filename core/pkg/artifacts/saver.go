@@ -46,7 +46,9 @@ func NewArtifactSaver(
 }
 
 func (as *ArtifactSaver) createArtifact() (
-	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact, rerr error) {
+	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
+	rerr error,
+) {
 	aliases := []gql.ArtifactAliasInput{}
 	for _, alias := range as.Artifact.Aliases {
 		aliases = append(aliases,
