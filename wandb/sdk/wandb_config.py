@@ -26,7 +26,6 @@ class LockableDict(dict):
     def __setitem__(self, key, value):
         full_key = f"{self.key_prefix}.{key}"
         if self.parent._check_locked(full_key):
-            locked_user = self.parent._users_inv[full_key]
             raise ValueError(f"Key '{full_key}' is locked")
         super().__setitem__(key, value)
 
