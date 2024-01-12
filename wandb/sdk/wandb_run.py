@@ -4137,4 +4137,3 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
-
