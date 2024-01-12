@@ -31,7 +31,7 @@ def main():
     monai.config.print_config()
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    wandb.init(project="monai-test", entity="geekyrakshit")
+    wandb.init(project="monai-test")
     config = wandb.config
     config.batch_size = 2
     config.num_workers = 4
