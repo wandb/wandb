@@ -2503,15 +2503,6 @@ class Run:
         assert result
         self._job_info = result.response.job_info_response
 
-        # Build input output types and pass to internal process
-        final_config = {}
-        # TODO: deliver and wait on response?
-        # TODO: do we need to query this?
-        job_type_handle = self._backend.interface.deliver_request_types_info(
-            final_config, self._final_summary
-        )
-        result = job_type_handle.wait(timeout=-1)
-
         if self._backend:
             self._backend.cleanup()
 

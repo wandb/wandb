@@ -350,15 +350,6 @@ class StreamMux:
             assert result
             job_info = result.response.job_info_response
 
-            # Build input output types and pass to internal process
-            # TODO: do we need to query this?
-            final_config = {}
-            # TODO: deliver and wait on response?
-            job_type_handle = stream.interface.deliver_request_types_info(
-                final_config, final_summary
-            )
-            result = job_type_handle.wait(timeout=-1)
-
             Run._footer(
                 sampled_history=sampled_history,
                 final_summary=final_summary,

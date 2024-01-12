@@ -302,10 +302,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleDownloadArtifact(record)
 		response = nil
 	case *service.Request_JobInfo:
-	case *service.Request_TypesInfo:
-		fmt.Println("types info", x.TypesInfo)
-		h.handleTypesInfo(record, x.TypesInfo)
-		response = nil
 	case *service.Request_Attach:
 		h.handleAttach(record, response)
 	case *service.Request_Pause:
@@ -701,14 +697,6 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 
 	h.handleFiles(record)
-}
-
-func (h *Handler) handleTypesInfo(record *service.Record, request *service.TypesInfoRequest) {
-	h.sendRecordWithControl(record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
-		},
-	)
 }
 
 func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {

@@ -873,15 +873,6 @@ class InterfaceBase:
         job_info = pb.JobInfoRequest()
         return self._deliver_request_job_info(job_info)
 
-    def deliver_request_types_info(self, input_types, output_types) -> MailboxHandle:
-        from wandb.sdk.lib import type_info
-
-        type_info_request = type_info.make_type_info(input_types, output_types)
-        print("DEBUG: IMPLICIT_FINISH TYPE_INFO", type_info_request)
-        return self._deliver_request_types_info(type_info_request)
-
     @abstractmethod
-    def _deliver_request_types_info(
-        self, type_info: pb.TypesInfoRequest
-    ) -> MailboxHandle:
+    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError
