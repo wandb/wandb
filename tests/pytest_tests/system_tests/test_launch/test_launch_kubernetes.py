@@ -291,4 +291,4 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             }
         )
         jobs_dict[name] = mock_job
-        return [[mock_job]]
+        return [mock_job]
