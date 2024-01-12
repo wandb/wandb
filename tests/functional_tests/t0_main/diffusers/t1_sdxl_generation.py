@@ -1,11 +1,19 @@
+import random
+
 import torch
 from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLPipeline
 from wandb.integration.diffusers import autolog
 
-autolog(init=dict(project="diffusers_logging", job_type="sdxl"))
+
+def autogenerate_seed():
+    max_seed = int(1024 * 1024 * 1024)
+    seed = random.randint(1, max_seed)
+    seed = -seed if seed < 0 else seed
+    seed = seed % max_seed
+    return seed
 
 
-generator = torch.Generator(device="cuda").manual_seed(100)
+autolog()
 
 base_pipeline = StableDiffusionXLPipeline.from_pretrained(
     "stabilityai/stable-diffusion-xl-base-1.0",
@@ -13,16 +21,13 @@ base_pipeline = StableDiffusionXLPipeline.from_pretrained(
     variant="fp16",
     use_safetensors=True,
 )
-
 base_pipeline.enable_model_cpu_offload()
 
 prompt = "A small cactus with a happy face in the Sahara desert."
-
-num_inference_steps = 25
-
+generator_base = torch.Generator(device="cuda").manual_seed(autogenerate_seed())
 image = base_pipeline(
     prompt=prompt,
-    generator=generator,
+    generator=generator_base,
     guidance_scale=5.0,
 ).images[0]
 
@@ -37,6 +42,7 @@ refiner_pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
 )
 refiner_pipeline.enable_model_cpu_offload()
 
+generator_refiner = torch.Generator(device="cuda").manual_seed(autogenerate_seed())
 image = refiner_pipeline(
-    prompt=prompt, image=image[None, :], generator=generator
+    prompt=prompt, image=image[None, :], generator=generator_refiner
 ).images[0]
