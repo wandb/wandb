@@ -377,7 +377,11 @@ func (s *Sender) sendJobFlush() {
 	var out interface{}
 	for k, v := range s.summaryMap {
 		bytes := []byte(v.GetValueJson())
-		json.Unmarshal(bytes, &out)
+		err := json.Unmarshal(bytes, &out)
+		if err != nil {
+			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
+			return
+		}
 		output[k] = out
 	}
 
