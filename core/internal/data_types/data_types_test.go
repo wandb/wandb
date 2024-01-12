@@ -111,7 +111,7 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
-						"a": {Name: data_types.InvalidTypeName},
+						"a": {Name: data_types.UnknownTypeName},
 					},
 				},
 			},
