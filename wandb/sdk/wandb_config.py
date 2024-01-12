@@ -34,7 +34,12 @@ class LockableDict(dict):
                 raise ValueError(msg)
             else:
                 wandb.termwarn(msg)
+
         super().__setitem__(key, value)
+
+        # Update the parent Config object
+        if self.key_prefix:
+            self.parent._items[self.key_prefix] = dict(self)
 
     def __getitem__(self, key):
         value = super().__getitem__(key)
@@ -203,23 +208,6 @@ class Config:
                 return True
 
         return False
-
-    """
-    def _check_locked(self, key, ignore_locked=False) -> bool:
-        locked = self._locked.get(key)
-
-        if locked is not None:
-            locked_user = self._users_inv[locked]
-            if not ignore_locked:
-                msg = f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
-                if TESTING.get():
-                    raise ValueError(msg)
-                else:
-                    wandb.termwarn(msg)
-
-            return True
-        return False
-    """
 
     def __setitem__(self, key, val):
         if self._check_locked(key):

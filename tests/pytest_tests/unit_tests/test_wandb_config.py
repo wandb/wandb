@@ -1,8 +1,10 @@
 """config tests."""
 
+from multiprocessing.sharedctypes import Value
 import pytest
 import yaml
 from wandb import wandb_sdk
+from wandb.sdk import wandb_config
 
 
 def get_callback(d):
@@ -33,6 +35,13 @@ def config(callback):
     return s
 
 
+@pytest.fixture()
+def raise_on_update_locked():
+    token = wandb_config.TESTING.set(True)
+    yield
+    wandb_config.TESTING.reset(token)
+
+
 def test_attrib_set(consolidated, config):
     config.this = 2
     assert dict(config) == dict(this=2)
@@ -57,20 +66,7 @@ def test_locked_set_key(consolidated, config):
     assert consolidated == dict(config)
 
 
-def test_lock_and_unlock_key(config):
-    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
-    user = "user1"
-
-    # Lock 'a.b.c' and check if it's locked
-    config.lock_key("a.b.c", user)
-    assert config._check_locked("a.b.c")
-
-    # Unlock 'a.b.c' and check if it's unlocked
-    config.unlock_key("a.b.c")
-    assert not config._check_locked("a.b.c")
-
-
-def test_prevent_modification_of_locked_key(config):
+def test_prevent_modification_of_locked_key(config, raise_on_update_locked):
     config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
     user = "user1"
     config.lock_key("a.b.c", user)
@@ -83,7 +79,7 @@ def test_prevent_modification_of_locked_key(config):
     assert config["a"]["b"]["c"] == 1
 
 
-def test_allow_modification_of_unlocked_key(config):
+def test_allow_modification_of_unlocked_key(config, raise_on_update_locked):
     config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
 
     # Modify unlocked key 'a.e'
@@ -91,7 +87,7 @@ def test_allow_modification_of_unlocked_key(config):
     assert config["a"]["e"] == 10
 
 
-def test_nested_config_update_with_multiple_levels(config):
+def test_nested_config_update_with_multiple_levels(config, raise_on_update_locked):
     config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
     user = "user1"
     config.lock_key("a.b.c", user)
@@ -104,6 +100,61 @@ def test_nested_config_update_with_multiple_levels(config):
     assert config["a"]["b"]["d"] == 3  # Unlocked key should be updated
     assert config["a"]["e"] == 4  # Unlocked key should be updated
     assert config["a"]["f"]["g"] == 5  # New nested key should be added
+
+
+def test_update_locked_with_nested_structure(config):
+    user = "user1"
+    nested_config = {"a": {"b": {"c": 1}, "d": 2}}
+    config.update_locked(nested_config, user)
+
+    # Check if nested keys are locked
+    assert config._check_locked("a")
+    assert config._check_locked("a.b")
+    assert config._check_locked("a.b.c")
+    assert config._check_locked("a.d")
+
+    # Check if values are set correctly
+    assert config["a"]["b"]["c"] == 1
+    assert config["a"]["d"] == 2
+
+
+def test_lockable_dict_prevents_modification_of_locked_key(
+    config, raise_on_update_locked
+):
+    config["a"] = {"b": {"c": 1}}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Attempt to modify locked key 'a.b.c'
+    with pytest.raises(ValueError):
+        config["a"]["b"]["c"] = 2
+
+
+def test_check_locked_for_ancestor_keys(config):
+    config["a"] = {"b": {"c": 1}, "d": 2}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Check if ancestor key 'a' is considered locked
+    assert config._check_locked("a")
+    assert not config._check_locked("a.d")  # 'a.d' is not locked
+
+
+def test_modification_allowed_on_unlocked_ancestor_keys(config, raise_on_update_locked):
+    config["a"] = {"b": {"c": 1}, "d": 2}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Modification should be allowed on 'a.d' as it's not locked
+    config["a"]["d"] = 3
+    assert config["a"]["d"] == 3
+
+    # Ensure locked key 'a.b.c' remains unchanged
+    assert config["a"]["b"]["c"] == 1
+
+    # Can't update config a.b
+    with pytest.raises(ValueError):
+        config["a"]["b"] = 3
 
 
 def test_update(consolidated, config):
