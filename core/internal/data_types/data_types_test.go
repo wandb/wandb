@@ -1,6 +1,7 @@
 package data_types_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -187,7 +188,8 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := data_types.GenerateTypeRepresentation(tc.input)
 			if !reflect.DeepEqual(result, tc.expected) {
-				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, result)
+				jsonResult, _ := json.MarshalIndent(result, "", "  ")
+				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, jsonResult)
 			}
 		})
 	}
