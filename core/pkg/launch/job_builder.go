@@ -1,3 +1,4 @@
+// TODO: this code cries out for love and refactoring
 package launch
 
 import (
@@ -156,9 +157,6 @@ type JobBuilder struct {
 	runCodeArtifact *ArtifactInfoForJob
 	aliases         []string
 	isNotebookRun   bool
-
-	InputTypes  map[string]string
-	OutputTypes map[string]string
 }
 
 func makeArtifactNameSafe(name string) string {
@@ -206,6 +204,8 @@ func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
 func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceType) *string {
 	if j.isNotebookRun {
 		if metadata.Program == nil {
+			// TODO: here and elsewhere, we should pass messages back to the user
+			// and print them there, instead of printing them here
 			fmt.Println(
 				"Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job",
 			)
@@ -558,14 +558,6 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	}
 
 	return j.buildArtifact(baseArtifact, sourceInfo, fileDir, *sourceType)
-}
-
-func (j *JobBuilder) SetTypesInfo(typesInfo *service.TypesInfoRequest) {
-	if j.disable {
-		return
-	}
-	j.InputTypes = typesInfo.InputJsonTypes
-	j.OutputTypes = typesInfo.OutputJsonTypes
 }
 
 func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceInfo JobSourceMetadata, fileDir string, sourceType SourceType) (*service.ArtifactRecord, error) {
