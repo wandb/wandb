@@ -61,7 +61,9 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.runid import generate_id
 from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
@@ -1697,22 +1699,10 @@ class Artifact:
         self._add_download_root(root)
 
         if get_core_path() != "":
-            if wandb.run is None:
-                with wandb.init(  # type: ignore
-                    entity=self._source_entity,
-                    project=self._source_project,
-                    job_type="auto",
-                    settings=wandb.Settings(silent="true"),
-                ):
-                    return self._download_using_core(
-                        root=root,
-                        allow_missing_references=allow_missing_references,
-                    )
-            else:
-                return self._download_using_core(
-                    root=root,
-                    allow_missing_references=allow_missing_references,
-                )
+            return self._download_using_core(
+                root=root,
+                allow_missing_references=allow_missing_references,
+            )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
@@ -1723,30 +1713,65 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        assert wandb.run is not None, "failed to initialize run"
-        run = wandb.run
-        if not run._backend or not run._backend.interface:
-            raise NotImplementedError
-        if run._settings._offline:
-            raise NotImplementedError("cannot download in offline mode")
-        assert self.id is not None
-        handle = run._backend.interface.deliver_download_artifact(
-            self.id,
+        import pathlib
+
+        from wandb.sdk.backend.backend import Backend
+
+        if wandb.run is None:
+            # ensure wandb-core is up and running
+            wl = wandb.sdk.wandb_setup.setup()
+            assert wl is not None
+
+            stream_id = generate_id()
+
+            settings = wl.settings.to_proto()
+            # TODO: remove this
+            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            settings.sync_dir.value = str(tmp_dir)
+            settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
+            settings.files_dir.value = str(tmp_dir / "files")
+            settings.run_id.value = stream_id
+
+            manager = wl._get_manager()
+            manager._inform_init(settings=settings, run_id=stream_id)
+
+            mailbox = Mailbox()
+            backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
+            backend.ensure_launched()
+
+            assert backend.interface
+            backend.interface._stream_id = stream_id  # type: ignore
+
+            mailbox.enable_keepalive()
+        else:
+            assert wandb.run._backend
+            backend = wandb.run._backend
+
+        assert backend.interface
+        handle = backend.interface.deliver_download_artifact(
+            self.id,  # type: ignore
             root,
             allow_missing_references,
         )
-        # Start the download process in the user process too, to handle reference downloads
+        # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
         )
         result = handle.wait(timeout=-1)
+
         if result is None:
             handle.abandon()
         assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
+
+        if wandb.run is None:
+            backend.cleanup()
+            # TODO: remove this
+            shutil.rmtree(tmp_dir)
+
         return FilePathStr(root)
 
     def _download(

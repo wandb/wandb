@@ -589,6 +589,11 @@ def sync_beta(
 @click.option("--project", "-p", help="The project you want to upload to.")
 @click.option("--entity", "-e", help="The entity to scope to.")
 @click.option(
+    "--job_type",
+    "job_type",
+    help="Specifies the type of run for grouping related runs together.",
+)
+@click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
@@ -647,6 +652,7 @@ def sync(
     run_id=None,
     project=None,
     entity=None,
+    job_type=None,  # trace this back to SyncManager
     sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
@@ -724,6 +730,7 @@ def sync(
             project=project,
             entity=entity,
             run_id=run_id,
+            job_type=job_type,
             mark_synced=mark_synced,
             app_url=api.app_url,
             view=view,
@@ -1684,10 +1691,6 @@ def launch_agent(
     agent_config, api = _launch.resolve_agent_config(
         entity, project, max_jobs, queues, config
     )
-    if agent_config.get("project") is None:
-        raise LaunchError(
-            "You must specify a project name or set WANDB_PROJECT environment variable."
-        )
 
     if len(agent_config.get("queues")) == 0:
         raise LaunchError(
