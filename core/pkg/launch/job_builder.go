@@ -176,14 +176,14 @@ func MakeArtifactNameSafe(name string) string {
 
 }
 
-func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) JobBuilder {
+func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) *JobBuilder {
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: settings.GetXJupyter().GetValue(),
 		logger:        logger,
 		Disable:       settings.GetDisableJobCreation().GetValue(),
 	}
-	return jobBuilder
+	return &jobBuilder
 }
 
 func (j *JobBuilder) handleMetadataFile() (*RunMetadata, error) {
@@ -547,9 +547,6 @@ func (j *JobBuilder) Build(
 		sourceInfo.OutputTypes = data_types.GenerateTypeRepresentation(output)
 	}
 
-	fmt.Println("Creating job artifact...")
-	fmt.Println("Job name:", sourceInfo.InputTypes, sourceInfo.OutputTypes, *name)
-
 	baseArtifact := &service.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
 		Project:          j.settings.Project.Value,
@@ -683,6 +680,9 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.Record) {
+	if j == nil {
+		return
+	}
 	j.logger.Debug("jobBuilder: handling log artifact result")
 	artifactRecord := record.GetArtifact()
 	if artifactRecord == nil || response == nil || response.ErrorMessage != "" {

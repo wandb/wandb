@@ -112,7 +112,7 @@ type Sender struct {
 
 	store *Store
 
-	jobBuilder launch.JobBuilder
+	jobBuilder *launch.JobBuilder
 }
 
 // NewSender creates a new Sender with the given settings
@@ -132,7 +132,6 @@ func NewSender(
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
-		jobBuilder: launch.NewJobBuilder(settings, logger),
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -199,6 +198,10 @@ func NewSender(
 		)
 
 		sender.getServerInfo()
+
+		if !settings.GetDisableJobCreation().GetValue() {
+			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
+		}
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
@@ -281,7 +284,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
-		s.jobBuilder.HandleUseArtifactRecord(record)
+		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
@@ -365,6 +368,9 @@ func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
 }
 
 func (s *Sender) sendJobFlush() {
+	if s.jobBuilder == nil {
+		return
+	}
 	input := s.configMap
 	output := make(map[string]interface{})
 
@@ -490,6 +496,14 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendUseArtifact(record *service.Record) {
+	if s.jobBuilder == nil {
+		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
+		return
+	}
+	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
 // updateConfig updates the config map with the config record
