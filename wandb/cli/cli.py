@@ -824,12 +824,12 @@ def sync(
         _summary()
 
 
-@cli.command(context_settings=CONTEXT, help="Create a sweep")
-@click.option("--project", "-p", default=None, help="The project of the sweep.")
-@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@cli.command(context_settings=CONTEXT, help="Initialize a hyperparameter sweep. Search for hyperparameters that optimizes a cost function of a machine learning model by testing various combinations.")
+@click.option("--project", "-p", default=None, help="""The name of the project where W&B runs created from the sweep are sent to. If the project is not specified, the run is sent to a project labeled Uncategorized.""")
+@click.option("--entity", "-e", default=None, help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=None, help="Set sweep name")
+@click.option("--name", default=None, help="The name of the sweep. The run ID that is created from the sweep is used if no name is specified.")
 @click.option("--program", default=None, help="Set sweep program")
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
