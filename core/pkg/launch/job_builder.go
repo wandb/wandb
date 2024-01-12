@@ -1,4 +1,4 @@
-// TODO: this code cries out for love and refactoring
+// TODO: this code desperately needs love and refactoring
 package launch
 
 import (

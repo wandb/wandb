@@ -375,9 +375,6 @@ func (s *Sender) sendJobFlush() {
 		output[k] = out
 	}
 
-	fmt.Println("sender: sendJobFlush: input", input)
-	fmt.Println("sender: sendJobFlush: output", output)
-
 	artifact, err := s.jobBuilder.Build(input, output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
@@ -423,7 +420,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
-		fmt.Println("flushing job")
 		s.sendJobFlush()
 		request.State++
 		s.sendRequestDefer(request)
@@ -1095,7 +1091,6 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Uuid:    record.Uuid,
 	}
 	s.jobBuilder.HandleLogArtifactResult(&response, record)
-	fmt.Printf("sender: sendLogArtifact: result: %v\n", result)
 	s.outChan <- result
 }
 
