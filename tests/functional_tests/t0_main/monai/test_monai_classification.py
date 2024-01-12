@@ -2,8 +2,10 @@ import logging
 import os
 import sys
 
+import monai
 import numpy as np
 import torch
+import wandb
 from ignite.engine import (
     Events,
     _prepare_batch,
@@ -11,9 +13,7 @@ from ignite.engine import (
     create_supervised_trainer,
 )
 from ignite.handlers import EarlyStopping
-
-import monai
-from monai.data import decollate_batch, DataLoader
+from monai.data import DataLoader, decollate_batch
 from monai.handlers import ROCAUC, StatsHandler, stopping_fn_from_metric
 from monai.transforms import (
     Activations,
@@ -24,8 +24,6 @@ from monai.transforms import (
     Resized,
     ScaleIntensityd,
 )
-
-import wandb
 from wandb.integration.monai import WandbModelCheckpoint, WandbStatsHandler
 
 
