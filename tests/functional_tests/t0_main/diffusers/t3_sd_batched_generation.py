@@ -2,7 +2,7 @@ import torch
 from diffusers import DiffusionPipeline
 from wandb.integration.diffusers import autolog
 
-autolog(init=dict(project="diffusers_logging"))
+autolog()
 
 pipeline = DiffusionPipeline.from_pretrained(
     "runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16
