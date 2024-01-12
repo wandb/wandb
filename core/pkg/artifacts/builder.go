@@ -3,6 +3,8 @@ package artifacts
 import (
 	"crypto/md5"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -49,6 +51,33 @@ func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) e
 			Path:      name,
 			Digest:    digest,
 			LocalPath: filename,
+		})
+	b.isDigestUpToDate = false
+	return nil
+}
+
+func (b *ArtifactBuilder) AddFile(path string, name string) error {
+
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return err
+	}
+	digest, err := utils.ComputeB64MD5(data)
+	if err != nil {
+		return err
+	}
+	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
+		&service.ArtifactManifestEntry{
+			Path:      name,
+			Digest:    digest,
+			LocalPath: path,
 		})
 	b.isDigestUpToDate = false
 	return nil

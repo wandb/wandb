@@ -196,3 +196,49 @@ func TestSendLinkArtifact(t *testing.T) {
 	sender.SendRecord(linkArtifact)
 	<-sender.GetOutboundChannel()
 }
+
+func TestSendUseArtifact(t *testing.T) {
+	to := coretest.MakeTestObject(t)
+	defer to.TeardownTest()
+
+	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+
+	useArtifact := &service.Record{
+		RecordType: &service.Record_UseArtifact{
+			UseArtifact: &service.UseArtifactRecord{
+				Id:      "artifactId",
+				Type:    "job",
+				Name:    "artifactName",
+				Partial: nil,
+			},
+		},
+	}
+	// verify doesn't panic if used job artifact
+	sender.SendRecord(useArtifact)
+
+	// verify doesn't panic if partial job is broken
+	useArtifact = &service.Record{
+		RecordType: &service.Record_UseArtifact{
+			UseArtifact: &service.UseArtifactRecord{
+				Id:   "artifactId",
+				Type: "job",
+				Name: "artifactName",
+				Partial: &service.PartialJobArtifact{
+					JobName: "jobName",
+					SourceInfo: &service.JobSource{
+						SourceType: "repo",
+						Source: &service.Source{
+							Git: &service.GitSource{
+								GitInfo: &service.GitInfo{
+									Commit: "commit",
+									Remote: "remote",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	sender.SendRecord(useArtifact)
+}
