@@ -57,6 +57,55 @@ def test_locked_set_key(consolidated, config):
     assert consolidated == dict(config)
 
 
+def test_lock_and_unlock_key(config):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+    user = "user1"
+
+    # Lock 'a.b.c' and check if it's locked
+    config.lock_key("a.b.c", user)
+    assert config._check_locked("a.b.c")
+
+    # Unlock 'a.b.c' and check if it's unlocked
+    config.unlock_key("a.b.c")
+    assert not config._check_locked("a.b.c")
+
+
+def test_prevent_modification_of_locked_key(config):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Attempt to modify locked key 'a.b.c'
+    with pytest.raises(Exception):
+        config["a"]["b"]["c"] = 5
+
+    # Ensure the value hasn't changed
+    assert config["a"]["b"]["c"] == 1
+
+
+def test_allow_modification_of_unlocked_key(config):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+
+    # Modify unlocked key 'a.e'
+    config["a"]["e"] = 10
+    assert config["a"]["e"] == 10
+
+
+def test_nested_config_update_with_multiple_levels(config):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Update a nested config where one subkey is locked
+    with pytest.raises(Exception):
+        config["a"] = {"b": {"c": 2, "d": 3}, "e": 4, "f": {"g": 5}}
+
+    assert config["a"]["b"]["c"] == 1  # Locked key should remain unchanged
+    assert config["a"]["b"]["d"] == 3  # Unlocked key should be updated
+    assert config["a"]["e"] == 4  # Unlocked key should be updated
+    assert config["a"]["f"]["g"] == 5  # New nested key should be added
+
+
 def test_update(consolidated, config):
     config.update(dict(this=8))
     assert dict(config) == dict(this=8)
