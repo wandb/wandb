@@ -11,7 +11,7 @@ pipeline = pipeline.to("cuda")
 
 prompt = ["a photograph of an astronaut riding a horse", "a photograph of a dragon"]
 negative_prompt = ["ugly, deformed", "ugly, deformed"]
-generator = torch.Generator(device="cpu").manual_seed(10)
+generator = torch.Generator(device="cuda").manual_seed(10)
 
 image = pipeline(
     prompt,

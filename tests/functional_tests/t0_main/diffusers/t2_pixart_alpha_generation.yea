@@ -25,6 +25,7 @@ assert:
     - :wandb:runs[0][config][workflow][0][params][prompt]: "A small cactus with a happy face in the Sahara desert."
     - :wandb:runs[0][config][workflow][0][params][negative_prompt]: ""
     - :wandb:runs[0][config][workflow][0][params][return_dict]: true
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 10
     - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "PixArt-alpha/PixArt-XL-2-1024-MS"
     - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "PixArtAlphaPipeline"
     - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
