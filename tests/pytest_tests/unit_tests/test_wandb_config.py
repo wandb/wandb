@@ -157,6 +157,42 @@ def test_modification_allowed_on_unlocked_ancestor_keys(config, raise_on_update_
         config["a"]["b"] = 3
 
 
+def test_update_with_unlocked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2}
+    update_dict = {"a": 10, "b": {"c": 20}}
+
+    config.update(update_dict, allow_val_change=True)
+    assert config["a"] == 10
+    assert config["b"]["c"] == 20
+
+
+def test_update_with_locked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2}
+    user = "user1"
+    config.lock_key("a", user)
+    config.lock_key("b.c", user)
+
+    update_dict = {"a": 10, "b": {"c": 20}}
+    config.update(update_dict)
+    assert config["a"] == 1  # Locked key should remain unchanged
+    assert config["b"]["c"] == 2  # Locked key should remain unchanged
+
+
+def test_update_with_mix_of_locked_and_unlocked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2, "d": 3}
+    user = "user1"
+    config.lock_key("b.c", user)
+
+    update_dict = {"a": 10, "b": {"c": 20, "d": 30}}
+    config.update(update_dict, allow_val_change=True)
+    assert config["a"] == 10  # Unlocked key should be updated
+    assert config["b"]["c"] == 2  # Locked key should remain unchanged
+    assert config["b"]["d"] == 30  # Unlocked key should be updated
+
+
 def test_update(consolidated, config):
     config.update(dict(this=8))
     assert dict(config) == dict(this=8)
