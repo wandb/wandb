@@ -173,17 +173,53 @@ class Config:
         num = self._users[user]
         self._locked[key] = num
 
+    def _unlock_nested_key(self, key):
+        """Unlock a nested key."""
+        if key in self._locked:
+            del self._locked[key]
+
+    def _check_locked(self, key, ignore_locked=False) -> bool:
+        # Check if the exact key is locked
+        if key in self._locked and isinstance(self._locked[key], int):
+            if not ignore_locked:
+                locked_user = self._users_inv[self._locked[key]]
+                wandb.termwarn(
+                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
+                )
+            return True
+
+        # Check if the key is an ancestor of any locked item
+        key_prefix = f"{key}."
+        for locked_key in self._locked:
+            if locked_key.startswith(key_prefix):
+                if not ignore_locked:
+                    locked_user = self._users_inv[self._locked[locked_key]]
+                    msg = f"Config item '{locked_key}' (child of '{key}') was locked by '{locked_user}' (ignored update)."
+                    if TESTING.get():
+                        raise ValueError(msg)
+                    else:
+                        wandb.termwarn(msg)
+
+                return True
+
+        return False
+
+    """
     def _check_locked(self, key, ignore_locked=False) -> bool:
         locked = self._locked.get(key)
 
         if locked is not None:
             locked_user = self._users_inv[locked]
             if not ignore_locked:
-                wandb.termwarn(
-                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
-                )
+                msg = f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
+                if TESTING.get():
+                    raise ValueError(msg)
+                else:
+                    wandb.termwarn(msg)
+
             return True
         return False
+    """
 
     def __setitem__(self, key, val):
         if self._check_locked(key):
@@ -196,6 +232,14 @@ class Config:
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
             self._callback(key=key, val=val)
+
+    def lock_key(self, key: str, user: Optional[str] = None):
+        """Public method to lock a nested key."""
+        self._lock_nested_key(key, user)
+
+    def unlock_key(self, key: str):
+        """Public method to unlock a nested key."""
+        self._unlock_nested_key(key)
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -255,10 +299,24 @@ class Config:
 
         num = self._users[user]
 
-        for k, v in d.items():
-            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-            self._locked[k] = num
-            self._items[k] = v
+        def recursive_update_and_lock(current_dict, current_key_prefix, data):
+            for k, v in data.items():
+                full_key = f"{current_key_prefix}.{k}" if current_key_prefix else k
+                if isinstance(v, dict):
+                    # Create nested dict in _items if not exist
+                    if k not in current_dict:
+                        current_dict[k] = {}
+                    if k not in self._locked:
+                        self._locked[k] = {}
+                    # Recursively update nested dict
+                    recursive_update_and_lock(current_dict[k], full_key, v)
+                else:
+                    # Sanitize and update simple values
+                    k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
+                    current_dict[k] = v
+                    self._locked[full_key] = num
+
+        recursive_update_and_lock(self._items, "", d)
 
         if self._callback:
             self._callback(data=d)
