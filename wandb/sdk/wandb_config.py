@@ -1,8 +1,8 @@
 """config."""
 
 import logging
-from optparse import Option
-from typing import Union, Optional
+import contextvars
+from typing import Optional
 
 import wandb
 from wandb.util import (
@@ -16,6 +16,8 @@ from .lib import config_util
 
 logger = logging.getLogger("wandb")
 
+TESTING = contextvars.ContextVar("TESTING", default=False)
+
 
 class LockableDict(dict):
     def __init__(self, parent: "Config", key_prefix, *args, **kwargs):
@@ -26,7 +28,12 @@ class LockableDict(dict):
     def __setitem__(self, key, value):
         full_key = f"{self.key_prefix}.{key}"
         if self.parent._check_locked(full_key):
-            raise ValueError(f"Key '{full_key}' is locked")
+            locking_usr = self.parent._locked.get(full_key)
+            msg = f"Key '{full_key}' was locked by {self.parent._users_inv[locking_usr]} (ignored update)."
+            if TESTING.get():
+                raise ValueError(msg)
+            else:
+                wandb.termwarn(msg)
         super().__setitem__(key, value)
 
     def __getitem__(self, key):
@@ -35,9 +42,6 @@ class LockableDict(dict):
             full_key = f"{self.key_prefix}.{key}"
             return LockableDict(self.parent, full_key, value)
         return value
-
-    # Optional: If you use attribute-style access
-    __getattr__ = __getitem__
 
 
 # TODO(jhr): consider a callback for persisting changes?
@@ -169,14 +173,7 @@ class Config:
         num = self._users[user]
         self._locked[key] = num
 
-    def _unlock_nested_key(self, key):
-        """Unlock a nested key."""
-        if key in self._locked:
-            del self._locked[key]
-
     def _check_locked(self, key, ignore_locked=False) -> bool:
-        """Check if a key or subkey is locked."""
-
         locked = self._locked.get(key)
 
         if locked is not None:
@@ -199,14 +196,6 @@ class Config:
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
             self._callback(key=key, val=val)
-
-    def lock_key(self, key: str, user: Optional[str] = None):
-        """Public method to lock a nested key."""
-        self._lock_nested_key(key, user)
-
-    def unlock_key(self, key: str):
-        """Public method to unlock a nested key."""
-        self._unlock_nested_key(key)
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
