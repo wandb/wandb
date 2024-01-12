@@ -388,6 +388,7 @@ func (s *Sender) sendJobFlush() {
 	artifact, err := s.jobBuilder.Build(input, output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		return
 	}
 	if artifact == nil {
 		s.logger.Info("sender: sendDefer: no job artifact to save")
