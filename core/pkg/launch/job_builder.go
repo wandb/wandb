@@ -685,14 +685,20 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 	}
 	j.logger.Debug("jobBuilder: handling log artifact result")
 	artifactRecord := record.GetArtifact()
-	if artifactRecord == nil || response == nil || response.ErrorMessage != "" {
+	if response == nil || response.ErrorMessage != "" {
 		return
 	}
-	if artifactRecord.Type == "code" {
+	switch artifactRecord.GetType() {
+	case "job":
+		// TODO: need to implement job info for job artifacts
+		return
+	case "code":
 		j.RunCodeArtifact = &ArtifactInfoForJob{
 			ID:   response.ArtifactId,
 			Name: artifactRecord.Name,
 		}
+		return
+	default:
 		return
 	}
 }
