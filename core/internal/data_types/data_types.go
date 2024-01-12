@@ -52,7 +52,6 @@ func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
 
 func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 	// TODO: need to properly understand how to handle invalid types
-	encounteredInvalid := len(invalid) > 0 && invalid[0]
 
 	switch v := data.(type) {
 	case map[string]interface{}:
@@ -99,17 +98,6 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 				}
 			}
 		}
-		// if encounteredInvalid {
-		// 	return TypeRepresentation{
-		// 		Name: ListTypeName,
-		// 		Params: &ListType{
-		// 			ElementType: TypeRepresentation{
-		// 				Name: InvalidTypeName,
-		// 			},
-		// 			Length: len(v),
-		// 		},
-		// 	}
-		// }
 
 		allowed := make([]TypeRepresentation, 0, len(result))
 		for _, elem := range result {
@@ -148,12 +136,7 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 		}
 	}
 
-	if encounteredInvalid {
-		return TypeRepresentation{
-			Name: UnknownTypeName,
-		}
-	}
 	return TypeRepresentation{
-		Name: InvalidTypeName,
+		Name: UnknownTypeName,
 	}
 }
