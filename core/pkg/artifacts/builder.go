@@ -42,7 +42,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
-	filename, digest, err := utils.WriteJsonToFileWithDigest(dataMap)
+	filename, digest, size, err := utils.WriteJsonToFileWithDigest(dataMap)
 	if err != nil {
 		return err
 	}
@@ -51,6 +51,7 @@ func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) e
 			Path:      name,
 			Digest:    digest,
 			LocalPath: filename,
+			Size:      size,
 		})
 	b.isDigestUpToDate = false
 	return nil
@@ -61,6 +62,12 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
+	}
+
+	// file size:
+	var size int64
+	if stat, err := file.Stat(); err == nil { // if NO error
+		size = stat.Size()
 	}
 
 	defer file.Close()
@@ -78,6 +85,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 			Path:      name,
 			Digest:    digest,
 			LocalPath: path,
+			Size:      size,
 		})
 	b.isDigestUpToDate = false
 	return nil
