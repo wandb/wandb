@@ -10,6 +10,7 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
+	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -130,11 +131,11 @@ type JobSourceMetadata struct {
 	// this field is used by launch to determine the flow for launching the job
 	// see public.py.Job for more info
 
-	SourceType  SourceType             `json:"source_type"`
-	InputTypes  map[string]interface{} `json:"input_types"`
-	OutputTypes map[string]interface{} `json:"output_types"`
-	Runtime     *string                `json:"runtime,omitempty"`
-	Partial     *string                `json:"_partial,omitempty"`
+	SourceType  SourceType                    `json:"source_type"`
+	InputTypes  data_types.TypeRepresentation `json:"input_types"`
+	OutputTypes data_types.TypeRepresentation `json:"output_types"`
+	Runtime     *string                       `json:"runtime,omitempty"`
+	Partial     *string                       `json:"_partial,omitempty"`
 }
 
 type ArtifactInfoForJob struct {
@@ -152,14 +153,14 @@ type JobBuilder struct {
 
 	PartialJobSource *PartialJobSource
 
-	disable         bool
+	Disable         bool
 	settings        *service.Settings
-	runCodeArtifact *ArtifactInfoForJob
+	RunCodeArtifact *ArtifactInfoForJob
 	aliases         []string
 	isNotebookRun   bool
 }
 
-func makeArtifactNameSafe(name string) string {
+func MakeArtifactNameSafe(name string) string {
 	// Replace characters that are not alphanumeric, underscore, hyphen, or period with underscore
 	cleaned := regexp.MustCompile(`[^a-zA-Z0-9_\-.]`).ReplaceAllString(name, "_")
 
@@ -180,7 +181,7 @@ func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger)
 		settings:      settings,
 		isNotebookRun: settings.GetXJupyter().GetValue(),
 		logger:        logger,
-		disable:       settings.GetDisableJobCreation().GetValue(),
+		Disable:       settings.GetDisableJobCreation().GetValue(),
 	}
 	return jobBuilder
 }
@@ -224,7 +225,7 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 
 }
 
-func (j *JobBuilder) getSourceType(metadata RunMetadata) (*SourceType, error) {
+func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
 	var finalSourceType SourceType
 	// user set source type via settings
 	switch j.settings.GetJobSource().GetValue() {
@@ -295,7 +296,7 @@ func (j *JobBuilder) makeJobName(derivedName string) string {
 	if j.settings.JobName != nil {
 		return j.settings.JobName.Value
 	}
-	return makeArtifactNameSafe(fmt.Sprintf("job-%s", derivedName))
+	return MakeArtifactNameSafe(fmt.Sprintf("job-%s", derivedName))
 }
 
 func (j *JobBuilder) hasRepoJobIngredients(metadata RunMetadata) bool {
@@ -310,7 +311,7 @@ func (j *JobBuilder) hasRepoJobIngredients(metadata RunMetadata) bool {
 }
 
 func (j *JobBuilder) hasArtifactJobIngredients() bool {
-	return j.runCodeArtifact != nil
+	return j.RunCodeArtifact != nil
 }
 
 func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
@@ -337,12 +338,12 @@ func (j *JobBuilder) getSourceAndName(sourceType SourceType, programRelpath *str
 	}
 }
 
-func (j *JobBuilder) handlePathsAboveRoot(programRelpath, root string) (string, error) {
+func (j *JobBuilder) HandlePathsAboveRoot(programRelpath, root string) (string, error) {
 	// git notebooks set root to the git root,
 	// XJupyterRoot contains the path where the jupyter notebook was started
 	// programRelpath contains the path from XJupyterRoot to the file
 	// fullProgramPath here is actually the relpath from the root to the program
-	rootRelPath, err := filepath.Rel(root, j.settings.XJupyterRoot.Value)
+	rootRelPath, err := filepath.Rel(root, j.settings.GetXJupyterRoot().GetValue())
 	if err != nil {
 		return "", err
 	}
@@ -380,7 +381,7 @@ func (j *JobBuilder) createRepoJobSource(programRelpath string, metadata RunMeta
 		if metadata.Root == nil || j.settings.XJupyterRoot == nil {
 			return nil, nil, fmt.Errorf("no root path in metadata, or settings missing jupyter root, not creating job artifact")
 		}
-		fullProgramPath, err = j.handlePathsAboveRoot(programRelpath, *metadata.Root)
+		fullProgramPath, err = j.HandlePathsAboveRoot(programRelpath, *metadata.Root)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -426,11 +427,11 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	}
 	// TODO: update executable to a method that supports pex
 	source := &ArtifactSource{
-		Artifact:   "wandb-artifact://_id/" + j.runCodeArtifact.ID,
+		Artifact:   "wandb-artifact://_id/" + j.RunCodeArtifact.ID,
 		Notebook:   j.isNotebookRun,
 		Entrypoint: entrypoint,
 	}
-	name := j.makeJobName(j.runCodeArtifact.Name)
+	name := j.makeJobName(j.RunCodeArtifact.Name)
 
 	return source, &name, nil
 }
@@ -462,9 +463,11 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 	return source, &name, nil
 }
 
-func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
+func (j *JobBuilder) Build(
+	input, output map[string]interface{},
+) (artifact *service.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
-	if j.disable {
+	if j.Disable {
 		j.logger.Debug("jobBuilder: disabled")
 		return nil, nil
 	}
@@ -500,7 +503,7 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 		_sourceType := sourceInfo.Source.GetSourceType()
 		sourceType = &_sourceType
 	} else {
-		sourceType, err = j.getSourceType(*metadata)
+		sourceType, err = j.GetSourceType(*metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -537,9 +540,12 @@ func (j *JobBuilder) Build() (artifact *service.ArtifactRecord, rerr error) {
 	}
 
 	sourceInfo.Runtime = metadata.Python
-	// TODO: Send and retrieve types from protobuffs
-	sourceInfo.InputTypes = make(map[string]interface{})
-	sourceInfo.OutputTypes = make(map[string]interface{})
+	if input != nil {
+		sourceInfo.InputTypes = data_types.GenerateTypeRepresentation(input)
+	}
+	if output != nil {
+		sourceInfo.OutputTypes = data_types.GenerateTypeRepresentation(output)
+	}
 
 	fmt.Println("Creating job artifact...")
 	fmt.Println("Job name:", sourceInfo.InputTypes, sourceInfo.OutputTypes, *name)
@@ -610,14 +616,14 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 	if useArtifact.Type == "job" && useArtifact.Partial == nil {
 		j.logger.Debug("jobBuilder: run comes from used, nonpartial, job. Disabling job builder")
-		j.disable = true
+		j.Disable = true
 		return
 	}
 
 	// if empty job name, disable job builder
 	if useArtifact.Partial != nil && len(useArtifact.Partial.JobName) == 0 {
 		j.logger.Debug("jobBuilder: no job name found in partial use artifact record, disabling job builder")
-		j.disable = true
+		j.Disable = true
 		return
 	}
 
@@ -632,7 +638,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	case "repo":
 		if sourceInfo.Source.Git == nil {
 			j.logger.Debug("jobBuilder: no git info found in repo type partial use artifact record, disabling job builder")
-			j.disable = true
+			j.Disable = true
 			return
 		}
 		entrypoint := sourceInfo.Source.Git.Entrypoint
@@ -648,7 +654,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	case "artifact":
 		if sourceInfo.Source.Artifact == nil {
 			j.logger.Debug("jobBuilder: no artifact info found in artifact type partial use artifact record, disabling job builder")
-			j.disable = true
+			j.Disable = true
 			return
 		}
 		entrypoint := sourceInfo.Source.Artifact.Entrypoint
@@ -661,7 +667,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	case "image":
 		if sourceInfo.Source.Image == nil {
 			j.logger.Debug("jobBuilder: no image info found in image type partial use artifact record, disabling job builder")
-			j.disable = true
+			j.Disable = true
 			return
 		}
 		imageSource := ImageSource{
@@ -683,7 +689,7 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 		return
 	}
 	if artifactRecord.Type == "code" {
-		j.runCodeArtifact = &ArtifactInfoForJob{
+		j.RunCodeArtifact = &ArtifactInfoForJob{
 			ID:   response.ArtifactId,
 			Name: artifactRecord.Name,
 		}

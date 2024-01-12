@@ -365,7 +365,20 @@ func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
 }
 
 func (s *Sender) sendJobFlush() {
-	artifact, err := s.jobBuilder.Build()
+	input := s.configMap
+	output := make(map[string]interface{})
+
+	var out interface{}
+	for k, v := range s.summaryMap {
+		bytes := []byte(v.GetValueJson())
+		json.Unmarshal(bytes, &out)
+		output[k] = out
+	}
+
+	fmt.Println("sender: sendJobFlush: input", input)
+	fmt.Println("sender: sendJobFlush: output", output)
+
+	artifact, err := s.jobBuilder.Build(input, output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
 	}
