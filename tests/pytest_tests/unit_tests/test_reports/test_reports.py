@@ -55,13 +55,25 @@ if sys.version_info >= (3, 8):
     class H1Factory(CustomDataclassFactory[wr2.H1]):
         __model__ = wr2.H1
 
+        @classmethod
+        def collapsed_blocks(cls):
+            return None
+
     @register_fixture
     class H2Factory(CustomDataclassFactory[wr2.H2]):
         __model__ = wr2.H2
 
+        @classmethod
+        def collapsed_blocks(cls):
+            return None
+
     @register_fixture
     class H3Factory(CustomDataclassFactory[wr2.H3]):
         __model__ = wr2.H3
+
+        @classmethod
+        def collapsed_blocks(cls):
+            return None
 
     @register_fixture
     class BlockQuoteFactory(CustomDataclassFactory[wr2.BlockQuote]):
@@ -167,8 +179,10 @@ if sys.version_info >= (3, 8):
 
         @classmethod
         def gradient(cls):
-            gradient_point = GradientPointFactory.build()
-            return [gradient_point]
+            # gradient_point = GradientPointFactory.build()
+            # print("gradient_point", gradient_point)
+            # return [gradient_point]
+            return [wr2.GradientPoint("#FFFFFF", 1)]
 
     @register_fixture
     class ParameterImportancePlotFactory(
@@ -190,8 +204,9 @@ if sys.version_info >= (3, 8):
 
         @classmethod
         def gradient(cls):
-            gradient_point = GradientPointFactory.build()
-            return [gradient_point]
+            # gradient_point = GradientPointFactory.build()
+            # return [gradient_point]
+            return [wr2.GradientPoint("#FFFFFF", 1)]
 
 
 block_factory_names = [
