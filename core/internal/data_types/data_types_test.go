@@ -19,7 +19,7 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 			name:  "Empty Map",
 			input: map[string]interface{}{},
 			expected: data_types.TypeRepresentation{
-				Type:   data_types.MapTypeName,
+				Name:   data_types.MapTypeName,
 				Params: &data_types.MapType{Type: map[string]data_types.TypeRepresentation{}},
 			},
 		},
@@ -32,12 +32,12 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"_o": 42,
 			},
 			expected: data_types.TypeRepresentation{
-				Type: data_types.MapTypeName,
+				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
-						"a": {Type: data_types.NumberTypeName},
-						"b": {Type: data_types.StringTypeName},
-						"c": {Type: data_types.BooleanTypeName},
+						"a": {Name: data_types.NumberTypeName},
+						"b": {Name: data_types.StringTypeName},
+						"c": {Name: data_types.BooleanTypeName},
 					},
 				},
 			},
@@ -51,21 +51,21 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"b": []interface{}{1, 2, 3},
 			},
 			expected: data_types.TypeRepresentation{
-				Type: data_types.MapTypeName,
+				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
 						"a": {
-							Type: data_types.MapTypeName,
+							Name: data_types.MapTypeName,
 							Params: &data_types.MapType{
 								Type: map[string]data_types.TypeRepresentation{
-									"aa": {Type: data_types.NumberTypeName},
+									"aa": {Name: data_types.NumberTypeName},
 								},
 							},
 						},
 						"b": {
-							Type: data_types.ListTypeName,
+							Name: data_types.ListTypeName,
 							Params: &data_types.ListType{
-								ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+								ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
 								Length:      3,
 							},
 						},
@@ -82,16 +82,16 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				},
 			},
 			expected: data_types.TypeRepresentation{
-				Type: data_types.MapTypeName,
+				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
 						"a": {
-							Type: data_types.ListTypeName,
+							Name: data_types.ListTypeName,
 							Params: &data_types.ListType{
 								ElementType: data_types.TypeRepresentation{
-									Type: data_types.ListTypeName,
+									Name: data_types.ListTypeName,
 									Params: &data_types.ListType{
-										ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+										ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
 										Length:      2,
 									},
 								},
@@ -108,10 +108,10 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"a": CustomType{},
 			},
 			expected: data_types.TypeRepresentation{
-				Type: data_types.MapTypeName,
+				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
-						"a": {Type: data_types.InvalidTypeName},
+						"a": {Name: data_types.InvalidTypeName},
 					},
 				},
 			},
@@ -131,40 +131,40 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				},
 			},
 			expected: data_types.TypeRepresentation{
-				Type: data_types.MapTypeName,
+				Name: data_types.MapTypeName,
 				Params: &data_types.MapType{
 					Type: map[string]data_types.TypeRepresentation{
 						"deep": {
-							Type: data_types.MapTypeName,
+							Name: data_types.MapTypeName,
 							Params: &data_types.MapType{
 								Type: map[string]data_types.TypeRepresentation{
 									"numbers": {
-										Type: data_types.ListTypeName,
+										Name: data_types.ListTypeName,
 										Params: &data_types.ListType{
-											ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+											ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
 											Length:      3,
 										},
 									},
 									"mixed": {
-										Type: data_types.ListTypeName,
+										Name: data_types.ListTypeName,
 										Params: &data_types.ListType{
 											ElementType: data_types.TypeRepresentation{
-												Type: data_types.UnionTypeName,
+												Name: data_types.UnionTypeName,
 												Params: &data_types.UnionType{
 													AllowedTypes: []data_types.TypeRepresentation{
 														{
-															Type: data_types.MapTypeName,
+															Name: data_types.MapTypeName,
 															Params: &data_types.MapType{
 																Type: map[string]data_types.TypeRepresentation{
-																	"a": {Type: data_types.NumberTypeName},
-																	"b": {Type: data_types.StringTypeName},
+																	"a": {Name: data_types.NumberTypeName},
+																	"b": {Name: data_types.StringTypeName},
 																},
 															},
 														},
 														{
-															Type: data_types.ListTypeName,
+															Name: data_types.ListTypeName,
 															Params: &data_types.ListType{
-																ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+																ElementType: data_types.TypeRepresentation{Name: data_types.NumberTypeName},
 																Length:      3,
 															},
 														},

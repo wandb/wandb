@@ -1,5 +1,9 @@
 package data_types
 
+import (
+	"strings"
+)
+
 type TypeName string
 
 const (
@@ -19,113 +23,137 @@ type ListType struct {
 	Length      int                `json:"length"`
 }
 
-func (*ListType) isParam_ParamType() {}
+func (*ListType) isParams_ParamsType() {}
 
 type UnionType struct {
 	AllowedTypes []TypeRepresentation `json:"allowed_types"`
 }
 
-func (*UnionType) isParam_ParamType() {}
+func (*UnionType) isParams_ParamsType() {}
 
 type MapType struct {
 	Type map[string]TypeRepresentation `json:"type_map"`
 }
 
-func (*MapType) isParam_ParamType() {}
+func (*MapType) isParams_ParamsType() {}
 
 type TypeRepresentation struct {
-	Type   TypeName          `json:"wb_type"`
-	Params isParam_ParamType `json:"params,omitempty"`
+	Name   TypeName            `json:"wb_type"`
+	Params isParams_ParamsType `json:"params,omitempty"`
 }
 
-type isParam_ParamType interface {
-	isParam_ParamType()
+type isParams_ParamsType interface {
+	isParams_ParamsType()
 }
 
 func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
 	return resolveTypes(data)
 }
 
-func resolveTypes(data any, invalid ...bool) TypeRepresentation {
+func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
+	// TODO: need to properly understand how to handle invalid types
 	encounteredInvalid := len(invalid) > 0 && invalid[0]
 
 	switch v := data.(type) {
-	case map[string]any:
-		result := TypeRepresentation{
-			Type: MapTypeName,
-			Params: &MapType{
-				Type: map[string]TypeRepresentation{},
-			},
-		}
+	case map[string]interface{}:
+		result := make(map[string]TypeRepresentation)
 		for key, value := range v {
-			if len(key) == 0 || key[0] != '_' {
-				result.Params.(*MapType).Type[key] = resolveTypes(value)
+			if !strings.HasPrefix(key, "_") {
+				result[key] = resolveTypes(value)
 			}
 		}
-		return result
+		return TypeRepresentation{
+			Name: MapTypeName,
+			Params: &MapType{
+				Type: result,
+			},
+		}
 
-	case []any:
-		if len(v) == 0 {
+	case []interface{}:
+		result := make(map[TypeName]TypeRepresentation)
+		for _, elem := range v {
+			resolved := resolveTypes(elem)
+			// TODO: this is not correct if we have a complex type that is a bit different
+			// for example: [[1, 2, 3], [1, 2, "3"]] should be union but it will be list
+			result[resolved.Name] = resolved
+		}
+		if len(result) == 0 {
 			return TypeRepresentation{
-				Type: "list",
+				Name: ListTypeName,
 				Params: &ListType{
-					ElementType: TypeRepresentation{Type: UnknownTypeName},
-					Length:      0,
+					ElementType: TypeRepresentation{
+						Name: UnknownTypeName,
+					},
+					Length: len(v),
 				},
 			}
 		}
-		elemType := resolveTypes(v[0])
-		isInvalid := elemType.Type == InvalidTypeName
-		for _, elem := range v[1:] {
-			elemRep := resolveTypes(elem, isInvalid)
-			if elemRep.Type != elemType.Type {
-				elemType = TypeRepresentation{
-					Type: UnionTypeName,
-					Params: &UnionType{
-						AllowedTypes: []TypeRepresentation{elemType, elemRep},
+		if len(result) == 1 {
+			for _, elem := range result {
+				return TypeRepresentation{
+					Name: ListTypeName,
+					Params: &ListType{
+						ElementType: elem,
+						Length:      len(v),
 					},
 				}
-				break
 			}
 		}
-		if encounteredInvalid {
-			elemType.Type = InvalidTypeName
+		// if encounteredInvalid {
+		// 	return TypeRepresentation{
+		// 		Name: ListTypeName,
+		// 		Params: &ListType{
+		// 			ElementType: TypeRepresentation{
+		// 				Name: InvalidTypeName,
+		// 			},
+		// 			Length: len(v),
+		// 		},
+		// 	}
+		// }
+
+		allowed := make([]TypeRepresentation, 0, len(result))
+		for _, elem := range result {
+			allowed = append(allowed, elem)
 		}
 		return TypeRepresentation{
-			Type: "list",
+			Name: ListTypeName,
 			Params: &ListType{
-				ElementType: elemType,
-				Length:      len(v),
+				ElementType: TypeRepresentation{
+					Name: UnionTypeName,
+					Params: &UnionType{
+						AllowedTypes: allowed,
+					},
+				},
+				Length: len(v),
 			},
 		}
-
 	case int, float64:
 		return TypeRepresentation{
-			Type: NumberTypeName,
+			Name: NumberTypeName,
 		}
 
 	case string:
 		return TypeRepresentation{
-			Type: StringTypeName,
+			Name: StringTypeName,
 		}
 
 	case bool:
 		return TypeRepresentation{
-			Type: BooleanTypeName,
+			Name: BooleanTypeName,
 		}
 
 	case nil:
 		return TypeRepresentation{
-			Type: NoneTypeName,
+			Name: NoneTypeName,
 		}
 	}
 
 	if encounteredInvalid {
 		return TypeRepresentation{
-			Type: UnknownTypeName,
+			Name: UnknownTypeName,
 		}
 	}
 	return TypeRepresentation{
-		Type: InvalidTypeName,
+		Name: InvalidTypeName,
 	}
 }
