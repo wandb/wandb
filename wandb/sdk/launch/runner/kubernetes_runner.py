@@ -562,7 +562,7 @@ class KubernetesRunner(AbstractRunner):
             raise LaunchError(
                 f"Unexpected exception when creating Kubernetes job: {str(e)}\n"
             )
-        job_response = response[0][0]
+        job_response = response[0]
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
