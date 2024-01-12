@@ -24,7 +24,7 @@ assert:
     - :wandb:runs[0][config][workflow][0][params][negative_prompt][0]: "ugly, deformed"
     - :wandb:runs[0][config][workflow][0][params][negative_prompt][1]: "ugly, deformed"
     - :wandb:runs[0][config][workflow][0][params][return_dict]: true
-    - :wandb:runs[0][config][workflow][0][params][seed]: 10
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 10
     - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "runwayml/stable-diffusion-v1-5"
     - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "StableDiffusionPipeline"
     - :wandb:runs[0][config][workflow][0][pipeline][requires_safety_checker]: true
