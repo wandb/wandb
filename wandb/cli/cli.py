@@ -1707,10 +1707,11 @@ def launch_agent(
         raise e
 
 
+
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
 @click.pass_context
-@click.option("--project", "-p", default=None, help="The project of the sweep.")
-@click.option("--entity", "-e", default=None, help="The entity scope for the project.")
+@click.option("--project", "-p", default=None, help="""The name of the project where W&B runs created from the sweep are sent to. If the project is not specified, the run is sent to a project labeled 'Uncategorized'.""")
+@click.option("--entity", "-e", default=None, help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""")
 @click.option(
     "--count", default=None, type=int, help="The max number of runs for this agent."
 )
