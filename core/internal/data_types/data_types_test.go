@@ -19,10 +19,8 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 			name:  "Empty Map",
 			input: map[string]interface{}{},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{},
-				},
+				Type:   data_types.MapTypeName,
+				Params: &data_types.MapType{Type: map[string]data_types.TypeRepresentation{}},
 			},
 		},
 		{
@@ -34,12 +32,12 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"_o": 42,
 			},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"a": data_types.TypeRepresentation{WbType: "number"},
-						"b": data_types.TypeRepresentation{WbType: "string"},
-						"c": data_types.TypeRepresentation{WbType: "boolean"},
+				Type: data_types.MapTypeName,
+				Params: &data_types.MapType{
+					Type: map[string]data_types.TypeRepresentation{
+						"a": {Type: data_types.NumberTypeName},
+						"b": {Type: data_types.StringTypeName},
+						"c": {Type: data_types.BooleanTypeName},
 					},
 				},
 			},
@@ -53,22 +51,22 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"b": []interface{}{1, 2, 3},
 			},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"a": data_types.TypeRepresentation{
-							WbType: "typedDict",
-							Params: map[string]interface{}{
-								"type_map": map[string]interface{}{
-									"aa": data_types.TypeRepresentation{WbType: "number"},
+				Type: data_types.MapTypeName,
+				Params: &data_types.MapType{
+					Type: map[string]data_types.TypeRepresentation{
+						"a": {
+							Type: data_types.MapTypeName,
+							Params: &data_types.MapType{
+								Type: map[string]data_types.TypeRepresentation{
+									"aa": {Type: data_types.NumberTypeName},
 								},
 							},
 						},
-						"b": data_types.TypeRepresentation{
-							WbType: "list",
-							Params: map[string]interface{}{
-								"element_type": data_types.TypeRepresentation{WbType: "number"},
-								"length":       3,
+						"b": {
+							Type: data_types.ListTypeName,
+							Params: &data_types.ListType{
+								ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+								Length:      3,
 							},
 						},
 					},
@@ -84,20 +82,20 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				},
 			},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"a": data_types.TypeRepresentation{
-							WbType: "list",
-							Params: map[string]interface{}{
-								"element_type": data_types.TypeRepresentation{
-									WbType: "list",
-									Params: map[string]interface{}{
-										"element_type": data_types.TypeRepresentation{WbType: "number"},
-										"length":       2,
+				Type: data_types.MapTypeName,
+				Params: &data_types.MapType{
+					Type: map[string]data_types.TypeRepresentation{
+						"a": {
+							Type: data_types.ListTypeName,
+							Params: &data_types.ListType{
+								ElementType: data_types.TypeRepresentation{
+									Type: data_types.ListTypeName,
+									Params: &data_types.ListType{
+										ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+										Length:      2,
 									},
 								},
-								"length": 2,
+								Length: 2,
 							},
 						},
 					},
@@ -110,12 +108,10 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				"a": CustomType{},
 			},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"a": data_types.TypeRepresentation{
-							WbType: "invalid",
-						},
+				Type: data_types.MapTypeName,
+				Params: &data_types.MapType{
+					Type: map[string]data_types.TypeRepresentation{
+						"a": {Type: data_types.InvalidTypeName},
 					},
 				},
 			},
@@ -135,47 +131,47 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 				},
 			},
 			expected: data_types.TypeRepresentation{
-				WbType: "typedDict",
-				Params: map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"deep": data_types.TypeRepresentation{
-							WbType: "typedDict",
-							Params: map[string]interface{}{
-								"type_map": map[string]interface{}{
-									"numbers": data_types.TypeRepresentation{
-										WbType: "list",
-										Params: map[string]interface{}{
-											"element_type": data_types.TypeRepresentation{WbType: "number"},
-											"length":       3,
+				Type: data_types.MapTypeName,
+				Params: &data_types.MapType{
+					Type: map[string]data_types.TypeRepresentation{
+						"deep": {
+							Type: data_types.MapTypeName,
+							Params: &data_types.MapType{
+								Type: map[string]data_types.TypeRepresentation{
+									"numbers": {
+										Type: data_types.ListTypeName,
+										Params: &data_types.ListType{
+											ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+											Length:      3,
 										},
 									},
-									"mixed": data_types.TypeRepresentation{
-										WbType: "list",
-										Params: map[string]interface{}{
-											"element_type": data_types.TypeRepresentation{
-												WbType: "union",
-												Params: map[string]interface{}{
-													"allowed_types": []data_types.TypeRepresentation{
+									"mixed": {
+										Type: data_types.ListTypeName,
+										Params: &data_types.ListType{
+											ElementType: data_types.TypeRepresentation{
+												Type: data_types.UnionTypeName,
+												Params: &data_types.UnionType{
+													AllowedTypes: []data_types.TypeRepresentation{
 														{
-															WbType: "typedDict",
-															Params: map[string]interface{}{
-																"type_map": map[string]interface{}{
-																	"a": data_types.TypeRepresentation{WbType: "number"},
-																	"b": data_types.TypeRepresentation{WbType: "string"},
+															Type: data_types.MapTypeName,
+															Params: &data_types.MapType{
+																Type: map[string]data_types.TypeRepresentation{
+																	"a": {Type: data_types.NumberTypeName},
+																	"b": {Type: data_types.StringTypeName},
 																},
 															},
 														},
 														{
-															WbType: "list",
-															Params: map[string]interface{}{
-																"element_type": data_types.TypeRepresentation{WbType: "number"},
-																"length":       3,
+															Type: data_types.ListTypeName,
+															Params: &data_types.ListType{
+																ElementType: data_types.TypeRepresentation{Type: data_types.NumberTypeName},
+																Length:      3,
 															},
 														},
 													},
 												},
 											},
-											"length": 2,
+											Length: 2,
 										},
 									},
 								},

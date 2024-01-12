@@ -1,94 +1,131 @@
 package data_types
 
+type TypeName string
+
+const (
+	StringTypeName  TypeName = "string"
+	BooleanTypeName TypeName = "boolean"
+	NoneTypeName    TypeName = "none"
+	ListTypeName    TypeName = "list"
+	UnionTypeName   TypeName = "union"
+	MapTypeName     TypeName = "typedDict"
+	InvalidTypeName TypeName = "invalid"
+	UnknownTypeName TypeName = "unknown"
+	NumberTypeName  TypeName = "number"
+)
+
+type ListType struct {
+	ElementType TypeRepresentation `json:"element_type"`
+	Length      int                `json:"length"`
+}
+
+func (*ListType) isParam_ParamType() {}
+
+type UnionType struct {
+	AllowedTypes []TypeRepresentation `json:"allowed_types"`
+}
+
+func (*UnionType) isParam_ParamType() {}
+
+type MapType struct {
+	Type map[string]TypeRepresentation `json:"type_map"`
+}
+
+func (*MapType) isParam_ParamType() {}
+
 type TypeRepresentation struct {
-	WbType string                 `json:"wb_type"`
-	Params map[string]interface{} `json:"params,omitempty"`
+	Type   TypeName          `json:"wb_type"`
+	Params isParam_ParamType `json:"params,omitempty"`
+}
+
+type isParam_ParamType interface {
+	isParam_ParamType()
 }
 
 func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
-	return generateTypeRepresentation(data)
+	return resolveTypes(data)
 }
 
-func generateTypeRepresentation(data interface{}, invalid ...bool) TypeRepresentation {
+func resolveTypes(data any, invalid ...bool) TypeRepresentation {
 	encounteredInvalid := len(invalid) > 0 && invalid[0]
 
 	switch v := data.(type) {
-	case map[string]interface{}:
-		typedDict := TypeRepresentation{
-			WbType: "typedDict",
-			Params: map[string]interface{}{
-				"type_map": make(map[string]interface{}),
+	case map[string]any:
+		result := TypeRepresentation{
+			Type: MapTypeName,
+			Params: &MapType{
+				Type: map[string]TypeRepresentation{},
 			},
 		}
 		for key, value := range v {
 			if len(key) == 0 || key[0] != '_' {
-				typedDict.Params["type_map"].(map[string]interface{})[key] = generateTypeRepresentation(value)
+				result.Params.(*MapType).Type[key] = resolveTypes(value)
 			}
 		}
-		return typedDict
+		return result
 
-	case []interface{}:
+	case []any:
 		if len(v) == 0 {
 			return TypeRepresentation{
-				WbType: "list",
-				Params: map[string]interface{}{
-					"element_type": TypeRepresentation{WbType: "none"},
-					"length":       0,
+				Type: "list",
+				Params: &ListType{
+					ElementType: TypeRepresentation{Type: UnknownTypeName},
+					Length:      0,
 				},
 			}
 		}
-		elemType := generateTypeRepresentation(v[0])
-		isInvalid := elemType.WbType == "invalid"
+		elemType := resolveTypes(v[0])
+		isInvalid := elemType.Type == InvalidTypeName
 		for _, elem := range v[1:] {
-			elemRep := generateTypeRepresentation(elem, isInvalid)
-			if elemRep.WbType != elemType.WbType {
+			elemRep := resolveTypes(elem, isInvalid)
+			if elemRep.Type != elemType.Type {
 				elemType = TypeRepresentation{
-					WbType: "union",
-					Params: map[string]interface{}{
-						"allowed_types": []TypeRepresentation{elemType, elemRep},
+					Type: UnionTypeName,
+					Params: &UnionType{
+						AllowedTypes: []TypeRepresentation{elemType, elemRep},
 					},
 				}
 				break
 			}
 		}
 		if encounteredInvalid {
-			elemType.WbType = "invalid"
+			elemType.Type = InvalidTypeName
 		}
 		return TypeRepresentation{
-			WbType: "list",
-			Params: map[string]interface{}{
-				"element_type": elemType,
-				"length":       len(v),
+			Type: "list",
+			Params: &ListType{
+				ElementType: elemType,
+				Length:      len(v),
 			},
 		}
 
 	case int, float64:
 		return TypeRepresentation{
-			WbType: "number",
+			Type: NumberTypeName,
 		}
 
 	case string:
 		return TypeRepresentation{
-			WbType: "string",
+			Type: StringTypeName,
 		}
 
 	case bool:
 		return TypeRepresentation{
-			WbType: "boolean",
+			Type: BooleanTypeName,
 		}
 
 	case nil:
 		return TypeRepresentation{
-			WbType: "none",
+			Type: NoneTypeName,
 		}
 	}
 
 	if encounteredInvalid {
 		return TypeRepresentation{
-			WbType: "unknown",
+			Type: UnknownTypeName,
 		}
 	}
 	return TypeRepresentation{
-		WbType: "invalid",
+		Type: InvalidTypeName,
 	}
 }
