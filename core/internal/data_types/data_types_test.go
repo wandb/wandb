@@ -186,7 +186,7 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := data_types.GenerateTypeRepresentation(tc.input)
+			result := data_types.ResolveTypes(tc.input, nil)
 			if !reflect.DeepEqual(result, tc.expected) {
 				jsonResult, _ := json.MarshalIndent(result, "", "  ")
 				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, jsonResult)

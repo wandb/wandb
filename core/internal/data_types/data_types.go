@@ -1,9 +1,5 @@
 package data_types
 
-import (
-	"strings"
-)
-
 type TypeName string
 
 const (
@@ -46,19 +42,32 @@ type isParams_ParamsType interface {
 	isParams_ParamsType()
 }
 
-func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
-	return resolveTypes(data)
+func ResolveTypes(data interface{}, filterFunc func(key string) bool) TypeRepresentation {
+	if filterFunc == nil {
+		filterFunc = func(key string) bool {
+			return false
+		}
+	}
+
+	resolver := &TypeResolver{
+		filterFunc: filterFunc,
+	}
+	return resolver.resolveTypes(data)
 }
 
-func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
+type TypeResolver struct {
+	filterFunc func(key string) bool
+}
+
+func (tr *TypeResolver) resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 	// TODO: need to properly understand how to handle invalid types
 
 	switch v := data.(type) {
 	case map[string]interface{}:
 		result := make(map[string]TypeRepresentation)
 		for key, value := range v {
-			if !strings.HasPrefix(key, "_") {
-				result[key] = resolveTypes(value)
+			if !tr.filterFunc(key) {
+				result[key] = tr.resolveTypes(value)
 			}
 		}
 		return TypeRepresentation{
@@ -71,7 +80,7 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 	case []interface{}:
 		result := make(map[TypeName]TypeRepresentation)
 		for _, elem := range v {
-			resolved := resolveTypes(elem)
+			resolved := tr.resolveTypes(elem)
 			// TODO: this is not correct if we have a complex type that is a bit different
 			// for example: [[1, 2, 3], [1, 2, "3"]] should be union but it will be list
 			result[resolved.Name] = resolved
