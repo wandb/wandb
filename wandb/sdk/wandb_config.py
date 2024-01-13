@@ -94,7 +94,7 @@ class Config:
 
     def __init__(self):
         object.__setattr__(self, "_items", dict())
-        object.__setattr__(self, "_locked", dict())
+        object.__setattr__(self, "_locked_items", dict())
         object.__setattr__(self, "_users", dict())
         object.__setattr__(self, "_users_inv", dict())
         object.__setattr__(self, "_users_cnt", 0)
@@ -119,30 +119,21 @@ class Config:
     def keys(self):
         return [k for k in self._items.keys() if not k.startswith("_")]
 
+    @property
+    def _read_interface(self) -> dict:
+        return config_util.merge_dicts(self._items, self._locked_items)
+
     def _as_dict(self):
-        return self._items
+        return self._read_interface
 
     def as_dict(self):
         # TODO: add telemetry, deprecate, then remove
         return dict(self)
 
     def __getitem__(self, key):
-        return self._items[key]
-
-    def _check_locked(self, key, ignore_locked=False) -> bool:
-        locked = self._locked.get(key)
-        if locked is not None:
-            locked_user = self._users_inv[locked]
-            if not ignore_locked:
-                wandb.termwarn(
-                    f"Config item '{key}' was locked by '{locked_user}' (ignored update)."
-                )
-            return True
-        return False
+        return self._read_interface[key]
 
     def __setitem__(self, key, val):
-        if self._check_locked(key):
-            return
         with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
@@ -166,16 +157,15 @@ class Config:
             ) from ke
 
     def __contains__(self, key):
-        return key in self._items
+        return key in self._read_interface
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
+        # TODO: handle ignore_locked
+        # TODO: make sure sanitized is right
         parsed_dict = wandb_helper.parse_config(d)
-        locked_keys = set()
-        for key in list(parsed_dict):
-            if self._check_locked(key, ignore_locked=ignore_locked):
-                locked_keys.add(key)
         sanitized = self._sanitize_dict(
-            parsed_dict, allow_val_change, ignore_keys=locked_keys
+            parsed_dict,
+            allow_val_change,
         )
         self._items.update(sanitized)
         return sanitized
@@ -183,10 +173,11 @@ class Config:
     def update(self, d, allow_val_change=None):
         sanitized = self._update(d, allow_val_change)
         if self._callback:
+            # TODO: use dict(self) here
             self._callback(data=sanitized)
 
     def get(self, *args):
-        return self._items.get(*args)
+        return self._read_interface.get(*args)
 
     def persist(self):
         """Call the callback if it's set."""
@@ -203,6 +194,7 @@ class Config:
             self._callback(data=d)
 
     def update_locked(self, d, user=None, _allow_val_change=None):
+        """
         if user not in self._users:
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
@@ -214,6 +206,11 @@ class Config:
             k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
+        """
+
+        sanitized = self._sanitize_dict(d)
+
+        self._locked_items = config_util.merge_dicts(self._locked_items, sanitized)
 
         if self._callback:
             self._callback(data=d)
@@ -256,10 +253,11 @@ class Config:
         if isinstance(val, dict):
             val = self._sanitize_dict(val)
         if not allow_val_change:
-            if key in self._items and val != self._items[key]:
+            read_interface = self._read_interface
+            if key in read_interface and val != read_interface[key]:
                 raise config_util.ConfigError(
                     f'Attempted to change value of key "{key}" '
-                    f"from {self._items[key]} to {val}\n"
+                    f"from {read_interface[key]} to {val}\n"
                     "If you really want to do this, pass"
                     " allow_val_change=True to config.update()"
                 )
