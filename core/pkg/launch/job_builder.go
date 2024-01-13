@@ -541,15 +541,11 @@ func (j *JobBuilder) Build(
 
 	sourceInfo.Runtime = metadata.Python
 
-	filterFunc := func(key string) bool {
-		return key == "_wandb"
-	}
-
 	if input != nil {
-		sourceInfo.InputTypes = data_types.ResolveTypes(input, filterFunc)
+		sourceInfo.InputTypes = data_types.ResolveTypes(input)
 	}
 	if output != nil {
-		sourceInfo.OutputTypes = data_types.ResolveTypes(output, filterFunc)
+		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
 	}
 
 	baseArtifact := &service.ArtifactRecord{

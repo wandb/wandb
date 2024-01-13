@@ -3,7 +3,6 @@ package data_types_test
 import (
 	"encoding/json"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/wandb/wandb/core/internal/data_types"
@@ -28,10 +27,9 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 		{
 			name: "Nested Number, String, and Boolean",
 			input: map[string]interface{}{
-				"a":  1,
-				"b":  "hello",
-				"c":  true,
-				"_o": 42,
+				"a": 1,
+				"b": "hello",
+				"c": true,
 			},
 			expected: data_types.TypeRepresentation{
 				Name: data_types.MapTypeName,
@@ -187,10 +185,7 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			filterFunc := func(key string) bool {
-				return strings.HasPrefix(key, "_")
-			}
-			result := data_types.ResolveTypes(tc.input, filterFunc)
+			result := data_types.ResolveTypes(tc.input)
 			if !reflect.DeepEqual(result, tc.expected) {
 				jsonResult, _ := json.MarshalIndent(result, "", "  ")
 				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, string(jsonResult))

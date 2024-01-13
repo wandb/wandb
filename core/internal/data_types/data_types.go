@@ -42,32 +42,19 @@ type isParams_ParamsType interface {
 	isParams_ParamsType()
 }
 
-func ResolveTypes(data interface{}, filterFunc func(key string) bool) TypeRepresentation {
-	if filterFunc == nil {
-		filterFunc = func(key string) bool {
-			return false
-		}
-	}
-
-	resolver := &TypeResolver{
-		filterFunc: filterFunc,
-	}
-	return resolver.resolveTypes(data)
+func ResolveTypes(data interface{}) TypeRepresentation {
+	return resolveTypes(data)
 }
 
-type TypeResolver struct {
-	filterFunc func(key string) bool
-}
-
-func (tr *TypeResolver) resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
+func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 	// TODO: need to properly understand how to handle invalid types
 
 	switch v := data.(type) {
 	case map[string]interface{}:
 		result := make(map[string]TypeRepresentation)
 		for key, value := range v {
-			if !tr.filterFunc(key) {
-				result[key] = tr.resolveTypes(value)
+			if key != "_wandb" {
+				result[key] = resolveTypes(value)
 			}
 		}
 		return TypeRepresentation{
@@ -80,7 +67,7 @@ func (tr *TypeResolver) resolveTypes(data interface{}, invalid ...bool) TypeRepr
 	case []interface{}:
 		result := make(map[TypeName]TypeRepresentation)
 		for _, elem := range v {
-			resolved := tr.resolveTypes(elem)
+			resolved := resolveTypes(elem)
 			// TODO: this is not correct if we have a complex type that is a bit different
 			// for example: [[1, 2, 3], [1, 2, "3"]] should be union but it will be list
 			result[resolved.Name] = resolved
