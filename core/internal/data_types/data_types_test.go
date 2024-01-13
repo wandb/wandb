@@ -3,6 +3,7 @@ package data_types_test
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/wandb/wandb/core/internal/data_types"
@@ -186,7 +187,10 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := data_types.ResolveTypes(tc.input, nil)
+			filterFunc := func(key string) bool {
+				return strings.HasPrefix(key, "_")
+			}
+			result := data_types.ResolveTypes(tc.input, filterFunc)
 			if !reflect.DeepEqual(result, tc.expected) {
 				jsonResult, _ := json.MarshalIndent(result, "", "  ")
 				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, jsonResult)
