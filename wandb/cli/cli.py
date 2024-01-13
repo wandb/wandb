@@ -829,7 +829,7 @@ def sync(
 @click.option("--entity", "-e", default=None, help="""The username or team name where you want to send W&B runs created by the sweep to. Ensure that the entity you specify already exists. If you don't specify an entity, the run will be sent to your default entity, which is usually your username.""")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=None, help="The name of the sweep. The run ID that is created from the sweep is used if no name is specified.")
+@click.option("--name", default=None, help="The name of the sweep. The sweep ID is used if no name is specified.")
 @click.option("--program", default=None, help="Set sweep program")
 @click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
