@@ -316,8 +316,6 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
-	case *service.Request_JobInfo:
-		s.sendJobInfo(record, x.JobInfo)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -1233,26 +1231,6 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			return
 		}
 	}
-}
-
-func (s *Sender) sendJobInfo(record *service.Record, request *service.JobInfoRequest) {
-	if s.jobBuilder == nil {
-		return
-	}
-
-	// TODO: fill in the job info fields from the job builder
-	result := &service.Result{
-		Uuid:    record.Uuid,
-		Control: record.Control,
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_JobInfoResponse{
-					JobInfoResponse: &service.JobInfoResponse{},
-				},
-			},
-		},
-	}
-	s.outChan <- result
 }
 
 func (s *Sender) getServerInfo() {
