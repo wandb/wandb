@@ -193,7 +193,7 @@ func TestGenerateTypeRepresentation(t *testing.T) {
 			result := data_types.ResolveTypes(tc.input, filterFunc)
 			if !reflect.DeepEqual(result, tc.expected) {
 				jsonResult, _ := json.MarshalIndent(result, "", "  ")
-				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, jsonResult)
+				t.Errorf("\nExpected: %v\nActual:   %v", tc.expected, string(jsonResult))
 			}
 		})
 	}
