@@ -1016,7 +1016,8 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		s.logger.CaptureError("sender received error", err)
+		return
 	}
 
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
