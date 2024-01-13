@@ -8,8 +8,9 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
+
 	"github.com/wandb/wandb/core/internal/gqltest"
-	"github.com/wandb/wandb/core/pkg/service"
+	pb "github.com/wandb/wandb/core/internal/wandb_core_go_proto"
 )
 
 type RequestVars = map[string]interface{}
@@ -37,10 +38,10 @@ func (to *TestObject) TeardownTest() {
 	to.mockCtrl.Finish()
 }
 
-func (to *TestObject) MakeConfig() *service.ConfigRecord {
-	config := &service.ConfigRecord{
-		Update: []*service.ConfigItem{
-			&service.ConfigItem{
+func (to *TestObject) MakeConfig() *pb.ConfigRecord {
+	config := &pb.ConfigRecord{
+		Update: []*pb.ConfigItem{
+			{
 				Key:       "_wandb",
 				ValueJson: "{}",
 			},

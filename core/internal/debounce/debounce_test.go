@@ -6,22 +6,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/debounce"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/time/rate"
 )
 
 func TestNewDebouncer(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	debouncer := debounce.NewDebouncer(rate.Every(time.Second), 1, logger)
+	debouncer := debounce.New(rate.Every(time.Second), 1, logger)
 	assert.NotNil(t, debouncer)
 }
 
 func TestDebouncer(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	debouncer := debounce.NewDebouncer(rate.Every(time.Millisecond*50), 1, logger)
+	debouncer := debounce.New(rate.Every(time.Millisecond*50), 1, logger)
 
 	count := 0
-	debouncer.SetNeedsDebounce()
+	debouncer.Set()
 	debouncer.Debounce(func() {
 		count++
 	})

@@ -170,6 +170,11 @@ class _Service:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
+                if os.environ.get("WANDB_CORE_DEBUG"):
+                    service_args.append("--debug")
+                service_args.extend(
+                    ["--profile", os.environ.get("WANDB_CORE_PROFILE", "")]
+                )
                 exec_cmd_list = []
             else:
                 service_args.extend(["wandb", "service"])
@@ -179,7 +184,6 @@ class _Service:
                 fname,
                 "--pid",
                 pid,
-                "--debug",
             ]
             service_args.append("--serve-sock")
 

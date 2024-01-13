@@ -1,9 +1,9 @@
 package debounce
 
 import (
-	"github.com/wandb/wandb/core/pkg/observability"
-
 	"golang.org/x/time/rate"
+
+	obs "github.com/wandb/wandb/core/internal/observability"
 )
 
 // Debouncer is a rate limiter that can be used to debounce events
@@ -11,14 +11,14 @@ import (
 type Debouncer struct {
 	limiter       *rate.Limiter
 	needsDebounce bool
-	logger        *observability.CoreLogger
+	logger        *obs.CoreLogger
 }
 
-// NewDebouncer creates a new debouncer
-func NewDebouncer(
+// New creates a new debouncer
+func New(
 	eventRate rate.Limit,
 	burstSize int,
-	logger *observability.CoreLogger,
+	logger *obs.CoreLogger,
 ) *Debouncer {
 	return &Debouncer{
 		limiter: rate.NewLimiter(eventRate, burstSize),
@@ -26,14 +26,14 @@ func NewDebouncer(
 	}
 }
 
-func (d *Debouncer) SetNeedsDebounce() {
+func (d *Debouncer) Set() {
 	if d == nil {
 		return
 	}
 	d.needsDebounce = true
 }
 
-func (d *Debouncer) UnsetNeedsDebounce() {
+func (d *Debouncer) Unset() {
 	if d == nil {
 		return
 	}
@@ -59,6 +59,6 @@ func (d *Debouncer) Flush(f func()) {
 	if d.needsDebounce {
 		d.logger.Debug("Flushing debouncer")
 		f()
-		d.UnsetNeedsDebounce()
+		d.Unset()
 	}
 }

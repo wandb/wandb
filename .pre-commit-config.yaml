@@ -92,7 +92,7 @@ repos:
         name: 'go-imports'
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
+        exclude: 'core/internal/wandb_core_go_proto'
         language: 'script'
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
@@ -126,7 +126,7 @@ repos:
         name: 'go-cyclo'
         entry: core/scripts/pre-commit-hooks/run-go-cyclo.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
+        exclude: 'core/internal/wandb_core_go_proto'
         language: 'script'
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:

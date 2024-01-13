@@ -7,7 +7,8 @@ import (
 	"time"
 
 	fw "github.com/radovskyb/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
+
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 const pollingInterval = time.Millisecond * 100

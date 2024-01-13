@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func setupTest(t *testing.T) func() {

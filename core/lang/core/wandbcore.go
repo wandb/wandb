@@ -12,12 +12,12 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/wandb/wandb/core/internal/gowandb/internal_runopts"
-	"github.com/wandb/wandb/core/pkg/gowandb"
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
-	"github.com/wandb/wandb/core/pkg/gowandb/runconfig"
-	"github.com/wandb/wandb/core/pkg/service"
+	gowandb "github.com/wandb/wandb/core/internal/gowandb/client"
+	"github.com/wandb/wandb/core/internal/gowandb/client/opts/runopts"
+	"github.com/wandb/wandb/core/internal/gowandb/client/opts/sessionopts"
+	"github.com/wandb/wandb/core/internal/gowandb/client/runconfig"
+	runopts1 "github.com/wandb/wandb/core/internal/gowandb/internal_runopts"
+	pb "github.com/wandb/wandb/core/internal/wandb_core_go_proto"
 )
 
 // globals to keep track of the wandb session and any runs
@@ -41,9 +41,9 @@ func wandbcoreSetup() {
 	wandbData = NewPartialData()
 }
 
-func getTelemetry(library C.library_t) *service.TelemetryRecord {
-	telemetry := &service.TelemetryRecord{
-		Feature: &service.Feature{},
+func getTelemetry(library C.library_t) *pb.TelemetryRecord {
+	telemetry := &pb.TelemetryRecord{
+		Feature: &pb.Feature{},
 	}
 	switch library {
 	case C.LIB_C:
@@ -74,7 +74,7 @@ func wandbcoreInit(configDataNum int, name *C.cchar_t, runID *C.cchar_t, project
 		options = append(options, runopts.WithProject(goProject))
 	}
 	telemetry := getTelemetry(library)
-	options = append(options, internal_runopts.WithTelemetry(telemetry))
+	options = append(options, runopts1.WithTelemetry(telemetry))
 
 	run, err := wandbSession.NewRun(options...)
 	if err != nil {
