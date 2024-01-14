@@ -10,16 +10,13 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/internal/lib/shared"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/server/stream"
-
-	"github.com/wandb/wandb/core/internal/auth"
-	"google.golang.org/protobuf/types/known/wrapperspb"
-
-	"google.golang.org/protobuf/proto"
-
 	pb "github.com/wandb/wandb/core/internal/wandb_core_go_proto"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (

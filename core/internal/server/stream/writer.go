@@ -6,8 +6,9 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/server/services/store"
+	"github.com/wandb/wandb/core/internal/store"
 	pb "github.com/wandb/wandb/core/internal/wandb_core_go_proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type WriterOption func(*Writer)
@@ -76,16 +77,28 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *pb.Record, BufferSize*8)
 
 	var err error
-	w.store = store.New(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
-	err = w.store.Open(os.O_WRONLY)
-	if err != nil {
+	w.store = store.New(
+		w.ctx,
+		store.StoreOptions{
+			Name:   w.settings.GetSyncFile().GetValue(),
+			Flag:   os.O_WRONLY,
+			Header: store.NewHeader(),
+		},
+	)
+
+	if err = w.store.Open(); err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
 
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
-			if err = w.store.Write(record); err != nil {
+			out, err := proto.Marshal(record)
+			if err != nil {
+				w.logger.Error("writer: error marshalling record", "error", err)
+				continue
+			}
+			if err = w.store.Write(out); err != nil {
 				w.logger.Error("writer: error storing record", "error", err)
 			}
 		}

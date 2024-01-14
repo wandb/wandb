@@ -3,7 +3,6 @@ package sender
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,9 +25,9 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/retryableclient"
 	"github.com/wandb/wandb/core/internal/server/consts"
-	"github.com/wandb/wandb/core/internal/server/services/store"
 	sync "github.com/wandb/wandb/core/internal/server/services/sync"
 	"github.com/wandb/wandb/core/internal/server/stream/handler"
+	"github.com/wandb/wandb/core/internal/store"
 	"github.com/wandb/wandb/core/internal/version"
 	pb "github.com/wandb/wandb/core/internal/wandb_core_go_proto"
 )
@@ -1135,8 +1134,15 @@ func (s *Sender) sendSync(record *pb.Record, request *pb.SyncRequest) {
 
 func (s *Sender) sendSenderRead(record *pb.Record, request *pb.SenderReadRequest) {
 	if s.store == nil {
-		store := store.New(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
-		err := store.Open(os.O_RDONLY)
+		store := store.New(
+			s.ctx,
+			store.StoreOptions{
+				Name:   s.settings.GetSyncFile().GetValue(),
+				Flag:   os.O_RDONLY,
+				Header: store.NewHeader(),
+			},
+		)
+		err := store.Open()
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
 			return
@@ -1153,19 +1159,21 @@ func (s *Sender) sendSenderRead(record *pb.Record, request *pb.SenderReadRequest
 	// 2. read records until finalOffset
 	//
 	for {
-		record, err := s.store.Read()
+		var record *pb.Record
+		buf, err := s.store.Read()
+		if buf != nil {
+			record = &pb.Record{}
+			err = proto.Unmarshal(buf, record)
+		}
+
 		if s.settings.GetXSync().GetValue() {
 			s.syncService.SyncRecord(record, err)
-		} else if record != nil {
-			s.sendRecord(record)
-		}
-		if err == io.EOF {
-			return
 		}
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
 			return
 		}
+		s.sendRecord(record)
 	}
 }
 
