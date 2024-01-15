@@ -97,6 +97,99 @@ def test_locked_no_sideeffect(consolidated, config):
     assert consolidated == dict(config)
 
 
+def test_prevent_modification_of_locked_key(config):  # , #raise_on_update_locked):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+    config.update_locked({"a": {"b": {"c": 1}}})
+    config["a"]["b"]["c"] = 5
+
+    # Ensure the value hasn't changed
+    assert config["a"]["b"]["c"] == 1
+
+
+def test_nested_config_update_with_multiple_levels(config):
+    config["a"] = {"b": {"c": 1, "d": 2}, "e": 3}
+    config.update_locked({"a": {"b": {"c": 1}}})
+
+    # Update a nested config where one subkey is locked
+    config["a"] = {"b": {"c": 2, "d": 3}, "e": 4, "f": {"g": 5}}
+
+    assert config["a"]["b"]["c"] == 1  # Locked key should remain unchanged
+    assert config["a"]["b"]["d"] == 3  # Unlocked key should be updated
+    assert config["a"]["e"] == 4  # Unlocked key should be updated
+    assert config["a"]["f"]["g"] == 5  # New nested key should be added
+
+
+def test_update_locked_with_nested_structure(config):
+    nested_config = {"a": {"b": {"c": 1}, "d": 2}}
+    config.update_locked(nested_config)
+
+    # Check if values are set correctly
+    assert config["a"]["b"]["c"] == 1
+    assert config["a"]["d"] == 2
+
+
+def test_check_locked_for_ancestor_keys(config):
+    config["a"] = {"b": {"c": 1}, "d": 2}
+    config.update_locked({"a": {"b": {"c": 1}}})
+
+    # Check if ancestor key 'a' is considered locked
+    assert config._check_locked("a")
+    assert not config._check_locked("a.d")  # 'a.d' is not locked
+
+
+def test_modification_allowed_on_unlocked_ancestor_keys(config, raise_on_update_locked):
+    config["a"] = {"b": {"c": 1}, "d": 2}
+    user = "user1"
+    config.lock_key("a.b.c", user)
+
+    # Modification should be allowed on 'a.d' as it's not locked
+    config["a"]["d"] = 3
+    assert config["a"]["d"] == 3
+
+    # Ensure locked key 'a.b.c' remains unchanged
+    assert config["a"]["b"]["c"] == 1
+
+    # Can't update config a.b
+    with pytest.raises(ValueError):
+        config["a"]["b"] = 3
+
+
+def test_update_with_unlocked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2}
+    update_dict = {"a": 10, "b": {"c": 20}}
+
+    config.update(update_dict, allow_val_change=True)
+    assert config["a"] == 10
+    assert config["b"]["c"] == 20
+
+
+def test_update_with_locked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2}
+    user = "user1"
+    config.lock_key("a", user)
+    config.lock_key("b.c", user)
+
+    update_dict = {"a": 10, "b": {"c": 20}}
+    config.update(update_dict)
+    assert config["a"] == 1  # Locked key should remain unchanged
+    assert config["b"]["c"] == 2  # Locked key should remain unchanged
+
+
+def test_update_with_mix_of_locked_and_unlocked_keys(config):
+    config["a"] = 1
+    config["b"] = {"c": 2, "d": 3}
+    user = "user1"
+    config.lock_key("b.c", user)
+
+    update_dict = {"a": 10, "b": {"c": 20, "d": 30}}
+    config.update(update_dict, allow_val_change=True)
+    assert config["a"] == 10  # Unlocked key should be updated
+    assert config["b"]["c"] == 2  # Locked key should remain unchanged
+    assert config["b"]["d"] == 30  # Unlocked key should be updated
+
+
 def test_load_config_default():
     test_path = "config-defaults.yaml"
     yaml_dict = {"epochs": {"value": 32}, "size_batch": {"value": 32}}
