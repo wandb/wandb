@@ -140,9 +140,11 @@ class Config:
         self._raise_value_error_on_nested_artifact(val, nested=True)
         key, val = self._sanitize(key, val)
         self._items[key] = val
-        logger.info("config set %s = %s - %s", key, val, self._callback)
-        if self._callback:
-            self._callback(key=key, val=val)
+
+        if key not in self._locked_items:
+            logger.info("config set %s = %s - %s", key, val, self._callback)
+            if self._callback:
+                self._callback(key=key, val=val)
 
     def items(self):
         return [
