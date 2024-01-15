@@ -12,7 +12,7 @@ from wandb.util import (
 from . import wandb_helper
 from .lib import config_util
 
-from typing import Optional
+import typing
 
 logger = logging.getLogger("wandb")
 
@@ -145,6 +145,8 @@ class Config:
             logger.info("config set %s = %s - %s", key, val, self._callback)
             if self._callback:
                 self._callback(key=key, val=val)
+        else:
+            self._warn_for_modify([(key,)])
 
     def items(self):
         return [
@@ -164,18 +166,23 @@ class Config:
     def __contains__(self, key):
         return key in self._read_interface
 
+    def _warn_for_modify(self, keys: typing.List[config_util.PathType]) -> None:
+        for key in keys:
+            key_str = ".".join(key)
+            wandb.termwarn(
+                f"Config item '{key_str}' was locked'"  #  by '{locked_user}
+                " (ignored update)."
+            )
+
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         # TODO: handle ignore_locked
         # TODO: make sure sanitized is right
         parsed_dict = wandb_helper.parse_config(d)
 
         dict_differences = config_util.dict_differ(self._locked_items, parsed_dict)
-        modified_key_tree = config_util.construct_dict_from_paths(
-            dict_differences["modified"]
-        )
 
         # TODO: implement
-        # self._warn_for_modify(modified_key_tree)
+        self._warn_for_modify(dict_differences["modified"])
 
         # remove items from sanitized that are already locked
         added = config_util.construct_dict_from_paths_and_values(
@@ -233,7 +240,6 @@ class Config:
                 )
 
     def update_locked(self, d, user=None, _allow_val_change=None):
-
         sanitized = self._sanitize_dict(d)
 
         self.check_update(sanitized, _allow_val_change)
