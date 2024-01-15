@@ -12,6 +12,8 @@ from wandb.util import (
 from . import wandb_helper
 from .lib import config_util
 
+from typing import Optional
+
 logger = logging.getLogger("wandb")
 
 
@@ -164,18 +166,26 @@ class Config:
         # TODO: handle ignore_locked
         # TODO: make sure sanitized is right
         parsed_dict = wandb_helper.parse_config(d)
-        
 
-        sanitized = self._sanitize_dict(parsed_dict)
+        dict_differences = config_util.dict_differ(self._locked_items, parsed_dict)
+        modified_key_tree = config_util.construct_dict_from_paths(
+            dict_differences["modified"]
+        )
+
+        # TODO: implement
+        # self._warn_for_modify(modified_key_tree)
+
+        # remove items from sanitized that are already locked
+        added = config_util.construct_dict_from_paths_and_values(
+            dict_differences["added"], parsed_dict
+        )
+
+        sanitized = self._sanitize_dict(added)
+
         self.check_update(sanitized, allow_val_change)
         self._items.update(sanitized)
 
-        # remove items from sanitized that are already locked
-        sanitized_minus_locked = config_util.dict_differences(
-            self._locked_items, sanitized
-        )
-
-        return sanitized_minus_locked
+        return sanitized
 
     def update(self, d, allow_val_change=None):
         sanitized = self._update(d, allow_val_change)

@@ -249,3 +249,26 @@ def construct_dict_from_paths(paths):
             else:
                 current_level = current_level.setdefault(part, {})
     return root
+
+
+def construct_dict_from_paths_and_values(paths, value_dict):
+    """
+    Construct a nested dictionary from a list of tuple paths and a value dictionary.
+    The leaf nodes will contain the actual values from the value_dict.
+    """
+
+    def get_value_from_dict(path, value_dict):
+        """Retrieve the value from value_dict based on the path."""
+        for key in path:
+            value_dict = value_dict[key]
+        return value_dict
+
+    root = {}
+    for path in paths:
+        current_level = root
+        for i, part in enumerate(path):
+            if i == len(path) - 1:  # Leaf node
+                current_level[part] = get_value_from_dict(path, value_dict)
+            else:
+                current_level = current_level.setdefault(part, {})
+    return root
