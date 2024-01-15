@@ -231,19 +231,6 @@ class Config:
                 )
 
     def update_locked(self, d, user=None, _allow_val_change=None):
-        """
-        if user not in self._users:
-            self._users[user] = self._users_cnt
-            self._users_inv[self._users_cnt] = user
-            object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
-
-        num = self._users[user]
-
-        for k, v in d.items():
-            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
-            self._locked[k] = num
-            self._items[k] = v
-        """
 
         sanitized = self._sanitize_dict(d)
 
@@ -266,16 +253,10 @@ class Config:
     def _sanitize_dict(
         self,
         config_dict,
-        # allow_val_change=None,
-        ignore_keys: Optional[set] = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
         for k, v in config_dict.items():
-            """
-            if ignore_keys and k in ignore_keys:
-                continue
-            """
             k, v = self._sanitize(k, v)
             sanitized[k] = v
         return sanitized
@@ -297,17 +278,6 @@ class Config:
             val = json_friendly_val(val)
         if isinstance(val, dict):
             val = self._sanitize_dict(val)
-        """
-        if not allow_val_change:
-            read_interface = self._read_interface
-            if key in read_interface and val != read_interface[key]:
-                raise config_util.ConfigError(
-                    f'Attempted to change value of key "{key}" '
-                    f"from {read_interface[key]} to {val}\n"
-                    "If you really want to do this, pass"
-                    " allow_val_change=True to config.update()"
-                )
-        """
         return key, val
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):
