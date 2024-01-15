@@ -138,15 +138,21 @@ class Config:
         with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
+        """
         key, val = self._sanitize(key, val)
         self._items[key] = val
+        """
 
+        self.update({key: val}, allow_val_change=True)
+
+        """
         if key not in self._locked_items:
             logger.info("config set %s = %s - %s", key, val, self._callback)
             if self._callback:
                 self._callback(key=key, val=val)
         else:
             self._warn_for_modify([(key,)])
+        """
 
     def items(self):
         return [
@@ -227,9 +233,11 @@ class Config:
             modified_existing_key = len(changes["modified"]) > 0
             if modified_existing_key:
                 path = changes["modified"][0]
+                val = d
+                original_val = read_interface
                 for subkey in path:
-                    original_val = read_interface[subkey]
-                    val = d[subkey]
+                    original_val = original_val[subkey]
+                    val = val[subkey]
                 key = ".".join(path)
 
                 raise config_util.ConfigError(
