@@ -233,3 +233,19 @@ def dict_differ(old_dict: dict, new_dict: dict, path=()) -> DiffDict:
             diff["added"].append(path + (key,))
 
     return diff
+
+
+def construct_dict_from_paths(paths):
+    """
+    Construct a nested dictionary from a list of tuple paths.
+    Leaf nodes are represented by None.
+    """
+    root = {}
+    for path in paths:
+        current_level = root
+        for part in path:
+            if part == path[-1]:
+                current_level[part] = None
+            else:
+                current_level = current_level.setdefault(part, {})
+    return root
