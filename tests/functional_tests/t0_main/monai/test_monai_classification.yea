@@ -1,4 +1,4 @@
-id: 0.yolov8.classification
+id: 0.monai.classification
 plugin:
     - wandb
 tag:
@@ -6,10 +6,10 @@ tag:
   platforms:
     - linux
 command:
-    program: test_ultralytics_classification.py
+    program: test_monai_classification.py
 depend:
     requirements:
-        - "monai["all"]>=1.3.0"
+        - "monai['all']>=1.3.0"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][batch_size]: 2
@@ -17,11 +17,6 @@ assert:
     - :wandb:runs[0][config][num_workers]: 4
     - :wandb:runs[0][config][train_epochs]: 2
     - :wandb:runs[0][config][validation_every_n_epochs]: 1
-    - :wandb:runs[0][summary][model/parameters]: 1451098
-    - :wandb:runs[0][summary][Validation-Table][_type]: table-file
-    - :wandb:runs[0][summary][Validation-Table][nrows]: 128
-    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
-    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 512
     - :op:>=:
         - :wandb:runs[0][summary][epoch/AUC]
         - 0

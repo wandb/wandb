@@ -37,7 +37,7 @@ def main():
     config.num_workers = 4
     config.validation_every_n_epochs = 1
     config.lr = 1e-5
-    config.train_epochs = 1
+    config.train_epochs = 2
 
     # IXI dataset as a demo, original dataset downloadable from
     # https://brain-development.org/ixi-dataset/
