@@ -1,7 +1,6 @@
 """config."""
 
 import logging
-from typing import Optional
 
 import wandb
 from wandb.util import (
@@ -117,7 +116,7 @@ class Config:
         return str(dict(self))
 
     def keys(self):
-        return [k for k in self._items.keys() if not k.startswith("_")]
+        return [k for k in self._read_interface.keys() if not k.startswith("_")]
 
     @property
     def _read_interface(self) -> dict:
@@ -144,7 +143,9 @@ class Config:
             self._callback(key=key, val=val)
 
     def items(self):
-        return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
+        return [
+            (k, v) for k, v in self._read_interface.items() if not k.startswith("_")
+        ]
 
     __setattr__ = __setitem__
 
@@ -163,15 +164,20 @@ class Config:
         # TODO: handle ignore_locked
         # TODO: make sure sanitized is right
         parsed_dict = wandb_helper.parse_config(d)
-        sanitized = self._sanitize_dict(
-            parsed_dict,
-            allow_val_change,
-        )
+        sanitized = self._sanitize_dict(parsed_dict)
+        self.check_update(sanitized, allow_val_change)
         self._items.update(sanitized)
-        return sanitized
+
+        # remove items from sanitized that are already locked
+        sanitized_minus_locked = config_util.dict_differences(
+            self._locked_items, sanitized
+        )
+
+        return sanitized_minus_locked
 
     def update(self, d, allow_val_change=None):
         sanitized = self._update(d, allow_val_change)
+
         if self._callback:
             # TODO: use dict(self) here
             self._callback(data=sanitized)
@@ -193,6 +199,25 @@ class Config:
         if self._callback:
             self._callback(data=d)
 
+    def check_update(self, d, _allow_val_change=None):
+        if not _allow_val_change:
+            read_interface = self._read_interface
+            changes = config_util.dict_differ(read_interface, d)
+            modified_existing_key = len(changes["modified"]) > 0
+            if modified_existing_key:
+                path = changes["modified"][0]
+                for subkey in path:
+                    original_val = read_interface[subkey]
+                    val = d[subkey]
+                key = ".".join(path)
+
+                raise config_util.ConfigError(
+                    f'Attempted to change value of key "{key}" '
+                    f"from {original_val} to {val}\n"
+                    "If you really want to do this, pass"
+                    " allow_val_change=True to config.update()"
+                )
+
     def update_locked(self, d, user=None, _allow_val_change=None):
         """
         if user not in self._users:
@@ -210,10 +235,16 @@ class Config:
 
         sanitized = self._sanitize_dict(d)
 
-        self._locked_items = config_util.merge_dicts(self._locked_items, sanitized)
+        self.check_update(sanitized, _allow_val_change)
+
+        object.__setattr__(
+            self,
+            "_locked_items",
+            config_util.merge_dicts(self._locked_items, sanitized),
+        )
 
         if self._callback:
-            self._callback(data=d)
+            self._callback(data=sanitized)
 
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
@@ -223,19 +254,21 @@ class Config:
     def _sanitize_dict(
         self,
         config_dict,
-        allow_val_change=None,
-        ignore_keys: Optional[set] = None,
+        # allow_val_change=None,
+        # ignore_keys: Optional[set] = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
         for k, v in config_dict.items():
+            """
             if ignore_keys and k in ignore_keys:
                 continue
-            k, v = self._sanitize(k, v, allow_val_change)
+            """
+            k, v = self._sanitize(k, v)
             sanitized[k] = v
         return sanitized
 
-    def _sanitize(self, key, val, allow_val_change=None):
+    def _sanitize(self, key, val):
         # TODO: enable WBValues in the config in the future
         # refuse all WBValues which is all Media and Histograms
         if isinstance(val, wandb.sdk.data_types.base_types.wb_value.WBValue):
@@ -252,6 +285,7 @@ class Config:
             val = json_friendly_val(val)
         if isinstance(val, dict):
             val = self._sanitize_dict(val)
+        """
         if not allow_val_change:
             read_interface = self._read_interface
             if key in read_interface and val != read_interface[key]:
@@ -261,6 +295,7 @@ class Config:
                     "If you really want to do this, pass"
                     " allow_val_change=True to config.update()"
                 )
+        """
         return key, val
 
     def _raise_value_error_on_nested_artifact(self, v, nested=False):

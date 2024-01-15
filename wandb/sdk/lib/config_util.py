@@ -1,5 +1,6 @@
 import json
 import logging
+import typing
 import os
 from typing import Any, Dict, Optional
 
@@ -132,3 +133,103 @@ def merge_dicts(dest: dict, src: dict) -> dict:
         else:
             dest[key] = value
     return dest
+
+
+def dict_differences(old_dict: dict, new_dict: dict) -> dict:
+    """
+    Recursively find differences between two dictionaries.
+    Returns a dict representing added or modified elements in new_dict.
+    """
+    diff = {}
+    for key, new_val in new_dict.items():
+        if key not in old_dict:
+            diff[key] = new_val
+        elif isinstance(new_val, dict) and isinstance(old_dict.get(key), dict):
+            nested_diff = dict_differences(old_dict[key], new_val)
+            if nested_diff:  # Only add if there's something different
+                diff[key] = nested_diff
+        elif new_val != old_dict.get(key):
+            diff[key] = new_val
+
+    return diff
+
+
+def have_different_values_at_same_path(dict1, dict2):
+    """
+    Checks if two dictionaries have different values at the same nested path.
+    Returns True if a difference is found, otherwise False.
+    """
+
+    def recursive_compare(d1, d2):
+        # Iterate over keys in the first dictionary
+        for key in d1:
+            if key in d2:
+                # If both values are dictionaries, recurse
+                if isinstance(d1[key], dict) and isinstance(d2[key], dict):
+                    if recursive_compare(d1[key], d2[key]):
+                        return True
+                # If values are different, return True
+                elif d1[key] != d2[key]:
+                    return True
+
+        # Iterate over keys in the second dictionary to catch any keys not in the first
+        for key in d2:
+            if key not in d1:
+                return True
+
+        return False
+
+    return recursive_compare(dict1, dict2)
+
+
+def find_first_leaf_path(nested_dict, current_path=[]):
+    """
+    Traverses a nested dictionary and returns the path to the first leaf value.
+    """
+    for key, value in nested_dict.items():
+        # Build the current path
+        new_path = current_path + [key]
+
+        # If the value is not a dictionary, return the path
+        if not isinstance(value, dict):
+            return new_path
+
+        # Otherwise, continue searching recursively
+        result = find_first_leaf_path(value, new_path)
+        if result is not None:
+            return result
+
+    return None
+
+
+PathType = typing.Tuple[str]
+
+
+class DiffDict(typing.TypedDict):
+    added: typing.List[PathType]
+    removed: typing.List[PathType]
+    modified: typing.List[PathType]
+
+
+def dict_differ(old_dict: dict, new_dict: dict, path=()) -> DiffDict:
+    """
+    Recursively find differences between two dictionaries.
+    Returns a dict with 'added', 'removed', and 'modified' keys, using tuples for paths.
+    """
+    diff: DiffDict = {"added": [], "removed": [], "modified": []}
+
+    for key in old_dict:
+        if key not in new_dict:
+            diff["removed"].append(path + (key,))
+        elif isinstance(old_dict[key], dict) and isinstance(new_dict[key], dict):
+            nested_diff = dict_differ(old_dict[key], new_dict[key], path + (key,))
+            for change_type in nested_diff:
+                diff[change_type].extend(nested_diff[change_type])
+        elif old_dict[key] != new_dict[key]:
+            diff["modified"].append(path + (key,))
+
+    for key in new_dict:
+        if key not in old_dict:
+            diff["added"].append(path + (key,))
+
+    return diff
