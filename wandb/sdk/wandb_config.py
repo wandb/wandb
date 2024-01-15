@@ -164,6 +164,8 @@ class Config:
         # TODO: handle ignore_locked
         # TODO: make sure sanitized is right
         parsed_dict = wandb_helper.parse_config(d)
+        
+
         sanitized = self._sanitize_dict(parsed_dict)
         self.check_update(sanitized, allow_val_change)
         self._items.update(sanitized)
@@ -255,7 +257,7 @@ class Config:
         self,
         config_dict,
         # allow_val_change=None,
-        # ignore_keys: Optional[set] = None,
+        ignore_keys: Optional[set] = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
