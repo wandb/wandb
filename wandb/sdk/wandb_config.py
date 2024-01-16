@@ -229,7 +229,7 @@ class Config:
             k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
 
-            if k in self._items:
+            if k in self._items and isinstance(self._items[k], dict) and isinstance(v, dict):
                 self._items[k] = config_util.merge_dicts(self._items[k], v)
             else:
                 self._items[k] = v
