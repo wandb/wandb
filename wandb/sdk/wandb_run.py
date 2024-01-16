@@ -688,15 +688,15 @@ class Run:
         # if run is from a launch queue, add queue id to _wandb config
         launch_queue_name = wandb.env.get_launch_queue_name()
         if launch_queue_name:
-            config[wandb_key]["launch_queue_name"] = launch_queue_name
+            self._config[wandb_key]["launch_queue_name"] = launch_queue_name
 
         launch_queue_entity = wandb.env.get_launch_queue_entity()
         if launch_queue_entity:
-            config[wandb_key]["launch_queue_entity"] = launch_queue_entity
+            self._config[wandb_key]["launch_queue_entity"] = launch_queue_entity
 
         launch_trace_id = wandb.env.get_launch_trace_id()
         if launch_trace_id:
-            config[wandb_key]["launch_trace_id"] = launch_trace_id
+            self._config[wandb_key]["launch_trace_id"] = launch_trace_id
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
