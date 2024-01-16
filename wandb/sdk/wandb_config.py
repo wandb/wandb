@@ -210,7 +210,6 @@ class Config:
 
         return self._users[user]
 
-
     def update_locked(self, d, user=None, _allow_val_change=None):
         num = self._get_user_id(user)
 
@@ -221,7 +220,6 @@ class Config:
 
         if self._callback:
             self._callback(data=d)
-
 
     def merge_locked(self, d, user=None, _allow_val_change=None):
         num = self._get_user_id(user)
@@ -235,12 +233,11 @@ class Config:
                 self._items[k] = config_util.merge_dicts(self._items[k], v)
             else:
                 self._items[k] = v
-                
+
             callback_d[k] = self._items[k]
-        
+
         if self._callback:
             self._callback(data=callback_d)
-
 
     def _load_defaults(self):
         conf_dict = config_util.dict_from_config_file("config-defaults.yaml")
