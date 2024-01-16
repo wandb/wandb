@@ -672,13 +672,16 @@ class Run:
             config[wandb_key]["code_path"] = LogicalPath(
                 os.path.join("code", self._settings.program_relpath)
             )
+
+        self._config._update(config, ignore_locked=True)
+
         if sweep_config:
-            self._config.update_locked(
+            self._config.merge_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
         if launch_config:
-            self._config.update_locked(
+            self._config.merge_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
 
@@ -694,8 +697,6 @@ class Run:
         launch_trace_id = wandb.env.get_launch_trace_id()
         if launch_trace_id:
             config[wandb_key]["launch_trace_id"] = launch_trace_id
-
-        self._config._update(config, ignore_locked=True)
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
