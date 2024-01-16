@@ -211,6 +211,7 @@ class Config:
         return self._users[user]
 
     def update_locked(self, d, user=None, _allow_val_change=None):
+        """Shallow-update config with `d` and lock config updates on d's keys."""
         num = self._get_user_id(user)
 
         for k, v in d.items():
@@ -222,6 +223,9 @@ class Config:
             self._callback(data=d)
 
     def merge_locked(self, d, user=None, _allow_val_change=None):
+        """Recursively merge-update config with `d` and lock config updates
+        on d's keys.
+        """
         num = self._get_user_id(user)
         callback_d = {}
 
