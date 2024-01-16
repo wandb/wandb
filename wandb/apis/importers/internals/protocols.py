@@ -1,7 +1,6 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import wandb
 
@@ -13,22 +12,6 @@ else:
 import traceback
 
 from .config import Namespace
-
-
-@dataclass
-class ArtifactSequence:
-    artifacts: Iterable[wandb.Artifact]
-    entity: str
-    project: str
-    _type: str
-    name: str
-
-    @property
-    def identifier(self):
-        return "/".join([self.entity, self.project, self._type, self.name])
-
-    def __iter__(self) -> Iterator:
-        return iter(self.artifacts)
 
 
 @runtime_checkable

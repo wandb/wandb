@@ -20,7 +20,7 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, sender, settings_static
 from wandb.util import cast_dictlike_to_dict, coalesce
 
-from . import progress
+# from . import progress
 from .protocols import ImporterRun
 
 exp_retry = retry(
@@ -321,16 +321,16 @@ def _handle_use_artifacts(
     run_identifier: str,
 ):
     if config.use_artifacts:
-        task_name = f"Use Artifacts {run_identifier}"
+        # task_name = f"Use Artifacts {run_identifier}"
         used_artifacts = rm.run.used_artifacts()
         if used_artifacts is not None:
             used_artifacts = list(used_artifacts)
 
-            task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
+            # task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:
                 sm.send(rm._make_artifact_record(artifact, use_artifact=True))
-                progress.subtask_pbar.update(task, advance=1)
-            progress.subtask_pbar.remove_task(task)
+                # progress.subtask_pbar.update(task, advance=1)
+            # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_log_artifacts(
@@ -340,15 +340,15 @@ def _handle_log_artifacts(
     run_identifier: str,
 ):
     if config.log_artifacts:
-        task_name = f"Log Artifacts {run_identifier}"
+        # task_name = f"Log Artifacts {run_identifier}"
         artifacts = rm.run.artifacts()
         if artifacts is not None:
             artifacts = list(artifacts)
-            task = progress.subtask_pbar.add_task(task_name, total=len(artifacts))
+            # task = progress.subtask_pbar.add_task(task_name, total=len(artifacts))
             for artifact in artifacts:
                 sm.send(rm._make_artifact_record(artifact))
-                progress.subtask_pbar.update(task, advance=1)
-            progress.subtask_pbar.remove_task(task)
+                # progress.subtask_pbar.update(task, advance=1)
+            # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_log_specific_artifact(
@@ -378,12 +378,12 @@ def _handle_history(
     run_identifier: str,
 ):
     if config.history:
-        task_name = f"History {run_identifier}"
-        task = progress.subtask_pbar.add_task(task_name, total=None)
+        # task_name = f"History {run_identifier}"
+        # task = progress.subtask_pbar.add_task(task_name, total=None)
         for history_record in rm._make_history_records():
             sm.send(history_record)
-            progress.subtask_pbar.update(task, advance=1)
-        progress.subtask_pbar.remove_task(task)
+        #     progress.subtask_pbar.update(task, advance=1)
+        # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_summary(sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig):
@@ -398,14 +398,14 @@ def _handle_terminal_output(
     run_identifier: str,
 ):
     if config.terminal_output:
-        task_name = f"Terminal Output {run_identifier}"
-        task = progress.subtask_pbar.add_task(task_name, total=None)
+        # task_name = f"Terminal Output {run_identifier}"
+        # task = progress.subtask_pbar.add_task(task_name, total=None)
         lines = rm.run.logs()
         if lines is not None:
             for line in lines:
                 sm.send(rm._make_output_record(line))
-                progress.subtask_pbar.update(task, advance=1)
-        progress.subtask_pbar.remove_task(task)
+        #         progress.subtask_pbar.update(task, advance=1)
+        # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_terminal_output_alt(
@@ -415,14 +415,14 @@ def _handle_terminal_output_alt(
     run_identifier: str,
 ):
     if config.terminal_output:
-        task_name = f"Terminal Output {run_identifier}"
-        task = progress.subtask_pbar.add_task(task_name, total=None)
+        # task_name = f"Terminal Output {run_identifier}"
+        # task = progress.subtask_pbar.add_task(task_name, total=None)
         lines = rm.run.logs()
         if lines is not None:
             for line in lines:
                 sm.send(rm._make_output_record(line))
-                progress.subtask_pbar.update(task, advance=1)
-        progress.subtask_pbar.remove_task(task)
+        #         progress.subtask_pbar.update(task, advance=1)
+        # progress.subtask_pbar.remove_task(task)
 
 
 def send_run_with_send_manager(
@@ -497,6 +497,7 @@ def send_artifacts_with_send_manager(
     ) as sm:
         _handle_run_record(sm, rm)
 
-        for art in progress.subsubtask_progress(arts):
+        # for art in progress.subsubtask_progress(arts):
+        for art in arts:
             _handle_use_specific_artifact(sm, rm, art, config)
             _handle_log_specific_artifact(sm, rm, art, config)
