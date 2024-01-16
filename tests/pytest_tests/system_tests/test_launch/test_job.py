@@ -109,10 +109,10 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
 
     # assert updates to partial, and input/output types
     assert not job._partial
-    assert (
-        str(job._output_types)
-        == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
-    )
+    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
+    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
+    for key in output_type_keys:
+        assert str(job._output_types._params["type_map"][key]) == "Number"
     assert str(job._input_types) == "{'input1': Number}"
 
 
@@ -192,10 +192,10 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     # assert updates to partial, and input/output types
     assert not job._partial
-    assert (
-        str(job._output_types)
-        == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
-    )
+    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
+    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
+    for key in output_type_keys:
+        assert str(job._output_types._params["type_map"][key]) == "Number"
     assert str(job._input_types) == "{'input1': Number}"
 
 
@@ -208,6 +208,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         "port:5000:1000/1000/test/docker-image-path:alias1",
     ],
 )
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_job_image(user, wandb_init, test_settings, image_name):
     proj = "test-p1"
 

@@ -18,7 +18,7 @@ func FileExists(path string) (bool, error) {
 	return true, nil
 }
 
-func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, digest string, rerr error) {
+func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, digest string, size int64, rerr error) {
 	data, rerr := json.Marshal(marshallable)
 	if rerr != nil {
 		return
@@ -34,6 +34,10 @@ func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, diges
 		return
 	}
 	filename = f.Name()
+
+	if stat, err := f.Stat(); err == nil { // if NO error
+		size = stat.Size()
+	}
 
 	digest, rerr = ComputeB64MD5(data)
 	return
