@@ -46,7 +46,9 @@ func NewArtifactSaver(
 }
 
 func (as *ArtifactSaver) createArtifact() (
-	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact, rerr error) {
+	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
+	rerr error,
+) {
 	aliases := []gql.ArtifactAliasInput{}
 	for _, alias := range as.Artifact.Aliases {
 		aliases = append(aliases,
@@ -382,7 +384,8 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
-	manifestFile, manifestDigest, err := manifest.WriteToFile()
+	// TODO: check if size is needed
+	manifestFile, manifestDigest, _, err := manifest.WriteToFile()
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}

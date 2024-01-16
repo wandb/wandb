@@ -684,8 +684,8 @@ def fixture_fn_factory():
 @pytest.fixture(scope="session")
 def wandb_server(wandb_server_factory):
     settings = WandbServerSettings(
-        name="wandb-dst-server",
-        volume="wandb-dst-server-vol",
+        name="local-testcontainer",
+        volume="local-testcontainer-vol",
         local_base_port=LOCAL_BASE_PORT,
         services_api_port=SERVICES_API_PORT,
         fixture_service_port=FIXTURE_SERVICE_PORT,
