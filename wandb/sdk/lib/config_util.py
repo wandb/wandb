@@ -123,9 +123,7 @@ def dict_from_config_file(
 
 
 def merge_dicts(dest: dict, src: dict) -> dict:
-    """
-    Recursively merge two dictionaries. Similar to Lodash's _.merge().
-    """
+    """Recursively merge two dictionaries. Similar to Lodash's _.merge()."""
     for key, value in src.items():
         if isinstance(value, dict) and key in dest and isinstance(dest[key], dict):
             merge_dicts(dest[key], value)
