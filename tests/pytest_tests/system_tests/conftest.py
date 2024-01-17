@@ -1,3 +1,4 @@
+from calendar import c
 import dataclasses
 import json
 import os
@@ -5,14 +6,11 @@ import platform
 import secrets
 import string
 import subprocess
-import threading
 import time
 import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from pathlib import Path
-from queue import Empty, Queue
 from typing import Any, Dict, List, Optional, Union
 
 import pytest
@@ -20,13 +18,6 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context
-from wandb.sdk.internal.handler import HandleManager
-from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.internal.writer import WriteManager
-from wandb.sdk.lib.mailbox import Mailbox
 from wandb.testing.relay import (
     DeliberateHTTPError,
     InjectedResponse,
@@ -59,347 +50,6 @@ class ConsoleFormatter:
 
 
 # --------------------------------
-# Fixtures for internal test point
-# --------------------------------
-
-
-@pytest.fixture()
-def internal_result_q():
-    return Queue()
-
-
-@pytest.fixture()
-def internal_sender_q():
-    return Queue()
-
-
-@pytest.fixture()
-def internal_writer_q():
-    return Queue()
-
-
-@pytest.fixture()
-def internal_record_q():
-    return Queue()
-
-
-@pytest.fixture()
-def internal_process():
-    return MockProcess()
-
-
-class MockProcess:
-    def __init__(self):
-        self._alive = True
-
-    def is_alive(self):
-        return self._alive
-
-
-@pytest.fixture()
-def _internal_mailbox():
-    return Mailbox()
-
-
-@pytest.fixture()
-def _internal_sender(
-    internal_record_q, internal_result_q, internal_process, _internal_mailbox
-):
-    return InterfaceQueue(
-        record_q=internal_record_q,
-        result_q=internal_result_q,
-        process=internal_process,
-        mailbox=_internal_mailbox,
-    )
-
-
-@pytest.fixture()
-def _internal_context_keeper():
-    context_keeper = context.ContextKeeper()
-    yield context_keeper
-
-
-@pytest.fixture()
-def internal_sm(
-    runner,
-    internal_sender_q,
-    internal_result_q,
-    _internal_sender,
-    _internal_context_keeper,
-):
-    def helper(settings):
-        with runner.isolated_filesystem():
-            sm = SendManager(
-                settings=SettingsStatic(settings.to_proto()),
-                record_q=internal_sender_q,
-                result_q=internal_result_q,
-                interface=_internal_sender,
-                context_keeper=_internal_context_keeper,
-            )
-            return sm
-
-    yield helper
-
-
-@pytest.fixture()
-def stopped_event():
-    stopped = threading.Event()
-    yield stopped
-
-
-@pytest.fixture()
-def internal_hm(
-    runner,
-    internal_record_q,
-    internal_result_q,
-    internal_writer_q,
-    _internal_sender,
-    stopped_event,
-    _internal_context_keeper,
-):
-    def helper(settings):
-        with runner.isolated_filesystem():
-            hm = HandleManager(
-                settings=SettingsStatic(settings.to_proto()),
-                record_q=internal_record_q,
-                result_q=internal_result_q,
-                stopped=stopped_event,
-                writer_q=internal_writer_q,
-                interface=_internal_sender,
-                context_keeper=_internal_context_keeper,
-            )
-            return hm
-
-    yield helper
-
-
-@pytest.fixture()
-def internal_wm(
-    runner,
-    internal_writer_q,
-    internal_result_q,
-    internal_sender_q,
-    _internal_sender,
-    stopped_event,
-    _internal_context_keeper,
-):
-    def helper(settings):
-        with runner.isolated_filesystem():
-            wandb_file = settings.sync_file
-
-            # this is hacky, but we don't have a clean rundir always
-            # so lets at least make sure we can write to this dir
-            run_dir = Path(wandb_file).parent
-            os.makedirs(run_dir)
-
-            wm = WriteManager(
-                settings=SettingsStatic(settings.to_proto()),
-                record_q=internal_writer_q,
-                result_q=internal_result_q,
-                sender_q=internal_sender_q,
-                interface=_internal_sender,
-                context_keeper=_internal_context_keeper,
-            )
-            return wm
-
-    yield helper
-
-
-@pytest.fixture()
-def internal_get_record():
-    def _get_record(input_q, timeout=None):
-        try:
-            i = input_q.get(timeout=timeout)
-        except Empty:
-            return None
-        return i
-
-    return _get_record
-
-
-@pytest.fixture()
-def start_send_thread(
-    internal_sender_q, internal_get_record, stopped_event, internal_process
-):
-    def start_send(send_manager):
-        def target():
-            try:
-                while True:
-                    payload = internal_get_record(
-                        input_q=internal_sender_q, timeout=0.1
-                    )
-                    if payload:
-                        send_manager.send(payload)
-                    elif stopped_event.is_set():
-                        break
-            except Exception:
-                stopped_event.set()
-                internal_process._alive = False
-
-        t = threading.Thread(target=target)
-        t.name = "testing-sender"
-        t.daemon = True
-        t.start()
-        return t
-
-    yield start_send
-    stopped_event.set()
-
-
-@pytest.fixture()
-def start_write_thread(
-    internal_writer_q, internal_get_record, stopped_event, internal_process
-):
-    def start_write(write_manager):
-        def target():
-            try:
-                while True:
-                    payload = internal_get_record(
-                        input_q=internal_writer_q, timeout=0.1
-                    )
-                    if payload:
-                        write_manager.write(payload)
-                    elif stopped_event.is_set():
-                        break
-            except Exception:
-                stopped_event.set()
-                internal_process._alive = False
-
-        t = threading.Thread(target=target)
-        t.name = "testing-writer"
-        t.daemon = True
-        t.start()
-        return t
-
-    yield start_write
-    stopped_event.set()
-
-
-@pytest.fixture()
-def start_handle_thread(internal_record_q, internal_get_record, stopped_event):
-    def start_handle(handle_manager):
-        def target():
-            while True:
-                payload = internal_get_record(input_q=internal_record_q, timeout=0.1)
-                if payload:
-                    handle_manager.handle(payload)
-                elif stopped_event.is_set():
-                    break
-
-        t = threading.Thread(target=target)
-        t.name = "testing-handler"
-        t.daemon = True
-        t.start()
-        return t
-
-    yield start_handle
-    stopped_event.set()
-
-
-@pytest.fixture()
-def _start_backend(
-    internal_hm,
-    internal_sm,
-    internal_wm,
-    _internal_sender,
-    start_handle_thread,
-    start_write_thread,
-    start_send_thread,
-):
-    def start_backend_func(run=None, initial_run=True, initial_start=True):
-        ihm = internal_hm(run.settings)
-        iwm = internal_wm(run.settings)
-        ism = internal_sm(run.settings)
-        ht = start_handle_thread(ihm)
-        wt = start_write_thread(iwm)
-        st = start_send_thread(ism)
-        if initial_run:
-            handle = _internal_sender.deliver_run(run)
-            result = handle.wait(timeout=5)
-            run_result = result.run_result
-            if initial_start:
-                handle = _internal_sender.deliver_run_start(run_result.run)
-                handle.wait(timeout=5)
-        return ht, wt, st
-
-    yield start_backend_func
-
-
-@pytest.fixture()
-def _stop_backend(
-    _internal_sender,
-    # collect_responses,
-):
-    def stop_backend_func(threads=None):
-        threads = threads or ()
-        handle = _internal_sender.deliver_exit(0)
-        record = handle.wait(timeout=30)
-        assert record
-
-        server_info_handle = _internal_sender.deliver_request_server_info()
-        result = server_info_handle.wait(timeout=30)
-        assert result
-        # collect_responses.server_info_resp = result.response.server_info_response
-
-        _internal_sender.join()
-        for t in threads:
-            t.join()
-
-    yield stop_backend_func
-
-
-@pytest.fixture()
-def backend_interface(_start_backend, _stop_backend, _internal_sender):
-    @contextmanager
-    def backend_context(run, initial_run=True, initial_start=True):
-        threads = _start_backend(
-            run=run,
-            initial_run=initial_run,
-            initial_start=initial_start,
-        )
-        try:
-            yield _internal_sender
-        finally:
-            _stop_backend(threads=threads)
-
-    return backend_context
-
-
-@pytest.fixture
-def publish_util(backend_interface):
-    def publish_util_helper(
-        run,
-        metrics=None,
-        history=None,
-        artifacts=None,
-        files=None,
-        begin_cb=None,
-        end_cb=None,
-        initial_start=False,
-    ):
-        metrics = metrics or []
-        history = history or []
-        artifacts = artifacts or []
-        files = files or []
-
-        with backend_interface(run=run, initial_start=initial_start) as interface:
-            if begin_cb:
-                begin_cb(interface)
-            for m in metrics:
-                interface._publish_metric(m)
-            for h in history:
-                interface.publish_history(**h)
-            for a in artifacts:
-                interface.publish_artifact(**a)
-            for f in files:
-                interface.publish_files(**f)
-            if end_cb:
-                end_cb(interface)
-
-    yield publish_util_helper
-
-
-# --------------------------------
 # Fixtures for full test point
 # --------------------------------
 @dataclasses.dataclass
@@ -426,11 +76,15 @@ class AddAdminAndEnsureNoDefaultUser:
 class WandbServerSettings:
     name: str
     volume: str
+    wandb_server_pull: str
+    wandb_server_image_registry: str
+    wandb_server_image_repository: str
+    wandb_server_tag: str
+    # ports exposed to the host
     local_base_port: str
     services_api_port: str
     fixture_service_port: str
-    wandb_server_pull: str
-    wandb_server_tag: str
+    # ports internal to the container
     internal_local_base_port: str = LOCAL_BASE_PORT
     internal_local_services_api_port: str = SERVICES_API_PORT
     internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
@@ -456,14 +110,26 @@ def pytest_addoption(parser):
         help='cli to set "base-url"',
     )
     parser.addoption(
+        "--wandb-server-image-registry",
+        default="us-central1-docker.pkg.dev",
+        help="Image registry to use for the wandb server",
+    )
+    parser.addoption(
+        "--wandb-server-image-repository",
+        default="wandb-production/images/local-testcontainer",
+        # images corresponding to past local releases:
+        # default="wandb-client-cicd/images/local-testcontainer",
+        help="Image repository to use for the wandb server",
+    )
+    parser.addoption(
         "--wandb-server-tag",
         default="master",
         help="Image tag to use for the wandb server",
     )
     parser.addoption(
         "--wandb-server-pull",
-        action="store_true",
-        default=False,
+        default="always",
+        choices=["always", "missing", "never"],
         help="Force pull the latest wandb server image",
     )
     # debug option: creates an admin account that can be used to log in to the
@@ -510,6 +176,28 @@ def wandb_debug(request):
 @pytest.fixture(scope="session")
 def wandb_verbose(request):
     return request.config.getoption("--wandb-verbose", default=False)
+
+
+@pytest.fixture(scope="session")
+def wandb_server_image_registry(request):
+    return request.config.getoption("--wandb-server-image-registry")
+
+
+@pytest.fixture(scope="session")
+def wandb_server_image_repository(request):
+    return request.config.getoption("--wandb-server-image-repository")
+
+
+@pytest.fixture(scope="session")
+def wandb_server_tag(request):
+    return request.config.getoption("--wandb-server-tag")
+
+
+@pytest.fixture(scope="session")
+def wandb_server_pull(request):
+    if request.config.getoption("--wandb-server-pull"):
+        return "always"
+    return "missing"
 
 
 def check_server_health(
@@ -572,8 +260,61 @@ def user_factory(worker_id: str, wandb_debug) -> str:
 
 
 @pytest.fixture(scope="session")
+def fixture_fn_factory():
+    def _fixture_fn_factory(settings):
+        def fixture_util(
+            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+        ) -> bool:
+            base_url = settings.base_url
+            endpoint = urllib.parse.urljoin(
+                base_url.replace(settings.local_base_port, cmd.port),
+                cmd.endpoint,
+            )
+
+            if isinstance(cmd, UserFixtureCommand):
+                data = {"command": cmd.command}
+                if cmd.username:
+                    data["username"] = cmd.username
+                if cmd.password:
+                    data["password"] = cmd.password
+                if cmd.admin is not None:
+                    data["admin"] = cmd.admin
+            elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
+                data = [
+                    {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
+                ]
+            else:
+                raise NotImplementedError(f"{cmd} is not implemented")
+            # trigger fixture
+            print(f"Triggering fixture on {endpoint}: {data}")
+            # response = getattr(requests, cmd.method)(
+            #     endpoint,
+            #     json=data,
+            #     headers={
+            #         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
+            #         "Accept-Encoding": "*",
+            #         "Connection": "keep-alive",
+            #     },
+            # )
+            response = getattr(requests, cmd.method)(endpoint, json=data)
+
+            if response.status_code != 200:
+                print(response.json())
+                return False
+            return True
+
+        # todo: remove this once testcontainer is available on Win
+        if platform.system() == "Windows":
+            pytest.skip("testcontainer is not available on Win")
+
+        yield fixture_util
+
+    yield _fixture_fn_factory
+
+
+@pytest.fixture(scope="session")
 def wandb_server_factory():
-    def _wandb_server_factory(settings):
+    def _wandb_server_factory(settings: WandbServerSettings):
         base_url = f"http://localhost:{settings.local_base_port}"
         endpoint = "healthz"
         app_health_endpoint = "healthz"
@@ -606,7 +347,7 @@ def wandb_server_factory():
                 settings.name,
                 "--platform",
                 "linux/amd64",
-                f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{settings.wandb_server_tag}",
+                f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
             ]
             subprocess.Popen(command)
             # wait for the server to start
@@ -628,83 +369,44 @@ def wandb_server_factory():
 
 
 @pytest.fixture(scope="session")
-def fixture_fn_factory():
-    def _fixture_fn_factory(settings):
-        def fixture_util(
-            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
-        ) -> bool:
-            base_url = f"http://localhost:{settings.local_base_port}"
-            endpoint = urllib.parse.urljoin(
-                base_url.replace(settings.local_base_port, cmd.port),
-                cmd.endpoint,
-            )
-
-            if isinstance(cmd, UserFixtureCommand):
-                data = {"command": cmd.command}
-                if cmd.username:
-                    data["username"] = cmd.username
-                if cmd.password:
-                    data["password"] = cmd.password
-                if cmd.admin is not None:
-                    data["admin"] = cmd.admin
-            elif isinstance(cmd, AddAdminAndEnsureNoDefaultUser):
-                data = [
-                    {"email": f"{cmd.email}@wandb.com", "password": cmd.password},
-                ]
-            else:
-                raise NotImplementedError(f"{cmd} is not implemented")
-            # trigger fixture
-            print(f"Triggering fixture on {endpoint}: {data}")
-            response = getattr(requests, cmd.method)(
-                endpoint,
-                json=data,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
-                    "Accept-Encoding": "*",
-                    "Connection": "keep-alive",
-                    # "Content-Type": "application/json",
-                    # "accept": "application/json",
-                },
-            )
-            print(response)
-            if response.status_code != 200:
-                print(response.json())
-                return False
-            return True
-
-        # todo: remove this once testcontainer is available on Win
-        if platform.system() == "Windows":
-            pytest.skip("testcontainer is not available on Win")
-
-        yield fixture_util
-
-    yield _fixture_fn_factory
-
-
-@pytest.fixture(scope="session")
-def wandb_server(wandb_server_factory):
-    settings = WandbServerSettings(
-        name="local-testcontainer",
-        volume="local-testcontainer-vol",
+def wandb_server_settings(
+    wandb_server_tag,
+    wandb_server_pull,
+    wandb_server_image_registry,
+    wandb_server_image_repository,
+):
+    return WandbServerSettings(
+        name="wandb-local-testcontainer",
+        volume="wandb-local-testcontainer-vol",
         local_base_port=LOCAL_BASE_PORT,
         services_api_port=SERVICES_API_PORT,
         fixture_service_port=FIXTURE_SERVICE_PORT,
-        wandb_server_pull="missing",
-        wandb_server_tag="master",
+        wandb_server_pull=wandb_server_pull,
+        wandb_server_image_registry=wandb_server_image_registry,
+        wandb_server_image_repository=wandb_server_image_repository,
+        wandb_server_tag=wandb_server_tag,
     )
 
-    wandb_server_factory(settings)
-    return settings
+
+# @pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
+def wandb_server(wandb_server_factory, wandb_server_settings):
+    wandb_server_factory(wandb_server_settings)
+
+
+def pytest_configure(config):
+    print("Running tests with wandb version:", wandb.__version__)
+    print(config)
 
 
 @pytest.fixture(scope="session")
-def fixture_fn(wandb_server, fixture_fn_factory):
-    yield from fixture_fn_factory(wandb_server)
+def fixture_fn(wandb_server_settings, fixture_fn_factory):
+    yield from fixture_fn_factory(wandb_server_settings)
 
 
 @pytest.fixture(scope=determine_scope)
-def user(user_factory, fixture_fn, wandb_server):
-    yield from user_factory(fixture_fn, wandb_server)
+def user(user_factory, fixture_fn, wandb_server_settings):
+    yield from user_factory(fixture_fn, wandb_server_settings)
 
 
 @pytest.fixture(scope="session", autouse=True)
