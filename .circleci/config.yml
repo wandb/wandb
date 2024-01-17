@@ -76,6 +76,9 @@ parameters:
   nightly_execute_regression:
     type: boolean
     default: true
+  gcp_project:
+    type: string
+    default: wandb-production  # wandb-production or wandb-client-cicd
   wandb_server_tag:
     type: string
     default: "master"
@@ -459,7 +462,7 @@ jobs:
         default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -576,6 +579,7 @@ jobs:
       #     name: Install system deps
       #     command: |
       #       apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - gcloud/install
       - setup_gcloud
       - run:
           name:
