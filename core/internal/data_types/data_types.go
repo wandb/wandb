@@ -1,9 +1,5 @@
 package data_types
 
-import (
-	"strings"
-)
-
 type TypeName string
 
 const (
@@ -46,7 +42,7 @@ type isParams_ParamsType interface {
 	isParams_ParamsType()
 }
 
-func GenerateTypeRepresentation(data interface{}) TypeRepresentation {
+func ResolveTypes(data interface{}) TypeRepresentation {
 	return resolveTypes(data)
 }
 
@@ -57,7 +53,7 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 	case map[string]interface{}:
 		result := make(map[string]TypeRepresentation)
 		for key, value := range v {
-			if !strings.HasPrefix(key, "_") {
+			if key != "_wandb" {
 				result[key] = resolveTypes(value)
 			}
 		}

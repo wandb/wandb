@@ -2808,6 +2808,7 @@ class Run:
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id,
+                entity_name=r.entity,
                 use_as=use_as or artifact_or_name,
             )
         else:
