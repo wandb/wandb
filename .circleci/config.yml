@@ -576,6 +576,10 @@ jobs:
     working_directory: /mnt/ramdisk
     steps:
       - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y jq
       - docker/install-docker-tools
       - gcloud/install
       - setup_gcloud
