@@ -1381,7 +1381,7 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      - local-testcontainer:
+      - local-testcontainer
       #
       # Linting
       #
