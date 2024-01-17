@@ -12,6 +12,10 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
+func SecondsToDuration(seconds float64) time.Duration {
+	return time.Duration(seconds * float64(time.Second))
+}
+
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))

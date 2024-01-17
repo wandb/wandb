@@ -1,4 +1,3 @@
-from calendar import c
 import dataclasses
 import json
 import os
@@ -300,7 +299,9 @@ def wandb_server_factory():
         fixture_health_endpoint = "health"
 
         if os.environ.get("CI") == "true":
-            return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
+            return check_server_health(
+                base_url=base_url, endpoint=app_health_endpoint
+            ), None
 
         if not check_server_health(base_url, app_health_endpoint):
             command = [
@@ -333,13 +334,21 @@ def wandb_server_factory():
             if not server_is_up:
                 return False, None
             # check that the fixture service is accessible
-            return check_server_health(
-                base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=30
-            ), server_process.pid
+            return (
+                check_server_health(
+                    base_url=fixture_url,
+                    endpoint=fixture_health_endpoint,
+                    num_retries=30,
+                ),
+                server_process.pid,
+            )
 
-        return check_server_health(
-            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
-        ), None
+        return (
+            check_server_health(
+                base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+            ),
+            None,
+        )
 
     return _wandb_server_factory
 
