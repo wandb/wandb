@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
@@ -533,7 +533,7 @@ def run_agent(
 
 def agent(
     sweep_id: str,
-    function: Optional[function] = None,
+    function: Optional[Callable] = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
     count: Optional[int] = None,
