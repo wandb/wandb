@@ -577,7 +577,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install system deps
+          name: Install system deps for docker install
           command: |
             apt-get update && apt-get install -y jq
       - docker/install-docker-tools
