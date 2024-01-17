@@ -117,7 +117,8 @@ class ArtifactManifestEntry:
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
-        dest_path = os.path.join(root, self.path)
+        path = str(Path(self.path))
+        dest_path = os.path.join(root, path)
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
