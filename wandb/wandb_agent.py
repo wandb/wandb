@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import traceback
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
