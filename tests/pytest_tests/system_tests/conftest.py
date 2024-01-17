@@ -299,9 +299,10 @@ def wandb_server_factory():
         fixture_health_endpoint = "health"
 
         if os.environ.get("CI") == "true":
-            return check_server_health(
-                base_url=base_url, endpoint=app_health_endpoint
-            ), None
+            return (
+                check_server_health(base_url=base_url, endpoint=app_health_endpoint),
+                None,
+            )
 
         if not check_server_health(base_url, app_health_endpoint):
             command = [
