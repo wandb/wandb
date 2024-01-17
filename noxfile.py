@@ -291,8 +291,8 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
     release_tag = local_release_tag.removeprefix("local/v")
-    print(f"Latest release tag: {release_tag}")
-    print(f"Latest commit hash: {commit_hash}")
+    print(f"Release tag: {release_tag}")
+    print(f"Commit hash: {commit_hash}")
 
     if not release_tag or not commit_hash:
         print("Failed to get release tag or commit hash.")
