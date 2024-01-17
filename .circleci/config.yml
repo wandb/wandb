@@ -1227,6 +1227,12 @@ workflows:
           message: ":runner: *Nightly run started!*"
           execute: << pipeline.parameters.nightly_slack_notify >>
       #
+      # Keep local-testcontainer registry up to date
+      #
+      - local-testcontainer:
+          requires:
+              - "slack-notify-on-start"
+      #
       # Regression tests
       #
       - regression:
@@ -1375,10 +1381,6 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
-      # TODO: move to nightly workflow
-      # Keep local-testcontainer registry up to date
-      #
-      - local-testcontainer
       #
       # Linting
       #
