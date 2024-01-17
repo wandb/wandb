@@ -5,7 +5,6 @@ orbs:
   slack: circleci/slack@4.12.5
   go: circleci/go@1.9.0
   gcloud: circleci/gcp-cli@3.1.1
-  docker: circleci/docker@2.5.0
 
 parameters:
   manual:
@@ -580,13 +579,13 @@ jobs:
           name: Install system deps for docker install
           command: |
             apt-get update && apt-get install -y jq
-      - docker/install-docker-tools
+      - install_go
       - gcloud/install
       - setup_gcloud
       - run:
           name:
           command: |
-            systemctl start docker
+            go install github.com/google/go-containerregistry/cmd/gcrane@latest
             pip install -U pip nox requests
             nox -s local-testcontainer-registry
           no_output_timeout: 5m

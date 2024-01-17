@@ -323,13 +323,10 @@ def local_testcontainer_registry(session: nox.Session) -> None:
         print(f"Image with tag {release_tag} already exists.")
         return
 
-    # Pull image from the source registry
     source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
-    subprocess.check_call(["docker", "pull", "--platform", "linux/amd64", source_image])
-
-    # Tag and push the image to the target registry
     target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
-    subprocess.check_call(["docker", "tag", source_image, target_image])
-    subprocess.check_call(["docker", "push", target_image])
 
-    print(f"Successfully pushed image {target_image}")
+    # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
+    subprocess.check_call(["gcrane", "cp", source_image, target_image])
+
+    print(f"Successfully copied image {target_image}")
