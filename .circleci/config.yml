@@ -558,6 +558,32 @@ jobs:
           no_output_timeout: 5m
       - save-test-results
 
+  local-testcontainer:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 10
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+    resource_class: small
+    working_directory: /mnt/ramdisk
+    steps:
+      - checkout
+      # - run:
+      #     name: Install system deps
+      #     command: |
+      #       apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - setup_gcloud
+      - run:
+          name:
+          command: |
+            pip install -U pip nox
+            nox -s local-testcontainer-registry
+          no_output_timeout: 5m
+
   win:
     parameters:
       python_version_major:
@@ -1343,6 +1369,10 @@ workflows:
               - << pipeline.trigger_source >>
         - not: << pipeline.parameters.manual >>
     jobs:
+      # TODO: move to nightly workflow
+      # Keep local-testcontainer registry up to date
+      #
+      - local-testcontainer
       #
       # Linting
       #
@@ -1353,7 +1383,7 @@ workflows:
       #
       # Prep jobs
       #
-      # todo: pre-create toxenvs for all python versions,
+      # TODO: pre-create toxenvs for all python versions,
       #       currently these are just placeholders
       - prep:
           name: "system-tests"
