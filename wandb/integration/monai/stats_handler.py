@@ -6,7 +6,6 @@ from monai.utils import is_scalar
 import wandb
 from wandb.util import get_module
 
-DEFAULT_TAG = "Loss"
 ignite_engine = get_module("ignite.engine")
 
 
@@ -17,16 +16,15 @@ class WandbStatsHandler:
             bool, Callable[[ignite_engine.Engine, int], bool], int
         ] = True,
         epoch_log: Union[bool, Callable[[ignite_engine.Engine, int], bool], int] = True,
+        output_transform: Callable = lambda x: x[0],
         epoch_event_logger: Union[
             Callable[[ignite_engine.Engine, Any], Any], None
         ] = None,
         iteration_event_logger: Union[
             Callable[[ignite_engine.Engine, Any], Any], None
         ] = None,
-        output_transform: Callable = lambda x: x[0],
         global_epoch_transform: Callable = lambda x: x,
         state_attributes: Union[Sequence[str], None] = None,
-        tag_name: str = DEFAULT_TAG,
     ) -> None:
         """`WandbStatsHandler` defines a set of Ignite Event-handlers for all the logic related to Weights & Biases logging.
 
@@ -57,21 +55,20 @@ class WandbStatsHandler:
                 If `True`, logging will be executed every epoch. If `False`, logging will be skipped. If an integer, logging will
                 be executed every `epoch_log` epochs. If a callable, it should return a boolean indicating whether to log or not
                 on each epoch.
+            output_transform: (Callable) a callable that is used to transform the ignite.engine.state.output into the value to log.
+                For example, if `ignite.engine.state.output` is a tuple `(loss, y_pred, y)`, then use
+                `output_transform=lambda x: x[0]` to log `loss`, or use `output_transform=lambda x: x[1:]` to log `(y_pred, y)`.
+                Default is `lambda x: x[0]` which corresponds to logging `loss`.
             epoch_event_logger: (Union[Callable[[ignite_engine.Engine, Any], Any], None]) a callable that takes in the engine and
                 the current epoch number and logs the desired values. If None, the default epoch logger will be used which logs
                 the epoch number and all the metrics in `engine.state.metrics` (if any).
             iteration_event_logger: (Union[Callable[[ignite_engine.Engine, Any], Any], None]) a callable that takes in the engine
                 and the current iteration number and logs the desired values. If None, the default iteration logger will be used
                 which logs the iteration number and the output value in `engine.state.output` (if any).
-            output_transform: (Callable) a callable that is used to transform the ignite.engine.state.output into the value to log.
-                For example, if `ignite.engine.state.output` is a tuple `(loss, y_pred, y)`, then use
-                `output_transform=lambda x: x[0]` to log `loss`, or use `output_transform=lambda x: x[1:]` to log `(y_pred, y)`.
-                Default is `lambda x: x[0]` which corresponds to logging `loss`.
             global_epoch_transform: (Callable) a callable that is used to transform the ignite.engine.state.epoch into the value
                 to log. This can be used to log the global step number across multiple epochs. Default is `lambda x: x`.
             state_attributes: (Union[Sequence[str], None]) a list of attributes of `ignite.engine.state` that will be logged.
                 If None, nothing will be logged. Default is None.
-            tag_name: (str) the name of the loss tag to log. Default is "Loss".
         """
         if wandb.run is None:
             raise wandb.Error(
@@ -84,7 +81,6 @@ class WandbStatsHandler:
         self.output_transform = output_transform
         self.global_epoch_transform = global_epoch_transform
         self.state_attributes = state_attributes
-        self.tag_name = tag_name
         wandb.define_metric("epoch/epoch")
         wandb.define_metric("epoch/*", step_metric="epoch/epoch")
         wandb.define_metric("iteration/iteration")
@@ -185,11 +181,11 @@ class WandbStatsHandler:
                         repeat=False,
                     )
                     continue
-                wandb_loggable_dict[f"iteration/{key}"] = (
+                wandb_loggable_dict["iteration/Loss"] = (
                     value.item() if isinstance(value, torch.Tensor) else value
                 )
         elif is_scalar(loss):
-            wandb_loggable_dict[f"iteration/{self.tag_name}"] = (
+            wandb_loggable_dict["iteration/Loss"] = (
                 loss.item() if isinstance(loss, torch.Tensor) else loss
             )
         else:
