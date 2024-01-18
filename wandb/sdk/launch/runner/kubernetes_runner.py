@@ -405,7 +405,14 @@ class KubernetesRunner(AbstractRunner):
             # Add our env vars to user supplied env vars
             env = cont.get("env") or []
             for key, value in env_vars.items():
-                if key == "WANDB_API_KEY" and value and (LaunchAgent.initialized() or self.backend_config[PROJECT_SYNCHRONOUS]):
+                if (
+                    key == "WANDB_API_KEY"
+                    and value
+                    and (
+                        LaunchAgent.initialized()
+                        or self.backend_config[PROJECT_SYNCHRONOUS]
+                    )
+                ):
                     # Override API key with secret. TODO: Do the same for other runners
                     release_name = os.environ.get("WANDB_RELEASE_NAME")
                     secret_name = "wandb-api-key"
@@ -414,7 +421,9 @@ class KubernetesRunner(AbstractRunner):
                     else:
                         secret_name += f"-{launch_project.run_id}"
 
-                    api_key_secret = await ensure_api_key_secret(core_api, secret_name, namespace, value)
+                    api_key_secret = await ensure_api_key_secret(
+                        core_api, secret_name, namespace, value
+                    )
                     env.append(
                         {
                             "name": key,
@@ -670,11 +679,15 @@ async def ensure_api_key_secret(
                     name=secret_name, namespace=namespace
                 )
                 if existing_secret.data != secret_data:
-                    raise LaunchError(f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}")
+                    raise LaunchError(
+                        f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
+                    )
                 return existing_secret
             raise
     except Exception as e:
-        raise LaunchError(f"Exception when ensuring Kubernetes API key secret: {str(e)}\n")
+        raise LaunchError(
+            f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
+        )
 
 
 async def maybe_create_imagepull_secret(
