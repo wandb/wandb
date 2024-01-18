@@ -12,6 +12,7 @@ from pydantic import (  # type: ignore
     validator,
 )
 
+import wandb
 from wandb.sdk.launch.utils import (
     AZURE_BLOB_REGEX,
     AZURE_CONTAINER_REGISTRY_URI_REGEX,
@@ -102,7 +103,18 @@ class EnvironmentConfig(BaseModel):
     region: Optional[str] = Field(..., description="The region to use.")
 
     class Config:
-        extra = "forbid"
+        extra = "allow"
+
+    @root_validator(pre=True)  # type: ignore
+    @classmethod
+    def check_extra_fields(cls, values: dict) -> dict:
+        """Check for extra fields and print a warning."""
+        for key in values:
+            if key not in ["type", "region"]:
+                wandb.termwarn(
+                    f"Unrecognized field {key} in environment block. Please check your config file."
+                )
+        return values
 
 
 class BuilderConfig(BaseModel):

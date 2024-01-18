@@ -101,19 +101,19 @@ pub struct Settings {
     #[prost(message, optional, tag = "147")]
     pub file_stream_retry_max: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "148")]
-    pub file_stream_retry_wait_min_seconds: ::core::option::Option<i32>,
+    pub file_stream_retry_wait_min_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "149")]
-    pub file_stream_retry_wait_max_seconds: ::core::option::Option<i32>,
+    pub file_stream_retry_wait_max_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "15")]
-    pub file_stream_timeout_seconds: ::core::option::Option<i32>,
+    pub file_stream_timeout_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "150")]
     pub file_transfer_retry_max: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "151")]
-    pub file_transfer_retry_wait_min_seconds: ::core::option::Option<i32>,
+    pub file_transfer_retry_wait_min_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "152")]
-    pub file_transfer_retry_wait_max_seconds: ::core::option::Option<i32>,
+    pub file_transfer_retry_wait_max_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "153")]
-    pub file_transfer_timeout_seconds: ::core::option::Option<i32>,
+    pub file_transfer_timeout_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "16")]
     pub flow_control_custom: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "17")]
@@ -121,11 +121,11 @@ pub struct Settings {
     #[prost(message, optional, tag = "154")]
     pub graphql_retry_max: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "155")]
-    pub graphql_retry_wait_min_seconds: ::core::option::Option<i32>,
+    pub graphql_retry_wait_min_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "156")]
-    pub graphql_retry_wait_max_seconds: ::core::option::Option<i32>,
+    pub graphql_retry_wait_max_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "157")]
-    pub graphql_timeout_seconds: ::core::option::Option<i32>,
+    pub graphql_timeout_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "18")]
     pub internal_check_process: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "19")]
