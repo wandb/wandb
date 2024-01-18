@@ -63,7 +63,7 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 	return manifest, nil
 }
 
-func (m *Manifest) WriteToFile() (filename string, digest string, rerr error) {
+func (m *Manifest) WriteToFile() (filename string, digest string, size int64, rerr error) {
 	return utils.WriteJsonToFileWithDigest(m)
 }
 
