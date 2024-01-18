@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/wandb/wandb/core/pkg/leveldb"
+	"github.com/wandb/wandb/core/internal/leveldb"
 )
 
 // HeaderSchema interface for the store header
