@@ -93,8 +93,8 @@ Status legend:
 |             | `<other commands>`| 🚧[^CLI.2]      |
 | Artifacts   |                   | ✅               |
 | Sweeps      |                   | ✅               |
-| Launch      |                   | ❌[^L.1]         |
-|             | Sweeps on Launch  | ❌[^L.1]         |
+| Launch      |                   | ✅               |
+|             | Sweeps on Launch  | 🚧[^L.1]         |
 
 [^E.1]: `sync_tensorboard` only uploads `tfevent` files to W&B, but
     metrics will not be logged in native W&B charts.
@@ -106,4 +106,4 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Launch is not yet supported.
+[^L.1]: Swweps on Launch requires verification.
