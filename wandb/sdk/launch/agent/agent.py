@@ -14,7 +14,6 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
-from wandb.sdk.launch.agent2.job_set import create_job_set
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -231,9 +230,6 @@ class LaunchAgent:
             self._id, self.gorilla_supports_agents
         )
         self._name = agent_response["name"]
-
-        self._job_sets = {}
-
         self._init_agent_run()
 
     async def fail_run_queue_item(
@@ -292,15 +288,14 @@ class LaunchAgent:
             Exception: if there is an error popping from the queue.
         """
         try:
-            raise NotImplementedError()
-            # pop = event_loop_thread_exec(self._api.pop_from_run_queue)
-            # ups = await pop(
-            #     queue,
-            #     entity=self._entity,
-            #     project=self._project,
-            #     agent_id=self._id,
-            # )
-            # return ups
+            pop = event_loop_thread_exec(self._api.pop_from_run_queue)
+            ups = await pop(
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
+            )
+            return ups
         except Exception as e:
             print("Exception:", e)
             return None
@@ -521,99 +516,82 @@ class LaunchAgent:
         """
         self.print_status()
 
-        # TODO(np): Remove
-        for q in self._queues:
-            # Start a JobSet for each queue
-            job_set = create_job_set(
-                {
-                    "name": q,
-                    "entity_name": self._entity,
-                    "project_name": self._project,
-                },
-                self._api,
-                self._id,
-            )
-            self._job_sets[q] = job_set
-            job_set.start_sync_loop(asyncio.get_event_loop())
         try:
             while True:
                 await asyncio.sleep(1)
-                # job = None
-                # self._ticks += 1
+                job = None
+                self._ticks += 1
                 
-                #### pull launch agent status from backend
-                # agent_response = self._api.get_launch_agent(
-                #     self._id, self.gorilla_supports_agents
-                # )
+                ### pull launch agent status from backend
+                agent_response = self._api.get_launch_agent(
+                    self._id, self.gorilla_supports_agents
+                )
                 
-                #### check if we should stop
-                # if agent_response["stopPolling"]:
-                #     # shutdown process and all jobs if requested from ui
-                #     raise KeyboardInterrupt
+                ### check if we should stop
+                if agent_response["stopPolling"]:
+                    # shutdown process and all jobs if requested from ui
+                    raise KeyboardInterrupt
                 
-                #### if we have fewer jobs than max...
-                # if self.num_running_jobs < self._max_jobs:
-                #     # only check for new jobs if we're not at max
+                ### if we have fewer jobs than max...
+                if self.num_running_jobs < self._max_jobs:
+                    # only check for new jobs if we're not at max
                 
                 
-                #     job_and_queue = await self.get_job_and_queue()
-                #     # these will either both be None, or neither will be None
-                #     if job_and_queue is not None:
-                #         job = job_and_queue.job
-                #         queue = job_and_queue.queue
-                #         try:
-                #             file_saver = RunQueueItemFileSaver(
-                #                 self._wandb_run, job["runQueueItemId"]
-                #             )
-                #             if _is_scheduler_job(job.get("runSpec", {})):
-                #                 # If job is a scheduler, and we are already at the cap, ignore,
-                #                 #    don't ack, and it will be pushed back onto the queue in 1 min
-                #                 if self.num_running_schedulers >= self._max_schedulers:
-                #                     wandb.termwarn(
-                #                         f"{LOG_PREFIX}Agent already running the maximum number "
-                #                         f"of sweep schedulers: {self._max_schedulers}. To set "
-                #                         "this value use `max_schedulers` key in the agent config"
-                #                     )
-                #                     continue
-                #             await self.run_job(job, queue, file_saver)
-                #         except Exception as e:
-                #             wandb.termerror(
-                #                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
-                #             )
-                #             wandb._sentry.exception(e)
+                    job_and_queue = await self.get_job_and_queue()
+                    # these will either both be None, or neither will be None
+                    if job_and_queue is not None:
+                        job = job_and_queue.job
+                        queue = job_and_queue.queue
+                        try:
+                            file_saver = RunQueueItemFileSaver(
+                                self._wandb_run, job["runQueueItemId"]
+                            )
+                            if _is_scheduler_job(job.get("runSpec", {})):
+                                # If job is a scheduler, and we are already at the cap, ignore,
+                                #    don't ack, and it will be pushed back onto the queue in 1 min
+                                if self.num_running_schedulers >= self._max_schedulers:
+                                    wandb.termwarn(
+                                        f"{LOG_PREFIX}Agent already running the maximum number "
+                                        f"of sweep schedulers: {self._max_schedulers}. To set "
+                                        "this value use `max_schedulers` key in the agent config"
+                                    )
+                                    continue
+                            await self.run_job(job, queue, file_saver)
+                        except Exception as e:
+                            wandb.termerror(
+                                f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
+                            )
+                            wandb._sentry.exception(e)
 
-                #             # always the first phase, because we only enter phase 2 within the thread
-                #             files = file_saver.save_contents(
-                #                 contents=traceback.format_exc(),
-                #                 fname="error.log",
-                #                 file_sub_type="error",
-                #             )
-                #             await self.fail_run_queue_item(
-                #                 run_queue_item_id=job["runQueueItemId"],
-                #                 message=str(e),
-                #                 phase="agent",
-                #                 files=files,
-                #             )
+                            # always the first phase, because we only enter phase 2 within the thread
+                            files = file_saver.save_contents(
+                                contents=traceback.format_exc(),
+                                fname="error.log",
+                                file_sub_type="error",
+                            )
+                            await self.fail_run_queue_item(
+                                run_queue_item_id=job["runQueueItemId"],
+                                message=str(e),
+                                phase="agent",
+                                files=files,
+                            )
 
-                # if self._ticks % 2 == 0:
-                #     if len(self.thread_ids) == 0:
-                #         await self.update_status(AGENT_POLLING)
-                #     else:
-                #         await self.update_status(AGENT_RUNNING)
-                #     self.print_status()
+                if self._ticks % 2 == 0:
+                    if len(self.thread_ids) == 0:
+                        await self.update_status(AGENT_POLLING)
+                    else:
+                        await self.update_status(AGENT_RUNNING)
+                    self.print_status()
 
-                # if self.num_running_jobs == self._max_jobs or job is None:
-                #     # all threads busy or did not receive job
-                #     await asyncio.sleep(AGENT_POLLING_INTERVAL)
-                # else:
-                #     await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
+                if self.num_running_jobs == self._max_jobs or job is None:
+                    # all threads busy or did not receive job
+                    await asyncio.sleep(AGENT_POLLING_INTERVAL)
+                else:
+                    await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
         except KeyboardInterrupt:
             await self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
-            # shut down all job_sets
-            for job_set in self._job_sets.values():
-                job_set.stop_sync_loop()
         finally:
             self._jobs_event.clear()
 
@@ -697,10 +675,11 @@ class LaunchAgent:
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
         _logger.info("Backend loaded...")
-        if not isinstance(backend, LocalProcessRunner):
+        if isinstance(backend, LocalProcessRunner):
+            run = await backend.run(project, image_uri)
+        else:
             assert image_uri
-            
-        run = await backend.run(project, image_uri)
+            run = await backend.run(project, image_uri)
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
