@@ -323,8 +323,8 @@ func (sm *SystemMonitor) GetBuffer() map[string]List {
 	if sm == nil || sm.buffer == nil {
 		return nil
 	}
-	sm.buffer.mutex.RLock()
-	defer sm.buffer.mutex.RUnlock()
+	sm.buffer.mutex.Lock()
+	defer sm.buffer.mutex.Unlock()
 	return sm.buffer.elements
 }
 

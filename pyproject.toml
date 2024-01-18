@@ -113,7 +113,8 @@ version = { attr = "wandb.__version__" }
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-vvv --cov-config=pyproject.toml"
+console_output_style = "count"
+addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope --capture=no"
 markers = [
     "image_output",
     "multiclass",
