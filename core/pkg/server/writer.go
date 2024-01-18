@@ -5,8 +5,10 @@ import (
 	"os"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/store"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
 
 type WriterOption func(*Writer)
@@ -44,7 +46,7 @@ type Writer struct {
 	storeChan chan *service.Record
 
 	// store is the store for the writer
-	store *Store
+	store *store.Store
 
 	// recordNum is the running count of stored records
 	recordNum int64
@@ -75,16 +77,26 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
-	err = w.store.Open(os.O_WRONLY)
-	if err != nil {
+	w.store = store.New(w.ctx,
+		store.StoreOptions{
+			Name:   w.settings.GetSyncFile().GetValue(),
+			Flag:   os.O_WRONLY,
+			Header: NewHeader(),
+		},
+	)
+	if err = w.store.Open(); err != nil {
 		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
 	}
 
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
-			if err = w.store.Write(record); err != nil {
+			buf, err := proto.Marshal(record)
+			if err != nil {
+				w.logger.Error("writer: error marshalling record", "error", err)
+				continue
+			}
+			if err = w.store.Write(buf); err != nil {
 				w.logger.Error("writer: error storing record", "error", err)
 			}
 		}
