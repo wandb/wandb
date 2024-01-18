@@ -467,6 +467,7 @@ jobs:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
         environment:
+          CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -1423,7 +1424,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core --wandb-server-use-existing"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
       #
       # System tests with Service
@@ -1437,7 +1438,7 @@ workflows:
               python_version_minor: [ 10 ]
           name: "system(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_core --wandb-server-use-existing"
+          tox_args: "tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
       #
       # core unit tests
@@ -1775,7 +1776,7 @@ workflows:
                 - "system_metrics"
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_<<matrix.shard>> --wandb-server-use-existing"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_<<matrix.shard>>"
           codecov_args: "-F system"
 
       - pytest:
@@ -1791,7 +1792,7 @@ workflows:
                 - "artifacts"
           name: "system(service)-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>> --wandb-server-use-existing"
+          tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
           codecov_args: "-F system"
 
       #
@@ -1806,7 +1807,7 @@ workflows:
               python_version_minor: [9]
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_notebooks --wandb-server-use-existing"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_notebooks"
           codecov_args: "-F system"
 
       - pytest:
@@ -1818,7 +1819,7 @@ workflows:
               python_version_minor: [9]
           name: "system(service)-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_notebooks --wandb-server-use-existing"
+          tox_args: "tests/pytest_tests/system_tests/test_notebooks"
           codecov_args: "-F system"
 
       #

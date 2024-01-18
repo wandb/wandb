@@ -35,6 +35,9 @@ LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"
 
+DEFAULT_SERVER_CONTAINER_NAME="wandb-local-testcontainer"
+DEFAULT_SERVER_VOLUME="wandb-local-testcontainer-vol"
+
 
 class ConsoleFormatter:
     BOLD = "\033[1m"
@@ -580,8 +583,8 @@ def pytest_configure(config):
     print("Configuring wandb server...")
 
     settings = WandbServerSettings(
-        name="wandb-local-testcontainer",
-        volume="wandb-local-testcontainer-vol",
+        name=DEFAULT_SERVER_CONTAINER_NAME,
+        volume=DEFAULT_SERVER_VOLUME,
         local_base_port=LOCAL_BASE_PORT,
         services_api_port=SERVICES_API_PORT,
         fixture_service_port=FIXTURE_SERVICE_PORT,
@@ -591,7 +594,10 @@ def pytest_configure(config):
             "--wandb-server-image-repository"
         ),
         wandb_server_tag=config.getoption("--wandb-server-tag"),
-        wandb_server_use_existing=config.getoption("--wandb-server-use-existing"),
+        wandb_server_use_existing=config.getoption(
+            "--wandb-server-use-existing",
+            default=True if os.getenv("CI") else False,
+        ),
     )
     config.wandb_server_settings = settings
 
