@@ -123,3 +123,12 @@ def test_config_getattr_default(config):
 
     with pytest.raises(AttributeError, match="object has no attribute 'a'"):
         _ = config.a
+
+
+def test_nested_config_overwrite(consolidated, config):
+    config.update({"path": {"to": {"override": "baz", "keep": "baf"}}})
+    config.merge_locked(
+        {"path": {"to": {"override": "bar"}}}, "sweep", _allow_val_change=True
+    )
+    assert dict(config) == {"path": {"to": {"override": "bar", "keep": "baf"}}}
+    assert consolidated == dict(config)
