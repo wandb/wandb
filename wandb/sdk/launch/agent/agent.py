@@ -515,28 +515,18 @@ class LaunchAgent:
             KeyboardInterrupt: if the agent is requested to stop.
         """
         self.print_status()
-
         try:
             while True:
-                await asyncio.sleep(1)
                 job = None
                 self._ticks += 1
-                
-                ### pull launch agent status from backend
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
-                
-                ### check if we should stop
                 if agent_response["stopPolling"]:
                     # shutdown process and all jobs if requested from ui
                     raise KeyboardInterrupt
-                
-                ### if we have fewer jobs than max...
                 if self.num_running_jobs < self._max_jobs:
                     # only check for new jobs if we're not at max
-                
-                
                     job_and_queue = await self.get_job_and_queue()
                     # these will either both be None, or neither will be None
                     if job_and_queue is not None:
@@ -588,6 +578,7 @@ class LaunchAgent:
                     await asyncio.sleep(AGENT_POLLING_INTERVAL)
                 else:
                     await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
+
         except KeyboardInterrupt:
             await self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
