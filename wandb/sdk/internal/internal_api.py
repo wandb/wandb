@@ -629,6 +629,21 @@ class Api:
 
         res = self.gql(query)
         return res.get("LaunchAgentType") or None
+    
+    @normalize_exceptions
+    def job_set_introspection(self) -> Optional[str]:
+        query = gql(
+            """
+            query JobSetIntrospection {
+                JobSetType: __type(name: "JobSet") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("JobSetType", {}).get("name") or None
 
     @normalize_exceptions
     def create_run_queue_introspection(self) -> Tuple[bool, bool, bool]:
@@ -4198,3 +4213,136 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+    
+    @normalize_exceptions
+    def get_job_set_by_id(
+        self,
+        id: str,
+    ): 
+        query = gql(
+            """
+            query getJobSetById($id: ID!) {
+                jobSet(id: $id) {
+                    id
+                    name
+                    jobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "id": id,
+            },
+        )
+
+        return response["jobSet"]
+        
+
+    @normalize_exceptions
+    def get_job_set_by_spec(
+        self,
+        job_set_name: str,
+        entity_name: str,
+        project_name: Optional[str],
+    ): 
+        query = gql(
+            """
+            query getJobSetBySpec($jobSetName: String!, $entityName: String!, $projectName: String) {
+                jobSet(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }) {
+                    id
+                    name
+                    jobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "jobSetName": job_set_name,
+                "entityName": entity_name,
+                "projectName": project_name,
+            },
+        )
+
+        return response["jobSet"]
+    
+    @normalize_exceptions
+    def lease_job_set_item(
+        self,
+        job_set_id: str,
+        job_set_item_id: str,
+        agent_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation leaseJobSetItem($jobSetId: ID!, $jobSetItemId: ID!, $agentId: ID!) {
+                leaseJobSetItem(input: { jobSetId: $jobSetId, jobSetItemId: $jobSetItemId, agentId: $agentId }) {
+                    success
+                }
+            }
+            """
+        )
+        
+        response = self.gql(mutation, variable_values={
+            "jobSetId": job_set_id,
+            "jobSetItemId": job_set_item_id,
+            "agentId": agent_id,
+        })
+        
+        result: bool = response["leaseJobSetItem"]["success"]
+        return result
+    
+    @normalize_exceptions
+    def ack_job_set_item(
+        self,
+        job_set_id: str,
+        job_set_item_id: str,
+        agent_id: str,
+        run_name: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation ackJobSetItem($jobSetId: ID!, $jobSetItemId: ID!, $agentId: ID!, $runName: String!) {
+                ackJobSetItem(input: { jobSetId: $jobSetId, jobSetItemId: $jobSetItemId, agentId: $agentId, runName: $runName }) {
+                    success
+                }
+            }
+            """
+        )
+        
+        response = self.gql(mutation, variable_values={
+            "jobSetId": job_set_id,
+            "jobSetItemId": job_set_item_id,
+            "agentId": agent_id,
+            "runName": run_name,
+        })
+        
+        result: bool = response["ackJobSetItem"]["success"]
+        return result
+    
+    

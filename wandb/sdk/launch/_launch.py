@@ -8,6 +8,7 @@ import yaml
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.agent2.agent import LaunchAgent2
 
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -174,13 +175,19 @@ def create_and_run_agent(
             msg += f": {error['msg']}"
             wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
-    agent = LaunchAgent(api, config)
+    # agent = LaunchAgent(api, config)
+    agent = LaunchAgent2(config, api)
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
     try:
-        asyncio.run(agent.loop())
+        loop.run_until_complete(agent.main_loop())
     except asyncio.CancelledError:
         pass
-
-
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.run_until_complete(agent.shutdown())
+            
 async def _launch(
     api: Api,
     uri: Optional[str] = None,
