@@ -57,7 +57,8 @@ def test_gql_409(
     )
     # we do not retry 409s on queries, so this should fail
     with relay_server(inject=[inject_response]):
-        wandb_init()
+        run = wandb_init()
+        run.finish()
 
 
 def test_gql_410(

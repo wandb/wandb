@@ -608,8 +608,9 @@ def pytest_configure(config):
 
 
 def pytest_unconfigure(config):
-    print("Cleaning up wandb server...")
     clean = config.getoption("--wandb-server-clean")
+    if clean != "none":
+        print("Cleaning up wandb server...")
     if clean in ("container", "all"):
         print(
             f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
