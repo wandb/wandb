@@ -139,12 +139,17 @@ class KubernetesSubmittedRun(AbstractRun):
             if status.state in ["finished", "failed", "preempted"]:
                 break
             await asyncio.sleep(5)
+
+        await self._delete_secret()
         return (
             status.state == "finished"
         )  # todo: not sure if this (copied from aws runner) is the right approach? should we return false on failure
 
     async def get_status(self) -> Status:
-        return LaunchKubernetesMonitor.get_status(self.name)
+        status = LaunchKubernetesMonitor.get_status(self.name)
+        if status in ["stopped", "failed", "finished", "preempted"]:
+            await self._delete_secret()
+        return status
 
     async def cancel(self) -> None:
         """Cancel the run."""
@@ -153,10 +158,20 @@ class KubernetesSubmittedRun(AbstractRun):
                 namespace=self.namespace,
                 name=self.name,
             )
+            await self._delete_secret()
         except ApiException as e:
             raise LaunchError(
                 f"Failed to delete Kubernetes Job {self.name} in namespace {self.namespace}: {str(e)}"
             ) from e
+
+    async def _delete_secret(self) -> None:
+        # Cleanup secret if not running in a helm-managed context
+        if not os.environ.get("WANDB_RELEASE_NAME") and self.secret:
+            await self.core_api.delete_namespaced_secret(
+                name=self.secret.metadata.name,
+                namespace=self.secret.metadata.namespace,
+            )
+            self.secret = None
 
 
 class CrdSubmittedRun(AbstractRun):
@@ -306,7 +321,7 @@ class KubernetesRunner(AbstractRunner):
         namespace: str,
         core_api: "CoreV1Api",
     ) -> Tuple[Dict[str, Any], Optional["V1Secret"]]:
-        """Apply our default values, return job dict and secret.
+        """Apply our default values, return job dict and api key secret.
 
         Arguments:
             resource_args (Dict[str, Any]): The resource args to launch.
@@ -316,7 +331,7 @@ class KubernetesRunner(AbstractRunner):
             core_api (CoreV1Api): The core api.
 
         Returns:
-            Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and secret.
+            Tuple[Dict[str, Any], Optional["V1Secret"]]: The resource args and api key secret.
         """
         job: Dict[str, Any] = {
             "apiVersion": "batch/v1",
@@ -354,7 +369,6 @@ class KubernetesRunner(AbstractRunner):
                     "seccompProfile": {"type": "RuntimeDefault"},
                 }
 
-        secret = None
         entry_point = (
             launch_project.override_entrypoint
             or launch_project.get_single_entry_point()
@@ -386,18 +400,21 @@ class KubernetesRunner(AbstractRunner):
         env_vars = get_env_vars_dict(
             launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
+        api_key_secret = None
         for cont in containers:
             # Add our env vars to user supplied env vars
             env = cont.get("env") or []
             for key, value in env_vars.items():
-                if key == "WANDB_API_KEY" and value:
+                if key == "WANDB_API_KEY" and value and (LaunchAgent.initialized() or self.backend_config[PROJECT_SYNCHRONOUS]):
                     # Override API key with secret. TODO: Do the same for other runners
                     release_name = os.environ.get("WANDB_RELEASE_NAME")
                     secret_name = "wandb-api-key"
                     if release_name:
                         secret_name += f"-{release_name}"
+                    else:
+                        secret_name += f"-{launch_project.run_id}"
 
-                    await create_api_key_secret(core_api, secret_name, namespace, value)
+                    api_key_secret = await ensure_api_key_secret(core_api, secret_name, namespace, value)
                     env.append(
                         {
                             "name": key,
@@ -433,7 +450,7 @@ class KubernetesRunner(AbstractRunner):
                 LaunchAgent.name(),
             )
 
-        return job, secret
+        return job, api_key_secret
 
     async def run(
         self, launch_project: LaunchProject, image_uri: str
@@ -619,7 +636,7 @@ def inject_entrypoint_and_args(
             containers[i]["command"] = entry_point.command
 
 
-async def create_api_key_secret(
+async def ensure_api_key_secret(
     core_api: "CoreV1Api",
     secret_name: str,
     namespace: str,
@@ -649,12 +666,15 @@ async def create_api_key_secret(
         except ApiException as e:
             # 409 = conflict = secret already exists
             if e.status == 409:
-                return await core_api.read_namespaced_secret(
+                existing_secret = await core_api.read_namespaced_secret(
                     name=secret_name, namespace=namespace
                 )
+                if existing_secret.data != secret_data:
+                    raise LaunchError(f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}")
+                return existing_secret
             raise
     except Exception as e:
-        raise LaunchError(f"Exception when creating Kubernetes secret: {str(e)}\n")
+        raise LaunchError(f"Exception when ensuring Kubernetes API key secret: {str(e)}\n")
 
 
 async def maybe_create_imagepull_secret(
