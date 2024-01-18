@@ -1074,10 +1074,26 @@ pub struct FinalRecord {
     pub info: ::core::option::Option<RecordInfo>,
 }
 ///
+/// Version definition
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct VersionInfo {
+    /// The version of the SDK backend that produced the data
+    #[prost(string, tag = "1")]
+    pub producer: ::prost::alloc::string::String,
+    /// Minimum version of the wandb server that can read the data
+    #[prost(string, tag = "2")]
+    pub min_consumer: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+///
 /// HeaderRecord
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HeaderRecord {
+    #[prost(message, optional, tag = "1")]
+    pub version_info: ::core::option::Option<VersionInfo>,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
