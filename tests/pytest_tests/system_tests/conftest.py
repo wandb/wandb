@@ -35,8 +35,8 @@ LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"
 
-DEFAULT_SERVER_CONTAINER_NAME="wandb-local-testcontainer"
-DEFAULT_SERVER_VOLUME="wandb-local-testcontainer-vol"
+DEFAULT_SERVER_CONTAINER_NAME = "wandb-local-testcontainer"
+DEFAULT_SERVER_VOLUME = "wandb-local-testcontainer-vol"
 
 
 class ConsoleFormatter:
