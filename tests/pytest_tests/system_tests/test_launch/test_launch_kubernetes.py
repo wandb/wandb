@@ -12,7 +12,7 @@ async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
     pass
 
 
-async def _mock_create_api_key_secret(*args, **kwargs):
+async def _mock_ensure_api_key_secret(*args, **kwargs):
     pass
 
 
@@ -147,8 +147,8 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
         )
         monkeypatch.setattr(
             kubernetes_runner,
-            "create_api_key_secret",
-            _mock_create_api_key_secret,
+            "ensure_api_key_secret",
+            _mock_ensure_api_key_secret,
         )
         project.launch_spec = {"_resume_count": 0}
         run = await runner.run(image_uri="hello-world", launch_project=project)
