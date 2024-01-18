@@ -404,48 +404,6 @@ def publish_util(backend_interface):
 # --------------------------------
 # Fixtures for full test point
 # --------------------------------
-@dataclasses.dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
-    username: Optional[str] = None
-    password: Optional[str] = None
-    admin: bool = False
-    endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT
-    method: Literal["post"] = "post"
-
-
-@dataclasses.dataclass
-class AddAdminAndEnsureNoDefaultUser:
-    email: str
-    password: str
-    endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT
-    method: Literal["put"] = "put"
-
-
-@dataclasses.dataclass
-class WandbServerSettings:
-    name: str
-    volume: str
-    wandb_server_pull: str
-    wandb_server_image_registry: str
-    wandb_server_image_repository: str
-    wandb_server_tag: str
-    # ports exposed to the host
-    local_base_port: str
-    services_api_port: str
-    fixture_service_port: str
-    # ports internal to the container
-    internal_local_base_port: str = LOCAL_BASE_PORT
-    internal_local_services_api_port: str = SERVICES_API_PORT
-    internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
-    url: str = "http://localhost"
-
-    base_url: Optional[str] = None
-
-    def __post_init__(self):
-        self.base_url = f"{self.url}:{self.local_base_port}"
 
 
 def pytest_addoption(parser):
@@ -484,6 +442,20 @@ def pytest_addoption(parser):
         choices=["always", "missing", "never"],
         help="Force pull the latest wandb server image",
     )
+    parser.addoption(
+        "--wandb-server-use-existing",
+        action="store_true",
+        default=False,
+        help="Use an existing wandb server",
+    )
+
+    parser.addoption(
+        "--wandb-server-clean",
+        choices=["container", "volume", "all", "none"],
+        default="none",
+        help="Clean up wandb server",
+    )
+
     # debug option: creates an admin account that can be used to log in to the
     # app and inspect the test runs.
     parser.addoption(
@@ -500,34 +472,30 @@ def pytest_addoption(parser):
     )
 
 
-def random_string(length: int = 12) -> str:
-    """Generate a random string of a given length.
+@dataclasses.dataclass
+class WandbServerSettings:
+    name: str
+    volume: str
+    wandb_server_pull: str
+    wandb_server_image_registry: str
+    wandb_server_image_repository: str
+    wandb_server_tag: str
+    # spin up the server or connect to an existing one
+    wandb_server_use_existing: bool
+    # ports exposed to the host
+    local_base_port: str
+    services_api_port: str
+    fixture_service_port: str
+    # ports internal to the container
+    internal_local_base_port: str = LOCAL_BASE_PORT
+    internal_local_services_api_port: str = SERVICES_API_PORT
+    internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
+    url: str = "http://localhost"
 
-    :param length: Length of the string to generate.
-    :return: Random string.
-    """
-    return "".join(
-        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
-    )
+    base_url: Optional[str] = None
 
-
-def determine_scope(fixture_name, config):
-    return config.getoption("--user-scope")
-
-
-@pytest.fixture(scope="session")
-def base_url(request):
-    return request.config.getoption("--base-url")
-
-
-@pytest.fixture(scope="session")
-def wandb_debug(request):
-    return request.config.getoption("--wandb-debug", default=False)
-
-
-@pytest.fixture(scope="session")
-def wandb_verbose(request):
-    return request.config.getoption("--wandb-verbose", default=False)
+    def __post_init__(self):
+        self.base_url = f"{self.url}:{self.local_base_port}"
 
 
 def check_server_health(
@@ -549,6 +517,155 @@ def check_server_health(
         except requests.exceptions.ConnectionError:
             time.sleep(sleep_time)
     return False
+
+
+def spin_wandb_server():
+    def spin_wandb_server_fn(settings: WandbServerSettings) -> bool:
+        base_url = settings.base_url
+        app_health_endpoint = "healthz"
+        fixture_url = base_url.replace(
+            settings.local_base_port, settings.fixture_service_port
+        )
+        fixture_health_endpoint = "health"
+
+        if settings.wandb_server_use_existing:
+            return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
+
+        if not check_server_health(base_url, app_health_endpoint):
+            command = [
+                "docker",
+                "run",
+                "--pull",
+                settings.wandb_server_pull,
+                "--rm",
+                "-v",
+                f"{settings.volume}:/vol",
+                "-p",
+                f"{settings.local_base_port}:{settings.internal_local_base_port}",
+                "-p",
+                f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
+                "-p",
+                f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
+                "-e",
+                "WANDB_ENABLE_TEST_CONTAINER=true",
+                "--name",
+                settings.name,
+                "--platform",
+                "linux/amd64",
+                f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
+            ]
+            subprocess.Popen(command)
+            # wait for the server to start
+            server_is_up = check_server_health(
+                base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+            )
+            if not server_is_up:
+                return False
+            # check that the fixture service is accessible
+            return check_server_health(
+                base_url=fixture_url,
+                endpoint=fixture_health_endpoint,
+                num_retries=30,
+            )
+
+        return check_server_health(
+            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+        )
+
+    return spin_wandb_server_fn
+
+
+def pytest_configure(config):
+    print("Running tests with wandb version:", wandb.__version__)
+    print("Configuring wandb server...")
+
+    settings = WandbServerSettings(
+        name="wandb-local-testcontainer",
+        volume="wandb-local-testcontainer-vol",
+        local_base_port=LOCAL_BASE_PORT,
+        services_api_port=SERVICES_API_PORT,
+        fixture_service_port=FIXTURE_SERVICE_PORT,
+        wandb_server_pull=config.getoption("--wandb-server-pull"),
+        wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
+        wandb_server_image_repository=config.getoption(
+            "--wandb-server-image-repository"
+        ),
+        wandb_server_tag=config.getoption("--wandb-server-tag"),
+        wandb_server_use_existing=config.getoption("--wandb-server-use-existing"),
+    )
+    config.wandb_server_settings = settings
+
+    # start or connect to wandb test server
+    success = spin_wandb_server()(settings)
+    if not success:
+        pytest.exit("Failed to connect to wandb server")
+
+
+def pytest_unconfigure(config):
+    print("Cleaning up wandb server...")
+    clean = config.getoption("--wandb-server-clean")
+    if clean in ("container", "all"):
+        print(
+            f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
+        )
+        command = ["docker", "rm", "-f", config.wandb_server_settings.name]
+        subprocess.run(command, check=True)
+    if clean in ("volume", "all"):
+        print(
+            f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
+        )
+        command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
+        subprocess.run(command, check=True)
+
+
+def determine_scope(fixture_name, config):
+    return config.getoption("--user-scope")
+
+
+@pytest.fixture(scope="session")
+def base_url(request):
+    return request.config.getoption("--base-url")
+
+
+@pytest.fixture(scope="session")
+def wandb_debug(request):
+    return request.config.getoption("--wandb-debug", default=False)
+
+
+@pytest.fixture(scope="session")
+def wandb_verbose(request):
+    return request.config.getoption("--wandb-verbose", default=False)
+
+
+@dataclasses.dataclass
+class UserFixtureCommand:
+    command: Literal["up", "down", "down_all", "logout", "login", "password"]
+    username: Optional[str] = None
+    password: Optional[str] = None
+    admin: bool = False
+    endpoint: str = "db/user"
+    port: str = FIXTURE_SERVICE_PORT
+    method: Literal["post"] = "post"
+
+
+@dataclasses.dataclass
+class AddAdminAndEnsureNoDefaultUser:
+    email: str
+    password: str
+    endpoint: str = "api/users-admin"
+    port: str = SERVICES_API_PORT
+    method: Literal["put"] = "put"
+
+
+def random_string(length: int = 12) -> str:
+    """Generate a random string of a given length.
+
+    :param length: Length of the string to generate.
+    :return: Random string.
+    """
+    return "".join(
+        secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length)
+    )
 
 
 @pytest.fixture(scope="session")
@@ -573,7 +690,7 @@ def user_factory(worker_id: str, wandb_debug) -> str:
                 "WANDB_API_KEY": username,
                 "WANDB_ENTITY": username,
                 "WANDB_USERNAME": username,
-                "WANDB_BASE_URL": f"http://localhost:{settings.local_base_port}",
+                "WANDB_BASE_URL": settings.base_url,
             },
         ):
             yield username
@@ -617,15 +734,6 @@ def fixture_fn_factory():
                 raise NotImplementedError(f"{cmd} is not implemented")
             # trigger fixture
             print(f"Triggering fixture on {endpoint}: {data}")
-            # response = getattr(requests, cmd.method)(
-            #     endpoint,
-            #     json=data,
-            #     headers={
-            #         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:66.0) Gecko/20100101 Firefox/66.0",
-            #         "Accept-Encoding": "*",
-            #         "Connection": "keep-alive",
-            #     },
-            # )
             response = getattr(requests, cmd.method)(endpoint, json=data)
 
             if response.status_code != 200:
@@ -640,101 +748,6 @@ def fixture_fn_factory():
         yield fixture_util
 
     yield _fixture_fn_factory
-
-
-def wandb_server_factory():
-    def _wandb_server_factory(settings: WandbServerSettings) -> (bool, Optional[int]):
-        base_url = settings.base_url
-        app_health_endpoint = "healthz"
-        fixture_url = base_url.replace(
-            settings.local_base_port, settings.fixture_service_port
-        )
-        fixture_health_endpoint = "health"
-
-        if os.environ.get("CI") == "true":
-            return (
-                check_server_health(base_url=base_url, endpoint=app_health_endpoint),
-                None,
-            )
-
-        if not check_server_health(base_url, app_health_endpoint):
-            command = [
-                "docker",
-                "run",
-                "--pull",
-                settings.wandb_server_pull,
-                "--rm",
-                "-v",
-                f"{settings.volume}:/vol",
-                "-p",
-                f"{settings.local_base_port}:{settings.internal_local_base_port}",
-                "-p",
-                f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
-                "-p",
-                f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
-                "-e",
-                "WANDB_ENABLE_TEST_CONTAINER=true",
-                "--name",
-                settings.name,
-                "--platform",
-                "linux/amd64",
-                f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
-            ]
-            server_process = subprocess.Popen(command)
-            # wait for the server to start
-            server_is_up = check_server_health(
-                base_url=base_url, endpoint=app_health_endpoint, num_retries=30
-            )
-            if not server_is_up:
-                return False, None
-            # check that the fixture service is accessible
-            return (
-                check_server_health(
-                    base_url=fixture_url,
-                    endpoint=fixture_health_endpoint,
-                    num_retries=30,
-                ),
-                server_process.pid,
-            )
-
-        return (
-            check_server_health(
-                base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
-            ),
-            None,
-        )
-
-    return _wandb_server_factory
-
-
-def pytest_configure(config):
-    print("Running tests with wandb version:", wandb.__version__)
-    print("Configuring wandb server...")
-
-    settings = WandbServerSettings(
-        name="wandb-local-testcontainer",
-        volume="wandb-local-testcontainer-vol",
-        local_base_port=LOCAL_BASE_PORT,
-        services_api_port=SERVICES_API_PORT,
-        fixture_service_port=FIXTURE_SERVICE_PORT,
-        wandb_server_pull=config.getoption("--wandb-server-pull"),
-        wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
-        wandb_server_image_repository=config.getoption(
-            "--wandb-server-image-repository"
-        ),
-        wandb_server_tag=config.getoption("--wandb-server-tag"),
-    )
-    config.wandb_server_settings = settings
-
-    # start or connect to wandb test server
-    success, pid = wandb_server_factory()(settings)
-    if not success:
-        pytest.exit("Failed to connect to wandb server")
-    if pid:
-        config.wandb_server_pid = pid
-
-
-# TODO: add pytest_unconfigure to clean up the wandb server
 
 
 @pytest.fixture(scope="session")
