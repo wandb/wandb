@@ -280,15 +280,15 @@ func parseFloat(s string) (float64, error) {
 }
 
 func (g *GPUAMD) ClearMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	g.metrics = make(map[string][]float64)
 }
 
 func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {

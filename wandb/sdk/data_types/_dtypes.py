@@ -1,6 +1,5 @@
 import datetime
 import math
-import sys
 import typing as t
 
 from wandb.util import (
@@ -15,9 +14,7 @@ np = get_module("numpy")  # intentionally not required
 if t.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
-_TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
-if not _TYPES_STRIPPED:
-    ConvertableToType = t.Union["Type", t.Type["Type"], type, t.Any]
+ConvertableToType = t.Union["Type", t.Type["Type"], type, t.Any]
 
 
 class TypeRegistry:

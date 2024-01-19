@@ -65,8 +65,8 @@ func (g *GPUApple) parseStats() (map[string]interface{}, error) {
 func (g *GPUApple) Name() string { return g.name }
 
 func (g *GPUApple) SampleMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	stats, err := g.parseStats()
 	if err != nil {
@@ -178,8 +178,8 @@ func (g *GPUApple) SampleMetrics() {
 }
 
 func (g *GPUApple) AggregateMetrics() map[string]float64 {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {
@@ -191,8 +191,8 @@ func (g *GPUApple) AggregateMetrics() map[string]float64 {
 }
 
 func (g *GPUApple) ClearMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	clear(g.metrics)
 }
