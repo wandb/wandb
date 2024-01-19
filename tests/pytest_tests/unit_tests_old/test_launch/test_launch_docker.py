@@ -142,7 +142,7 @@ def test_dockerfile_nodeps(
     assert "requirements.txt" not in dockerfile
 
 
-def test_dockerfile_default(
+def test_dockerfile_override(
     test_settings, live_mock_server, mocked_fetchable_git_repo_nodeps, monkeypatch
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -168,9 +168,10 @@ def test_dockerfile_default(
             EntryPoint("main.py", ["python", "train.py"]),
             "local",
             "docker",
+            "test/path/to/my/Dockerfile",
         )
     assert "test Dockerfile contents" in dockerfile
-    assert "Dockerfile.wandb" in mock_file.call_args_list[0][0][0]
+    assert "test/path/to/my/Dockerfile" in mock_file.call_args_list[0][0][0]
 
 
 def test_docker_image_exists(
