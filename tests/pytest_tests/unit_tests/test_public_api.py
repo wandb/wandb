@@ -97,6 +97,7 @@ def test_parse_path_proj():
         assert project == "proj"
         assert run == "proj"
 
+
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_path_id():
     with mock.patch.dict(
