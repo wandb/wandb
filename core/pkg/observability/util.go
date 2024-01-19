@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// Commit is a type for storing the commit hash
+type Commit string
+
 // FileSystem interface to abstract file system operations
 type FileSystem interface {
 	MkdirAll(path string, perm os.FileMode) error
