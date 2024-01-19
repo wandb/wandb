@@ -38,8 +38,8 @@ func NewDisk(settings *service.Settings) *Disk {
 func (d *Disk) Name() string { return d.name }
 
 func (d *Disk) SampleMetrics() {
-	d.mutex.RLock()
-	defer d.mutex.RUnlock()
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 
 	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
 		usage, err := disk.Usage(diskPath)
@@ -75,8 +75,8 @@ func (d *Disk) SampleMetrics() {
 }
 
 func (d *Disk) AggregateMetrics() map[string]float64 {
-	d.mutex.RLock()
-	defer d.mutex.RUnlock()
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range d.metrics {
@@ -88,8 +88,8 @@ func (d *Disk) AggregateMetrics() map[string]float64 {
 }
 
 func (d *Disk) ClearMetrics() {
-	d.mutex.RLock()
-	defer d.mutex.RUnlock()
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 
 	d.metrics = map[string][]float64{}
 }
