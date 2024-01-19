@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/store"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -110,7 +110,7 @@ type Sender struct {
 
 	syncService *SyncService
 
-	store *Store
+	store *store.Store
 
 	jobBuilder *launch.JobBuilder
 }
@@ -1200,10 +1200,16 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 
 func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
 	if s.store == nil {
-		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
-		err := store.Open(os.O_RDONLY)
-		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+		store := store.New(
+			s.ctx,
+			store.StoreOptions{
+				Name:   s.settings.GetSyncFile().GetValue(),
+				Flag:   os.O_RDONLY,
+				Header: NewHeader(),
+			},
+		)
+		if err := store.Open(); err != nil {
+			s.logger.CaptureError("sender: sendSenderRead: failed to open store", err)
 			return
 		}
 		s.store = store
@@ -1218,19 +1224,21 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 	// 2. read records until finalOffset
 	//
 	for {
-		record, err := s.store.Read()
+		var record *service.Record
+		buf, err := s.store.Read()
+		if buf != nil {
+			record = &service.Record{}
+			err = proto.Unmarshal(buf, record)
+		}
+
 		if s.settings.GetXSync().GetValue() {
 			s.syncService.SyncRecord(record, err)
-		} else if record != nil {
-			s.sendRecord(record)
-		}
-		if err == io.EOF {
-			return
 		}
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
 			return
 		}
+		s.sendRecord(record)
 	}
 }
 
