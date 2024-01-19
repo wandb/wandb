@@ -10,6 +10,7 @@ from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
     _create_artifact_metadata,
+    _create_repo_metadata,
     _dump_metadata_and_requirements,
     _handle_artifact_entrypoint,
     _make_code_artifact_name,
@@ -138,3 +139,10 @@ def test__get_entrypoint():
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
     assert entrypoint == [os.path.basename(sys.executable), "main.py"]
+
+
+def test_create_repo_metadata_entrypoint_traversal():
+    result = _create_repo_metadata(
+        "", "", entrypoint="../../../../../usr/bin/python3.9 main.py"
+    )
+    assert result is None

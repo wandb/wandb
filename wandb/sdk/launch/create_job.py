@@ -272,6 +272,10 @@ def _create_repo_metadata(
     git_hash: Optional[str] = None,
     runtime: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    # Make sure the entrypoint doesn't contain any backward path traversal
+    if entrypoint and ".." in entrypoint:
+        wandb.termerror("Entrypoint cannot contain backward path traversal")
+        return None
     if not _is_git_uri(path):
         wandb.termerror("Path must be a git URI")
         return None
