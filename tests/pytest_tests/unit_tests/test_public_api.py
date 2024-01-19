@@ -58,8 +58,8 @@ def test_parse_path(path):
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")
 def test_parse_project_path():
     with mock.patch.object(wandb, "login", mock.MagicMock()):
-        enitty, project = Api()._parse_project_path("user/proj")
-        assert enitty == "user"
+        entity, project = Api()._parse_project_path("user/proj")
+        assert entity == "user"
         assert project == "proj"
 
 
@@ -96,6 +96,14 @@ def test_parse_path_proj():
         assert user == "mock_entity"
         assert project == "proj"
         assert run == "proj"
+
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_parse_path_id():
+    with mock.patch.dict("os.environ", {"WANDB_ENTITY": "mock_entity", "WANDB_PROJECT": "proj"}):
+        user, project, run = Api()._parse_path("run")
+        assert user == "mock_entity"
+        assert project == "proj"
+        assert run == "run"
 
 
 @pytest.mark.usefixtures("patch_apikey", "patch_prompt")

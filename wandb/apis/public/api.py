@@ -600,7 +600,7 @@ class Api:
             parts[-1] = parts[-1].split(":")[0]
         elif parts[-1]:
             id = parts[-1]
-        if len(parts) == 1:
+        if len(parts) == 1 and project != "uncategorized":
             pass
         elif len(parts) > 1:
             project = parts[1]
