@@ -13,7 +13,7 @@ from wandb.sdk.launch.agent2.registry import RegistryService
 from wandb.sdk.launch.builder.build import construct_agent_configs
 from wandb.sdk.launch.utils import LOG_PREFIX, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from wandb.sdk.launch import loader
-from .controller import LegacyResources, get_controller_for_job_set
+from .controller import LaunchController, LegacyResources
 from .job_set import JobSet, create_job_set
 from .builder import BuilderService
 
@@ -42,9 +42,26 @@ class PrintLogger:
         print(msg)
        
 class LaunchAgent2:
+    """Launch Agent v2 implementation.
+    
+    
+    """
     _instance = None
     _initialized = False
+    _controller_impls: Dict[str, LaunchController] = {} 
 
+    @classmethod
+    def register_controller_impl(cls, queue_type: str, impl: LaunchController):
+        if queue_type in cls._controller_impls:
+            return # Idempotent
+        cls._controller_impls[queue_type] = impl
+       
+    @classmethod 
+    def get_controller_for_job_set(cls, queue_type: str) -> LaunchController:
+        if queue_type not in cls._controller_impls:
+            raise ValueError(f"No controller registered for queue type '{queue_type}'")
+        return cls._controller_impls[queue_type]
+    
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -138,7 +155,7 @@ class LaunchAgent2:
             # Start a controller for each queue once job set is ready
             await job_set.ready()
             resource = job_set.metadata["@target_resource"]
-            controller_impl = get_controller_for_job_set(resource)
+            controller_impl = self.get_controller_for_job_set(resource)
             
             # Taken from original agent, need to factor this out
             _, build_config, registry_config = construct_agent_configs(self._config)

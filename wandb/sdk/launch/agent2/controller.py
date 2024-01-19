@@ -60,15 +60,3 @@ class LaunchController(Protocol):
         legacy: LegacyResources,
         ) -> Awaitable[Any]:
         ...
-
-__controller_impls: Dict[str, LaunchController] = {} 
-
-def register_controller_impl(queue_type: str, impl: LaunchController):
-    if queue_type in __controller_impls:
-        return # Idempotent
-    __controller_impls[queue_type] = impl
-    
-def get_controller_for_job_set(queue_type: str) -> LaunchController:
-    if queue_type not in __controller_impls:
-        raise ValueError(f"No controller registered for queue type '{queue_type}'")
-    return __controller_impls[queue_type]
