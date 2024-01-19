@@ -655,6 +655,7 @@ async def ensure_api_key_secret(
 
     Arguments:
         core_api: The Kubernetes CoreV1Api object.
+        secret_name: The name to use for the secret.
         namespace: The namespace to create the secret in.
         api_key: The user's wandb API key
 
@@ -662,9 +663,12 @@ async def ensure_api_key_secret(
         The created secret
     """
     secret_data = {"password": base64.b64encode(api_key.encode()).decode()}
+    labels = {"wandb.ai/created-by": "launch-agent"}
     secret = client.V1Secret(
         data=secret_data,
-        metadata=client.V1ObjectMeta(name=secret_name, namespace=namespace),
+        metadata=client.V1ObjectMeta(
+            name=secret_name, namespace=namespace, labels=labels
+        ),
         kind="Secret",
         type="kubernetes.io/basic-auth",
     )
@@ -679,9 +683,21 @@ async def ensure_api_key_secret(
                     name=secret_name, namespace=namespace
                 )
                 if existing_secret.data != secret_data:
-                    raise LaunchError(
-                        f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
-                    )
+                    # If it's a previous secret made by launch agent, clean it up
+                    if (
+                        existing_secret.metadata.labels.get("wandb.ai/created-by")
+                        == "launch-agent"
+                    ):
+                        await core_api.delete_namespaced_secret(
+                            name=secret_name, namespace=namespace
+                        )
+                        return await core_api.create_namespaced_secret(
+                            namespace, secret
+                        )
+                    else:
+                        raise LaunchError(
+                            f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
+                        )
                 return existing_secret
             raise
     except Exception as e:
