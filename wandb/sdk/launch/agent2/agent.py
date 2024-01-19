@@ -50,7 +50,7 @@ class LaunchAgent2:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, config: AgentConfig, api: Api):
+    def __init__(self, api: Api, config: AgentConfig):
         if self._initialized:
             return
         self._initialized = True
@@ -113,7 +113,7 @@ class LaunchAgent2:
             job_type=HIDDEN_AGENT_RUN_TYPE,
         )        
     
-    async def main_loop(self) -> None:
+    async def loop(self) -> None:
         event_loop = asyncio.get_event_loop()
         
         # Start the main agent state poll loop
@@ -186,6 +186,8 @@ class LaunchAgent2:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             self._logger.info(f"{LOG_PREFIX}Main agent loop cancelled!")
+        finally:
+            await self.shutdown()
     
     def _controller_done_callback(self, task: asyncio.Task):
         try:
@@ -255,7 +257,7 @@ class LaunchAgent2:
 def create_and_run_agent2(config: AgentConfig, api: Api) -> None:
     agent = LaunchAgent2(config, api)
     try:
-        asyncio.run(agent.main_loop())
+        asyncio.run(agent.loop())
     except asyncio.CancelledError:
         print("(Main Loop Cancelled)", file=sys.stderr)
         raise

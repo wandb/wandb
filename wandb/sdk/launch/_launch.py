@@ -8,11 +8,11 @@ import yaml
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent2.agent import LaunchAgent2
 
 from . import loader
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
+from .agent2 import LaunchAgent2
 from .builder.build import construct_agent_configs
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
@@ -154,6 +154,8 @@ def resolve_agent_config(  # noqa: C901
 def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
+    *,
+    useLaunchAgent2: Optional[bool] = False,
 ) -> None:
     try:
         from wandb.sdk.launch.agent import config as agent_config
@@ -175,18 +177,27 @@ def create_and_run_agent(
             msg += f": {error['msg']}"
             wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
-    # agent = LaunchAgent(api, config)
-    agent = LaunchAgent2(config, api)
+    if useLaunchAgent2:
+        agent = LaunchAgent2(api, config)
+    else:
+        agent = LaunchAgent(api, config)
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+    agent_task = loop.create_task(agent.loop())
+    
+    def done_callback():
+        print("agent_task done")
+        loop.stop()
+        
+    agent_task.add_done_callback(done_callback)
+    
     try:
-        loop.run_until_complete(agent.main_loop())
-    except asyncio.CancelledError:
-        pass
+        loop.run_forever()
     except KeyboardInterrupt:
-        pass
+        print("\n(Keyboard Interrupt)")
+        agent_task.cancel()
     finally:
-        loop.run_until_complete(agent.shutdown())
+        loop.run_until_complete(agent_task)
+        print("Shutdown complete. Goodbye!")
             
 async def _launch(
     api: Api,

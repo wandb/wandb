@@ -74,6 +74,7 @@ class JobSet:
             )
             if self._poll_now_event.is_set():
                 self._poll_now_event.clear()
+        self._logger.debug(f"[JobSet {self.name or self.id}] Sync loop exited.")
         self._done_event.set()
 
     async def _sync(self):
@@ -100,14 +101,14 @@ class JobSet:
         if self._task is None:
             self._loop = loop
             self._shutdown_event.clear()
-            self._logger.debug(f"[JobSet {self.id}] Starting sync loop")
+            self._logger.debug(f"[JobSet {self.name or self.id}] Starting sync loop")
             self._task = self._loop.create_task(self._sync_loop())
         else:
             raise RuntimeError("Tried to start JobSet but already started")
 
     def stop_sync_loop(self):
         if self._task is not None:
-            self._logger.debug(f"[JobSet {self.id}] Stopping sync loop")
+            self._logger.debug(f"[JobSet {self.name or self.id}] Stopping sync loop")
             self._shutdown_event.set()
             self._poll_now_event.set()
             self._task = None

@@ -578,8 +578,7 @@ class LaunchAgent:
                     await asyncio.sleep(AGENT_POLLING_INTERVAL)
                 else:
                     await asyncio.sleep(RECEIVED_JOB_POLLING_INTERVAL)
-
-        except KeyboardInterrupt:
+        except asyncio.CancelledError:
             await self.update_status(AGENT_KILLED)
             wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
             self.print_status()
