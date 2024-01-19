@@ -92,9 +92,21 @@ message FinalRecord {
 }
 
 /*
+ * Version definition
+ */
+message VersionInfo {
+  // The version of the SDK backend that produced the data
+  string producer = 1;
+  // Minimum version of the wandb server that can read the data
+  string min_consumer = 2;
+  _RecordInfo _info = 200;
+}
+
+/*
  * HeaderRecord
  */
 message HeaderRecord {
+  VersionInfo version_info = 1;
   _RecordInfo _info = 200;
 }
 
