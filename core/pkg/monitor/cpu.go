@@ -29,8 +29,8 @@ func NewCPU(settings *service.Settings) *CPU {
 func (c *CPU) Name() string { return c.name }
 
 func (c *CPU) SampleMetrics() {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	// process-related metrics
 	proc := process.Process{Pid: int32(c.settings.XStatsPid.GetValue())}
@@ -74,8 +74,8 @@ func (c *CPU) SampleMetrics() {
 }
 
 func (c *CPU) AggregateMetrics() map[string]float64 {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range c.metrics {
@@ -91,8 +91,8 @@ func (c *CPU) AggregateMetrics() map[string]float64 {
 }
 
 func (c *CPU) ClearMetrics() {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.metrics = map[string][]float64{}
 }

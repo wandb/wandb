@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -407,6 +408,12 @@ func (h *Handler) handlePollExit(record *service.Record) {
 }
 
 func (h *Handler) handleHeader(record *service.Record) {
+	// populate with version info
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit("commit")))
+	record.GetHeader().VersionInfo = &service.VersionInfo{
+		Producer:    versionString,
+		MinConsumer: version.MinServerVersion,
+	}
 	h.sendRecordWithControl(
 		record,
 		func(control *service.Control) {
