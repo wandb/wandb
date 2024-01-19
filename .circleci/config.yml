@@ -48,7 +48,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.21.5"
+    default: "1.21.6"
   container_registry:
     type: string
     default: "gcr.io"
