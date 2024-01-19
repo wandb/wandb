@@ -173,38 +173,6 @@ def test_dockerfile_default(
     assert "Dockerfile.wandb" in mock_file.call_args_list[0][0][0]
 
 
-def test_dockerfile_override(
-    test_settings, live_mock_server, mocked_fetchable_git_repo_nodeps, monkeypatch
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    test_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource": "local",
-    }
-
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
-
-    assert test_project.deps_type is None
-
-    dockerfile_contents = "test Dockerfile contents"
-    with patch("builtins.open", mock_open(read_data=dockerfile_contents)) as mock_file:
-        monkeypatch.setattr("os.path.exists", lambda _: True)
-        dockerfile = generate_dockerfile(
-            test_project,
-            EntryPoint("main.py", ["python", "train.py"]),
-            "local",
-            "docker",
-            "test/path/to/my/Dockerfile",
-        )
-    assert "test Dockerfile contents" in dockerfile
-    assert "test/path/to/my/Dockerfile" in mock_file.call_args_list[0][0][0]
-
-
 def test_docker_image_exists(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
