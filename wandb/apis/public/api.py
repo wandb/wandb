@@ -600,7 +600,9 @@ class Api:
             parts[-1] = parts[-1].split(":")[0]
         elif parts[-1]:
             id = parts[-1]
-        if len(parts) > 1:
+        if len(parts) == 1:
+            pass
+        elif len(parts) > 1:
             project = parts[1]
             if entity and id == project:
                 project = parts[0]
