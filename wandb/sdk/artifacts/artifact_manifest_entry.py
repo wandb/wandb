@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
+import wandb
 
 from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
@@ -122,6 +123,7 @@ class ArtifactManifestEntry:
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
+            wandb.termwarn(f"\n\nAlready downloaded artifact, returning early. Download destination path: {dest_path}\n\n")
             return FilePathStr(dest_path)
 
         if self.ref is not None:
@@ -132,6 +134,8 @@ class ArtifactManifestEntry:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact, self
             )
+        wandb.termwarn(f"\n\nCache path: {cache_path}\n\n")
+        
         return FilePathStr(
             str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
         )

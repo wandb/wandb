@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 import requests
 import urllib3
+import wandb
 
 from wandb.apis import InternalApi
 from wandb.errors.term import termwarn
@@ -116,6 +117,7 @@ class WandbStoragePolicy(StoragePolicy):
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
         )
+        wandb.termwarn(f"\n\nLoad file(): Cache path: {path}\n\n")
         if hit:
             return path
 
