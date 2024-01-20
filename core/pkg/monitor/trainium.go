@@ -159,7 +159,10 @@ func (t *Trainium) IsAvailable() bool {
 	// otherwise, run neuron-monitor
 	t.wg.Add(1)
 	go func() {
-		t.runNeuronMonitor()
+		err := t.runNeuronMonitor()
+		if err != nil {
+			fmt.Println(err)
+		}
 		t.wg.Done()
 	}()
 	return true
@@ -199,8 +202,14 @@ func (t *Trainium) runNeuronMonitor() error {
 	for {
 		fmt.Println("scanning")
 		if t.ctx.Err() != nil {
-			cmd.Process.Kill()
-			cmd.Wait()
+			err := cmd.Process.Kill()
+			if err != nil {
+				return fmt.Errorf("neuron-monitor failed: %v", err)
+			}
+			err = cmd.Wait()
+			if err != nil {
+				return fmt.Errorf("neuron-monitor failed: %v", err)
+			}
 			break
 		}
 
