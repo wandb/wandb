@@ -272,6 +272,10 @@ def _create_repo_metadata(
     git_hash: Optional[str] = None,
     runtime: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    # Make sure the entrypoint doesn't contain any backward path traversal
+    if entrypoint and ".." in entrypoint:
+        wandb.termerror("Entrypoint cannot contain backward path traversal")
+        return None
     if not _is_git_uri(path):
         wandb.termerror("Path must be a git URI")
         return None
@@ -313,20 +317,36 @@ def _create_repo_metadata(
 
     # check if requirements.txt exists
     # start at the location of the python file and recurse up to the git root
-    req_dir = local_dir
-    while (
-        not os.path.exists(os.path.join(req_dir, "requirements.txt"))
-        and req_dir != tempdir
-    ):
-        req_dir = os.path.dirname(req_dir)
+    entrypoint_dir = os.path.dirname(entrypoint)
+    if entrypoint_dir:
+        req_dir = os.path.join(local_dir, entrypoint_dir)
+    else:
+        req_dir = local_dir
 
-    if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
-        wandb.termerror(f"Could not find requirements.txt file in git repo at {path}")
-        return None
+    # If there is a Dockerfile.wandb in the starting rec dir, don't require a requirements.txt
+    if os.path.exists(os.path.join(req_dir, "Dockerfile.wandb")):
+        wandb.termlog(
+            f"Using Dockerfile.wandb in {req_dir.replace(tempdir, '') or 'repository root'}"
+        )
+    else:
+        while (
+            not os.path.exists(os.path.join(req_dir, "requirements.txt"))
+            and req_dir != tempdir
+        ):
+            req_dir = os.path.dirname(req_dir)
 
-    wandb.termlog(
-        f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
-    )
+        if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
+            path_with_subdir = os.path.dirname(
+                os.path.join(path or "", entrypoint or "")
+            )
+            wandb.termerror(
+                f"Could not find requirements.txt file in git repo at {path_with_subdir}"
+            )
+            return None
+
+        wandb.termlog(
+            f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
+        )
 
     metadata = {
         "git": {
