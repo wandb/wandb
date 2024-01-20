@@ -35,7 +35,7 @@ the development version of wandb-core. Follow the instructions in the script to 
 ## Running System Tests Locally
 Install the test requirements into the current Python environment:
 ```shell
-pip install -r requirements_test.txt  # Install test dependencies, if needed
+pip install .[test]  # Install test dependencies, if needed
 ```
 
 A number of tests are not currently passing due to feature incompleteness.

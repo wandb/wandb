@@ -98,6 +98,23 @@ launch = [
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-split",
+    "pytest-mock",
+    "pytest-timeout",
+    "pytest-benchmark",
+    "pytest-flakefinder",
+    "pytest-rerunfailures",
+    "parameterized",
+    "flask>2.0.0",
+    "pandas",
+    "responses",
+    "coverage[toml]",
+]
 
 [tool.setuptools]
 zip-safe = false
