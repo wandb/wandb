@@ -15,9 +15,9 @@ import (
 )
 
 type HeaderOptions struct {
-	IDENT   [4]byte `binary:"ident"`
-	Magic   uint16  `binary:"magic"`
-	Version byte    `binary:"version"`
+	IDENT   [4]byte
+	Magic   uint16
+	Version byte
 }
 
 const (
