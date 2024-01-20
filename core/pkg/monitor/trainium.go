@@ -3,7 +3,9 @@ package monitor
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -31,8 +33,10 @@ const (
 		]
 	}`
 	// TODO: add `which`
-	NeuronLsCommand   string = "/opt/aws/neuron/bin/neuron-ls -j"
-	NeuronMonitorPath string = "/opt/aws/neuron/bin/neuron-monitor"
+	NeuronLsDefaultPath string = "/opt/aws/neuron/bin/neuron-ls"
+	// NeuronMonitorDefaultPath string = "/opt/aws/neuron/bin/neuron-monitor"
+	// TODO: dev only
+	NeuronMonitorDefaultPath string = "/Users/dimaduev/dev/sdk/trn.py"
 )
 
 type NeuronCoreMemoryUsage struct {
@@ -65,36 +69,72 @@ type Stats struct {
 // }
 
 type Trainium struct {
-	name       string
-	settings   *service.Settings
-	metrics    map[string][]float64
-	rawSamples []string
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	name      string
+	settings  *service.Settings
+	metrics   map[string][]float64
+	rawSample string
 	// GetStatsFunc func() (Stats, error)
-	mutex sync.RWMutex
+	mutex             sync.RWMutex
+	neuronLsPath      string
+	neuronMonitorPath string
 }
 
 func NewTrainium(settings *service.Settings) *Trainium {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	t := &Trainium{
-		name:       "trainium",
-		settings:   settings,
-		metrics:    make(map[string][]float64),
-		rawSamples: make([]string, 0),
+		ctx:      ctx,
+		cancel:   cancel,
+		wg:       sync.WaitGroup{},
+		name:     "trainium",
+		settings: settings,
+		metrics:  make(map[string][]float64),
 		// this is done this way to be able to mock the function in tests
 		// GetStatsFunc: getStats,
 	}
+
+	if _, err := os.Stat(NeuronLsDefaultPath); os.IsNotExist(err) {
+		// If the file doesn't exist, try finding the command in PATH
+		if path, err := exec.LookPath("neuron-ls"); err == nil {
+			t.neuronLsPath = path
+		}
+	} else {
+		t.neuronLsPath = NeuronLsDefaultPath
+	}
+
+	if _, err := os.Stat(NeuronMonitorDefaultPath); os.IsNotExist(err) {
+		// If the file doesn't exist, try finding the command in PATH
+		if path, err := exec.LookPath("neuron-monitor"); err == nil {
+			t.neuronMonitorPath = path
+		}
+	} else {
+		t.neuronMonitorPath = NeuronMonitorDefaultPath
+	}
+
 	return t
 }
 
 func (t *Trainium) Name() string { return t.name }
 
 func (t *Trainium) SampleMetrics() {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	if len(t.rawSamples) == 0 {
+	if t.rawSample == "" {
 		return
 	}
 
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	var sample map[string]interface{}
+	err := json.Unmarshal([]byte(t.rawSample), &sample)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(sample)
+	fmt.Println()
+	t.rawSample = ""
 }
 
 func (t *Trainium) AggregateMetrics() map[string]float64 {
@@ -113,8 +153,22 @@ func (t *Trainium) ClearMetrics() {
 
 func (t *Trainium) IsAvailable() bool {
 	// only run neuron-monitor if it's not running already and if it is available
-	go runNeuronMonitor(&t.mutex, t.rawSamples)
+	if t.neuronMonitorPath == "" {
+		return false
+	}
+	// otherwise, run neuron-monitor
+	t.wg.Add(1)
+	go func() {
+		t.runNeuronMonitor()
+		t.wg.Done()
+	}()
 	return true
+}
+
+func (t *Trainium) Close() error {
+	t.cancel()
+	t.wg.Wait()
+	return nil
 }
 
 func (t *Trainium) Probe() *service.MetadataRequest {
@@ -125,15 +179,12 @@ func (t *Trainium) Probe() *service.MetadataRequest {
 // 	return Stats{}, nil
 // }
 
-func runNeuronMonitor(mutex *sync.RWMutex, rawSamples []string) error {
+func (t *Trainium) runNeuronMonitor() error {
 	// t.WriteNeuronMonitorConfig()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// cmd := exec.CommandContext(ctx, NeuronMonitorPath, "-c", neuronMonitorConfigPath)
 	// TODO: dev only
-	cmd := exec.CommandContext(ctx, "python", "/Users/dimaduev/dev/sdk/trn.py")
+	cmd := exec.CommandContext(t.ctx, "python", "/Users/dimaduev/dev/sdk/trn.py")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("neuron-monitor failed: %v", err)
@@ -146,21 +197,21 @@ func runNeuronMonitor(mutex *sync.RWMutex, rawSamples []string) error {
 	scanner := bufio.NewScanner(stdout)
 
 	for {
-		if ctx.Err() != nil {
+		fmt.Println("scanning")
+		if t.ctx.Err() != nil {
 			cmd.Process.Kill()
 			cmd.Wait()
 			break
 		}
 
 		if !scanner.Scan() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(300 * time.Millisecond)
 			continue
 		}
 
-		mutex.Lock()
-		rawSamples = append(rawSamples, scanner.Text())
-		mutex.Unlock()
-		fmt.Println(rawSamples)
+		t.mutex.Lock()
+		t.rawSample = scanner.Text()
+		t.mutex.Unlock()
 	}
 
 	return nil

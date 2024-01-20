@@ -287,7 +287,9 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 		case <-sm.ctx.Done():
 			return
 		case <-tickChan:
+			tic := time.Now()
 			asset.SampleMetrics()
+			fmt.Println(asset.Name(), time.Since(tic))
 			samplesCollected++
 
 			if samplesCollected == samplesToAverage {
