@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.9"
       - name: Install dependencies
-        run: pip install -U -r requirements_build.txt
+        run: pip install -U .[build]
       - name: Build source and wheels
         run: |
           python -m build -n

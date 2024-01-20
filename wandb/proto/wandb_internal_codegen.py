@@ -2,6 +2,7 @@
 
 import os
 import pathlib
+import re
 
 import grpc_tools  # type: ignore
 from grpc_tools import protoc  # type: ignore
@@ -48,24 +49,26 @@ def get_pip_package_version(package_name: str) -> str:
         raise ValueError(f"Package `{package_name}` not found")
 
 
-def get_min_required_version(requirements_file_name: str, package_name: str) -> str:
-    with open(requirements_file_name) as f:
+def get_min_required_version(pyproject_file_name: str, package_name: str) -> str:
+    with open(pyproject_file_name) as f:
         lines = f.readlines()
         for line in lines:
-            tokens = line.strip().split(">=")
-            if tokens[0] == package_name:
-                if len(tokens) == 2:
-                    return tokens[1]
+            # The regex pattern matches "<package> = "<version>"
+            if package_name in line:
+                version = re.search(r"\"(.*)\"", line).group(1)
+                version_tokens = version.split(">=")
+                if len(version_tokens) == 2:
+                    return version_tokens[1]
                 else:
                     raise ValueError(
                         f"Minimum version not specified for package `{package_name}`"
                     )
-    raise ValueError(f"Package `{package_name}` not found in requirements file")
+    raise ValueError(f"Package `{package_name}` not found in pyproject.toml file")
 
 
 package: str = "grpcio-tools"
 package_version = get_pip_package_version(package)
-requirements_file: str = "../../requirements_build.txt"
+requirements_file: str = "../../pyproject.toml"
 requirements_min_version = get_min_required_version(requirements_file, package)
 # check that the installed version of the package is at least the required version
 assert version.Version(package_version) >= version.Version(
