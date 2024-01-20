@@ -14,68 +14,53 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type HeaderOptions struct {
+	IDENT   [4]byte
+	Magic   uint16
+	Version byte
+}
+
 const (
-	HeaderIdent   = ":W&B"
-	HeaderMagic   = 0xBEE1
-	HeaderVersion = 0
+	// headerMagic is the magic number for the header.
+	headerMagic = 0xBEE1
+	// headerVersion is the version of the header.
+	headerVersion = 0
 )
 
-type StoreHeader struct {
-	ident   [4]byte
-	magic   uint16
-	version byte
+// headerIdent returns the header identifier.
+func headerIdent() [4]byte {
+	return [4]byte{':', 'W', '&', 'B'}
 }
 
-func IdentToByteSlice() [4]byte {
-	byteSlice := []byte(HeaderIdent)
-	var ident [4]byte
-	copy(ident[:], byteSlice)
-	return ident
+// NewHeader returns a new header with default values.
+func NewHeader() *HeaderOptions {
+	return &HeaderOptions{
+		IDENT:   headerIdent(),
+		Magic:   headerMagic,
+		Version: headerVersion,
+	}
 }
 
-func (sh *StoreHeader) Write(w io.Writer) error {
+// MarshalBinary encodes the header to binary format.
+func (o *HeaderOptions) MarshalBinary(w io.Writer) error {
 
-	head := StoreHeader{ident: IdentToByteSlice(), magic: HeaderMagic, version: HeaderVersion}
-	if err := binary.Write(w, binary.LittleEndian, &head); err != nil {
-		return err
+	if err := binary.Write(w, binary.LittleEndian, o); err != nil {
+		return fmt.Errorf("error writing binary data: %w", err)
 	}
 	return nil
 }
 
-func (sh *StoreHeader) Read(r io.Reader) error {
-	buf := [7]byte{}
-	if err := binary.Read(r, binary.LittleEndian, &buf); err != nil {
-		return err
-	}
-	sh.ident = [4]byte{buf[0], buf[1], buf[2], buf[3]}
-	sh.magic = binary.LittleEndian.Uint16(buf[4:6])
-	sh.version = buf[6]
-
-	if sh.ident != IdentToByteSlice() {
-		err := fmt.Errorf("invalid header")
-		return err
-	}
-	if sh.magic != HeaderMagic {
-		err := fmt.Errorf("invalid header")
-		return err
-	}
-	if sh.version != HeaderVersion {
-		err := fmt.Errorf("invalid header")
-		return err
+// UnmarshalBinary decodes binary data into the header.
+func (o *HeaderOptions) UnmarshalBinary(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, o); err != nil {
+		return fmt.Errorf("error reading binary data: %w", err)
 	}
 	return nil
 }
 
-func (sh *StoreHeader) GetIdent() [4]byte {
-	return sh.ident
-}
-
-func (sh *StoreHeader) GetMagic() uint16 {
-	return sh.magic
-}
-
-func (sh *StoreHeader) GetVersion() byte {
-	return sh.version
+// Valid checks if the header is valid based on a reference header.
+func (o *HeaderOptions) Valid() bool {
+	return o.IDENT == headerIdent() && o.Magic == headerMagic && o.Version == headerVersion
 }
 
 // Store is the persistent store for a stream
@@ -119,8 +104,13 @@ func (sr *Store) Open(flag int) error {
 		}
 		sr.db = f
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
-		header := StoreHeader{}
-		if err := header.Read(sr.db); err != nil {
+		header := NewHeader()
+		if err := header.UnmarshalBinary(sr.db); err != nil {
+			sr.logger.CaptureError("can't read header", err)
+			return err
+		}
+		if !header.Valid() {
+			err := fmt.Errorf("invalid header")
 			sr.logger.CaptureError("can't read header", err)
 			return err
 		}
@@ -133,8 +123,8 @@ func (sr *Store) Open(flag int) error {
 		}
 		sr.db = f
 		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
-		header := StoreHeader{}
-		if err := header.Write(sr.db); err != nil {
+		header := NewHeader()
+		if err := header.MarshalBinary(sr.db); err != nil {
 			sr.logger.CaptureError("can't write header", err)
 			return err
 		}
