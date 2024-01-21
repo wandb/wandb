@@ -9,9 +9,12 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Protocol, runtime_checkable
 
+import logging
 import traceback
 
 from .config import Namespace
+
+logger = logging.getLogger("import_logger")
 
 
 @runtime_checkable
@@ -141,43 +144,34 @@ def parallelize(
     max_workers: Optional[int] = None,
     **kwargs,
 ):
-    results = []
-    # progress.live.start()
-    with ThreadPoolExecutor(max_workers) as exc:
-        futures = {exc.submit(func, x, *args, **kwargs): x for x in iterable}
-        # task = progress.task_pbar.add_task(description, total=len(futures))
-        for future in as_completed(futures):
-            # for future in progress.task_progress(
-            #     as_completed(futures), description=description, total=len(futures)
-            # ):
-            try:
-                result = future.result()
-            except Exception as e:
-                item = futures[future]
-                _, _, exc_traceback = sys.exc_info()
-                traceback_details = traceback.extract_tb(exc_traceback)
-                filename = traceback_details[-1].filename
-                lineno = traceback_details[-1].lineno
-                print(
-                    f"Exception: {item=} {e=} {filename=} {lineno=}. {traceback_details=}"
-                )
-                raise e
-            else:
-                results.append(result)
-        #     finally:
-        #         progress.task_pbar.update(task, advance=1, refresh=True, visible=True)
-        # progress.task_pbar.update(task, completed=len(futures), refresh=True)
+    def safe_func(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            _, _, exc_traceback = sys.exc_info()
+            traceback_details = traceback.extract_tb(exc_traceback)
+            filename = traceback_details[-1].filename
+            lineno = traceback_details[-1].lineno
+            logger.debug(
+                f"Exception: {func=} {args=} {kwargs=} {e=} {filename=} {lineno=}. {traceback_details=}"
+            )
+            raise e
 
+    results = []
+    with ThreadPoolExecutor(max_workers) as exc:
+        futures = {exc.submit(safe_func, x, *args, **kwargs): x for x in iterable}
+        for future in as_completed(futures):
+            results.append(future.result())
     return results
 
 
 def for_each(func, iterable, parallel: bool = True, max_workers: Optional[int] = None):
     if parallel:
         return parallelize(
-            func, iterable, description=func.__name__, max_workers=max_workers
+            func,
+            iterable,
+            description=func.__name__,
+            max_workers=max_workers,
         )
     else:
-        items = []
-        for item in iterable:
-            items.append(item)
-        return items
+        return [func(x) for x in iterable]

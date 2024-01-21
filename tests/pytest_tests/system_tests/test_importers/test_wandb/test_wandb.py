@@ -98,7 +98,7 @@ def test_import_runs(wandb_server_src, wandb_server_dst, wandb_logging_config):
         # namespaces=[Namespace("wandb_server_src", "test")],
         # use remap because the src_entity won't exist yet on the dst server.
         # in future, also test the src->src case.
-        namespace_remapping={
+        remapping={
             Namespace(src_entity, src_project): Namespace(dst_entity, dst_project)
         },
     )

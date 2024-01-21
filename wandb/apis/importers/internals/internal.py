@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import queue
 import threading
@@ -9,6 +10,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 from google.protobuf.json_format import ParseDict
+from rich.logging import RichHandler
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
@@ -20,8 +22,22 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context, sender, settings_static
 from wandb.util import cast_dictlike_to_dict, coalesce
 
-# from . import progress
 from .protocols import ImporterRun
+
+logging.basicConfig(
+    handlers=[
+        RichHandler(
+            rich_tracebacks=True,
+            tracebacks_show_locals=True,
+        )
+    ]
+)
+
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+logging.getLogger("import_logger").setLevel(logging.INFO)
+
 
 exp_retry = retry(
     wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
@@ -73,7 +89,6 @@ class SendManagerConfig:
     history: bool = False
     summary: bool = False
     terminal_output: bool = False
-    debug_mode: bool = False
 
 
 @dataclass
