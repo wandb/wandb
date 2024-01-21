@@ -1,5 +1,4 @@
 """Tooling for the W&B Importer."""
-
 import filecmp
 import inspect
 import itertools
@@ -23,15 +22,13 @@ import yaml
 from wandb_gql import gql
 
 import wandb
-from wandb.apis.public import Run
-from wandb.apis.public.artifacts import ArtifactCollection
+from wandb.apis.public import ArtifactCollection, Run
 from wandb.util import coalesce, remove_keys_with_none_values
 
-from .internals import internal
-from .internals.config import Namespace
-from .internals.internal import _thread_local_settings
-from .internals.protocols import for_each
-from .internals.util import _merge_dfs
+from ..internals import internal
+from ..internals.config import Namespace
+from ..internals.internal import _thread_local_settings
+from ..internals.protocols import for_each
 
 with patch("click.echo"):
     import wandb.apis.reports as wr
@@ -54,6 +51,8 @@ ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 
 logger = logging.getLogger("import_logger")
 # target_size = 80 * 1024**3  # 80GB
+
+os.environ["WANDB_IMPORTER_MODE_ENABLED"] = "true"
 
 
 @dataclass
@@ -146,8 +145,7 @@ class WandbRun:
             logger.warn(
                 "No parquet files detected; using scan history (this may not be reliable)"
             )
-            with patch("click.echo"):
-                rows = self.run.scan_history()
+            rows = self.run.scan_history()
 
         for row in rows:
             row = remove_keys_with_none_values(row)
@@ -282,7 +280,7 @@ class WandbRun:
             # Download and log file (is this the right wording?)
             file_and_policy = None
             result = f.download(files_dir, exist_ok=True, api=self.api)
-            file_and_policy = (result.name, "now")
+            file_and_policy = (result.name, "end")
             self._files.append(file_and_policy)
             yield file_and_policy
 
@@ -573,7 +571,7 @@ class WandbImporter:
         # Get a placeholder run for dummy artifacts we'll upload later
         art = seq.artifacts[0]
         try:
-            dummy_run: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
+            run_or_dummy: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
         except requests.exceptions.HTTPError as e:
             # If we had an http error, then just skip for now.
             logger.warn(f"Failed to get run (try again later): {seq=}, {art=}, {e=}")
@@ -590,7 +588,7 @@ class WandbImporter:
         for i, group in enumerate(groups_of_artifacts, 1):
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
-                run = WandbRun(dummy_run)
+                run = WandbRun(run_or_dummy)
             else:
                 try:
                     wandb_run = art.logged_by()
@@ -599,9 +597,9 @@ class WandbImporter:
 
                 if wandb_run is None:
                     logger.warn(
-                        f"Artifact run does not exist (deleted?), using {dummy_run=}"
+                        f"Artifact run does not exist (deleted?), using {run_or_dummy=}"
                     )
-                    wandb_run = dummy_run
+                    wandb_run = run_or_dummy
 
                 new_art = _clone_art(art)
                 group = [new_art]
@@ -1191,7 +1189,7 @@ class WandbImporter:
                 }
             )
         df2 = pl.DataFrame(data)
-        logger.debug(f"Starting with {len(runs)=}")
+        logger.debug(f"Starting with {len(runs)=} in namespaces")
 
         results = df2.join(
             df,
@@ -1347,6 +1345,14 @@ class WandbImporter:
                     # We can never upload valid history for a deleted run, so skip it
                     continue
 
+                # d = {
+                #     'src_entity': art.entity,
+                #     'src_project': art.project,
+                #     'type': art.type,
+                #     'name': art.name,
+                #     'version': art.version,
+                # }
+
                 entity = art.entity
                 project = art.project
                 _type = art.type
@@ -1374,9 +1380,7 @@ class WandbImporter:
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         if incremental:
-            logger.info(
-                "Validating in incremental mode: filtering for failed artifact sequences"
-            )
+            logger.info("Validating in incremental mode")
 
             def filtered_sequences():
                 for seq in seqs:
@@ -1400,12 +1404,8 @@ class WandbImporter:
 
             artifacts = self._filter_previously_checked_artifacts(filtered_sequences())
         else:
-            logger.info(
-                "Validating in non-incremental mode: retrying all artifact sequences"
-            )
+            logger.info("Validating in non-incremental mode")
             artifacts = [a for seq in seqs for a in seq.artifacts]
-
-        args = ((art, art.entity, art.project) for art in artifacts)
 
         def _validate_artifact_wrapped(args):
             art, entity, project = args
@@ -1425,6 +1425,7 @@ class WandbImporter:
             logger.debug(f"Finished validating {art=}, {entity=}, {project=}")
             return result
 
+        args = ((art, art.entity, art.project) for art in artifacts)
         art_problems = for_each(_validate_artifact_wrapped, args)
         for art, dst_entity, dst_project, problems in art_problems:
             name, ver = _get_art_name_ver(art)
@@ -1714,13 +1715,15 @@ def cleanup_cache():
 def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = None
     try:
-        return art.logged_by()
+        run = art.logged_by()
     except ValueError as e:
         logger.warn(
             f"Can't log artifact because run does't exist, {art=}, {run=}, {e=}"
         )
 
-    # run is None
+    if run is not None:
+        return run
+
     query = gql(
         """
         query ArtifactCreatedBy(
@@ -1770,7 +1773,7 @@ def _clear_fname(fname: str) -> None:
 #     return _clear_fname(RUNS_ERRORS_JSONL_FNAME)
 
 
-def _generate_filter(d):
+def _generate_filter(d: dict):
     combined = None
 
     for k, v in d.items():
@@ -1784,13 +1787,13 @@ def _generate_filter(d):
     return combined
 
 
-def _download_art(art: Artifact, root: str) -> str:
-    with patch("click.echo"):
-        try:
-            cleanup_cache()
+def _download_art(art: Artifact, root: str) -> Optional[str]:
+    try:
+        cleanup_cache()
+        with patch("click.echo"):
             return art.download(root=root)
-        except Exception as e:
-            logger.error(f"Error downloading artifact {art=}, {e=}")
+    except Exception as e:
+        logger.error(f"Error downloading artifact {art=}, {e=}")
 
 
 def _clone_art(art: Artifact, root: Optional[str] = None):
@@ -1801,8 +1804,9 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
     if (path := _download_art(art, root=root)) is None:
         raise ValueError(f"Problem downloading {art=}")
 
-    new_art = _make_new_art(art)
-    new_art.add_dir(path)
+    with patch("click.echo"):
+        new_art = _make_new_art(art)
+        new_art.add_dir(path)
     return new_art
 
 
@@ -1850,3 +1854,26 @@ def _create_files_if_not_exists():
         logger.debug(f"Creating {fname=} if not exists")
         with open(fname, "a"):
             pass
+
+
+def _merge_dfs(dfs: List[pl.DataFrame]) -> pl.DataFrame:
+    # Ensure there are DataFrames in the list
+    if len(dfs) == 0:
+        return pl.DataFrame()
+
+    if len(dfs) == 1:
+        return dfs[0]
+
+    merged_df = dfs[0]
+    for df in dfs[1:]:
+        merged_df = merged_df.join(df, how="outer", on=["_step"])
+        col_pairs = [
+            (c, f"{c}_right")
+            for c in merged_df.columns
+            if f"{c}_right" in merged_df.columns
+        ]
+        for col, right in col_pairs:
+            new_col = merged_df[col].fill_null(merged_df[right])
+            merged_df = merged_df.with_columns(new_col).drop(right)
+
+    return merged_df
