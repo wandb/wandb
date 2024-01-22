@@ -194,9 +194,10 @@ class Table(Media):
         optional=True,
         allow_mixed_types=False,
     ):
-        """Initialize a Table object.
+        """Initializes a Table object.
 
-        Rows is kept for legacy reasons, we use data to mimic the Pandas api.
+        The rows is availble for legacy reasons and should not be used.
+        The Table class uses data to mimic the Pandas API.
         """
         super().__init__()
         self._pk_col = None
@@ -284,13 +285,13 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Cast a column to a specific type.
+        """Casts a column to a specific data type. This can be one of the normal python classes,
+         an internal W&B type, or an example objec, like an instance of wandb.Image or wandb.Classes.
 
         Arguments:
-            col_name: (str) - name of the column to cast
-            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
-                normal python class, internal WB type, or an example object (e.g. an instance of wandb.Image or wandb.Classes)
-            optional: (bool) - if the column should allow Nones
+            col_name: (str) - The name of the column to cast.
+            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - The target dtype.
+            optional: (bool) - If the column should allow Nones.
         """
         assert col_name in self.columns
 
@@ -320,10 +321,10 @@ class Table(Media):
         if is_pk or is_fk or is_fi:
             assert (
                 not optional
-            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional."
 
         if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
-            raise AssertionError("Cannot set a foreign table reference to same table")
+            raise AssertionError("Cannot set a foreign table reference to same table.")
 
         if is_pk:
             assert (
@@ -385,14 +386,15 @@ class Table(Media):
         return self._eq_debug(other)
 
     def add_row(self, *row):
-        """Deprecated: use add_data instead."""
+        """Deprecated; use add_data instead."""
         logging.warning("add_row is deprecated, use add_data")
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Add a row of data to the table.
+        """Adds a new row of data to the table. The maximum amount of rows
+        in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`. 
 
-        Argument length should match column length.
+        The length of the data should match the length of the table column.
         """
         if len(data) != len(self.columns):
             raise ValueError(
@@ -425,7 +427,7 @@ class Table(Media):
         self._update_keys(force_last=True)
 
     def _get_updated_result_type(self, row):
-        """Return an updated result type based on incoming row.
+        """Returns the updated result type based on the inputted row.
 
         Raises:
             TypeError: if the assignment is invalid.
@@ -513,7 +515,7 @@ class Table(Media):
                     serialization_path = ndarray_type._get_serialization_path()
                     np = util.get_module(
                         "numpy",
-                        required="Deserializing numpy columns requires numpy to be installed",
+                        required="Deserializing NumPy columns requires NumPy to be installed.",
                     )
                     deserialized = np.load(
                         source_artifact.get_entry(serialization_path["path"]).download()
@@ -600,7 +602,7 @@ class Table(Media):
                 elif ndarray_type is not None:
                     np = util.get_module(
                         "numpy",
-                        required="Serializing numpy requires numpy to be installed",
+                        required="Serializing NumPy requires NumPy to be installed.",
                     )
                     file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
@@ -641,12 +643,13 @@ class Table(Media):
         return json_dict
 
     def iterrows(self):
-        """Iterate over rows as (ndx, row).
+        """Returns the table data by row, showing the index of the row and
+        the relevant data.
 
         Yields:
         ------
         index : int
-            The index of the row. Using this value in other WandB tables
+            The index of the row. Using this value in other W&B tables
             will automatically build a relationship between the tables
         row : List[any]
             The data of the row.
@@ -668,13 +671,13 @@ class Table(Media):
         self.cast(col_name, _ForeignKeyType(table, table_col))
 
     def _update_keys(self, force_last=False):
-        """Update the known key-like columns based on the current column types.
+        """Updates the known key-like columns based on current column types.
 
-        If the state has been updated since the last update, we wrap the data
+        If the state has been updated since the last update, wraps the data
         appropriately in the Key classes.
 
         Arguments:
-            force_last: (bool) Determines wrapping the last column of data even if there
+            force_last: (bool) Wraps the last column of data even if there
                 are no key updates.
         """
         _pk_col = None
@@ -715,7 +718,7 @@ class Table(Media):
             self._apply_key_updates(not has_update)
 
     def _apply_key_updates(self, only_last=False):
-        """Appropriately wrap the underlying data in special key classes.
+        """Appropriately wraps the underlying data in special Key classes.
 
         Arguments:
             only_last: only apply the updates to the last row (used for performance when
@@ -764,7 +767,7 @@ class Table(Media):
                 update_row(row_ndx)
 
     def add_column(self, name, data, optional=False):
-        """Add a column of data to the table.
+        """Adds a column of data to the table.
 
         Arguments:
             name: (str) - the unique name of the column
@@ -805,7 +808,8 @@ class Table(Media):
             raise err
 
     def get_column(self, name, convert_to=None):
-        """Retrieve a column of data from the table.
+        """Retrieves a column from the table and optionally converts it to
+         a NumPy object.
 
         Arguments:
             name: (str) - the name of the column
@@ -816,7 +820,7 @@ class Table(Media):
         assert convert_to is None or convert_to == "numpy"
         if convert_to == "numpy":
             np = util.get_module(
-                "numpy", required="Converting to numpy requires installing numpy"
+                "numpy", required="Converting to NumPy requires installing NumPy"
             )
         col = []
         col_ndx = self.columns.index(name)
@@ -830,7 +834,7 @@ class Table(Media):
         return col
 
     def get_index(self):
-        """Return an array of row indexes for use in other tables to create links."""
+        """Returns an array of row indexes for use in other tables to create links."""
         ndxs = []
         for ndx in range(len(self.data)):
             index = _TableIndex(ndx)
@@ -839,7 +843,7 @@ class Table(Media):
         return ndxs
 
     def get_dataframe(self):
-        """Returns a pandas.DataFrame of the table."""
+        """Returns a `pandas.DataFrame` of the table."""
         pd = util.get_module(
             "pandas",
             required="Converting to pandas.DataFrame requires installing pandas",
@@ -847,14 +851,14 @@ class Table(Media):
         return pd.DataFrame.from_records(self.data, columns=self.columns)
 
     def index_ref(self, index):
-        """Get a reference to a particular row index in the table."""
+        """Gets a reference of the index of a row in the table."""
         assert index < len(self.data)
         _index = _TableIndex(index)
         _index.set_table(self)
         return _index
 
     def add_computed_columns(self, fn):
-        """Add one or more computed columns based on existing data.
+        """Adds one or more computed columns based on existing data.
 
         Args:
             fn: A function which accepts one or two parameters, ndx (int) and row (dict),
