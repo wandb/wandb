@@ -8,6 +8,7 @@ __all__ = (
     "AlertLevel",
     "init",
     "setup",
+    "attach",
     "_attach",
     "_sync",
     "login",
@@ -25,7 +26,7 @@ from . import wandb_helper as helper
 from .artifacts.artifact import Artifact
 from .wandb_alerts import AlertLevel
 from .wandb_config import Config
-from .wandb_init import _attach, init
+from .wandb_init import _attach, attach, init
 from .wandb_login import login
 from .wandb_require import require
 from .wandb_run import finish

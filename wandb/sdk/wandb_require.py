@@ -32,7 +32,7 @@ class _Requires:
 
     def _require_service(self) -> None:
         wandb.teardown = wandb._teardown  # type: ignore
-        wandb.attach = wandb._attach  # type: ignore
+        # wandb.attach = wandb._attach  # type: ignore
         wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_service(self) -> None:

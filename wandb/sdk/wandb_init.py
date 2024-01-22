@@ -26,7 +26,7 @@ from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import StrPath
-from wandb.util import _is_artifact_representation
+from wandb.util import _is_artifact_representation, get_core_path
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -855,11 +855,39 @@ def getcaller() -> None:
     print("Problem at:", src, line, func)
 
 
+def attach(
+    run_id: str,
+    settings: Optional[Settings] = None,
+):
+    """Attach to a run currently executing elsewhere.
+
+    Could be used to attach to a run executing on a remote machine or in a
+    separate process.
+
+    Arguments:
+        run_id: (str) The id of the run to attach to.
+        settings: (Settings, optional) A settings object to use when attaching.
+
+    Raises:
+        UsageError: if wandb-core is not installed.
+    """
+    # TODO: handle the service case? maybe just ignore it.
+    core_path = get_core_path()
+    if not core_path:
+        raise UsageError(
+            "wandb.attach requires `wandb-core` to be installed."
+            "Please run `pip install -U wandb wandb-core`."
+        )
+
+    return _attach(run_id=run_id, settings=settings)
+
+
 def _attach(
     attach_id: Optional[str] = None,
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
+    settings: Optional[Settings] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
@@ -888,14 +916,23 @@ def _attach(
     if logger is None:
         raise UsageError("logger is not initialized")
 
+    _settings: Settings = copy.copy(_wl._settings)
+    if settings is not None:
+        _settings.update(settings, source=Source.INIT)
+
     manager = _wl._get_manager()
-    response = manager._inform_attach(attach_id=attach_id) if manager else None
+    response = (
+        manager._inform_attach(
+            settings=_settings.to_proto(),
+            attach_id=attach_id,
+        )
+        if manager
+        else None
+    )
     if response is None:
         raise UsageError(f"Unable to attach to run {attach_id}")
 
-    settings: Settings = copy.copy(_wl._settings)
-
-    settings.update(
+    _settings.update(
         {
             "run_id": attach_id,
             "_start_time": response._start_time.value,
@@ -907,14 +944,14 @@ def _attach(
 
     # TODO: consolidate this codepath with wandb.init()
     mailbox = Mailbox()
-    backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
+    backend = Backend(settings=_settings, manager=manager, mailbox=mailbox)
     backend.ensure_launched()
     logger.info("attach backend started and connected")
 
     if run is None:
-        run = Run(settings=settings)
+        run = Run(settings=_settings)
     else:
-        run._init(settings=settings)
+        run._init(settings=_settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
