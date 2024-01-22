@@ -2,7 +2,6 @@ import torch
 from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLPipeline
 from wandb.integration.diffusers import autolog
 
-
 autolog()
 
 base_pipeline = StableDiffusionXLPipeline.from_pretrained(

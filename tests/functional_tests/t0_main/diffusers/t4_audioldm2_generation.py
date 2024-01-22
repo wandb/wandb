@@ -2,7 +2,6 @@ import torch
 from diffusers import AudioLDM2Pipeline
 from wandb.integration.diffusers import autolog
 
-
 autolog()
 
 pipe = AudioLDM2Pipeline.from_pretrained("cvssp/audioldm2", torch_dtype=torch.float16)
