@@ -11,7 +11,6 @@ def main(attach_id: str, eval_step: int):
             mode="async",
             console="off",
             _disable_machine_info=True,
-            _disable_stats=False,
             _disable_stats=True,
         ),
     )

@@ -210,7 +210,9 @@ class _Manager:
     ) -> Optional[Dict[str, Any]]:
         svc_iface = self._get_service_interface()
         try:
-            response = svc_iface._svc_inform_attach(settings=settings, attach_id=attach_id)
+            response = svc_iface._svc_inform_attach(
+                settings=settings, attach_id=attach_id
+            )
         except Exception:
             return None
         return response.settings
