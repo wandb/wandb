@@ -88,7 +88,7 @@ class LinePlot(Panel):
     # Attr( json_path="spec.config.metricRegex")
     # Attr( json_path="spec.config.useMetricRegex")
     # Attr( json_path="spec.config.yAxisAutoRange")
-    # Attr( json_path="spec.config.groupRunsLimit")
+    group_runs_limit: Optional[int] = Attr(json_path="spec.config.groupRunsLimit")
     xaxis_expression: Optional[str] = Attr(json_path="spec.config.xExpression")
     # Attr( json_path="spec.config.colorEachMetricDifferently")
     # Attr( json_path="spec.config.showLegend")
@@ -147,6 +147,7 @@ class LinePlot(Panel):
         legend_position: Optional[str] = None,
         legend_template: Optional[str] = None,
         aggregate: Optional[bool] = None,
+        group_runs_limit: Optional[int] = None,
         xaxis_expression: Optional[str] = None,
         # line_titles: Optional[dict] = None,
         # line_marks: Optional[dict] = None,
@@ -179,6 +180,7 @@ class LinePlot(Panel):
         self.legend_position = legend_position
         self.legend_template = legend_template
         self.aggregate = aggregate
+        self.group_runs_limit = group_runs_limit
         self.xaxis_expression = xaxis_expression
         # self.line_titles = line_titles
         # self.line_marks = line_marks
