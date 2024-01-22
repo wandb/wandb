@@ -10,6 +10,7 @@ command:
 depend:
     requirements:
         - "diffusers>=0.23.1"
+        - "imageio>=2.33.1"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][workflow][0][params][callback_steps]: 1

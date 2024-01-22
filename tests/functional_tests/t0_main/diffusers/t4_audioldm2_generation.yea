@@ -10,6 +10,7 @@ command:
 depend:
     requirements:
         - "diffusers>=0.23.1"
+        - "soundfile>=0.12.1"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][workflow][0][params][callback_on_step_end_tensor_inputs][0]: "latents"
