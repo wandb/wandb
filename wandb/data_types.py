@@ -285,8 +285,7 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Casts a column to a specific data type. This can be one of the normal python classes,
-         an internal W&B type, or an example objec, like an instance of wandb.Image or wandb.Classes.
+        """Casts a column to a specific data type. This can be one of the normal python classes, an internal W&B type, or an example objec, like an instance of wandb.Image or wandb.Classes.
 
         Arguments:
             col_name: (str) - The name of the column to cast.
@@ -391,8 +390,7 @@ class Table(Media):
         self.add_data(*row)
 
     def add_data(self, *data):
-        """Adds a new row of data to the table. The maximum amount of rows
-        in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`. 
+        """Adds a new row of data to the table. The maximum amount of rows in a table is determined by `wandb.Table.MAX_ARTIFACT_ROWS`.
 
         The length of the data should match the length of the table column.
         """
@@ -643,8 +641,7 @@ class Table(Media):
         return json_dict
 
     def iterrows(self):
-        """Returns the table data by row, showing the index of the row and
-        the relevant data.
+        """Returns the table data by row, showing the index of the row and the relevant data.
 
         Yields:
         ------
@@ -808,8 +805,7 @@ class Table(Media):
             raise err
 
     def get_column(self, name, convert_to=None):
-        """Retrieves a column from the table and optionally converts it to
-         a NumPy object.
+        """Retrieves a column from the table and optionally converts it to a NumPy object.
 
         Arguments:
             name: (str) - the name of the column
