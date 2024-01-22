@@ -43,8 +43,6 @@ def test_upsert_bucket_410(
             wandb_init()
 
 
-@pytest.mark.skip(reason="we should handle such cases gracefully")
-@pytest.mark.wandb_core_failure(feature="error_handling")  # now we just panic
 def test_gql_409(
     wandb_init,
     relay_server,
@@ -59,8 +57,8 @@ def test_gql_409(
     )
     # we do not retry 409s on queries, so this should fail
     with relay_server(inject=[inject_response]):
-        with pytest.raises(CommError):
-            wandb_init()
+        run = wandb_init()
+        run.finish()
 
 
 def test_gql_410(

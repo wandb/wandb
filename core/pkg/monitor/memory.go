@@ -27,8 +27,8 @@ func NewMemory(settings *service.Settings) *Memory {
 func (m *Memory) Name() string { return m.name }
 
 func (m *Memory) SampleMetrics() {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	virtualMem, err := mem.VirtualMemory()
 
@@ -64,8 +64,8 @@ func (m *Memory) SampleMetrics() {
 }
 
 func (m *Memory) AggregateMetrics() map[string]float64 {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range m.metrics {
@@ -77,8 +77,8 @@ func (m *Memory) AggregateMetrics() map[string]float64 {
 }
 
 func (m *Memory) ClearMetrics() {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	m.metrics = map[string][]float64{}
 }
