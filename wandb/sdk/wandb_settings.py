@@ -288,6 +288,7 @@ class SettingsData:
     """Settings for the W&B SDK."""
 
     _args: Sequence[str]
+    _async: bool
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
@@ -610,6 +611,10 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
+            _async={
+                "hook": lambda _: self.mode == "async", 
+                "auto_hook": True,
+            },
             _async_upload_concurrency_limit={
                 "preprocessor": int,
                 "validator": self._validate__async_upload_concurrency_limit,

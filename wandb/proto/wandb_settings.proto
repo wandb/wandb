@@ -35,31 +35,16 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
-  google.protobuf.BoolValue _disable_machine_info = 158;
   google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
-  MapStringKeyStringValue _proxies = 200;
-  google.protobuf.Int32Value _file_stream_retry_max = 147;
-  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
-  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
   google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
-  google.protobuf.Int32Value _file_transfer_retry_max = 150;
-  google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
-  google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;
-  google.protobuf.DoubleValue _file_transfer_timeout_seconds = 153;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
-  google.protobuf.Int32Value _graphql_retry_max = 154;
-  google.protobuf.DoubleValue _graphql_retry_wait_min_seconds = 155;
-  google.protobuf.DoubleValue _graphql_retry_wait_max_seconds = 156;
-  google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
   google.protobuf.DoubleValue _internal_check_process = 18;
   google.protobuf.DoubleValue _internal_queue_timeout = 19;
   google.protobuf.BoolValue _ipython = 20;
   google.protobuf.BoolValue _jupyter = 21;
-  google.protobuf.StringValue _jupyter_name = 143;
-  google.protobuf.StringValue _jupyter_path = 144;
   google.protobuf.StringValue _jupyter_root = 22;
   google.protobuf.BoolValue _kaggle = 23;
   google.protobuf.Int32Value _live_policy_rate_limit = 24;
@@ -87,8 +72,6 @@ message Settings {
   google.protobuf.StringValue _stats_neuron_monitor_config_path = 46;
   MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
   OpenMetricsFilters _stats_open_metrics_filters = 48;
-  ListStringValue _stats_disk_paths = 146;
-  google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
@@ -100,7 +83,6 @@ message Settings {
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
-  google.protobuf.StringValue colab_url = 160;
   google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
@@ -122,7 +104,6 @@ message Settings {
   ListStringValue ignore_globs = 78;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
-  google.protobuf.StringValue job_name = 145;
   google.protobuf.StringValue job_source = 81;
   google.protobuf.BoolValue label_disable = 82;
   google.protobuf.BoolValue launch = 83;
@@ -137,7 +118,6 @@ message Settings {
   google.protobuf.StringValue notebook_name = 93;
   google.protobuf.StringValue problem = 94;
   google.protobuf.StringValue program = 95;
-  google.protobuf.StringValue program_abspath = 159;
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project = 97;
   google.protobuf.StringValue project_url = 98;
@@ -185,6 +165,29 @@ message Settings {
   google.protobuf.StringValue tmp_dir = 140;
   google.protobuf.StringValue username = 141;
   google.protobuf.StringValue wandb_dir = 142;
+  google.protobuf.StringValue _jupyter_name = 143;
+  google.protobuf.StringValue _jupyter_path = 144;
+  google.protobuf.StringValue job_name = 145;
+  ListStringValue _stats_disk_paths = 146;
+  google.protobuf.Int32Value _file_stream_retry_max = 147;
+  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
+  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
+  google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;
+  google.protobuf.DoubleValue _file_transfer_timeout_seconds = 153;
+  google.protobuf.Int32Value _graphql_retry_max = 154;
+  google.protobuf.DoubleValue _graphql_retry_wait_min_seconds = 155;
+  google.protobuf.DoubleValue _graphql_retry_wait_max_seconds = 156;
+  google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
+  google.protobuf.BoolValue _disable_machine_info = 158;
+  google.protobuf.StringValue program_abspath = 159;
+  google.protobuf.StringValue colab_url = 160;
+  google.protobuf.Int32Value _stats_buffer_size = 161;
+  google.protobuf.BoolValue _async = 162;
+
+  MapStringKeyStringValue _proxies = 200;
+
 
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =

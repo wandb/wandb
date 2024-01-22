@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -158,6 +159,10 @@ func NewSender(
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
+		headers := map[string]string{}
+		if settings.GetMode().GetValue() == "async" {
+			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		}
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
@@ -167,7 +172,7 @@ func NewSender(
 			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue())),
 			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue())),
 			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue())),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), headers),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
@@ -176,7 +181,9 @@ func NewSender(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
+			fs.WithClientId(shared.ShortID(32)),
 		)
+
 		fileTransferRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),

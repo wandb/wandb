@@ -31,6 +31,7 @@ def main(
 
     while True:
         try:
+            print(">>>>logging...")
             run.log({"loss": random.random()})
             time.sleep(sleep)
         except KeyboardInterrupt:
