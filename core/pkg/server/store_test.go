@@ -12,23 +12,42 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func TestStoreHeaderReadWrite(t *testing.T) {
-	header := server.StoreHeader{}
+func TestValidHeader(t *testing.T) {
+	header := server.NewHeader()
 
 	r, w := io.Pipe()
 
 	go func() {
 		defer w.Close()
-		err := header.Write(w)
+		err := header.MarshalBinary(w)
 		assert.NoError(t, err)
 	}()
 
-	err := header.Read(r)
+	err := header.UnmarshalBinary(r)
 	assert.NoError(t, err)
-	headerString := header.GetIdent()
-	assert.Equal(t, server.HeaderIdent, string(headerString[:]))
-	assert.Equal(t, uint16(server.HeaderMagic), header.GetMagic())
-	assert.Equal(t, byte(server.HeaderVersion), header.GetVersion())
+	assert.True(t, header.Valid())
+	_ = r.Close()
+}
+
+// Test to check the Invalid scenario
+func TestInvalidHeader(t *testing.T) {
+	header := server.HeaderOptions{
+		IDENT:   [4]byte{'a', 'b', 'c', 'd'},
+		Magic:   0xABCD,
+		Version: 1,
+	}
+
+	r, w := io.Pipe()
+
+	go func() {
+		defer w.Close()
+		err := header.MarshalBinary(w)
+		assert.NoError(t, err)
+	}()
+
+	err := header.UnmarshalBinary(r)
+	assert.NoError(t, err)
+	assert.False(t, header.Valid())
 	_ = r.Close()
 }
 
@@ -141,7 +160,7 @@ func TestCorruptFile(t *testing.T) {
 }
 
 // Test to check the InvalidHeader scenario
-func TestInvalidHeader(t *testing.T) {
+func TestStoreInvalidHeader(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-invalid-header")
 	assert.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
