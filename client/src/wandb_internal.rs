@@ -2517,8 +2517,6 @@ pub struct ShutdownResponse {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct AttachRequest {
-    #[prost(message, optional, tag = "1")]
-    pub settings: ::core::option::Option<Settings>,
     #[prost(string, tag = "20")]
     pub attach_id: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
