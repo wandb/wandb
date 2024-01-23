@@ -33,13 +33,11 @@ def write_gif_with_image_io(
     clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
     imageio = util.get_module(
-        "imageio" ,
+        "imageio",
         required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
     )
 
-    writer = imageio.save(
-        filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0
-    )
+    writer = imageio.save(filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0)
 
     for frame in clip.iter_frames(fps=fps, dtype="uint8"):
         writer.append_data(frame)
