@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.job_set import JobSet
@@ -31,8 +31,14 @@ class StandardQueueDriver(AbstractQueueDriver):
         # if lease successful, return job from jobset
         return job
 
-    def ack_run_queue_item(self, job_id: str, run_name: str) -> bool:
-        return self.job_set.ack_job(job_id, run_name)
+    def ack_run_queue_item(self, item_id: str, run_id: str) -> bool:
+        return self.job_set.ack_job(item_id, run_id)
 
-    def fail_run_queue_item(self, job_id: str, run_name: str) -> bool:
-        return self.job_set.ack_job(job_id, run_name)
+    def fail_run_queue_item(
+        self,
+        item_id: str,
+        message: str,
+        stage: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
+        return self.job_set.fail_job(item_id, message, stage, file_paths)
