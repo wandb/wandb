@@ -160,7 +160,7 @@ func NewSender(
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
 		headers := map[string]string{}
-		if settings.GetMode().GetValue() == "async" {
+		if settings.GetXAsync().GetValue() {
 			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		}
 		fileStreamRetryClient := clients.NewRetryClient(

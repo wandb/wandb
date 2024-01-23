@@ -205,8 +205,12 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	history.Item = append(history.Item,
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-		&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 	)
+	if !h.settings.GetXAsync().GetValue() {
+		history.Item = append(history.Item,
+			&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
+		)
+	}
 
 	// handles all history items. It is responsible for matching current history
 	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
@@ -313,9 +317,47 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 	return metric
 }
 
+func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
+	if h.settings.GetXAsync().GetValue() {
+		h.handlePartialHistoryAsync(request)
+	} else {
+		h.handlePartialHistorySync(nil, request)
+	}
+}
+
+// handlePartialHistoryAsync handles a partial history request asynchronously. It is responsible for
+// collecting the history items until a full history record is received.
+func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
+	// This is the first partial history record we receive
+	// for this step, so we need to initialize the history record
+	// and step. If the user provided a step in the request,
+	// use that, otherwise use 0.
+	if h.activeHistory == nil {
+		h.activeHistory = NewActiveHistory(
+			WithFlush(
+				func(step *service.HistoryStep, items []*service.HistoryItem) {
+					record := &service.HistoryRecord{
+						Step: step,
+						Item: items,
+					}
+					h.flushHistory(record)
+				},
+			),
+		)
+	}
+	// Append the history items from the request to the current history record.
+	h.activeHistory.UpdateValues(request.Item)
+
+	// Flush the history record and start to collect a new one with
+	// the next step number.
+	if request.GetAction() == nil || request.GetAction().GetFlush() {
+		h.activeHistory.Flush()
+	}
+}
+
 // handlePartialHistory handles a partial history request. Collects the history items until a full
 // history record is received.
-func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
+func (h *Handler) handlePartialHistorySync(_ *service.Record, request *service.PartialHistoryRequest) {
 
 	// This is the first partial history record we receive
 	// for this step, so we need to initialize the history record
