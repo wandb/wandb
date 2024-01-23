@@ -321,7 +321,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	if h.settings.GetXAsync().GetValue() {
 		h.handlePartialHistoryAsync(request)
 	} else {
-		h.handlePartialHistorySync(nil, request)
+		h.handlePartialHistorySync(request)
 	}
 }
 
@@ -353,7 +353,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 
 // handlePartialHistory handles a partial history request. Collects the history items until a full
 // history record is received.
-func (h *Handler) handlePartialHistorySync(_ *service.Record, request *service.PartialHistoryRequest) {
+func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
 
 	// This is the first partial history record we receive
 	// for this step, so we need to initialize the history record
