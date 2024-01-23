@@ -19,8 +19,13 @@ def main(attach_id: str, eval_step: int, project: str):
             console="off",
             _disable_machine_info=True,
             _disable_stats=True,
+            # _stats_sample_rate_seconds=1,
+            # _stats_samples_to_average=1,
+            # _stats_disk_paths=["/System/Volumes/Data"],
+            disable_job_creation=True,
         ),
     )
+    print("hi, I'm eval.py")
 
     # run.define_metric(name="eval_step", hidden=True)  # doesn't work
     # run.define_metric(name="eval_accuracy", step_metric="eval_step")

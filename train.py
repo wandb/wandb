@@ -19,7 +19,7 @@ def main(
         settings=wandb.Settings(
             init_timeout=60,
             mode="async",
-            console="off",
+            # console="off",
             # _disable_machine_info=True,
             # _disable_stats=False,
             # _disable_stats=True,
