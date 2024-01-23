@@ -1424,7 +1424,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core tests/pytest_tests/system_tests/test_functional"
           codecov_args: "-F system"
       #
       # System tests with Service
