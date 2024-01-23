@@ -12,7 +12,6 @@ else:
 
 _Setting = Literal[
     "_args",
-    "_async",
     "_aws_lambda",
     "_async_upload_concurrency_limit",
     "_cli_only_mode",
@@ -66,6 +65,7 @@ _Setting = Literal[
     "_save_requirements",
     "_service_transport",
     "_service_wait",
+    "_shared",
     "_start_datetime",
     "_start_time",
     "_stats_pid",
@@ -190,7 +190,6 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "project",
     "run_id",
     "start_method",
-    "_async",
     "_aws_lambda",
     "_colab",
     "_disable_machine_info",
@@ -206,6 +205,7 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "_notebook",
     "disabled",
     "_offline",
+    "_shared",
     "_stats_neuron_monitor_config_path",
     "run_mode",
     "_start_datetime",

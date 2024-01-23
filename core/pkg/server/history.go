@@ -206,7 +206,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	history.Item = append(history.Item,
 		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
 	)
-	if !h.settings.GetXAsync().GetValue() {
+	if !h.settings.GetXShared().GetValue() {
 		history.Item = append(history.Item,
 			&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
 		)
@@ -318,7 +318,7 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 }
 
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
-	if h.settings.GetXAsync().GetValue() {
+	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
 	} else {
 		h.handlePartialHistorySync(request)

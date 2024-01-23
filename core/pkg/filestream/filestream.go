@@ -130,7 +130,7 @@ func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
 func WithClientId(clientId string) FileStreamOption {
 	// TODO: this should be the default behavior in the future
 	return func(fs *FileStream) {
-		if fs.settings.GetXAsync().GetValue() {
+		if fs.settings.GetXShared().GetValue() {
 			fs.clientId = clientId
 		}
 	}

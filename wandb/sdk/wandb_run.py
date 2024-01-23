@@ -1818,11 +1818,11 @@ class Run:
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
             )
-        if self._settings._async and step is not None:
+        if self._settings._shared and step is not None:
             wandb.termwarn(
-                "In async mode, the use of `wandb.log` with the step parameter is not supported. "
-                "The step will be disregarded. If you want to log a custom x-axis value, "
-                "we recommend logging it as a metric, for example: `wandb.log({'my_step': step, 'loss': loss}).`",
+                "In shared mode, the use of `wandb.log` with the step argument is not supported "
+                f"and will be ignored. Please refer to {wburls.wburls.get('wandb_define_metric')} "
+                "on how to customize your x-axis.",
                 repeat=False,
             )
         self._log(data=data, step=step, commit=commit)
@@ -3230,8 +3230,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3323,8 +3323,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type

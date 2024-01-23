@@ -18,7 +18,7 @@ def main(
         project=project,
         settings=wandb.Settings(
             init_timeout=60,
-            mode="async",
+            mode="shared",
             # console="off",
             # _disable_machine_info=True,
             # _disable_stats=False,
@@ -27,7 +27,6 @@ def main(
             _stats_samples_to_average=1,
             _stats_disk_paths=["/System/Volumes/Data"],
             # _stats_buffer_size=100 if symon else 0,
-            # _async_upload_concurrency_limit=5,
             disable_job_creation=True,
         ),
         # sync_tensorboard=tensorboard or None,

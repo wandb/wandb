@@ -288,7 +288,6 @@ class SettingsData:
     """Settings for the W&B SDK."""
 
     _args: Sequence[str]
-    _async: bool
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
@@ -348,6 +347,7 @@ class SettingsData:
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
+    _shared: bool
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -611,10 +611,6 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async={
-                "hook": lambda _: self.mode == "async",
-                "auto_hook": True,
-            },
             _async_upload_concurrency_limit={
                 "preprocessor": int,
                 "validator": self._validate__async_upload_concurrency_limit,
@@ -713,6 +709,10 @@ class Settings(SettingsData):
                 "value": 30,
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
+            },
+            _shared={
+                "hook": lambda _: self.mode == "shared",
+                "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
@@ -964,7 +964,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "async"}
+        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True
