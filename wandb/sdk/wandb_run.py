@@ -1818,6 +1818,13 @@ class Run:
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
             )
+        if self._settings._async and step is not None:
+            wandb.termwarn(
+                "In async mode, the use of `wandb.log` with the step parameter is not supported. "
+                "The step will be disregarded. If you want to log a custom x-axis value, "
+                "we recommend logging it as a metric, for example: `wandb.log({'my_step': step, 'loss': loss}).`",
+                repeat=False,
+            )
         self._log(data=data, step=step, commit=commit)
 
     @_run_decorator._noop_on_finish()
