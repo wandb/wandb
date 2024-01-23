@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Dict, List, Optional, TypedDict
+from typing import Any, Awaitable, Dict, List, Optional, Set, TypedDict
 
 from attr import dataclass
 from wandb.sdk.launch.utils import event_loop_thread_exec
@@ -39,7 +39,7 @@ class JobSet:
         self._lock = asyncio.Lock()
 
         self._logger = logger
-        self._jobs: Dict[str, Any] = {}
+        self._jobs: Set = set()
         self._ready_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
         self._done_event = asyncio.Event()
