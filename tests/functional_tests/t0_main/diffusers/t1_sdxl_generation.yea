@@ -78,3 +78,4 @@ assert:
     - :wandb:runs[0][summary][Refiner][Generated-Image][format]: "png"
     - :wandb:runs[0][summary][Refiner][Generated-Image][height]: 1024
     - :wandb:runs[0][summary][Refiner][Generated-Image][width]: 1024
+    - :wandb:runs[0][exitcode]: 0

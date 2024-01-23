@@ -44,3 +44,4 @@ assert:
     - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][caption]: "masterpiece, bestquality, highlydetailed, ultradetailed, sunset, orange sky, warm lighting, fishing boats, ocean waves seagulls, rippling water, wharf, silhouette, serene atmosphere, dusk, evening glow, golden hour, coastal landscape, seaside scenery"
     - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][height]: 512
     - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][width]: 512
+    - :wandb:runs[0][exitcode]: 0

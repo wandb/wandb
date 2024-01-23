@@ -47,3 +47,4 @@ assert:
     - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 4
     - :wandb:runs[0][summary][Generated-Audio][Pipeline-Call-1][_type]: audio-file
     - :wandb:runs[0][summary][Generated-Audio][Pipeline-Call-1][caption]: "The sound of a hammer hitting a wooden surface."
+    - :wandb:runs[0][exitcode]: 0

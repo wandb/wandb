@@ -46,3 +46,4 @@ assert:
     - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][format]: "png"
     - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][height]: 1024
     - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][width]: 1024
+    - :wandb:runs[0][exitcode]: 0
