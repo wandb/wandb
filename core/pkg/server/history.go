@@ -329,15 +329,11 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 // collecting the history items until a full history record is received.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
-	// for this step, so we need to initialize the history record
-	// and step. If the user provided a step in the request,
-	// use that, otherwise use 0.
 	if h.activeHistory == nil {
 		h.activeHistory = NewActiveHistory(
 			WithFlush(
-				func(step *service.HistoryStep, items []*service.HistoryItem) {
+				func(_ *service.HistoryStep, items []*service.HistoryItem) {
 					record := &service.HistoryRecord{
-						Step: step,
 						Item: items,
 					}
 					h.flushHistory(record)

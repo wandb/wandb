@@ -22,7 +22,6 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -181,7 +180,6 @@ func NewSender(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
-			fs.WithClientId(shared.ShortID(32)),
 		)
 
 		fileTransferRetryClient := clients.NewRetryClient(

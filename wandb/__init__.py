@@ -222,7 +222,6 @@ _sentry.setup()
 __all__ = (
     "__version__",
     "init",
-    "attach",
     "setup",
     "save",
     "sweep",

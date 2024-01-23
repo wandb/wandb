@@ -91,8 +91,6 @@ type FileStream struct {
 	maxItemsPerPush int
 	delayProcess    time.Duration
 	heartbeatTime   time.Duration
-
-	clientId string
 }
 
 type FileStreamOption func(fs *FileStream)
@@ -118,12 +116,6 @@ func WithPath(path string) FileStreamOption {
 func WithHttpClient(client *retryablehttp.Client) FileStreamOption {
 	return func(fs *FileStream) {
 		fs.httpClient = client
-	}
-}
-
-func WithClientId(clientId string) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.clientId = clientId
 	}
 }
 
