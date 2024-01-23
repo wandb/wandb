@@ -1,6 +1,5 @@
 import argparse
 import math
-import multiprocessing as mp
 import random
 
 import wandb
