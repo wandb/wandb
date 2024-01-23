@@ -317,6 +317,8 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 	return metric
 }
 
+// handlePartialHistory handles a partial history request. Collects the history items until a full
+// history record is received.
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
 	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
@@ -326,7 +328,7 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 }
 
 // handlePartialHistoryAsync handles a partial history request asynchronously. It is responsible for
-// collecting the history items until a full history record is received.
+// collecting the history items until a full history record is received. This is the asynchronous version of handlePartialHistory.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
 	if h.activeHistory == nil {
@@ -350,8 +352,8 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	}
 }
 
-// handlePartialHistory handles a partial history request. Collects the history items until a full
-// history record is received.
+// handlePartialHistorySync handles a partial history request. Collects the history items until a full
+// history record is received. This is the synchronous version of handlePartialHistory.
 func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
 
 	// This is the first partial history record we receive
