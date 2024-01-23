@@ -537,7 +537,7 @@ def agent(
     entity: Optional[str] = None,
     project: Optional[str] = None,
     count: Optional[int] = None,
-    ) -> None:
+) -> None:
     """Start one or more sweep agents.
 
     The sweep agent uses the `sweep_id` to know which sweep it
