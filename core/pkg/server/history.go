@@ -344,8 +344,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	// Append the history items from the request to the current history record.
 	h.activeHistory.UpdateValues(request.Item)
 
-	// Flush the history record and start to collect a new one with
-	// the next step number.
+	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
 		h.activeHistory.Flush()
 	}
