@@ -50,7 +50,7 @@ def main(
 
             # kick-off evaluation
             if train_step % eval_rate == 0:
-                subprocess.run(
+                subprocess.check_output(
                     [
                         "python",
                         pathlib.Path(__file__).parent / "eval.py",
