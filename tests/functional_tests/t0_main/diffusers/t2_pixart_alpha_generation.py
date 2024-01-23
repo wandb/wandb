@@ -1,4 +1,3 @@
-
 import torch
 from diffusers import PixArtAlphaPipeline
 from wandb.integration.diffusers import autolog
