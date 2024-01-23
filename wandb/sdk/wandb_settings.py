@@ -612,7 +612,7 @@ class Settings(SettingsData):
         """
         props: Dict[str, Dict[str, Any]] = dict(
             _async={
-                "hook": lambda _: self.mode == "async", 
+                "hook": lambda _: self.mode == "async",
                 "auto_hook": True,
             },
             _async_upload_concurrency_limit={

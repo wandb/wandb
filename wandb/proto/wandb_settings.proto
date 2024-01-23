@@ -188,7 +188,6 @@ message Settings {
 
   MapStringKeyStringValue _proxies = 200;
 
-
   // todo?
   //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =
   //  500;
