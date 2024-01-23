@@ -38,7 +38,7 @@ def write_gif_with_image_io(
     )
 
     writer = imageio.save(
-        filename, duration=1.0 / clip.fps, quantizer=0, palettesize=256, loop=0
+        filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0
     )
 
     for frame in clip.iter_frames(fps=fps, dtype="uint8"):
