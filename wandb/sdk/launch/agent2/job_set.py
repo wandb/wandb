@@ -3,9 +3,9 @@ import logging
 from typing import Any, Awaitable, Dict, List, Optional, Set, TypedDict
 
 from attr import dataclass
-from wandb.sdk.launch.utils import event_loop_thread_exec
 
 from wandb.apis.internal import Api
+from wandb.sdk.launch.utils import event_loop_thread_exec
 
 
 @dataclass
@@ -29,7 +29,9 @@ def create_job_set(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Lo
 
 
 class JobSet:
-    def __init__(self, api: Api, job_set: Dict[str, Any], agent_id: str, logger: logging.Logger):
+    def __init__(
+        self, api: Api, job_set: Dict[str, Any], agent_id: str, logger: logging.Logger
+    ):
         self.api = api
         self.agent_id = agent_id
 
@@ -41,6 +43,7 @@ class JobSet:
         self._logger = logger
         self._jobs: Set = set()
         self._ready_event = asyncio.Event()
+        self._updated_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
         self._done_event = asyncio.Event()
         self._poll_now_event = asyncio.Event()
@@ -48,22 +51,26 @@ class JobSet:
 
         self._task = None
         self._last_state = None
-        
+
     @property
     def lock(self):
         return self._lock
-    
+
     @property
     def jobs(self):
         return self._jobs.copy()
-    
+
     @property
     def metadata(self):
         return self._metadata.copy()
-    
+
     @property
     async def wait_for_done(self):
         return await self._done_event.wait()
+
+    async def wait_for_update(self):
+        await self._updated_event.wait()
+        self._updated_event.clear()
 
     async def _sync_loop(self):
         while not self._shutdown_event.is_set():
@@ -86,9 +93,10 @@ class JobSet:
             self._jobs.clear()
             for job in self._last_state["jobs"]:
                 self._jobs[job["id"]] = job
-                #self._logger.debug(f'[JobSet {self.name or self.id}] Updated Job {job["id"]}')
+                # self._logger.debug(f'[JobSet {self.name or self.id}] Updated Job {job["id"]}')
         self._logger.debug(f"[JobSet {self.name or self.id}] Done.")
         self._ready_event.set()
+        self._updated_event.set()
 
     async def _refresh_job_set(self):
         get_job_set_by_id = event_loop_thread_exec(self.api.get_job_set_by_id)
@@ -114,7 +122,7 @@ class JobSet:
             self._task = None
         else:
             raise RuntimeError("Tried to stop JobSet but not started")
-    
+
     async def ready(self) -> None:
         await self._ready_event.wait()
 

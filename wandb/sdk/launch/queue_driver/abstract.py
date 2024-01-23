@@ -22,7 +22,7 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
+    async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
         """Determine which item should run next and pop it.
 
         Returns:
@@ -31,7 +31,7 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def ack_run_queue_item(self, job_id: str, run_name: str) -> bool:
+    async def ack_run_queue_item(self, job_id: str, run_name: str) -> bool:
         """Mark a run queue item as running.
 
         Arguments:
@@ -44,7 +44,7 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fail_run_queue_item(
+    async def fail_run_queue_item(
         self,
         run_queue_item_id: str,
         message: str,
@@ -54,7 +54,10 @@ class AbstractQueueDriver(ABC):
         """Mark a run queue item as failed.
 
         Arguments:
-            run_queue_item_id: ID of the run queue item to ack
+            run_queue_item_id: ID of the run queue item that failed
+            message: Reason the run failed
+            stage: Stage at which the run failed ("agent", "build", "run")
+            file_paths: Files (e.g. logs) that can help to debug
 
         Returns:
             Whether the call was successful
