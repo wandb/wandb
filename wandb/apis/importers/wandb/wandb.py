@@ -1456,7 +1456,7 @@ class WandbImporter:
         skip_ids: Optional[List[str]] = None,
         start_date: Optional[str] = None,
         api: Optional[Api] = None,
-    ):
+    ) -> Iterable[WandbRun]:
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
 

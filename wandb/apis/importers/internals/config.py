@@ -8,6 +8,11 @@ class Namespace:
     entity: str
     project: str
 
+    @classmethod
+    def from_path(cls, path):
+        entity, project = path.split("/")
+        return cls(entity, project)
+
     @property
     def path(self):
         return f"{self.entity}/{self.project}"
