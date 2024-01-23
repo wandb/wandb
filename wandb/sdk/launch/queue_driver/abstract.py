@@ -9,17 +9,6 @@ class AbstractQueueDriver(ABC):
     """Abstract plugin class defining the interface needed to implement a Launch Queue Driver."""
 
     api: Api
-    job_set: JobSet
-
-    @abstractmethod
-    def __init__(self, api: Api, job_set: JobSet) -> None:
-        """Initialize a queue driver.
-
-        Arguments:
-            api: Internal API, this should eventually not be required
-            job_set: The job set to use
-        """
-        raise NotImplementedError
 
     @abstractmethod
     async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:

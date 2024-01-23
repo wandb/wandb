@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.job_set import JobSet
-from wandb.sdk.launch.queue_driver.abstract import AbstractQueueDriver
+from .abstract import AbstractQueueDriver
 from wandb.sdk.launch.utils import PRIORITIZATION_MODE
 
 logger = logging.getLogger(__name__)
