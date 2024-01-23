@@ -279,17 +279,18 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
-            and alias["artifactCollection"]["project"]["name"] == project
-            and alias["artifactCollection"]["name"] == name.split(":")[0]
+            if alias["artifactCollection"]["name"] == name.split(":")[0]
+            # alias["artifactCollection"]["project"]["entityName"] == entity
+            # and alias["artifactCollection"]["project"]["name"] == project
+            # and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
         version_aliases = [
             alias for alias in aliases if util.alias_is_version_index(alias)
         ]
-        assert len(version_aliases) == 1
+        # assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        # artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
+        # artifact._source_project = attrs["artifactSequence"]["project"]["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -2263,10 +2264,10 @@ class Artifact:
             fragment ArtifactFragment on Artifact {
                 id
                 artifactSequence {
-                    project {
-                        entityName
-                        name
-                    }
+                    # project {
+                    #     entityName
+                    #     name
+                    # }
                     name
                 }
                 versionIndex
@@ -2279,10 +2280,10 @@ class Artifact:
                 ttlIsInherited
                 aliases {
                     artifactCollection {
-                        project {
-                            entityName
-                            name
-                        }
+                        # project {
+                        #     entityName
+                        #     name
+                        # }
                         name
                     }
                     alias
