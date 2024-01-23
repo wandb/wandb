@@ -43,7 +43,7 @@ def sweep(
 
     Args:
       sweep: The configuration of a hyperparameter search.
-        (or configuration generator). See 
+        (or configuration generator). See
         [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
         for information on how to define your sweep.
         If you provide a callable, ensure that the callable does
