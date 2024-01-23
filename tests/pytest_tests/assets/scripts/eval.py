@@ -6,10 +6,6 @@ import random
 import wandb
 
 
-def moar(run):
-    run.log({"moar": random.random()})
-
-
 def main(attach_id: str, eval_step: int, project: str):
     run = wandb.init(
         id=attach_id,
@@ -22,7 +18,7 @@ def main(attach_id: str, eval_step: int, project: str):
             disable_job_creation=True,
         ),
     )
-    print("hi, I'm eval.py")
+    # print("hi, I'm eval.py")
 
     value = min(math.log(eval_step + 1) / 5 + random.random() / 20, 1)
     run.log(
@@ -31,10 +27,6 @@ def main(attach_id: str, eval_step: int, project: str):
             "eval_step": eval_step,
         },
     )
-
-    p = mp.Process(target=moar, args=(run,))
-    p.start()
-    p.join()
 
     run.finish()
 
