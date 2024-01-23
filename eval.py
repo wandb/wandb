@@ -1,7 +1,13 @@
 import argparse
+import math
+import multiprocessing as mp
 import random
 
 import wandb
+
+
+def moar(run):
+    run.log({"moar": random.random()})
 
 
 def main(attach_id: str, eval_step: int, project: str):
@@ -16,15 +22,22 @@ def main(attach_id: str, eval_step: int, project: str):
         ),
     )
 
+    # run.define_metric(name="eval_step", hidden=True)  # doesn't work
+    # run.define_metric(name="eval_accuracy", step_metric="eval_step")
+
+    value = min(math.log(eval_step + 1) / 5 + random.random() / 20, 1)
     run.log(
         {
-            "eval_accuracy": random.random(),
+            "eval_accuracy": value,
             "eval_step": eval_step,
         },
     )
 
-    # TODO: ??
-    # run.detach()
+    p = mp.Process(target=moar, args=(run,))
+    p.start()
+    p.join()
+
+    run.finish()
 
 
 if __name__ == "__main__":

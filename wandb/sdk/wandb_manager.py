@@ -205,14 +205,10 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(
-        self, settings: "wandb_settings_pb2.Settings", attach_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def _inform_attach(self, attach_id: str) -> Optional[Dict[str, Any]]:
         svc_iface = self._get_service_interface()
         try:
-            response = svc_iface._svc_inform_attach(
-                settings=settings, attach_id=attach_id
-            )
+            response = svc_iface._svc_inform_attach(attach_id=attach_id)
         except Exception:
             return None
         return response.settings

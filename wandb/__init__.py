@@ -32,7 +32,6 @@ wandb.wandb_lib = wandb_sdk.lib  # type: ignore
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
-attach = wandb_sdk.attach
 _attach = wandb_sdk._attach
 _sync = wandb_sdk._sync
 _teardown = wandb_sdk.teardown

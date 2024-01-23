@@ -12,7 +12,6 @@ import google.protobuf.timestamp_pb2
 import sys
 import typing
 import wandb.proto.wandb_base_pb2
-import wandb.proto.wandb_settings_pb2
 import wandb.proto.wandb_telemetry_pb2
 
 if sys.version_info >= (3, 10):
@@ -2747,23 +2746,19 @@ class AttachRequest(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    SETTINGS_FIELD_NUMBER: builtins.int
     ATTACH_ID_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def settings(self) -> wandb.proto.wandb_settings_pb2.Settings: ...
     attach_id: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
     def __init__(
         self,
         *,
-        settings: wandb.proto.wandb_settings_pb2.Settings | None = ...,
         attach_id: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RequestInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "settings", b"settings"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "attach_id", b"attach_id", "settings", b"settings"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "attach_id", b"attach_id"]) -> None: ...
 
 global___AttachRequest = AttachRequest
 

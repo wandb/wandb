@@ -4,7 +4,6 @@ package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
-import "wandb/proto/wandb_settings.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
 /*
@@ -824,7 +823,6 @@ message ShutdownResponse {}
  * AttachRequest:
  */
 message AttachRequest {
-  Settings settings = 1;
   string attach_id = 20;
   _RequestInfo _info = 200;
 }

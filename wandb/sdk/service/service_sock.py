@@ -55,11 +55,8 @@ class ServiceSockInterface(ServiceInterface):
         assert self._sock_client
         self._sock_client.send(inform_finish=inform_finish)
 
-    def _svc_inform_attach(
-        self, settings: "wandb_settings_pb2.Settings", attach_id: str
-    ) -> spb.ServerInformAttachResponse:
+    def _svc_inform_attach(self, attach_id: str) -> spb.ServerInformAttachResponse:
         inform_attach = spb.ServerInformAttachRequest()
-        inform_attach.settings.CopyFrom(settings)
         inform_attach._info.stream_id = attach_id
 
         assert self._sock_client
