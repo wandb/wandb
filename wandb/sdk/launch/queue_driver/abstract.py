@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.job_set import JobSet
@@ -36,6 +36,7 @@ class AbstractQueueDriver(ABC):
 
         Arguments:
             job_id: ID of the run queue item to ack
+            run_name: ID of the associated run
 
         Returns:
             Whether the call was successful
@@ -43,11 +44,17 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fail_run_queue_item(self, job_id: str, run_name: str) -> bool:
+    def fail_run_queue_item(
+        self,
+        run_queue_item_id: str,
+        message: str,
+        stage: str,
+        file_paths: Optional[List[str]] = None,
+    ) -> bool:
         """Mark a run queue item as failed.
 
         Arguments:
-            job_id: The ID of the run queue item that failed
+            run_queue_item_id: ID of the run queue item to ack
 
         Returns:
             Whether the call was successful

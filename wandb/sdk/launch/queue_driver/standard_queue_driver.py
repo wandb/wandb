@@ -36,9 +36,9 @@ class StandardQueueDriver(AbstractQueueDriver):
 
     def fail_run_queue_item(
         self,
-        item_id: str,
+        run_queue_item_id: str,
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
     ) -> bool:
-        return self.job_set.fail_job(item_id, message, stage, file_paths)
+        return self.job_set.fail_job(run_queue_item_id, message, stage, file_paths)
