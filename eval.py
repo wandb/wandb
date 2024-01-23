@@ -4,9 +4,10 @@ import random
 import wandb
 
 
-def main(attach_id: str, eval_step: int):
-    run = wandb.attach(
-        run_id=attach_id,
+def main(attach_id: str, eval_step: int, project: str):
+    run = wandb.init(
+        id=attach_id,
+        project=project,
         settings=wandb.Settings(
             mode="async",
             console="off",
@@ -30,6 +31,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--attach_id", type=str, required=True)
+    parser.add_argument("--project", type=str, default="igena")
     parser.add_argument("--eval_step", type=int, required=True)
 
     args = parser.parse_args()
