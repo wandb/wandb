@@ -33,7 +33,7 @@ def write_gif_with_image_io(
     clip: Any, filename: str, fps: Optional[int] = None
 ) -> None:
     imageio = util.get_module(
-        "imageio",
+        "imageio" ,
         required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
     )
 
