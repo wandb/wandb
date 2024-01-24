@@ -4,7 +4,7 @@ from typing import List
 
 import nox
 
-CORE_VERSION = "0.17.0b6"
+CORE_VERSION = "0.17.0b8"
 
 
 @nox.session(python=False, name="build-core")

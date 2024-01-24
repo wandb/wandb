@@ -58,6 +58,9 @@ func main() {
 	observability.InitSentry(*noAnalytics, commit)
 	defer sentry.Flush(2)
 
+	// store commit hash in context
+	ctx = context.WithValue(ctx, observability.Commit("commit"), commit)
+
 	logger.LogAttrs(
 		ctx,
 		slog.LevelDebug,
