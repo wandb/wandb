@@ -98,7 +98,7 @@ launch = [
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
-importers = ["polars", "mlflow"]
+importers = ["polars", "rich", "filelock", "mlflow"]
 
 [tool.setuptools]
 zip-safe = false
