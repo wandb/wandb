@@ -1,6 +1,52 @@
+# 0.16.2 (Jan 9, 2024)
+
+### :magic_wand: Enhancements
+* feat(nexus): refactor store logic and add store writer by @kptkin in https://github.com/wandb/wandb/pull/6678
+* feat(nexus): add AMD GPU monitoring by @dmitryduev in https://github.com/wandb/wandb/pull/6606
+* feat(nexus): add console log file upload by @kptkin in https://github.com/wandb/wandb/pull/6669
+* feat(launch): add registry uri field to builders by @bcsherma in https://github.com/wandb/wandb/pull/6626
+* feat(core): add `wandb beta sync` feature to upload runs to W&B by @kptkin in https://github.com/wandb/wandb/pull/6620
+* feat(launch): CLI supports allow-listed queue parameters by @TimH98 in https://github.com/wandb/wandb/pull/6679
+* feat(core): add support for requirements and patch.diff by @kptkin in https://github.com/wandb/wandb/pull/6721
+* feat(core): capture SLURM-related env vars in metadata by @dmitryduev in https://github.com/wandb/wandb/pull/6710
+* feat(launch): --priority flag on `wandb launch` command to specify priority when enqueuing jobs. by @nickpenaranda in https://github.com/wandb/wandb/pull/6705
+* feat(sdk): add verify feature to wandb login by @dmitryduev in https://github.com/wandb/wandb/pull/6747
+* feat(launch): Sweeps on Launch honors selected job priority for sweep runs by @nickpenaranda in https://github.com/wandb/wandb/pull/6756
+* feat(core): 🦀 commence operation SDKrab 🦀 by @dmitryduev in https://github.com/wandb/wandb/pull/6000
+* feat(artifacts): make upload request async to support progress reporting by @jlzhao27 in https://github.com/wandb/wandb/pull/6497
+* feat(core): add TensorBoard log dir watcher by @kptkin in https://github.com/wandb/wandb/pull/6769
+* feat(core): upload wandb-summary.json and config.yaml files by @kptkin in https://github.com/wandb/wandb/pull/6781
+### :hammer: Fixes
+* fix(nexus): update error message and remove extra by @kptkin in https://github.com/wandb/wandb/pull/6667
+* fix(nexus): clean up issues with file sending by @kptkin in https://github.com/wandb/wandb/pull/6677
+* fix(core): add jitter to retry clients' backoff strategy by @dmitryduev in https://github.com/wandb/wandb/pull/6706
+* fix(artifacts): only skip file download if digest matches by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6694
+* fix(core): fix resume and add tests by @dmitryduev in https://github.com/wandb/wandb/pull/6714
+* fix(launch): capture errors from the creation of k8s job from yaml by @bcsherma in https://github.com/wandb/wandb/pull/6730
+* fix(launch): Get default entity before checking template vars by @TimH98 in https://github.com/wandb/wandb/pull/6745
+* fix(artifacts): remove run creation for artifact downloads if not using core by @ibindlish in https://github.com/wandb/wandb/pull/6746
+* fix(artifacts): Retrieve ETag for ObjectVersion instead of Object for versioned buckets by @ibindlish in https://github.com/wandb/wandb/pull/6759
+* fix(artifacts): revert #6759 and read object version etag in place  by @ibindlish in https://github.com/wandb/wandb/pull/6774
+* fix(core): put back the upload file count by @kptkin in https://github.com/wandb/wandb/pull/6767
+* fix(core): add send cancel request to sender by @dmitryduev in https://github.com/wandb/wandb/pull/6787
+* fix(core): check errors in memory monitoring by @dmitryduev in https://github.com/wandb/wandb/pull/6790
+* fix(sdk): add job_type flag in CLI to allow override of job_type  by @umakrishnaswamy in https://github.com/wandb/wandb/pull/6523
+* fix(integrations): Handle ultralytics utils import refactor by @jthetzel in https://github.com/wandb/wandb/pull/6741
+* fix(core): download artifacts with wandb-core without an active run by @dmitryduev in https://github.com/wandb/wandb/pull/6798
+* fix(sdk): fix error logging matplotlib scatter plot if the minimum version of plotly library is not met by @walkingmug in https://github.com/wandb/wandb/pull/6724
+* fix(sdk): allow overriding the default .netrc location with NETRC env var by @dmitryduev in https://github.com/wandb/wandb/pull/6708
+### :books: Docs
+* docs(sdk): Corrected description for email field by @ngrayluna in https://github.com/wandb/wandb/pull/6716
+* docs(core): update the `README-libwandb-cpp.md` doc by @NinoRisteski in https://github.com/wandb/wandb/pull/6794
+
+## New Contributors
+* @jthetzel made their first contribution in https://github.com/wandb/wandb/pull/6741
+* @walkingmug made their first contribution in https://github.com/wandb/wandb/pull/6724
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.16.1...v0.16.2
+
 # 0.16.1 (Dec 5, 2023)
 
-## What's Changed
 ### :magic_wand: Enhancements
 * perf(artifacts): remove recursive download by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6544
 * feat(nexus): add debounce summary in handler by @kptkin in https://github.com/wandb/wandb/pull/6570
@@ -38,7 +84,6 @@
 
 # 0.16.0 (Nov 7, 2023)
 
-## What's Changed
 ### :magic_wand: Enhancements
 * feat(nexus): add nested config support by @kptkin in https://github.com/wandb/wandb/pull/6417
 * feat(nexus): finish artifact saver by @szymon-piechowicz-wandb in https://github.com/wandb/wandb/pull/6296

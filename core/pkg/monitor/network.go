@@ -36,8 +36,8 @@ func NewNetwork(settings *service.Settings) *Network {
 func (n *Network) Name() string { return n.name }
 
 func (n *Network) SampleMetrics() {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
 
 	netIOCounters, err := net.IOCounters(false)
 	if err == nil {
@@ -54,8 +54,8 @@ func (n *Network) SampleMetrics() {
 }
 
 func (n *Network) AggregateMetrics() map[string]float64 {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range n.metrics {
@@ -67,8 +67,8 @@ func (n *Network) AggregateMetrics() map[string]float64 {
 }
 
 func (n *Network) ClearMetrics() {
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
 
 	n.metrics = map[string][]float64{}
 }
