@@ -27,7 +27,6 @@ async def local_process_controller(
     entity_name = config["job_set_spec"]["entity_name"]
     iter = 0
     max_concurrency = config["job_set_metadata"]["@max_concurrency"]
-    runs: Dict[str, LocalSubmittedRun] = {}
 
     if max_concurrency is None or max_concurrency == "auto":
         # detect # of cpus available
@@ -45,10 +44,8 @@ async def local_process_controller(
     mgr = LocalProcessesManager(config, job_set, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
+        await job_set.wait_for_update()
         await mgr.reconcile()
-        await asyncio.sleep(
-            5
-        )  # TODO(np): Ideally waits for job set or target resource events
         iter += 1
     logger.debug(f"[Controller {name}] Cleaning up...")
 
@@ -57,7 +54,7 @@ async def local_process_controller(
 
 
 class LocalProcessesManager:
-    """Maintains state for multiple local processes"""
+    """Maintains state for multiple local processes."""
 
     def __init__(
         self,
@@ -72,6 +69,7 @@ class LocalProcessesManager:
         self.logger = logger
         self.legacy = legacy
         self.max_concurrency = max_concurrency
+        runs: Dict[str, LocalSubmittedRun] = {}
 
         self.id = config["job_set_spec"]["name"]
         self.active_runs: Dict[str, AbstractRun] = {}
@@ -105,14 +103,22 @@ class LocalProcessesManager:
         # ensure all our owned items are running
         for item in owned_items:
             if item["id"] not in self.active_runs:
+                if item["state"] == "CLAIMED":
+                  # This can happen if the run finishes before we update the job set (ex. sub 5 second runtime)
+                  self.logger.error(f"Item {item} is CLAIMED but not in self.active_runs!")
+                  continue
                 # we own this item but it's not running
                 await self.launch_item(item)
 
         # release any items that are no longer in owned items
+        to_delete = []
         for item in self.active_runs:
             if item not in owned_items:
-                # we don't own this item anymore
-                await self.release_item(item)
+                to_delete += [item]
+
+        for item_id in to_delete:
+          # we don't own this item anymore, delete
+          await self.release_item(item_id)
 
     async def lease_next_item(self) -> Any:
         raw_items = list(self.job_set.jobs.values())
@@ -157,6 +163,6 @@ class LocalProcessesManager:
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item: Any) -> Any:
-        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
-        del self.active_runs[item]
+    async def release_item(self, item_id: str) -> Any:
+        self.logger.info(f"Releasing item: {json.dumps(item_id, indent=2)}")
+        del self.active_runs[item_id]

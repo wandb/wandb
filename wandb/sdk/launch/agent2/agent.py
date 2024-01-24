@@ -23,7 +23,6 @@ from .controller import LaunchController, LegacyResources
 from .job_set import JobSet, create_job_set
 
 
-
 class AgentConfig(TypedDict):
     entity: str
     project: str
@@ -161,6 +160,7 @@ class LaunchAgent2:
                 self._logger,
             )
             self._job_sets[q] = job_set
+            self._logger.debug(f"[Agent job_set.start_sync_loop {event_loop} ")
             job_set.start_sync_loop(event_loop)
 
             # Start a controller for each queue once job set is ready
