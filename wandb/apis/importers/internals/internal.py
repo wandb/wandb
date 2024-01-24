@@ -187,6 +187,9 @@ class RecordMaker:
                 # If this cast to string (!) is not done, the row will be dropped.
                 if (isinstance(v, float) and math.isnan(v)) or v == "NaN":
                     v = np.NaN
+                if isinstance(v, bytes):
+                    print("bytes", v)
+                    continue
                 item.value_json = json.dumps(v)
             rec = self.interface._make_record(history=history)
             yield rec
