@@ -331,7 +331,9 @@ class Image(BatchableMedia):
         assert (
             self.format in accepted_formats
         ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + "." + self.format)
+        tmp_path = os.path.join(
+            _get_media_tmp_dir().name, runid.generate_id() + "." + self.format
+        )
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
