@@ -702,6 +702,17 @@ class Api:
         """
         return public.Team.create(self, team, admin_username)
 
+    def delete_team(self, team):
+        """Delete a new team.
+
+        Arguments:
+            team: (str) The name of the team
+
+        Returns:
+            Boolean indicating success
+        """
+        return public.Team.create(self, team)
+    
     def team(self, team):
         return public.Team(self.client, team)
 

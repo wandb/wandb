@@ -54,6 +54,15 @@ class Team(Attrs):
     }
     """
     )
+    DELETE_TEAM_MUTATION = gql(
+        """
+    mutation DeleteTeam($teamName: String!) {
+        deleteTeam(input: {teamName: $teamName}) {
+            success
+        }
+    }
+    """
+    )
     CREATE_INVITE_MUTATION = gql(
         """
     mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
@@ -142,7 +151,27 @@ class Team(Attrs):
         except requests.exceptions.HTTPError:
             pass
         return Team(api.client, team)
+    
+    @classmethod
+    def delete(cls, api, team):
+        """Delete a team.
 
+        Arguments:
+            api: (`Api`) The api instance to use
+            team: (str) The name of the team
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            api.client.execute(
+                cls.DELETE_TEAM_MUTATION,
+                {"teamName": team},
+            )
+        except requests.exceptions.HTTPError:
+            pass
+        return True
+    
     def invite(self, username_or_email, admin=False):
         """Invite a user to a team.
 
