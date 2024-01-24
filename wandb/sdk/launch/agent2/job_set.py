@@ -41,7 +41,7 @@ class JobSet:
         self._lock = asyncio.Lock()
 
         self._logger = logger
-        self._jobs: Set = set()
+        self._jobs: Set = dict()
         self._ready_event = asyncio.Event()
         self._updated_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
@@ -93,7 +93,6 @@ class JobSet:
             self._jobs.clear()
             for job in self._last_state["jobs"]:
                 self._jobs[job["id"]] = job
-                # self._logger.debug(f'[JobSet {self.name or self.id}] Updated Job {job["id"]}')
         self._logger.debug(f"[JobSet {self.name or self.id}] Done.")
         self._ready_event.set()
         self._updated_event.set()

@@ -17,12 +17,14 @@ class LaunchControllerConfig(TypedDict):
     job_set_spec: JobSetSpec
     job_set_metadata: Dict[str, Any]
 
+
 @dataclass
 class LegacyResources:
     """Legacy resources for launch controllers.
 
     These may be removed/replaced in the future, but kept for now to ease migration to LA2.
     """
+
     api: Api
     builder: AbstractBuilder
     registry: AbstractRegistry
@@ -51,6 +53,7 @@ class LaunchController(Protocol):
     config.job_set_metadata["@max_concurrency"].
 
     """
+
     def __call__(
         self,
         config: LaunchControllerConfig,
@@ -58,5 +61,5 @@ class LaunchController(Protocol):
         logger: logging.Logger,
         shutdown_event: asyncio.Event,
         legacy: LegacyResources,
-        ) -> Awaitable[Any]:
+    ) -> Awaitable[Any]:
         ...

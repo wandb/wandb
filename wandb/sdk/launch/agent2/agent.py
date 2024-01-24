@@ -26,7 +26,7 @@ from .job_set import JobSet, create_job_set
 class AgentConfig(TypedDict):
     entity: str
     project: str
-    max_jobs: int # Deprecated; specified by each JobSet (see @max_concurrency metadata field)
+    max_jobs: int  # Deprecated; specified by each JobSet (see @max_concurrency metadata field)
     max_schedulers: int
     secure_mode: bool
     queues: list[str]
@@ -38,20 +38,23 @@ class AgentConfig(TypedDict):
 class PrintLogger:
     def debug(self, msg: str):
         print(msg)
+
     def info(self, msg: str):
         print(msg)
+
     def warn(self, msg: str):
         print(msg)
+
     def error(self, msg: str):
         print(msg)
+
     def fatal(self, msg: str):
         print(msg)
 
+
 class LaunchAgent2:
-    """Launch Agent v2 implementation.
+    """Launch Agent v2 implementation."""
 
-
-    """
     _instance = None
     _initialized = False
     _controller_impls: Dict[str, LaunchController] = {}
@@ -59,7 +62,7 @@ class LaunchAgent2:
     @classmethod
     def register_controller_impl(cls, queue_type: str, impl: LaunchController):
         if queue_type in cls._controller_impls:
-            return # Idempotent
+            return  # Idempotent
         cls._controller_impls[queue_type] = impl
 
     @classmethod
@@ -80,8 +83,8 @@ class LaunchAgent2:
 
         self._config = config
         self._api = api
-        self._builder = BuilderService() # TODO
-        self._registry = RegistryService() # TODO
+        self._builder = BuilderService()  # TODO
+        self._registry = RegistryService()  # TODO
         self._job_sets: Dict[str, JobSet] = {}
         self._launch_controller_tasks: Set[asyncio.Task] = set()
         self._shutdown_controllers_event = asyncio.Event()
@@ -97,10 +100,10 @@ class LaunchAgent2:
         self._logger.info(f"[Agent] Got config: {json.dumps(self._config, indent=2)}")
 
         # ensure backend supports Launch Agent v2
-        #self._logger.debug(f"[Agent ???] Checking backend for Launch Agent v2 support...")
+        # self._logger.debug(f"[Agent ???] Checking backend for Launch Agent v2 support...")
         introspection_result = self._api.job_set_introspection()
         if introspection_result is None:
-            raise NotImplementedError('Server does not support Launch Agent v2')
+            raise NotImplementedError("Server does not support Launch Agent v2")
 
         # remove project field from agent config before sending to back end
         # because otherwise it shows up in the config in the UI and confuses users
@@ -115,7 +118,7 @@ class LaunchAgent2:
             self._config["queues"],
             self._config,
             self._wandb_version,
-            True, # gorilla_agent_support
+            True,  # gorilla_agent_support
         )
         self._id = create_agent_result["launchAgentId"]
 
@@ -180,9 +183,16 @@ class LaunchAgent2:
                 environment,
                 registry,
             )
-            file_saver_factory = lambda job_id: RunQueueItemFileSaver(self._wandb_run, job_id)
-            job_tracker_factory = lambda job_id: JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
-            legacy_resources = LegacyResources(self._api, builder, registry, runner, job_tracker_factory)
+
+            def file_saver_factory(job_id):
+                return RunQueueItemFileSaver(self._wandb_run, job_id)
+
+            def job_tracker_factory(job_id):
+                return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
+
+            legacy_resources = LegacyResources(
+                self._api, builder, registry, runner, job_tracker_factory
+            )
 
             controller_task = asyncio.create_task(
                 controller_impl(
@@ -224,21 +234,23 @@ class LaunchAgent2:
             self._launch_controller_tasks.discard(task)
 
     async def shutdown(self):
-            self._logger.info(f"{LOG_PREFIX}Shutting down...")
-            # shut down all controllers
-            self._shutdown_controllers_event.set()
-            await asyncio.gather(*self._launch_controller_tasks)
-            self._logger.info(f"{LOG_PREFIX}All controllers shut down.")
+        self._logger.info(f"{LOG_PREFIX}Shutting down...")
+        # shut down all controllers
+        self._shutdown_controllers_event.set()
+        await asyncio.gather(*self._launch_controller_tasks)
+        self._logger.info(f"{LOG_PREFIX}All controllers shut down.")
 
-            # shut down all job_sets
-            for job_set in self._job_sets.values():
-                job_set.stop_sync_loop()
-            await asyncio.gather(*[job_set.wait_for_done for job_set in self._job_sets.values()])
-            self._logger.info(f"{LOG_PREFIX}All job sets shut down.")
+        # shut down all job_sets
+        for job_set in self._job_sets.values():
+            job_set.stop_sync_loop()
+        await asyncio.gather(
+            *[job_set.wait_for_done for job_set in self._job_sets.values()]
+        )
+        self._logger.info(f"{LOG_PREFIX}All job sets shut down.")
 
-            # shut down main poll loop
-            self.stop_poll_loop()
-            self._logger.info(f"{LOG_PREFIX}Main agent loop shut down.")
+        # shut down main poll loop
+        self.stop_poll_loop()
+        self._logger.info(f"{LOG_PREFIX}Main agent loop shut down.")
 
     # Agent polls for its own state
     async def _poll_loop(self):
@@ -252,7 +264,9 @@ class LaunchAgent2:
         self._logger.debug(f"[Agent {self._id}] Updating...")
         next_state = await self._fetch_agent_state()
         self._last_state = next_state
-        self._logger.debug(f"[Agent {self._id}] Updated: {json.dumps(next_state, indent=2)}")
+        self._logger.debug(
+            f"[Agent {self._id}] Updated: {json.dumps(next_state, indent=2)}"
+        )
 
     async def _fetch_agent_state(self):
         get_launch_agent = event_loop_thread_exec(self._api.get_launch_agent)
