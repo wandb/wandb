@@ -3,7 +3,6 @@ package filetransfer
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
@@ -25,9 +24,9 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	client := clients.NewRetryClient(
 		clients.WithRetryClientLogger(logger),
 		clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-		clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-		clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-		clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileTransferTimeoutSeconds().GetValue()*int32(time.Second))),
+		clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
+		clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
+		clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
 	)
 	tests := []struct {
 		name    string

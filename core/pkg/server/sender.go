@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -150,24 +151,28 @@ func NewSender(
 				return resp.StatusCode >= 400
 			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue())),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
+		headers := map[string]string{}
+		if settings.GetXShared().GetValue() {
+			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		}
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
 			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue())),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), headers),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
@@ -176,14 +181,16 @@ func NewSender(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
+			fs.WithClientId(shared.ShortID(32)),
 		)
+
 		fileTransferRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileTransferTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
