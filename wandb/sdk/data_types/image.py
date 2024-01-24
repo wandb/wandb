@@ -10,7 +10,7 @@ from wandb import util
 from wandb.sdk.lib import hashutil, runid
 from wandb.sdk.lib.paths import LogicalPath
 
-from ._private import MEDIA_TMP
+from ._private import _get_media_tmp_dir
 from .base_types.media import BatchableMedia, Media
 from .helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .helper_types.classes import Classes
@@ -331,7 +331,7 @@ class Image(BatchableMedia):
         assert (
             self.format in accepted_formats
         ), f"file_type must be one of {accepted_formats}"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + "." + self.format)
+        tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + "." + self.format)
         assert self._image is not None
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)

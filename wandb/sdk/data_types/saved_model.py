@@ -20,7 +20,7 @@ from wandb.sdk.lib import runid
 from wandb.sdk.lib.hashutil import md5_file_hex
 from wandb.sdk.lib.paths import LogicalPath
 
-from ._private import MEDIA_TMP
+from ._private import _get_media_tmp_dir
 from .base_types.wb_value import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -244,7 +244,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # Generates a tmp path under our MEDIA_TMP directory which confirms to the file
         # or folder preferences of the class.
         assert isinstance(cls._path_extension, str), "_path_extension must be a string"
-        tmp_path = os.path.abspath(os.path.join(MEDIA_TMP.name, runid.generate_id()))
+        tmp_path = os.path.abspath(
+            os.path.join(_get_media_tmp_dir().name, runid.generate_id())
+        )
         if cls._path_extension != "":
             tmp_path += "." + cls._path_extension
         return tmp_path
@@ -301,7 +303,7 @@ class _PicklingSavedModel(_SavedModel[SavedModelObjType]):
         if dep_py_files is not None and len(dep_py_files) > 0:
             self._dep_py_files = dep_py_files
             self._dep_py_files_path = os.path.abspath(
-                os.path.join(MEDIA_TMP.name, runid.generate_id())
+                os.path.join(_get_media_tmp_dir().name, runid.generate_id())
             )
             os.makedirs(self._dep_py_files_path, exist_ok=True)
             for extra_file in self._dep_py_files:

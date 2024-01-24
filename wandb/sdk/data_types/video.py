@@ -7,7 +7,7 @@ from wandb import util
 from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
-from ._private import MEDIA_TMP
+from ._private import _get_media_tmp_dir
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -100,7 +100,7 @@ class Video(BatchableMedia):
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
-                MEDIA_TMP.name, runid.generate_id() + "." + self._format
+                _get_media_tmp_dir().name, runid.generate_id() + "." + self._format
             )
             with open(filename, "wb") as f:
                 f.write(data_or_path.read())
@@ -137,7 +137,7 @@ class Video(BatchableMedia):
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
         filename = os.path.join(
-            MEDIA_TMP.name, runid.generate_id() + "." + self._format
+            _get_media_tmp_dir().name, runid.generate_id() + "." + self._format
         )
         if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}

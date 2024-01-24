@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Type, Union
 from wandb import util
 from wandb.sdk.lib import runid
 
-from .._private import MEDIA_TMP
+from .._private import _get_media_tmp_dir
 from .media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -31,7 +31,7 @@ class JSONMetadata(Media):
         self._val = val
 
         ext = "." + self.type_name() + ".json"
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ext)
+        tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + ext)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_uncompressed(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
