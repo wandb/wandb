@@ -87,6 +87,9 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
+# Job set metadata reserved keys
+PRIORITIZATION_MODE = "@prioritization_mode"
+
 
 def load_wandb_config() -> Config:
     """Load wandb config from WANDB_CONFIG environment variable(s).
