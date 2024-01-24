@@ -8,7 +8,6 @@ from wandb.sdk.launch._project_spec import (
     fetch_and_validate_project,
 )
 from wandb.sdk.launch.runner.abstract import AbstractRun
-from wandb.sdk.launch.runner.kubernetes_runner import KubernetesSubmittedRun
 
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..job_set import JobSet
