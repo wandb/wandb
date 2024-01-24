@@ -225,7 +225,7 @@ class LaunchAgent2:
     def _controller_done_callback(self, task: asyncio.Task):
         try:
             task.result()
-        except Exception as e:
+        except Exception:
             tb = traceback.format_exc()
             self._logger.error(
                 f"{LOG_PREFIX}Controller task {task} failed with exception: {tb}"

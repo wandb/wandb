@@ -183,13 +183,13 @@ def create_and_run_agent(
         agent = LaunchAgent(api, config)
     loop = asyncio.get_event_loop()
     agent_task = loop.create_task(agent.loop())
-    
+
     def done_callback():
         print("agent_task done")
         loop.stop()
-        
+
     agent_task.add_done_callback(done_callback)
-    
+
     try:
         loop.run_forever()
     except KeyboardInterrupt:
@@ -198,7 +198,7 @@ def create_and_run_agent(
     finally:
         loop.run_until_complete(agent_task)
         print("Shutdown complete. Goodbye!")
-            
+
 async def _launch(
     api: Api,
     uri: Optional[str] = None,

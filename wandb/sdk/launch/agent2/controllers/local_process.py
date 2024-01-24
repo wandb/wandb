@@ -7,6 +7,7 @@ from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
+from wandb.sdk.launch.runner.abstract import AbstractRun
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 
 from ..controller import LaunchControllerConfig, LegacyResources
