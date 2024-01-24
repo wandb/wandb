@@ -1,6 +1,5 @@
 import atexit
 import tempfile
-from typing import Optional
 
 # Staging directory, so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
