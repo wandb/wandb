@@ -188,7 +188,7 @@ class RecordMaker:
                 if (isinstance(v, float) and math.isnan(v)) or v == "NaN":
                     v = np.NaN
                 if isinstance(v, bytes):
-                    print("bytes", v)
+                    print(f">>> {k=}, {v=}, BYTES!!")
                     continue
                 item.value_json = json.dumps(v)
             rec = self.interface._make_record(history=history)
