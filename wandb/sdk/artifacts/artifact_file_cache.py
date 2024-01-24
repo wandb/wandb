@@ -41,7 +41,7 @@ class ArtifactFileCache:
         umask = int(subprocess.check_output(umask_cmd))
         self._sys_umask = umask
 
-        self._override_cache_path: Optional[str] = None
+        self._override_cache_path: Optional[StrPath] = None
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
