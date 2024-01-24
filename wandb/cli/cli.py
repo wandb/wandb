@@ -599,8 +599,8 @@ def sync_beta(
     default=None,
     help="Stream tfevent files to wandb.",
 )
-@click.option("--include-globs", help="Comma seperated list of globs to include.")
-@click.option("--exclude-globs", help="Comma seperated list of globs to exclude.")
+@click.option("--include-globs", help="Comma separated list of globs to include.")
+@click.option("--exclude-globs", help="Comma separated list of globs to exclude.")
 @click.option(
     "--include-online/--no-include-online",
     is_flag=True,
