@@ -4297,13 +4297,10 @@ class Api:
         from_version: Optional[int],
         agent_id: str,
     ):
-        print(f">>>>>> get_job_set_diff_by_id: {id}, {from_version}, {agent_id}")
         query = gql(
             """
             query getJobSetDiffByID($id: ID!, $fromVersion: Int, $agentID: ID!) {
                 jobSetDiff(id: $id, fromVersion: $fromVersion, agentID: $agentID) {
-                    id
-                    name
                     version
                     complete
                     upsertJobs {
@@ -4347,8 +4344,6 @@ class Api:
             """
             query getJobSetDiffBySpec($jobSetName: String!, $entityName: String!, $projectName: String, $fromVersion: Int, $agentID: ID!) {
                 jobSetDiff(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }, fromVersion: $fromVersion, agentID: $agentID) {
-                    id
-                    name
                     version
                     complete
                     upsertJobs {

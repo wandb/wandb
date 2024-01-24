@@ -83,8 +83,9 @@ class LocalProcessesManager:
         raw_items = list(self.job_set.jobs.values())
 
         # Dump all raw items
+        formd = {item["id"]: item["state"] for item in raw_items}
         self.logger.info(
-            f"====== Raw items ======\n{json.dumps(raw_items, indent=2)}\n======================"
+            f"====== Raw items ======\n{json.dumps(formd, indent=2)}\n======================"
         )
 
         owned_items = [
@@ -96,7 +97,7 @@ class LocalProcessesManager:
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
 
         self.logger.info(
-            f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
+          f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
         )
 
         if len(owned_items) < self.max_concurrency and len(pending_items) > 0:
@@ -118,6 +119,7 @@ class LocalProcessesManager:
 
     async def lease_next_item(self) -> Any:
         raw_items = list(self.job_set.jobs.values())
+
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
         if len(pending_items) == 0:
             return None
@@ -125,6 +127,9 @@ class LocalProcessesManager:
         sorted_items = sorted(
             pending_items, key=lambda item: (item["priority"], item["createdAt"])
         )
+
+        # self.logger.info(f"Pending items: {json.dumps(sorted_items, indent=2)}")
+
         next_item = sorted_items[0]
         self.logger.info(f"Next item: {json.dumps(next_item, indent=2)}")
         lease_result = await self.job_set.lease_job(next_item["id"])
