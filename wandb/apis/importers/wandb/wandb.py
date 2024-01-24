@@ -1494,7 +1494,7 @@ class WandbImporter:
         api = coalesce(api, self.src_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
 
-        wandb.login(key=self.src_api_key, base_url=self.src_base_url)
+        wandb.login(key=self.src_api_key, overrides={"base_url": self.src_base_url})
 
         def reports():
             for ns in namespaces:
