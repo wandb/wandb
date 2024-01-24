@@ -629,7 +629,7 @@ class Api:
 
         res = self.gql(query)
         return res.get("LaunchAgentType") or None
-    
+
     @normalize_exceptions
     def job_set_introspection(self) -> Optional[str]:
         query = gql(
@@ -4213,12 +4213,12 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
-    
+
     @normalize_exceptions
     def get_job_set_by_id(
         self,
         id: str,
-    ): 
+    ):
         query = gql(
             """
             query getJobSetById($id: ID!) {
@@ -4249,7 +4249,7 @@ class Api:
         )
 
         return response["jobSet"]
-        
+
 
     @normalize_exceptions
     def get_job_set_by_spec(
@@ -4257,7 +4257,7 @@ class Api:
         job_set_name: str,
         entity_name: str,
         project_name: Optional[str],
-    ): 
+    ):
         query = gql(
             """
             query getJobSetBySpec($jobSetName: String!, $entityName: String!, $projectName: String) {
@@ -4290,7 +4290,7 @@ class Api:
         )
 
         return response["jobSet"]
-    
+
     @normalize_exceptions
     def lease_job_set_item(
         self,
@@ -4307,16 +4307,16 @@ class Api:
             }
             """
         )
-        
+
         response = self.gql(mutation, variable_values={
             "jobSetId": job_set_id,
             "jobSetItemId": job_set_item_id,
             "agentId": agent_id,
         })
-        
+
         result: bool = response["leaseJobSetItem"]["success"]
         return result
-    
+
     @normalize_exceptions
     def ack_job_set_item(
         self,
@@ -4334,15 +4334,14 @@ class Api:
             }
             """
         )
-        
+
         response = self.gql(mutation, variable_values={
             "jobSetId": job_set_id,
             "jobSetItemId": job_set_item_id,
             "agentId": agent_id,
             "runName": run_name,
         })
-        
+
         result: bool = response["ackJobSetItem"]["success"]
         return result
-    
-    
+
