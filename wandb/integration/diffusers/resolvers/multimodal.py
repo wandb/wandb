@@ -6,6 +6,7 @@ from wandb.sdk.integration_utils.auto_logging import Response
 
 from .utils import (
     chunkify,
+    decode_sdxl_t2i_latents,
     get_updated_kwargs,
     postprocess_np_arrays_for_video,
     postprocess_pils_to_np,
@@ -552,6 +553,40 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-actions": [None, None, wandb.Image],
     },
+    "StableDiffusionXLPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Prompt-2",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "prompt_2",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, None, None],
+    },
+    "StableDiffusionXLImg2ImgPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Prompt-2",
+            "Negative-Prompt-2",
+            "Input-Image",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "prompt_2",
+            "negative_prompt_2",
+            "image",
+        ],
+        "kwarg-actions": [None, None, None, None, wandb.Image],
+    },
 }
 
 
@@ -634,7 +669,7 @@ class DiffusersMultiModalPipelineResolver:
                 )
 
             # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(response, kwargs)
+            loggable_dict = self.prepare_loggable_dict(pipeline, response, kwargs)
             return loggable_dict
         except Exception as e:
             logger.warning(e)
@@ -676,10 +711,23 @@ class DiffusersMultiModalPipelineResolver:
         """
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             try:
-                prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
-                    "kwarg-logging"
-                ].index("prompt")
-                caption = loggable_kwarg_chunks[prompt_index][idx]
+                caption = ""
+                if self.pipeline_name in [
+                    "StableDiffusionXLPipeline",
+                    "StableDiffusionXLImg2ImgPipeline",
+                ]:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    prompt2_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt_2")
+                    caption = f"Prompt-1: {loggable_kwarg_chunks[prompt_index][idx]}\nPrompt-2: {loggable_kwarg_chunks[prompt2_index][idx]}"
+                else:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    caption = loggable_kwarg_chunks[prompt_index][idx]
             except ValueError:
                 caption = None
             wandb.log(
@@ -767,11 +815,12 @@ class DiffusersMultiModalPipelineResolver:
         self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
-        self, response: Response, kwargs: Dict[str, Any]
+        self, pipeline: Any, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Prepare the loggable dictionary, which is the packed data as a dictionary for logging to wandb, None if an exception occurred.
 
         Arguments:
+            pipeline: (Any) The Diffusion Pipeline.
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
                 the request.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
@@ -781,6 +830,11 @@ class DiffusersMultiModalPipelineResolver:
         """
         # Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
         images = self.get_output_images(response)
+        if (
+            self.pipeline_name == "StableDiffusionXLPipeline"
+            and kwargs["output_type"] == "latent"
+        ):
+            images = decode_sdxl_t2i_latents(pipeline, response.images)
 
         # Account for exception pipelines for text-to-video
         if self.pipeline_name in ["TextToVideoSDPipeline", "TextToVideoZeroPipeline"]:

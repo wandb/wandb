@@ -4,9 +4,7 @@ from wandb.sdk.integration_utils.auto_logging import Response
 
 from .resolvers import (
     SUPPORTED_MULTIMODAL_PIPELINES,
-    SUPPORTED_SDXL_PIPELINES,
     DiffusersMultiModalPipelineResolver,
-    SDXLResolver,
 )
 
 
@@ -48,7 +46,5 @@ class DiffusersPipelineResolver:
                 pipeline_name, self.pipeline_call_count
             )
             self.pipeline_call_count += 1
-        elif pipeline_name in SUPPORTED_SDXL_PIPELINES:
-            resolver = SDXLResolver(pipeline_name)
         loggable_dict = resolver(args, kwargs, response, start_time, time_elapsed)
         return loggable_dict
