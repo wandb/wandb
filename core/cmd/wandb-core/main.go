@@ -8,7 +8,10 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"runtime/trace"
+	"strconv"
+	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -19,7 +22,9 @@ import (
 var commit string
 
 func init() {
-	runtime.SetBlockProfileRate(1)
+	if os.Getenv("_WANDB_TRACE") != "" {
+		runtime.SetBlockProfileRate(1)
+	}
 }
 
 func main() {
@@ -73,7 +78,9 @@ func main() {
 	)
 
 	if os.Getenv("_WANDB_TRACE") != "" {
-		f, err := os.Create("trace.out")
+		// trace.pid.time_stamp.out:
+		fileName := "trace." + strconv.Itoa(*pid) + "." + strconv.Itoa(int(time.Now().Unix())) + ".out"
+		f, err := os.Create(fileName)
 		if err != nil {
 			slog.Error("failed to create trace output file", "err", err)
 			panic(err)
@@ -91,6 +98,20 @@ func main() {
 		}
 		defer trace.Stop()
 	}
+
+	if os.Getenv("_WANDB_PROF") != "" {
+		fileName := "cpu." + strconv.Itoa(*pid) + "." + strconv.Itoa(int(time.Now().Unix())) + ".pprof"
+		f, err := os.Create(fileName)
+		if err != nil {
+			slog.Error("failed to create cpu profile file", "err", err)
+		}
+		defer f.Close()
+
+		pprof.StartCPUProfile(f)
+		runtime.SetMutexProfileFraction(1)
+		defer pprof.StopCPUProfile()
+	}
+
 	serve := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
 	serve.SetDefaultLoggerPath(loggerPath)
 	serve.Close()
