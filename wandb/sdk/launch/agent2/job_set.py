@@ -69,8 +69,8 @@ class JobSet:
         return await self._done_event.wait()
 
     async def wait_for_update(self):
-        await self._updated_event.wait()
         self._updated_event.clear()
+        await self._updated_event.wait()
 
     async def _sync_loop(self):
         while not self._shutdown_event.is_set():
