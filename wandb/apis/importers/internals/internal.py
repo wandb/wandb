@@ -187,10 +187,14 @@ class RecordMaker:
                 # If this cast to string (!) is not done, the row will be dropped.
                 if (isinstance(v, float) and math.isnan(v)) or v == "NaN":
                     v = np.NaN
+
                 if isinstance(v, bytes):
-                    print(f">>> {k=}, {v=}, BYTES!!")
-                    continue
-                item.value_json = json.dumps(v)
+                    # it's a json string encoded as bytes
+                    v = v.decode("utf-8")
+                else:
+                    v = json.dumps(v)
+
+                item.value_json = v
             rec = self.interface._make_record(history=history)
             yield rec
 
