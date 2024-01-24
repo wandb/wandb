@@ -62,6 +62,7 @@ from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
 import atexit
+
 atexit.register(wandb.sdk.data_types._private.cleanup)
 from wandb.data_types import Graph
 from wandb.data_types import Image
