@@ -1,5 +1,6 @@
 """sync."""
 
+import atexit
 import datetime
 import fnmatch
 import os
@@ -22,7 +23,6 @@ from wandb.util import check_and_warn_old
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
 TFEVENT_SUBSTRING = ".tfevents."
-TMPDIR = tempfile.TemporaryDirectory()
 
 
 class _LocalRun:
@@ -71,6 +71,8 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        atexit.register(self._tmp_dir.cleanup)
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -178,7 +180,7 @@ class SyncThread(threading.Thread):
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
-            root_dir=TMPDIR.name,
+            root_dir=self._tmp_dir.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
@@ -260,7 +262,7 @@ class SyncThread(threading.Thread):
                 tb_root, tb_logdirs, tb_event_files, sync_item
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
-            root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
+            root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
 
             # When appending we are allowing a possible resume, ie the run
             # doesnt have to exist already
