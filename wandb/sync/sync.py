@@ -1,10 +1,12 @@
 """sync."""
 
+import atexit
 import datetime
 import fnmatch
 import os
 import queue
 import sys
+import tempfile
 import threading
 import time
 from typing import List, Optional
@@ -69,6 +71,9 @@ class SyncThread(threading.Thread):
         self._log_path = log_path
         self._append = append
         self._skip_console = skip_console
+
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        atexit.register(self._tmp_dir.cleanup)
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
