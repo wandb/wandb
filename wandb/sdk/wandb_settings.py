@@ -347,6 +347,7 @@ class SettingsData:
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
+    _shared: bool
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -709,6 +710,10 @@ class Settings(SettingsData):
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
             },
+            _shared={
+                "hook": lambda _: self.mode == "shared",
+                "auto_hook": True,
+            },
             _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
                 "value": 2.0,
@@ -959,7 +964,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
+        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True

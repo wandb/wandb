@@ -91,6 +91,8 @@ type FileStream struct {
 	maxItemsPerPush int
 	delayProcess    time.Duration
 	heartbeatTime   time.Duration
+
+	clientId string
 }
 
 type FileStreamOption func(fs *FileStream)
@@ -122,6 +124,15 @@ func WithHttpClient(client *retryablehttp.Client) FileStreamOption {
 func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
 	return func(fs *FileStream) {
 		fs.maxItemsPerPush = maxItemsPerPush
+	}
+}
+
+func WithClientId(clientId string) FileStreamOption {
+	// TODO: this should be the default behavior in the future
+	return func(fs *FileStream) {
+		if fs.settings.GetXShared().GetValue() {
+			fs.clientId = clientId
+		}
 	}
 }
 
