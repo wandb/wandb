@@ -1677,6 +1677,7 @@ class Artifact:
         self,
         root: Optional[str] = None,
         allow_missing_references: bool = False,
+        skip_cache: Optional[bool] = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1706,6 +1707,7 @@ class Artifact:
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
         )
 
     def _download_using_core(
@@ -1778,6 +1780,7 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: Optional[bool] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
         require_core = get_core_path() != ""
@@ -1806,7 +1809,7 @@ class Artifact:
             _thread_local_api_settings.headers = headers
 
             try:
-                entry.download(root)
+                entry.download(root, skip_cache=skip_cache)
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
