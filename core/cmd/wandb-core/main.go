@@ -107,7 +107,10 @@ func main() {
 		}
 		defer f.Close()
 
-		pprof.StartCPUProfile(f)
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			slog.Error("failed to start cpu profile", "err", err)
+		}
 		runtime.SetMutexProfileFraction(1)
 		defer pprof.StopCPUProfile()
 	}
