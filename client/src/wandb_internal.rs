@@ -88,44 +88,18 @@ pub struct Settings {
     pub disable_stats: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "11")]
     pub disable_viewer: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "158")]
-    pub disable_machine_info: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "12")]
     pub except_exit: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "13")]
     pub executable: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "14")]
     pub extra_http_headers: ::core::option::Option<MapStringKeyStringValue>,
-    #[prost(message, optional, tag = "200")]
-    pub proxies: ::core::option::Option<MapStringKeyStringValue>,
-    #[prost(message, optional, tag = "147")]
-    pub file_stream_retry_max: ::core::option::Option<i32>,
-    #[prost(message, optional, tag = "148")]
-    pub file_stream_retry_wait_min_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "149")]
-    pub file_stream_retry_wait_max_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "15")]
     pub file_stream_timeout_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "150")]
-    pub file_transfer_retry_max: ::core::option::Option<i32>,
-    #[prost(message, optional, tag = "151")]
-    pub file_transfer_retry_wait_min_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "152")]
-    pub file_transfer_retry_wait_max_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "153")]
-    pub file_transfer_timeout_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "16")]
     pub flow_control_custom: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "17")]
     pub flow_control_disabled: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "154")]
-    pub graphql_retry_max: ::core::option::Option<i32>,
-    #[prost(message, optional, tag = "155")]
-    pub graphql_retry_wait_min_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "156")]
-    pub graphql_retry_wait_max_seconds: ::core::option::Option<f64>,
-    #[prost(message, optional, tag = "157")]
-    pub graphql_timeout_seconds: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "18")]
     pub internal_check_process: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "19")]
@@ -134,10 +108,6 @@ pub struct Settings {
     pub ipython: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "21")]
     pub jupyter: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "143")]
-    pub jupyter_name: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "144")]
-    pub jupyter_path: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "22")]
     pub jupyter_root: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "23")]
@@ -194,10 +164,6 @@ pub struct Settings {
     pub stats_open_metrics_endpoints: ::core::option::Option<MapStringKeyStringValue>,
     #[prost(message, optional, tag = "48")]
     pub stats_open_metrics_filters: ::core::option::Option<OpenMetricsFilters>,
-    #[prost(message, optional, tag = "146")]
-    pub stats_disk_paths: ::core::option::Option<ListStringValue>,
-    #[prost(message, optional, tag = "161")]
-    pub stats_buffer_size: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "49")]
     pub tmp_code_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "50")]
@@ -220,8 +186,6 @@ pub struct Settings {
     pub code_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "59")]
     pub config_paths: ::core::option::Option<ListStringValue>,
-    #[prost(message, optional, tag = "160")]
-    pub colab_url: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "60")]
     pub console: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "61")]
@@ -264,8 +228,6 @@ pub struct Settings {
     pub init_timeout: ::core::option::Option<f64>,
     #[prost(message, optional, tag = "80")]
     pub is_local: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "145")]
-    pub job_name: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "81")]
     pub job_source: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "82")]
@@ -294,8 +256,6 @@ pub struct Settings {
     pub problem: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "95")]
     pub program: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "159")]
-    pub program_abspath: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "96")]
     pub program_relpath: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "97")]
@@ -390,6 +350,48 @@ pub struct Settings {
     pub username: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "142")]
     pub wandb_dir: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "143")]
+    pub jupyter_name: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "144")]
+    pub jupyter_path: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "145")]
+    pub job_name: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "146")]
+    pub stats_disk_paths: ::core::option::Option<ListStringValue>,
+    #[prost(message, optional, tag = "147")]
+    pub file_stream_retry_max: ::core::option::Option<i32>,
+    #[prost(message, optional, tag = "148")]
+    pub file_stream_retry_wait_min_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "149")]
+    pub file_stream_retry_wait_max_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "150")]
+    pub file_transfer_retry_max: ::core::option::Option<i32>,
+    #[prost(message, optional, tag = "151")]
+    pub file_transfer_retry_wait_min_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "152")]
+    pub file_transfer_retry_wait_max_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "153")]
+    pub file_transfer_timeout_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "154")]
+    pub graphql_retry_max: ::core::option::Option<i32>,
+    #[prost(message, optional, tag = "155")]
+    pub graphql_retry_wait_min_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "156")]
+    pub graphql_retry_wait_max_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "157")]
+    pub graphql_timeout_seconds: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "158")]
+    pub disable_machine_info: ::core::option::Option<bool>,
+    #[prost(message, optional, tag = "159")]
+    pub program_abspath: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "160")]
+    pub colab_url: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "161")]
+    pub stats_buffer_size: ::core::option::Option<i32>,
+    #[prost(message, optional, tag = "162")]
+    pub shared: ::core::option::Option<bool>,
+    #[prost(message, optional, tag = "200")]
+    pub proxies: ::core::option::Option<MapStringKeyStringValue>,
 }
 ///
 /// Telemetry
