@@ -13,6 +13,7 @@ serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
 
+import atexit
 import base64
 import binascii
 import codecs
@@ -22,7 +23,6 @@ import json
 import logging
 import os
 import pprint
-import tempfile
 from decimal import Decimal
 from typing import Optional
 
@@ -31,6 +31,7 @@ from wandb import util
 from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
+from .sdk.data_types._private import _get_media_tmp_dir
 from .sdk.data_types.base_types.media import (
     BatchableMedia,
     Media,
@@ -75,11 +76,6 @@ __all__ = [
     "BoundingBoxes2D",
     "Classes",
 ]
-
-
-# Staging directory, so we can encode raw data into files, then hash them before
-# we put them into the Run directory to be uploaded.
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
 class _TableLinkMixin:
@@ -536,7 +532,7 @@ class Table(Media):
         # this code path will be ultimately removed. The 10k limit warning confuses
         # users given that we publicly say 200k is the limit.
         data = self._to_table_json(warn=False)
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".table.json")
+        tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
@@ -671,7 +667,7 @@ class Table(Media):
                         required="Serializing numpy requires numpy to be installed",
                     )
                     file_name = f"{str(col_name)}_{runid.generate_id()}.npz"
-                    npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+                    npz_file_name = os.path.join(_get_media_tmp_dir().name, file_name)
                     np.savez_compressed(
                         npz_file_name,
                         **{
@@ -1087,7 +1083,7 @@ class Audio(BatchableMedia):
                 required='Raw audio requires the soundfile package. To get it, run "pip install soundfile"',
             )
 
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".wav")
+            tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + ".wav")
             soundfile.write(tmp_path, data_or_path, sample_rate)
             self._duration = len(data_or_path) / float(sample_rate)
 
@@ -1361,7 +1357,7 @@ class Bokeh(Media):
             if "references" in b_json["roots"]:
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".bokeh.json")
+            tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + ".bokeh.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
@@ -1442,7 +1438,7 @@ class Graph(Media):
 
     def bind_to_run(self, *args, **kwargs):
         data = self._to_graph_json()
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".graph.json")
+        tmp_path = os.path.join(_get_media_tmp_dir().name, runid.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(data, fp)
