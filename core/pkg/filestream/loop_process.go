@@ -69,6 +69,15 @@ func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
 }
 
 func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
+	// when logging to the same run with multiple writers, we need to
+	// add a client id to the history record
+	if fs.clientId != "" {
+		msg.Item = append(msg.Item, &service.HistoryItem{
+			Key:       "_client_id",
+			ValueJson: fmt.Sprintf(`"%s"`, fs.clientId),
+		})
+	}
+
 	line, err := corelib.JsonifyItems(msg.Item)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
