@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.sdk.launch.agent2.job_set import JobSet
 
 
 class AbstractQueueDriver(ABC):

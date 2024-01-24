@@ -4393,14 +4393,11 @@ class Api:
             """
         )
 
-        response = self.gql(
-            mutation,
-            variable_values={
-                "jobSetId": job_set_id,
-                "jobSetItemId": job_set_item_id,
-                "agentId": agent_id,
-            },
-        )
+        response = self.gql(mutation, variable_values={
+            "jobSetId": job_set_id,
+            "jobSetItemId": job_set_item_id,
+            "agentId": agent_id,
+        })
 
         result: bool = response["leaseJobSetItem"]["success"]
         return result
@@ -4423,15 +4420,13 @@ class Api:
             """
         )
 
-        response = self.gql(
-            mutation,
-            variable_values={
-                "jobSetId": job_set_id,
-                "jobSetItemId": job_set_item_id,
-                "agentId": agent_id,
-                "runName": run_name,
-            },
-        )
+        response = self.gql(mutation, variable_values={
+            "jobSetId": job_set_id,
+            "jobSetItemId": job_set_item_id,
+            "agentId": agent_id,
+            "runName": run_name,
+        })
 
         result: bool = response["ackJobSetItem"]["success"]
         return result
+

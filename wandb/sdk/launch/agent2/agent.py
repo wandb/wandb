@@ -3,9 +3,10 @@ import json
 import sys
 import traceback
 from typing import Any, Dict, Optional, Set, TypedDict
-import wandb
 
+import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch import loader
 from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
@@ -16,10 +17,11 @@ from wandb.sdk.launch.utils import (
     PROJECT_SYNCHRONOUS,
     event_loop_thread_exec,
 )
-from wandb.sdk.launch import loader
+
+from .builder import BuilderService
 from .controller import LaunchController, LegacyResources
 from .job_set import JobSet, create_job_set
-from .builder import BuilderService
+
 
 
 class AgentConfig(TypedDict):
@@ -110,7 +112,7 @@ class LaunchAgent2:
         if "project" in trimmed_config:
             del trimmed_config["project"]
 
-        self._logger.debug(f"[Agent ???] Registering agent...")
+        self._logger.debug("[Agent ???] Registering agent...")
         create_agent_result = self._api.create_launch_agent(
             self._config["entity"],
             self._config["project"],
@@ -183,15 +185,16 @@ class LaunchAgent2:
                 environment,
                 registry,
             )
-            file_saver_factory = lambda job_id: RunQueueItemFileSaver(
-                self._wandb_run, job_id
-            )
-            job_tracker_factory = lambda job_id: JobAndRunStatusTracker(
-                job_id, q, file_saver_factory(job_id)
-            )
+
+            def file_saver_factory(job_id):
+                return RunQueueItemFileSaver(self._wandb_run, job_id)
+
+            def job_tracker_factory(job_id):
+                return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
+
             legacy_resources = LegacyResources(
                 self._api, builder, registry, runner, job_tracker_factory
-            )  # todo factor out api (?)
+            )
 
             controller_task = asyncio.create_task(
                 controller_impl(
@@ -220,7 +223,7 @@ class LaunchAgent2:
     def _controller_done_callback(self, task: asyncio.Task):
         try:
             task.result()
-        except Exception as e:
+        except Exception:
             tb = traceback.format_exc()
             self._logger.error(
                 f"{LOG_PREFIX}Controller task {task} failed with exception: {tb}"

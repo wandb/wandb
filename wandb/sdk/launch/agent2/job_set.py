@@ -50,7 +50,7 @@ class JobSet:
         self._lock = asyncio.Lock()
 
         self._logger = logger
-        self._jobs: Dict = {}
+        self._jobs: Dict = dict()
         self._ready_event = asyncio.Event()
         self._updated_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()

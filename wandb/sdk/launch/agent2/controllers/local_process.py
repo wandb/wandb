@@ -1,18 +1,15 @@
-from ast import Not
 import asyncio
-import logging
 import json
+import logging
 from typing import Any, Awaitable, Dict
 
-# from flask.scaffold import F
-from wandb.sdk.launch.runner.abstract import AbstractRun, AbstractRunner
-
-from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
-from wandb.sdk.launch.utils import event_loop_thread_exec
+from wandb.sdk.launch.runner.abstract import AbstractRun
+from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..job_set import JobSet
 
@@ -97,7 +94,7 @@ class LocalProcessesManager:
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
 
         self.logger.info(
-          f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
+            f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
         )
 
         if len(owned_items) < self.max_concurrency and len(pending_items) > 0:
@@ -112,14 +109,13 @@ class LocalProcessesManager:
                 await self.launch_item(item)
 
         # release any items that are no longer in owned items
-        for item_id in self.active_runs:
-            if item_id not in owned_items:
+        for item in self.active_runs:
+            if item not in owned_items:
                 # we don't own this item anymore
-                await self.release_item(item_id)
+                await self.release_item(item)
 
     async def lease_next_item(self) -> Any:
         raw_items = list(self.job_set.jobs.values())
-
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
         if len(pending_items) == 0:
             return None
@@ -127,9 +123,6 @@ class LocalProcessesManager:
         sorted_items = sorted(
             pending_items, key=lambda item: (item["priority"], item["createdAt"])
         )
-
-        # self.logger.info(f"Pending items: {json.dumps(sorted_items, indent=2)}")
-
         next_item = sorted_items[0]
         self.logger.info(f"Next item: {json.dumps(next_item, indent=2)}")
         lease_result = await self.job_set.lease_job(next_item["id"])
@@ -147,11 +140,10 @@ class LocalProcessesManager:
         project.queue_name = self.config["job_set_spec"]["name"]
         project.queue_entity = self.config["job_set_spec"]["entity_name"]
         project.run_queue_item_id = item["id"]
+        project = fetch_and_validate_project(project, self.legacy.api)
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
-        project = fetch_and_validate_project(project, self.legacy.api)
-        run_id = project.run_id
 
         run = await self.legacy.runner.run(project, project.docker_image)
         if not run:
@@ -165,6 +157,6 @@ class LocalProcessesManager:
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item_id: str) -> Any:
-        self.logger.info(f"Releasing item: {json.dumps(item_id, indent=2)}")
-        del self.active_runs[item_id]
+    async def release_item(self, item: Any) -> Any:
+        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
+        del self.active_runs[item]

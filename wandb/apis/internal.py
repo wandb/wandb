@@ -208,7 +208,7 @@ class Api:
 
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
-    
+
     def job_set_introspection(self, *args, **kwargs):
         return self.api.job_set_introspection(*args, **kwargs)
 
@@ -226,7 +226,7 @@ class Api:
 
     def stop_run(self, *args, **kwargs):
         return self.api.stop_run(*args, **kwargs)
-    
+
     def get_job_set_by_id(self, *args, **kwargs):
         return self.api.get_job_set_by_id(*args, **kwargs)
 
@@ -241,7 +241,7 @@ class Api:
    
     def lease_job_set_item(self, *args, **kwargs):
         return self.api.lease_job_set_item(*args, **kwargs)
-    
+
     def ack_job_set_item(self, *args, **kwargs):
         return self.api.ack_job_set_item(*args, **kwargs)
 

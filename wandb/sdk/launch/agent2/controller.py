@@ -1,6 +1,6 @@
 import asyncio
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Protocol, TypedDict
 
 from wandb.apis.internal import Api
