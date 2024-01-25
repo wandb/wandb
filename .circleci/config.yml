@@ -1780,11 +1780,11 @@ workflows:
             - run:
                 name: Run Tests
                 command: |
-                  tox run -ve <<matrix.toxenv>> -- <<matrix.tox_args>>
+                  tox run -ve <<toxenv>> -- <<tox_args>>
             - run:
                 name: Upload coverage to codecov
                 command: |
-                  nox -s codecov -- << matrix.codecov_args >>
+                  nox -s codecov -- << codecov_args >>
 
       #
       # wandb launch tests
