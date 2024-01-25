@@ -330,3 +330,79 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     print(f"Successfully copied image {target_image}")
+
+
+@nox.session(python=False, name="proto-go")
+def proto_go(session: nox.Session) -> None:
+    """Generates the go protobuf code from the protobuf files in core/proto."""
+    # get the files current location
+    session.cd("core")
+    session.run(
+        "scripts/generate-proto.sh",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="proto-py")
+def proto_py(session: nox.Session) -> None:
+    """Generates the python protobuf code from the protobuf files in core/proto."""
+    # get the files current location
+    session.cd("wandb/proto")
+    session.run(
+        "python",
+        "wandb_internal_codegen.py",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="proto-rs")
+def proto_rs(session: nox.Session) -> None:
+    """Generates the rust protobuf code from the protobuf files in core/proto."""
+    # get the files current location
+    session.cd("client")
+    session.run(
+        "cargo",
+        "build",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="proto")
+def proto(session: nox.Session) -> None:
+    """Generates the protobuf code from the protobuf files in core/proto."""
+    session.notify("proto-go")
+    # TODO fix proto-py to generate both versions 3 and 4
+    session.notify("proto-py")
+    session.notify("proto-rs")
+
+
+@nox.session(python=False, name="mypy")
+def mypy(session: nox.Session) -> None:
+    """Runs mypy on the wandb module."""
+    session.run(
+        "mypy",
+        "--install-types",
+        "--non-interactive",
+        "--show-error-codes",
+        "--config-file",
+        "pyproject.toml",
+        "-p",
+        "wandb",
+        "--html-report",
+        "mypy-results/",
+        "--cobertura-xml-report",
+        "mypy-results/",
+        "--lineprecision-report",
+        "mypy-results/",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="ruff")
+def ruff(session: nox.Session) -> None:
+    """Runs ruff on the wandb module."""
+    session.run(
+        "ruff",
+        "format",
+        external=True,
+    )

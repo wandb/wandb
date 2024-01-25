@@ -717,7 +717,7 @@ def user_factory(worker_id: str, wandb_debug) -> str:
 def fixture_fn_factory():
     def _fixture_fn_factory(settings):
         def fixture_util(
-            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser],
         ) -> bool:
             base_url = settings.base_url
             endpoint = urllib.parse.urljoin(

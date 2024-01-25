@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
-use std::{cmp::min, fmt::Write};
+use std::{fmt::Write};
 
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 

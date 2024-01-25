@@ -292,7 +292,7 @@ class BatchableMedia(Media):
 
 
 def _numpy_arrays_to_lists(
-    payload: Union[dict, Sequence, "np.ndarray"]
+    payload: Union[dict, Sequence, "np.ndarray"],
 ) -> Union[Sequence, dict, str, int, float, bool]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 

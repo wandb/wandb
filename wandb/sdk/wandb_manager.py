@@ -5,7 +5,7 @@ Create a manager channel.
 
 import atexit
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import psutil
 
@@ -205,7 +205,7 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_start(settings=settings, run_id=run_id)
 
-    def _inform_attach(self, attach_id: str) -> Optional[Dict[str, Any]]:
+    def _inform_attach(self, attach_id: str) -> Optional["wandb_settings_pb2.Settings"]:
         svc_iface = self._get_service_interface()
         try:
             response = svc_iface._svc_inform_attach(attach_id=attach_id)

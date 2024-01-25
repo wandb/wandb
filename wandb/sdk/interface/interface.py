@@ -411,7 +411,7 @@ class InterfaceBase:
             job_info=job_info,
             metadata=metadata,
         )
-        use_artifact.partial.source_info.source.ParseFromString(src_str)
+        use_artifact.partial.source_info.source.ParseFromString(src_str)  # type: ignore
 
         return use_artifact
 

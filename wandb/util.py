@@ -840,7 +840,7 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence]
+    v: Union[int, float, str, Mapping, Sequence],
 ) -> Union[int, float, str]:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
@@ -1782,7 +1782,7 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def remove_keys_with_none_values(
-    d: Union[Dict[str, Any], Any]
+    d: Union[Dict[str, Any], Any],
 ) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
