@@ -307,21 +307,21 @@ class SettingsData:
     _extra_http_headers: Mapping[str, str]
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
-    _file_stream_retry_wait_min_seconds: int  # min wait time between retries
-    _file_stream_retry_wait_max_seconds: int  # max wait time between retries
-    _file_stream_timeout_seconds: int  # timeout for individual HTTP requests
+    _file_stream_retry_wait_min_seconds: float  # min wait time between retries
+    _file_stream_retry_wait_max_seconds: float  # max wait time between retries
+    _file_stream_timeout_seconds: float  # timeout for individual HTTP requests
     # file transfer retry client configuration
     _file_transfer_retry_max: int
-    _file_transfer_retry_wait_min_seconds: int
-    _file_transfer_retry_wait_max_seconds: int
-    _file_transfer_timeout_seconds: int
+    _file_transfer_retry_wait_min_seconds: float
+    _file_transfer_retry_wait_max_seconds: float
+    _file_transfer_timeout_seconds: float
     _flow_control_custom: bool
     _flow_control_disabled: bool
     # graphql retry client configuration
     _graphql_retry_max: int
-    _graphql_retry_wait_min_seconds: int
-    _graphql_retry_wait_max_seconds: int
-    _graphql_timeout_seconds: int
+    _graphql_retry_wait_min_seconds: float
+    _graphql_retry_wait_max_seconds: float
+    _graphql_timeout_seconds: float
     _internal_check_process: float
     _internal_queue_timeout: float
     _ipython: bool
@@ -347,6 +347,7 @@ class SettingsData:
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
+    _shared: bool
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
@@ -649,14 +650,14 @@ class Settings(SettingsData):
             #             = 7200 / 60 + ceil(log2(60/2))
             #             = 120 + 5
             _file_stream_retry_max={"value": 125, "preprocessor": int},
-            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
+            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": float},
+            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": float},
             # A 3 minute timeout for all filestream post requests
-            _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
+            _file_stream_timeout_seconds={"value": 180, "preprocessor": float},
             _file_transfer_retry_max={"value": 20, "preprocessor": int},
-            _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            _file_transfer_timeout_seconds={"value": 0, "preprocessor": int},
+            _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": float},
+            _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": float},
+            _file_transfer_timeout_seconds={"value": 0, "preprocessor": float},
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -666,9 +667,9 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _graphql_retry_max={"value": 20, "preprocessor": int},
-            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            _graphql_timeout_seconds={"value": 30.0, "preprocessor": int},
+            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": float},
+            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": float},
+            _graphql_timeout_seconds={"value": 30.0, "preprocessor": float},
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
@@ -708,6 +709,10 @@ class Settings(SettingsData):
                 "value": 30,
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
+            },
+            _shared={
+                "hook": lambda _: self.mode == "shared",
+                "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
@@ -959,7 +964,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
+        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True

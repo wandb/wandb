@@ -29,6 +29,11 @@ Note: ensure you have `wandb>=0.16.1`.
 
 For other platforms, build `wandb-core` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
 
+### W&B Server Compatibility
+
+`wandb-core` is compatible with our production and dedicated cloud deployments as well as
+[W&B Server](https://docs.wandb.ai/guides/hosting) versions `>=0.40.0`.
+
 ### Switching Back to the Old SDK Backend
 
 To revert to the old SDK backend, simply uninstall `wandb-core` from your environment:
@@ -46,7 +51,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b5`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b8`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -78,7 +83,7 @@ Status legend:
 |             | offline mode      | ✅               |
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
-|             | TensorBoard sync  | ❌               |
+|             | TensorBoard sync  | 🚧[^E.1]         |
 |             | console logging   | ✅[^E.8]         |
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
@@ -89,20 +94,21 @@ Status legend:
 |             | team entity       | ✅               |
 |             | service account   | 🚧              |
 | CLI         |                   |                 |
-|             | sync              | ✅[^E.1][^CLI.1] |
-|             | <other commands>  | 🚧[^CLI.2]      |
+|             | `sync`            | ✅[^E.1][^CLI.1] |
+|             | `<other commands>`| 🚧[^CLI.2]      |
 | Artifacts   |                   | ✅               |
-| Launch      |                   | ❌[^L.1]         |
-| Sweeps      |                   | 🚧[^S.1]        |
+| Sweeps      |                   | ✅               |
+| Launch      |                   | ✅               |
+|             | Sweeps on Launch  | 🚧[^L.1]         |
 
-[^E.1]: `sync_tensorboard` requires TensorBoard sync support.
+[^E.1]: `sync_tensorboard` only uploads `tfevent` files to W&B, but
+    metrics will not be logged in native W&B charts.
 [^E.5]: `define_metric` only supports default summary.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
-[^E.12]: TODO: list unsupported settings.
+[^E.12]: Unsupported settings:
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Launch is not yet supported.
-[^S.1]: Requires verification.
+[^L.1]: Swweps on Launch requires verification.

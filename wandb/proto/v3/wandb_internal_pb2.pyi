@@ -263,6 +263,34 @@ class FinalRecord(google.protobuf.message.Message):
 
 global___FinalRecord = FinalRecord
 
+class VersionInfo(google.protobuf.message.Message):
+    """
+    Version definition
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    PRODUCER_FIELD_NUMBER: builtins.int
+    MIN_CONSUMER_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    producer: builtins.str
+    """The version of the SDK backend that produced the data"""
+    min_consumer: builtins.str
+    """Minimum version of the wandb server that can read the data"""
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        producer: builtins.str = ...,
+        min_consumer: builtins.str = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "min_consumer", b"min_consumer", "producer", b"producer"]) -> None: ...
+
+global___VersionInfo = VersionInfo
+
 class HeaderRecord(google.protobuf.message.Message):
     """
     HeaderRecord
@@ -270,16 +298,20 @@ class HeaderRecord(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    VERSION_INFO_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def version_info(self) -> global___VersionInfo: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
+        version_info: global___VersionInfo | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "version_info", b"version_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "version_info", b"version_info"]) -> None: ...
 
 global___HeaderRecord = HeaderRecord
 
@@ -1045,20 +1077,40 @@ class FilesItem(google.protobuf.message.Message):
     END: FilesItem.PolicyType.ValueType  # 1
     LIVE: FilesItem.PolicyType.ValueType  # 2
 
+    class _FileType:
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
+
+    class _FileTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._FileType.ValueType], builtins.type):  # noqa: F821
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+        OTHER: FilesItem._FileType.ValueType  # 0
+        WANDB: FilesItem._FileType.ValueType  # 1
+        MEDIA: FilesItem._FileType.ValueType  # 2
+        ARTIFACT: FilesItem._FileType.ValueType  # 3
+
+    class FileType(_FileType, metaclass=_FileTypeEnumTypeWrapper): ...
+    OTHER: FilesItem.FileType.ValueType  # 0
+    WANDB: FilesItem.FileType.ValueType  # 1
+    MEDIA: FilesItem.FileType.ValueType  # 2
+    ARTIFACT: FilesItem.FileType.ValueType  # 3
+
     PATH_FIELD_NUMBER: builtins.int
     POLICY_FIELD_NUMBER: builtins.int
+    TYPE_FIELD_NUMBER: builtins.int
     EXTERNAL_PATH_FIELD_NUMBER: builtins.int
     path: builtins.str
     policy: global___FilesItem.PolicyType.ValueType
+    type: global___FilesItem.FileType.ValueType
     external_path: builtins.str
     def __init__(
         self,
         *,
         path: builtins.str = ...,
         policy: global___FilesItem.PolicyType.ValueType = ...,
+        type: global___FilesItem.FileType.ValueType = ...,
         external_path: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["external_path", b"external_path", "path", b"path", "policy", b"policy"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["external_path", b"external_path", "path", b"path", "policy", b"policy", "type", b"type"]) -> None: ...
 
 global___FilesItem = FilesItem
 

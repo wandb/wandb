@@ -66,13 +66,14 @@ def test_calls_commit_on_success():
         file_pusher=pusher,
     )
 
-    saver.save(
+    _, fut = saver.save(
         type="my-type",
         name="my-name",
         client_id="my-client-id",
         sequence_client_id="my-sequence-client-id",
     )
 
+    fut.result()
     api.commit_artifact.assert_called_once()
 
 
@@ -89,13 +90,15 @@ class TestReraisesErr:
             file_pusher=pusher,
         )
 
-        saver.save(
+        _, fut = saver.save(
             type="my-type",
             name="my-name",
             client_id="my-client-id",
             sequence_client_id="my-sequence-client-id",
             use_after_commit=True,
         )
+
+        fut.result()
 
     def test_use_artifact_err_reraised(self):
         exc = Exception("test-exc")

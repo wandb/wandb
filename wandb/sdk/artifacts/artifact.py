@@ -1,4 +1,5 @@
 """Artifact class."""
+import atexit
 import concurrent.futures
 import contextlib
 import json
@@ -61,7 +62,9 @@ from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
+from wandb.sdk.lib.runid import generate_id
 from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
@@ -71,7 +74,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from wandb.sdk.interface.message_future import MessageFuture
+    from wandb.sdk.lib.mailbox import MailboxHandle
 
 
 class Artifact:
@@ -111,6 +114,7 @@ class Artifact:
     """
 
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+    atexit.register(_TMP_DIR.cleanup)
 
     def __init__(
         self,
@@ -147,7 +151,7 @@ class Artifact:
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_future: Optional[MessageFuture] = None
+        self._save_handle: Optional["MailboxHandle"] = None
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -709,7 +713,7 @@ class Artifact:
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_future is not None
+        return self._save_handle is not None
 
     def save(
         self,
@@ -752,10 +756,10 @@ class Artifact:
         else:
             wandb.run.log_artifact(self)
 
-    def _set_save_future(
-        self, save_future: "MessageFuture", client: RetryingClient
+    def _set_save_handle(
+        self, save_handle: "MailboxHandle", client: RetryingClient
     ) -> None:
-        self._save_future = save_future
+        self._save_handle = save_handle
         self._client = client
 
     def wait(self, timeout: Optional[int] = None) -> "Artifact":
@@ -765,9 +769,13 @@ class Artifact:
             timeout: Wait up to this long.
         """
         if self.is_draft():
-            if self._save_future is None:
+            if self._save_handle is None:
                 raise ArtifactNotLoggedError(self, "wait")
-            result = self._save_future.get(timeout)
+
+            if timeout is None:
+                timeout = -1
+            termlog(f"Waiting for artifact {self.name} to be committed...")
+            result = self._save_handle.wait(timeout=timeout)
             if not result:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
@@ -776,6 +784,8 @@ class Artifact:
             if response.error_message:
                 raise ValueError(response.error_message)
             self._populate_after_save(response.artifact_id)
+            termlog(prefix=False, newline=True)
+            termlog(f"Committed artifact {self.qualified_name}")
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
@@ -1669,6 +1679,7 @@ class Artifact:
         self,
         root: Optional[str] = None,
         allow_missing_references: bool = False,
+        skip_cache: Optional[bool] = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1691,25 +1702,14 @@ class Artifact:
         self._add_download_root(root)
 
         if get_core_path() != "":
-            if wandb.run is None:
-                with wandb.init(  # type: ignore
-                    entity=self._source_entity,
-                    project=self._source_project,
-                    job_type="auto",
-                    settings=wandb.Settings(silent="true"),
-                ):
-                    return self._download_using_core(
-                        root=root,
-                        allow_missing_references=allow_missing_references,
-                    )
-            else:
-                return self._download_using_core(
-                    root=root,
-                    allow_missing_references=allow_missing_references,
-                )
+            return self._download_using_core(
+                root=root,
+                allow_missing_references=allow_missing_references,
+            )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
         )
 
     def _download_using_core(
@@ -1717,36 +1717,72 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
     ) -> FilePathStr:
-        assert wandb.run is not None, "failed to initialize run"
-        run = wandb.run
-        if not run._backend or not run._backend.interface:
-            raise NotImplementedError
-        if run._settings._offline:
-            raise NotImplementedError("cannot download in offline mode")
-        assert self.id is not None
-        handle = run._backend.interface.deliver_download_artifact(
-            self.id,
+        import pathlib
+
+        from wandb.sdk.backend.backend import Backend
+
+        if wandb.run is None:
+            # ensure wandb-core is up and running
+            wl = wandb.sdk.wandb_setup.setup()
+            assert wl is not None
+
+            stream_id = generate_id()
+
+            settings = wl.settings.to_proto()
+            # TODO: remove this
+            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            settings.sync_dir.value = str(tmp_dir)
+            settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
+            settings.files_dir.value = str(tmp_dir / "files")
+            settings.run_id.value = stream_id
+
+            manager = wl._get_manager()
+            manager._inform_init(settings=settings, run_id=stream_id)
+
+            mailbox = Mailbox()
+            backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
+            backend.ensure_launched()
+
+            assert backend.interface
+            backend.interface._stream_id = stream_id  # type: ignore
+
+            mailbox.enable_keepalive()
+        else:
+            assert wandb.run._backend
+            backend = wandb.run._backend
+
+        assert backend.interface
+        handle = backend.interface.deliver_download_artifact(
+            self.id,  # type: ignore
             root,
             allow_missing_references,
         )
-        # Start the download process in the user process too, to handle reference downloads
+        # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
         )
         result = handle.wait(timeout=-1)
+
         if result is None:
             handle.abandon()
         assert result is not None
         response = result.response.download_artifact_response
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
+
+        if wandb.run is None:
+            backend.cleanup()
+            # TODO: remove this
+            shutil.rmtree(tmp_dir)
+
         return FilePathStr(root)
 
     def _download(
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: Optional[bool] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
         require_core = get_core_path() != ""
@@ -1775,7 +1811,7 @@ class Artifact:
             _thread_local_api_settings.headers = headers
 
             try:
-                entry.download(root)
+                entry.download(root, skip_cache=skip_cache)
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))

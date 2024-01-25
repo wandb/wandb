@@ -1,9 +1,10 @@
 import os
 import platform
+from typing import List
 
 import nox
 
-CORE_VERSION = "0.17.0b5"
+CORE_VERSION = "0.17.0b8"
 
 
 @nox.session(python=False, name="build-core")
@@ -157,7 +158,7 @@ def codecov(session: nox.Session) -> None:
 
 
 @nox.session(python=False, name="build-apple-stats-monitor")
-def build_apple_stats_monitor(session):
+def build_apple_stats_monitor(session: nox.Session) -> None:
     """Builds the apple stats monitor binary for the current platform.
 
     The binary will be located in
@@ -182,7 +183,7 @@ def build_apple_stats_monitor(session):
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
-def graphql_codegen_schema_change(session):
+def graphql_codegen_schema_change(session: nox.Session) -> None:
     """Runs the GraphQL codegen script and saves the previous api version.
 
     This will save the current generated go graphql code gql_gen.go
@@ -202,3 +203,130 @@ def graphql_codegen_schema_change(session):
         "--schema-change",
         external=True,
     )
+
+
+@nox.session(python=False, name="local-testcontainer-registry")
+def local_testcontainer_registry(session: nox.Session) -> None:
+    """Ensure we collect and store the latest local-testcontainer in the registry.
+
+    This will find the latest released version (tag) of wandb/core,
+    find associated commit hash, and then pull the local-testcontainer
+    image with the same commit hash from
+    us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer
+    and push it to the SDK's registry with the release tag,
+    if it doesn't already exist there.
+
+    To run locally, you must have the following environment variables set:
+    - GITHUB_ACCESS_TOKEN: a GitHub personal access token with the repo scope
+    - GOOGLE_APPLICATION_CREDENTIALS: path to a service account key file
+      or a JSON string containing the key file contents
+
+    To run this for a specific release tag, use:
+    nox -s local-testcontainer-registry -- <release_tag>
+    """
+    tags: List[str] = session.posargs or []
+
+    import subprocess
+
+    def query_github(payload: dict[str, str]) -> dict[str, str]:
+        import json
+
+        import requests
+
+        headers = {
+            "Authorization": f"bearer {os.environ['GITHUB_ACCESS_TOKEN']}",
+            "Content-Type": "application/json",
+        }
+
+        url = "https://api.github.com/graphql"
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        data = response.json()
+
+        return data
+
+    def get_release_tag_and_commit_hash(tags: List[str]):
+        if not tags:
+            # Get the latest release tag and commit hash
+            query = """
+            {
+            repository(owner: "wandb", name: "core") {
+                latestRelease {
+                tagName
+                tagCommit {
+                    oid
+                }
+                }
+            }
+            }
+            """
+            payload = {"query": query}
+
+            data = query_github(payload)
+
+            return (
+                data["data"]["repository"]["latestRelease"]["tagName"],
+                data["data"]["repository"]["latestRelease"]["tagCommit"]["oid"],
+            )
+        else:
+            # Get the commit hash for the given release tag
+            query = """
+            query($owner: String!, $repo: String!, $tag: String!) {
+            repository(owner: $owner, name: $repo) {
+                ref(qualifiedName: $tag) {
+                target {
+                    oid
+                }
+                }
+            }
+            }
+            """
+            # TODO: allow passing multiple tags?
+            variables = {"owner": "wandb", "repo": "core", "tag": tags[0]}
+            payload = {"query": query, "variables": variables}
+
+            data = query_github(payload)
+
+            return tags[0], data["data"]["repository"]["ref"]["target"]["oid"]
+
+    local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
+
+    release_tag = local_release_tag.removeprefix("local/v")
+    print(f"Release tag: {release_tag}")
+    print(f"Commit hash: {commit_hash}")
+
+    if not release_tag or not commit_hash:
+        print("Failed to get release tag or commit hash.")
+        return
+
+    subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
+
+    # Check if image with tag already exists in the SDK's Artifact registry
+    images = (
+        subprocess.Popen(
+            [
+                "gcloud",
+                "artifacts",
+                "docker",
+                "tags",
+                "list",
+                "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        .communicate()[0]
+        .decode()
+        .split("\n")
+    )
+    images = [img for img in images if img]
+
+    if any(release_tag in img for img in images):
+        print(f"Image with tag {release_tag} already exists.")
+        return
+
+    source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
+    target_image = f"us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:{release_tag}"
+
+    # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
+    subprocess.check_call(["gcrane", "cp", source_image, target_image])
+
+    print(f"Successfully copied image {target_image}")

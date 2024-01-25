@@ -672,30 +672,31 @@ class Run:
             config[wandb_key]["code_path"] = LogicalPath(
                 os.path.join("code", self._settings.program_relpath)
             )
+
+        self._config._update(config, ignore_locked=True)
+
         if sweep_config:
-            self._config.update_locked(
+            self._config.merge_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
         if launch_config:
-            self._config.update_locked(
+            self._config.merge_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
 
         # if run is from a launch queue, add queue id to _wandb config
         launch_queue_name = wandb.env.get_launch_queue_name()
         if launch_queue_name:
-            config[wandb_key]["launch_queue_name"] = launch_queue_name
+            self._config[wandb_key]["launch_queue_name"] = launch_queue_name
 
         launch_queue_entity = wandb.env.get_launch_queue_entity()
         if launch_queue_entity:
-            config[wandb_key]["launch_queue_entity"] = launch_queue_entity
+            self._config[wandb_key]["launch_queue_entity"] = launch_queue_entity
 
         launch_trace_id = wandb.env.get_launch_trace_id()
         if launch_trace_id:
-            config[wandb_key]["launch_trace_id"] = launch_trace_id
-
-        self._config._update(config, ignore_locked=True)
+            self._config[wandb_key]["launch_trace_id"] = launch_trace_id
 
         # interface pid and port configured when backend is configured (See _hack_set_run)
         # TODO: using pid isn't the best for windows as pid reuse can happen more often than unix
@@ -1817,6 +1818,13 @@ class Run:
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
             )
+        if self._settings._shared and step is not None:
+            wandb.termwarn(
+                "In shared mode, the use of `wandb.log` with the step argument is not supported "
+                f"and will be ignored. Please refer to {wburls.get('wandb_define_metric')} "
+                "on how to customize your x-axis.",
+                repeat=False,
+            )
         self._log(data=data, step=step, commit=commit)
 
     @_run_decorator._noop_on_finish()
@@ -2420,6 +2428,8 @@ class Run:
         else:
             return artifact
 
+    # Add a recurring callback (probe) to poll the backend process
+    # for its status using the "poll_exit" message.
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
@@ -2431,6 +2441,8 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
+    # Handles the progress message from the backend process and prints
+    # the current status to the terminal footer
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         probe_handles = progress_handle.get_probe_handles()
         assert probe_handles and len(probe_handles) == 1
@@ -2718,6 +2730,9 @@ class Run:
         if self._backend and self._backend.interface:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
+            # artifact logging is async, wait until the artifact is committed
+            # before trying to link it
+            artifact.wait()
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
@@ -2800,6 +2815,7 @@ class Run:
                 self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id,
+                entity_name=r.entity,
                 use_as=use_as or artifact_or_name,
             )
         else:
@@ -3018,7 +3034,7 @@ class Run:
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                future = self._backend.interface.communicate_artifact(
+                handle = self._backend.interface.deliver_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3027,7 +3043,9 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_future(future, self._public_api().client)
+                handle.add_probe(self._on_probe_exit)
+                handle.add_progress(self._on_progress_exit)
+                artifact._set_save_handle(handle, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
                     self,
