@@ -41,17 +41,47 @@ class Member(Attrs):
         self._client = client
         self.team = team
 
-    def delete(self):
+    def delete(self, remove_from_org=False):
         """Remove a member from a team.
+
+        Arguments:
+            remove_from_org (bool): If True, also remove the member from the organization.
 
         Returns:
             Boolean indicating success
         """
         try:
-            return self._client.execute(
+            delete_response = self._client.execute(
                 self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
-            )["deleteInvite"]["success"]
-        except requests.exceptions.HTTPError:
+            )
+            delete_success = delete_response.get("deleteInvite", {}).get("success", False)
+            action_status = "Successfully" if delete_success else "Failed to"
+            print(f"{action_status} removed user '{self.username}' from team '{self.team}'.")
+            if not delete_success or not remove_from_org:
+                return delete_success
+
+            org_response = self._client.execute(
+                self.CHECK_TEAM_ORG_ID_QUERY, {"entityName": self.team}
+            )
+            org_data = org_response.get("entity", {}).get("organization", {})
+            org_id, org_name = org_data.get("id"), org_data.get("name")
+            org_id = org_response.get("entity", {}).get("organization", {}).get("id")
+            
+            if org_id:
+                remove_org_response = self._client.execute(
+                    self.REMOVE_USER_ORGANIZATION_QUERY,
+                    {"userName": self.username, "organizationId": org_id}
+                )
+                remove_org_success = remove_org_response.get("removeUserFromOrganization", {}).get("success", False)
+                action_status = "Successfully" if remove_org_success else "Failed to"
+                print(f"{action_status} removed user '{self.username}' from organization '{org_name}'.")
+                return remove_org_success
+            else:
+                print(f"Organization ID not found for team '{self.team}'.")
+                return False
+
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP Error occurred: {e}")
             return False
 
     def __repr__(self):
