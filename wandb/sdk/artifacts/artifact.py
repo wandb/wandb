@@ -119,19 +119,17 @@ class Artifact:
 
     @classmethod
     def _get_media_tmp_dir(cls) -> tempfile.TemporaryDirectory:
-        global _TMP_DIR
-
-        if _TMP_DIR:
-            return _TMP_DIR
+        if cls._TMP_DIR:
+            return cls._TMP_DIR
 
         with cls._TMP_DIR_LOCK:
             # Check again in case another thread created it while we were waiting
-            if _TMP_DIR:
-                return _TMP_DIR
+            if cls._TMP_DIR:
+                return cls._TMP_DIR
 
-            _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-            atexit.register(_TMP_DIR.cleanup)  # Register the cleanup only once
-            return _TMP_DIR
+            cls._TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+            atexit.register(cls._TMP_DIR.cleanup)  # Register the cleanup only once
+            return cls._TMP_DIR
 
     def __init__(
         self,
