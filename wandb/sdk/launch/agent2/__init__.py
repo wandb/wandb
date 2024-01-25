@@ -1,4 +1,7 @@
-from wandb.sdk.launch.agent2.controllers.local_container import local_container_controller
+from wandb.sdk.launch.agent2.controllers.local_container import (
+    local_container_controller,
+)
+
 from .agent import LaunchAgent2
 from .controllers import k8s_controller, local_process_controller
 

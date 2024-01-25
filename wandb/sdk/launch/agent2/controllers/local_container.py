@@ -3,15 +3,14 @@ import json
 import logging
 from typing import Any, Dict
 
-from ...utils import MAX_CONCURRENCY
-from ...queue_driver import passthrough
-
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
+from ...queue_driver import passthrough
+from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..job_set import JobSet
 
@@ -48,18 +47,14 @@ async def local_container_controller(
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
-        await asyncio.sleep(
-            5
-        )
+        await asyncio.sleep(5)
         iter += 1
     logger.debug(f"[Controller {name}] Cleaning up...")
-
-    await asyncio.sleep(2)  # TODO: get rid of this, do a docker rm or prune or something
     logger.debug(f"[Controller {name}] Done!")
 
 
 class LocalContainerManager:
-    """Maintains state for multiple docker containers"""
+    """Maintains state for multiple docker containers."""
 
     def __init__(
         self,
@@ -124,7 +119,9 @@ class LocalContainerManager:
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.queue_driver.ack_run_queue_item(item["runQueueItemId"], run_id)
+        ack_result = await self.queue_driver.ack_run_queue_item(
+            item["runQueueItemId"], run_id
+        )
         self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
 
         self.active_runs[item["runQueueItemId"]] = run

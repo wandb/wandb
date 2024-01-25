@@ -2,15 +2,14 @@ import asyncio
 import json
 import logging
 from typing import Any, Awaitable, Dict
-from ...queue_driver import passthrough
 
-from wandb.sdk.launch.runner.abstract import AbstractRun
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
+from wandb.sdk.launch.runner.abstract import AbstractRun
 
-
+from ...queue_driver import passthrough
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..job_set import JobSet
 
@@ -124,7 +123,9 @@ class LocalProcessesManager:
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.queue_driver.ack_run_queue_item(item["runQueueItemId"], run_id)
+        ack_result = await self.queue_driver.ack_run_queue_item(
+            item["runQueueItemId"], run_id
+        )
         self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
 
         self.active_runs[item["runQueueItemId"]] = run
