@@ -1,16 +1,15 @@
 import asyncio
+from dataclasses import dataclass
 import datetime
 import logging
 from typing import Any, Awaitable, Dict, List, Optional, TypedDict
-
-from attr import dataclass
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
 
 
 @dataclass
-class JobSetSpec(TypedDict):
+class JobSetSpec: # (TypedDict):
     name: str
     entity_name: str
     project_name: Optional[str]
@@ -87,21 +86,18 @@ class JobSet:
             return -1
         return self._last_state.version
     
-    async def _wait_for_ready(self):
-        await self._poll_now_event.wait()
+    async def _poll_now_task(self):
+        return await self._poll_now_event.wait()
 
     async def _sync_loop(self):
         while not self._shutdown_event.is_set():
             await self._sync()
-            self._logger.debug("WAITING in sync loop........... ")
-            task = asyncio.create_task(self._wait_for_ready)
+            wait_task = asyncio.create_task(self._poll_now_task())
             await asyncio.wait(
-                [task,
-                 asyncio.sleep(self._next_poll_interval)],
+                [wait_task],
+                timeout=self._next_poll_interval,
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            # await asyncio.sleep(self._next_poll_interval)
-            self._logger.debug(f"WAITING DONE...........")
             if self._poll_now_event.is_set():
                 self._poll_now_event.clear()
         self._logger.debug(f"[JobSet {self.name or self.id}] Sync loop exited.")

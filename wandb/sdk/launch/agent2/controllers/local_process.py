@@ -77,18 +77,18 @@ class LocalProcessesManager:
     async def reconcile(self):
         raw_items = list(self.job_set.jobs.values())
 
-        # Dump all raw items
-        formd = {item["id"]: item["state"] for item in raw_items}
-        self.logger.info(
-            f"====== Raw items ======\n{json.dumps(formd, indent=2)}\n======================"
-        )
-
         owned_items = [
             item
             for item in raw_items
             if item["state"] in ["LEASED", "CLAIMED", "RUNNING"]
             and item["launchAgentId"] == self.config["agent_id"]
         ]
+
+        formd = {item["id"]: item["state"] for item in owned_items}
+        self.logger.info(
+            f"====== Owned items ======\n{json.dumps(formd, indent=2)}\n========================="
+        )
+
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
 
         self.logger.info(
@@ -105,16 +105,19 @@ class LocalProcessesManager:
             if item["id"] not in self.active_runs:
                 if item["state"] == "CLAIMED":
                   # This can happen if the run finishes before we update the job set (ex. sub 5 second runtime)
-                  self.logger.error(f"Item {item} is CLAIMED but not in self.active_runs!")
+                  self.logger.error(f"Item {item['id']} is CLAIMED but not in self.active_runs!")
                   continue
+
                 # we own this item but it's not running
                 await self.launch_item(item)
+                self.job_set._poll_now_event.set()
 
         # release any items that are no longer in owned items
+        owned_ids = set([item["id"] for item in owned_items])
         to_delete = []
-        for item in self.active_runs:
-            if item not in owned_items:
-                to_delete += [item]
+        for item_id in self.active_runs:
+            if item_id not in owned_ids:
+                to_delete += [item_id]
 
         for item_id in to_delete:
           # we don't own this item anymore, delete
