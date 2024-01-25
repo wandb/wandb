@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import tempfile
+import threading
 import time
 from copy import copy
 from datetime import datetime, timedelta
@@ -113,8 +114,25 @@ class Artifact:
         ```
     """
 
-    _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    atexit.register(_TMP_DIR.cleanup)
+    _TMP_DIR: Optional[tempfile.TemporaryDirectory] = None
+    _TMP_DIR_LOCK = threading.Lock()
+
+
+    @classmethod
+    def _get_media_tmp_dir(cls) -> tempfile.TemporaryDirectory:
+        global _TMP_DIR
+
+        if _TMP_DIR:
+            return _TMP_DIR
+
+        with cls._TMP_DIR_LOCK:
+            # Check again in case another thread created it while we were waiting
+            if _TMP_DIR:
+                return _TMP_DIR
+
+            _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+            atexit.register(_TMP_DIR.cleanup)  # Register the cleanup only once
+            return _TMP_DIR
 
     def __init__(
         self,
@@ -1137,6 +1155,7 @@ class Artifact:
         self._ensure_can_add()
         if self._tmp_dir is None:
             self._tmp_dir = tempfile.TemporaryDirectory()
+            atexit.register(self._tmp_dir.cleanup)
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
         if os.path.exists(path):
             raise ValueError(f"File with name {name!r} already exists at {path!r}")
@@ -1447,7 +1466,7 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
+            file_path = os.path.join(self._get_media_tmp_dir().name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
