@@ -1772,7 +1772,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>-report-api"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
 
