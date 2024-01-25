@@ -23,7 +23,3 @@ def _get_media_tmp_dir() -> tempfile.TemporaryDirectory:
         MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
         atexit.register(MEDIA_TMP.cleanup)  # Register the cleanup only once
         return MEDIA_TMP
-
-
-def _cleanup_media_tmp_dir() -> None:
-    atexit.register(MEDIA_TMP.cleanup)
