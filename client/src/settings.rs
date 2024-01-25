@@ -13,7 +13,7 @@ impl Settings {
     #[new]
     pub fn new(
         base_url: Option<String>,
-        // project: Option<String>,
+        project: Option<String>,
         mode: Option<String>,
         stats_pid: Option<i32>,
         stats_sample_rate_seconds: Option<f64>,
@@ -28,6 +28,7 @@ impl Settings {
             mode: Some(mode.unwrap_or("online".to_string())),
             stats_sample_rate_seconds: Some(stats_sample_rate_seconds.unwrap_or(5.0)),
             stats_samples_to_average: Some(stats_samples_to_average.unwrap_or(1)),
+            project: Some(project.unwrap_or("uncategorized".to_string())),
             log_internal: Some("wandb-internal.log".to_string()),
             sync_file: Some("lol.wandb".to_string()),
             stats_pid: Some(stats_pid.unwrap_or(pid)),
@@ -72,5 +73,22 @@ impl Settings {
     pub fn clone(&self) -> Settings {
         let proto = self.proto.clone();
         Settings { proto }
+    }
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            proto: SettingsProto {
+                base_url: Some("https://api.wandb.ai".to_string()),
+                mode: Some("online".to_string()),
+                stats_sample_rate_seconds: Some(5.0),
+                stats_samples_to_average: Some(1),
+                project: Some("uncategorized".to_string()),
+                log_internal: Some("wandb-internal.log".to_string()),
+                stats_pid: Some(std::process::id() as i32),
+                ..Default::default()
+            },
+        }
     }
 }

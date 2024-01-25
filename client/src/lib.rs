@@ -18,8 +18,7 @@ pub static VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[pyfunction]
 pub fn init(settings: Option<settings::Settings>) -> run::Run {
-    let actual_settings =
-        settings.unwrap_or_else(|| settings::Settings::new(None, None, None, None, None));
+    let actual_settings = settings.unwrap_or_default();
     let sess = session::Session::new(actual_settings);
     sess.init_run(None)
 }
