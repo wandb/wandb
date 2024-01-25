@@ -32,7 +32,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
                 self.queue_name, self.entity, self.project, self.agent_id
             )
 
-        return await event_loop_thread_exec(_rq_pop)
+        return await event_loop_thread_exec(_rq_pop)()
 
     async def ack_run_queue_item(
         self, item_id: str, run_id: Optional[str] = None
@@ -40,7 +40,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         def _rq_ack():
             return self.api.ack_run_queue_item(item_id, run_id)
 
-        return await event_loop_thread_exec(_rq_ack)
+        return await event_loop_thread_exec(_rq_ack)()
 
     async def fail_run_queue_item(
         self,
