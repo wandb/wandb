@@ -148,17 +148,19 @@ class LaunchAgent2:
         # Start job set and controller loops
         for q in self._config["queues"]:
             # Start a JobSet for each queue
+            spec = {
+                "name": q,
+                "entity_name": self._config["entity"],
+                "project_name": self._config["project"],
+            }
             job_set = create_job_set(
-                {
-                    "name": q,
-                    "entity_name": self._config["entity"],
-                    "project_name": self._config["project"],
-                },
+                spec,
                 self._api,
                 self._id,
                 self._logger,
             )
             self._job_sets[q] = job_set
+            self._logger.debug(f"[Agent job_set.start_sync_loop {event_loop} ")
             job_set.start_sync_loop(event_loop)
 
             # Start a controller for each queue once job set is ready
@@ -178,7 +180,7 @@ class LaunchAgent2:
             }
             runner = loader.runner_from_config(
                 resource,
-                self._api,
+                self._api,  # todo factor out (?)
                 backend_config,
                 environment,
                 registry,
@@ -198,11 +200,7 @@ class LaunchAgent2:
                 controller_impl(
                     {
                         "agent_id": self._id,
-                        "job_set_spec": {
-                            "name": q,
-                            "entity_name": self._config["entity"],
-                            "project_name": self._config["project"],
-                        },
+                        "job_set_spec": spec,
                         "job_set_metadata": job_set.metadata,
                     },
                     job_set,

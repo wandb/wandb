@@ -1,25 +1,33 @@
 import asyncio
+from dataclasses import dataclass
+import datetime
 import logging
-from typing import Any, Awaitable, Dict, List, Optional, Set, TypedDict
-
-from attr import dataclass
+from typing import Any, Awaitable, Dict, List, Optional, TypedDict
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
 
 
 @dataclass
-class JobSetSpec(TypedDict):
+class JobSetSpec: # (TypedDict):
     name: str
     entity_name: str
     project_name: Optional[str]
+
+@dataclass
+class JobSetDiff:
+    version: int
+    complete: bool
+    metadata: Dict[str, Any]
+    upsert_jobs: List[Dict[str, Any]]
+    remove_jobs: List[str]
 
 
 JobSetId = str
 
 
 def create_job_set(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Logger):
-    # Retrieve the job set via Api.get_job_set_by_spec
+    # Retrieve the job set via Api.get_job_set_diff_by_spec
     job_set_response = api.get_job_set_by_spec(
         job_set_name=spec["name"],
         entity_name=spec["entity_name"],
@@ -35,13 +43,13 @@ class JobSet:
         self.api = api
         self.agent_id = agent_id
 
-        self.id = job_set["id"]
-        self.name = job_set["name"]
-        self._metadata = None
+        self.id = job_set.pop("id")
+        self.name = job_set.pop("name")
+        self._metadata = job_set["metadata"]
         self._lock = asyncio.Lock()
 
         self._logger = logger
-        self._jobs: Set = dict()
+        self._jobs: Dict = dict()
         self._ready_event = asyncio.Event()
         self._updated_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
@@ -50,7 +58,7 @@ class JobSet:
         self._next_poll_interval = 5
 
         self._task = None
-        self._last_state = None
+        self._last_state: Optional[JobSetDiff] = None
 
     @property
     def lock(self):
@@ -72,11 +80,22 @@ class JobSet:
         self._updated_event.clear()
         await self._updated_event.wait()
 
+    @property
+    def job_set_diff_version(self):
+        if self._last_state is None:
+            return -1
+        return self._last_state.version
+    
+    async def _poll_now_task(self):
+        return await self._poll_now_event.wait()
+
     async def _sync_loop(self):
         while not self._shutdown_event.is_set():
             await self._sync()
+            wait_task = asyncio.create_task(self._poll_now_task())
             await asyncio.wait(
-                [self._poll_now_event.wait(), asyncio.sleep(self._next_poll_interval)],
+                [wait_task],
+                timeout=self._next_poll_interval,
                 return_when=asyncio.FIRST_COMPLETED,
             )
             if self._poll_now_event.is_set():
@@ -87,19 +106,46 @@ class JobSet:
     async def _sync(self):
         self._logger.debug(f"[JobSet {self.name or self.id}] Updating...")
         next_state = await self._refresh_job_set()
+        self._logger.debug(f"[JobSet nextstate] [{datetime.datetime.now().isoformat()}] {next_state}")
+
+        # just grabbed a diff from the server, now to add to our local state
         self._last_state = next_state
-        self._metadata = next_state["metadata"]
+
+        # TODO: make this sicker
+        # self._metadata = next_state.metadata
         async with self.lock:
-            self._jobs.clear()
-            for job in self._last_state["jobs"]:
+            for job in self._last_state.upsert_jobs:
                 self._jobs[job["id"]] = job
+                self._logger.debug(
+                    f'[JobSet {self.name or self.id}] Updated Job {job["id"]}'
+                )
+
+            for job_id in self._last_state.remove_jobs:
+                if not self._jobs.pop(job_id, False):
+                    self._logger.error(
+                        f"[JobSet {self.name or self.id}] Deleted Job {job_id}, but it did not exist"
+                    )
+                    continue
+                self._logger.debug(
+                    f"[JobSet {self.name or self.id}] Deleted Job {job_id}"
+                )
+
         self._logger.debug(f"[JobSet {self.name or self.id}] Done.")
         self._ready_event.set()
         self._updated_event.set()
 
-    async def _refresh_job_set(self):
-        get_job_set_by_id = event_loop_thread_exec(self.api.get_job_set_by_id)
-        return await get_job_set_by_id(self.id)
+    async def _refresh_job_set(self) -> JobSetDiff:
+        get_job_set_diff_by_id = event_loop_thread_exec(self.api.get_job_set_diff_by_id)
+        diff = await get_job_set_diff_by_id(
+            self.id, self.job_set_diff_version, self.agent_id
+        )
+        return JobSetDiff(
+            version=diff["version"],
+            complete=diff["complete"],
+            metadata=diff["metadata"],
+            upsert_jobs=diff["upsertJobs"],
+            remove_jobs=diff["removeJobs"],
+        )
 
     def _poll_now(self):
         self._poll_now_event.set()
