@@ -1,18 +1,19 @@
 import asyncio
-from dataclasses import dataclass
 import datetime
 import logging
-from typing import Any, Awaitable, Dict, List, Optional, TypedDict
+from dataclasses import dataclass
+from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
 
 
 @dataclass
-class JobSetSpec: # (TypedDict):
+class JobSetSpec:  # (TypedDict):
     name: str
     entity_name: str
     project_name: Optional[str]
+
 
 @dataclass
 class JobSetDiff:
@@ -85,7 +86,7 @@ class JobSet:
         if self._last_state is None:
             return -1
         return self._last_state.version
-    
+
     async def _poll_now_task(self):
         return await self._poll_now_event.wait()
 
@@ -106,7 +107,9 @@ class JobSet:
     async def _sync(self):
         self._logger.debug(f"[JobSet {self.name or self.id}] Updating...")
         next_state = await self._refresh_job_set()
-        self._logger.debug(f"[JobSet nextstate] [{datetime.datetime.now().isoformat()}] {next_state}")
+        self._logger.debug(
+            f"[JobSet nextstate] [{datetime.datetime.now().isoformat()}] {next_state}"
+        )
 
         # just grabbed a diff from the server, now to add to our local state
         self._last_state = next_state
