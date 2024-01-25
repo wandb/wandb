@@ -1,4 +1,5 @@
 """Artifact class."""
+import atexit
 import concurrent.futures
 import contextlib
 import json
@@ -113,6 +114,7 @@ class Artifact:
     """
 
     _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+    atexit.register(_TMP_DIR.cleanup)
 
     def __init__(
         self,
