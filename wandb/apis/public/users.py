@@ -63,7 +63,7 @@ class User(Attrs):
 
         Arguments:
             api: (`Api`) The api instance to use
-            email: (str) The name of the team
+            email: (str) The email of the user
             admin: (bool) Whether this user should be a global instance admin
 
         Returns:
