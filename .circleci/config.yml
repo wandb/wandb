@@ -1763,6 +1763,19 @@ workflows:
           parallelism: 6
           xdist: 1
 
+      # report api tests
+      - tox-base:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 8, 9, 10, 11, 12]
+          name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>-report-api"
+          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests/test_reports"
+          codecov_args: "-F unit"
+
       #
       # wandb launch tests
       #
