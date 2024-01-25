@@ -15,7 +15,27 @@ class Member(Attrs):
     }
   """
     )
-
+    CHECK_TEAM_ORG_ID_QUERY = gql(
+        """
+    query BasicTeamOrganization($entityName: String) {
+        entity(name: $entityName) {
+            organization {
+            id
+            name
+            }
+        }
+    }
+  """
+    )
+    REMOVE_USER_ORGANIZATION_QUERY = gql(
+        """
+    mutation removeUserFromOrganization($userName: String!, $organizationId: ID!) {
+        removeUserFromOrganization(input: { userName: $userName, organizationId: $organizationId}){
+            success
+        }
+    }
+  """
+    )
     def __init__(self, client, team, attrs):
         super().__init__(attrs)
         self._client = client
