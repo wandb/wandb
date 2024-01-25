@@ -18,22 +18,22 @@ impl Settings {
         stats_pid: Option<i32>,
         stats_sample_rate_seconds: Option<f64>,
         stats_samples_to_average: Option<i32>,
-        // log_internal: Option<String>,
-        // sync_file: Option<String>,
+        log_internal: Option<String>,
+        sync_file: Option<String>,
     ) -> Settings {
-        let pid = std::process::id() as i32;
+        let mut proto = Settings::default().proto.clone();
 
-        let proto = SettingsProto {
-            base_url: Some(base_url.unwrap_or("https://api.wandb.ai".to_string())),
-            mode: Some(mode.unwrap_or("online".to_string())),
-            stats_sample_rate_seconds: Some(stats_sample_rate_seconds.unwrap_or(5.0)),
-            stats_samples_to_average: Some(stats_samples_to_average.unwrap_or(1)),
-            project: Some(project.unwrap_or("uncategorized".to_string())),
-            log_internal: Some("wandb-internal.log".to_string()),
-            sync_file: Some("lol.wandb".to_string()),
-            stats_pid: Some(stats_pid.unwrap_or(pid)),
-            ..Default::default()
-        };
+        proto.base_url = base_url.or(proto.base_url);
+        proto.mode = mode.or(proto.mode);
+        proto.stats_sample_rate_seconds =
+            stats_sample_rate_seconds.or(proto.stats_sample_rate_seconds);
+        proto.stats_samples_to_average =
+            stats_samples_to_average.or(proto.stats_samples_to_average);
+        proto.project = project.or(proto.project);
+        proto.log_internal = log_internal.or(proto.log_internal);
+        proto.sync_file = sync_file.or(proto.sync_file);
+        proto.stats_pid = stats_pid.or(proto.stats_pid);
+
         Settings { proto }
     }
 
@@ -86,6 +86,7 @@ impl Default for Settings {
                 stats_samples_to_average: Some(1),
                 project: Some("uncategorized".to_string()),
                 log_internal: Some("wandb-internal.log".to_string()),
+                sync_file: Some("lol.wandb".to_string()),
                 stats_pid: Some(std::process::id() as i32),
                 ..Default::default()
             },
