@@ -1,8 +1,9 @@
-from wandb.apis.internal import Api
-from .abstract import AbstractQueueDriver
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
+from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
+
+from .abstract import AbstractQueueDriver
 
 
 class PassthroughQueueDriver(AbstractQueueDriver):

@@ -1,6 +1,6 @@
 import asyncio
-import logging
 import json
+import logging
 from typing import Any, Awaitable, Dict
 from ...queue_driver import passthrough
 
@@ -60,7 +60,7 @@ async def local_process_controller(
 
 
 class LocalProcessesManager:
-    """Maintains state for multiple local processes"""
+    """Maintains state for multiple local processes."""
 
     def __init__(
         self,
@@ -111,7 +111,6 @@ class LocalProcessesManager:
         project.queue_name = self.config["job_set_spec"]["name"]
         project.queue_entity = self.config["job_set_spec"]["entity_name"]
         project.run_queue_item_id = item["id"]
-
         project = fetch_and_validate_project(project, self.legacy.api)
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)

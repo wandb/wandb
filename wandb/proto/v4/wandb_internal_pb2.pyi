@@ -268,6 +268,35 @@ class FinalRecord(google.protobuf.message.Message):
 global___FinalRecord = FinalRecord
 
 @typing_extensions.final
+class VersionInfo(google.protobuf.message.Message):
+    """
+    Version definition
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    PRODUCER_FIELD_NUMBER: builtins.int
+    MIN_CONSUMER_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+    producer: builtins.str
+    """The version of the SDK backend that produced the data"""
+    min_consumer: builtins.str
+    """Minimum version of the wandb server that can read the data"""
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    def __init__(
+        self,
+        *,
+        producer: builtins.str = ...,
+        min_consumer: builtins.str = ...,
+        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "min_consumer", b"min_consumer", "producer", b"producer"]) -> None: ...
+
+global___VersionInfo = VersionInfo
+
+@typing_extensions.final
 class HeaderRecord(google.protobuf.message.Message):
     """
     HeaderRecord
@@ -275,16 +304,20 @@ class HeaderRecord(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    VERSION_INFO_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
+    @property
+    def version_info(self) -> global___VersionInfo: ...
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
         self,
         *,
+        version_info: global___VersionInfo | None = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "version_info", b"version_info"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "version_info", b"version_info"]) -> None: ...
 
 global___HeaderRecord = HeaderRecord
 
@@ -444,7 +477,7 @@ class ErrorInfo(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _ErrorCodeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ErrorInfo._ErrorCode.ValueType], builtins.type):  # noqa: F821
+    class _ErrorCodeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ErrorInfo._ErrorCode.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         UNKNOWN: ErrorInfo._ErrorCode.ValueType  # 0
         COMMUNICATION: ErrorInfo._ErrorCode.ValueType  # 1
@@ -672,7 +705,7 @@ class OutputRecord(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _OutputTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputRecord._OutputType.ValueType], builtins.type):  # noqa: F821
+    class _OutputTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputRecord._OutputType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         STDERR: OutputRecord._OutputType.ValueType  # 0
         STDOUT: OutputRecord._OutputType.ValueType  # 1
@@ -726,7 +759,7 @@ class OutputRawRecord(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _OutputTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputRawRecord._OutputType.ValueType], builtins.type):  # noqa: F821
+    class _OutputTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[OutputRawRecord._OutputType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         STDERR: OutputRawRecord._OutputType.ValueType  # 0
         STDOUT: OutputRawRecord._OutputType.ValueType  # 1
@@ -780,7 +813,7 @@ class MetricRecord(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _MetricGoalEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[MetricRecord._MetricGoal.ValueType], builtins.type):  # noqa: F821
+    class _MetricGoalEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[MetricRecord._MetricGoal.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         GOAL_UNSET: MetricRecord._MetricGoal.ValueType  # 0
         GOAL_MINIMIZE: MetricRecord._MetricGoal.ValueType  # 1
@@ -1071,7 +1104,7 @@ class FilesItem(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _PolicyTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._PolicyType.ValueType], builtins.type):  # noqa: F821
+    class _PolicyTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._PolicyType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         NOW: FilesItem._PolicyType.ValueType  # 0
         END: FilesItem._PolicyType.ValueType  # 1
@@ -1086,7 +1119,7 @@ class FilesItem(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _FileTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._FileType.ValueType], builtins.type):  # noqa: F821
+    class _FileTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._FileType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         OTHER: FilesItem._FileType.ValueType  # 0
         WANDB: FilesItem._FileType.ValueType  # 1
@@ -1141,7 +1174,7 @@ class StatsRecord(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _StatsTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[StatsRecord._StatsType.ValueType], builtins.type):  # noqa: F821
+    class _StatsTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[StatsRecord._StatsType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         SYSTEM: StatsRecord._StatsType.ValueType  # 0
 
@@ -1788,7 +1821,7 @@ class DeferRequest(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _DeferStateEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferRequest._DeferState.ValueType], builtins.type):  # noqa: F821
+    class _DeferStateEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[DeferRequest._DeferState.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         BEGIN: DeferRequest._DeferState.ValueType  # 0
         FLUSH_RUN: DeferRequest._DeferState.ValueType  # 1
@@ -2619,7 +2652,7 @@ class FileTransferInfoRequest(google.protobuf.message.Message):
         ValueType = typing.NewType("ValueType", builtins.int)
         V: typing_extensions.TypeAlias = ValueType
 
-    class _TransferTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FileTransferInfoRequest._TransferType.ValueType], builtins.type):  # noqa: F821
+    class _TransferTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FileTransferInfoRequest._TransferType.ValueType], builtins.type):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         Upload: FileTransferInfoRequest._TransferType.ValueType  # 0
         Download: FileTransferInfoRequest._TransferType.ValueType  # 1

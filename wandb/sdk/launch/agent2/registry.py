@@ -1,2 +1,2 @@
 class RegistryService:
-  pass
+    pass

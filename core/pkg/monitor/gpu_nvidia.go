@@ -82,8 +82,8 @@ func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
 }
 
 func (g *GPUNvidia) SampleMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	// we would only call this method if NVML is available
 	if g.nvmlInit != nvml.SUCCESS {
@@ -221,8 +221,8 @@ func (g *GPUNvidia) SampleMetrics() {
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {
@@ -234,8 +234,8 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 }
 
 func (g *GPUNvidia) ClearMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	g.metrics = map[string][]float64{}
 }
