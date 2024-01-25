@@ -26,19 +26,19 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         self.project = project
         self.agent_id = agent_id
 
-    @property
-    def _args(self):
-        return (self.queue_name, self.entity, self.project, self.agent_id)
-
     async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
         def _rq_pop():
-            return self.api.pop_from_run_queue(*self._args)
+            return self.api.pop_from_run_queue(
+                self.queue_name, self.entity, self.project, self.agent_id
+            )
 
         return await event_loop_thread_exec(_rq_pop)
 
-    async def ack_run_queue_item(self) -> bool:
+    async def ack_run_queue_item(
+        self, item_id: str, run_id: Optional[str] = None
+    ) -> bool:
         def _rq_ack():
-            return self.api.ack_run_queue_item(*self._args)
+            return self.api.ack_run_queue_item(item_id, run_id)
 
         return await event_loop_thread_exec(_rq_ack)
 

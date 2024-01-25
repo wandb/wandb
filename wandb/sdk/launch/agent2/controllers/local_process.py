@@ -2,13 +2,14 @@ import asyncio
 import json
 import logging
 from typing import Any, Awaitable, Dict
+from ...queue_driver import passthrough
 
+from wandb.sdk.launch.runner.abstract import AbstractRun
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
 )
-from wandb.sdk.launch.runner.abstract import AbstractRun
-from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
+
 
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..job_set import JobSet
@@ -23,8 +24,11 @@ async def local_process_controller(
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ) -> Awaitable[Any]:
+    # disable job set loop because we are going to use the passthrough queue driver
+    # to drive the launch controller here
+    job_set.stop_sync_loop()
+
     name = config["job_set_spec"]["name"]
-    entity_name = config["job_set_spec"]["entity_name"]
     iter = 0
     max_concurrency = config["job_set_metadata"]["@max_concurrency"]
 
@@ -44,8 +48,10 @@ async def local_process_controller(
     mgr = LocalProcessesManager(config, job_set, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
-        await job_set.wait_for_update()
         await mgr.reconcile()
+        await asyncio.sleep(
+            5
+        )  # TODO(np): Ideally waits for job set or target resource events
         iter += 1
     logger.debug(f"[Controller {name}] Cleaning up...")
 
@@ -65,84 +71,40 @@ class LocalProcessesManager:
         max_concurrency: int,
     ):
         self.config = config
-        self.job_set = job_set
         self.logger = logger
         self.legacy = legacy
         self.max_concurrency = max_concurrency
-        runs: Dict[str, LocalSubmittedRun] = {}
 
         self.id = config["job_set_spec"]["name"]
         self.active_runs: Dict[str, AbstractRun] = {}
 
+        self.queue_driver = passthrough.PassthroughQueueDriver(
+            job_set.api,
+            config["job_set_spec"]["entity_name"],
+            config["job_set_spec"]["project_name"],
+            config["agent_id"],
+        )
+
+    async def pop_next_item(self) -> Any:
+        next_item = await self.queue_driver.pop_from_run_queue()
+        self.logger.info(f" item: {json.dumps(next_item, indent=2)}")
+        return next_item
+
     async def reconcile(self):
-        raw_items = list(self.job_set.jobs.values())
+        new_items = []
+        num_runs_needed = self.max_concurrency - len(self.active_runs)
+        if num_runs_needed > 0:
+            for _ in range(num_runs_needed):
+                # we own fewer items than our max concurrency, and there are other items waiting to be run
+                # let's pop the next item
+                item_to_run = await self.pop_next_item()
+                new_items.append(item_to_run)
 
-        owned_items = [
-            item
-            for item in raw_items
-            if item["state"] in ["LEASED", "CLAIMED", "RUNNING"]
-            and item["launchAgentId"] == self.config["agent_id"]
-        ]
-
-        formd = {item["id"]: item["state"] for item in owned_items}
-        self.logger.info(
-            f"====== Owned items ======\n{json.dumps(formd, indent=2)}\n========================="
-        )
-
-        pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
-
-        self.logger.info(
-            f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
-        )
-
-        if len(owned_items) < self.max_concurrency and len(pending_items) > 0:
-            # we own fewer items than our max concurrency, and there are other items waiting to be run
-            # let's lease the next item
-            await self.lease_next_item()
-
-        # ensure all our owned items are running
-        for item in owned_items:
-            if item["id"] not in self.active_runs:
-                if item["state"] == "CLAIMED":
-                  # This can happen if the run finishes before we update the job set (ex. sub 5 second runtime)
-                  self.logger.error(f"Item {item['id']} is CLAIMED but not in self.active_runs!")
-                  continue
-
-                # we own this item but it's not running
-                await self.launch_item(item)
-                self.job_set._poll_now_event.set()
-
-        # release any items that are no longer in owned items
-        owned_ids = set([item["id"] for item in owned_items])
-        to_delete = []
-        for item_id in self.active_runs:
-            if item_id not in owned_ids:
-                to_delete += [item_id]
-
-        for item_id in to_delete:
-          # we don't own this item anymore, delete
-          await self.release_item(item_id)
-
-    async def lease_next_item(self) -> Any:
-        raw_items = list(self.job_set.jobs.values())
-        pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
-        if len(pending_items) == 0:
-            return None
-
-        sorted_items = sorted(
-            pending_items, key=lambda item: (item["priority"], item["createdAt"])
-        )
-        next_item = sorted_items[0]
-        self.logger.info(f"Next item: {json.dumps(next_item, indent=2)}")
-        lease_result = await self.job_set.lease_job(next_item["id"])
-        self.logger.info(f"Leased item: {json.dumps(lease_result, indent=2)}")
+        for item in new_items:
+            # launch it
+            await self.launch_item(item)
 
     async def launch_item(self, item: Any) -> Any:
-        run_id = await self.launch_item_task(item)
-        self.logger.info(f"Launched item got run_id: {run_id}")
-        return run_id
-
-    async def launch_item_task(self, item: Any) -> str:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = create_project_from_spec(item["runSpec"], self.legacy.api)
@@ -160,12 +122,12 @@ class LocalProcessesManager:
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.job_set.ack_job(item["id"], run_id)
+        ack_result = await self.queue_driver.ack_run_queue_item(item["id"], run_id)
         self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
         self.active_runs[item["id"]] = run
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
-        return project.run_id
 
-    async def release_item(self, item_id: str) -> Any:
-        self.logger.info(f"Releasing item: {json.dumps(item_id, indent=2)}")
-        del self.active_runs[item_id]
+        run_id = project.run_id
+        self.logger.info(f"Launched item got run_id: {run_id}")
+        return run_id
