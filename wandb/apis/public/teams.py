@@ -66,7 +66,7 @@ class Member(Attrs):
             org_data = org_response.get("entity", {}).get("organization", {})
             org_id, org_name = org_data.get("id"), org_data.get("name")
             org_id = org_response.get("entity", {}).get("organization", {}).get("id")
-            
+
             if org_id:
                 remove_org_response = self._client.execute(
                     self.REMOVE_USER_ORGANIZATION_QUERY,
@@ -80,8 +80,7 @@ class Member(Attrs):
                 print(f"Organization ID not found for team '{self.team}'.")
                 return False
 
-        except requests.exceptions.HTTPError as e:
-            print(f"HTTP Error occurred: {e}")
+        except requests.exceptions.HTTPError:
             return False
 
     def __repr__(self):
