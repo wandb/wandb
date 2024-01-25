@@ -1504,6 +1504,16 @@ workflows:
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
+          steps:
+            - checkout
+            - run:
+                name: Run Tests
+                command: |
+                  tox run -ve <<parameters.toxenv>> -- <<parameters.tox_args>>
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  nox -s codecov -- << parameters.codecov_args >>
       #
       # Unit tests with pytest on Linux
       #
