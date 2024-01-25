@@ -117,7 +117,6 @@ class Artifact:
     _TMP_DIR: Optional[tempfile.TemporaryDirectory] = None
     _TMP_DIR_LOCK = threading.Lock()
 
-
     @classmethod
     def _get_media_tmp_dir(cls) -> tempfile.TemporaryDirectory:
         global _TMP_DIR
@@ -1466,7 +1465,9 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self._get_media_tmp_dir().name, str(id(self)), name)
+            file_path = os.path.join(
+                self._get_media_tmp_dir().name, str(id(self)), name
+            )
             folder_path, _ = os.path.split(file_path)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
