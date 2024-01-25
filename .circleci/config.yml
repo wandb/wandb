@@ -1770,7 +1770,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11, 12]
+              python_version_minor: [8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>-report-api"
           toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests/test_reports"
@@ -1780,11 +1780,11 @@ workflows:
             - run:
                 name: Run Tests
                 command: |
-                  tox run -ve <<parameters.toxenv>> -- <<parameters.tox_args>>
+                  tox run -ve <<matrix.toxenv>> -- <<matrix.tox_args>>
             - run:
                 name: Upload coverage to codecov
                 command: |
-                  nox -s codecov -- << parameters.codecov_args >>
+                  nox -s codecov -- << matrix.codecov_args >>
 
       #
       # wandb launch tests
