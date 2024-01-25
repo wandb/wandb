@@ -1509,11 +1509,11 @@ workflows:
             - run:
                 name: Run Tests
                 command: |
-                  tox run -ve <<parameters.toxenv>> -- <<parameters.tox_args>>
+                  tox run -ve <<matrix.toxenv>> -- <<matrix.tox_args>>
             - run:
                 name: Upload coverage to codecov
                 command: |
-                  nox -s codecov -- << parameters.codecov_args >>
+                  nox -s codecov -- << matrix.codecov_args >>
       #
       # Unit tests with pytest on Linux
       #
