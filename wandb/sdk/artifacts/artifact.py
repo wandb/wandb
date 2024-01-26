@@ -517,15 +517,15 @@ class Artifact:
 
     @ttl.setter
     def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
-        """Time To Live (TTL).
+        """Set or Modify a Time To Live (TTL) policy for an artifact. `None` means the artifact has no TTL policy set and it is not scheduled for deletion. 
+        The expiration timestamp is calculated by adding the artifact's `createdAt` timestamp to the `ttl`. 
 
-        The artifact will be deleted shortly after TTL since its creation. None means the artifact will never expire.
-        If TTL is not set on an artifact, it will inherit the default TTL rules for its collection.
+        Note that if the team admin has configured TTL settings to only allow team admin's to modify TTL, users without these permissions will not see a TTL set by this method persisted. The TTL policy will remain unchanged. 
 
         Arguments:
             ttl: How long the artifact will remain active from its creation.
                 - Timedelta must be positive.
-                - `None` means the artifact will never expire.
+                - `None` means the artifact has not policy set and will never expire.
                 - wandb.ArtifactTTL.INHERIT will set the TTL to go back to the default and inherit from collection rules.
         """
         if self.type == "wandb-history":
