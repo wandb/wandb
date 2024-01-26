@@ -30,7 +30,7 @@ pub fn get_core_address() -> String {
         .into_os_string()
         .into_string()
         .expect("Failed to convert path to string");
-
+    // println!("{}", core_cmd);
     let launcher = Launcher { command: core_cmd };
     let port = launcher.start();
     format!("127.0.0.1:{}", port)
