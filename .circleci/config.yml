@@ -1774,7 +1774,7 @@ workflows:
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>-report-api"
           toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests/test_reports"
-          codecov_args: "-F unit -f"
+          codecov_args: "-F unit"
 
       #
       # wandb launch tests
