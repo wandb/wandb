@@ -27,6 +27,10 @@ async def local_process_controller(
     # to drive the launch controller here
     job_set.stop_sync_loop()
 
+    logger.debug(
+        f"[Controller {config['job_set_spec']['name']}] received config: {config}"
+    )
+
     name = config["job_set_spec"]["name"]
     iter = 0
     max_concurrency = config["job_set_metadata"]["@max_concurrency"]
@@ -98,14 +102,15 @@ class LocalProcessesManager:
                 # we own fewer items than our max concurrency, and there are other items waiting to be run
                 # let's pop the next item
                 item_to_run = await self.pop_next_item()
-                if item_to_run:
-                    new_items.append(item_to_run)
+                if item_to_run is None:
+                    # no more items to run
+                    break
 
-        for item in new_items:
-            # launch it
-            await self.launch_item(item)
+                print("item_to_run:", item_to_run)
+                asyncio.create_task(self.launch_item(item_to_run))
 
     async def launch_item(self, item: Any) -> Any:
+        item_id = item["runQueueItemId"]
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = create_project_from_spec(item["runSpec"], self.legacy.api)
@@ -123,12 +128,10 @@ class LocalProcessesManager:
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.queue_driver.ack_run_queue_item(
-            item["runQueueItemId"], run_id
-        )
+        ack_result = await self.queue_driver.ack_run_queue_item(item_id, run_id)
         self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
 
-        self.active_runs[item["runQueueItemId"]] = run
+        self.active_runs[item_id] = run
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
 
         run_id = project.run_id

@@ -1681,7 +1681,7 @@ def launch(
     "--experimental",
     default=False,
     is_flag=True,
-    help="Enable experimental launch agent features"
+    help="Enable experimental launch agent features",
 )
 @display_error
 def launch_agent(

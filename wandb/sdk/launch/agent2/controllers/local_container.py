@@ -93,8 +93,10 @@ class LocalContainerManager:
                 # we own fewer items than our max concurrency, and there are other items waiting to be run
                 # let's pop the next item
                 item_to_run = await self.pop_next_item()
-                if item_to_run:
-                    new_items.append(item_to_run)
+                if item_to_run is None:
+                    break
+
+                new_items.append(item_to_run)
 
         for item in new_items:
             # launch it
@@ -107,13 +109,18 @@ class LocalContainerManager:
         project.queue_name = self.config["job_set_spec"]["name"]
         project.queue_entity = self.config["job_set_spec"]["entity_name"]
         project.run_queue_item_id = item["runQueueItemId"]
-
-        project = fetch_and_validate_project(project, self.legacy.api)
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
+        project = fetch_and_validate_project(project, self.legacy.api)
 
-        run = await self.legacy.runner.run(project, project.docker_image)
+        entrypoint = project.get_single_entry_point()
+        # assert entrypoint is not None
+        image_uri = await self.legacy.builder.build_image(
+            project, entrypoint, job_tracker
+        )
+
+        run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
             self.logger.error(f"Failed to start run for item {item['id']}")

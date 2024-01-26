@@ -26,6 +26,14 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         self.project = project
         self.agent_id = agent_id
 
+        print(
+            "PassthroughQueueDriver.__init__ got args:",
+            queue_name,
+            entity,
+            project,
+            agent_id,
+        )
+
     async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
         def _rq_pop():
             return self.api.pop_from_run_queue(
@@ -57,4 +65,4 @@ class PassthroughQueueDriver(AbstractQueueDriver):
                 file_paths,
             )
 
-        return await event_loop_thread_exec(_rqi_fail)
+        return await event_loop_thread_exec(_rqi_fail)()

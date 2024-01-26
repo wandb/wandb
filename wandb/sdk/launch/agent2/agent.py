@@ -241,11 +241,12 @@ class LaunchAgent2:
 
         # shut down all job_sets
         for job_set in self._job_sets.values():
-            if job_set.metadata[TARGET_RESOURCE] not in [
-                "local-process",
-                "locall-container",
-            ]:
+            try:
                 job_set.stop_sync_loop()
+            except RuntimeError:
+                # already stopped
+                pass
+
         await asyncio.gather(
             *[job_set.wait_for_done for job_set in self._job_sets.values()]
         )

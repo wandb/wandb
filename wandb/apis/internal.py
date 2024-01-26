@@ -232,17 +232,18 @@ class Api:
 
     def get_job_set_by_spec(self, *args, **kwargs):
         return self.api.get_job_set_by_spec(*args, **kwargs)
-    
+
     def get_job_set_diff_by_id(self, *args, **kwargs):
         return self.api.get_job_set_diff_by_id(*args, **kwargs)
 
     def get_job_set_diff_by_spec(self, *args, **kwargs):
         return self.api.get_job_set_diff_by_spec(*args, **kwargs)
-   
+
     def lease_job_set_item(self, *args, **kwargs):
         return self.api.lease_job_set_item(*args, **kwargs)
 
     def ack_job_set_item(self, *args, **kwargs):
         return self.api.ack_job_set_item(*args, **kwargs)
+
 
 __all__ = ["Api"]
