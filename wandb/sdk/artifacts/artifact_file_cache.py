@@ -41,11 +41,16 @@ class ArtifactFileCache:
         umask = int(subprocess.check_output(umask_cmd))
         self._sys_umask = umask
 
+        self._override_cache_path: Optional[StrPath] = None
+
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        hex_md5 = b64_to_hex_id(b64_md5)
-        path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
+        if self._override_cache_path is not None:
+            path = Path(self._override_cache_path)
+        else:
+            hex_md5 = b64_to_hex_id(b64_md5)
+            path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
         return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
@@ -56,11 +61,14 @@ class ArtifactFileCache:
         etag: ETag,
         size: int,
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        hexhash = hashlib.sha256(
-            hashlib.sha256(url.encode("utf-8")).digest()
-            + hashlib.sha256(etag.encode("utf-8")).digest()
-        ).hexdigest()
-        path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
+        if self._override_cache_path is not None:
+            path = Path(self._override_cache_path)
+        else:
+            hexhash = hashlib.sha256(
+                hashlib.sha256(url.encode("utf-8")).digest()
+                + hashlib.sha256(etag.encode("utf-8")).digest()
+            ).hexdigest()
+            path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
         return self._check_or_create(path, size)
 
     def _check_or_create(
