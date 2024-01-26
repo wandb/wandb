@@ -102,7 +102,9 @@ class ArtifactManifestEntry:
             raise NotImplementedError
         return self._parent_artifact
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(
+        self, root: Optional[str] = None, skip_cache: Optional[bool] = None
+    ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -120,6 +122,11 @@ class ArtifactManifestEntry:
         path = str(Path(self.path))
         dest_path = os.path.join(root, path)
 
+        if skip_cache:
+            override_cache_path = dest_path
+        else:
+            override_cache_path = None
+
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
@@ -127,15 +134,19 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self, local=True
+                self, local=True, dest_path=override_cache_path
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self
+                self._parent_artifact, self, dest_path=override_cache_path
             )
-        return FilePathStr(
-            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-        )
+
+        if skip_cache:
+            return FilePathStr(dest_path)
+        else:
+            return FilePathStr(
+                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+            )
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.

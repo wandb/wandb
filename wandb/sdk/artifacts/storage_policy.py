@@ -32,7 +32,10 @@ class StoragePolicy:
         raise NotImplementedError
 
     def load_file(
-        self, artifact: "Artifact", manifest_entry: "ArtifactManifestEntry"
+        self,
+        artifact: "Artifact",
+        manifest_entry: "ArtifactManifestEntry",
+        dest_path: Optional[str] = None,
     ) -> FilePathStr:
         raise NotImplementedError
 
@@ -71,5 +74,6 @@ class StoragePolicy:
         self,
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
+        dest_path: Optional[str] = None,
     ) -> Union[FilePathStr, URIStr]:
         raise NotImplementedError
