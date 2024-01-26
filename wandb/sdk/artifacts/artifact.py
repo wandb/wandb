@@ -520,7 +520,7 @@ class Artifact:
         """Set or Modify a Time To Live (TTL) policy for an artifact. `None` means the artifact has no TTL policy set and it is not scheduled for deletion. 
         The expiration timestamp is calculated by adding the artifact's `createdAt` timestamp to the `ttl`. 
 
-        Note that if the team admin has configured TTL settings to only allow team admin's to modify TTL, users without these permissions will not see a TTL set by this method persisted. The TTL policy will remain unchanged. 
+        Note that if the team admin has configured TTL settings to only allow team admin's to modify TTL, users without these permissions will not see a TTL set by this method persisted. The TTL policy will remain unchanged. To learn more about controlling edit permissions for TTL, see [here](https://docs.wandb.ai/guides/artifacts/ttl#define-who-can-edit-and-set-ttl-policies). 
 
         Arguments:
             ttl: How long the artifact will remain active from its creation.
