@@ -423,8 +423,6 @@ pub struct TelemetryRecord {
     pub core_version: ::prost::alloc::string::String,
     #[prost(string, tag = "13")]
     pub platform: ::prost::alloc::string::String,
-    #[prost(string, tag = "14")]
-    pub platform_version: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -479,8 +477,7 @@ pub struct Imports {
     /// bool detectron = 24;
     /// bool paddle = 25;
     /// bool parlai = 26;
-    #[prost(bool, tag = "27")]
-    pub prophet: bool,
+    /// bool prophet = 27;
     #[prost(bool, tag = "28")]
     pub pycaret: bool,
     #[prost(bool, tag = "29")]
