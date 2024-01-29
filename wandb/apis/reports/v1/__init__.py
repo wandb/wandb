@@ -4,12 +4,12 @@ from inspect import cleandoc
 import wandb
 
 from . import blocks, helpers, panels, templates
-from .blocks import *
+from .blocks import *  # noqa: F403
 from .helpers import LineKey, PCColumn
-from .panels import *
+from .panels import *  # noqa: F403
 from .report import Report
 from .runset import Runset
-from .templates import *
+from .templates import *  # noqa: F403
 from .util import InlineCode, InlineLaTeX, Link
 
 

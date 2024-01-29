@@ -716,12 +716,16 @@ class WeaveBlockSummaryTable(Block):
             "fromOp"
         ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
             "entityName"
-        ]["val"]
+        ][
+            "val"
+        ]
         project = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["obj"][
             "fromOp"
         ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
             "projectName"
-        ]["val"]
+        ][
+            "val"
+        ]
         table_name = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["key"][
             "val"
         ]

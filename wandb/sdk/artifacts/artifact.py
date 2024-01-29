@@ -1059,9 +1059,7 @@ class Artifact:
             Basic usage:
             ```python
             artifact = wandb.Artifact("my_table", type="dataset")
-            table = wandb.Table(
-                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
-            )
+            table = wandb.Table(columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)])
             artifact["my_table"] = table
 
             wandb.log_artifact(artifact)
@@ -1092,9 +1090,7 @@ class Artifact:
             Basic usage:
             ```python
             artifact = wandb.Artifact("my_table", type="dataset")
-            table = wandb.Table(
-                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
-            )
+            table = wandb.Table(columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)])
             artifact["my_table"] = table
 
             wandb.log_artifact(artifact)
@@ -1376,9 +1372,7 @@ class Artifact:
             Basic usage:
             ```python
             artifact = wandb.Artifact("my_table", type="dataset")
-            table = wandb.Table(
-                columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)]
-            )
+            table = wandb.Table(columns=["a", "b", "c"], data=[(i, i * 2, 2**i) for i in range(10)])
             artifact.add(table, "my_table")
 
             wandb.log_artifact(artifact)
