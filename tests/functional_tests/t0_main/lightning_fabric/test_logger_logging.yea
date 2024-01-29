@@ -8,6 +8,7 @@ depend:
         - wandb
         - pillow
         - pandas
+        - torch
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][lr]: 0.001

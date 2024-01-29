@@ -18,12 +18,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Union
 from typing_extensions import override
 
-
+import wandb
 from wandb import Artifact
 from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.lib import telemetry
-
 
 try:
     import torch.nn as nn
@@ -44,8 +43,6 @@ try:
     
 except ImportError as e:
     wandb.Error(e)
-
-
 
 class WandbLogger(Logger):
     r"""Log using `Weights and Biases <https://docs.wandb.ai/integrations/lightning>`_.
@@ -346,8 +343,6 @@ class WandbLogger(Logger):
         self._log_checkpoint_on = log_checkpoint_on
 
     def __getstate__(self) -> Dict[str, Any]:
-        import wandb
-
         # Hack: If the 'spawn' launch method is used, the logger will get pickled and this `__getstate__` gets called.
         # We create an experiment here in the main process, and attach to it in the worker process.
         # Using wandb-service, we persist the same experiment even if multiple `Trainer.fit/test/validate` calls
@@ -379,9 +374,6 @@ class WandbLogger(Logger):
             self.logger.experiment.some_wandb_function()
 
         """
-        import wandb
-        from wandb.sdk.lib import RunDisabled
-        from wandb.wandb_run import Run
 
         if self._experiment is None:
             if self._offline:
@@ -409,7 +401,9 @@ class WandbLogger(Logger):
                     self._experiment.define_metric("trainer/global_step")
                     self._experiment.define_metric("*", step_metric="trainer/global_step", step_sync=True)
 
-        self._experiment._label(repo="fabric_logger")  # pylint: disable=protected-access
+        self._experiment._label(repo="lightning_fabric_logger")  # pylint: disable=protected-access
+        with telemetry.context(run=self._experiment.run) as tel:
+            tel.feature.lightning_fabric_logger = True
         return self._experiment
 
     def watch(self, model: nn.Module, log: str = "gradients", log_freq: int = 100, log_graph: bool = True) -> None:
@@ -447,7 +441,6 @@ class WandbLogger(Logger):
         Can be defined either with `columns` and `data` or with `dataframe`.
 
         """
-        import wandb
 
         metrics = {key: wandb.Table(columns=columns, data=data, dataframe=dataframe)}
         self.log_metrics(metrics, step)
@@ -484,8 +477,6 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        import wandb
-
         metrics = {key: [wandb.Image(img, **kwarg) for img, kwarg in zip(images, kwarg_list)]}
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
@@ -510,8 +501,6 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        import wandb
-
         metrics = {key: [wandb.Audio(audio, **kwarg) for audio, kwarg in zip(audios, kwarg_list)]}
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
@@ -535,8 +524,6 @@ class WandbLogger(Logger):
             if len(v) != n:
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
-
-        import wandb
 
         metrics = {key: [wandb.Video(video, **kwarg) for video, kwarg in zip(videos, kwarg_list)]}
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
@@ -626,7 +613,6 @@ class WandbLogger(Logger):
             The path to the downloaded artifact.
 
         """
-        import wandb
 
         if wandb.run is not None and use_artifact:
             artifact = wandb.run.use_artifact(artifact)
@@ -667,9 +653,7 @@ class WandbLogger(Logger):
             self._scan_and_log_pytorch_checkpoints(self._checkpoint_callback)
 
     def _scan_and_log_pytorch_checkpoints(self, checkpoint_callback: "ModelCheckpoint") -> None:
-        import wandb
         from lightning.pytorch.loggers.utilities import _scan_checkpoints
-
         # get checkpoints to be saved with associated score
         checkpoints = _scan_checkpoints(checkpoint_callback, self._logged_model_time)
 
