@@ -22,7 +22,6 @@ import json
 import logging
 import os
 import pprint
-import tempfile
 from decimal import Decimal
 from typing import Optional
 
@@ -31,6 +30,7 @@ from wandb import util
 from wandb.sdk.lib import filesystem
 
 from .sdk.data_types import _dtypes
+from .sdk.data_types._private import MEDIA_TMP
 from .sdk.data_types.base_types.media import (
     BatchableMedia,
     Media,
@@ -75,11 +75,6 @@ __all__ = [
     "BoundingBoxes2D",
     "Classes",
 ]
-
-
-# Staging directory, so we can encode raw data into files, then hash them before
-# we put them into the Run directory to be uploaded.
-MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
 class _TableLinkMixin:

@@ -19,12 +19,6 @@ if TYPE_CHECKING:
     from wandb.sdk.internal.settings_static import SettingsStatic
 
 
-# Temporary directory for copies we make of some file types to
-# reduce the probability that the file gets changed while we're
-# uploading it.
-TMP_DIR = tempfile.TemporaryDirectory("wandb")
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,6 +41,9 @@ class FilePusher:
     ) -> None:
         self._api = api
 
+        # Temporary directory for copies we make of some file types to
+        # reduce the probability that the file gets changed while we're
+        # uploading it.
         self._tempdir = tempfile.TemporaryDirectory("wandb")
 
         self._stats = stats.Stats()
@@ -181,6 +178,7 @@ class FilePusher:
         logger.info("waiting for file pusher")
         while self.is_alive():
             time.sleep(0.5)
+        self._tempdir.cleanup()
 
     def is_alive(self) -> bool:
         return self._step_checksum.is_alive() or self._step_upload.is_alive()
