@@ -6,6 +6,7 @@ command:
 depend:
     requirements:
         - wandb
+        - lightning
         - pillow
         - pandas
         - torch
