@@ -4,9 +4,9 @@ import urllib
 from typing import List as LList
 from typing import Optional, Union
 
-from ... import __version__ as wandb_ver
-from ... import termwarn
-from ..public import Api as PublicApi
+from .... import __version__ as wandb_ver
+from .... import termwarn
+from ...public import Api as PublicApi
 from ._panels import UnknownPanel, WeavePanel, panel_mapping, weave_panels
 from .runset import Runset
 from .util import (
@@ -716,16 +716,12 @@ class WeaveBlockSummaryTable(Block):
             "fromOp"
         ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
             "entityName"
-        ][
-            "val"
-        ]
+        ]["val"]
         project = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["obj"][
             "fromOp"
         ]["inputs"]["run"]["fromOp"]["inputs"]["project"]["fromOp"]["inputs"][
             "projectName"
-        ][
-            "val"
-        ]
+        ]["val"]
         table_name = spec["config"]["panelConfig"]["exp"]["fromOp"]["inputs"]["key"][
             "val"
         ]
