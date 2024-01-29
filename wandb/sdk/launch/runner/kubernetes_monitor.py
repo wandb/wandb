@@ -314,6 +314,8 @@ class LaunchKubernetesMonitor:
             job_name = obj.metadata.labels.get("job-name")
             if job_name is None or not hasattr(obj, "status"):
                 continue
+            if self.__get_status(job_name) in ["finished", "failed"]:
+                continue
             if obj.status.phase == "Running" or _is_container_creating(obj.status):
                 self._set_status(job_name, Status("running"))
             elif _is_preempted(obj.status):
@@ -329,10 +331,17 @@ class LaunchKubernetesMonitor:
         ):
             obj = event.get("object")
             job_name = obj.metadata.name
+
             if obj.status.succeeded == 1:
                 self._set_status(job_name, Status("finished"))
             elif obj.status.failed is not None and obj.status.failed >= 1:
                 self._set_status(job_name, Status("failed"))
+
+            # If the job is deleted and we haven't seen a terminal state
+            # then we will consider the job failed.
+            if event.get("type") == "DELETED":
+                if self._job_states.get(job_name) != Status("finished"):
+                    self._set_status(job_name, Status("failed"))
 
     async def _monitor_crd(
         self, namespace: str, custom_resource: CustomResource
