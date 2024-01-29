@@ -615,28 +615,28 @@ def pytest_configure(config):
     # this is here because and not in the `system_tests/test_importers/conftest.py`
     # because when it was included there, the wandb-local-testcontainer (from this conf)
     # did not spin up when testing the importers dir
-    settings2 = WandbServerSettings(
-        name=DEFAULT_SERVER_CONTAINER_NAME2,
-        volume=DEFAULT_SERVER_VOLUME2,
-        local_base_port=LOCAL_BASE_PORT2,
-        services_api_port=SERVICES_API_PORT2,
-        fixture_service_port=FIXTURE_SERVICE_PORT2,
-        wandb_server_pull=config.getoption("--wandb-server-pull"),
-        wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
-        wandb_server_image_repository=config.getoption(
-            "--wandb-server-image-repository"
-        ),
-        wandb_server_tag=config.getoption("--wandb-server-tag"),
-        wandb_server_use_existing=config.getoption(
-            "--wandb-server-use-existing",
-            default=True if os.getenv("CI") else False,
-        ),
-    )
-    config.wandb_server_settings2 = settings2
+    # settings2 = WandbServerSettings(
+    #     name=DEFAULT_SERVER_CONTAINER_NAME2,
+    #     volume=DEFAULT_SERVER_VOLUME2,
+    #     local_base_port=LOCAL_BASE_PORT2,
+    #     services_api_port=SERVICES_API_PORT2,
+    #     fixture_service_port=FIXTURE_SERVICE_PORT2,
+    #     wandb_server_pull=config.getoption("--wandb-server-pull"),
+    #     wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
+    #     wandb_server_image_repository=config.getoption(
+    #         "--wandb-server-image-repository"
+    #     ),
+    #     wandb_server_tag=config.getoption("--wandb-server-tag"),
+    #     wandb_server_use_existing=config.getoption(
+    #         "--wandb-server-use-existing",
+    #         default=True if os.getenv("CI") else False,
+    #     ),
+    # )
+    # config.wandb_server_settings2 = settings2
 
-    success2 = spin_wandb_server(settings2)
-    if not success2:
-        pytest.exit("Failed to connect to wandb server2")
+    # success2 = spin_wandb_server(settings2)
+    # if not success2:
+    #     pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_unconfigure(config):
