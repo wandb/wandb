@@ -34,7 +34,7 @@ def server_src(request, user):
     n_experiments = 2
     n_steps = 50
     n_metrics = 3
-    n_reports = 5
+    n_reports = 2
     project_name = "test"
 
     for _ in range(n_experiments):
@@ -73,31 +73,6 @@ def server_src(request, user):
             project=project_name,
             blocks=[wr.H1("blah")],
         ).save()
-
-    # # Create special artifacts
-    # with wandb.init(
-    #     id="artifact-gaps",
-    #     project="artifact-gaps",
-    #     settings={"console": "off", "save_code": False},
-    # ) as run:
-    #     n_arts = 1
-    #     # Create artifact versions
-    #     for i in range(n_arts):
-    #         fname = str(i)
-    #         art = wandb.Artifact("gap", "gap")
-    #         with open(fname, "w"):
-    #             pass
-    #         art.add_file(fname)
-    #         run.log_artifact(art)
-
-    # Then randomly delete some artifacts to make gaps
-    # api = wandb.Api()
-    # art_type = api.artifact_type("gap", "artifact-gaps")
-    # for collection in art_type.collections():
-    #     for art in collection.artifacts():
-    #         v = int(art.version[1:])
-    #         if v in (0, 2):
-    #             art.delete(delete_aliases=True)
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:

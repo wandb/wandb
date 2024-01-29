@@ -1,18 +1,15 @@
+import logging
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import wandb
+
+from .util import Namespace
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
 else:
     from typing_extensions import Protocol, runtime_checkable
-
-import logging
-import traceback
-
-from .config import Namespace
 
 logger = logging.getLogger("import_logger")
 
@@ -134,44 +131,3 @@ class Importer(Protocol):
 
     def import_run(self, run: ImporterRun, config: Optional[Namespace]) -> None:
         ...
-
-
-def parallelize(
-    func,
-    iterable: Iterable,
-    *args,
-    description: str,
-    max_workers: Optional[int] = None,
-    **kwargs,
-):
-    def safe_func(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            _, _, exc_traceback = sys.exc_info()
-            traceback_details = traceback.extract_tb(exc_traceback)
-            filename = traceback_details[-1].filename
-            lineno = traceback_details[-1].lineno
-            logger.debug(
-                f"Exception: {func=} {args=} {kwargs=} {e=} {filename=} {lineno=}. {traceback_details=}"
-            )
-            raise e
-
-    results = []
-    with ThreadPoolExecutor(max_workers) as exc:
-        futures = {exc.submit(safe_func, x, *args, **kwargs): x for x in iterable}
-        for future in as_completed(futures):
-            results.append(future.result())
-    return results
-
-
-def for_each(func, iterable, parallel: bool = True, max_workers: Optional[int] = None):
-    if parallel:
-        return parallelize(
-            func,
-            iterable,
-            description=func.__name__,
-            max_workers=max_workers,
-        )
-    else:
-        return [func(x) for x in iterable]

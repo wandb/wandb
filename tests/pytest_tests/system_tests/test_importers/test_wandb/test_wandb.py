@@ -1,6 +1,6 @@
 import unittest
 
-from wandb.apis.importers.internals.config import Namespace
+from wandb.apis.importers import Namespace
 from wandb.apis.importers.wandb import WandbImporter
 
 
@@ -40,30 +40,52 @@ def test_import_runs(request, server_src, user, user2):
             assert src_row == dst_row
 
 
-# def test_import_artifact_sequences(request, server_src, user2, user):
-#     project_name = "test"
+def test_import_artifact_sequences(request, server_src, user, user2):
+    project_name = "test"
 
-#     importer = WandbImporter(
-#         src_base_url=request.config.wandb_server_settings.base_url,
-#         src_api_key=user,
-#         dst_base_url=request.config.wandb_server_settings2.base_url,
-#         dst_api_key=user2,
-#     )
+    importer = WandbImporter(
+        src_base_url=request.config.wandb_server_settings.base_url,
+        src_api_key=user,
+        dst_base_url=request.config.wandb_server_settings2.base_url,
+        dst_api_key=user2,
+    )
 
-#     importer.import_artifact_sequences(
-#         namespaces=[Namespace(user, project_name)],
-#         remapping={Namespace(user, project_name): Namespace(user2, project_name)},
-#     )
+    # Mock only required because there is no great way to download files
+    # in the test like there is for artifacts
+    with unittest.mock.patch("wandb.apis.public.files.File.download"):
+        importer.import_artifact_sequences(
+            namespaces=[Namespace(user, project_name)],
+            remapping={Namespace(user, project_name): Namespace(user2, project_name)},
+        )
 
-#     src_arts = list(
-#         importer.src_api.artifacts("logged_art", f"{user}/{project_name}/logged_art")
-#     )
-#     dst_arts = list(
-#         importer.dst_api.artifacts("logged_art", f"{user2}/{project_name}/logged_art")
-#     )
+    src_arts = sorted(
+        importer.src_api.artifacts("logged_art", f"{user}/{project_name}/logged_art"),
+        key=lambda art: art.name,
+    )
+    dst_arts = sorted(
+        importer.dst_api.artifacts("logged_art", f"{user2}/{project_name}/logged_art"),
+        key=lambda art: art.name,
+    )
 
-#     assert len(src_arts) == 1
-#     assert len(src_arts) == len(dst_arts)
+    # We re-created the artifacts
+    assert len(src_arts) == 2
+    assert len(src_arts) == len(dst_arts)
+
+    # Their contents are the same
+    for src_art, dst_art in zip(src_arts, dst_arts):
+        assert src_art.name == dst_art.name
+        assert src_art.type == dst_art.type
+        assert src_art.digest == dst_art.digest
+
+        # Down to the invidual manifest entries
+        assert src_art.manifest.entries.keys() == dst_art.manifest.entries.keys()
+        for name in src_art.manifest.entries.keys():
+            src_entry = src_art.manifest.entries[name]
+            dst_entry = dst_art.manifest.entries[name]
+
+            assert src_entry.path == dst_entry.path
+            assert src_entry.digest == dst_entry.digest
+            assert src_entry.size == dst_entry.size
 
 
 def test_import_reports(request, server_src, user, user2):

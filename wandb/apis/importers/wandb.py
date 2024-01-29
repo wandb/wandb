@@ -22,18 +22,15 @@ import yaml
 from wandb_gql import gql
 
 import wandb
+import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
+from wandb.apis.public.files import File
+from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
-from ..internals import internal
-from ..internals.config import Namespace
-from ..internals.internal import _thread_local_settings
-from ..internals.protocols import for_each
-
-with patch("click.echo"):
-    import wandb.apis.reports as wr
-    from wandb.apis.reports import Report
-
+from .internals import internal
+from .internals.internal import _thread_local_settings
+from .internals.util import Namespace, for_each
 
 Artifact = wandb.Artifact
 Api = wandb.Api
@@ -269,6 +266,7 @@ class WandbRun:
 
         self._files = []
         for f in self.run.files():
+            f: File
             # These optimizations are intended to avoid rate limiting when importing many runs in parallel
             # Don't carry over empty files
             if f.size == 0:
