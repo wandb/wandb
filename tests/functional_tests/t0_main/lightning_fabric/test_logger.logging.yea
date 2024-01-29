@@ -1,10 +1,6 @@
 id: 0.lightning_fabric.logger_logging
 plugin:
     - wandb
-tag:
-  shard: standalone-gpu
-  platforms:
-    - linux
 command:
     program: test_logger_logging.py
 depend:
