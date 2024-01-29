@@ -1,10 +1,13 @@
+import os
 import sys
 from typing import Any, Dict, Generic, Type, TypeVar
 
-import pytest
-import wandb.apis.reports2 as wr2
-from wandb.apis.reports2.expr_parsing import expr_to_filters
-from wandb.apis.reports2.internal import Filters, Key
+os.environ["WANDB_REPORT_API_ENABLE_V2"] = "True"
+
+import pytest  # noqa: E402
+import wandb.apis.reports as wr2  # noqa: E402
+from wandb.apis.reports.v2.expr_parsing import expr_to_filters  # noqa: E402
+from wandb.apis.reports.v2.internal import Filters, Key  # noqa: E402
 
 block_type_instance = wr2.H1
 
