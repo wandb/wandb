@@ -3,8 +3,6 @@ import random
 import string
 import tempfile
 import typing
-from dataclasses import dataclass
-from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -16,161 +14,63 @@ import wandb.apis.reports as wr
 from PIL import Image
 from rdkit import Chem
 
-LOCAL_BASE_PORT = "8080"
-SERVICES_API_PORT = "8083"
-FIXTURE_SERVICE_PORT = "9015"
-
-
-def get_free_port():
-    import socket
-
-    sock = socket.socket()
-    sock.bind(("", 0))
-    return str(sock.getsockname()[1])
-
-
-@dataclass
-class UserFixtureCommand:
-    command: Literal["up", "down", "down_all", "logout", "login", "password"]
-    username: Optional[str] = None
-    password: Optional[str] = None
-    admin: bool = False
-    endpoint: str = "db/user"
-    port: str = FIXTURE_SERVICE_PORT
-    method: Literal["post"] = "post"
-
-
-@dataclass
-class AddAdminAndEnsureNoDefaultUser:
-    email: str
-    password: str
-    endpoint: str = "api/users-admin"
-    port: str = SERVICES_API_PORT
-    method: Literal["put"] = "put"
-
-
-@dataclass
-class WandbServerSettings:
-    name: str
-    volume: str
-    local_base_port: str
-    services_api_port: str
-    fixture_service_port: str
-    db_port: str
-    wandb_server_pull: str
-    wandb_server_tag: str
-    internal_local_base_port: str = "8080"
-    internal_local_services_api_port: str = "8083"
-    internal_fixture_service_port: str = "9015"
-    internal_db_port: str = "3306"
-    url: str = "http://localhost"
-
-    base_url: Optional[str] = None
-
-    def __post_init__(self):
-        self.base_url = f"{self.url}:{self.local_base_port}"
-
-
-@dataclass
-class WandbLoggingConfig:
-    n_steps: int
-    n_metrics: int
-    n_experiments: int
-    n_reports: int
-
-    project_name: str = "test"
-
-
-@dataclass
-class WandbServerUser:
-    server: WandbServerSettings
-    user: str
-
 
 def determine_scope(fixture_name, config):
     return config.getoption("--user-scope")
 
 
 @pytest.fixture(scope="session")
-def wandb_logging_config():
-    return WandbLoggingConfig(
-        n_steps=100,
-        n_metrics=2,
-        n_experiments=1,
-        n_reports=1,
-    )
-
-
-@pytest.fixture(scope="session")
-def wandb_server2(wandb_server_factory):
-    settings = WandbServerSettings(
-        name="wandb-src-server",
-        volume="wandb-src-server-vol",
-        local_base_port="9180",
-        services_api_port="9183",
-        fixture_service_port="9115",
-        db_port="3307",
-        wandb_server_pull="missing",
-        wandb_server_tag="master",
-    )
-
-    wandb_server_factory(settings)
-    return settings
+def fixture_fn2(request, fixture_fn_factory):
+    yield from fixture_fn_factory(request.config.wandb_server_settings2)
 
 
 @pytest.fixture(scope=determine_scope)
-def user2(user_factory, fixture_fn2, wandb_server2):
-    yield from user_factory(fixture_fn2, wandb_server2)
-
-
-@pytest.fixture(scope="session")
-def fixture_fn2(wandb_server2, fixture_fn_factory):
-    yield from fixture_fn_factory(wandb_server2)
+def user2(request, user_factory, fixture_fn2):
+    yield from user_factory(fixture_fn2, request.config.wandb_server_settings2)
 
 
 @pytest.fixture
-def wandb_server_dst(wandb_server, user):
-    return WandbServerUser(wandb_server, user)
+def server_src(request, user):
+    n_experiments = 2
+    n_steps = 50
+    n_metrics = 3
+    n_reports = 5
+    project_name = "test"
 
+    for _ in range(n_experiments):
+        run = wandb.init(entity=user, project=project_name)
 
-@pytest.fixture
-def wandb_server_src(wandb_server2, user2, wandb_logging_config):
-    for _ in range(wandb_logging_config.n_experiments):
-        with wandb.init(
-            project=wandb_logging_config.project_name,
-            settings={"console": "off", "save_code": False},
-        ) as run:
-            # log metrics
-            data = generate_random_data(
-                wandb_logging_config.n_steps, wandb_logging_config.n_metrics
-            )
-            for i in range(wandb_logging_config.n_steps):
-                metrics = {k: v[i] for k, v in data.items()}
-                run.log(metrics)
+        # log metrics
+        data = generate_random_data(n_steps, n_metrics)
+        for i in range(n_steps):
+            metrics = {k: v[i] for k, v in data.items()}
+            run.log(metrics)
 
-            # log tables
-            run.log(
-                {
-                    "df": create_random_dataframe(),
-                    "img": create_random_image(),
-                    # "vid": create_random_video(),  # path error matplotlib
-                    "audio": create_random_audio(),
-                    "pc": create_random_point_cloud(),
-                    "html": create_random_html(),
-                    "plotly_fig": create_random_plotly(),
-                    "mol": create_random_molecule(),
-                }
-            )
+        # log tables
+        run.log(
+            {
+                "df": create_random_dataframe(),
+                "img": create_random_image(),
+                # "vid": create_random_video(),  # path error matplotlib
+                "audio": create_random_audio(),
+                "pc": create_random_point_cloud(),
+                "html": create_random_html(),
+                "plotly_fig": create_random_plotly(),
+                "mol": create_random_molecule(),
+            }
+        )
 
-            art = make_artifact("logged_art")
-            art2 = make_artifact("used_art")
-            run.log_artifact(art)
-            run.use_artifact(art2)
+        # log artifacts
+        art = make_artifact("logged_art")
+        art2 = make_artifact("used_art")
+        run.log_artifact(art)
+        run.use_artifact(art2)
+        run.finish()
 
     # create reports
-    for _ in range(wandb_logging_config.n_reports):
+    for _ in range(n_reports):
         wr.Report(
-            project=wandb_logging_config.project_name,
+            project=project_name,
             blocks=[wr.H1("blah")],
         ).save()
 
@@ -198,8 +98,6 @@ def wandb_server_src(wandb_server2, user2, wandb_logging_config):
     #         v = int(art.version[1:])
     #         if v in (0, 2):
     #             art.delete(delete_aliases=True)
-
-    return WandbServerUser(wandb_server2, user2)
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:
