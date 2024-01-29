@@ -107,5 +107,5 @@ def test_import_reports(request, server_src, user, user2):
     src_reports = [p for p in importer.src_api.reports(f"{user}/{project_name}")]
     dst_reports = [p for p in importer.dst_api.reports(f"{user2}/{project_name}")]
 
-    assert len(src_reports) == 5
+    assert len(src_reports) == 2
     assert len(src_reports) == len(dst_reports)
