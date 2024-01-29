@@ -1,4 +1,4 @@
-id: 0.lightning_fabric.trainer_logging
+id: 2.lightning_fabric.trainer_logging
 plugin:
   - wandb
 depend:

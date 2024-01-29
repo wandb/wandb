@@ -1,4 +1,4 @@
-id: 0.lightning_fabric.fabric_logging
+id: 1.lightning_fabric.fabric_logging
 plugin:
     - wandb
 command:
