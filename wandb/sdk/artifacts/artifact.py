@@ -90,7 +90,7 @@ class Artifact:
             interactively reference an artifact with the `use_artifact` Public API.
             A name can contain letters, numbers, underscores, hyphens, and dots.
             The name must be unique across a project.
-        type: The artifact's type. Use the type of an artifact to both organize 
+        type: The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
             Include `model` within your type string if you want to link the artifact
@@ -467,8 +467,7 @@ class Artifact:
 
     @property
     def description(self) -> Optional[str]:
-        """A description of the artifact.
-        """
+        """A description of the artifact."""
         return self._description
 
     @description.setter
@@ -511,7 +510,7 @@ class Artifact:
         scheduled for deletion. An artifact inherits a TTL policy from
         the team default if the team administrator defines a default
         TTL and there is no custom policy set on an artifact.
-        
+
         Raises:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
@@ -524,7 +523,7 @@ class Artifact:
     @ttl.setter
     def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
         """The time-to-live (TTL) policy of an artifact.
-        
+
         Artifacts are deleted shortly after a TTL policy's duration passes.
         If set to `None`, the artifact has no TTL policy set and it is not
         scheduled for deletion. An artifact inherits a TTL policy from
@@ -533,7 +532,7 @@ class Artifact:
 
         Arguments:
             ttl: The duration as a positive Python `datetime.timedelta` Type
-                that represents how long the artifact will remain active from its creation. 
+                that represents how long the artifact will remain active from its creation.
 
         """
         if self.type == "wandb-history":
@@ -558,11 +557,11 @@ class Artifact:
 
     @property
     def aliases(self) -> List[str]:
-        """Labels assigned to an artifact. Aliases are mutable. 
+        """Labels assigned to an artifact. Aliases are mutable.
 
         Change an artifact's alias with the W&B App UI or programmatically.
         See [Create new artifact versions](https://docs.wandb.ai/guides/artifacts/create-a-new-artifact-version)
-        for more information. 
+        for more information.
         """
         self._ensure_logged("aliases")
         return self._aliases
@@ -707,8 +706,8 @@ class Artifact:
             raise ArtifactNotLoggedError(self, attr)
 
     def is_draft(self) -> bool:
-        """Check if an has not saved.
-        
+        """Check if artifact is not saved.
+
         Returns: Boolean. `False` if artifact is saved. `True if artifact is not saved.`
         """
         return self._state == ArtifactState.PENDING
@@ -1206,7 +1205,7 @@ class Artifact:
     ) -> Sequence[ArtifactManifestEntry]:
         """Add a reference denoted by a URI to the artifact.
 
-        Unlike files or directories that you add to an artifact, references are not 
+        Unlike files or directories that you add to an artifact, references are not
         uploaded to W&B. For more information,
         see [Track external files](https://docs.wandb.ai/guides/artifacts/track-external-files).
 
@@ -1240,7 +1239,7 @@ class Artifact:
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3 and
-                GCS is 10,000. Other URI schemas do not have a maximum. 
+                GCS is 10,000. Other URI schemas do not have a maximum.
 
         Returns:
             The added manifest entries.
@@ -1435,12 +1434,13 @@ class Artifact:
 
         Arguments:
             name: The artifact relative name to get
-        
+
         Returns:
+            An `ArtifactManifestEntry` object.
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
-            KeyError: if the artifact doesn't contain an entry with the given name
+            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline.
+            KeyError: if the artifact doesn't contain an entry with the given name.
         """
         self._ensure_logged("get_entry")
 
@@ -2059,8 +2059,7 @@ class Artifact:
         )
 
     def json_encode(self) -> Dict[str, Any]:
-        """
-        Returns the artifact encoded to the JSON format.
+        """Returns the artifact encoded to the JSON format.
 
         Returns:
             A `dict` with `string` keys representing attributes of the artifact.
