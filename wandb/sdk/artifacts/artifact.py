@@ -86,16 +86,20 @@ class Artifact:
 
     Arguments:
         name: A human-readable name for the artifact. Use the name to identify
-            a specific artifact in the W&B App UI. You can interactively reference
-            an artifact with the `use_artifact` Public API. A name can
-            contain letters, numbers, underscores, hyphens, and dots. The name must be
-            unique across a project.
+            a specific artifact in the W&B App UI or programmatically. You can
+            interactively reference an artifact with the `use_artifact` Public API.
+            A name can contain letters, numbers, underscores, hyphens, and dots.
+            The name must be unique across a project.
         type: The artifact's type. Use the type of an artifact to both organize 
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-        description: A description of the artifact. View an artifact's description
-            programmatically with the `Artifact.description` attribute or programmatically 
-            with the W&B App UI. W&B renders the description as markdown in the W&B App.
+            Include `model` within your type string if you want to link the artifact
+            to the W&B Model Registry.
+        description: A description of the artifact. For Model or Dataset Artifacts,
+            add documentation for your standardized team model or dataset card. View
+            an artifact's description programmatically with the `Artifact.description`
+            attribute or programmatically with the W&B App UI. W&B renders the
+            description as markdown in the W&B App.
         metadata: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
 
@@ -323,7 +327,7 @@ class Artifact:
         The artifact returned can be extended or modified and logged as a new version.
 
         Returns:
-            Description.
+            An `Artifact` object.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -351,7 +355,7 @@ class Artifact:
         )
         return artifact
 
-    # Properties.
+    # Properties (Python Class managed attributes).
 
     @property
     def id(self) -> Optional[str]:
@@ -472,7 +476,7 @@ class Artifact:
         """Set the description of the artifact.
 
         Arguments:
-            desc: Free text that offers a description of the artifact.
+            description: Free text that offers a description of the artifact.
         """
         self._description = description
 
@@ -502,12 +506,12 @@ class Artifact:
     def ttl(self) -> Union[timedelta, None]:
         """The time-to-live (TTL) policy of an artifact.
 
-        Artifacts are deleted shortly after the TTL policy is passed.
-        `None` means the artifact will never expire.
-        An artifact inherits a TTL policy from the collection it belongs to if
-        a TTL policy is not defined. For more information,
-        see [Manage data retention with Artifact TTL policy](https://docs.wandb.ai/guides/artifacts/ttl).
-
+        Artifacts are deleted shortly after a TTL policy's duration passes.
+        If set to `None`, the artifact has no TTL policy set and it is not
+        scheduled for deletion. An artifact inherits a TTL policy from
+        the team default if the team administrator defines a default
+        TTL and there is no custom policy set on an artifact.
+        
         Raises:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
@@ -519,16 +523,18 @@ class Artifact:
 
     @ttl.setter
     def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
-        """Time To Live (TTL).
-
-        The artifact will be deleted shortly after TTL since its creation. None means the artifact will never expire.
-        If TTL is not set on an artifact, it will inherit the default TTL rules for its collection.
+        """The time-to-live (TTL) policy of an artifact.
+        
+        Artifacts are deleted shortly after a TTL policy's duration passes.
+        If set to `None`, the artifact has no TTL policy set and it is not
+        scheduled for deletion. An artifact inherits a TTL policy from
+        the team default if the team administrator defines a default
+        TTL and there is no custom policy set on an artifact.
 
         Arguments:
-            ttl: How long the artifact will remain active from its creation.
-                - Timedelta must be positive.
-                - `None` means the artifact will never expire.
-                - wandb.ArtifactTTL.INHERIT will set the TTL to go back to the default and inherit from collection rules.
+            ttl: The duration as a positive Python `datetime.timedelta` Type
+                that represents how long the artifact will remain active from its creation. 
+
         """
         if self.type == "wandb-history":
             raise ValueError("Cannot set artifact TTL for type wandb-history")
@@ -761,7 +767,7 @@ class Artifact:
         """If needed, wait for this artifact to finish logging.
 
         Returns:
-            Description
+            INSERT
 
         Arguments:
             timeout: The time, in seconds, to wait.
@@ -1048,10 +1054,13 @@ class Artifact:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
-            name: The artifact relative name to get
+            name: The artifact relative name to get.
+
+        Returns:
+            An `ArtifactManifestEntry` object.
 
         Raises:
-            ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
+            ArtifactNotLoggedError: If the artifact isn't logged or the run is offline.
         """
         return self.get(name)
 
@@ -1449,6 +1458,7 @@ class Artifact:
             name: The artifact relative name to get
 
         Returns:
+            An `ArtifactManifestEntry` object.
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
@@ -1960,7 +1970,7 @@ class Artifact:
         """Get a list of the runs that have used this artifact.
 
         Returns:
-            Description:
+            A list of `Run` objects.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
@@ -2050,9 +2060,10 @@ class Artifact:
 
     def json_encode(self) -> Dict[str, Any]:
         """
-        Description.
+        Returns the artifact encoded to the JSON format.
 
         Returns:
+            A `dict` with `string` keys representing attributes of the artifact.
         """
         self._ensure_logged("json_encode")
         return util.artifact_to_json(self)
