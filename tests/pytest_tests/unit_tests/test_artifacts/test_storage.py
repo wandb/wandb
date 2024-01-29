@@ -56,6 +56,15 @@ def test_check_md5_obj_path(artifact_file_cache):
     assert contents == "hi"
 
 
+def test_check_md5_obj_path_override(artifact_file_cache):
+    md5 = md5_string("hi")
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    artifact_file_cache._override_cache_path = override_path
+    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
+    assert path == override_path
+    assert exists is False
+
+
 def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
     path, _, opener = artifact_file_cache.check_etag_obj_path(
         "http://my/url", "abc", 10
@@ -67,6 +76,14 @@ def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
         contents = f.read()
 
     assert contents == "hi"
+
+
+def test_check_etag_obj_path_override(artifact_file_cache):
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    artifact_file_cache._override_cache_path = override_path
+    path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
+    assert path == override_path
+    assert exists is False
 
 
 def test_check_etag_obj_path_returns_exists_if_exists(artifact_file_cache):
