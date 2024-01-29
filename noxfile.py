@@ -334,4 +334,4 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
 @nox.session(python=False, name="proto-go")
 def proto_go(session: nox.Session) -> None:
-    session.run("bash", "./core/scripts/generate-proto.sh")
+    session.run("./core/scripts/generate-proto.sh")
