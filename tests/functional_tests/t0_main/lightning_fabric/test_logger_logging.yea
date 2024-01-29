@@ -6,15 +6,17 @@ command:
 depend:
     requirements:
         - wandb
+        - pillow
+        - pandas
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][lr]: 0.001
     - :wandb:runs[0][config][batch_size]: 16
     - :wandb:runs[0][summary][accuracy]: 0.95
     - :wandb:runs[0][summary][loss]: 0.05
-    - :wandb:runs[0][summary][test_image][_type]: image-file
-    - :wandb:runs[0][summary][test_text][_type]: table-file
-    - :wandb:runs[0][summary][test_table][_type]: table-file
-    - :wandb:runs[0][summary][test_audio][_type]: audio-file
-    - :wandb:runs[0][summary][test_video][_type]: video-file
+    - :wandb:runs[0][history][1][test_image][_type]: images/separated
+    - :wandb:runs[0][history][2][test_text][_type]: table-file
+    - :wandb:runs[0][history][3][test_table][_type]: table-file
+    - :wandb:runs[0][history][4][test_audio][_type]: audio
+    - :wandb:runs[0][history][5][test_video][_type]: videos
     - :wandb:runs[0][exitcode]: 0

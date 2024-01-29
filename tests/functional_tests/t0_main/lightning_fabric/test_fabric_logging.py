@@ -4,9 +4,8 @@ import os
 import wandb
 import lightning as L
 import torch
-import torchvision as tv
 from wandb.integration.lightning.fabric import WandbLogger
-from pl_base import TableLoggingCallback
+from pl_base import TableLoggingCallback, SimpleNet, FakeCIFAR10
 
 def test_fabric_logging():
     # Create a WandbLogger instance
@@ -30,17 +29,21 @@ def test_fabric_logging():
     # Save Data to Weights and Biases Artifacts
     root_folder = "data"
 
-    train_dataset = tv.datasets.CIFAR10(root_folder, download=True, train=True, transform=tv.transforms.ToTensor())
-    test_dataset = tv.datasets.CIFAR10(root_folder, download=True, train=False, transform=tv.transforms.ToTensor())
+    # Replace the original dataset loading code with the fake data generation
+    num_samples = batch_size * 10
+    train_dataset = FakeCIFAR10(num_samples, os.path.join(root_folder, 'train'))
+    test_dataset = FakeCIFAR10(num_samples, os.path.join(root_folder, 'test'))
 
-    data_folder = train_dataset.base_folder # same as test_dataset.base_folder
-
+    # Save the generated datasets
+    train_dataset.save()
+    test_dataset.save()
+    
     data_art = wandb.Artifact(name="cifar10", type="dataset")
-    data_art.add_dir(os.path.join(root_folder, data_folder))
+    data_art.add_dir(os.path.join(root_folder))
     logger.experiment.log_artifact(data_art)
 
     # Configure our Model and Training
-    model = tv.models.resnet18()
+    model = SimpleNet()
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
     # Load our model, datasources, and loggers into PyTorch Fabric

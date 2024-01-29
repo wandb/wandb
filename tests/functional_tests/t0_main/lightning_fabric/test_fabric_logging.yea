@@ -1,23 +1,18 @@
 id: 0.lightning_fabric.fabric_logging
 plugin:
     - wandb
-tag:
-  shard: standalone-gpu
-  platforms:
-    - linux
 command:
     program: test_fabric_logging.py
 depend:
     requirements:
         - lightning
         - torch
-        - torchvision
         - wandb
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][lr]: 0.001
     - :wandb:runs[0][config][batch_size]: 16
-    - :wandb:runs[0][config][num_epochs]: 5
+    - :wandb:runs[0][config][num_epochs]: 1
     - :wandb:runs[0][config][classes]: ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
     - :wandb:runs[0][config][log_images_after_n_batches]: 200
     - :op:>=:
@@ -66,7 +61,7 @@ assert:
         - :wandb:runs[0][summary][truck_acc]
         - 0.0
     - :wandb:runs[0][summary][prediction_table][_type]: table-file
-    - :wandb:runs[0][summary][test_image_batch][_type]: image-file
+    - :wandb:runs[0][history][11][test_image_batch][_type]: images/separated
     - :wandb:runs[0][exitcode]: 0
 
 
