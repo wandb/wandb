@@ -15,6 +15,7 @@ def test_wandblogger_functionality():
     logger.log_table("test_table", columns=["col1", "col2"], data=[["test", "table"]], step=0)
     logger.log_audio("test_audio", audios=[np.random.uniform(-1, 1, 44100)], step=0, sample_rate=[44100])
     logger.log_video("test_video", videos=[np.random.randint(256, size=(10, 50, 50, 3)).astype(np.uint8)], step=0, fps=[4])
+    logger.log_html("test_html", htmls=["<h1>This is a test HTML.</h1>"], step=0)
     logger.finalize("success")
 
 if __name__ == "__main__":

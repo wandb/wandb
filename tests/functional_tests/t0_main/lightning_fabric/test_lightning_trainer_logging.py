@@ -24,7 +24,7 @@ def test_lightning_trainer_logging():
 
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
-    wandb_logger = WandbLogger(project="fabric-test_lightning_trainer_logging", config=config, log_model=True, save_code=True)
+    wandb_logger = WandbLogger(project="fabric-test_lightning_trainer_logging", config=config, log_model=True, save_code=True, checkpoint_name="test_model")
 
     # Initialize a trainer
     trainer = pl.Trainer(

@@ -20,4 +20,8 @@ assert:
     - :wandb:runs[0][history][3][test_table][_type]: table-file
     - :wandb:runs[0][history][4][test_audio][_type]: audio
     - :wandb:runs[0][history][5][test_video][_type]: videos
+    - :wandb:runs[0][history][6][test_html][_type]: html
     - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 60  # lightning_fabric_logger

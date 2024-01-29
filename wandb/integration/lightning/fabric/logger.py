@@ -24,8 +24,11 @@ from wandb.sdk.lib import RunDisabled
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.lib import telemetry
 
+from packaging import version
+
 try:
     import torch.nn as nn
+    from torch.nn import Module
     from torch import Tensor
 
     from lightning.fabric.loggers.logger import Logger, rank_zero_experiment
@@ -33,6 +36,14 @@ try:
     from lightning.fabric.utilities.logger import _add_prefix, _convert_params, _sanitize_callable_params
     from lightning.fabric.utilities.rank_zero import rank_zero_only, rank_zero_warn
     from lightning.fabric.utilities.types import _PATH
+
+    import lightning
+    if version.parse(lightning.__version__) > version.parse("2.1.3"):
+        wandb.termwarn(
+            """This integration is tested and supported for lightning Fabric 2.1.3.
+            Please report any issues to https://github.com/wandb/wandb/issues with the tag `lightning-fabric`.""",
+            repeat=False,
+        )
 
     if TYPE_CHECKING:
         
@@ -322,7 +333,7 @@ class WandbLogger(Logger):
         elif dir is not None:
             dir = os.fspath(dir)
 
-        project = project or os.environ.get("WANDB_PROJECT", "lightning_logs")
+        project = project or os.environ.get("WANDB_PROJECT", "lightning_fabric_logs")
 
         # set wandb init arguments
         self._wandb_init: Dict[str, Any] = {
@@ -347,7 +358,6 @@ class WandbLogger(Logger):
         # We create an experiment here in the main process, and attach to it in the worker process.
         # Using wandb-service, we persist the same experiment even if multiple `Trainer.fit/test/validate` calls
         # are made.
-        wandb.require("service")
         _ = self.experiment
 
         state = self.__dict__.copy()
@@ -461,6 +471,24 @@ class WandbLogger(Logger):
         """
 
         self.log_table(key, columns, data, dataframe, step)
+
+    @rank_zero_only
+    def log_html(self, key: str, htmls: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
+        """Log html files.
+
+        Optional kwargs are lists passed to each html (ex: inject).
+
+        """
+        if not isinstance(htmls, list):
+            raise TypeError(f'Expected a list as "htmls", found {type(htmls)}')
+        n = len(htmls)
+        for k, v in kwargs.items():
+            if len(v) != n:
+                raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
+        kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
+
+        metrics = {key: [wandb.Html(html, **kwarg) for html, kwarg in zip(htmls, kwarg_list)]}
+        self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
     @rank_zero_only
     def log_image(self, key: str, images: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
@@ -583,6 +611,17 @@ class WandbLogger(Logger):
         """Return the root directory where all versions of an experiment get saved, or `None` if the logger does not
         save data locally."""
         return self.save_dir.parent if self.save_dir else None
+    
+    def log_graph(self, model: Module, input_array: Optional[Tensor] = None) -> None:
+        """Record model graph.
+
+        Args:
+            model: the model with an implementation of ``forward``.
+            input_array: input passes to `model.forward`
+
+        This is a noop function and does not perform any operation.
+        """
+        return
 
     @override
     def after_save_checkpoint(self, checkpoint_callback: "ModelCheckpoint") -> None:
@@ -681,6 +720,7 @@ class WandbLogger(Logger):
             artifact = wandb.Artifact(name=self._checkpoint_name, type="model", metadata=metadata)
             artifact.add_file(p, name="model.ckpt")
             aliases = ["latest", "best"] if p == checkpoint_callback.best_model_path else ["latest"]
-            self.experiment.log_artifact(artifact, aliases=aliases)
+            self.experiment.log_model(artifact, aliases=aliases)
             # remember logged models - timestamp needed in case filename didn't change (lastkckpt or custom name)
             self._logged_model_time[p] = t
+            

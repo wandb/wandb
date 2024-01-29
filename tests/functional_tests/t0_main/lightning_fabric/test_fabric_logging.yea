@@ -62,7 +62,12 @@ assert:
         - 0.0
     - :wandb:runs[0][summary][prediction_table][_type]: table-file
     - :wandb:runs[0][history][11][test_image_batch][_type]: images/separated
+    - :wandb:runs[0][summary][graph_0][_type]: graph-file
     - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 60  # lightning_fabric_logger
+    - :wandb:artifacts[cifar10][type]: dataset
 
 
 

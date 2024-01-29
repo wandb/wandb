@@ -20,3 +20,8 @@ assert:
   - :op:>=:
     - :wandb:runs[0][summary][fake_test_acc]
     - 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 60  # lightning_fabric_logger
+  - :wandb:artifacts[test_model][type]: model
+
