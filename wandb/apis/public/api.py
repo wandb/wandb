@@ -912,6 +912,15 @@ class Api:
 
     @normalize_exceptions
     def artifact_collection(self, type_name: str, name: str):
+        """Return a single artifact collection by type and parsing path in the form `entity/project/name`.
+
+        Arguments:
+            name: (str) An artifact collection name. May be prefixed with entity/project.
+            type: (str) The type of artifact collection to fetch.
+
+        Returns:
+            An `ArtifactCollection` object.
+        """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.ArtifactCollection(
             self.client, entity, project, collection_name, type_name

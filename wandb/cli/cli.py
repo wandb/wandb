@@ -43,7 +43,7 @@ from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
-from wandb.sync import TMPDIR, SyncManager, get_run_from_path, get_runs
+from wandb.sync import SyncManager, get_run_from_path, get_runs
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -669,8 +669,6 @@ def sync(
     append=None,
     skip_console=None,
 ):
-    # TODO: rather unfortunate, needed to avoid creating a `wandb` directory
-    os.environ["WANDB_DIR"] = TMPDIR.name
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
