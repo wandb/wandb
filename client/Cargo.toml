@@ -1,10 +1,10 @@
 [package]
-name = "wandb"
+name = "wandb_core"
 version = "0.17.0"
 edition = "2021"
 # TODO: include wandb-core binary properly
 # For now, see core/setup.py
-include = ["wandb-core"]
+# include = ["wandb-core"]
 
 [lib]
 path = "src/lib.rs"
