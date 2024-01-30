@@ -10,7 +10,7 @@ from wandb.integration.keras3 import WandbMetricsLogger
 os.environ["KERAS_BACKEND"] = "torch"
 
 
-wandb.init(project="wandb-keras-callback-unit-test", entity="geekyrakshit")
+wandb.init()
 config = wandb.config
 config.num_classes = 10
 config.input_shape = (28, 28, 1)

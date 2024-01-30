@@ -7,7 +7,7 @@ from keras import layers
 from keras.utils import to_categorical
 from wandb.integration.keras3 import WandbMetricsLogger
 
-os.environ["KERAS_BACKEND"] = "tensorflow"
+os.environ["KERAS_BACKEND"] = "jax"
 
 
 wandb.init()
@@ -39,7 +39,16 @@ model = keras.Sequential(
         layers.Dense(config.num_classes, activation="softmax"),
     ]
 )
-model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
+lr_schedule = keras.optimizers.schedules.PolynomialDecay(
+    initial_learning_rate=1e-3,
+    decay_steps=300,
+    end_learning_rate=1e-8,
+    power=0.99,
+)
+optimizer = keras.optimizers.Adam(learning_rate=lr_schedule, weight_decay=0.99)
+model.compile(
+    loss="categorical_crossentropy", optimizer=optimizer, metrics=["accuracy"]
+)
 model.fit(
     x_train,
     y_train,
