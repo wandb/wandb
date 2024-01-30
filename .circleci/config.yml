@@ -462,7 +462,7 @@ jobs:
         default: ""
     machine: true
     resource_class: xlarge
-    working_directory: /mnt/ramdisk
+    # working_directory: /mnt/ramdisk
     environment:
       SHARD: << parameters.shard >>
     steps:
