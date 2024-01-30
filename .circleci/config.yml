@@ -501,13 +501,13 @@ jobs:
           command: |
             # Assuming you want to run local-testcontainer as a background service
             docker run -d --pull always --rm \
-              -v wandb-local-testcontainer-vol:/vol \
+              -v wandb-local-testcontainer-vol2:/vol \
               -p 9180:8080 \
               -p 9183:8083 \
               -p 9115:9015 \
               -e CI=1 \
               -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name local-testcontainer \
+              --name local-testcontainer2 \
               --platform linux/amd64 \
               us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
