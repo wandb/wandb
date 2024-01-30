@@ -15,8 +15,7 @@
 import os
 from argparse import Namespace
 from pathlib import Path
-from typing import (TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional,
-                    Union)
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Union
 
 from packaging import version
 from typing_extensions import override
@@ -31,11 +30,12 @@ try:
     import torch.nn as nn
     from lightning.fabric.loggers.logger import Logger, rank_zero_experiment
     from lightning.fabric.utilities.exceptions import MisconfigurationException
-    from lightning.fabric.utilities.logger import (_add_prefix,
-                                                   _convert_params,
-                                                   _sanitize_callable_params)
-    from lightning.fabric.utilities.rank_zero import (rank_zero_only,
-                                                      rank_zero_warn)
+    from lightning.fabric.utilities.logger import (
+        _add_prefix,
+        _convert_params,
+        _sanitize_callable_params,
+    )
+    from lightning.fabric.utilities.rank_zero import rank_zero_only, rank_zero_warn
     from lightning.fabric.utilities.types import _PATH
     from torch import Tensor
     from torch.nn import Module
@@ -48,9 +48,7 @@ try:
         )
 
     if TYPE_CHECKING:
-        from lightning.pytorch.callbacks.model_checkpoint import \
-            ModelCheckpoint
-        from lightning.pytorch.loggers.utilities import _scan_checkpoints
+        from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
 except ImportError as e:
     wandb.Error(e)
@@ -374,7 +372,9 @@ class WandbLogger(Logger):
     @property
     @rank_zero_experiment
     def experiment(self) -> Union["Run", "RunDisabled"]:
-        r"""Actual wandb object. To use wandb features in your :class:`~lightning.pytorch.core.LightningModule` do the
+        r"""Actual wandb object.
+
+        To use wandb features in your :class:`~lightning.pytorch.core.LightningModule`, do the
         following.
 
         Example::
@@ -384,7 +384,6 @@ class WandbLogger(Logger):
             self.logger.experiment.some_wandb_function()
 
         """
-
         if self._experiment is None:
             if self._offline:
                 os.environ["WANDB_MODE"] = "dryrun"
@@ -463,7 +462,6 @@ class WandbLogger(Logger):
         Can be defined either with `columns` and `data` or with `dataframe`.
 
         """
-
         metrics = {key: wandb.Table(columns=columns, data=data, dataframe=dataframe)}
         self.log_metrics(metrics, step)
 
@@ -481,7 +479,6 @@ class WandbLogger(Logger):
         Can be defined either with `columns` and `data` or with `dataframe`.
 
         """
-
         self.log_table(key, columns, data, dataframe, step)
 
     @rank_zero_only
@@ -640,8 +637,11 @@ class WandbLogger(Logger):
 
     @property
     def root_dir(self) -> Optional[str]:
-        """Return the root directory where all versions of an experiment get saved, or `None` if the logger does not
-        save data locally."""
+        """Return the root directory.
+
+        Return the root directory where all versions of an experiment get saved, or `None` if the logger does not
+        save data locally.
+        """
         return self.save_dir.parent if self.save_dir else None
 
     def log_graph(self, model: Module, input_array: Optional[Tensor] = None) -> None:
@@ -688,7 +688,6 @@ class WandbLogger(Logger):
             The path to the downloaded artifact.
 
         """
-
         if wandb.run is not None and use_artifact:
             artifact = wandb.run.use_artifact(artifact)
         else:
@@ -742,7 +741,7 @@ class WandbLogger(Logger):
         checkpoints = _scan_checkpoints(checkpoint_callback, self._logged_model_time)
 
         # log iteratively all new checkpoints
-        for t, p, s, tag in checkpoints:
+        for t, p, s, _ in checkpoints:
             metadata = {
                 "score": s.item() if isinstance(s, Tensor) else s,
                 "original_filename": Path(p).name,

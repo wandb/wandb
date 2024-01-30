@@ -1,10 +1,9 @@
 import os
 
 import torch
+import wandb
 from lightning import LightningModule
 from torch.utils.data import Dataset
-
-import wandb
 
 
 class RandomDataset(Dataset):
@@ -89,7 +88,7 @@ class TableLoggingCallback:
 
 class SimpleNet(torch.nn.Module):
     def __init__(self):
-        super(SimpleNet, self).__init__()
+        super().__init__()
         self.fc1 = torch.nn.Linear(32 * 32 * 3, 500)
         self.fc2 = torch.nn.Linear(500, 10)
 

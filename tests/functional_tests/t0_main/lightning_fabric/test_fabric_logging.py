@@ -2,11 +2,10 @@
 
 import os
 
-import lightning as L
+import lightning as l
 import torch
-from pl_base import FakeCIFAR10, SimpleNet, TableLoggingCallback
-
 import wandb
+from pl_base import FakeCIFAR10, SimpleNet, TableLoggingCallback
 from wandb.integration.lightning.fabric import WandbLogger
 
 
@@ -64,7 +63,7 @@ def test_fabric_logging():
 
     # Load our model, datasources, and loggers into PyTorch Fabric
     tlc = TableLoggingCallback(logger)
-    fabric = L.Fabric(loggers=[logger], callbacks=[tlc])
+    fabric = l.Fabric(loggers=[logger], callbacks=[tlc])
     fabric.launch()
 
     model, optimizer = fabric.setup(model, optimizer)

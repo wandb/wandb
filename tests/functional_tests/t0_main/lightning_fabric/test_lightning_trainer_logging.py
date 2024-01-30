@@ -4,7 +4,6 @@ import os
 import lightning as pl
 from pl_base import BoringModel, RandomDataset
 from torch.utils.data import DataLoader
-
 from wandb.integration.lightning.fabric import WandbLogger
 
 
