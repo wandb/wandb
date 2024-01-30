@@ -330,3 +330,8 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     print(f"Successfully copied image {target_image}")
+
+
+@nox.session(python=False, name="proto-go")
+def proto_go(session: nox.Session) -> None:
+    session.run("./core/scripts/generate-proto.sh")
