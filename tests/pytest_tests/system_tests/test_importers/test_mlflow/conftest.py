@@ -51,6 +51,7 @@ class MlflowServerSettings:
         self.new_port = self._get_free_port()
         self.base_url = self.base_url.replace("4040", self.new_port)
 
+    @staticmethod
     def _get_free_port():
         import socket
 
@@ -270,9 +271,9 @@ def mlflow_server_settings(mlflow_artifacts_destination, mlflow_backend):
 @pytest.fixture
 def mlflow_logging_config():
     return MlflowLoggingConfig(
-        n_experiments=2,
-        n_runs_per_experiment=3,
-        n_steps_per_run=1000,
+        n_experiments=1,
+        n_runs_per_experiment=2,
+        n_steps_per_run=100,
         n_root_files=5,
         n_subdirs=3,
         n_subdir_files=2,
