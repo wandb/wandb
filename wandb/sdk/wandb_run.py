@@ -1848,6 +1848,13 @@ class Run:
                     "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
                 ),
             )
+        if self._settings._shared and step is not None:
+            wandb.termwarn(
+                "In shared mode, the use of `wandb.log` with the step argument is not supported "
+                f"and will be ignored. Please refer to {wburls.get('wandb_define_metric')} "
+                "on how to customize your x-axis.",
+                repeat=False,
+            )
         self._log(data=data, step=step, commit=commit)
 
     @_run_decorator._noop_on_finish()
