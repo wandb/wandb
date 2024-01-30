@@ -48,8 +48,8 @@ def install_core(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=False, name="build")
-def build(session: nox.Session) -> None:
+@nox.session(python=False, name="build-go")
+def build_go(session: nox.Session) -> None:
     """Builds the wandb-core binary for the current platform."""
     env = os.environ.copy()
 
@@ -130,8 +130,8 @@ def build(session: nox.Session) -> None:
             )
 
 
-@nox.session(python=False, name="develop")
-def develop(session: nox.Session) -> None:
+@nox.session(python=False, name="build-rust")
+def build_rust(session: nox.Session) -> None:
     session.cd("client")
     session.run(
         "maturin",
@@ -140,18 +140,41 @@ def develop(session: nox.Session) -> None:
         "--strip",
         external=True,
     )
+    session.cd("..")
+
+
+@nox.session(python=False, name="build")
+def build(session: nox.Session) -> None:
+    # build the wandb-core go binary:
+    session.notify("build-go")
+    # build the wandb-core wheel with maturin:
+    session.notify("build-rust")
 
 
 @nox.session(python=False, name="install")
 def install(session: nox.Session) -> None:
-    session.cd("client")
-    session.run(
-        "maturin",
-        "develop",
-        "--release",
-        "--strip",
-        external=True,
-    )
+    # find latest wheel file in ./target/wheels/:
+    wheel_file = [
+        f
+        for f in os.listdir("./client/target/wheels/")
+        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
+    ]
+    print(wheel_file)
+    # session.run(
+    #     "pip",
+    #     "install",
+    #     "--force-reinstall",
+    #     f"./client/target/wheels/{wheel_file}",
+    #     external=True,
+    # )
+    # or run maturin develop:
+    # session.run(
+    #     "maturin",
+    #     "develop",
+    #     "--release",
+    #     "--strip",
+    #     external=True,
+    # )
 
 
 @nox.session(python=False, name="list-failing-tests-wandb-core")
@@ -424,3 +447,22 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
     print(f"Successfully copied image {target_image}")
+
+
+@nox.session(python=False, name="bump-core-version")
+def bump_core_version(session: nox.Session) -> None:
+    args = session.posargs
+    if not args:
+        print("Usage: nox -s bump-core-version -- <args>")
+        return
+
+    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
+        session.run(
+            "bump2version",
+            "patch",
+            "--no-tag",
+            "--no-commit",
+            "--config-file",
+            cfg,
+            *args,
+        )

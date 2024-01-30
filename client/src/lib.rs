@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use std::sync::OnceLock;
 
 use sentry;
 use tracing;
@@ -14,7 +15,16 @@ pub mod wandb_internal;
 
 /// Communication layer between user code and nexus
 
-pub static VERSION: &'static str = env!("CARGO_PKG_VERSION");
+pub fn get_pydantic_core_version() -> &'static str {
+    static VERSION: OnceLock<String> = OnceLock::new();
+    VERSION.get_or_init(|| {
+        let version = env!("CARGO_PKG_VERSION");
+        version
+            .replace("-alpha", "a")
+            .replace("-beta", "b")
+            .replace("-rc", "rc")
+    })
+}
 
 #[pyfunction]
 pub fn init(settings: Option<settings::Settings>) -> run::Run {
@@ -37,7 +47,7 @@ fn wandb_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // let log_level = tracing::Level::DEBUG;
     tracing_subscriber::fmt().with_max_level(log_level).init();
 
-    m.add("__version__", VERSION)?;
+    m.add("__version__", get_pydantic_core_version())?;
     m.add_function(wrap_pyfunction!(init, m)?)?;
     m.add_class::<settings::Settings>()?;
     m.add_class::<session::Session>()?;
