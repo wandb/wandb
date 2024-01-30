@@ -119,7 +119,8 @@ class ArtifactManifestEntry:
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
-        dest_path = os.path.join(root, self.path)
+        path = str(Path(self.path))
+        dest_path = os.path.join(root, path)
 
         if skip_cache:
             override_cache_path = dest_path
