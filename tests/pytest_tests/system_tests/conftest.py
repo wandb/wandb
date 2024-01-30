@@ -466,6 +466,11 @@ def pytest_addoption(parser):
         default="none",
         help="Clean up wandb server",
     )
+    parser.addoption(
+        "--wandb-second-server",
+        default=False,
+        help="Spin up a second server (for importer tests)",
+    )
 
     # debug option: creates an admin account that can be used to log in to the
     # app and inspect the test runs.
@@ -583,6 +588,32 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
     )
 
 
+@pytest.fixture
+def server2(config):
+    settings2 = WandbServerSettings(
+        name=DEFAULT_SERVER_CONTAINER_NAME2,
+        volume=DEFAULT_SERVER_VOLUME2,
+        local_base_port=LOCAL_BASE_PORT2,
+        services_api_port=SERVICES_API_PORT2,
+        fixture_service_port=FIXTURE_SERVICE_PORT2,
+        wandb_server_pull=config.getoption("--wandb-server-pull"),
+        wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
+        wandb_server_image_repository=config.getoption(
+            "--wandb-server-image-repository"
+        ),
+        wandb_server_tag=config.getoption("--wandb-server-tag"),
+        wandb_server_use_existing=config.getoption(
+            "--wandb-server-use-existing",
+            default=True if os.getenv("CI") else False,
+        ),
+    )
+    config.wandb_server_settings2 = settings2
+
+    success2 = spin_wandb_server(settings2)
+    if not success2:
+        pytest.exit("Failed to connect to wandb server2")
+
+
 def pytest_configure(config):
     print("Running tests with wandb version:", wandb.__version__)
     print("Configuring wandb server...")
@@ -614,29 +645,32 @@ def pytest_configure(config):
     # start or connect to wandb test server2 (for importer tests)
     # this is here because and not in the `system_tests/test_importers/conftest.py`
     # because when it was included there, the wandb-local-testcontainer (from this conf)
-    # did not spin up when testing the importers dir
-    # settings2 = WandbServerSettings(
-    #     name=DEFAULT_SERVER_CONTAINER_NAME2,
-    #     volume=DEFAULT_SERVER_VOLUME2,
-    #     local_base_port=LOCAL_BASE_PORT2,
-    #     services_api_port=SERVICES_API_PORT2,
-    #     fixture_service_port=FIXTURE_SERVICE_PORT2,
-    #     wandb_server_pull=config.getoption("--wandb-server-pull"),
-    #     wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
-    #     wandb_server_image_repository=config.getoption(
-    #         "--wandb-server-image-repository"
-    #     ),
-    #     wandb_server_tag=config.getoption("--wandb-server-tag"),
-    #     wandb_server_use_existing=config.getoption(
-    #         "--wandb-server-use-existing",
-    #         default=True if os.getenv("CI") else False,
-    #     ),
-    # )
-    # config.wandb_server_settings2 = settings2
+    # did not spin up when testing the importers dir specifically
+    if config.getoption("--wandb-second-server"):
+        settings2 = WandbServerSettings(
+            name=DEFAULT_SERVER_CONTAINER_NAME2,
+            volume=DEFAULT_SERVER_VOLUME2,
+            local_base_port=LOCAL_BASE_PORT2,
+            services_api_port=SERVICES_API_PORT2,
+            fixture_service_port=FIXTURE_SERVICE_PORT2,
+            wandb_server_pull=config.getoption("--wandb-server-pull"),
+            wandb_server_image_registry=config.getoption(
+                "--wandb-server-image-registry"
+            ),
+            wandb_server_image_repository=config.getoption(
+                "--wandb-server-image-repository"
+            ),
+            wandb_server_tag=config.getoption("--wandb-server-tag"),
+            wandb_server_use_existing=config.getoption(
+                "--wandb-server-use-existing",
+                default=True if os.getenv("CI") else False,
+            ),
+        )
+        config.wandb_server_settings2 = settings2
 
-    # success2 = spin_wandb_server(settings2)
-    # if not success2:
-    #     pytest.exit("Failed to connect to wandb server2")
+        success2 = spin_wandb_server(settings2)
+        if not success2:
+            pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_unconfigure(config):
@@ -650,11 +684,12 @@ def pytest_unconfigure(config):
         command = ["docker", "rm", "-f", config.wandb_server_settings.name]
         subprocess.run(command, check=True)
 
-        print(
-            f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
-        )
-        command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
-        subprocess.run(command, check=True)
+        if config.getoption("--wandb-second-server"):
+            print(
+                f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
+            )
+            command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
+            subprocess.run(command, check=True)
     if clean in ("volume", "all"):
         print(
             f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
@@ -662,11 +697,12 @@ def pytest_unconfigure(config):
         command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
         subprocess.run(command, check=True)
 
-        print(
-            f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
-        )
-        command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
-        subprocess.run(command, check=True)
+        if config.getoption("--wandb-second-server"):
+            print(
+                f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
+            )
+            command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
+            subprocess.run(command, check=True)
 
 
 def determine_scope(fixture_name, config):

@@ -78,7 +78,7 @@ parameters:
     default: true
   gcp_project:
     type: string
-    default: wandb-production  # wandb-production or wandb-client-cicd
+    default: wandb-production # wandb-production or wandb-client-cicd
   wandb_server_tag:
     type: string
     default: "master"
@@ -1231,7 +1231,7 @@ workflows:
       #
       - local-testcontainer:
           requires:
-              - "slack-notify-on-start"
+            - "slack-notify-on-start"
       #
       # Regression tests
       #
@@ -1426,6 +1426,22 @@ workflows:
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
           codecov_args: "-F system"
+
+      #
+      # W&B Importer tests with pytest on Linux, using 2 real wandb servers
+      #
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+              importer_type: ["wandb", "mlflow"]
+          name: "system-linux-importer-<<matrix.importer_type>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_importers"
+          codecov_args: "-F system"
       #
       # Functional tests with pytest on Linux, using real wandb server
       #
@@ -1449,8 +1465,8 @@ workflows:
             - "system-tests"
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 10 ]
+              python_version_major: [3]
+              python_version_minor: [10]
           name: "system(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
@@ -1690,8 +1706,8 @@ workflows:
             - "functional-tests"
           matrix:
             parameters:
-              python_version_major: [ 3 ]
-              python_version_minor: [ 9 ]
+              python_version_major: [3]
+              python_version_minor: [9]
               shard:
                 - "mitm"
                 - "docs"
