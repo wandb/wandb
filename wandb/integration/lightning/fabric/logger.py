@@ -225,7 +225,10 @@ class WandbLogger(Logger):
     .. code-block:: python
 
         columns = ["caption", "image", "sound"]
-        data = [["cheese", wandb.Image(img_1), wandb.Audio(snd_1)], ["wine", wandb.Image(img_2), wandb.Audio(snd_2)]]
+        data = [
+            ["cheese", wandb.Image(img_1), wandb.Audio(snd_1)],
+            ["wine", wandb.Image(img_2), wandb.Audio(snd_2)],
+        ]
         wandb_logger.log_table(key="samples", columns=columns, data=data)
 
 
