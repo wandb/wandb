@@ -520,6 +520,7 @@ jobs:
           name: Install Python dependencies
           command: |
             pip3 install -U tox nox pip
+            pyenv install 3.8.13
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
 
