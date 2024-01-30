@@ -569,6 +569,7 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
             "linux/amd64",
             f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
         ]
+        print(f"{command=}")
         subprocess.Popen(command)
         # wait for the server to start
         server_is_up = check_server_health(
@@ -586,32 +587,6 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
     return check_server_health(
         base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
     )
-
-
-@pytest.fixture
-def server2(config):
-    settings2 = WandbServerSettings(
-        name=DEFAULT_SERVER_CONTAINER_NAME2,
-        volume=DEFAULT_SERVER_VOLUME2,
-        local_base_port=LOCAL_BASE_PORT2,
-        services_api_port=SERVICES_API_PORT2,
-        fixture_service_port=FIXTURE_SERVICE_PORT2,
-        wandb_server_pull=config.getoption("--wandb-server-pull"),
-        wandb_server_image_registry=config.getoption("--wandb-server-image-registry"),
-        wandb_server_image_repository=config.getoption(
-            "--wandb-server-image-repository"
-        ),
-        wandb_server_tag=config.getoption("--wandb-server-tag"),
-        wandb_server_use_existing=config.getoption(
-            "--wandb-server-use-existing",
-            default=True if os.getenv("CI") else False,
-        ),
-    )
-    config.wandb_server_settings2 = settings2
-
-    success2 = spin_wandb_server(settings2)
-    if not success2:
-        pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_configure(config):
@@ -638,6 +613,7 @@ def pytest_configure(config):
     config.wandb_server_settings = settings
 
     # start or connect to wandb test server
+    print(f"Bringing up wandb server {settings=}")
     success = spin_wandb_server(settings)
     if not success:
         pytest.exit("Failed to connect to wandb server")
@@ -668,6 +644,7 @@ def pytest_configure(config):
         )
         config.wandb_server_settings2 = settings2
 
+        print(f"Bringing up wandb server2 {settings2=}")
         success2 = spin_wandb_server(settings2)
         if not success2:
             pytest.exit("Failed to connect to wandb server2")
