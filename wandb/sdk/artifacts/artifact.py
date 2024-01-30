@@ -513,8 +513,9 @@ class Artifact:
         """The time-to-live (TTL) policy of an artifact.
 
         Artifacts are deleted shortly after a TTL policy's duration passes.
-        If set to `None`, the artifact has no TTL policy set and it is not
-        scheduled for deletion. An artifact inherits a TTL policy from
+        If set to `None`, the artifact deactivates TTL policies and will be not
+        scheduled for deletion, even if there is a team default TTL. 
+        An artifact inherits a TTL policy from
         the team default if the team administrator defines a default
         TTL and there is no custom policy set on an artifact.
 
