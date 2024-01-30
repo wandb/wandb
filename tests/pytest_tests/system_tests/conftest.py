@@ -569,7 +569,6 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
             "linux/amd64",
             f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
         ]
-        print(f"{command=}")
         subprocess.Popen(command)
         # wait for the server to start
         server_is_up = check_server_health(
@@ -613,7 +612,6 @@ def pytest_configure(config):
     config.wandb_server_settings = settings
 
     # start or connect to wandb test server
-    print(f"Bringing up wandb server {settings=}")
     success = spin_wandb_server(settings)
     if not success:
         pytest.exit("Failed to connect to wandb server")
@@ -644,7 +642,6 @@ def pytest_configure(config):
         )
         config.wandb_server_settings2 = settings2
 
-        print(f"Bringing up wandb server2 {settings2=}")
         success2 = spin_wandb_server(settings2)
         if not success2:
             pytest.exit("Failed to connect to wandb server2")
