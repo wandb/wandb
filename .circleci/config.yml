@@ -474,12 +474,6 @@ jobs:
       - gcloud/install
       - setup_gcloud
       - run:
-          name: Setup gcloud docker
-          command: |
-            echo $GCLOUD_SERVICE_KEY > key.json
-            gcloud auth activate-service-account --key-file=key.json
-            yes | gcloud auth configure-docker
-      - run:
           name: Start local-testcontainer
           command: |
             # Assuming you want to run local-testcontainer as a background service
