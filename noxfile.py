@@ -454,14 +454,13 @@ def bump_core_version(session: nox.Session) -> None:
     if not args:
         session.log("Usage: nox -s bump-core-version -- <args>\n")
         # Examples:
-        session.log("For example, to bump from 0.17.0b8 to 0.17.0b9:")
+        session.log(
+            "For example, to bump from 0.17.0b8/0.17.0-beta.8 to 0.17.0b9/0.17.0-beta.9:"
+        )
         session.log("nox -s bump-core-version -- pre")
         return
 
-    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
-        session.run(
-            "bump2version",
-            "--config-file",
-            cfg,
-            *args,
-        )
+    for component in ("core", "client"):
+        session.cd(component)
+        session.run("bump2version", *args, external=True)
+        session.cd("..")
