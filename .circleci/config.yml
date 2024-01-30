@@ -479,7 +479,7 @@ jobs:
       - run:
           name: Authenticate with GCP Artifact Registry
           command: |
-            cat ${HOME}/gcp-key.json | docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev
+            docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev < ${HOME}/gcp-key.json
       - run:
           name: Start local-testcontainer
           command: |
