@@ -479,3 +479,8 @@ def bump_core_version(session: nox.Session) -> None:
             cfg,
             *args,
         )
+
+
+@nox.session(python=False, name="proto-go")
+def proto_go(session: nox.Session) -> None:
+    session.run("./core/scripts/generate-proto.sh")
