@@ -404,8 +404,11 @@ class Artifact:
     def collection(self) -> ArtifactCollection:
         """The collection this artifact was retrieved from.
 
+        A collection is an ordered group of artifact versions.
         If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the source sequence.
+        collection will be returned rather than the the collection
+        that an artifact version originated from. The collection
+        that an artifact originates from is known as the source sequence.
         """
         self._ensure_logged("collection")
         base_name = self.name.split(":")[0]
@@ -473,6 +476,10 @@ class Artifact:
     @description.setter
     def description(self, description: Optional[str]) -> None:
         """Set the description of the artifact.
+
+        For model or dataset Artifacts, add documentation for your
+        standardized team model or dataset card. In the W&B UI the
+        description is rendered as markdown.
 
         Arguments:
             description: Free text that offers a description of the artifact.
@@ -691,9 +698,12 @@ class Artifact:
     # State management.
 
     def finalize(self) -> None:
-        """Finalize the artifact. You can not modify an artifact once it is finalized.
+        """Finalize the artifact version.
 
-        An artifact is automatically finalized when you log the artifact with `log_artifact`.
+        You can not modify an artifact once it is finalized because the artifact
+        is logged as a specific artifact version. Create a new artifact version
+        to log more data to an artifact. An artifact is automatically finalized
+        when you log the artifact with `log_artifact`.
         """
         self._final = True
 
@@ -765,11 +775,11 @@ class Artifact:
     def wait(self, timeout: Optional[int] = None) -> "Artifact":
         """If needed, wait for this artifact to finish logging.
 
-        Returns:
-            INSERT
-
         Arguments:
             timeout: The time, in seconds, to wait.
+
+        Returns:
+            An `Artifact` object.
         """
         if self.is_draft():
             if self._save_handle is None:
@@ -1056,7 +1066,7 @@ class Artifact:
             name: The artifact relative name to get.
 
         Returns:
-            An `ArtifactManifestEntry` object.
+            A `W&B` object.
 
         Raises:
             ArtifactNotLoggedError: If the artifact isn't logged or the run is offline.
@@ -1213,14 +1223,14 @@ class Artifact:
 
         - http(s): The size and digest of the file will be inferred by the
           `Content-Length` and the `ETag` response headers returned by the server.
-        - s3: The checksum and size is pulled from the object metadata. If bucket
+        - s3: The checksum and size are pulled from the object metadata. If bucket
           versioning is enabled, then the version ID is also tracked.
-        - gs: The checksum and size is pulled from the object metadata. If bucket
+        - gs: The checksum and size are pulled from the object metadata. If bucket
           versioning is enabled, then the version ID is also tracked.
         - https, domain matching `*.blob.core.windows.net` (Azure): The checksum and size
-          is be pulled from the blob metadata. If storage account versioning is
+          are be pulled from the blob metadata. If storage account versioning is
           enabled, then the version ID is also tracked.
-        - file: The checksum and size is pulled from the file system. This scheme
+        - file: The checksum and size are pulled from the file system. This scheme
           is useful if you have an NFS share or other externally mounted volume
           containing files you wish to track but not necessarily upload.
 
@@ -1436,7 +1446,7 @@ class Artifact:
             name: The artifact relative name to get
 
         Returns:
-            An `ArtifactManifestEntry` object.
+            A `W&B` object.
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline.
@@ -1455,10 +1465,10 @@ class Artifact:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
-            name: The artifact relative name to get
+            name: The artifact relative name to retrieve.
 
         Returns:
-            An `ArtifactManifestEntry` object.
+            A `W&B` object.
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
@@ -1549,6 +1559,10 @@ class Artifact:
 
         Arguments:
             root: The directory W&B stores the artifact's files.
+            allow_missing_references: If set to `True`, any invalid reference paths
+                will be ignored while downloading referenced files.
+            skip_cache: If set to `True`, the artifact cache will be skipped when downloading
+                and W&B will download each file into the default root or specified download directory.
 
         Returns:
             The path to the downloaded contents.
@@ -1946,9 +1960,14 @@ class Artifact:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Arguments:
-            target_path: The path to the portfolio. The target path must
-            adhere to one of the following schemas `{portfolio}`,
-            `{project}/{portfolio}` or `{entity}/{project}/{portfolio}`.
+            target_path: The path to the portfolio inside a project.
+            The target path must adhere to one of the following
+            schemas `{portfolio}`, `{project}/{portfolio}` or
+            `{entity}/{project}/{portfolio}`.
+            To link the artifact to the Model Registry, rather than to a generic
+            portfolio inside a project, set `target_path` to the following
+            schema `{"model-registry"}/{Registered Model Name}` or
+            `{entity}/{"model-registry"}/{Registered Model Name}`.
             aliases: A list of strings that uniquely identifies the artifact inside the
                 specified portfolio.
 
