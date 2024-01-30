@@ -334,4 +334,35 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 
 @nox.session(python=False, name="proto-go")
 def proto_go(session: nox.Session) -> None:
+    """Generate Go bindings for protobufs."""
     session.run("./core/scripts/generate-proto.sh")
+
+
+@nox.session(name="proto-python")
+@nox.parametrize("pb", [3, 4])
+def proto_python(session: nox.Session, pb: int) -> None:
+    """Generate Python bindings for protobufs.
+
+    The pb argument is the major version of the protobuf package to use.
+
+    Tested with Python 3.10 on a Mac with an M1 chip.
+    Absolutely does not work with Python 3.7.
+    """
+    if pb == 3:
+        session.install("protobuf~=3.20.3")
+        session.install("mypy-protobuf~=3.3.0")
+        session.install("grpcio~=1.48.0")
+        session.install("grpcio-tools~=1.48.0")
+    elif pb == 4:
+        session.install("protobuf~=4.23.4")
+        session.install("mypy-protobuf~=3.5.0")
+        session.install("grpcio~=1.50.0")
+        session.install("grpcio-tools~=1.50.0")
+    else:
+        session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
+
+    session.install("-r", "requirements_build.txt")
+    session.install(".")
+
+    session.chdir("wandb/proto")
+    session.run("python", "wandb_internal_codegen.py")
