@@ -460,7 +460,10 @@ def bump_core_version(session: nox.Session) -> None:
         session.log("nox -s bump-core-version -- pre")
         return
 
-    for component in ("core", "client"):
-        session.cd(component)
-        session.run("bump2version", *args, external=True)
-        session.cd("..")
+    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
+        session.run(
+            "bump2version",
+            "--config-file",
+            cfg,
+            *args,
+        )
