@@ -564,8 +564,9 @@ class Artifact:
 
     @property
     def aliases(self) -> List[str]:
-        """Labels assigned to an artifact. Aliases are mutable.
+        """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact.
 
+        Aliases are mutable references that you can programmatically reference.
         Change an artifact's alias with the W&B App UI or programmatically.
         See [Create new artifact versions](https://docs.wandb.ai/guides/artifacts/create-a-new-artifact-version)
         for more information.
@@ -700,7 +701,7 @@ class Artifact:
     def finalize(self) -> None:
         """Finalize the artifact version.
 
-        You can not modify an artifact once it is finalized because the artifact
+        You cannot modify an artifact version once it is finalized because the artifact
         is logged as a specific artifact version. Create a new artifact version
         to log more data to an artifact. An artifact is automatically finalized
         when you log the artifact with `log_artifact`.
@@ -1104,7 +1105,8 @@ class Artifact:
             automatically added to the artifact.
 
         Raises:
-            ArtifactFinalizedError: If the artifact is already finalized.
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         self._ensure_can_add()
         if self._tmp_dir is None:
@@ -1145,7 +1147,8 @@ class Artifact:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
@@ -1172,7 +1175,8 @@ class Artifact:
                 Defaults to the root of the artifact.
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
@@ -1255,7 +1259,8 @@ class Artifact:
             The added manifest entries.
 
         Raises:
-            ArtifactFinalizedError: If the artifact is already finalized.
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         self._ensure_can_add()
         if name is not None:
@@ -1298,7 +1303,8 @@ class Artifact:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: if the artifact has already been finalized
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         self._ensure_can_add()
         name = LogicalPath(name)
@@ -1411,7 +1417,8 @@ class Artifact:
                 that directory will be removed.
 
         Raises:
-            ArtifactFinalizedError: If the artifact is already finalized.
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
             FileNotFoundError: If the item isn't found in the artifact.
         """
         self._ensure_can_add()
