@@ -470,7 +470,7 @@ jobs:
       - run:
           name: Install system deps
           command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
+            sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
       - run:
           name: Install Python dependencies
           command: |
