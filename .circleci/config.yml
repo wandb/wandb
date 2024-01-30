@@ -484,7 +484,7 @@ jobs:
           name: Start local-testcontainer
           command: |
             # Assuming you want to run local-testcontainer as a background service
-            docker run --pull always --rm \
+            docker run -d --pull always --rm \
               -v wandb-local-testcontainer-vol:/vol \
               -p 8080:8080 \
               -p 8083:8083 \
@@ -500,7 +500,7 @@ jobs:
           name: Start local-testcontainer2
           command: |
             # Assuming you want to run local-testcontainer as a background service
-            docker run --pull always --rm \
+            docker run -d --pull always --rm \
               -v wandb-local-testcontainer-vol:/vol \
               -p 9180:8080 \
               -p 9183:8083 \
