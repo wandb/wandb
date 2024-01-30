@@ -15,7 +15,7 @@ This step is not required, but it is highly recommended.
 To install wandb-core, you will need to run the following commands (assuming you are in the
 root of the repository):
 ```shell
-pip install -r requirements_build.txt  # Install build dependencies, if needed
+pip install .[build]  # Install build dependencies, if needed
 nox -s build-core install-core
 ```
 This will build wandb-core for your current platform and install it into your current Python environment.
@@ -35,7 +35,7 @@ the development version of wandb-core. Follow the instructions in the script to 
 ## Running System Tests Locally
 Install the test requirements into the current Python environment:
 ```shell
-pip install -r requirements_test.txt  # Install test dependencies, if needed
+pip install .[test]  # Install test dependencies, if needed
 ```
 
 A number of tests are not currently passing due to feature incompleteness.
