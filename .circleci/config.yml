@@ -1440,7 +1440,7 @@ workflows:
               shard: ["wandb", "mlflow"]
           name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>"
+          tox_args: "tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/"
           codecov_args: "-F system"
       #
       # Functional tests with pytest on Linux, using real wandb server
