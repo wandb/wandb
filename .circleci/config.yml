@@ -474,6 +474,13 @@ jobs:
       - gcloud/install
       - setup_gcloud
       - run:
+          name:
+          command: |
+            go install github.com/google/go-containerregistry/cmd/gcrane@latest
+            pip install -U pip nox requests
+            nox -s local-testcontainer-registry
+          no_output_timeout: 5m
+      - run:
           name: Start local-testcontainer
           command: |
             # Assuming you want to run local-testcontainer as a background service
