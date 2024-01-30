@@ -452,16 +452,15 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 def bump_core_version(session: nox.Session) -> None:
     args = session.posargs
     if not args:
-        session.log("Usage: nox -s bump-core-version -- <args>")
-
+        session.log("Usage: nox -s bump-core-version -- <args>\n")
+        # Examples:
+        session.log("For example, to bump from 0.17.0b8 to 0.17.0b9:")
+        session.log("nox -s bump-core-version -- pre")
         return
 
     for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
         session.run(
             "bump2version",
-            "--allow-dirty",
-            "--no-tag",
-            "--no-commit",
             "--config-file",
             cfg,
             *args,
