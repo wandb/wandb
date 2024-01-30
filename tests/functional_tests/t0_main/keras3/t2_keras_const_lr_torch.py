@@ -5,7 +5,7 @@ import numpy as np
 import wandb
 from keras import layers
 from keras.utils import to_categorical
-from wandb.integration.keras3 import WandbMetricsLogger
+from wandb.integration.keras3 import WandbMetricsLogger, WandbModelCheckpoint
 
 os.environ["KERAS_BACKEND"] = "torch"
 
@@ -46,5 +46,8 @@ model.fit(
     batch_size=config.batch_size,
     epochs=config.epochs,
     validation_split=0.1,
-    callbacks=[WandbMetricsLogger(log_freq="batch")],
+    callbacks=[
+        WandbMetricsLogger(log_freq="batch"),
+        WandbModelCheckpoint(filepath="model.keras"),
+    ],
 )
