@@ -91,7 +91,7 @@ def build_go(session: nox.Session) -> None:
     session.log(f"Commit: {commit}")
 
     # build the wandb-core binary in ./core:
-    session.chdir("core")
+    session.cd("core")
 
     src_dir = pathlib.Path.cwd()
     out_dir = src_dir.parent / "client" / "wandb_core"
@@ -128,10 +128,12 @@ def build_go(session: nox.Session) -> None:
                 str(out_dir),
                 external=True,
             )
+    session.cd("..")
 
 
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
+    """Builds the wandb-core wheel with maturin."""
     session.cd("client")
     session.run(
         "maturin",
@@ -141,14 +143,6 @@ def build_rust(session: nox.Session) -> None:
         external=True,
     )
     session.cd("..")
-
-
-@nox.session(python=False, name="build")
-def build(session: nox.Session) -> None:
-    # build the wandb-core go binary:
-    session.notify("build-go")
-    # build the wandb-core wheel with maturin:
-    session.notify("build-rust")
 
 
 @nox.session(python=False, name="install")
