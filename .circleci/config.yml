@@ -483,7 +483,6 @@ jobs:
       - run:
           name: Start local-testcontainer
           command: |
-            # Assuming you want to run local-testcontainer as a background service
             docker run -d --pull always --rm \
               -v wandb-local-testcontainer-vol:/vol \
               -p 8080:8080 \
@@ -499,7 +498,6 @@ jobs:
       - run:
           name: Start local-testcontainer2
           command: |
-            # Assuming you want to run local-testcontainer as a background service
             docker run -d --pull always --rm \
               -v wandb-local-testcontainer-vol2:/vol \
               -p 9180:8080 \
@@ -513,17 +511,13 @@ jobs:
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:9180/healthz; do sleep 1; done
       - run:
-          name: Install system deps
-          command: |
-            sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
-      - run:
           name: Install Python dependencies
           command: |
-            pip3 install -U tox nox pip
-            pyenv install 3.8.13
+            pyenv install 3.8.18
+            pyenv local 3.8.18
+            pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
-
       - run:
           name: Run tests
           no_output_timeout: 10m
