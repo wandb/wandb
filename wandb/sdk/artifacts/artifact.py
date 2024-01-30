@@ -1680,6 +1680,7 @@ class Artifact:
         root: Optional[str] = None,
         allow_missing_references: bool = False,
         skip_cache: Optional[bool] = None,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1689,6 +1690,10 @@ class Artifact:
 
         Arguments:
             root: The directory in which to download this artifact's files.
+            skip_cache: If true, then the artifact cache will be skipped when downloading
+            and we will download each file into the default root or specified download directory.
+            dir_path_prefix: If specified, then only files with paths that start with the
+            specified prefix StrPath will be downloaded.
 
         Returns:
             The path to the downloaded contents.
@@ -1710,7 +1715,25 @@ class Artifact:
             root=root,
             allow_missing_references=allow_missing_references,
             skip_cache=skip_cache,
+            path_prefix=path_prefix,
         )
+
+    @classmethod
+    def path_contains_dir_prefix(cls, path: StrPath, dir_path: StrPath) -> bool:
+        """Returns true if `path` contains `dir_path` as a prefix."""
+        if not dir_path:
+            return True
+        path_parts = PurePosixPath(path).parts
+        dir_parts = PurePosixPath(dir_path).parts
+        return path_parts[: len(dir_parts)] == dir_parts
+
+    @classmethod
+    def should_download_entry(
+        cls, entry: ArtifactManifestEntry, prefix: Optional[StrPath]
+    ) -> bool:
+        if prefix is None:
+            return True
+        return cls.path_contains_dir_prefix(entry.path, prefix)
 
     def _download_using_core(
         self,
@@ -1783,6 +1806,7 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
         skip_cache: Optional[bool] = None,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
         require_core = get_core_path() != ""
@@ -1841,7 +1865,8 @@ class Artifact:
                         # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
-                    active_futures.add(executor.submit(download_entry, entry))
+                    if self.should_download_entry(entry, prefix=path_prefix):
+                        active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = fetch_url_batch_size
                 if len(active_futures) > max_backlog:
