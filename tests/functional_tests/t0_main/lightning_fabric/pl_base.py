@@ -1,8 +1,11 @@
+import os
+
 import torch
 from lightning import LightningModule
 from torch.utils.data import Dataset
+
 import wandb
-import os
+
 
 class RandomDataset(Dataset):
     def __init__(self, size, num_samples):
@@ -68,6 +71,7 @@ class BoringModel(LightningModule):
         _ = torch.stack(self.test_step_outputs).mean()
         self.test_step_outputs.clear()  # free memory
 
+
 class TableLoggingCallback:
     def __init__(self, wandb_logger):
         self.wandb_logger = wandb_logger
@@ -82,6 +86,7 @@ class TableLoggingCallback:
         self.wandb_logger.experiment.log({"prediction_table": prediction_table})
         self.table = wandb.Table(columns=["image", "prediction", "ground_truth"])
 
+
 class SimpleNet(torch.nn.Module):
     def __init__(self):
         super(SimpleNet, self).__init__()
@@ -93,6 +98,7 @@ class SimpleNet(torch.nn.Module):
         x = torch.nn.functional.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
 
 class FakeCIFAR10(Dataset):
     def __init__(self, num_samples, root_folder):
@@ -110,5 +116,5 @@ class FakeCIFAR10(Dataset):
 
     def save(self):
         os.makedirs(self.root_folder, exist_ok=True)
-        torch.save(self.data, os.path.join(self.root_folder, 'data.pt'))
-        torch.save(self.targets, os.path.join(self.root_folder, 'targets.pt'))
+        torch.save(self.data, os.path.join(self.root_folder, "data.pt"))
+        torch.save(self.targets, os.path.join(self.root_folder, "targets.pt"))

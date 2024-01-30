@@ -2,9 +2,10 @@
 import os
 
 import lightning as pl
-from wandb.integration.lightning.fabric import WandbLogger
 from pl_base import BoringModel, RandomDataset
 from torch.utils.data import DataLoader
+
+from wandb.integration.lightning.fabric import WandbLogger
 
 
 def test_lightning_trainer_logging():
@@ -24,7 +25,13 @@ def test_lightning_trainer_logging():
 
     # set up wandb
     config = dict(some_hparam="Logged Before Trainer starts DDP")
-    wandb_logger = WandbLogger(project="fabric-test_lightning_trainer_logging", config=config, log_model=True, save_code=True, checkpoint_name="test_model")
+    wandb_logger = WandbLogger(
+        project="fabric-test_lightning_trainer_logging",
+        config=config,
+        log_model=True,
+        save_code=True,
+        checkpoint_name="test_model",
+    )
 
     # Initialize a trainer
     trainer = pl.Trainer(

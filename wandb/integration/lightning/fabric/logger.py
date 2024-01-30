@@ -15,29 +15,31 @@
 import os
 from argparse import Namespace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Union
+from typing import (TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional,
+                    Union)
+
+from packaging import version
 from typing_extensions import override
 
 import wandb
 from wandb import Artifact
-from wandb.sdk.lib import RunDisabled
+from wandb.sdk.lib import RunDisabled, telemetry
 from wandb.sdk.wandb_run import Run
-from wandb.sdk.lib import telemetry
-
-from packaging import version
 
 try:
+    import lightning
     import torch.nn as nn
-    from torch.nn import Module
-    from torch import Tensor
-
     from lightning.fabric.loggers.logger import Logger, rank_zero_experiment
     from lightning.fabric.utilities.exceptions import MisconfigurationException
-    from lightning.fabric.utilities.logger import _add_prefix, _convert_params, _sanitize_callable_params
-    from lightning.fabric.utilities.rank_zero import rank_zero_only, rank_zero_warn
+    from lightning.fabric.utilities.logger import (_add_prefix,
+                                                   _convert_params,
+                                                   _sanitize_callable_params)
+    from lightning.fabric.utilities.rank_zero import (rank_zero_only,
+                                                      rank_zero_warn)
     from lightning.fabric.utilities.types import _PATH
+    from torch import Tensor
+    from torch.nn import Module
 
-    import lightning
     if version.parse(lightning.__version__) > version.parse("2.1.3"):
         wandb.termwarn(
             """This integration is tested and supported for lightning Fabric 2.1.3.
@@ -46,14 +48,13 @@ try:
         )
 
     if TYPE_CHECKING:
-        
-        from lightning.pytorch.callbacks.model_checkpoint import (
+        from lightning.pytorch.callbacks.model_checkpoint import \
             ModelCheckpoint
-        )
         from lightning.pytorch.loggers.utilities import _scan_checkpoints
-    
+
 except ImportError as e:
     wandb.Error(e)
+
 
 class WandbLogger(Logger):
     r"""Log using `Weights and Biases <https://docs.wandb.ai/integrations/lightning>`_.
@@ -311,7 +312,6 @@ class WandbLogger(Logger):
         log_checkpoint_on: Union[Literal["success"], Literal["all"]] = "success",
         **kwargs: Any,
     ) -> None:
-
         if offline and log_model:
             raise MisconfigurationException(
                 f"Providing log_model={log_model} and offline={offline} is an invalid configuration"
@@ -409,14 +409,24 @@ class WandbLogger(Logger):
                     self._experiment, "define_metric", None
                 ):
                     self._experiment.define_metric("trainer/global_step")
-                    self._experiment.define_metric("*", step_metric="trainer/global_step", step_sync=True)
+                    self._experiment.define_metric(
+                        "*", step_metric="trainer/global_step", step_sync=True
+                    )
 
-        self._experiment._label(repo="lightning_fabric_logger")  # pylint: disable=protected-access
+        self._experiment._label(
+            repo="lightning_fabric_logger"
+        )  # pylint: disable=protected-access
         with telemetry.context(run=self._experiment) as tel:
             tel.feature.lightning_fabric_logger = True
         return self._experiment
 
-    def watch(self, model: nn.Module, log: str = "gradients", log_freq: int = 100, log_graph: bool = True) -> None:
+    def watch(
+        self,
+        model: nn.Module,
+        log: str = "gradients",
+        log_freq: int = 100,
+        log_graph: bool = True,
+    ) -> None:
         self.experiment.watch(model, log=log, log_freq=log_freq, log_graph=log_graph)
 
     @override
@@ -428,7 +438,9 @@ class WandbLogger(Logger):
 
     @override
     @rank_zero_only
-    def log_metrics(self, metrics: Mapping[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(
+        self, metrics: Mapping[str, float], step: Optional[int] = None
+    ) -> None:
         assert rank_zero_only.rank == 0, "experiment tried to log from global_rank != 0"
 
         metrics = _add_prefix(metrics, self._prefix, self.LOGGER_JOIN_CHAR)
@@ -473,7 +485,9 @@ class WandbLogger(Logger):
         self.log_table(key, columns, data, dataframe, step)
 
     @rank_zero_only
-    def log_html(self, key: str, htmls: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
+    def log_html(
+        self, key: str, htmls: List[Any], step: Optional[int] = None, **kwargs: Any
+    ) -> None:
         """Log html files.
 
         Optional kwargs are lists passed to each html (ex: inject).
@@ -487,11 +501,15 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        metrics = {key: [wandb.Html(html, **kwarg) for html, kwarg in zip(htmls, kwarg_list)]}
+        metrics = {
+            key: [wandb.Html(html, **kwarg) for html, kwarg in zip(htmls, kwarg_list)]
+        }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
     @rank_zero_only
-    def log_image(self, key: str, images: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
+    def log_image(
+        self, key: str, images: List[Any], step: Optional[int] = None, **kwargs: Any
+    ) -> None:
         """Log images (tensors, numpy arrays, PIL Images or file paths).
 
         Optional kwargs are lists passed to each image (ex: caption, masks, boxes).
@@ -505,11 +523,15 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        metrics = {key: [wandb.Image(img, **kwarg) for img, kwarg in zip(images, kwarg_list)]}
+        metrics = {
+            key: [wandb.Image(img, **kwarg) for img, kwarg in zip(images, kwarg_list)]
+        }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
     @rank_zero_only
-    def log_audio(self, key: str, audios: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
+    def log_audio(
+        self, key: str, audios: List[Any], step: Optional[int] = None, **kwargs: Any
+    ) -> None:
         r"""Log audios (numpy arrays, or file paths).
 
         Args:
@@ -529,11 +551,17 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        metrics = {key: [wandb.Audio(audio, **kwarg) for audio, kwarg in zip(audios, kwarg_list)]}
+        metrics = {
+            key: [
+                wandb.Audio(audio, **kwarg) for audio, kwarg in zip(audios, kwarg_list)
+            ]
+        }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
     @rank_zero_only
-    def log_video(self, key: str, videos: List[Any], step: Optional[int] = None, **kwargs: Any) -> None:
+    def log_video(
+        self, key: str, videos: List[Any], step: Optional[int] = None, **kwargs: Any
+    ) -> None:
         """Log videos (numpy arrays, or file paths).
 
         Args:
@@ -553,7 +581,11 @@ class WandbLogger(Logger):
                 raise ValueError(f"Expected {n} items but only found {len(v)} for {k}")
         kwarg_list = [{k: kwargs[k][i] for k in kwargs} for i in range(n)]
 
-        metrics = {key: [wandb.Video(video, **kwarg) for video, kwarg in zip(videos, kwarg_list)]}
+        metrics = {
+            key: [
+                wandb.Video(video, **kwarg) for video, kwarg in zip(videos, kwarg_list)
+            ]
+        }
         self.log_metrics(metrics, step)  # type: ignore[arg-type]
 
     @property
@@ -611,7 +643,7 @@ class WandbLogger(Logger):
         """Return the root directory where all versions of an experiment get saved, or `None` if the logger does not
         save data locally."""
         return self.save_dir.parent if self.save_dir else None
-    
+
     def log_graph(self, model: Module, input_array: Optional[Tensor] = None) -> None:
         """Record model graph.
 
@@ -626,7 +658,11 @@ class WandbLogger(Logger):
     @override
     def after_save_checkpoint(self, checkpoint_callback: "ModelCheckpoint") -> None:
         # log checkpoints as artifacts
-        if self._log_model == "all" or self._log_model is True and checkpoint_callback.save_top_k == -1:
+        if (
+            self._log_model == "all"
+            or self._log_model is True
+            and checkpoint_callback.save_top_k == -1
+        ):
             # TODO: Replace with new Fabric Checkpoints system
             self._scan_and_log_pytorch_checkpoints(checkpoint_callback)
         elif self._log_model is True:
@@ -662,7 +698,9 @@ class WandbLogger(Logger):
         save_dir = None if save_dir is None else os.fspath(save_dir)
         return artifact.download(root=save_dir)
 
-    def use_artifact(self, artifact: str, artifact_type: Optional[str] = None) -> "Artifact":
+    def use_artifact(
+        self, artifact: str, artifact_type: Optional[str] = None
+    ) -> "Artifact":
         """Logs to the wandb dashboard that the mentioned artifact is used by the run.
 
         Args:
@@ -688,11 +726,18 @@ class WandbLogger(Logger):
             # Currently, checkpoints only get logged on success
             return
         # log checkpoints as artifacts
-        if self._checkpoint_callback and self._experiment is not None and self._log_checkpoint_on in ["success", "all"]:
+        if (
+            self._checkpoint_callback
+            and self._experiment is not None
+            and self._log_checkpoint_on in ["success", "all"]
+        ):
             self._scan_and_log_pytorch_checkpoints(self._checkpoint_callback)
 
-    def _scan_and_log_pytorch_checkpoints(self, checkpoint_callback: "ModelCheckpoint") -> None:
+    def _scan_and_log_pytorch_checkpoints(
+        self, checkpoint_callback: "ModelCheckpoint"
+    ) -> None:
         from lightning.pytorch.loggers.utilities import _scan_checkpoints
+
         # get checkpoints to be saved with associated score
         checkpoints = _scan_checkpoints(checkpoint_callback, self._logged_model_time)
 
@@ -717,10 +762,15 @@ class WandbLogger(Logger):
             }
             if not self._checkpoint_name:
                 self._checkpoint_name = f"model-{self.experiment.id}"
-            artifact = wandb.Artifact(name=self._checkpoint_name, type="model", metadata=metadata)
+            artifact = wandb.Artifact(
+                name=self._checkpoint_name, type="model", metadata=metadata
+            )
             artifact.add_file(p, name="model.ckpt")
-            aliases = ["latest", "best"] if p == checkpoint_callback.best_model_path else ["latest"]
+            aliases = (
+                ["latest", "best"]
+                if p == checkpoint_callback.best_model_path
+                else ["latest"]
+            )
             self.experiment.log_model(artifact, aliases=aliases)
             # remember logged models - timestamp needed in case filename didn't change (lastkckpt or custom name)
             self._logged_model_time[p] = t
-            
