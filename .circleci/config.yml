@@ -471,13 +471,15 @@ jobs:
           name: Start local-testcontainer
           command: |
             # Assuming you want to run local-testcontainer as a background service
-            docker run -d --name local-testcontainer \
+            docker run --pull always --rm \
+              -v wandb-local-testcontainer-vol:/vol \
               -p 8080:8080 \
               -p 8083:8083 \
               -p 9015:9015 \
               -e CI=1 \
               -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --restart=on-failure \
+              --name local-testcontainer \
+              --platform linux/amd64 \
               us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:8080/healthz; do sleep 1; done
@@ -485,13 +487,15 @@ jobs:
           name: Start local-testcontainer2
           command: |
             # Assuming you want to run local-testcontainer as a background service
-            docker run -d --name local-testcontainer \
+            docker run --pull always --rm \
+              -v wandb-local-testcontainer-vol:/vol \
               -p 9180:8080 \
               -p 9183:8083 \
               -p 9115:9015 \
               -e CI=1 \
               -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --restart=on-failure \
+              --name local-testcontainer \
+              --platform linux/amd64 \
               us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:9180/healthz; do sleep 1; done
