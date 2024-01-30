@@ -23,6 +23,8 @@ class WandbMetricsLogger(Callback):
             raise wandb.Error(
                 "You must call `wandb.init()` before WandbMetricsLogger()"
             )
+        
+        wandb.config.update({"keras_backend": keras.backend.backend()})
 
         log_freq = 1 if log_freq == "batch" else log_freq
 
