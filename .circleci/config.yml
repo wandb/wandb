@@ -468,6 +468,12 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
+      - gcloud/install
+      - setup_gcloud
+      - run:
           name: Start local-testcontainer
           command: |
             # Assuming you want to run local-testcontainer as a background service
