@@ -4,21 +4,7 @@ import keras
 from keras.callbacks import Callback
 
 import wandb
-
-tf_backend_available = False
-torch_backend_available = False
-jax_backend_available = False
-
-if keras.backend.backend() == "tensorflow":
-
-    tf_backend_available = True
-elif keras.backend.backend() == "torch":
-
-    torch_backend_available = True
-elif keras.backend.backend() == "jax":
-
-    jax_backend_available = True
-
+from wandb.util import get_module
 
 LogStrategy = Literal["epoch", "batch"]
 
@@ -60,10 +46,22 @@ class WandbMetricsLogger(Callback):
         try:
             if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
                 return float(self.model.optimizer.learning_rate.numpy().item())
-        except Exception as e:
-            print(e)
-            # wandb.termerror("Unable to log learning rate.", repeat=False)
-            return None
+        except Exception:
+            if keras.backend.backend() == "torch":
+                torch = get_module("torch")
+                if isinstance(self.model.optimizer.learning_rate, torch.Tensor):
+                    lr = self.model.optimizer.learning_rate.to("cpu")
+                    return float(lr.numpy().item())
+                else:
+                    wandb.termerror("Unable to log learning rate.", repeat=False)
+                    return None
+            if keras.backend.backend() == "jax":
+                try:
+                    np = get_module("numpy")
+                    return float(np.array(self.model.optimizer.learning_rate).item())
+                except Exception:
+                    wandb.termerror("Unable to log learning rate.", repeat=False)
+                    return None
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         logs = dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
