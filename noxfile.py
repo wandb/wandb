@@ -158,23 +158,26 @@ def install(session: nox.Session) -> None:
         f
         for f in os.listdir("./client/target/wheels/")
         if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
-    ]
-    print(wheel_file)
-    # session.run(
-    #     "pip",
-    #     "install",
-    #     "--force-reinstall",
-    #     f"./client/target/wheels/{wheel_file}",
-    #     external=True,
-    # )
-    # or run maturin develop:
-    # session.run(
-    #     "maturin",
-    #     "develop",
-    #     "--release",
-    #     "--strip",
-    #     external=True,
-    # )
+    ][0]
+    session.run(
+        "pip",
+        "install",
+        "--force-reinstall",
+        f"./client/target/wheels/{wheel_file}",
+        external=True,
+    )
+
+
+@nox.session(python=False, name="develop")
+def develop(session: nox.Session) -> None:
+    session.cd("client")
+    session.run(
+        "maturin",
+        "develop",
+        "--release",
+        "--strip",
+        external=True,
+    )
 
 
 @nox.session(python=False, name="list-failing-tests-wandb-core")
@@ -202,12 +205,12 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
                         )
 
         def pytest_collection_finish(self):
-            print("\n\nFailing tests grouped by feature:")
+            session.log("\n\nFailing tests grouped by feature:")
             df = pd.DataFrame(self.features)
             for feature, group in df.groupby("feature"):
-                print(f"\n{feature}:")
+                session.log(f"\n{feature}:")
                 for name in group["name"]:
-                    print(f"  {name}")
+                    session.log(f"  {name}")
 
     my_plugin = MyPlugin()
     pytest.main(
