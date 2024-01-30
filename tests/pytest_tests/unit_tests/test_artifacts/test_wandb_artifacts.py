@@ -11,9 +11,9 @@ import pytest
 import requests
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
+from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import ArtifactsCache
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
@@ -51,7 +51,7 @@ def asyncify(f):
     return async_f
 
 
-def is_cache_hit(cache: ArtifactsCache, digest: str, size: int) -> bool:
+def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
     _, hit, _ = cache.check_md5_obj_path(digest, size)
     return hit
 
@@ -101,8 +101,75 @@ def test_capped_cache():
         art = Artifact(f"foo-{i}", type="test")
         art._id = f"foo-{i}"
         art._state = "COMMITTED"
-        artifact_cache[art.id] = art
-    assert len(artifact_cache) == 100
+        artifact_instance_cache[art.id] = art
+    assert len(artifact_instance_cache) == 100
+
+
+def test_artifact_path_fn():
+    assert Artifact.path_contains_dir_prefix("/a/b/c", "/a/b")
+    assert Artifact.path_contains_dir_prefix("a/b/c", "a/b")
+
+    # Case 2: dir_path is identical to path
+    assert Artifact.path_contains_dir_prefix("/a/b/c", "/a/b/c")
+    assert Artifact.path_contains_dir_prefix("a/b/c", "a/b/c")
+
+    # Case 3: dir_path is not a prefix of path
+    assert not Artifact.path_contains_dir_prefix("/a/b/c", "/d/e")
+    assert not Artifact.path_contains_dir_prefix("a/b/c", "d/e")
+
+    # Case 4: Testing with trailing slashes
+    assert Artifact.path_contains_dir_prefix("/a/b/c/", "/a/b")
+    assert Artifact.path_contains_dir_prefix("a/b/c/", "a/b")
+
+    # Case 5: Empty strings
+    assert not Artifact.path_contains_dir_prefix("", "/a/b")
+    assert Artifact.path_contains_dir_prefix("", "")
+
+    # Case 6: Nested directories
+    assert Artifact.path_contains_dir_prefix("/a/b/c/d", "/a/b")
+    assert Artifact.path_contains_dir_prefix("a/b/c/d", "a/b")
+
+    # Case 7: dir_path is a prefix but not a directory prefix
+    assert not Artifact.path_contains_dir_prefix("/a/b/cd", "/a/b/c")
+    assert not Artifact.path_contains_dir_prefix("a/b/cd", "a/b/c")
+
+    assert not Artifact.path_contains_dir_prefix("/a/b/c", "a/b")
+    assert not Artifact.path_contains_dir_prefix("a/b/c", "/a/b")
+
+
+class InternalArtifactManifestEntry:
+    def __init__(self, path: str):
+        self.path = path
+
+
+def test_should_download_entry_fn():
+    def make_entry(path: str) -> InternalArtifactManifestEntry:
+        return InternalArtifactManifestEntry(path)
+
+    # Case 1: prefix is None
+    assert Artifact.should_download_entry(make_entry("/a/b/c"), None)
+    assert Artifact.should_download_entry(make_entry("a/b/c"), None)
+
+    # Case 2: prefix is a valid prefix of entry.path
+    assert Artifact.should_download_entry(make_entry("/a/b/c"), "/a/b")
+    assert Artifact.should_download_entry(make_entry("a/b/c"), "a/b")
+
+    # Case 3: prefix is not a prefix of entry.path
+    assert not Artifact.should_download_entry(make_entry("/a/b/c"), "/d/e")
+    assert not Artifact.should_download_entry(make_entry("a/b/c"), "d/e")
+
+    # Case 4: prefix and entry.path are identical
+    assert Artifact.should_download_entry(make_entry("/a/b/c"), "/a/b/c")
+    assert Artifact.should_download_entry(make_entry("a/b/c"), "a/b/c")
+
+    # Case 5: Testing with empty strings
+    assert Artifact.should_download_entry(make_entry(""), "")
+    assert Artifact.should_download_entry(make_entry("/a/b/c"), "")
+    assert not Artifact.should_download_entry(make_entry(""), "/a/b")
+
+    # Case 6: Testing with trailing slashes
+    assert Artifact.should_download_entry(make_entry("/a/b/c/"), "/a/b")
+    assert Artifact.should_download_entry(make_entry("a/b/c/"), "a/b")
 
 
 class TestStoreFile:
@@ -313,26 +380,26 @@ class TestStoreFile:
         store_file: "StoreFileFixture",
         api,
         example_file: Path,
-        artifacts_cache: ArtifactsCache,
+        artifact_file_cache: ArtifactFileCache,
         err: Optional[Exception],
     ):
         size = example_file.stat().st_size
 
         api.upload_file_retry = Mock(side_effect=err)
         api.upload_file_retry_async = asyncify(Mock(side_effect=err))
-        policy = WandbStoragePolicy(api=api, cache=artifacts_cache)
+        policy = WandbStoragePolicy(api=api, cache=artifact_file_cache)
 
-        assert not is_cache_hit(artifacts_cache, "my-digest", size)
+        assert not is_cache_hit(artifact_file_cache, "my-digest", size)
 
         store = functools.partial(store_file, policy, entry_local_path=example_file)
 
         if err is None:
             store()
-            assert is_cache_hit(artifacts_cache, "my-digest", size)
+            assert is_cache_hit(artifact_file_cache, "my-digest", size)
         else:
             with pytest.raises(Exception, match=err.args[0]):
                 store()
-            assert not is_cache_hit(artifacts_cache, "my-digest", size)
+            assert not is_cache_hit(artifact_file_cache, "my-digest", size)
 
     @pytest.mark.parametrize(
         [

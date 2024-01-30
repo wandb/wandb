@@ -1,6 +1,9 @@
 id: 0.mp.06-3-share-child-lt-step
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 
 parametrize:
   permute:

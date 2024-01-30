@@ -919,7 +919,7 @@ NVML_GSP_FIRMWARE_VERSION_BUF_SIZE = 0x40
 
 ## Error Checking ##
 class NVMLError(Exception):
-    _valClassMapping = dict()
+    _valClassMapping = dict()  # type: ignore
     # List of currently known error codes
     _errcode_to_string = {
         NVML_ERROR_UNINITIALIZED: "Uninitialized",
@@ -1017,7 +1017,7 @@ def _nvmlCheckReturn(ret):
 
 
 ## Function access ##
-_nvmlGetFunctionPointer_cache = (
+_nvmlGetFunctionPointer_cache = (    # type: ignore
     dict()
 )  # function pointers are cached to prevent unnecessary libLoadLock locking
 
@@ -1105,7 +1105,7 @@ class _PrintableStructure(Structure):
     Exact format of returned str from this class is subject to change in the future.
     """
 
-    _fmt_ = {}
+    _fmt_ = {}  # type: ignore
 
     def __str__(self):
         result = []

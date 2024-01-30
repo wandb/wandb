@@ -316,9 +316,10 @@ class LaunchProject:
         job_dir = tempfile.mkdtemp()
         try:
             job = public_api.job(self.job, path=job_dir)
-        except CommError:
+        except CommError as e:
+            msg = e.message
             raise LaunchError(
-                f"Job {self.job} not found. Jobs have the format: <entity>/<project>/<name>:<alias>"
+                f"Error accessing job {self.job}: {msg} on {public_api.settings.get('base_url')}"
             )
         job.configure_launch_project(self)
         self._job_artifact = job._job_artifact

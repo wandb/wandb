@@ -13,10 +13,10 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _minimum_core_version, _sentry, termlog
+from wandb import _sentry, termlog
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
-from wandb.util import get_module
+from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -42,17 +42,6 @@ class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
     pass
-
-
-def _check_wandb_core_version_compatibility(core_version: str) -> None:
-    """Checks if the installed wandb-core version is compatible with the wandb version."""
-    from pkg_resources import parse_version
-
-    if parse_version(core_version) < parse_version(_minimum_core_version):
-        raise ImportError(
-            f"Requires wandb-core version {_minimum_core_version} or later, "
-            f"but you have {core_version}. Run `pip install --upgrade wandb[core]` to upgrade."
-        )
 
 
 class _Service:
@@ -174,20 +163,14 @@ class _Service:
             # NOTE: "wandb-core" is the name of the package that will be distributed
             #       as the stable version of the wandb core library.
             #
-            #       Environment variable _WANDB_NEXUS_PATH is a temporary development feature
-            #       to assist in running the nexus service from a live development directory.
-            core_path: str = os.environ.get("_WANDB_NEXUS_PATH", "")
-            wandb_core = get_module("wandb_core")
-            if not core_path and wandb_core:
-                _check_wandb_core_version_compatibility(wandb_core.__version__)
-                core_path = wandb_core.get_nexus_path()
+            #       Environment variable _WANDB_CORE_PATH is a temporary development feature
+            #       to assist in running the core service from a live development directory.
+            core_path = get_core_path()
             if core_path:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
-                # TODO(artifacts): this is temporary until the artifact logic is fixed
-                os.environ["WANDB_REQUIRE_NEXUS"] = "True"
             else:
                 service_args.extend(["wandb", "service"])
 

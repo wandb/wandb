@@ -312,7 +312,9 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        settings._apply_settings(wandb.setup().settings)
+        wl = wandb.setup()
+        assert wl is not None
+        settings._apply_settings(wl.settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -616,7 +618,9 @@ class _WandbInit:
         manager = self._wl._get_manager()
         if manager:
             logger.info("setting up manager")
-            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_init(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
@@ -694,8 +698,8 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if self.settings._require_nexus:
-                tel.feature.nexus = True
+            if self.settings._require_core:
+                tel.feature.core = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -801,7 +805,9 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if manager:
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_start(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         assert backend.interface
         assert run._run_obj
@@ -1039,6 +1045,10 @@ def init(
             together, or applying temporary labels like "baseline" or
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
+            If you are resuming a run, its tags will be overwritten by the tags
+            you pass to `wandb.init()`. If you want to add tags to a resumed run
+            without overwriting its existing tags, use `run.tags += ["new_tag"]`
+            after `wandb.init()`.
         name: (str, optional) A short display name for this run, which is how
             you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the

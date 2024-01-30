@@ -150,7 +150,7 @@ def _create_job(
             job_builder=job_builder,
             path=path,
             entrypoint=entrypoint,
-            run=run,
+            run=run,  # type: ignore
             entity=entity,
             project=project,
             name=name,
@@ -181,7 +181,7 @@ def _create_job(
         sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
-        run_name=run.id,  # run will be deleted after creation
+        run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
         is_user_created=True,
@@ -197,12 +197,12 @@ def _create_job(
         # is the same as latestArtifact, so no changes detected
         action = "Updated"
 
-    run.log_artifact(artifact, aliases=aliases)
+    run.log_artifact(artifact, aliases=aliases)  # type: ignore
     artifact.wait()
-    run.finish()
+    run.finish()  # type: ignore
 
     # fetch, then delete hidden run
-    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")
+    _run = wandb.Api().run(f"{entity}/{project}/{run.id}")  # type: ignore
     _run.delete()
 
     return artifact, action, aliases
@@ -272,6 +272,10 @@ def _create_repo_metadata(
     git_hash: Optional[str] = None,
     runtime: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    # Make sure the entrypoint doesn't contain any backward path traversal
+    if entrypoint and ".." in entrypoint:
+        wandb.termerror("Entrypoint cannot contain backward path traversal")
+        return None
     if not _is_git_uri(path):
         wandb.termerror("Path must be a git URI")
         return None
@@ -313,24 +317,36 @@ def _create_repo_metadata(
 
     # check if requirements.txt exists
     # start at the location of the python file and recurse up to the git root
-    req_dir = local_dir
-    while (
-        not os.path.exists(os.path.join(req_dir, "requirements.txt"))
-        and req_dir != tempdir
-    ):
-        req_dir = os.path.dirname(req_dir)
+    entrypoint_dir = os.path.dirname(entrypoint)
+    if entrypoint_dir:
+        req_dir = os.path.join(local_dir, entrypoint_dir)
+    else:
+        req_dir = local_dir
 
-    if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
-        wandb.termerror(
-            "Could not find requirements.txt file in git repo at "
-            f"{os.path.join(os.path.dirname(path), 'requirements.txt')} "
-            "or parent directories."
+    # If there is a Dockerfile.wandb in the starting rec dir, don't require a requirements.txt
+    if os.path.exists(os.path.join(req_dir, "Dockerfile.wandb")):
+        wandb.termlog(
+            f"Using Dockerfile.wandb in {req_dir.replace(tempdir, '') or 'repository root'}"
         )
-        return None
+    else:
+        while (
+            not os.path.exists(os.path.join(req_dir, "requirements.txt"))
+            and req_dir != tempdir
+        ):
+            req_dir = os.path.dirname(req_dir)
 
-    wandb.termlog(
-        f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
-    )
+        if not os.path.exists(os.path.join(req_dir, "requirements.txt")):
+            path_with_subdir = os.path.dirname(
+                os.path.join(path or "", entrypoint or "")
+            )
+            wandb.termerror(
+                f"Could not find requirements.txt file in git repo at {path_with_subdir}"
+            )
+            return None
+
+        wandb.termlog(
+            f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
+        )
 
     metadata = {
         "git": {
@@ -414,7 +430,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings = wandb.Settings()
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
-        settings=settings,
+        settings=settings,  # type: ignore
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
@@ -477,7 +493,7 @@ def _make_code_artifact(
     )
     run.log_artifact(code_artifact)
     code_artifact.wait()
-    job_builder._handle_server_artifact(res, code_artifact)
+    job_builder._handle_server_artifact(res, code_artifact)  # type: ignore
 
     # code artifacts have "code" prefix, remove it and alias
     if not name:

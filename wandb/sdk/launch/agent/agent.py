@@ -14,7 +14,6 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
-from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -27,7 +26,6 @@ from .._project_spec import (
     fetch_and_validate_project,
 )
 from ..builder.build import construct_agent_configs
-from ..builder.noop import NoOpBuilder
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -176,7 +174,7 @@ class LaunchAgent:
             config: Config dictionary for the agent.
         """
         self._entity = config["entity"]
-        self._project = config["project"]
+        self._project = config.get("project", LAUNCH_DEFAULT_PROJECT)
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
@@ -207,11 +205,18 @@ class LaunchAgent:
         )
 
         self._queues: List[str] = config.get("queues", ["default"])
+
+        # remove project field from agent config before sending to back end
+        # because otherwise it shows up in the config in the UI and confuses users
+        sent_config = config.copy()
+        if "project" in sent_config:
+            del sent_config["project"]
+
         create_response = self._api.create_launch_agent(
             self._entity,
             self._project,
             self._queues,
-            self.default_config,
+            sent_config,
             self.version,
             self.gorilla_supports_agents,
         )
@@ -651,14 +656,8 @@ class LaunchAgent:
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )
-        if environment is not None and not isinstance(environment, LocalEnvironment):
-            await environment.verify()
         registry = loader.registry_from_config(registry_config, environment)
-        if registry is not None:
-            await registry.verify()
         builder = loader.builder_from_config(build_config, environment, registry)
-        if builder is not None and not isinstance(builder, NoOpBuilder):
-            await builder.verify()
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )

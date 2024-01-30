@@ -3,6 +3,7 @@ import os
 import platform
 import sys
 import tempfile
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.internal.job_builder import JobBuilder
@@ -10,6 +11,7 @@ from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
     _create_artifact_metadata,
+    _create_repo_metadata,
     _dump_metadata_and_requirements,
     _handle_artifact_entrypoint,
     _make_code_artifact_name,
@@ -138,3 +140,39 @@ def test__get_entrypoint():
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
     assert entrypoint == [os.path.basename(sys.executable), "main.py"]
+
+
+def test_create_repo_metadata_entrypoint_traversal():
+    result = _create_repo_metadata(
+        "", "", entrypoint="../../../../../usr/bin/python3.9 main.py"
+    )
+    assert result is None
+
+
+def test_create_repo_metadata_custom_dockerfile(monkeypatch, tmp_path):
+    """This should succeed even thought there is no requirements.txt file because the dockerfile is specified."""
+    entrypoint = "subdir/main.py"
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    (subdir / "main.py").write_text("print('hello world')")
+    (subdir / "Dockerfile.wandb").write_text("FROM python:3.9")
+
+    mock_git_ref = MagicMock(
+        return_value=MagicMock(
+            commit_hash="1234567890",
+            fetch=MagicMock(),
+            path=tmp_path,
+        )
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.create_job.GitReference",
+        lambda *args: mock_git_ref(*args),
+    )
+    result = _create_repo_metadata(
+        "https://github.com/wandb/wandb.git", str(tmp_path), entrypoint=entrypoint
+    )
+    assert result is not None
+
+    # dockerfile.write_text("FROM python:3.9")
+    # result = _create_repo_metadata("", "", dockerfile=dockerfile)
+    # assert result["dockerfile"] == "Dockerfile"

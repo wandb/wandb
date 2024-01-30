@@ -76,7 +76,6 @@ SYMBOLS_ROOT_OTHER = {
     "data_types",
     "division",
     "docker",
-    "sdk_py27",
     "wandb.docker",  # what is this?
     "dummy",
     "ensure_configured",
@@ -102,6 +101,7 @@ SYMBOLS_ROOT_OTHER = {
     "save",
     "sdk",
     "set_trace",
+    "os",
     "setup",
     "sklearn",
     "sync",
@@ -259,6 +259,7 @@ SYMBOLS_CONFIG_OTHER = {
     "as_dict",
     "update_locked",
     "persist",
+    "merge_locked",
 }
 
 

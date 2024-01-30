@@ -881,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
@@ -1230,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }
@@ -1506,7 +1508,7 @@ class Api:
                 $project: String!,
                 $queueName: String!,
                 $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode!,
+                $prioritizationMode: RunQueuePrioritizationMode,
                 $defaultResourceConfigID: ID,
             ) {
                 createRunQueue(
@@ -1714,6 +1716,10 @@ class Api:
 
         if push_result:
             return push_result
+
+        if priority is not None:
+            # Cannot proceed with legacy method if priority is set
+            return None
 
         """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project_queue)
