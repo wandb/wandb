@@ -115,6 +115,14 @@ def build_go(session: nox.Session) -> None:
     session.log(f"Running command: {' '.join(cmd)}")
     session.run(*cmd, env=env, external=True)
 
+    # make it executable
+    session.run(
+        "chmod",
+        "+x",
+        str(out_dir / "wandb-core"),
+        external=True,
+    )
+
     # on arm macs, copy over the stats monitor binary, if available
     # it is built separately with `nox -s build-apple-stats-monitor` to avoid
     # having to wait for that to build on every run.
@@ -126,6 +134,13 @@ def build_go(session: nox.Session) -> None:
                 "cp",
                 str(monitor_path),
                 str(out_dir),
+                external=True,
+            )
+            # make it executable
+            session.run(
+                "chmod",
+                "+x",
+                str(out_dir / "AppleStats"),
                 external=True,
             )
     session.cd("..")
