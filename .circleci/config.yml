@@ -519,7 +519,7 @@ jobs:
       - run:
           name: Install Python dependencies
           command: |
-            pip install -U tox nox pip
+            pip3 install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
 
