@@ -435,6 +435,105 @@ jobs:
     steps:
       - checkout
 
+  importers:
+    parameters:
+      python_version_major:
+        type: integer
+        default: 3
+      python_version_minor:
+        type: integer
+        default: 8
+      shard:
+        type: string
+        default: "core"
+      toxenv:
+        type: string
+      codecov_args:
+        type: string
+        default: ""
+      notify_on_failure:
+        type: boolean
+        default: false
+      xdist:
+        type: integer
+        default: 6
+      tox_args:
+        type: string
+        default: ""
+    machine: true
+    resource_class: xlarge
+    working_directory: /mnt/ramdisk
+    environment:
+      SHARD: << parameters.shard >>
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update && apt-get install -y libsndfile1 ffmpeg
+      - run:
+          name: Install Python dependencies
+          command: |
+            pip install -U tox nox pip
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+          no_output_timeout: 5m
+      - run:
+          name: Start local-testcontainer
+          command: |
+            # Assuming you want to run local-testcontainer as a background service
+            docker run -d --name local-testcontainer \
+              -p 8080:8080 \
+              -p 8083:8083 \
+              -p 9015:9015 \
+              -e CI=1 \
+              -e WANDB_ENABLE_TEST_CONTAINER=true \
+              --restart=on-failure \
+              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+            # Wait for local-testcontainer to be ready
+            while ! curl http://localhost:8080/healthz; do sleep 1; done
+      - run:
+          name: Start local-testcontainer2
+          command: |
+            # Assuming you want to run local-testcontainer as a background service
+            docker run -d --name local-testcontainer \
+              -p 9180:8080 \
+              -p 9183:8083 \
+              -p 9115:9015 \
+              -e CI=1 \
+              -e WANDB_ENABLE_TEST_CONTAINER=true \
+              --restart=on-failure \
+              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+            # Wait for local-testcontainer to be ready
+            while ! curl http://localhost:9180/healthz; do sleep 1; done
+
+      - run:
+          name: Run tests
+          no_output_timeout: 10m
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
+            tox run -v -e <<parameters.toxenv>>  \
+              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
+      - when:
+          condition:
+            not:
+              equal: ["", << parameters.codecov_args >>]
+          steps:
+            - run:
+                name: Upload coverage to codecov
+                command: |
+                  nox -s codecov -- << parameters.codecov_args >>
+      - save-test-results
+      # conditionally post a notification to slack if the job failed
+      - when:
+          condition: << parameters.notify_on_failure >>
+          steps:
+            - slack/notify:
+                event: fail
+                template: basic_fail_1
+                mentions: "@channel"
+                # taken from slack-secrets context
+                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
+
   pytest:
     parameters:
       python_version_major:
@@ -1430,7 +1529,7 @@ workflows:
       #
       # W&B Importer tests with pytest on Linux, using 2 real wandb servers
       #
-      - pytest:
+      - importers:
           requires:
             - "system-tests"
           matrix:
