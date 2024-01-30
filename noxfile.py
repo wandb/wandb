@@ -408,12 +408,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
     release_tag = local_release_tag.removeprefix("local/v")
-    print(f"Release tag: {release_tag}")
-    print(f"Commit hash: {commit_hash}")
+    session.log(f"Release tag: {release_tag}")
+    session.log(f"Commit hash: {commit_hash}")
 
     if not release_tag or not commit_hash:
-        print("Failed to get release tag or commit hash.")
-        return
+        session.error("Failed to get release tag or commit hash.")
 
     subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
 
@@ -437,7 +436,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     images = [img for img in images if img]
 
     if any(release_tag in img for img in images):
-        print(f"Image with tag {release_tag} already exists.")
+        session.warn(f"Image with tag {release_tag} already exists.")
         return
 
     source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
@@ -446,20 +445,21 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
-    print(f"Successfully copied image {target_image}")
+    session.log(f"Successfully copied image {target_image}")
 
 
 @nox.session(python=False, name="bump-core-version")
 def bump_core_version(session: nox.Session) -> None:
     args = session.posargs
     if not args:
-        print("Usage: nox -s bump-core-version -- <args>")
+        session.log("Usage: nox -s bump-core-version -- <args>")
+
         return
 
     for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
         session.run(
             "bump2version",
-            "patch",
+            "--allow-dirty",
             "--no-tag",
             "--no-commit",
             "--config-file",
