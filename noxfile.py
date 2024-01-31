@@ -395,7 +395,7 @@ def proto_check(session: nox.Session) -> None:
     for pb in [3, 4]:
         _ensure_no_diff(
             session,
-            after=lambda: _generate_proto_python(session, pb=pb),
+            after=lambda pb=pb: _generate_proto_python(session, pb=pb),
             in_directory=f"wandb/proto/v{pb}/",
         )
 
