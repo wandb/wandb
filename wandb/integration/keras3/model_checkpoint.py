@@ -107,9 +107,14 @@ class WandbModelCheckpoint(ModelCheckpoint):
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
         if self._should_save_on_batch(batch):
-            _log_artifact(self.filepath, aliases=[f"batch_{batch}", "latest"])
+            filepath = self._get_file_path(self._current_epoch, batch, logs)
+            _log_artifact(
+                filepath,
+                aliases=[f"batch_{batch} epoch_{self._current_epoch}", "latest"],
+            )
 
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs)
         if self.save_freq == "epoch":
-            _log_artifact(self.filepath, aliases=[f"epoch_{epoch}", "latest"])
+            filepath = self._get_file_path(epoch, None, logs)
+            _log_artifact(filepath, aliases=[f"epoch_{epoch}", "latest"])

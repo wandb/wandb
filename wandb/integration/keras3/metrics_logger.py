@@ -74,10 +74,10 @@ class WandbMetricsLogger(Callback):
 
     def _get_lr(self) -> Union[float, None]:
         try:
-            if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
-                return float(self.model.optimizer.learning_rate.numpy().item())
-        except Exception:
-            if keras.backend.backend() == "torch":
+            if keras.backend.backend() == "tensorflow":
+                if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
+                    return float(self.model.optimizer.learning_rate.numpy().item())
+            elif keras.backend.backend() == "torch":
                 torch = get_module("torch")
                 if isinstance(self.model.optimizer.learning_rate, torch.Tensor):
                     lr = self.model.optimizer.learning_rate.to("cpu")
@@ -85,13 +85,26 @@ class WandbMetricsLogger(Callback):
                 else:
                     wandb.termerror("Unable to log learning rate.", repeat=False)
                     return None
-            if keras.backend.backend() == "jax":
+            elif keras.backend.backend() == "jax":
                 try:
                     np = get_module("numpy")
                     return float(np.array(self.model.optimizer.learning_rate).item())
                 except Exception:
                     wandb.termerror("Unable to log learning rate.", repeat=False)
                     return None
+        except Exception:
+            tf = get_module("tensorflow")
+            if isinstance(self.model.optimizer.learning_rate, tf.Variable):
+                return float(self.model.optimizer.learning_rate.numpy().item())
+            try:
+                return float(
+                    self.model.optimizer.learning_rate(step=self.global_step)
+                    .numpy()
+                    .item()
+                )
+            except Exception:
+                wandb.termerror("Unable to log learning rate.", repeat=False)
+                return None
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         logs = dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
