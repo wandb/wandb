@@ -343,6 +343,23 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
+  code-check:
+    docker:
+      - image: "python:3.10"
+    steps:
+      - checkout
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+      - run:
+          name: Ensure proto files were generated
+          command: nox -s proto-check
+      - run:
+          name: Lint
+          command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - save-test-results
+
   tox-base:
     parameters:
       python_version_major:
@@ -1384,10 +1401,8 @@ workflows:
       #
       # Linting
       #
-      - tox-base:
-          name: "code-check"
-          python_version_minor: 10
-          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - code-check
+
       #
       # Prep jobs
       #
