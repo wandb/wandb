@@ -65,7 +65,7 @@ class GitReference:
 
         try:
             # We fetch the origin so that we have branch and tag references
-            origin.fetch(depth=1)
+            origin.fetch()
         except git.exc.GitCommandError as e:
             raise LaunchError(
                 f"Unable to fetch from git remote repository {self.url}:\n{e}"
