@@ -383,7 +383,7 @@ def _ensure_no_diff(
 ) -> None:
     """Fails if the callable modifies the directory."""
     saved = session.create_tmp()
-    session.run("cp", "-r", in_directory, saved, external=True)
+    session.run("cp", "-r", in_directory, f"{saved}/", external=True)
     after()
     session.run("diff", in_directory, saved, external=True)
     session.run("rm", "-rf", saved, external=True)
