@@ -110,7 +110,7 @@ class WandbModelCheckpoint(ModelCheckpoint):
             filepath = self._get_file_path(self._current_epoch, batch, logs)
             _log_artifact(
                 filepath,
-                aliases=[f"batch_{batch} epoch_{self._current_epoch}", "latest"],
+                aliases=[f"epoch_{self._current_epoch}_batch_{batch}", "latest"],
             )
 
     def on_epoch_end(self, epoch, logs=None):
