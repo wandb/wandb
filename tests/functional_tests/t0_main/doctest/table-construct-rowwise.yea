@@ -1,7 +1,0 @@
-id: table-construct-rowwise
-plugin:
-    - wandb
-tag:
-  shard: docs
-assert:
-    - :yea:exit: 0
