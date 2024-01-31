@@ -1,6 +1,6 @@
 import os
 import platform
-from typing import List
+from typing import Callable, List
 
 import nox
 
@@ -335,7 +335,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
 @nox.session(python=False, name="proto-go")
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
-    session.run("./core/scripts/generate-proto.sh")
+    _generate_proto_go()
+
+
+def _generate_proto_go(session: nox.Session) -> None:
+    session.run("./core/scripts/generate-proto.sh", external=True)
 
 
 @nox.session(name="proto-python")
@@ -348,6 +352,10 @@ def proto_python(session: nox.Session, pb: int) -> None:
     Tested with Python 3.10 on a Mac with an M1 chip.
     Absolutely does not work with Python 3.7.
     """
+    _generate_proto_python(session, pb=pb)
+
+
+def _generate_proto_python(session: nox.Session, pb: int) -> None:
     if pb == 3:
         session.install("protobuf~=3.20.3")
         session.install("mypy-protobuf~=3.3.0")
@@ -364,20 +372,21 @@ def proto_python(session: nox.Session, pb: int) -> None:
     session.install("-r", "requirements_build.txt")
     session.install(".")
 
-    session.chdir("wandb/proto")
-    session.run("python", "wandb_internal_codegen.py")
+    with session.chdir("wandb/proto"):
+        session.run("python", "wandb_internal_codegen.py")
 
 
 def _ensure_no_diff(
     session: nox.Session,
-    due_to_session: str,
+    after: Callable[[], None],
     in_directory: str,
 ) -> None:
-    """Fails if `generate_session` modifies `outdir`."""
+    """Fails if the callable modifies the directory."""
     saved = session.create_tmp()
-    session.run("cp", "-r", in_directory, saved)
-    session.notify(due_to_session)
-    session.run("diff", in_directory, saved)
+    session.run("cp", "-r", in_directory, saved, external=True)
+    after()
+    session.run("diff", in_directory, saved, external=True)
+    session.run("rm", "-rf", saved, external=True)
 
 
 @nox.session(name="proto-check")
@@ -386,12 +395,12 @@ def proto_check(session: nox.Session) -> None:
     for pb in [3, 4]:
         _ensure_no_diff(
             session,
-            due_to_session=f"proto-python(pb={pb})",
-            in_directory=f"wandb/proto/v{pb}",
+            after=lambda: _generate_proto_python(session, pb=pb),
+            in_directory=f"wandb/proto/v{pb}/",
         )
 
     _ensure_no_diff(
         session,
-        due_to_session="proto-go",
-        in_directory="core/pkg/service",
+        after=lambda: _generate_proto_go(session),
+        in_directory="core/pkg/service/",
     )

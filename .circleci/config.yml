@@ -348,6 +348,7 @@ jobs:
       - image: "python:3.10"
     steps:
       - checkout
+      - install_go
       - run:
           name: Install Python dependencies
           command: pip install -U tox nox pip
