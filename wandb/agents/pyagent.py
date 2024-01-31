@@ -224,9 +224,15 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        exc_type, exc_value, exc_traceback = exc.__class__, exc, exc.__traceback__
-                        exc_traceback_formatted = traceback.format_exception(exc_type, exc_value, exc_traceback)
-                        exc_repr = ''.join(exc_traceback_formatted)
+                        exc_type, exc_value, exc_traceback = (
+                            exc.__class__,
+                            exc,
+                            exc.__traceback__,
+                        )
+                        exc_traceback_formatted = traceback.format_exception(
+                            exc_type, exc_value, exc_traceback
+                        )
+                        exc_repr = "".join(exc_traceback_formatted)
                         logger.error(f"Run {run_id} errored:\n{exc_repr}")
                         wandb.termerror(f"Run {run_id} errored:\n{exc_repr}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
