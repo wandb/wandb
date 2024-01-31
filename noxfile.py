@@ -368,9 +368,12 @@ def proto_python(session: nox.Session, pb: int) -> None:
     session.run("python", "wandb_internal_codegen.py")
 
 
-def _ensure_no_diff(session: nox.Session, due_to_session: str, in_directory: str) -> None:
+def _ensure_no_diff(
+    session: nox.Session,
+    due_to_session: str,
+    in_directory: str,
+) -> None:
     """Fails if `generate_session` modifies `outdir`."""
-
     saved = session.create_tmp()
     session.run("cp", "-r", in_directory, saved)
     session.notify(due_to_session)
@@ -380,7 +383,6 @@ def _ensure_no_diff(session: nox.Session, due_to_session: str, in_directory: str
 @nox.session(name="proto-check")
 def proto_check(session: nox.Session) -> None:
     """Regenerates protobuf files and ensures nothing changed."""
-
     for pb in [3, 4]:
         _ensure_no_diff(
             session,
