@@ -964,7 +964,7 @@ class WandbImporter:
 
         logger.info("Collecting failed runs")
         # runs = list(self._filter_for_failed_runs_only(runs))
-        runs = list(self._collect_failed_runs2())
+        runs = list(self._collect_failed_runs())
 
         logger.info(f"Importing runs, {len(runs)=}")
 
@@ -1285,7 +1285,7 @@ class WandbImporter:
 
         for_each(_validate_run, base_runs)
 
-    def _collect_failed_runs2(self):
+    def _collect_failed_runs(self):
         if (df := _read_ndjson(RUN_ERRORS_FNAME)) is None:
             logger.debug(f"{RUN_ERRORS_FNAME=} is empty, returning nothing")
             return
@@ -1303,19 +1303,6 @@ class WandbImporter:
 
             run = self.src_api.run(f"{src_entity}/{src_project}/{run_id}")
             yield WandbRun(run)
-
-    def _cleanup_runs_in_dst_but_not_in_src(self, entity, project):
-        src_runs = [r for r in self.src_api.runs(f"{entity}/{project}")]
-        dst_runs = [r for r in self.dst_api.runs(f"{entity}/{project}")]
-
-        src_ids = set(r.id for r in src_runs)
-        dst_ids = set(r.id for r in dst_runs)
-
-        diff = dst_ids - src_ids
-
-        for run in dst_runs:
-            if run.id in diff:
-                run.delete(delete_artifacts=False)
 
     def _filter_previously_checked_artifacts(self, seqs: Iterable[ArtifactSequence]):
         if (df := _read_ndjson(ARTIFACT_SUCCESSES_FNAME)) is None:
@@ -1338,14 +1325,6 @@ class WandbImporter:
                     logger.debug(f"Skipping history artifact {art=}")
                     # We can never upload valid history for a deleted run, so skip it
                     continue
-
-                # d = {
-                #     'src_entity': art.entity,
-                #     'src_project': art.project,
-                #     'type': art.type,
-                #     'name': art.name,
-                #     'version': art.version,
-                # }
 
                 entity = art.entity
                 project = art.project

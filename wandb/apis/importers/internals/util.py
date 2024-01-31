@@ -39,8 +39,8 @@ def parallelize(
     func,
     iterable: Iterable,
     *args,
-    description: str,
     max_workers: Optional[int] = None,
+    raise_on_error: bool = False,
     **kwargs,
 ):
     def safe_func(*args, **kwargs):
@@ -54,7 +54,8 @@ def parallelize(
             logger.debug(
                 f"Exception: {func=} {args=} {kwargs=} {e=} {filename=} {lineno=}. {traceback_details=}"
             )
-            raise e
+            if raise_on_error:
+                raise e
 
     results = []
     with ThreadPoolExecutor(max_workers) as exc:
@@ -71,8 +72,7 @@ def for_each(
         return parallelize(
             func,
             iterable,
-            description=func.__name__,
             max_workers=max_workers,
         )
-    else:
-        return [func(x) for x in iterable]
+
+    return [func(x) for x in iterable]
