@@ -30,5 +30,5 @@ output = pipe(
     num_frames=16,
     guidance_scale=7.5,
     num_inference_steps=25,
-    generator=torch.Generator("cpu").manual_seed(42),
+    generator=torch.Generator("cuda").manual_seed(42),
 )
