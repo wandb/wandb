@@ -2,13 +2,16 @@ from typing import Any, Optional
 
 import numpy as np
 from PIL import Image
+from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.pose import PosePredictor
 from ultralytics.utils.plotting import Annotator
 
 import wandb
-
-from .bbox_utils import get_boxes, get_ground_truth_bbox_annotations
+from wandb.integration.ultralytics.bbox_utils import (
+    get_boxes,
+    get_ground_truth_bbox_annotations,
+)
 
 
 def annotate_keypoint_results(result: Results, visualize_skeleton: bool):
@@ -36,9 +39,8 @@ def plot_pose_predictions(
 ):
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
-    prediction_image = wandb.Image(
-        annotate_keypoint_results(result, visualize_skeleton), boxes=boxes
-    )
+    annotated_image = annotate_keypoint_results(result, visualize_skeleton)
+    prediction_image = wandb.Image(annotated_image, boxes=boxes)
     table_row = [
         model_name,
         prediction_image,
@@ -63,20 +65,30 @@ def plot_pose_validation_results(
     epoch: Optional[int] = None,
 ) -> wandb.Table:
     data_idx = 0
+    num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size
+    max_validation_batches = min(max_validation_batches, num_dataloader_batches)
     for batch_idx, batch in enumerate(dataloader):
-        for img_idx, image_path in enumerate(batch["im_file"]):
-            prediction_result = predictor(image_path)[0].to("cpu")
+        prediction_results = predictor(batch["im_file"])
+        progress_bar_result_iterable = tqdm(
+            enumerate(prediction_results),
+            total=len(prediction_results),
+            desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
+        )
+        for img_idx, prediction_result in progress_bar_result_iterable:
+            prediction_result = prediction_result.to("cpu")
             table_row = plot_pose_predictions(
                 prediction_result, model_name, visualize_skeleton
             )
             ground_truth_image = wandb.Image(
                 annotate_keypoint_batch(
-                    image_path, batch["keypoints"][img_idx], visualize_skeleton
+                    batch["im_file"][img_idx],
+                    batch["keypoints"][img_idx],
+                    visualize_skeleton,
                 ),
                 boxes={
                     "ground-truth": {
                         "box_data": get_ground_truth_bbox_annotations(
-                            img_idx, image_path, batch, class_label_map
+                            img_idx, batch["im_file"][img_idx], batch, class_label_map
                         ),
                         "class_labels": class_label_map,
                     },

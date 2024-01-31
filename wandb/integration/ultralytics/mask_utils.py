@@ -1,13 +1,17 @@
 from typing import Dict, Optional, Tuple
 
+import cv2
 import numpy as np
+from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.segment import SegmentationPredictor
 from ultralytics.utils.ops import scale_image
 
 import wandb
-
-from .bbox_utils import get_ground_truth_bbox_annotations, get_mean_confidence_map
+from wandb.integration.ultralytics.bbox_utils import (
+    get_ground_truth_bbox_annotations,
+    get_mean_confidence_map,
+)
 
 
 def instance_mask_to_semantic_mask(instance_mask, class_indices):
@@ -89,7 +93,56 @@ def plot_mask_predictions(
     return image, masks, boxes["predictions"], mean_confidence_map
 
 
-def plot_mask_validation_results(
+def structure_prompts_and_image(image: np.array, prompt: Dict) -> Dict:
+    wb_box_data = []
+    if prompt["bboxes"] is not None:
+        wb_box_data.append(
+            {
+                "position": {
+                    "middle": [prompt["bboxes"][0], prompt["bboxes"][1]],
+                    "width": prompt["bboxes"][2],
+                    "height": prompt["bboxes"][3],
+                },
+                "domain": "pixel",
+                "class_id": 1,
+                "box_caption": "Prompt-Box",
+            }
+        )
+    if prompt["points"] is not None:
+        image = image.copy().astype(np.uint8)
+        image = cv2.circle(
+            image, tuple(prompt["points"]), 5, (0, 255, 0), -1, lineType=cv2.LINE_AA
+        )
+    wb_box_data = {
+        "prompts": {
+            "box_data": wb_box_data,
+            "class_labels": {1: "Prompt-Box"},
+        }
+    }
+    return image, wb_box_data
+
+
+def plot_sam_predictions(
+    result: Results, prompt: Dict, table: wandb.Table
+) -> wandb.Table:
+    result = result.to("cpu")
+    image = result.orig_img[:, :, ::-1]
+    image, wb_box_data = structure_prompts_and_image(image, prompt)
+    image = wandb.Image(
+        image,
+        boxes=wb_box_data,
+        masks={
+            "predictions": {
+                "mask_data": np.squeeze(result.masks.data.cpu().numpy().astype(int)),
+                "class_labels": {0: "Background", 1: "Prediction"},
+            }
+        },
+    )
+    table.add_data(image)
+    return table
+
+
+def plot_segmentation_validation_results(
     dataloader,
     class_label_map,
     model_name: str,
@@ -99,9 +152,17 @@ def plot_mask_validation_results(
     epoch: Optional[int] = None,
 ):
     data_idx = 0
+    num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size
+    max_validation_batches = min(max_validation_batches, num_dataloader_batches)
     for batch_idx, batch in enumerate(dataloader):
-        for img_idx, image_path in enumerate(batch["im_file"]):
-            prediction_result = predictor(image_path)[0]
+        prediction_results = predictor(batch["im_file"])
+        progress_bar_result_iterable = tqdm(
+            enumerate(prediction_results),
+            total=len(prediction_results),
+            desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
+        )
+        for img_idx, prediction_result in progress_bar_result_iterable:
+            prediction_result = prediction_result.to("cpu")
             (
                 _,
                 prediction_mask_data,
@@ -110,10 +171,10 @@ def plot_mask_validation_results(
             ) = plot_mask_predictions(prediction_result, model_name)
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
-                    img_idx, image_path, batch, class_label_map
+                    img_idx, batch["im_file"][img_idx], batch, class_label_map
                 )
                 wandb_image = wandb.Image(
-                    image_path,
+                    batch["im_file"][img_idx],
                     boxes={
                         "ground-truth": {
                             "box_data": ground_truth_data,
