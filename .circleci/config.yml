@@ -346,7 +346,7 @@ jobs:
   code-check:
     docker:
       - image: "python:3.10"
-    resource-class: large
+    resource_class: large
     steps:
       - checkout
       - install_go
