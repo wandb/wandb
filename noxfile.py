@@ -399,6 +399,7 @@ def proto_check_python(session: nox.Session, pb: int) -> None:
         in_directory=f"wandb/proto/v{pb}/",
     )
 
+
 @nox.session(name="proto-check-go", tags=["proto-check"])
 def proto_check_go(session: nox.Session) -> None:
     """Regenerates Go protobuf files and ensures nothing changed."""
