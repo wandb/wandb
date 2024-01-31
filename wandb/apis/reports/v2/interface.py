@@ -1360,9 +1360,9 @@ class CustomChart(Panel):
                 # )
             ),
             layout=self.layout.to_model(),
-            # id=self.id,
         )
         obj.ref = self._ref
+        # obj.id=self.id,
         return obj
 
     @classmethod
@@ -1419,10 +1419,8 @@ class Report(Base):
     description: str = ""
     blocks: LList[BlockTypes] = Field(default_factory=list)
 
-    # id: str = Field("", kw_only=True)
     id: str = Field(default_factory=lambda: "", init=False, repr=False)
 
-    # this is field because of a bug in pydantic https://github.com/pydantic/pydantic/issues/7078
     _discussion_threads: list = Field(default_factory=list, init=False, repr=False)
     _ref: dict = Field(default_factory=dict, init=False, repr=False)
     _panel_settings: dict = Field(default_factory=dict, init=False, repr=False)
