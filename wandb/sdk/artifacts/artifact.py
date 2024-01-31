@@ -565,7 +565,7 @@ class Artifact:
 
     @property
     def aliases(self) -> List[str]:
-        """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact.
+        """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact version.
 
         Aliases are mutable references that you can programmatically reference.
         Change an artifact's alias with the W&B App UI or programmatically.
@@ -720,7 +720,7 @@ class Artifact:
     def is_draft(self) -> bool:
         """Check if artifact is not saved.
 
-        Returns: Boolean. `False` if artifact is saved. `True if artifact is not saved.`
+        Returns: Boolean. `False` if artifact is saved. `True` if artifact is not saved.
         """
         return self._state == ArtifactState.PENDING
 
