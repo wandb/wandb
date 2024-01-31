@@ -98,7 +98,7 @@ launch = [
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
-reports = ["pydantic>=2.0.0,<=2.5"]
+reports = ["pydantic>=2.0.0,<2.6"]
 
 [tool.setuptools]
 zip-safe = false
