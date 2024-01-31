@@ -1086,7 +1086,8 @@ class Artifact:
             The added manifest entry
 
         Raises:
-            ArtifactFinalizedError: If the artifact is already finalized.
+            ArtifactFinalizedError: You cannot make changes to the current artifact
+            version because it is finalized. Log a new artifact version instead.
         """
         return self.add(item, name)
 
