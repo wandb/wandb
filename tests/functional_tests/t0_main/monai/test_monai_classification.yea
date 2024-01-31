@@ -2,7 +2,6 @@ id: 0.monai.classification
 plugin:
     - wandb
 tag:
-  shard: standalone-gpu
   platforms:
     - linux
 command:
