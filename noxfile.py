@@ -383,7 +383,7 @@ def _ensure_no_diff(
 ) -> None:
     """Fails if the callable modifies the directory."""
     saved = session.create_tmp()
-    session.run("cp", "-r", in_directory, f"{saved}/", external=True)
+    session.run("cp", "-r", in_directory, saved, external=True)
     after()
     session.run("diff", in_directory, saved, external=True)
     session.run("rm", "-rf", saved, external=True)
@@ -396,7 +396,7 @@ def proto_check_python(session: nox.Session, pb: int) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_python(session, pb=pb),
-        in_directory=f"wandb/proto/v{pb}/",
+        in_directory=f"wandb/proto/v{pb}/.",
     )
 
 
@@ -406,5 +406,5 @@ def proto_check_go(session: nox.Session) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service/",
+        in_directory="core/pkg/service/.",
     )
