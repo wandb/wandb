@@ -72,21 +72,17 @@ class ArtifactSequence:
 
     @classmethod
     def from_collection(cls, collection: ArtifactCollection):
-        try:
-            arts = collection.artifacts()
-            arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        except Exception as e:
-            logger.error(f"problem at sequence from collection {e=}")
-            return
-
+        arts = collection.artifacts()
+        arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
         if arts:
             art = arts[0]
             entity = art.entity
             project = art.project
             name, _ = _get_art_name_ver(art)
             _type = art.type
-
-            return ArtifactSequence(arts, entity, project, _type, name)
+        else:
+            arts = []
+        return ArtifactSequence(arts, entity, project, _type, name)
 
 
 class WandbRun:
@@ -209,34 +205,34 @@ class WandbRun:
         self._used_artifacts = new_arts
 
     def os_version(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def python_version(self) -> Optional[str]:
         return self._metadata_file().get("python")
 
     def cuda_version(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def program(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def host(self) -> Optional[str]:
         return self._metadata_file().get("host")
 
     def username(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def executable(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def gpus_used(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def cpus_used(self) -> Optional[int]:  # can we get the model?
-        ...
+        ...  # pragma: no cover
 
     def memory_used(self) -> Optional[int]:
-        ...
+        ...  # pragma: no cover
 
     def runtime(self) -> Optional[int]:
         wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")

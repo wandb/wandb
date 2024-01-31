@@ -14,7 +14,7 @@ class Namespace:
     project: str
 
     @classmethod
-    def from_path(cls, path):
+    def from_path(cls, path: str):
         entity, project = path.split("/")
         return cls(entity, project)
 
@@ -64,7 +64,9 @@ def parallelize(
     return results
 
 
-def for_each(func, iterable, parallel: bool = True, max_workers: Optional[int] = None):
+def for_each(
+    func, iterable: Iterable, parallel: bool = True, max_workers: Optional[int] = None
+):
     if parallel:
         return parallelize(
             func,
