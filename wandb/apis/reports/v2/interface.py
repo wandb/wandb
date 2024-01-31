@@ -1,6 +1,5 @@
 """Public interfaces for the Report API."""
 import os
-from dataclasses import field
 from datetime import datetime
 from typing import Dict, Iterable, Optional, Tuple, Union
 from typing import List as LList
@@ -126,7 +125,7 @@ class UnknownBlock(Block):
 class TextWithInlineComments(Base):
     text: str
 
-    _inline_comments: Optional[LList[internal.InlineComment]] = field(
+    _inline_comments: Optional[LList[internal.InlineComment]] = Field(
         default_factory=lambda: None, repr=False
     )
 
@@ -205,7 +204,7 @@ class Link(Base):
     text: Union[str, TextWithInlineComments]
     url: str
 
-    _inline_comments: Optional[LList[internal.InlineComment]] = field(
+    _inline_comments: Optional[LList[internal.InlineComment]] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
@@ -562,14 +561,14 @@ class Runset(Base):
         default_factory=dict
     )
 
-    _id: str = field(default_factory=internal._generate_name, init=False, repr=False)
+    _id: str = Field(default_factory=internal._generate_name, init=False, repr=False)
 
     def to_model(self):
         project = None
         if self.entity or self.project:
             project = internal.Project(entity_name=self.entity, name=self.project)
 
-        return internal.Runset(
+        obj = internal.Runset(
             project=project,
             name=self.name,
             filters=expr_parsing.expr_to_filters(self.filters),
@@ -577,8 +576,9 @@ class Runset(Base):
                 internal.Key(name=expr_parsing.to_backend_name(g)) for g in self.groupby
             ],
             sort=internal.Sort(keys=[o.to_model() for o in self.order]),
-            id=self._id,
         )
+        obj.id = self._id
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.Runset):
@@ -592,15 +592,16 @@ class Runset(Base):
             if p.name:
                 project = p.name
 
-        return cls(
+        obj = cls(
             entity=entity,
             project=project,
             name=model.name,
             filters=expr_parsing.filters_to_expr(model.filters),
             groupby=[expr_parsing.to_frontend_name(k.name) for k in model.grouping],
             order=[OrderBy.from_model(s) for s in model.sort.keys],
-            _id=model.id,
         )
+        obj._id = model.id
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -608,7 +609,7 @@ class Panel(Base):
     id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
 
-    _ref: Optional[internal.Ref] = field(
+    _ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
@@ -622,14 +623,14 @@ class PanelGrid(Block):
         default_factory=dict
     )
 
-    _ref: Optional[internal.Ref] = field(
+    _ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
-    _open_viz: bool = field(default_factory=lambda: True, init=False, repr=False)
-    _panel_bank_sections: LList[dict] = field(
+    _open_viz: bool = Field(default_factory=lambda: True, init=False, repr=False)
+    _panel_bank_sections: LList[dict] = Field(
         default_factory=list, init=False, repr=False
     )
-    _panel_grid_metadata_ref: Optional[internal.Ref] = field(
+    _panel_grid_metadata_ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
@@ -652,20 +653,21 @@ class PanelGrid(Block):
     @classmethod
     def from_model(cls, model: internal.PanelGrid):
         runsets = [Runset.from_model(rs) for rs in model.metadata.run_sets]
-        return cls(
+        obj = cls(
             runsets=runsets,
             panels=[
                 _lookup_panel(p)
                 for p in model.metadata.panel_bank_section_config.panels
             ],
             active_runset=model.metadata.open_run_set,
-            _ref=model.metadata.panels.ref,
-            _open_viz=model.metadata.open_viz,
             custom_run_colors=_from_color_dict(
                 model.metadata.custom_run_colors, runsets
             ),
             # _panel_bank_sections=model.metadata.panel_bank_config.sections,
         )
+        obj._open_viz = model.metadata.open_viz
+        obj._ref = model.metadata.panels.ref
+        return obj
 
     @validator("panels")
     def _resolve_collisions(cls, v):  # noqa: N805
@@ -801,7 +803,7 @@ class LinePlot(Panel):
     xaxis_expression: Optional[str] = None
 
     def to_model(self):
-        return internal.LinePlot(
+        obj = internal.LinePlot(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
                 x_axis=_metric_to_backend(self.x),
@@ -832,12 +834,13 @@ class LinePlot(Panel):
             ),
             id=self.id,
             layout=self.layout.to_model(),
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.LinePlot):
-        return cls(
+        obj = cls(
             title=model.config.chart_title,
             x=_metric_to_frontend(model.config.x_axis),
             y=[_metric_to_frontend(name) for name in model.config.metrics],
@@ -864,8 +867,9 @@ class LinePlot(Panel):
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -893,7 +897,7 @@ class ScatterPlot(Panel):
         if custom_gradient is not None:
             custom_gradient = [cgp.to_model() for cgp in self.gradient]
 
-        return internal.ScatterPlot(
+        obj = internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
                 x_axis=_metric_to_backend(self.x),
@@ -918,8 +922,9 @@ class ScatterPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -927,7 +932,7 @@ class ScatterPlot(Panel):
         if gradient is not None:
             gradient = [GradientPoint.from_model(cgp) for cgp in gradient]
 
-        return cls(
+        obj = cls(
             title=model.config.chart_title,
             x=_metric_to_frontend(model.config.x_axis),
             y=_metric_to_frontend(model.config.y_axis),
@@ -947,8 +952,9 @@ class ScatterPlot(Panel):
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -971,7 +977,7 @@ class BarPlot(Panel):
     line_colors: Optional[dict] = None
 
     def to_model(self):
-        return internal.BarPlot(
+        obj = internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
                 metrics=[_metric_to_backend(name) for name in _listify(self.metrics)],
@@ -993,12 +999,13 @@ class BarPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             title=model.config.chart_title,
             metrics=[_metric_to_frontend(name) for name in model.config.metrics],
             orientation="v" if model.config.vertical else "h",
@@ -1017,8 +1024,9 @@ class BarPlot(Panel):
             line_colors=model.config.override_colors,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1032,7 +1040,7 @@ class ScalarChart(Panel):
     font_size: Optional[FontSize] = None
 
     def to_model(self):
-        return internal.ScalarChart(
+        obj = internal.ScalarChart(
             config=internal.ScalarChartConfig(
                 chart_title=self.title,
                 metrics=[_metric_to_backend(self.metric)],
@@ -1044,12 +1052,13 @@ class ScalarChart(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             title=model.config.chart_title,
             metric=_metric_to_frontend(model.config.metrics[0]),
             groupby_aggfunc=model.config.group_agg,
@@ -1059,8 +1068,9 @@ class ScalarChart(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1068,21 +1078,23 @@ class CodeComparer(Panel):
     diff: CodeCompareDiff = "split"
 
     def to_model(self):
-        return internal.CodeComparer(
+        obj = internal.CodeComparer(
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             diff=model.config.diff,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1092,28 +1104,30 @@ class ParallelCoordinatesPlotColumn(Base):
     inverted: Optional[bool] = None
     log: Optional[bool] = None
 
-    _ref: Optional[internal.Ref] = field(
+    _ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
     def to_model(self):
-        return internal.Column(
+        obj = internal.Column(
             accessor=_metric_to_backend_pc(self.metric),
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.Column):
-        return cls(
+        obj = cls(
             metric=_metric_to_frontend_pc(model.accessor),
             display_name=model.display_name,
             inverted=model.inverted,
             log=model.log,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1128,7 +1142,7 @@ class ParallelCoordinatesPlot(Panel):
         if gradient is not None:
             gradient = [x.to_model() for x in self.gradient]
 
-        return internal.ParallelCoordinatesPlot(
+        obj = internal.ParallelCoordinatesPlot(
             config=internal.ParallelCoordinatesPlotConfig(
                 chart_title=self.title,
                 columns=[c.to_model() for c in self.columns],
@@ -1137,8 +1151,9 @@ class ParallelCoordinatesPlot(Panel):
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -1146,7 +1161,7 @@ class ParallelCoordinatesPlot(Panel):
         if gradient is not None:
             gradient = [GradientPoint.from_model(x) for x in gradient]
 
-        return cls(
+        obj = cls(
             columns=[
                 ParallelCoordinatesPlotColumn.from_model(c)
                 for c in model.config.columns
@@ -1156,8 +1171,9 @@ class ParallelCoordinatesPlot(Panel):
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1165,23 +1181,25 @@ class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
     def to_model(self):
-        return internal.ParameterImportancePlot(
+        obj = internal.ParameterImportancePlot(
             config=internal.ParameterImportancePlotConfig(
                 target_key=self.with_respect_to
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             with_respect_to=model.config.target_key,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1189,21 +1207,23 @@ class RunComparer(Panel):
     diff_only: Optional[Literal["split", True]] = None
 
     def to_model(self):
-        return internal.RunComparer(
+        obj = internal.RunComparer(
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             diff_only=model.config.diff_only,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1212,25 +1232,27 @@ class MediaBrowser(Panel):
     media_keys: LList[str] = Field(default_factory=list)
 
     def to_model(self):
-        return internal.MediaBrowser(
+        obj = internal.MediaBrowser(
             config=internal.MediaBrowserConfig(
                 column_count=self.num_columns,
                 media_keys=self.media_keys,
             ),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.MediaBrowser):
-        return cls(
+        obj = cls(
             num_columns=model.config.column_count,
             media_keys=model.config.media_keys,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
 @dataclass(config=dataclass_config)
@@ -1238,61 +1260,73 @@ class MarkdownPanel(Panel):
     markdown: str = ""
 
     def to_model(self):
-        return internal.MarkdownPanel(
+        obj = internal.MarkdownPanel(
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
             id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             markdown=model.config.value,
             layout=Layout.from_model(model.layout),
             id=model.id,
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
-@dataclass(config=dataclass_config)
-class ConfusionMatrix(Panel):
-    def to_model(self):
-        ...
+# @dataclass(config=dataclass_config)
+# class ConfusionMatrix(Panel):
+#     def to_model(self):
+#         ...
 
-    @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
-        ...
-
-
-@dataclass(config=dataclass_config)
-class DataFrames(Panel):
-    def to_model(self):
-        ...
-
-    @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
-        ...
+#     @classmethod
+#     def from_model(cls, model: internal.ConfusionMatrix):
+#         ...
 
 
-@dataclass(config=dataclass_config)
-class MultiRunTable(Panel):
-    def to_model(self):
-        ...
+# @dataclass(config=dataclass_config)
+# class DataFrames(Panel):
+#     def to_model(self):
+#         ...
 
-    @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
-        ...
+#     @classmethod
+#     def from_model(cls, model: internal.ScatterPlot):
+#         ...
 
 
-@dataclass(config=dataclass_config)
-class Vega(Panel):
-    def to_model(self):
-        ...
+# @dataclass(config=dataclass_config)
+# class MultiRunTable(Panel):
+#     def to_model(self):
+#         ...
 
-    @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
-        ...
+#     @classmethod
+#     def from_model(cls, model: internal.ScatterPlot):
+#         ...
+
+
+# @dataclass(config=dataclass_config)
+# class Vega(Panel):
+#     def to_model(self):
+#         ...
+
+#     @classmethod
+#     def from_model(cls, model: internal.ScatterPlot):
+#         ...
+
+
+# @dataclass(config=dataclass_config)
+# class Vega3(Panel):
+#     def to_model(self):
+#         ...
+
+#     @classmethod
+#     def from_model(cls, model: internal.ScatterPlot):
+#         ...
 
 
 @dataclass(config=dataclass_config)
@@ -1313,7 +1347,7 @@ class CustomChart(Panel):
         )
 
     def to_model(self):
-        return internal.Vega2(
+        obj = internal.Vega2(
             config=internal.Vega2Config(
                 # user_query=internal.UserQuery(
                 #     query_fields=[
@@ -1327,32 +1361,24 @@ class CustomChart(Panel):
             ),
             layout=self.layout.to_model(),
             # id=self.id,
-            ref=self._ref,
         )
+        obj.ref = self._ref
+        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
-        return cls(
+        obj = cls(
             # query=model.config.user_query.query_fields,
             # chart_name=model.config.panel_def_id,
             # chart_fields=model.config.field_settings,
             # chart_strings=model.config.string_settings,
             layout=Layout.from_model(model.layout),
-            _ref=model.ref,
         )
+        obj._ref = model.ref
+        return obj
 
 
-@dataclass(config=dataclass_config)
-class Vega3(Panel):
-    def to_model(self):
-        ...
-
-    @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
-        ...
-
-
-@dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
+@dataclass(config=ConfigDict(validate_assignment=True, extra="forbid", slots=True))
 class UnknownPanel(Base):
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -1372,7 +1398,7 @@ class UnknownPanel(Base):
         return cls(**d)
 
 
-@dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
+@dataclass(config=ConfigDict(validate_assignment=True, extra="forbid", slots=True))
 class WeavePanel(Panel):
     config: dict = Field(default_factory=dict)
 
@@ -1394,17 +1420,17 @@ class Report(Base):
     blocks: LList[BlockTypes] = Field(default_factory=list)
 
     # id: str = Field("", kw_only=True)
-    id: str = field(default_factory=lambda: "", init=False, repr=False)
+    id: str = Field(default_factory=lambda: "", init=False, repr=False)
 
     # this is field because of a bug in pydantic https://github.com/pydantic/pydantic/issues/7078
-    _discussion_threads: list = field(default_factory=list, init=False, repr=False)
-    _ref: dict = field(default_factory=dict, init=False, repr=False)
-    _panel_settings: dict = field(default_factory=dict, init=False, repr=False)
-    _authors: LList[dict] = field(default_factory=list, init=False, repr=False)
-    _created_at: Optional[datetime] = field(
+    _discussion_threads: list = Field(default_factory=list, init=False, repr=False)
+    _ref: dict = Field(default_factory=dict, init=False, repr=False)
+    _panel_settings: dict = Field(default_factory=dict, init=False, repr=False)
+    _authors: LList[dict] = Field(default_factory=list, init=False, repr=False)
+    _created_at: Optional[datetime] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
-    _updated_at: Optional[datetime] = field(
+    _updated_at: Optional[datetime] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
