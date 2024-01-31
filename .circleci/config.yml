@@ -51,7 +51,7 @@ parameters:
     default: "1.21.6"
   container_registry:
     type: string
-    default: "gcr.io"
+    default: "us-central1-docker.pkg.dev"
   gcp_cluster_name:
     type: string
     default: "sdk-nightly"
@@ -189,7 +189,7 @@ commands:
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet us-central1-docker.pkg.dev
+            gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
           environment:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
 
@@ -456,7 +456,7 @@ jobs:
         default: false
       xdist:
         type: integer
-        default: 6
+        default: 3
       tox_args:
         type: string
         default: ""
@@ -492,7 +492,7 @@ jobs:
               -e WANDB_ENABLE_TEST_CONTAINER=true \
               --name local-testcontainer \
               --platform linux/amd64 \
-              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:8080/healthz; do sleep 1; done
       - run:
@@ -507,14 +507,14 @@ jobs:
               -e WANDB_ENABLE_TEST_CONTAINER=true \
               --name local-testcontainer2 \
               --platform linux/amd64 \
-              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:9180/healthz; do sleep 1; done
       - run:
           name: Install Python dependencies
           command: |
-            pyenv install 3.8.18
-            pyenv local 3.8.18
+            pyenv install << parameters.python_version_major >>.<< parameters.python_version_minor >>
+            pyenv local << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
@@ -523,8 +523,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
+            tox run -v -e <<parameters.toxenv>> -- << parameters.tox_args >>
       - when:
           condition:
             not:
@@ -573,7 +572,7 @@ jobs:
         default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -1548,7 +1547,6 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [8]
-              # shard: ["wandb", "mlflow"]
               shard: ["wandb"] # TODO: add back mlflow in the mlflow PR
           name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
