@@ -6,11 +6,11 @@ import urllib
 from copy import deepcopy
 from typing import List as LList
 
-from ... import __version__ as wandb_ver
-from ... import termlog, termwarn
-from ...sdk.lib import ipython
-from ..public import Api as PublicApi
-from ..public import RetryingClient
+from .... import __version__ as wandb_ver
+from .... import termlog, termwarn
+from ....sdk.lib import ipython
+from ...public import Api as PublicApi
+from ...public import RetryingClient
 from ._blocks import P, PanelGrid, UnknownBlock, WeaveBlock, block_mapping, weave_blocks
 from .mutations import UPSERT_VIEW, VIEW_REPORT
 from .runset import Runset
