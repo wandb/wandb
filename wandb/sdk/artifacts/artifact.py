@@ -1068,7 +1068,7 @@ class Artifact:
             name: The artifact relative name to get.
 
         Returns:
-            A `W&B` object.
+            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
 
         Raises:
             ArtifactNotLoggedError: If the artifact isn't logged or the run is offline.
@@ -1476,7 +1476,7 @@ class Artifact:
             name: The artifact relative name to retrieve.
 
         Returns:
-            A `W&B` object.
+            W&B object that can be logged with `wandb.log()` and visualized in the W&B UI.
 
         Raises:
             ArtifactNotLoggedError: if the artifact isn't logged or the run is offline
