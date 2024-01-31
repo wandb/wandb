@@ -389,16 +389,19 @@ def _ensure_no_diff(
     session.run("rm", "-rf", saved, external=True)
 
 
-@nox.session(name="proto-check")
-def proto_check(session: nox.Session) -> None:
-    """Regenerates protobuf files and ensures nothing changed."""
-    for pb in [3, 4]:
-        _ensure_no_diff(
-            session,
-            after=lambda pb=pb: _generate_proto_python(session, pb=pb),
-            in_directory=f"wandb/proto/v{pb}/",
-        )
+@nox.session(name="proto-check-python", tags=["proto-check"])
+@nox.parametrize("pb", [3, 4])
+def proto_check_python(session: nox.Session, pb: int) -> None:
+    """Regenerates Python protobuf files and ensures nothing changed."""
+    _ensure_no_diff(
+        session,
+        after=lambda: _generate_proto_python(session, pb=pb),
+        in_directory=f"wandb/proto/v{pb}/",
+    )
 
+@nox.session(name="proto-check-go", tags=["proto-check"])
+def proto_check_go(session: nox.Session) -> None:
+    """Regenerates Go protobuf files and ensures nothing changed."""
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),

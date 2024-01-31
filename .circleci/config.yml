@@ -355,7 +355,7 @@ jobs:
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
-          command: nox -s proto-check
+          command: nox -t proto-check
       - run:
           name: Lint
           command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
