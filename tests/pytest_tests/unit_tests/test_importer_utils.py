@@ -1,3 +1,9 @@
+import sys
+
+import pytest
+
+pytest.mark.skipif(sys.version_info < (3, 8), reason="Requires py38+")
+
 from wandb.apis.importers.internals.util import for_each, parallelize
 
 
