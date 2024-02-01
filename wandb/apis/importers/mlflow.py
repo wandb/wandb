@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from mlflow import MlflowClient
 from packaging.version import Version  # type: ignore
 
 import wandb
@@ -21,12 +22,13 @@ mlflow = get_module(
 mlflow_version = Version(mlflow.__version__)
 
 logger = logging.getLogger("import_logger")
+logger.setLevel(logging.DEBUG)
 
 
 class MlflowRun:
     def __init__(self, run, mlflow_client):
         self.run = run
-        self.mlflow_client = mlflow_client
+        self.mlflow_client: MlflowClient = mlflow_client
 
     def run_id(self) -> str:
         return self.run.info.run_id
@@ -185,7 +187,7 @@ class MlflowImporter:
     def __repr__(self):
         return f"<MlflowImporter src={self.mlflow_tracking_uri}>"
 
-    def _collect_runs(self, *, limit: Optional[int] = None) -> Iterable[MlflowRun]:
+    def collect_runs(self, *, limit: Optional[int] = None) -> Iterable[MlflowRun]:
         if mlflow_version < Version("1.28.0"):
             experiments = self.mlflow_client.list_experiments()
         else:
@@ -248,13 +250,12 @@ class MlflowImporter:
 
     def import_runs(
         self,
+        runs: Iterable[MlflowRun],
         *,
         namespace: Optional[Namespace] = None,
         parallel: bool = True,
         max_workers: Optional[int] = None,
     ) -> None:
-        runs = list(self._collect_runs())
-
         def _import_run_wrapped(run):
             self._import_run(run, namespace=namespace)
 

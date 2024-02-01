@@ -36,7 +36,8 @@ logging.basicConfig(
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
-logging.getLogger("import_logger").setLevel(logging.INFO)
+logger = logging.getLogger("import_logger")
+logger.setLevel(logging.INFO)
 
 
 exp_retry = retry(

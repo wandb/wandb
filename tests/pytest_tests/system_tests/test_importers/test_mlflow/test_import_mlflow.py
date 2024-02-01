@@ -9,10 +9,6 @@ from wandb.apis.importers.mlflow import MlflowImporter
 @pytest.mark.timeout(60)
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="MLFlow requires python>=3.8")
 def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
-    import logging
-
-    logging.getLogger("import_logger").setLevel(logging.DEBUG)
-
     project = "imported-from-mlflow"
 
     importer = MlflowImporter(
@@ -20,7 +16,8 @@ def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
         dst_api_key=user,
         mlflow_tracking_uri=prelogged_mlflow_server.base_url,
     )
-    importer.import_runs(namespace=Namespace(user, project))
+    runs = importer.collect_runs()
+    importer.import_runs(runs, namespace=Namespace(user, project))
 
     api = wandb.Api()
     runs = list(api.runs(f"{user}/{project}"))
