@@ -414,7 +414,7 @@ class WandbImporter:
         _thread_local_settings.dst_base_url = dst_base_url
 
     def __repr__(self):
-        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
+        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
 
     def _import_run(
         self,
@@ -493,47 +493,6 @@ class WandbImporter:
             dst_collection.delete()
         except wandb.CommError:
             return  # it's not allowed to be deleted
-
-    def _get_run_or_dummy_from_art(self, art: Artifact):
-        run = None
-
-        try:
-            run = art.logged_by()
-        except ValueError as e:
-            logger.warn(f"Artifact run does not exist {art=}, {run=}, {e=}")
-
-        if run is None:
-            # Create a dummy run using the old metadata to use as a placeholder
-            client = self.src_api.client
-            query = gql(
-                """
-                query ArtifactCreatedBy(
-                    $id: ID!
-                ) {
-                    artifact(id: $id) {
-                        createdBy {
-                            ... on Run {
-                                name
-                                project {
-                                    name
-                                    entityName
-                                }
-                            }
-                        }
-                    }
-                }
-            """
-            )
-            response = client.execute(query, variable_values={"id": art.id})
-            creator = response.get("artifact", {}).get("createdBy", {})
-            run = _DummyRun(
-                entity=art.entity,
-                project=art.project,
-                run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-                id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-            )
-
-        return run
 
     def _import_artifact_sequence(
         self,
