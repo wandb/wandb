@@ -20,6 +20,7 @@ impl Settings {
         stats_sample_rate_seconds: Option<f64>,
         stats_samples_to_average: Option<i32>,
         sync_file: Option<String>,
+        sync_dir: Option<String>,
     ) -> Settings {
         let mut proto = Settings::default().proto.clone();
 
@@ -33,6 +34,7 @@ impl Settings {
         proto.stats_samples_to_average =
             stats_samples_to_average.or(proto.stats_samples_to_average);
         proto.sync_file = sync_file.or(proto.sync_file);
+        proto.sync_dir = sync_dir.or(proto.sync_dir);
 
         Settings { proto }
     }
@@ -51,6 +53,11 @@ impl Settings {
     #[getter]
     pub fn run_url(&self) -> String {
         self.proto.run_url.clone().unwrap()
+    }
+
+    #[getter]
+    pub fn sync_file(&self) -> String {
+        self.proto.sync_file.clone().unwrap()
     }
 
     #[getter]
@@ -89,6 +96,10 @@ impl Default for Settings {
                 stats_sample_rate_seconds: Some(5.0),
                 stats_samples_to_average: Some(1),
                 sync_file: Some("lol.wandb".to_string()),
+                sync_dir: Some(".wandb/None-None-None".to_string()),
+                run_url: Some("undefined".to_string()),
+                run_name: Some("gloomy-morning-1".to_string()),
+                files_dir: Some("undefined".to_string()),
                 ..Default::default()
             },
         }
