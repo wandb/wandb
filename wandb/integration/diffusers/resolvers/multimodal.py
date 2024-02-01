@@ -6,6 +6,7 @@ from wandb.sdk.integration_utils.auto_logging import Response
 
 from .utils import (
     chunkify,
+    decode_sdxl_t2i_latents,
     get_updated_kwargs,
     postprocess_np_arrays_for_video,
     postprocess_pils_to_np,
@@ -476,6 +477,116 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-logging": ["prompt", "negative_prompt", "video_length"],
     },
+    "AmusedPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Guidance Scale",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "guidance_scale",
+        ],
+        "kwarg-actions": [None, None],
+    },
+    "StableDiffusionXLControlNetPipeline": {
+        "table-schema": [
+            "Prompt-1",
+            "Prompt-2",
+            "Control-Image",
+            "Negative-Prompt-1",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "prompt_2",
+            "image",
+            "negative_prompt",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, wandb.Image, None, None],
+    },
+    "StableDiffusionXLControlNetImg2ImgPipeline": {
+        "table-schema": [
+            "Prompt-1",
+            "Prompt-2",
+            "Input-Image",
+            "Control-Image",
+            "Negative-Prompt-1",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "prompt_2",
+            "image",
+            "control_image",
+            "negative_prompt",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, wandb.Image, wandb.Image, None, None],
+    },
+    "Kandinsky3Pipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [None, None],
+    },
+    "Kandinsky3Img2ImgPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Input-Image",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "image",
+        ],
+        "kwarg-actions": [None, None, wandb.Image],
+    },
+    "StableDiffusionXLPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Prompt-2",
+            "Negative-Prompt-2",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "prompt_2",
+            "negative_prompt_2",
+        ],
+        "kwarg-actions": [None, None, None, None],
+    },
+    "StableDiffusionXLImg2ImgPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Prompt-2",
+            "Negative-Prompt-2",
+            "Input-Image",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+            "prompt_2",
+            "negative_prompt_2",
+            "image",
+        ],
+        "kwarg-actions": [None, None, None, None, wandb.Image],
+    },
 }
 
 
@@ -490,8 +601,9 @@ class DiffusersMultiModalPipelineResolver:
         pipeline_name: (str) The name of the Diffusion Pipeline.
     """
 
-    def __init__(self, pipeline_name: str) -> None:
+    def __init__(self, pipeline_name: str, pipeline_call_count: int) -> None:
         self.pipeline_name = pipeline_name
+        self.pipeline_call_count = pipeline_call_count
         columns = []
         if pipeline_name in SUPPORTED_MULTIMODAL_PIPELINES:
             columns += SUPPORTED_MULTIMODAL_PIPELINES[pipeline_name]["table-schema"]
@@ -531,12 +643,33 @@ class DiffusersMultiModalPipelineResolver:
             pipeline_configs = dict(pipeline.config)
             pipeline_configs["pipeline-name"] = self.pipeline_name
 
-            wandb.config.update(
-                {"workflow": {"pipeline": pipeline_configs, "params": kwargs}}
-            )
+            if "workflow" not in wandb.config:
+                wandb.config.update(
+                    {
+                        "workflow": [
+                            {
+                                "pipeline": pipeline_configs,
+                                "params": kwargs,
+                                "stage": f"Pipeline-Call-{self.pipeline_call_count}",
+                            }
+                        ]
+                    }
+                )
+            else:
+                existing_workflow = wandb.config.workflow
+                updated_workflow = existing_workflow + [
+                    {
+                        "pipeline": pipeline_configs,
+                        "params": kwargs,
+                        "stage": f"Pipeline-Call-{self.pipeline_call_count}",
+                    }
+                ]
+                wandb.config.update(
+                    {"workflow": updated_workflow}, allow_val_change=True
+                )
 
             # Return the WandB loggable dict
-            loggable_dict = self.prepare_loggable_dict(response, kwargs)
+            loggable_dict = self.prepare_loggable_dict(pipeline, response, kwargs)
             return loggable_dict
         except Exception as e:
             logger.warning(e)
@@ -578,13 +711,32 @@ class DiffusersMultiModalPipelineResolver:
         """
         if "output-type" not in SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]:
             try:
-                prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
-                    "kwarg-logging"
-                ].index("prompt")
-                caption = loggable_kwarg_chunks[prompt_index][idx]
+                caption = ""
+                if self.pipeline_name in [
+                    "StableDiffusionXLPipeline",
+                    "StableDiffusionXLImg2ImgPipeline",
+                ]:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    prompt2_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt_2")
+                    caption = f"Prompt-1: {loggable_kwarg_chunks[prompt_index][idx]}\nPrompt-2: {loggable_kwarg_chunks[prompt2_index][idx]}"
+                else:
+                    prompt_index = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
+                        "kwarg-logging"
+                    ].index("prompt")
+                    caption = loggable_kwarg_chunks[prompt_index][idx]
             except ValueError:
                 caption = None
-            wandb.log({"Generated-Image": wandb.Image(image, caption=caption)})
+            wandb.log(
+                {
+                    f"Generated-Image/Pipeline-Call-{self.pipeline_call_count}": wandb.Image(
+                        image, caption=caption
+                    )
+                }
+            )
         else:
             if (
                 SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
@@ -599,7 +751,7 @@ class DiffusersMultiModalPipelineResolver:
                     caption = None
                 wandb.log(
                     {
-                        "Generated-Video": wandb.Video(
+                        f"Generated-Video/Pipeline-Call-{self.pipeline_call_count}": wandb.Video(
                             postprocess_pils_to_np(image), fps=4, caption=caption
                         )
                     }
@@ -617,7 +769,7 @@ class DiffusersMultiModalPipelineResolver:
                     caption = None
                 wandb.log(
                     {
-                        "Generated-Audio": wandb.Audio(
+                        f"Generated-Audio/Pipeline-Call-{self.pipeline_call_count}": wandb.Audio(
                             image, sample_rate=16000, caption=caption
                         )
                     }
@@ -663,11 +815,12 @@ class DiffusersMultiModalPipelineResolver:
         self.wandb_table.add_data(*table_row)
 
     def prepare_loggable_dict(
-        self, response: Response, kwargs: Dict[str, Any]
+        self, pipeline: Any, response: Response, kwargs: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Prepare the loggable dictionary, which is the packed data as a dictionary for logging to wandb, None if an exception occurred.
 
         Arguments:
+            pipeline: (Any) The Diffusion Pipeline.
             response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
                 the request.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
@@ -677,6 +830,11 @@ class DiffusersMultiModalPipelineResolver:
         """
         # Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
         images = self.get_output_images(response)
+        if (
+            self.pipeline_name == "StableDiffusionXLPipeline"
+            and kwargs["output_type"] == "latent"
+        ):
+            images = decode_sdxl_t2i_latents(pipeline, response.images)
 
         # Account for exception pipelines for text-to-video
         if self.pipeline_name in ["TextToVideoSDPipeline", "TextToVideoZeroPipeline"]:
@@ -684,7 +842,11 @@ class DiffusersMultiModalPipelineResolver:
                 images, normalize=self.pipeline_name == "TextToVideoZeroPipeline"
             )
             wandb.log(
-                {"Generated-Video": wandb.Video(video, fps=4, caption=kwargs["prompt"])}
+                {
+                    f"Generated-Video/Pipeline-Call-{self.pipeline_call_count}": wandb.Video(
+                        video, fps=4, caption=kwargs["prompt"]
+                    )
+                }
             )
             loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][
                 "kwarg-logging"
@@ -715,5 +877,6 @@ class DiffusersMultiModalPipelineResolver:
                     self.log_media(image, loggable_kwarg_chunks, idx)
                     # Populate the row of the wandb_table
                     self.add_data_to_table(image, loggable_kwarg_chunks, idx)
-
-        return {"Result-Table": self.wandb_table}
+        return {
+            f"Result-Table/Pipeline-Call-{self.pipeline_call_count}": self.wandb_table
+        }
