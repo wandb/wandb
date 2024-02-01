@@ -1,6 +1,5 @@
 """Tooling for the W&B Importer."""
 import filecmp
-import inspect
 import itertools
 import json
 import logging
@@ -840,20 +839,6 @@ class WandbImporter:
                 "spec": json.dumps(report.spec),
             },
         )
-
-    def _projects(
-        self,
-        entity: str,
-        project: Optional[str] = None,
-        api: Optional[Api] = None,
-    ) -> List[Project]:
-        if api is None:
-            api = self.src_api
-
-        if project is None:
-            return api.projects(entity)
-
-        return [api.project(project, entity)]
 
     def _use_artifact_sequence(
         self,
@@ -1703,24 +1688,6 @@ def _clear_fname(fname: str) -> None:
         pass
 
 
-# def _clear_run_errors():
-#     return _clear_fname(RUNS_ERRORS_JSONL_FNAME)
-
-
-def _generate_filter(d: dict):
-    combined = None
-
-    for k, v in d.items():
-        current = pl.col(k) == v
-
-        if combined is None:
-            combined = current
-        else:
-            combined = combined & current
-
-    return combined
-
-
 def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
         cleanup_cache()
@@ -1742,38 +1709,6 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
         new_art = _make_new_art(art)
         new_art.add_dir(path)
     return new_art
-
-
-def _debug_locals():
-    # Get the previous frame (the function that called log_function_args)
-    previous_frame = inspect.currentframe().f_back
-    # Get the local variables in the caller's frame
-    local_vars = previous_frame.f_locals
-    # Get the name of the function that called log_function_args
-    func_name = previous_frame.f_code.co_name
-
-    # Retrieve the class from the local variables of the frame (if it's a method)
-    cls = local_vars.get("self", None).__class__ if "self" in local_vars else None
-
-    # Get the function or method
-    func = getattr(cls, func_name) if cls else previous_frame.f_globals.get(func_name)
-
-    if func is None:
-        logger.debug(f"Function {func_name} is not accessible.")
-        return
-
-    # Get the signature of the function or method
-    signature = inspect.signature(func)
-
-    # Order the local_vars based on the function's or method's signature
-    ordered_args = {
-        param_name: local_vars[param_name]
-        for param_name in signature.parameters.keys()
-        if param_name in local_vars
-    }
-
-    # Log the function name and its local variables in order
-    logger.debug(f"Running {func_name=} with {ordered_args=}")
 
 
 def _create_files_if_not_exists():
