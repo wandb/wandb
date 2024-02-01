@@ -91,73 +91,70 @@ def build_go(session: nox.Session) -> None:
     session.log(f"Commit: {commit}")
 
     # build the wandb-core binary in ./core:
-    session.cd("core")
+    with session.chdir("core"):
+        src_dir = pathlib.Path.cwd()
+        out_dir = src_dir.parent / "client" / "wandb_core"
 
-    src_dir = pathlib.Path.cwd()
-    out_dir = src_dir.parent / "client" / "wandb_core"
+        ldflags = f"-s -w -X main.commit={commit}"
+        if f"{goos}-{goarch}" == "linux-amd64":
+            # TODO: try llvm's lld linker
+            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
+        cmd = [
+            "go",
+            "build",
+            f"-ldflags={ldflags}",
+            "-o",
+            str(out_dir / "wandb-core"),
+            "cmd/wandb-core/main.go",
+        ]
+        if gocover:
+            cmd.insert(2, "-cover")
 
-    ldflags = f"-s -w -X main.commit={commit}"
-    if f"{goos}-{goarch}" == "linux-amd64":
-        # TODO: try llvm's lld linker
-        ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
-    cmd = [
-        "go",
-        "build",
-        f"-ldflags={ldflags}",
-        "-o",
-        str(out_dir / "wandb-core"),
-        "cmd/wandb-core/main.go",
-    ]
-    if gocover:
-        cmd.insert(2, "-cover")
+        session.log(f"Building for {goos}-{goarch}")
+        session.log(f"Running command: {' '.join(cmd)}")
+        session.run(*cmd, env=env, external=True)
 
-    session.log(f"Building for {goos}-{goarch}")
-    session.log(f"Running command: {' '.join(cmd)}")
-    session.run(*cmd, env=env, external=True)
+        # make it executable
+        session.run(
+            "chmod",
+            "+x",
+            str(out_dir / "wandb-core"),
+            external=True,
+        )
 
-    # make it executable
-    session.run(
-        "chmod",
-        "+x",
-        str(out_dir / "wandb-core"),
-        external=True,
-    )
-
-    # on arm macs, copy over the stats monitor binary, if available
-    # it is built separately with `nox -s build-apple-stats-monitor` to avoid
-    # having to wait for that to build on every run.
-    if goos == "darwin" and goarch == "arm64":
-        monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
-        if monitor_path.exists():
-            session.log("Copying AppleStats binary")
-            session.run(
-                "cp",
-                str(monitor_path),
-                str(out_dir),
-                external=True,
-            )
-            # make it executable
-            session.run(
-                "chmod",
-                "+x",
-                str(out_dir / "AppleStats"),
-                external=True,
-            )
-    session.cd("..")
+        # on arm macs, copy over the stats monitor binary, if available
+        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
+        # having to wait for that to build on every run.
+        if goos == "darwin" and goarch == "arm64":
+            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
+            if monitor_path.exists():
+                session.log("Copying AppleStats binary")
+                session.run(
+                    "cp",
+                    str(monitor_path),
+                    str(out_dir),
+                    external=True,
+                )
+                # make it executable
+                session.run(
+                    "chmod",
+                    "+x",
+                    str(out_dir / "AppleStats"),
+                    external=True,
+                )
 
 
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
     """Builds the wandb-core wheel with maturin."""
-    session.cd("client")
-    session.run(
-        "maturin",
-        "build",
-        "--release",
-        "--strip",
-        external=True,
-    )
-    session.cd("..")
+    with session.chdir("client"):
+        session.run(
+            "maturin",
+            "build",
+            "--release",
+            "--strip",
+            external=True,
+        )
 
 
 @nox.session(python=False, name="install")
@@ -179,14 +176,14 @@ def install(session: nox.Session) -> None:
 
 @nox.session(python=False, name="develop")
 def develop(session: nox.Session) -> None:
-    session.cd("client")
-    session.run(
-        "maturin",
-        "develop",
-        "--release",
-        "--strip",
-        external=True,
-    )
+    with session.chdir("client"):
+        session.run(
+            "maturin",
+            "develop",
+            "--release",
+            "--strip",
+            external=True,
+        )
 
 
 @nox.session(python=False, name="list-failing-tests-wandb-core")
@@ -293,22 +290,22 @@ def build_apple_stats_monitor(session: nox.Session) -> None:
     The binary will be located in
     core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
     """
-    session.cd("core/pkg/monitor/apple")
-    session.run(
-        "swift",
-        "build",
-        "--configuration",
-        "release",
-        "-Xswiftc",
-        "-cross-module-optimization",
-        external=True,
-    )
-    # copy the binary to core/pkg/monitor/apple/AppleStats
-    session.run(
-        "cp",
-        f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
-        "AppleStats",
-    )
+    with session.chdir("core/pkg/monitor/apple"):
+        session.run(
+            "swift",
+            "build",
+            "--configuration",
+            "release",
+            "-Xswiftc",
+            "-cross-module-optimization",
+            external=True,
+        )
+        # copy the binary to core/pkg/monitor/apple/AppleStats
+        session.run(
+            "cp",
+            f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
+            "AppleStats",
+        )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
