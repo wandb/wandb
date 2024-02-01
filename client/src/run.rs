@@ -437,7 +437,6 @@ impl Run {
                 }
             }
             Some(_) => {
-                print!("Unexpected result type");
                 tracing::warn!("Unexpected result type");
                 return;
             }
