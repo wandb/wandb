@@ -28,7 +28,7 @@ def test_import_runs(request, server_src, user, user2):
         )
 
         # We recreated the same runs
-        assert len(src_runs) == 2
+        assert len(src_runs) == 3
         assert len(src_runs) == len(dst_runs)
 
         # And the data is the same

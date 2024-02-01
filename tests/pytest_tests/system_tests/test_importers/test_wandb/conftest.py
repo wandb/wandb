@@ -85,7 +85,7 @@ def server_src(user):
 
     # Then randomly delete some artifacts to make gaps
     api = wandb.Api()
-    art_type = api.artifact_type("gap", "gap")
+    art_type = api.artifact_type("gap", project_name)
     for collection in art_type.collections():
         for art in collection.artifacts():
             v = int(art.version[1:])
