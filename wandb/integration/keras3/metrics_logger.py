@@ -2,6 +2,7 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import keras
 from keras.callbacks import Callback
+from packaging import version
 
 import wandb
 from wandb.util import get_module
@@ -73,7 +74,7 @@ class WandbMetricsLogger(Callback):
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
     def _get_lr(self) -> Union[float, None]:
-        try:
+        if version.parse(keras.__version__) > version.parse("3.0.0"):
             if keras.backend.backend() == "tensorflow":
                 if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
                     return float(self.model.optimizer.learning_rate.numpy().item())
@@ -92,7 +93,7 @@ class WandbMetricsLogger(Callback):
                 except Exception:
                     wandb.termerror("Unable to log learning rate.", repeat=False)
                     return None
-        except Exception:
+        else:
             tf = get_module("tensorflow")
             if isinstance(self.model.optimizer.learning_rate, tf.Variable):
                 return float(self.model.optimizer.learning_rate.numpy().item())
