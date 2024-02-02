@@ -111,4 +111,4 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Swweps on Launch requires verification.
+[^L.1]: Sweeps on Launch requires verification.
