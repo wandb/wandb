@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry, termlog
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
+from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
@@ -171,6 +172,10 @@ class _Service:
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
+                termlog(
+                    "Using wandb-core as the SDK backend, "
+                    f"see {wburls.get('wandb_core')} for more information.",
+                )
             else:
                 service_args.extend(["wandb", "service"])
 
