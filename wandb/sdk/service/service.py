@@ -172,9 +172,11 @@ class _Service:
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
+
+                wandb_core = get_module("wandb_core")
                 termlog(
-                    "Using wandb-core as the SDK backend, "
-                    f"see {wburls.get('wandb_core')} for more information.",
+                    f"Using wandb-core version {wandb_core.__version__} as the SDK backend. "
+                    f"Please refer to {wburls.get('wandb_core')} for more information.",
                 )
             else:
                 service_args.extend(["wandb", "service"])
