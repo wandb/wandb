@@ -8,6 +8,7 @@ command:
 depend:
     requirements:
         - tensorflow==2.4.1
+        - packaging
 assert:
     - :wandb:runs_len: 1
     - :op:contains:

@@ -9,6 +9,7 @@ depend:
     requirements:
         - tensorflow==2.5.0
         - pandas
+        - packaging
 assert:
     - :wandb:runs_len: 1
     - :op:contains_regex:

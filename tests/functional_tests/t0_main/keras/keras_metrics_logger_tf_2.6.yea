@@ -8,6 +8,7 @@ command:
 depend:
     requirements:
         - tensorflow>=2.6.2
+        - packaging
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][summary][batch/accuracy]: 0.10000000149011612
