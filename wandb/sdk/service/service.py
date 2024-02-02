@@ -177,6 +177,7 @@ class _Service:
                 termlog(
                     f"Using wandb-core version {wandb_core.__version__} as the SDK backend. "
                     f"Please refer to {wburls.get('wandb_core')} for more information.",
+                    repeat=False,
                 )
             else:
                 service_args.extend(["wandb", "service"])
