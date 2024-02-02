@@ -2,6 +2,7 @@ import sys
 from typing import Any, Dict, Optional, Union
 
 import tensorflow as tf  # type: ignore
+from packaging import version
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -21,10 +22,11 @@ patch_tf_keras()
 
 
 class WandbMetricsLogger(callbacks.Callback):
-    """Logger that sends system metrics to W&B.
+    """Logger that sends Keras metrics to W&B.
 
     `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
-    take as argument to wandb.
+    take as argument to wandb. The callback works for both [Keras3](https://keras.io/api/)
+    and [Keras2](https://keras.io/2.15/api/) or `tf.keras`.
 
     This callback automatically logs the following to a W&B run page:
     * system (CPU/GPU/TPU) metrics,
@@ -61,6 +63,13 @@ class WandbMetricsLogger(callbacks.Callback):
         if wandb.run is None:
             raise wandb.Error(
                 "You must call `wandb.init()` before WandbMetricsLogger()"
+            )
+
+        if version.parse(tf.__version__) > version.parse("2.15.0"):
+            wandb.termwarn(
+                """This callback is deprecated and will not be supported with the upcoming releases.
+                We recommend you use `wandb.integration.keras3.WandbMetricsLogger` instead.""",
+                repeat=False,
             )
 
         with telemetry.context(run=wandb.run) as tel:

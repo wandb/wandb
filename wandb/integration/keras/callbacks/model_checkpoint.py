@@ -4,6 +4,7 @@ import sys
 from typing import Any, Dict, List, Optional, Union
 
 import tensorflow as tf  # type: ignore
+from packaging import version
 from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
@@ -106,6 +107,12 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         if wandb.run is None:
             raise wandb.Error(
                 "You must call `wandb.init()` before `WandbModelCheckpoint()`"
+            )
+        if version.parse(tf.__version__) > version.parse("2.15.0"):
+            wandb.termwarn(
+                """This callback is deprecated and will not be supported with the upcoming releases.
+                We recommend you use `wandb.integration.keras3.WandbModelCheckpoint` instead.""",
+                repeat=False,
             )
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.keras_model_checkpoint = True
