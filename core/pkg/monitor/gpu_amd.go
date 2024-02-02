@@ -55,15 +55,19 @@ func NewGPUAMD(settings *service.Settings) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func GetRocmSMICmd() string {
+func GetRocmSMICmd() (string, error) {
 	if foundCmd, err := exec.LookPath("rocm-smi"); err == nil {
-		return foundCmd
+		return foundCmd, nil
 	}
-	return rocmSMICmd
+	// try to use the default path
+	if _, err := os.Stat(rocmSMICmd); err == nil {
+		return rocmSMICmd, nil
+	}
+	return "", fmt.Errorf("rocm-smi not found")
 }
 
 func (g *GPUAMD) IsAvailable() bool {
-	_, err := exec.LookPath(GetRocmSMICmd())
+	_, err := GetRocmSMICmd()
 	if err != nil {
 		return false
 	}
@@ -210,7 +214,11 @@ func (g *GPUAMD) Samples() map[string][]float64 {
 }
 
 func getROCMSMIStats() (InfoDict, error) {
-	cmd := exec.Command(GetRocmSMICmd(), "-a", "--json")
+	rocmSMICmd, err := GetRocmSMICmd()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(rocmSMICmd, "-a", "--json")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
