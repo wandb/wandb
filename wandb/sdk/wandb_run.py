@@ -2734,7 +2734,7 @@ class Run:
             # before trying to link it
             artifact.wait()
             if not self._settings._offline:
-                self._backend.interface.publish_link_artifact(
+                handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
                     portfolio,
@@ -2745,6 +2745,16 @@ class Run:
                 if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
+                    )
+                result = handle.wait(timeout=-1)
+                if result is None:
+                    handle.abandon()
+                assert result is not None
+                response = result.response.link_artifact_response
+                wandb.termlog(f"response: {response}")
+                if response.error_message:
+                    raise ValueError(
+                        f"Error linking artifact: {response.error_message}"
                     )
             else:
                 # TODO: implement offline mode + sync

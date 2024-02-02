@@ -5,6 +5,7 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
+from os import link
 import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess
@@ -133,6 +134,7 @@ class InterfaceShared(InterfaceBase):
         check_version: Optional[pb.CheckVersionRequest] = None,
         log_artifact: Optional[pb.LogArtifactRequest] = None,
         download_artifact: Optional[pb.DownloadArtifactRequest] = None,
+        link_artifact: Optional[pb.LinkArtifactRequest] = None,
         defer: Optional[pb.DeferRequest] = None,
         attach: Optional[pb.AttachRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
@@ -180,6 +182,8 @@ class InterfaceShared(InterfaceBase):
             request.log_artifact.CopyFrom(log_artifact)
         elif download_artifact:
             request.download_artifact.CopyFrom(download_artifact)
+        elif link_artifact:
+            request.link_artifact.CopyFrom(link_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
         elif attach:
@@ -238,7 +242,6 @@ class InterfaceShared(InterfaceBase):
         request: Optional[pb.Request] = None,
         telemetry: Optional[tpb.TelemetryRecord] = None,
         preempting: Optional[pb.RunPreemptingRecord] = None,
-        link_artifact: Optional[pb.LinkArtifactRecord] = None,
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
@@ -278,8 +281,6 @@ class InterfaceShared(InterfaceBase):
             record.metric.CopyFrom(metric)
         elif preempting:
             record.preempting.CopyFrom(preempting)
-        elif link_artifact:
-            record.link_artifact.CopyFrom(link_artifact)
         elif use_artifact:
             record.use_artifact.CopyFrom(use_artifact)
         elif output:
@@ -389,10 +390,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
-        rec = self._make_record(link_artifact=link_artifact)
-        self._publish(rec)
-
     def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
@@ -405,6 +402,12 @@ class InterfaceShared(InterfaceBase):
         self, download_artifact: pb.DownloadArtifactRequest
     ) -> MailboxHandle:
         rec = self._make_request(download_artifact=download_artifact)
+        return self._deliver_record(rec)
+
+    def _deliver_link_artifact(
+        self, link_artifact: pb.LinkArtifactRequest
+    ) -> MailboxHandle:
+        rec = self._make_request(link_artifact=link_artifact)
         return self._deliver_record(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:

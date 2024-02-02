@@ -20,6 +20,7 @@ from typing import (
     Tuple,
     cast,
 )
+import wandb
 
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
@@ -218,7 +219,7 @@ class HandleManager:
     def handle_files(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_link_artifact(self, record: Record) -> None:
+    def handle_request_link_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_use_artifact(self, record: Record) -> None:
