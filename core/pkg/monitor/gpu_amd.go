@@ -5,6 +5,7 @@ package monitor
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -54,9 +55,31 @@ func NewGPUAMD(settings *service.Settings) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
+func GetRocmSMICmd() string {
+	if foundCmd, err := exec.LookPath("rocm-smi"); err == nil {
+		return foundCmd
+	}
+	return rocmSMICmd
+}
+
 func (g *GPUAMD) IsAvailable() bool {
-	_, err := exec.LookPath(rocmSMICmd)
-	return err == nil
+	_, err := exec.LookPath(GetRocmSMICmd())
+	if err != nil {
+		return false
+	}
+
+	isDriverInitialized := false
+	fileContent, err := os.ReadFile("/sys/module/amdgpu/initstate")
+	if err == nil && strings.Contains(string(fileContent), "live") {
+		isDriverInitialized = true
+	}
+
+	canReadRocmSmi := false
+	if _, err := getROCMSMIStats(); err == nil {
+		canReadRocmSmi = true
+	}
+
+	return isDriverInitialized && canReadRocmSmi
 }
 
 func (g *GPUAMD) getCards() map[int]Stats {
@@ -187,7 +210,7 @@ func (g *GPUAMD) Samples() map[string][]float64 {
 }
 
 func getROCMSMIStats() (InfoDict, error) {
-	cmd := exec.Command(rocmSMICmd, "-a", "--json")
+	cmd := exec.Command(GetRocmSMICmd(), "-a", "--json")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
