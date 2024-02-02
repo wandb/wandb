@@ -7,7 +7,7 @@ command:
     program: t7_keras_tf_keras.py
 depend:
     requirements:
-        - tensorflow==2.15.0
+        - tensorflow>=2.16.0
         - keras==3.0.4
 assert:
     - :wandb:runs_len: 1
