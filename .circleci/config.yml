@@ -343,6 +343,25 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
+  code-check:
+    docker:
+      - image: "python:3.10"
+    resource_class: large
+    steps:
+      - checkout
+      - install_go
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+      - run:
+          name: Ensure proto files were generated
+          command: nox -t proto-check
+      - run:
+          name: Lint
+          command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - save-test-results
+
   tox-base:
     parameters:
       python_version_major:
@@ -1494,10 +1513,8 @@ workflows:
       #
       # Linting
       #
-      - tox-base:
-          name: "code-check"
-          python_version_minor: 10
-          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - code-check
+
       #
       # Prep jobs
       #
@@ -1628,7 +1645,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
@@ -1642,7 +1659,7 @@ workflows:
               python_version_minor: [10]
           name: "unit(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
 
       - tox-base:
@@ -1724,7 +1741,7 @@ workflows:
       #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     codecov_args: "-F unit"
-      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - win:
           requires:
@@ -1742,7 +1759,7 @@ workflows:
           name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - mac:
           requires:
@@ -1777,7 +1794,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
 
       - mac:
@@ -1789,7 +1806,7 @@ workflows:
               python_version_minor: [9]
           name: "unit(service)-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
       #
       # Functional tests with yea on Linux (base only)
@@ -1888,6 +1905,19 @@ workflows:
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
+
+      # report api tests
+      - tox-base:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-linux-reports-api-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests/test_reports"
+          codecov_args: "-F unit"
 
       #
       # wandb launch tests

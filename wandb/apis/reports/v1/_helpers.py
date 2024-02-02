@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ..public import PanelMetricsHelper, Run
+from ...public import PanelMetricsHelper, Run
 from .runset import Runset
 from .util import Attr, Base, Panel, nested_get, nested_set
 

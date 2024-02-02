@@ -1,11 +1,11 @@
+"""GraphQL queries and mutations."""
 from wandb_gql import gql
 
-VIEW_REPORT = gql(
+view_report = gql(
     """
     query SpecificReport($reportId: ID!) {
         view(id: $reportId) {
             id
-            type
             name
             displayName
             description
@@ -17,17 +17,11 @@ VIEW_REPORT = gql(
             createdAt
             updatedAt
             spec
-            previewUrl
-            user {
-                name
-                username
-                userInfo
-            }
         }
     }
     """
 )
-UPSERT_VIEW = gql(
+upsert_view = gql(
     """
     mutation upsertView(
         $id: ID
