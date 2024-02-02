@@ -12,8 +12,6 @@ Usage:
 
 from typing import TYPE_CHECKING, Dict, Optional
 
-import wandb_core
-
 if TYPE_CHECKING:
     from ._wburls_generated import URLS
 
