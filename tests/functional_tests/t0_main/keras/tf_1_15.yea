@@ -10,6 +10,7 @@ depend:
         - protobuf==3.20.2
         - pillow
         - tensorflow==1.15.0
+        - packaging
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
