@@ -31,11 +31,25 @@ def _log_artifact(
 class WandbModelCheckpoint(ModelCheckpoint):
     """A checkpoint that periodically saves a Keras model or model weights.
 
-    Saved weights are uploaded to W&B as a `wandb.Artifact`.
+    Example:
+        ```python
+        from wandb.integration.keras3 import WandbModelCheckpoint
+
+        model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_test, y_test),
+            callbacks=[WandbModelCheckpoint(filepath="model.keras")],
+        )
+        ```
+
+    Saved weights are uploaded to W&B as a [`wandb.Artifact`](https://docs.wandb.ai/ref/python/artifact).
+    The callback works for both [Keras3](https://keras.io/api/) and [Keras2](https://keras.io/2.15/api/)
+    or `tf.keras`.
 
     Since this callback is subclassed from `tf.keras.callbacks.ModelCheckpoint`, the
     checkpointing logic is taken care of by the parent callback. You can learn more
-    here: https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint
+    here: https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ModelCheckpoint.
 
     This callback is to be used in conjunction with training using `model.fit()` to save
     a model or weights (in a checkpoint file) at some interval. The model checkpoints

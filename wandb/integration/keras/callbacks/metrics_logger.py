@@ -25,8 +25,7 @@ class WandbMetricsLogger(callbacks.Callback):
     """Logger that sends Keras metrics to W&B.
 
     `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
-    take as argument to wandb. The callback works for both [Keras3](https://keras.io/api/)
-    and [Keras2](https://keras.io/2.15/api/) or `tf.keras`.
+    take as argument to wandb.
 
     This callback automatically logs the following to a W&B run page:
     * system (CPU/GPU/TPU) metrics,

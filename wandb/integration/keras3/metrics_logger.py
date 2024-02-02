@@ -14,7 +14,20 @@ class WandbMetricsLogger(Callback):
     """Logger that sends system metrics to W&B.
 
     `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
-    take as argument to wandb.
+    take as argument to wandb. The callback works for both [Keras3](https://keras.io/api/)
+    and [Keras2](https://keras.io/2.15/api/) or `tf.keras`.
+
+    Example:
+        ```python
+        from wandb.integration.keras3 import WandbMetricsLogger
+
+        model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_test, y_test),
+            callbacks=[WandbCallback()],
+        )
+        ```
 
     This callback automatically logs the following to a W&B run page:
     * system (CPU/GPU/TPU) metrics,
