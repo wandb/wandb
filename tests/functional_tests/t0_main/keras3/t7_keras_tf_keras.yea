@@ -1,0 +1,41 @@
+id: 0.keras.metricsloggerepochwise.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: t7_keras_tf_keras.py
+depend:
+    requirements:
+        - tensorflow==2.15.0
+        - keras==3.0.4
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][keras_backend]: "tensorflow"
+    - :wandb:runs[0][summary][batch/batch_step]: 2
+    - :op:>=:
+        - :wandb:runs[0][summary][batch/accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][batch/loss]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][batch/learning_rate]
+        - 0.001
+    - :wandb:runs[0][summary][epoch/epoch]: 2
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/loss]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/learning_rate]
+        - 0.001
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/val_accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/val_loss]
+        - 0
+    - :wandb:runs[0][exitcode]: 0
