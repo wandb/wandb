@@ -1,6 +1,6 @@
 id: 0.keras.metricsloggerepochwise.tf26
 tag:
-    shard: tf26
+    shard: standalone-gpu
 plugin:
     - wandb
 command:
