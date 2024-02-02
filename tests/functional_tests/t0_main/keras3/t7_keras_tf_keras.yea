@@ -8,7 +8,7 @@ command:
 depend:
     requirements:
         - tensorflow>=2.11.0
-        - keras>=3.0.4
+        - keras>=3.0.0
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][keras_backend]: "tensorflow"
