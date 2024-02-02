@@ -172,7 +172,7 @@ class _Service:
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
                 exec_cmd_list = []
-
+                # TODO: remove this after the wandb-core GA release
                 wandb_core = get_module("wandb_core")
                 termlog(
                     f"Using wandb-core version {wandb_core.__version__} as the SDK backend. "
