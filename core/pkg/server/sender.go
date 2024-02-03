@@ -255,6 +255,11 @@ func (s *Sender) SendRecord(record *service.Record) {
 	s.sendRecord(record)
 }
 
+func (s *Sender) SendRequest(record *service.Record) {
+	// this is for testing purposes only yet
+	s.sendRequest(record, record.GetRequest())
+}
+
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
@@ -288,8 +293,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(record)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
-	case *service.Record_LinkArtifact:
-		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
@@ -319,6 +322,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
 		s.sendDownloadArtifact(record, x.DownloadArtifact)
+	case *service.Request_LinkArtifact:
+		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *service.Request_Sync:
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
@@ -491,19 +496,28 @@ func (s *Sender) sendPreempting(record *service.Record) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendLinkArtifact(record *service.Record) {
+func (s *Sender) sendLinkArtifact(record *service.Record, msg *service.LinkArtifactRequest) {
+	var response service.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.ctx,
 		Logger:        s.logger,
-		LinkArtifact:  record.GetLinkArtifact(),
+		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+		response.ErrorMessage = err.Error()
+		s.logger.CaptureError("senderError: sendLinkArtifact: link failure", err)
 	}
 
 	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_LinkArtifactResponse{
+					LinkArtifactResponse: &response,
+				},
+			},
+		},
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}

@@ -2751,7 +2751,6 @@ class Run:
                     handle.abandon()
                 assert result is not None
                 response = result.response.link_artifact_response
-                wandb.termlog(f"response: {response}")
                 if response.error_message:
                     raise ValueError(
                         f"Error linking artifact: {response.error_message}"
