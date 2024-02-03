@@ -1,10 +1,18 @@
 import os
+import pathlib
 import platform
-from typing import List
+from typing import Callable, List
 
 import nox
 
 CORE_VERSION = "0.17.0b8"
+
+
+PACKAGE: str = "wandb_core"
+PLATFORMS_TO_BUILD_WITH_CGO = (
+    "darwin-arm64",
+    "linux-amd64",
+)
 
 
 @nox.session(python=False, name="build-core")
@@ -40,24 +48,127 @@ def install_core(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=False, name="install-client")
-def install_client(session: nox.Session) -> None:
-    session.cd("client")
+@nox.session(python=False, name="build-go")
+def build_go(session: nox.Session) -> None:
+    """Builds the wandb-core binary for the current platform."""
+    env = os.environ.copy()
+
+    goos = platform.system().lower()
+    goarch = platform.machine().lower()
+    if goarch == "x86_64":
+        goarch = "amd64"
+    elif goarch == "aarch64":
+        goarch = "arm64"
+    elif goarch == "armv7l":
+        goarch = "armv6l"
+
+    # Check the PLAT environment variable available in cibuildwheel
+    cibw_plat = env.get("PLAT", "")
+
+    # Custom logic for darwin-arm64 in cibuildwheel
+    # (it's built on an x86_64 mac with qemu, so we need to override the arch)
+    if goos == "darwin" and cibw_plat.endswith("arm64"):
+        goarch = "arm64"
+
+    # build a binary for coverage profiling if the GOCOVERDIR env var is set
+    gocover = True if os.environ.get("GOCOVERDIR") else False
+
+    # cgo is needed on:
+    #  - arm macs to build the gopsutil dependency,
+    #    otherwise several system metrics will be unavailable.
+    #  - linux to build the dependencies needed to get GPU metrics.
+    if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
+        env["CGO_ENABLED"] = "1"
+
+    commit = session.run(
+        "git",
+        "rev-parse",
+        "HEAD",
+        external=True,
+        silent=True,
+    ).strip()
+
+    session.log(f"Commit: {commit}")
+
+    # build the wandb-core binary in ./core:
+    with session.chdir("core"):
+        src_dir = pathlib.Path.cwd()
+        out_dir = src_dir.parent / "client" / "wandb_core"
+
+        ldflags = f"-s -w -X main.commit={commit}"
+        if f"{goos}-{goarch}" == "linux-amd64":
+            # TODO: try llvm's lld linker
+            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
+        cmd = [
+            "go",
+            "build",
+            f"-ldflags={ldflags}",
+            "-o",
+            str(out_dir / "wandb-core"),
+            "cmd/wandb-core/main.go",
+        ]
+        if gocover:
+            cmd.insert(2, "-cover")
+
+        session.log(f"Building for {goos}-{goarch}")
+        session.log(f"Running command: {' '.join(cmd)}")
+        session.run(*cmd, env=env, external=True)
+
+        # on arm macs, copy over the stats monitor binary, if available
+        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
+        # having to wait for that to build on every run.
+        if goos == "darwin" and goarch == "arm64":
+            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
+            if monitor_path.exists():
+                session.log("Copying AppleStats binary")
+                session.run(
+                    "cp",
+                    str(monitor_path),
+                    str(out_dir),
+                    external=True,
+                )
+
+
+@nox.session(python=False, name="build-rust")
+def build_rust(session: nox.Session) -> None:
+    """Builds the wandb-core wheel with maturin."""
+    with session.chdir("client"):
+        session.run(
+            "maturin",
+            "build",
+            "--release",
+            "--strip",
+            external=True,
+        )
+
+
+@nox.session(python=False, name="install")
+def install(session: nox.Session) -> None:
+    # find latest wheel file in ./target/wheels/:
+    wheel_file = [
+        f
+        for f in os.listdir("./client/target/wheels/")
+        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
+    ][0]
     session.run(
-        "maturin",
-        "develop",
-        "--release",
-        "--strip",
+        "pip",
+        "install",
+        "--force-reinstall",
+        f"./client/target/wheels/{wheel_file}",
         external=True,
     )
 
 
 @nox.session(python=False, name="develop")
 def develop(session: nox.Session) -> None:
-    """Developers! Developers! Developers!"""
-    session.notify("build-core")
-    session.notify("install-core")
-    session.notify("install-client")
+    with session.chdir("client"):
+        session.run(
+            "maturin",
+            "develop",
+            "--release",
+            "--strip",
+            external=True,
+        )
 
 
 @nox.session(python=False, name="list-failing-tests-wandb-core")
@@ -85,12 +196,12 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
                         )
 
         def pytest_collection_finish(self):
-            print("\n\nFailing tests grouped by feature:")
+            session.log("\n\nFailing tests grouped by feature:")
             df = pd.DataFrame(self.features)
             for feature, group in df.groupby("feature"):
-                print(f"\n{feature}:")
+                session.log(f"\n{feature}:")
                 for name in group["name"]:
-                    print(f"  {name}")
+                    session.log(f"  {name}")
 
     my_plugin = MyPlugin()
     pytest.main(
@@ -164,22 +275,22 @@ def build_apple_stats_monitor(session: nox.Session) -> None:
     The binary will be located in
     core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
     """
-    session.cd("core/pkg/monitor/apple")
-    session.run(
-        "swift",
-        "build",
-        "--configuration",
-        "release",
-        "-Xswiftc",
-        "-cross-module-optimization",
-        external=True,
-    )
-    # copy the binary to core/pkg/monitor/apple/AppleStats
-    session.run(
-        "cp",
-        f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
-        "AppleStats",
-    )
+    with session.chdir("core/pkg/monitor/apple"):
+        session.run(
+            "swift",
+            "build",
+            "--configuration",
+            "release",
+            "-Xswiftc",
+            "-cross-module-optimization",
+            external=True,
+        )
+        # copy the binary to core/pkg/monitor/apple/AppleStats
+        session.run(
+            "cp",
+            f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
+            "AppleStats",
+        )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -291,12 +402,11 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     local_release_tag, commit_hash = get_release_tag_and_commit_hash(tags)
 
     release_tag = local_release_tag.removeprefix("local/v")
-    print(f"Release tag: {release_tag}")
-    print(f"Commit hash: {commit_hash}")
+    session.log(f"Release tag: {release_tag}")
+    session.log(f"Commit hash: {commit_hash}")
 
     if not release_tag or not commit_hash:
-        print("Failed to get release tag or commit hash.")
-        return
+        session.error("Failed to get release tag or commit hash.")
 
     subprocess.check_call(["gcloud", "config", "set", "project", "wandb-client-cicd"])
 
@@ -320,7 +430,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     images = [img for img in images if img]
 
     if any(release_tag in img for img in images):
-        print(f"Image with tag {release_tag} already exists.")
+        session.warn(f"Image with tag {release_tag} already exists.")
         return
 
     source_image = f"us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:{commit_hash}"
@@ -329,4 +439,103 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     # install gcrane: `go install github.com/google/go-containerregistry/cmd/gcrane@latest`
     subprocess.check_call(["gcrane", "cp", source_image, target_image])
 
-    print(f"Successfully copied image {target_image}")
+    session.log(f"Successfully copied image {target_image}")
+
+
+@nox.session(python=False, name="bump-core-version")
+def bump_core_version(session: nox.Session) -> None:
+    args = session.posargs
+    if not args:
+        session.log("Usage: nox -s bump-core-version -- <args>\n")
+        # Examples:
+        session.log(
+            "For example, to bump from 0.17.0b8/0.17.0-beta.8 to 0.17.0b9/0.17.0-beta.9:"
+        )
+        session.log("nox -s bump-core-version -- pre")
+        return
+
+    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
+        session.run(
+            "bump2version",
+            "--config-file",
+            cfg,
+            *args,
+        )
+
+
+@nox.session(python=False, name="proto-go")
+def proto_go(session: nox.Session) -> None:
+    """Generate Go bindings for protobufs."""
+    _generate_proto_go()
+
+
+def _generate_proto_go(session: nox.Session) -> None:
+    session.run("./core/scripts/generate-proto.sh", external=True)
+
+
+@nox.session(name="proto-python")
+@nox.parametrize("pb", [3, 4])
+def proto_python(session: nox.Session, pb: int) -> None:
+    """Generate Python bindings for protobufs.
+
+    The pb argument is the major version of the protobuf package to use.
+
+    Tested with Python 3.10 on a Mac with an M1 chip.
+    Absolutely does not work with Python 3.7.
+    """
+    _generate_proto_python(session, pb=pb)
+
+
+def _generate_proto_python(session: nox.Session, pb: int) -> None:
+    if pb == 3:
+        session.install("protobuf~=3.20.3")
+        session.install("mypy-protobuf~=3.3.0")
+        session.install("grpcio~=1.48.0")
+        session.install("grpcio-tools~=1.48.0")
+    elif pb == 4:
+        session.install("protobuf~=4.23.4")
+        session.install("mypy-protobuf~=3.5.0")
+        session.install("grpcio~=1.50.0")
+        session.install("grpcio-tools~=1.50.0")
+    else:
+        session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
+
+    session.install("-r", "requirements_build.txt")
+    session.install(".")
+
+    with session.chdir("wandb/proto"):
+        session.run("python", "wandb_internal_codegen.py")
+
+
+def _ensure_no_diff(
+    session: nox.Session,
+    after: Callable[[], None],
+    in_directory: str,
+) -> None:
+    """Fails if the callable modifies the directory."""
+    saved = session.create_tmp()
+    session.run("cp", "-r", in_directory, saved, external=True)
+    after()
+    session.run("diff", in_directory, saved, external=True)
+    session.run("rm", "-rf", saved, external=True)
+
+
+@nox.session(name="proto-check-python", tags=["proto-check"])
+@nox.parametrize("pb", [3, 4])
+def proto_check_python(session: nox.Session, pb: int) -> None:
+    """Regenerates Python protobuf files and ensures nothing changed."""
+    _ensure_no_diff(
+        session,
+        after=lambda: _generate_proto_python(session, pb=pb),
+        in_directory=f"wandb/proto/v{pb}/.",
+    )
+
+
+@nox.session(name="proto-check-go", tags=["proto-check"])
+def proto_check_go(session: nox.Session) -> None:
+    """Regenerates Go protobuf files and ensures nothing changed."""
+    _ensure_no_diff(
+        session,
+        after=lambda: _generate_proto_go(session),
+        in_directory="core/pkg/service/.",
+    )
