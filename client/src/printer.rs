@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
-use std::{cmp::min, fmt::Write};
+// use std::{cmp::min, fmt::Write};
 
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+// use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub mod styled_string {
     use colored::*;
@@ -169,12 +170,12 @@ fn truncate(s: &str, max_chars: usize) -> &str {
 
 struct Printer;
 impl Printer {
-    const PROGRESS_COLOR: &'static str = "magenta";
-    const PROGRESS_BLANK_COLOR: &'static str = "white.dim";
+    // const PROGRESS_COLOR: &'static str = "magenta";
+    // const PROGRESS_BLANK_COLOR: &'static str = "white.dim";
     // For more spinners check out the cli-spinners project:
     // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
     const SPINNERS: [&'static str; 10] = ["⠋", "⠙", "⠚", "⠞", "⠖", "⠦", "⠴", "⠲", "⠳", "⠓"];
-    const PROGRESS: &'static str = "⣿⡇";
+    // const PROGRESS: &'static str = "⣿⡇";
 
     fn start_spinner(active_msg: String) -> ProgressBar {
         let pb = ProgressBar::new_spinner();
@@ -192,27 +193,27 @@ impl Printer {
         pb
     }
 
-    fn start_progress_bar(total_size: u64, progress_msg: String) -> ProgressBar {
-        let pb: ProgressBar = ProgressBar::new(total_size);
-        let mut prefix = styled_string::new("");
-        styled_string::add_prefix(&mut prefix);
-        pb.set_prefix(prefix.to_string());
-        let template = format!(
-            "{{prefix}}{}{{wide_bar:.{success_color}/{fail_color}.dim}} {{bytes}}/{{total_bytes}} ({{eta}})",
-            progress_msg,
-            success_color = Printer::PROGRESS_COLOR,
-            fail_color = Printer::PROGRESS_BLANK_COLOR,
-        );
-        pb.set_style(
-            ProgressStyle::with_template(&template)
-                .unwrap()
-                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-                })
-                .progress_chars(Printer::PROGRESS),
-        );
-        pb
-    }
+    // fn start_progress_bar(total_size: u64, progress_msg: String) -> ProgressBar {
+    //     let pb: ProgressBar = ProgressBar::new(total_size);
+    //     let mut prefix = styled_string::new("");
+    //     styled_string::add_prefix(&mut prefix);
+    //     pb.set_prefix(prefix.to_string());
+    //     let template = format!(
+    //         "{{prefix}}{}{{wide_bar:.{success_color}/{fail_color}.dim}} {{bytes}}/{{total_bytes}} ({{eta}})",
+    //         progress_msg,
+    //         success_color = Printer::PROGRESS_COLOR,
+    //         fail_color = Printer::PROGRESS_BLANK_COLOR,
+    //     );
+    //     pb.set_style(
+    //         ProgressStyle::with_template(&template)
+    //             .unwrap()
+    //             .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+    //                 write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+    //             })
+    //             .progress_chars(Printer::PROGRESS),
+    //     );
+    //     pb
+    // }
 }
 
 pub fn print_header(name: &str, url: &str) {
