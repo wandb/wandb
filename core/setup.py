@@ -75,7 +75,7 @@ class WBCoreBase:
 
         ldflags = f"-s -w -X main.commit={commit}"
         if f"{goos}-{goarch}" == "linux-amd64":
-            # todo: try llvm's lld linker
+            # TODO: try llvm's lld linker
             ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
         cmd = [
             "go",
