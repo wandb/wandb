@@ -23,9 +23,10 @@ def push_to_queue(
     launch_spec: Dict[str, Any],
     template_variables: Optional[dict],
     project_queue: str,
+    priority: Optional[int] = None,
 ) -> Any:
     return api.push_to_run_queue(
-        queue_name, launch_spec, template_variables, project_queue
+        queue_name, launch_spec, template_variables, project_queue, priority
     )
 
 
@@ -49,6 +50,7 @@ def launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -62,6 +64,7 @@ def launch_add(
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
+        priority: the priority level of the job, where 1 is the highest priority
         resource: Execution backend for the run: W&B provides built-in support for "local-container" backend
         entry_point: Entry point to run within the project. Defaults to using the entry point used
             in the original run for wandb URIs, or main.py for git repository URIs.
@@ -125,6 +128,7 @@ def launch_add(
             repository=repository,
             sweep_id=sweep_id,
             author=author,
+            priority=priority,
         )
     )
 
@@ -150,6 +154,7 @@ async def _launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
         uri,
@@ -190,7 +195,7 @@ async def _launch_add(
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(
+        job_artifact = run._log_job_artifact_with_image(  # type: ignore
             docker_image_uri, launch_project.override_args
         )
         job_name = job_artifact.wait().name
@@ -215,7 +220,9 @@ async def _launch_add(
             }
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, template_variables, project_queue)
+    res = push_to_queue(
+        api, queue_name, launch_spec, template_variables, project_queue, priority
+    )
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
@@ -246,5 +253,6 @@ async def _launch_add(
         queue_name,
         res["runQueueItemId"],
         project_queue,
+        priority,
     )
     return queued_run  # type: ignore

@@ -157,6 +157,7 @@ def mocked_requests_get(*args, **kwargs):
         ),
     ],
 )
+@pytest.mark.wandb_core_failure(feature="system_monitor_open_metrics")
 def test_dcgm(
     wandb_init, relay_server, test_settings, filters, expected_keys, unexpected_keys
 ):

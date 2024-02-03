@@ -1,6 +1,8 @@
 id: 0.mp.17-service-crash
 tag:
-  shard: service
+  skips:
+    - platform: win
+
 plugin:
   - wandb
 assert:

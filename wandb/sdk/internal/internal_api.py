@@ -335,6 +335,7 @@ class Api:
         self.server_create_run_queue_supports_drc: Optional[bool] = None
         self.server_create_run_queue_supports_priority: Optional[bool] = None
         self.server_supports_template_variables: Optional[bool] = None
+        self.server_push_to_run_queue_supports_priority: Optional[bool] = None
 
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
@@ -669,7 +670,7 @@ class Api:
         )
 
     @normalize_exceptions
-    def push_to_run_queue_introspection(self) -> bool:
+    def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
         query_string = """
             query ProbePushToRunQueueInput {
                 PushToRunQueueInputType: __type(name: "PushToRunQueueInput") {
@@ -681,7 +682,10 @@ class Api:
             }
         """
 
-        if self.server_supports_template_variables is None:
+        if (
+            self.server_supports_template_variables is None
+            or self.server_push_to_run_queue_supports_priority is None
+        ):
             query = gql(query_string)
             res = self.gql(query)
             self.server_supports_template_variables = "templateVariableValues" in [
@@ -690,7 +694,17 @@ class Api:
                     res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
                 )
             ]
-        return self.server_supports_template_variables
+            self.server_push_to_run_queue_supports_priority = "priority" in [
+                x["name"]
+                for x in (
+                    res.get("PushToRunQueueInputType", {}).get("inputFields", [{}])
+                )
+            ]
+
+        return (
+            self.server_supports_template_variables,
+            self.server_push_to_run_queue_supports_priority,
+        )
 
     @normalize_exceptions
     def create_default_resource_config_introspection(self) -> bool:
@@ -867,6 +881,7 @@ class Api:
             latestLocalVersionInfo {
                 outOfDate
                 latestVersionString
+                versionOnThisInstanceString
             }
         """
         cli_query = """
@@ -1216,6 +1231,7 @@ class Api:
                     historyTail
                     eventsTail
                     config
+                    tags
                 }
             }
         }
@@ -1398,7 +1414,7 @@ class Api:
     ) -> Optional[Dict[str, Any]]:
         if not self.create_default_resource_config_introspection():
             raise Exception()
-        supports_template_vars = self.push_to_run_queue_introspection()
+        supports_template_vars, _ = self.push_to_run_queue_introspection()
 
         mutation_params = """
             $entityName: String!,
@@ -1492,7 +1508,7 @@ class Api:
                 $project: String!,
                 $queueName: String!,
                 $access: RunQueueAccessType!,
-                $prioritizationMode: RunQueuePrioritizationMode!,
+                $prioritizationMode: RunQueuePrioritizationMode,
                 $defaultResourceConfigID: ID,
             ) {
                 createRunQueue(
@@ -1565,6 +1581,7 @@ class Api:
         queue_name: str,
         run_spec: str,
         template_variables: Optional[Dict[str, Union[int, float, str]]],
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         self.push_to_run_queue_introspection()
         """Queryless mutation, should be used before legacy fallback method."""
@@ -1583,12 +1600,22 @@ class Api:
             runSpec: $runSpec
         """
 
-        variables = {
+        variables: Dict[str, Any] = {
             "entityName": entity,
             "projectName": project,
             "queueName": queue_name,
             "runSpec": run_spec,
         }
+        if self.server_push_to_run_queue_supports_priority:
+            if priority is not None:
+                variables["priority"] = priority
+                mutation_params += ", $priority: Int"
+                mutation_input += ", priority: $priority"
+        else:
+            if priority is not None:
+                raise UnsupportedError(
+                    "server does not support priority, please update server instance to >=0.46"
+                )
 
         if self.server_supports_template_variables:
             if template_variables is not None:
@@ -1677,17 +1704,22 @@ class Api:
         launch_spec: Dict[str, str],
         template_variables: Optional[dict],
         project_queue: str,
+        priority: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         self.push_to_run_queue_introspection()
         entity = launch_spec.get("queue_entity") or launch_spec["entity"]
         run_spec = json.dumps(launch_spec)
 
         push_result = self.push_to_run_queue_by_name(
-            entity, project_queue, queue_name, run_spec, template_variables
+            entity, project_queue, queue_name, run_spec, template_variables, priority
         )
 
         if push_result:
             return push_result
+
+        if priority is not None:
+            # Cannot proceed with legacy method if priority is set
+            return None
 
         """ Legacy Method """
         queues_found = self.get_project_run_queues(entity, project_queue)

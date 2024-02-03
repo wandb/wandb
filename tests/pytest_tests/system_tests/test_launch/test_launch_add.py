@@ -115,6 +115,7 @@ def test_launch_add_delete_queued_run(
     strict=False,
     reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
 )
+@pytest.mark.wandb_core_failure(feature="launch")
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
@@ -475,6 +476,108 @@ def test_launch_add_repository(
         run.finish()
 
 
+def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
+    def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_variables = True
+        args[0].server_push_to_run_queue_supports_priority = True
+        return (True, True)
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_introspection",
+        patched_push_to_run_queue_introspection,
+    )
+
+    def patched_create_run_queue_introspection(*args, **kwargs):
+        args[0].server_create_run_queue_supports_drc = True
+        args[0].server_create_run_queue_supports_priority = True
+        return (True, True, True)
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "create_run_queue_introspection",
+        patched_create_run_queue_introspection,
+    )
+
+    queue_name = "prio_queue"
+    proj = "test1"
+    queue_config = {}
+    base_config = {}
+
+    with relay_server() as relay, runner.isolated_filesystem():
+        api = PublicApi(api_key=user)
+        api.create_run_queue(
+            entity=user,
+            name=queue_name,
+            type="local-container",
+            config=queue_config,
+            prioritization_mode="V0",
+        )
+        _ = launch_add(
+            project=proj,
+            entity=user,
+            queue_name=queue_name,
+            docker_image="abc:latest",
+            config=base_config,
+            priority=0,
+        )
+        for comm in relay.context.raw_data:
+            q = comm["request"].get("query")
+            if q and "mutation pushToRunQueueByName(" in str(q):
+                assert comm["response"].get("data") is not None
+            elif q and "mutation pushToRunQueue(" in str(q):
+                raise Exception("should not be falling back to legacy here")
+
+
+def test_launch_add_with_priority_to_no_prio_queue_raises(
+    runner, relay_server, user, monkeypatch
+):
+    def patched_push_to_run_queue_introspection(*args, **kwargs):
+        args[0].server_supports_template_variables = True
+        args[0].server_push_to_run_queue_supports_priority = True
+        return (True, True)
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_introspection",
+        patched_push_to_run_queue_introspection,
+    )
+
+    # Backend returns 4xx if you attempt to push an item with
+    # non-default priority to a queue that doesn't support priority
+    def patched_push_to_run_queue_by_name(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        wandb.sdk.internal.internal_api.Api,
+        "push_to_run_queue_by_name",
+        patched_push_to_run_queue_by_name,
+    )
+
+    queue_name = "no_prio_queue"
+    proj = "test1"
+    queue_config = {}
+    base_config = {}
+
+    with relay_server(), runner.isolated_filesystem():
+        api = PublicApi(api_key=user)
+        api.create_run_queue(
+            entity=user,
+            name=queue_name,
+            type="local-container",
+            config=queue_config,
+        )
+        with pytest.raises(LaunchError):
+            _ = launch_add(
+                project=proj,
+                entity=user,
+                queue_name=queue_name,
+                docker_image="abc:latest",
+                config=base_config,
+                priority=0,
+            )
+
+
 def test_launch_add_template_variables(runner, relay_server, user):
     queue_name = "tvqueue"
     proj = "test1"
@@ -557,8 +660,8 @@ def test_launch_add_template_variables_not_supported(user, monkeypatch):
     template_variables = {"var1": "a"}
 
     def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_varaibles = False
-        return False
+        args[0].server_supports_template_variables = False
+        return (False, False)
 
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
@@ -591,8 +694,8 @@ def test_launch_add_template_variables_not_supported_legacy_push(
     template_variables = {"var1": "a"}
 
     def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_varaibles = False
-        return False
+        args[0].server_supports_template_variables = False
+        return (False, False)
 
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
@@ -632,10 +735,12 @@ def test_display_updated_runspec(
     settings = test_settings({"project": proj})
     api = InternalApi()
 
-    def push_with_drc(api, queue_name, launch_spec, template_variables, project_queue):
+    def push_with_drc(
+        api, queue_name, launch_spec, template_variables, project_queue, priority
+    ):
         # mock having a DRC
         res = api.push_to_run_queue(
-            queue_name, launch_spec, template_variables, project_queue
+            queue_name, launch_spec, template_variables, project_queue, priority
         )
         res["runSpec"] = launch_spec
         res["runSpec"]["resource_args"] = {"kubernetes": {"volume": "x/awda/xxx"}}

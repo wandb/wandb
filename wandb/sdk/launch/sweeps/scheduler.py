@@ -252,7 +252,7 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
-        run: SdkRun = wandb.init(
+        run: SdkRun = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
@@ -696,6 +696,9 @@ class Scheduler(ABC):
         # override resource and args of job
         _job_launch_config = self._wandb_run.config.get("launch") or {}
 
+        # default priority is "medium"
+        _priority = int(launch_config.get("priority", 2))  # type: ignore
+
         run_id = run.id or generate_id()
         queued_run = launch_add(
             run_id=run_id,
@@ -711,6 +714,7 @@ class Scheduler(ABC):
             resource_args=_job_launch_config.get("resource_args"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
+            priority=_priority,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state

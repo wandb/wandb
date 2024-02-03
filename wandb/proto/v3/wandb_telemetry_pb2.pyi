@@ -462,9 +462,12 @@ class Feature(google.protobuf.message.Message):
     LANGCHAIN_TRACER_FIELD_NUMBER: builtins.int
     COHERE_AUTOLOG_FIELD_NUMBER: builtins.int
     HF_PIPELINE_AUTOLOG_FIELD_NUMBER: builtins.int
-    NEXUS_FIELD_NUMBER: builtins.int
+    CORE_FIELD_NUMBER: builtins.int
     LIB_C_FIELD_NUMBER: builtins.int
     LIB_CPP_FIELD_NUMBER: builtins.int
+    OPENAI_FINETUNING_FIELD_NUMBER: builtins.int
+    DIFFUSERS_AUTOLOG_FIELD_NUMBER: builtins.int
+    LIGHTNING_FABRIC_LOGGER_FIELD_NUMBER: builtins.int
     watch: builtins.bool
     """wandb.watch() called"""
     finish: builtins.bool
@@ -575,12 +578,18 @@ class Feature(google.protobuf.message.Message):
     """Cohere autolog used"""
     hf_pipeline_autolog: builtins.bool
     """HuggingFace Autologging"""
-    nexus: builtins.bool
-    """Using wandb nexus internal process"""
+    core: builtins.bool
+    """Using wandb core internal process"""
     lib_c: builtins.bool
     """Using c wandb library"""
     lib_cpp: builtins.bool
     """Using cpp wandb library"""
+    openai_finetuning: builtins.bool
+    """Using openai finetuning WandbLogger"""
+    diffusers_autolog: builtins.bool
+    """Using Diffusers autologger"""
+    lightning_fabric_logger: builtins.bool
+    """Using Lightning Fabric logger"""
     def __init__(
         self,
         *,
@@ -638,11 +647,14 @@ class Feature(google.protobuf.message.Message):
         langchain_tracer: builtins.bool = ...,
         cohere_autolog: builtins.bool = ...,
         hf_pipeline_autolog: builtins.bool = ...,
-        nexus: builtins.bool = ...,
+        core: builtins.bool = ...,
         lib_c: builtins.bool = ...,
         lib_cpp: builtins.bool = ...,
+        openai_finetuning: builtins.bool = ...,
+        diffusers_autolog: builtins.bool = ...,
+        lightning_fabric_logger: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "nexus", b"nexus", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact_incremental", b"artifact_incremental", "async_uploads", b"async_uploads", "attach", b"attach", "catboost_log_summary", b"catboost_log_summary", "catboost_wandb_callback", b"catboost_wandb_callback", "cohere_autolog", b"cohere_autolog", "core", b"core", "diffusers_autolog", b"diffusers_autolog", "estimator_hook", b"estimator_hook", "finish", b"finish", "flow_control_custom", b"flow_control_custom", "flow_control_disabled", b"flow_control_disabled", "flow_control_overflow", b"flow_control_overflow", "grpc", b"grpc", "hf_pipeline_autolog", b"hf_pipeline_autolog", "importer_mlflow", b"importer_mlflow", "init_return_run", b"init_return_run", "keras", b"keras", "keras_metrics_logger", b"keras_metrics_logger", "keras_model_checkpoint", b"keras_model_checkpoint", "keras_wandb_eval_callback", b"keras_wandb_eval_callback", "kfp_wandb_log", b"kfp_wandb_log", "langchain_tracer", b"langchain_tracer", "launch", b"launch", "lib_c", b"lib_c", "lib_cpp", b"lib_cpp", "lightgbm_log_summary", b"lightgbm_log_summary", "lightgbm_wandb_callback", b"lightgbm_wandb_callback", "lightning_fabric_logger", b"lightning_fabric_logger", "maybe_run_overwrite", b"maybe_run_overwrite", "metaflow", b"metaflow", "metric", b"metric", "offline", b"offline", "open_metrics", b"open_metrics", "openai_autolog", b"openai_autolog", "openai_finetuning", b"openai_finetuning", "prodigy", b"prodigy", "resumed", b"resumed", "sagemaker", b"sagemaker", "save", b"save", "sb3", b"sb3", "service", b"service", "service_disabled", b"service_disabled", "set_config_item", b"set_config_item", "set_init_config", b"set_init_config", "set_init_id", b"set_init_id", "set_init_name", b"set_init_name", "set_init_tags", b"set_init_tags", "set_run_name", b"set_run_name", "set_run_tags", b"set_run_tags", "sync", b"sync", "sync_tfevents", b"sync_tfevents", "tensorboard_log", b"tensorboard_log", "tensorboard_patch", b"tensorboard_patch", "tensorboard_sync", b"tensorboard_sync", "torch_profiler_trace", b"torch_profiler_trace", "ultralytics_yolov8", b"ultralytics_yolov8", "watch", b"watch", "xgboost_old_wandb_callback", b"xgboost_old_wandb_callback", "xgboost_wandb_callback", b"xgboost_wandb_callback"]) -> None: ...
 
 global___Feature = Feature
 

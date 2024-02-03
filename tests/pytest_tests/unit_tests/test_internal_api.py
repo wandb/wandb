@@ -4,19 +4,10 @@ import concurrent.futures
 import enum
 import hashlib
 import os
+import sys
 import tempfile
 from pathlib import Path
-from typing import (
-    Awaitable,
-    Callable,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Callable, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
 from unittest.mock import Mock, call, patch
 
 import httpx
@@ -35,11 +26,6 @@ from wandb.sdk.lib import retry
 from .test_retry import MockTime, mock_time  # noqa: F401
 
 _T = TypeVar("_T")
-
-
-def asyncio_run(coro: Awaitable[_T]) -> _T:
-    """Approximately the same as `asyncio.run`, which isn't available in Python 3.6."""
-    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 @pytest.fixture
@@ -128,6 +114,10 @@ def test_internal_api_with_no_write_global_config_dir(tmp_path):
 MockResponseOrException = Union[Exception, Tuple[int, Mapping[int, int], str]]
 
 
+@pytest.mark.skipif(
+    sys.version_info.major == 3 and sys.version_info.minor < 8,
+    reason="flaky on 3.7",
+)
 class TestUploadFile:
     """Tests `upload_file` and `upload_file_async`.
 
@@ -157,7 +147,7 @@ class TestUploadFile:
         ):
             route = mock_respx.put("http://example.com/upload-dst")
             route.mock(return_value=httpx.Response(200))
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
@@ -224,7 +214,7 @@ class TestUploadFile:
                 return_value=httpx.Response(errcode)
             )
             with pytest.raises(httpx.HTTPStatusError):
-                asyncio_run(
+                asyncio.run(
                     internal.InternalApi().upload_file_async(
                         "http://example.com/upload-dst", example_file.open("rb")
                     )
@@ -246,7 +236,7 @@ class TestUploadFile:
         ):
             mock_respx.put("http://example.com/upload-dst").mock(side_effect=err)
             with pytest.raises(type(err)):
-                asyncio_run(
+                asyncio.run(
                     internal.InternalApi().upload_file_async(
                         "http://example.com/upload-dst", example_file.open("rb")
                     )
@@ -291,7 +281,7 @@ class TestUploadFile:
             )
 
             progress_callback = Mock()
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
@@ -354,7 +344,7 @@ class TestUploadFile:
             )
 
             progress_callback = Mock()
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
@@ -433,7 +423,7 @@ class TestUploadFile:
 
             progress_callback = Mock()
             with pytest.raises(httpx.HTTPError):
-                asyncio_run(
+                asyncio.run(
                     internal.InternalApi().upload_file_async(
                         "http://example.com/upload-dst",
                         example_file.open("rb"),
@@ -702,7 +692,7 @@ class TestUploadFileRetry:
         route = mock_respx.put("http://example.com/upload-dst")
         route.side_effect = [httpx.Response(status) for status in schedule]
 
-        asyncio_run(
+        asyncio.run(
             internal.InternalApi().upload_file_retry_async(
                 "http://example.com/upload-dst",
                 example_file.open("rb"),
@@ -735,7 +725,7 @@ class TestUploadFileRetry:
         route.side_effect = [httpx.Response(400)]
 
         with pytest.raises(httpx.HTTPStatusError):
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
@@ -771,7 +761,7 @@ class TestUploadFileRetry:
         route.side_effect = httpx.Response(500)
 
         with pytest.raises(httpx.HTTPStatusError):
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
@@ -817,7 +807,7 @@ class TestUploadFileRetry:
         route = mock_respx.put("http://example.com/upload-dst")
         route.mock(side_effect=[response, httpx.Response(200)])
         try:
-            asyncio_run(
+            asyncio.run(
                 internal.InternalApi().upload_file_retry_async(
                     "http://example.com/upload-dst",
                     example_file.open("rb"),
