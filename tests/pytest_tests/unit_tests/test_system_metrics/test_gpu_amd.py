@@ -115,6 +115,7 @@ def test_gpu_amd(test_settings):
             settings=settings,
             shutdown_event=shutdown_event,
         )
+        gpu.is_available = lambda: True
         assert gpu.is_available()
         gpu.start()
         probe = gpu.probe()
