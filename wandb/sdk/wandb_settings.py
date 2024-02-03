@@ -847,7 +847,11 @@ class Settings(SettingsData):
             program={
                 "hook": lambda x: self._get_program(x),
             },
-            project={"validator": self._validate_project},
+            project={
+                "validator": self._validate_project,
+                "hook": lambda x: self._get_project(x),
+                "auto_hook": True,
+            },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
@@ -1242,6 +1246,32 @@ class Settings(SettingsData):
             return self._jupyter_name
         else:
             return self._jupyter_path
+
+    def _get_project(self, project: Optional[str]) -> Optional[str]:
+        if project is not None:
+            return project
+
+        program = self.program
+        root_dir = GitRepo().root_dir
+
+        if root_dir is None:
+            return "uncategorized"
+        # On windows, GitRepo returns paths in unix style, but os.path is windows
+        # style. Coerce here.
+        root_dir = util.to_native_slash_path(root_dir)
+        repo_name = os.path.basename(root_dir)
+        if program is None:
+            return str(repo_name)
+        if not os.path.isabs(program):
+            program = os.path.join(os.curdir, program)
+        prog_dir = os.path.dirname(os.path.abspath(program))
+        if not prog_dir.startswith(root_dir):
+            return str(repo_name)
+        project = repo_name
+        sub_path = os.path.relpath(prog_dir, root_dir)
+        if sub_path != ".":
+            project += "-" + sub_path
+        return str(project.replace(os.sep, "_"))
 
     def _get_url_query_string(self) -> str:
         # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
