@@ -147,9 +147,6 @@ func NewSender(
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
-				return resp.StatusCode >= 400
-			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
 			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),

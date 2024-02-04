@@ -34,11 +34,13 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
-		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+		return false, nil
 	case statusCode == http.StatusConflict: // retry on 409 Conflict
-		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
+		return true, nil
+	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
+		return false, nil
 	default: // use default retry policy for all other status codes
-		return DefaultRetryPolicy(ctx, resp, err)
+		return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
 	}
 }
 
