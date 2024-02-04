@@ -39,6 +39,8 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 		return true, nil
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
 		return false, nil
+	case statusCode == http.StatusInternalServerError: // don't retry on 500 internal server error
+		return false, nil
 	default: // use default retry policy for all other status codes
 		return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
 	}
