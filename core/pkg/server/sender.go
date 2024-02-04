@@ -639,6 +639,50 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	return nil
 }
 
+func (s *Sender) upsertRun(run *service.RunRecord) (*gql.UpsertBucketResponse, error) {
+	if s.graphqlClient == nil {
+		return nil, nil
+	}
+
+	s.updateConfig(run.Config)
+	proto.Merge(s.telemetry, run.Telemetry)
+	s.updateConfigPrivate(run.Telemetry)
+	config := s.serializeConfig("json")
+
+	var tags []string
+	tags = append(tags, run.Tags...)
+
+	program := s.settings.GetProgram().GetValue()
+	git := run.GetGit()
+	// start a new context with an additional argument from the parent context
+	// this is used to pass the retry function to the graphql client
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
+	data, err := gql.UpsertBucket(
+		ctx,                                 // ctx
+		s.graphqlClient,                     // client
+		nil,                                 // id
+		&run.RunId,                          // name
+		utils.NilIfZero(run.Project),        // project
+		utils.NilIfZero(run.Entity),         // entity
+		utils.NilIfZero(run.RunGroup),       // groupName
+		nil,                                 // description
+		utils.NilIfZero(run.DisplayName),    // displayName
+		utils.NilIfZero(run.Notes),          // notes
+		utils.NilIfZero(git.GetCommit()),    // commit
+		&config,                             // config
+		utils.NilIfZero(run.Host),           // host
+		nil,                                 // debug
+		utils.NilIfZero(program),            // program
+		utils.NilIfZero(git.GetRemoteUrl()), // repo
+		utils.NilIfZero(run.JobType),        // jobType
+		nil,                                 // state
+		nil,                                 // sweep
+		tags,                                // tags []string,
+		nil,                                 // summaryMetrics
+	)
+	return data, err
+}
+
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	if s.RunRecord == nil && s.graphqlClient != nil {
@@ -655,75 +699,33 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 	}
 
-	if s.graphqlClient != nil {
-
-		s.updateConfig(run.Config)
-		proto.Merge(s.telemetry, run.Telemetry)
-		s.updateConfigPrivate(run.Telemetry)
-		config := s.serializeConfig("json")
-
-		var tags []string
-		tags = append(tags, run.Tags...)
-
-		var commit, repo string
-		git := run.GetGit()
-		if git != nil {
-			commit = git.GetCommit()
-			repo = git.GetRemoteUrl()
-		}
-
-		program := s.settings.GetProgram().GetValue()
-		// start a new context with an additional argument from the parent context
-		// this is used to pass the retry function to the graphql client
-		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-		data, err := gql.UpsertBucket(
-			ctx,                              // ctx
-			s.graphqlClient,                  // client
-			nil,                              // id
-			&run.RunId,                       // name
-			utils.NilIfZero(run.Project),     // project
-			utils.NilIfZero(run.Entity),      // entity
-			utils.NilIfZero(run.RunGroup),    // groupName
-			nil,                              // description
-			utils.NilIfZero(run.DisplayName), // displayName
-			utils.NilIfZero(run.Notes),       // notes
-			utils.NilIfZero(commit),          // commit
-			&config,                          // config
-			utils.NilIfZero(run.Host),        // host
-			nil,                              // debug
-			utils.NilIfZero(program),         // program
-			utils.NilIfZero(repo),            // repo
-			utils.NilIfZero(run.JobType),     // jobType
-			nil,                              // state
-			nil,                              // sweep
-			tags,                             // tags []string,
-			nil,                              // summaryMetrics
-		)
-		if err != nil {
-			err = fmt.Errorf("failed to upsert bucket: %s", err)
-			s.logger.Error("sender: sendRun:", "error", err)
-			// TODO(run update): handle error communication back to the client
-			fmt.Println("ERROR: failed to upsert bucket", err.Error())
-			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
-			//  Need to inform the sync service that this ops failed.
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				result := &service.Result{
-					ResultType: &service.Result_RunResult{
-						RunResult: &service.RunUpdateResult{
-							Error: &service.ErrorInfo{
-								Message: err.Error(),
-								Code:    service.ErrorInfo_COMMUNICATION,
-							},
+	data, err := s.upsertRun(run)
+	if err != nil {
+		err = fmt.Errorf("failed to upsert bucket: %s", err)
+		s.logger.Error("sender: sendRun:", "error", err)
+		// TODO(run update): handle error communication back to the client
+		fmt.Println("ERROR: failed to upsert bucket", err.Error())
+		// TODO(sync): make this more robust in case of a failed UpsertBucket request.
+		//  Need to inform the sync service that this ops failed.
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			result := &service.Result{
+				ResultType: &service.Result_RunResult{
+					RunResult: &service.RunUpdateResult{
+						Error: &service.ErrorInfo{
+							Message: err.Error(),
+							Code:    service.ErrorInfo_COMMUNICATION,
 						},
 					},
-					Control: record.Control,
-					Uuid:    record.Uuid,
-				}
-				s.outChan <- result
+				},
+				Control: record.Control,
+				Uuid:    record.Uuid,
 			}
-			return
+			s.outChan <- result
 		}
+		return
+	}
 
+	if data != nil {
 		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
 		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
 		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name

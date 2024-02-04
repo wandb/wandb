@@ -282,8 +282,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handlePartialHistory(record, x.PartialHistory)
 		response = nil
 	case *service.Request_PollExit:
-		h.handlePollExit(record)
-		response = nil
+		h.handlePollExit(record, response)
 	case *service.Request_RunStart:
 		h.handleRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
@@ -388,23 +387,14 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handlePollExit(record *service.Record) {
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						PusherStats: h.filesInfoHandler.GetFilesStats(),
-						FileCounts:  h.filesInfoHandler.GetFilesCount(),
-						Done:        h.filesInfoHandler.GetDone(),
-					},
-				},
-			},
+func (h *Handler) handlePollExit(record *service.Record, response *service.Response) {
+	response.ResponseType = &service.Response_PollExitResponse{
+		PollExitResponse: &service.PollExitResponse{
+			PusherStats: h.filesInfoHandler.GetFilesStats(),
+			FileCounts:  h.filesInfoHandler.GetFilesCount(),
+			Done:        h.filesInfoHandler.GetDone(),
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
 	}
-	h.outChan <- result
 }
 
 func (h *Handler) handleHeader(record *service.Record) {
