@@ -1291,3 +1291,31 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	}
 	s.outChan <- result
 }
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := addMetric(metric, metric.GetName(), &s.metricSender.definedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.metricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.metricIndex[metric.GetName()]; ok {
+		s.metricSender.configMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.configMetrics)
+		s.metricSender.configMetrics = append(s.metricSender.configMetrics, encodeMetric)
+		s.metricSender.metricIndex[metric.GetName()] = int32(nextIndex)
+	}
+}
