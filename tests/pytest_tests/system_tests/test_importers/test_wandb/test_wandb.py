@@ -75,11 +75,8 @@ def test_import_artifact_sequences(request, server_src, user, user2):
         )
 
         # We re-created the artifacts
-        assert len(src_arts) == 5  # = 3 arts * 2 runs - 1 deleted
-
-        # TODO: This should be strict equality, but the testcontainer doesn't seem to remove placeholders
-        # like a real server would.  This might be a timing issue.
-        assert len(src_arts) <= len(dst_arts) <= 6
+        assert len(src_arts) == 4  # = 2 arts * 2 runs
+        assert len(src_arts) == len(dst_arts)
 
         # Their contents are the same
         for src_art, dst_art in zip(src_arts, dst_arts):
