@@ -70,11 +70,11 @@ def _go_env() -> Mapping[str, str]:
     env = os.environ.copy()
 
     if workspace.target_osarch() in [
-        # Use cgo on ARM Linux to build dependencies needed for GPU metrics.
+        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
         (workspace.OS.LINUX, workspace.Arch.AMD64),
-        # Use cgo on ARM Mac for the gopsutil dependency, otherwise
+        # Use cgo on ARM64 Mac for the gopsutil dependency, otherwise
         # several system metrics are unavailable.
-        (workspace.OS.DARWIN, workspace.Arch.AMD64),
+        (workspace.OS.DARWIN, workspace.Arch.ARM64),
     ]:
         env["CGO_ENABLED"] = "1"
 
