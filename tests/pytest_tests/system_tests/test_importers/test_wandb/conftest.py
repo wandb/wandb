@@ -144,40 +144,32 @@ def server_src(user):
         )
 
         # log artifacts
-        art = make_artifact("logged_art")
+        for _ in range(3):
+            # make 3 here and later delete the middle one to test gap handling
+            art = make_artifact("logged_art")
+            run.log_artifact(art)
+
         art2 = make_artifact("used_art")
-        run.log_artifact(art)
         run.use_artifact(art2)
         run.finish()
+
+        # delete the middle artifact in sequence to test gap handling
+        api = wandb.Api()
+        art_type = api.artifact_type("logged_art", project_name)
+        for collection in art_type.collections():
+            for art in collection.artifacts():
+                v = int(art.version[1:])
+                if v == 1:
+                    wandb.termwarn(f"DELETING THIS ARTIFACT {art=}")
+                    art.delete(delete_aliases=True)
 
     # create reports
     for _ in range(n_reports):
         wr.Report(project=project_name, blocks=[wr.H1("blah")]).save()
 
-    # Create special artifacts
-    # with wandb.init(entity=user, project=project_name) as run:
-    #     n_arts = 5
-    #     # Create artifact versions
-    #     for i in range(n_arts):
-    #         fname = str(i)
-    #         art = wandb.Artifact("gap", "gap")
-    #         with open(fname, "w"):
-    #             pass
-    #         art.add_file(fname)
-    #         run.log_artifact(art)
-
-    # # Then randomly delete some artifacts to make gaps
-    # api = wandb.Api()
-    # art_type = api.artifact_type("gap", project_name)
-    # for collection in art_type.collections():
-    #     for art in collection.artifacts():
-    #         v = int(art.version[1:])
-    #         if v in (0, 2):
-    #             art.delete(delete_aliases=True)
-
 
 def generate_random_data(n: int, n_metrics: int) -> list:
-    steps = np.arange(0, n, 1)
+    steps = np.arange(1, n + 1, 1)
     data = {}
     fns: list[typing.Any] = [
         lambda steps: steps**2,
@@ -292,24 +284,16 @@ def create_random_molecule():
 
 
 def make_artifact(name):
-    # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdirname:
-        # Set the filename
         filename = os.path.join(tmpdirname, "random_text.txt")
 
-        # Open the file in write mode
         with open(filename, "w") as f:
-            for _ in range(100):  # Write 100 lines of random text
-                random_text = generate_random_text(
-                    50
-                )  # Each line contains 50 characters
-                f.write(random_text + "\n")  # Write the random text to the file
+            for _ in range(100):  # Write 100 lines of 50 random chars
+                random_text = generate_random_text(50)
+                f.write(random_text + "\n")
 
         print(f"Random text data has been written to {filename}")
 
-        # Create a new artifact
         artifact = wandb.Artifact(name, name)
-
-        # Add the file to the artifact
         artifact.add_file(filename)
         return artifact
