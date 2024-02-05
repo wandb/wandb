@@ -104,11 +104,10 @@ class RecordMaker:
         return f"./wandb-importer/{self.run.run_id()}"
 
     def _make_fake_run_record(self):
-        """test.
+        """Make a fake run record.
 
         Unfortunately, the vanilla Run object does a check for existence on the server,
         so we use this as the simplest hack to skip that check.
-
         """
         # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
         run = pb.RunRecord()
@@ -304,7 +303,6 @@ def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = 
         "_live_policy_wait_time": 600,  # matches dir_watcher
         "_async_upload_concurrency_limit": None,
         "_file_stream_timeout_seconds": 60,
-        # "_import_mode": True,
     }
 
     combined_settings = {**default_settings, **_settings_override}
@@ -341,37 +339,27 @@ def _handle_use_artifacts(
     sm: sender.SendManager,
     rm: RecordMaker,
     config: SendManagerConfig,
-    run_identifier: str,
 ):
     if config.use_artifacts:
-        # task_name = f"Use Artifacts {run_identifier}"
         used_artifacts = rm.run.used_artifacts()
         if used_artifacts is not None:
             used_artifacts = list(used_artifacts)
 
-            # task = progress.subtask_pbar.add_task(task_name, total=len(used_artifacts))
             for artifact in used_artifacts:
                 sm.send(rm._make_artifact_record(artifact, use_artifact=True))
-                # progress.subtask_pbar.update(task, advance=1)
-            # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_log_artifacts(
     sm: sender.SendManager,
     rm: RecordMaker,
     config: SendManagerConfig,
-    run_identifier: str,
 ):
     if config.log_artifacts:
-        # task_name = f"Log Artifacts {run_identifier}"
         artifacts = rm.run.artifacts()
         if artifacts is not None:
             artifacts = list(artifacts)
-            # task = progress.subtask_pbar.add_task(task_name, total=len(artifacts))
             for artifact in artifacts:
                 sm.send(rm._make_artifact_record(artifact))
-                # progress.subtask_pbar.update(task, advance=1)
-            # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_log_specific_artifact(
@@ -398,15 +386,10 @@ def _handle_history(
     sm: sender.SendManager,
     rm: RecordMaker,
     config: SendManagerConfig,
-    run_identifier: str,
 ):
     if config.history:
-        # task_name = f"History {run_identifier}"
-        # task = progress.subtask_pbar.add_task(task_name, total=None)
         for history_record in rm._make_history_records():
             sm.send(history_record)
-        #     progress.subtask_pbar.update(task, advance=1)
-        # progress.subtask_pbar.remove_task(task)
 
 
 def _handle_summary(sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig):
@@ -418,34 +401,12 @@ def _handle_terminal_output(
     sm: sender.SendManager,
     rm: RecordMaker,
     config: SendManagerConfig,
-    run_identifier: str,
 ):
     if config.terminal_output:
-        # task_name = f"Terminal Output {run_identifier}"
-        # task = progress.subtask_pbar.add_task(task_name, total=None)
         lines = rm.run.logs()
         if lines is not None:
             for line in lines:
                 sm.send(rm._make_output_record(line))
-        #         progress.subtask_pbar.update(task, advance=1)
-        # progress.subtask_pbar.remove_task(task)
-
-
-def _handle_terminal_output_alt(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    config: SendManagerConfig,
-    run_identifier: str,
-):
-    if config.terminal_output:
-        # task_name = f"Terminal Output {run_identifier}"
-        # task = progress.subtask_pbar.add_task(task_name, total=None)
-        lines = rm.run.logs()
-        if lines is not None:
-            for line in lines:
-                sm.send(rm._make_output_record(line))
-        #         progress.subtask_pbar.update(task, advance=1)
-        # progress.subtask_pbar.remove_task(task)
 
 
 def send_run_with_send_manager(
@@ -473,19 +434,17 @@ def send_run_with_send_manager(
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
-    run_identifier = f"{run.entity()}/{run.project()}/{run.run_id()}"
-
     with AlternateSendManager(
         settings, record_q, result_q, interface, context_keeper
     ) as sm:
         _handle_run_record(sm, rm)
         _handle_telem(sm, rm)
         _handle_metadata(sm, rm, config)
-        _handle_use_artifacts(sm, rm, config, run_identifier)
-        _handle_log_artifacts(sm, rm, config, run_identifier)
-        _handle_history(sm, rm, config, run_identifier)
+        _handle_use_artifacts(sm, rm, config)
+        _handle_log_artifacts(sm, rm, config)
+        _handle_history(sm, rm, config)
         _handle_summary(sm, rm, config)
-        _handle_terminal_output(sm, rm, config, run_identifier)
+        _handle_terminal_output(sm, rm, config)
 
 
 def send_artifacts_with_send_manager(

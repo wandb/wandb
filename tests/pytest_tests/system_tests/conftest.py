@@ -5,7 +5,6 @@ import platform
 import secrets
 import string
 import subprocess
-import time
 import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
@@ -29,22 +28,15 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-
-# `local-testcontainer` ports
-LOCAL_BASE_PORT = "8080"
-SERVICES_API_PORT = "8083"
-FIXTURE_SERVICE_PORT = "9015"
-
-DEFAULT_SERVER_CONTAINER_NAME = "wandb-local-testcontainer"
-DEFAULT_SERVER_VOLUME = "wandb-local-testcontainer-vol"
-
-# `local-testcontainer2` ports
-LOCAL_BASE_PORT2 = "9180"
-SERVICES_API_PORT2 = "9183"
-FIXTURE_SERVICE_PORT2 = "9115"
-
-DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
-DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
+from .utils import (
+    DEFAULT_SERVER_CONTAINER_NAME,
+    DEFAULT_SERVER_VOLUME,
+    FIXTURE_SERVICE_PORT,
+    LOCAL_BASE_PORT,
+    SERVICES_API_PORT,
+    WandbServerSettings,
+    spin_wandb_server,
+)
 
 
 class ConsoleFormatter:
@@ -466,11 +458,6 @@ def pytest_addoption(parser):
         default="none",
         help="Clean up wandb server",
     )
-    parser.addoption(
-        "--wandb-second-server",
-        default=False,
-        help="Spin up a second server (for importer tests)",
-    )
 
     # debug option: creates an admin account that can be used to log in to the
     # app and inspect the test runs.
@@ -485,106 +472,6 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run tests in verbose mode",
-    )
-
-
-@dataclasses.dataclass
-class WandbServerSettings:
-    name: str
-    volume: str
-    wandb_server_pull: str
-    wandb_server_image_registry: str
-    wandb_server_image_repository: str
-    wandb_server_tag: str
-    # spin up the server or connect to an existing one
-    wandb_server_use_existing: bool
-    # ports exposed to the host
-    local_base_port: str
-    services_api_port: str
-    fixture_service_port: str
-    # ports internal to the container
-    internal_local_base_port: str = LOCAL_BASE_PORT
-    internal_local_services_api_port: str = SERVICES_API_PORT
-    internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
-    url: str = "http://localhost"
-
-    base_url: Optional[str] = None
-
-    def __post_init__(self):
-        self.base_url = f"{self.url}:{self.local_base_port}"
-
-
-def check_server_health(
-    base_url: str, endpoint: str, num_retries: int = 1, sleep_time: int = 1
-) -> bool:
-    """Check if wandb server is healthy.
-
-    :param base_url:
-    :param num_retries:
-    :param sleep_time:
-    :return:
-    """
-    for _ in range(num_retries):
-        try:
-            response = requests.get(urllib.parse.urljoin(base_url, endpoint))
-            if response.status_code == 200:
-                return True
-            time.sleep(sleep_time)
-        except requests.exceptions.ConnectionError:
-            time.sleep(sleep_time)
-    return False
-
-
-def spin_wandb_server(settings: WandbServerSettings) -> bool:
-    base_url = settings.base_url
-    app_health_endpoint = "healthz"
-    fixture_url = base_url.replace(
-        settings.local_base_port, settings.fixture_service_port
-    )
-    fixture_health_endpoint = "health"
-
-    if settings.wandb_server_use_existing:
-        return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
-
-    if not check_server_health(base_url, app_health_endpoint):
-        command = [
-            "docker",
-            "run",
-            "--pull",
-            settings.wandb_server_pull,
-            "--rm",
-            "-v",
-            f"{settings.volume}:/vol",
-            "-p",
-            f"{settings.local_base_port}:{settings.internal_local_base_port}",
-            "-p",
-            f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
-            "-p",
-            f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
-            "-e",
-            "WANDB_ENABLE_TEST_CONTAINER=true",
-            "--name",
-            settings.name,
-            "--platform",
-            "linux/amd64",
-            f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
-        ]
-        subprocess.Popen(command)
-        # wait for the server to start
-        server_is_up = check_server_health(
-            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
-        )
-        if not server_is_up:
-            return False
-        # check that the fixture service is accessible
-        return check_server_health(
-            base_url=fixture_url,
-            endpoint=fixture_health_endpoint,
-            num_retries=30,
-        )
-
-    return check_server_health(
-        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
     )
 
 
@@ -616,36 +503,6 @@ def pytest_configure(config):
     if not success:
         pytest.exit("Failed to connect to wandb server")
 
-    # start or connect to wandb test server2 (for importer tests)
-    # this is here because and not in the `system_tests/test_importers/conftest.py`
-    # because when it was included there, the wandb-local-testcontainer (from this conf)
-    # did not spin up when testing the importers dir specifically
-    if config.getoption("--wandb-second-server"):
-        settings2 = WandbServerSettings(
-            name=DEFAULT_SERVER_CONTAINER_NAME2,
-            volume=DEFAULT_SERVER_VOLUME2,
-            local_base_port=LOCAL_BASE_PORT2,
-            services_api_port=SERVICES_API_PORT2,
-            fixture_service_port=FIXTURE_SERVICE_PORT2,
-            wandb_server_pull=config.getoption("--wandb-server-pull"),
-            wandb_server_image_registry=config.getoption(
-                "--wandb-server-image-registry"
-            ),
-            wandb_server_image_repository=config.getoption(
-                "--wandb-server-image-repository"
-            ),
-            wandb_server_tag=config.getoption("--wandb-server-tag"),
-            wandb_server_use_existing=config.getoption(
-                "--wandb-server-use-existing",
-                default=True if os.getenv("CI") else False,
-            ),
-        )
-        config.wandb_server_settings2 = settings2
-
-        success2 = spin_wandb_server(settings2)
-        if not success2:
-            pytest.exit("Failed to connect to wandb server2")
-
 
 def pytest_unconfigure(config):
     clean = config.getoption("--wandb-server-clean")
@@ -657,26 +514,12 @@ def pytest_unconfigure(config):
         )
         command = ["docker", "rm", "-f", config.wandb_server_settings.name]
         subprocess.run(command, check=True)
-
-        if config.getoption("--wandb-second-server"):
-            print(
-                f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
-            )
-            command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
-            subprocess.run(command, check=True)
     if clean in ("volume", "all"):
         print(
             f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
         )
         command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
         subprocess.run(command, check=True)
-
-        if config.getoption("--wandb-second-server"):
-            print(
-                f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
-            )
-            command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
-            subprocess.run(command, check=True)
 
 
 def determine_scope(fixture_name, config):

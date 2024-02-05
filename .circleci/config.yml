@@ -51,7 +51,7 @@ parameters:
     default: "1.21.6"
   container_registry:
     type: string
-    default: "gcr.io"
+    default: "us-central1-docker.pkg.dev"
   gcp_cluster_name:
     type: string
     default: "sdk-nightly"
@@ -189,7 +189,7 @@ commands:
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet us-central1-docker.pkg.dev
+            gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
           environment:
             GKE_CLUSTER_NAME: <<parameters.cluster >>
 
@@ -265,6 +265,45 @@ commands:
             gcloud container clusters get-credentials << parameters.cluster >>
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
+
+  start_local_testcontainer:
+    parameters:
+      local_base_port:
+        description: "LOCAL_BASE_PORT"
+        type: string
+        default: "8080"
+      services_api_port:
+        description: "SERVICES_API_PORT"
+        type: string
+        default: "8083"
+      fixture_service_port:
+        description: "FIXTURE_SERVICE_PORT"
+        type: string
+        default: "9015"
+      container_name:
+        description: DEFAULT_SERVER_CONTAINER_NAME
+        type: string
+        default: "wandb-local-testcontainer"
+      volume_name:
+        description: DEFAULT_SERVER_VOLUME
+        type: string
+        default: "wandb-local-testcontainer-vol"
+    steps:
+      - run:
+          name: Start << parameters.container_name >>
+          command: |
+            docker run -d --pull always --rm \
+              -v << parameters.volume_name >>:/vol \
+              -p << parameters.local_base_port >>:8080 \
+              -p << parameters.services_api_port >>:8083 \
+              -p << parameters.fixture_service_port >>:9015 \
+              -e CI=1 \
+              -e WANDB_ENABLE_TEST_CONTAINER=true \
+              --name << parameters.container_name >> \
+              --platform linux/amd64 \
+              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+            # Wait for local-testcontainer to be ready
+            while ! curl http://localhost:<< parameters.local_base_port >>/healthz; do sleep 1; done
 
 jobs:
   regression:
@@ -342,6 +381,25 @@ jobs:
                       mentions: "@channel"
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
+
+  code-check:
+    docker:
+      - image: "python:3.10"
+    resource_class: large
+    steps:
+      - checkout
+      - install_go
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+      - run:
+          name: Ensure proto files were generated
+          command: nox -t proto-check
+      - run:
+          name: Lint
+          command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - save-test-results
 
   tox-base:
     parameters:
@@ -456,7 +514,7 @@ jobs:
         default: false
       xdist:
         type: integer
-        default: 6
+        default: 3
       tox_args:
         type: string
         default: ""
@@ -480,41 +538,18 @@ jobs:
           name: Authenticate with GCP Artifact Registry
           command: |
             echo $GCP_SERVICE_ACCOUNT_JSON_DECODED | docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev
-      - run:
-          name: Start local-testcontainer
-          command: |
-            docker run -d --pull always --rm \
-              -v wandb-local-testcontainer-vol:/vol \
-              -p 8080:8080 \
-              -p 8083:8083 \
-              -p 9015:9015 \
-              -e CI=1 \
-              -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name local-testcontainer \
-              --platform linux/amd64 \
-              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-            # Wait for local-testcontainer to be ready
-            while ! curl http://localhost:8080/healthz; do sleep 1; done
-      - run:
-          name: Start local-testcontainer2
-          command: |
-            docker run -d --pull always --rm \
-              -v wandb-local-testcontainer-vol2:/vol \
-              -p 9180:8080 \
-              -p 9183:8083 \
-              -p 9115:9015 \
-              -e CI=1 \
-              -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name local-testcontainer2 \
-              --platform linux/amd64 \
-              us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-            # Wait for local-testcontainer to be ready
-            while ! curl http://localhost:9180/healthz; do sleep 1; done
+      - start_local_testcontainer
+      - start_local_testcontainer:
+          local_base_port: "9180"
+          services_api_port: "9183"
+          fixture_service_port: "9115"
+          container_name: "wandb-local-testcontainer2"
+          volume_name: "wandb-local-testcontainer-vol2"
       - run:
           name: Install Python dependencies
           command: |
-            pyenv install 3.8.18
-            pyenv local 3.8.18
+            pyenv install << parameters.python_version_major >>.<< parameters.python_version_minor >>
+            pyenv local << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
@@ -523,8 +558,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
+            tox run -v -e <<parameters.toxenv>> -- << parameters.tox_args >>
       - when:
           condition:
             not:
@@ -573,7 +607,7 @@ jobs:
         default: ""
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -1495,10 +1529,8 @@ workflows:
       #
       # Linting
       #
-      - tox-base:
-          name: "code-check"
-          python_version_minor: 10
-          toxenv: "proto-3-check,proto-4-check,black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+      - code-check
+
       #
       # Prep jobs
       #
@@ -1629,7 +1661,7 @@ workflows:
               python_version_minor: [7, 8, 9, 10, 11, 12]
           name: "unit-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
       #
       # Unit tests with pytest on Linux
@@ -1643,7 +1675,7 @@ workflows:
               python_version_minor: [10]
           name: "unit(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
 
       - tox-base:
@@ -1725,7 +1757,7 @@ workflows:
       #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     codecov_args: "-F unit"
-      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - win:
           requires:
@@ -1743,7 +1775,7 @@ workflows:
           name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_args: "-F unit"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - mac:
           requires:
@@ -1778,7 +1810,7 @@ workflows:
               python_version_minor: [9]
           name: "unit-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
 
       - mac:
@@ -1790,7 +1822,7 @@ workflows:
               python_version_minor: [9]
           name: "unit(service)-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch"
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
           codecov_args: "-F unit"
       #
       # Functional tests with yea on Linux (base only)
@@ -1889,6 +1921,19 @@ workflows:
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
+
+      # report api tests
+      - tox-base:
+          requires:
+            - "unit-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8]
+          name: "unit-linux-reports-api-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "reports-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests/test_reports"
+          codecov_args: "-F unit"
 
       #
       # wandb launch tests

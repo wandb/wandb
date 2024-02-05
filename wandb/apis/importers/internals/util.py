@@ -14,7 +14,7 @@ class Namespace:
     project: str
 
     @classmethod
-    def from_path(cls, path):
+    def from_path(cls, path: str):
         entity, project = path.split("/")
         return cls(entity, project)
 
@@ -39,8 +39,8 @@ def parallelize(
     func,
     iterable: Iterable,
     *args,
-    description: str,
     max_workers: Optional[int] = None,
+    raise_on_error: bool = False,
     **kwargs,
 ):
     def safe_func(*args, **kwargs):
@@ -54,7 +54,8 @@ def parallelize(
             logger.debug(
                 f"Exception: {func=} {args=} {kwargs=} {e=} {filename=} {lineno=}. {traceback_details=}"
             )
-            raise e
+            if raise_on_error:
+                raise e
 
     results = []
     with ThreadPoolExecutor(max_workers) as exc:
@@ -64,13 +65,14 @@ def parallelize(
     return results
 
 
-def for_each(func, iterable, parallel: bool = True, max_workers: Optional[int] = None):
+def for_each(
+    func, iterable: Iterable, parallel: bool = True, max_workers: Optional[int] = None
+):
     if parallel:
         return parallelize(
             func,
             iterable,
-            description=func.__name__,
             max_workers=max_workers,
         )
-    else:
-        return [func(x) for x in iterable]
+
+    return [func(x) for x in iterable]

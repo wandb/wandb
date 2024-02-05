@@ -822,6 +822,9 @@ pub struct Feature {
     /// Using Diffusers autologger
     #[prost(bool, tag = "59")]
     pub diffusers_autolog: bool,
+    /// Using Lightning Fabric logger
+    #[prost(bool, tag = "60")]
+    pub lightning_fabric_logger: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

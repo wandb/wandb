@@ -63,9 +63,8 @@ format:
 	tox -e black
 
 proto:
-	tox -e proto-3
-	tox -e proto-4
-	tox -e proto-go
+	nox -s proto-python
+	nox -s proto-go
 
 isort:
 	isort -o wandb -o gql --force-sort-within-sections $(args)

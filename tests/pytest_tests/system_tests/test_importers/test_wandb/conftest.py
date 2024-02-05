@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import subprocess
 import tempfile
 import typing
 
@@ -13,6 +14,88 @@ import wandb
 import wandb.apis.reports as wr
 from PIL import Image
 from rdkit import Chem
+
+from ...utils import WandbServerSettings, spin_wandb_server
+
+# `local-testcontainer2` ports
+LOCAL_BASE_PORT2 = "9180"
+SERVICES_API_PORT2 = "9183"
+FIXTURE_SERVICE_PORT2 = "9115"
+
+DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
+DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--wandb-second-server",
+        default=True,
+        help="Spin up a second server (for importer tests)",
+    )
+
+
+def pytest_configure(config):
+    # start or connect to wandb test server2 (for importer tests)
+    # this is here because and not in the `system_tests/test_importers/conftest.py`
+    # because when it was included there, the wandb-local-testcontainer (from this conf)
+    # did not spin up when testing the importers dir specifically
+    if config.getoption("--wandb-second-server"):
+        settings2 = WandbServerSettings(
+            name=DEFAULT_SERVER_CONTAINER_NAME2,
+            volume=DEFAULT_SERVER_VOLUME2,
+            local_base_port=LOCAL_BASE_PORT2,
+            services_api_port=SERVICES_API_PORT2,
+            fixture_service_port=FIXTURE_SERVICE_PORT2,
+            wandb_server_pull=config.getoption("--wandb-server-pull"),
+            wandb_server_image_registry=config.getoption(
+                "--wandb-server-image-registry"
+            ),
+            wandb_server_image_repository=config.getoption(
+                "--wandb-server-image-repository"
+            ),
+            wandb_server_tag=config.getoption("--wandb-server-tag"),
+            wandb_server_use_existing=config.getoption(
+                "--wandb-server-use-existing",
+                default=True if os.getenv("CI") else False,
+            ),
+        )
+        config.wandb_server_settings2 = settings2
+
+        success2 = spin_wandb_server(settings2)
+        if not success2:
+            pytest.exit("Failed to connect to wandb server2")
+
+
+def pytest_unconfigure(config):
+    clean = config.getoption("--wandb-server-clean")
+    if clean != "none":
+        print("Cleaning up wandb server...")
+    if clean in ("container", "all"):
+        print(
+            f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
+        )
+        command = ["docker", "rm", "-f", config.wandb_server_settings.name]
+        subprocess.run(command, check=True)
+
+        if config.getoption("--wandb-second-server"):
+            print(
+                f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
+            )
+            command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
+            subprocess.run(command, check=True)
+    if clean in ("volume", "all"):
+        print(
+            f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
+        )
+        command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
+        subprocess.run(command, check=True)
+
+        if config.getoption("--wandb-second-server"):
+            print(
+                f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
+            )
+            command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
+            subprocess.run(command, check=True)
 
 
 def determine_scope(fixture_name, config):
@@ -61,47 +144,33 @@ def server_src(user):
         )
 
         # log artifacts
-        art = make_artifact("logged_art")
+        for _ in range(2):
+            art = make_artifact("logged_art")
+            run.log_artifact(art)
+
         art2 = make_artifact("used_art")
-        run.log_artifact(art)
         run.use_artifact(art2)
         run.finish()
 
+        # TODO: We should be testing for gaps in artifact sequences (e.g. if an artifact was deleted).
+        # In manual tests it does work, but it seems to misbehave in the testcontainer, so commenting
+        # this out for now.
+        # delete the middle artifact in sequence to test gap handling
+        # api = wandb.Api()
+        # art_type = api.artifact_type("logged_art", project_name)
+        # for collection in art_type.collections():
+        #     for art in collection.artifacts():
+        #         v = int(art.version[1:])
+        #         if v == 1:
+        #             art.delete(delete_aliases=True)
+
     # create reports
     for _ in range(n_reports):
-        wr.Report(
-            project=project_name,
-            blocks=[wr.H1("blah")],
-        ).save()
-
-    # # Create special artifacts
-    # with wandb.init(
-    #     id="artifact-gaps",
-    #     project="artifact-gaps",
-    #     settings={"console": "off", "save_code": False},
-    # ) as run:
-    #     n_arts = 1
-    #     # Create artifact versions
-    #     for i in range(n_arts):
-    #         fname = str(i)
-    #         art = wandb.Artifact("gap", "gap")
-    #         with open(fname, "w"):
-    #             pass
-    #         art.add_file(fname)
-    #         run.log_artifact(art)
-
-    # Then randomly delete some artifacts to make gaps
-    # api = wandb.Api()
-    # art_type = api.artifact_type("gap", "artifact-gaps")
-    # for collection in art_type.collections():
-    #     for art in collection.artifacts():
-    #         v = int(art.version[1:])
-    #         if v in (0, 2):
-    #             art.delete(delete_aliases=True)
+        wr.Report(project=project_name, blocks=[wr.H1("blah")]).save()
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:
-    steps = np.arange(0, n, 1)
+    steps = np.arange(1, n + 1, 1)
     data = {}
     fns: list[typing.Any] = [
         lambda steps: steps**2,
@@ -216,24 +285,16 @@ def create_random_molecule():
 
 
 def make_artifact(name):
-    # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdirname:
-        # Set the filename
         filename = os.path.join(tmpdirname, "random_text.txt")
 
-        # Open the file in write mode
         with open(filename, "w") as f:
-            for _ in range(100):  # Write 100 lines of random text
-                random_text = generate_random_text(
-                    50
-                )  # Each line contains 50 characters
-                f.write(random_text + "\n")  # Write the random text to the file
+            for _ in range(100):  # Write 100 lines of 50 random chars
+                random_text = generate_random_text(50)
+                f.write(random_text + "\n")
 
         print(f"Random text data has been written to {filename}")
 
-        # Create a new artifact
         artifact = wandb.Artifact(name, name)
-
-        # Add the file to the artifact
         artifact.add_file(filename)
         return artifact

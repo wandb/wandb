@@ -99,6 +99,7 @@ models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
 importers = ["polars", "rich", "filelock", "mlflow"]
+reports = ["pydantic>=2.0.0"]
 
 [tool.setuptools]
 zip-safe = false

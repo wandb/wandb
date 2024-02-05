@@ -1,6 +1,5 @@
 """Tooling for the W&B Importer."""
 import filecmp
-import inspect
 import itertools
 import json
 import logging
@@ -72,21 +71,17 @@ class ArtifactSequence:
 
     @classmethod
     def from_collection(cls, collection: ArtifactCollection):
-        try:
-            arts = collection.artifacts()
-            arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        except Exception as e:
-            logger.error(f"problem at sequence from collection {e=}")
-            return
-
+        arts = collection.artifacts()
+        arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
         if arts:
             art = arts[0]
             entity = art.entity
             project = art.project
             name, _ = _get_art_name_ver(art)
             _type = art.type
-
-            return ArtifactSequence(arts, entity, project, _type, name)
+        else:
+            arts = []
+        return ArtifactSequence(arts, entity, project, _type, name)
 
 
 class WandbRun:
@@ -209,34 +204,34 @@ class WandbRun:
         self._used_artifacts = new_arts
 
     def os_version(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def python_version(self) -> Optional[str]:
         return self._metadata_file().get("python")
 
     def cuda_version(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def program(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def host(self) -> Optional[str]:
         return self._metadata_file().get("host")
 
     def username(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def executable(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def gpus_used(self) -> Optional[str]:
-        ...
+        ...  # pragma: no cover
 
     def cpus_used(self) -> Optional[int]:  # can we get the model?
-        ...
+        ...  # pragma: no cover
 
     def memory_used(self) -> Optional[int]:
-        ...
+        ...  # pragma: no cover
 
     def runtime(self) -> Optional[int]:
         wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")
@@ -418,7 +413,7 @@ class WandbImporter:
         _thread_local_settings.dst_base_url = dst_base_url
 
     def __repr__(self):
-        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
+        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
 
     def _import_run(
         self,
@@ -497,47 +492,6 @@ class WandbImporter:
             dst_collection.delete()
         except wandb.CommError:
             return  # it's not allowed to be deleted
-
-    def _get_run_or_dummy_from_art(self, art: Artifact):
-        run = None
-
-        try:
-            run = art.logged_by()
-        except ValueError as e:
-            logger.warn(f"Artifact run does not exist {art=}, {run=}, {e=}")
-
-        if run is None:
-            # Create a dummy run using the old metadata to use as a placeholder
-            client = self.src_api.client
-            query = gql(
-                """
-                query ArtifactCreatedBy(
-                    $id: ID!
-                ) {
-                    artifact(id: $id) {
-                        createdBy {
-                            ... on Run {
-                                name
-                                project {
-                                    name
-                                    entityName
-                                }
-                            }
-                        }
-                    }
-                }
-            """
-            )
-            response = client.execute(query, variable_values={"id": art.id})
-            creator = response.get("artifact", {}).get("createdBy", {})
-            run = _DummyRun(
-                entity=art.entity,
-                project=art.project,
-                run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-                id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-            )
-
-        return run
 
     def _import_artifact_sequence(
         self,
@@ -886,20 +840,6 @@ class WandbImporter:
             },
         )
 
-    def _projects(
-        self,
-        entity: str,
-        project: Optional[str] = None,
-        api: Optional[Api] = None,
-    ) -> List[Project]:
-        if api is None:
-            api = self.src_api
-
-        if project is None:
-            return api.projects(entity)
-
-        return [api.project(project, entity)]
-
     def _use_artifact_sequence(
         self,
         sequence: ArtifactSequence,
@@ -968,7 +908,7 @@ class WandbImporter:
 
         logger.info("Collecting failed runs")
         # runs = list(self._filter_for_failed_runs_only(runs))
-        runs = list(self._collect_failed_runs2())
+        runs = list(self._collect_failed_runs())
 
         logger.info(f"Importing runs, {len(runs)=}")
 
@@ -1289,7 +1229,7 @@ class WandbImporter:
 
         for_each(_validate_run, base_runs)
 
-    def _collect_failed_runs2(self):
+    def _collect_failed_runs(self):
         if (df := _read_ndjson(RUN_ERRORS_FNAME)) is None:
             logger.debug(f"{RUN_ERRORS_FNAME=} is empty, returning nothing")
             return
@@ -1307,19 +1247,6 @@ class WandbImporter:
 
             run = self.src_api.run(f"{src_entity}/{src_project}/{run_id}")
             yield WandbRun(run)
-
-    def _cleanup_runs_in_dst_but_not_in_src(self, entity, project):
-        src_runs = [r for r in self.src_api.runs(f"{entity}/{project}")]
-        dst_runs = [r for r in self.dst_api.runs(f"{entity}/{project}")]
-
-        src_ids = set(r.id for r in src_runs)
-        dst_ids = set(r.id for r in dst_runs)
-
-        diff = dst_ids - src_ids
-
-        for run in dst_runs:
-            if run.id in diff:
-                run.delete(delete_artifacts=False)
 
     def _filter_previously_checked_artifacts(self, seqs: Iterable[ArtifactSequence]):
         if (df := _read_ndjson(ARTIFACT_SUCCESSES_FNAME)) is None:
@@ -1342,14 +1269,6 @@ class WandbImporter:
                     logger.debug(f"Skipping history artifact {art=}")
                     # We can never upload valid history for a deleted run, so skip it
                     continue
-
-                # d = {
-                #     'src_entity': art.entity,
-                #     'src_project': art.project,
-                #     'type': art.type,
-                #     'name': art.name,
-                #     'version': art.version,
-                # }
 
                 entity = art.entity
                 project = art.project
@@ -1769,24 +1688,6 @@ def _clear_fname(fname: str) -> None:
         pass
 
 
-# def _clear_run_errors():
-#     return _clear_fname(RUNS_ERRORS_JSONL_FNAME)
-
-
-def _generate_filter(d: dict):
-    combined = None
-
-    for k, v in d.items():
-        current = pl.col(k) == v
-
-        if combined is None:
-            combined = current
-        else:
-            combined = combined & current
-
-    return combined
-
-
 def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
         cleanup_cache()
@@ -1808,38 +1709,6 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
         new_art = _make_new_art(art)
         new_art.add_dir(path)
     return new_art
-
-
-def _debug_locals():
-    # Get the previous frame (the function that called log_function_args)
-    previous_frame = inspect.currentframe().f_back
-    # Get the local variables in the caller's frame
-    local_vars = previous_frame.f_locals
-    # Get the name of the function that called log_function_args
-    func_name = previous_frame.f_code.co_name
-
-    # Retrieve the class from the local variables of the frame (if it's a method)
-    cls = local_vars.get("self", None).__class__ if "self" in local_vars else None
-
-    # Get the function or method
-    func = getattr(cls, func_name) if cls else previous_frame.f_globals.get(func_name)
-
-    if func is None:
-        logger.debug(f"Function {func_name} is not accessible.")
-        return
-
-    # Get the signature of the function or method
-    signature = inspect.signature(func)
-
-    # Order the local_vars based on the function's or method's signature
-    ordered_args = {
-        param_name: local_vars[param_name]
-        for param_name in signature.parameters.keys()
-        if param_name in local_vars
-    }
-
-    # Log the function name and its local variables in order
-    logger.debug(f"Running {func_name=} with {ordered_args=}")
 
 
 def _create_files_if_not_exists():
