@@ -35,7 +35,7 @@ def target_osarch() -> (OS, Arch):
     # It sets an undocumented "PLAT" environment variable which we use
     # to detect this case (potential improvement: use a command-line argument
     # to the build system instead).
-    if sys == OS.DARWIN and os.environ.get("PLAT", "").endswith("arm64"):
+    if sys == OS.DARWIN and os.getenv("PLAT", "").endswith("arm64"):
         arch = Arch.ARM64
     else:
         arch = _parse_current_arch()
