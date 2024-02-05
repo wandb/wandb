@@ -100,7 +100,7 @@ def _package(is_testing: bool):
         with_code_coverage=is_testing,
     )
 
-    if workspace.current_os() == workspace.OS.DARWIN:
+    if workspace.target_os() == workspace.OS.DARWIN:
         build_applestats.build_applestats(
             output_path=pathlib.PurePath("./core/wandb_core/AppleStats")
         )

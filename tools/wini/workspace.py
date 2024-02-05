@@ -1,6 +1,7 @@
 """Information about the workspace for wini build scripts."""
 
 import enum
+import os
 import platform
 import subprocess
 
@@ -25,10 +26,18 @@ class Arch(enum.Enum):
     AMD64 = enum.auto()
 
 
-def osarch() -> (OS, Arch):
-    """Returns the current platform."""
+def target_osarch() -> (OS, Arch):
+    """Returns the target platform."""
     sys = platform.system().lower()
-    machine = platform.machine().lower()
+
+    # cibuildwheel builds on an x86_64 Mac when targeting ARM64.
+    # It sets an undocumented "PLAT" environment variable which we use
+    # to detect this case (potential improvement: use a command-line argument
+    # to the build system instead).
+    if sys == "darwin" and os.environ.get("PLAT", "").endswith("arm64"):
+        machine = "arm64"
+    else:
+        machine = platform.machine().lower()
 
     return (
         _parse_os(sys),
@@ -36,9 +45,9 @@ def osarch() -> (OS, Arch):
     )
 
 
-def current_os() -> OS:
-    """Returns the current operating system."""
-    (os, _) = osarch()
+def target_os() -> OS:
+    """Returns the target operating system."""
+    (os, _) = target_osarch()
     return os
 
 

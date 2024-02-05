@@ -49,7 +49,7 @@ def _go_linker_flags() -> str:
         f"main.commit={workspace.git_commit_sha()}",
     ]
 
-    if workspace.osarch() == (workspace.OS.LINUX, workspace.Arch.AMD64):
+    if workspace.target_osarch() == (workspace.OS.LINUX, workspace.Arch.AMD64):
         ext_ld_flags = " ".join(
             [
                 # Use https://en.wikipedia.org/wiki/Gold_(linker)
@@ -69,7 +69,7 @@ def _go_linker_flags() -> str:
 def _go_env() -> Mapping[str, str]:
     env = os.environ.copy()
 
-    if workspace.osarch() in [
+    if workspace.target_osarch() in [
         # Use cgo on ARM Linux to build dependencies needed for GPU metrics.
         (workspace.OS.LINUX, workspace.Arch.AMD64),
         # Use cgo on ARM Mac for the gopsutil dependency, otherwise
