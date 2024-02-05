@@ -1,5 +1,7 @@
+import os
 import pathlib
 import subprocess
+import sys
 
 import click
 
@@ -25,15 +27,71 @@ def package():
 
 
 @package.command()
-def release():
-    """Creates a release build of the wandb-core wheel."""
+@click.option("--install", "should_install", is_flag=True, default=False)
+def release(should_install):
+    """Creates a release build of the wandb-core wheel.
+
+    The output wheel is ./core/dist/wandb_core-*, with the exact name selected
+    by setuptools based on the library version and target platform.
+    """
     _package(is_testing=False)
+
+    if should_install:
+        _do_install()
 
 
 @package.command()
-def testing():
-    """Creates a build of the wandb-core wheel for testing."""
+@click.option("--install", "should_install", is_flag=True, default=False)
+def testing(should_install):
+    """Creates a build of the wandb-core wheel for testing.
+
+    The output wheel is ./core/dist/wandb_core-*, with the exact name selected
+    by setuptools based on the library version and target platform.
+    """
     _package(is_testing=True)
+
+    if should_install:
+        _do_install()
+
+
+@package.command()
+def install():
+    """Installs the built wandb-core wheel.
+
+    Assumes that `./wini package release` or `./wini package testing`
+    was invoked. Runs `pip install` on the output.
+    """
+    _do_install()
+
+
+def _do_install():
+    wheel_files = [
+        f
+        for f in os.listdir("./core/dist/")
+        if f.startswith("wandb_core-") and f.endswith(".whl")
+    ]
+
+    if len(wheel_files) == 0:
+        click.echo(
+            "No wandb_core wheel found. Did you forget to run"
+            " `./wini package release`?"
+        )
+        sys.exit(1)
+
+    if len(wheel_files) > 1:
+        click.echo(
+            "Found more than one wandb_core wheel, which is not currently supported."
+        )
+        sys.exit(1)
+
+    subprocess.check_call(
+        [
+            "pip",
+            "install",
+            "--force-reinstall",
+            f"./core/dist/{wheel_files[0]}",
+        ]
+    )
 
 
 def _package(is_testing: bool):

@@ -7,24 +7,6 @@ import nox
 CORE_VERSION = "0.17.0b8"
 
 
-@nox.session(python=False, name="install-core")
-def install_core(session: nox.Session) -> None:
-    """Installs the wandb-core wheel into the current environment."""
-    # get the wheel file in ./core/dist/:
-    wheel_file = [
-        f
-        for f in os.listdir("./core/dist/")
-        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
-    ][0]
-    session.run(
-        "pip",
-        "install",
-        "--force-reinstall",
-        f"./core/dist/{wheel_file}",
-        external=True,
-    )
-
-
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
     """Builds the wandb-core wheel with maturin."""
