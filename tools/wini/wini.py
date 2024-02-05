@@ -4,10 +4,10 @@ import subprocess
 import sys
 
 import click
-
-from . import workspace
 from core import winibuild as build_core
 from core.pkg.monitor.apple import winibuild as build_applestats
+
+from . import workspace
 
 
 @click.group()
