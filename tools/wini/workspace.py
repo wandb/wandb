@@ -54,7 +54,7 @@ def _parse_os(sys: str) -> OS:
 
 def _parse_arch(machine: str) -> Arch:
     """Extracts the current architecture."""
-    if machine in ["x86_64", "amd64"]:
+    if machine in ["x86_64", "amd64", "aarch64"]:
         return Arch.AMD64
     else:
-        return
+        return Arch.OTHER
