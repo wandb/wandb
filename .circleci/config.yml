@@ -266,6 +266,45 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
+  start_local_testcontainer:
+    parameters:
+      local_base_port:
+        description: "LOCAL_BASE_PORT"
+        type: string
+        default: "8080"
+      services_api_port:
+        description: "SERVICES_API_PORT"
+        type: string
+        default: "8083"
+      fixture_service_port:
+        description: "FIXTURE_SERVICE_PORT"
+        type: string
+        default: "9015"
+      container_name:
+        description: DEFAULT_SERVER_CONTAINER_NAME
+        type: string
+        default: "wandb-local-testcontainer"
+      volume_name:
+        description: DEFAULT_SERVER_VOLUME
+        type: string
+        default: "wandb-local-testcontainer-vol"
+    steps:
+      - run:
+          name: Start << parameters.container_name >>
+          command: |
+            docker run -d --pull always --rm \
+              -v << parameters.volume_name >>:/vol \
+              -p << parameters.local_base_port >>:8080 \
+              -p << parameters.services_api_port >>:8083 \
+              -p << parameters.fixture_service_port >>:9015 \
+              -e CI=1 \
+              -e WANDB_ENABLE_TEST_CONTAINER=true \
+              --name << parameters.container_name >> \
+              --platform linux/amd64 \
+              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+            # Wait for local-testcontainer to be ready
+            while ! curl http://localhost:<< parameters.local_base_port >>/healthz; do sleep 1; done
+
 jobs:
   regression:
     parameters:
@@ -499,36 +538,13 @@ jobs:
           name: Authenticate with GCP Artifact Registry
           command: |
             echo $GCP_SERVICE_ACCOUNT_JSON_DECODED | docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev
-      - run:
-          name: Start local-testcontainer
-          command: |
-            docker run -d --pull always --rm \
-              -v wandb-local-testcontainer-vol:/vol \
-              -p 8080:8080 \
-              -p 8083:8083 \
-              -p 9015:9015 \
-              -e CI=1 \
-              -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name local-testcontainer \
-              --platform linux/amd64 \
-              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-            # Wait for local-testcontainer to be ready
-            while ! curl http://localhost:8080/healthz; do sleep 1; done
-      - run:
-          name: Start local-testcontainer2
-          command: |
-            docker run -d --pull always --rm \
-              -v wandb-local-testcontainer-vol2:/vol \
-              -p 9180:8080 \
-              -p 9183:8083 \
-              -p 9115:9015 \
-              -e CI=1 \
-              -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name local-testcontainer2 \
-              --platform linux/amd64 \
-              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-            # Wait for local-testcontainer to be ready
-            while ! curl http://localhost:9180/healthz; do sleep 1; done
+      - start_local_testcontainer
+      - start_local_testcontainer:
+          local_base_port: "9180"
+          services_api_port: "9183"
+          fixture_service_port: "9115"
+          container_name: "wandb-local-testcontainer2"
+          volume_name: "wandb-local-testcontainer-vol2"
       - run:
           name: Install Python dependencies
           command: |
