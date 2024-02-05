@@ -51,7 +51,7 @@ def target_os() -> OS:
 
 def _parse_current_os() -> OS:
     """Extracts the current operating system."""
-    sys = platform.system.lower()
+    sys = platform.system().lower()
     if sys == "linux":
         return OS.LINUX
     elif sys == "darwin":
@@ -62,7 +62,7 @@ def _parse_current_os() -> OS:
 
 def _parse_current_arch() -> Arch:
     """Extracts the current architecture."""
-    machine = platform.machine.lower()
+    machine = platform.machine().lower()
     if machine in ["x86_64", "amd64", "aarch64"]:
         return Arch.AMD64
     elif machine == "arm64":
