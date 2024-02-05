@@ -3,6 +3,7 @@
 import os
 import pathlib
 import subprocess
+from typing import Mapping
 
 from tools.wini import workspace
 
@@ -65,7 +66,7 @@ def _go_linker_flags() -> str:
     return " ".join(flags)
 
 
-def _go_env() -> dict[str, str]:
+def _go_env() -> Mapping[str, str]:
     env = os.environ.copy()
 
     if workspace.osarch() in [
