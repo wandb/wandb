@@ -22,7 +22,6 @@ mlflow = get_module(
 mlflow_version = Version(mlflow.__version__)
 
 logger = logging.getLogger("import_logger")
-logger.setLevel(logging.DEBUG)
 
 
 class MlflowRun:
