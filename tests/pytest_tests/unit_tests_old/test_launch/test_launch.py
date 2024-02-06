@@ -448,126 +448,6 @@ async def test_launch_run_config_in_spec(
     check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
 
 
-def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-
-
-def test_run_in_launch_context_with_artifact_string_no_used_as(
-    runner, live_mock_server, test_settings
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
-    }
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name:v0")
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "test:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "old_name:v0"
-
-
-def test_run_in_launch_context_with_artifact_unique(
-    runner, live_mock_server, test_settings
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {
-            "run_config": {"epochs": 10},
-            "artifacts": {"old_name:latest": arti},
-        },
-    }
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name:v0")
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "test:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "old_name:v0"
-
-
-def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
-    runner, live_mock_server, test_settings
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
-    }
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
-        test_settings.update(
-            launch=True,
-            source=wandb.sdk.wandb_settings.Source.INIT,
-        )
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("test/test/old_name:v0")
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "test:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "test/test/old_name:v0"
-
-
 @pytest.mark.asyncio
 async def test_launch_code_artifact(
     runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
@@ -598,7 +478,7 @@ async def test_launch_code_artifact(
 
 
 def test_run_in_launch_context_with_artifact_name_string_used_as_config(
-    runner, live_mock_server, test_settings
+    runner, live_mock_server, test_settings, monkeypatch
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
     arti = {
@@ -613,13 +493,8 @@ def test_run_in_launch_context_with_artifact_name_string_used_as_config(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
+        monkeypatch.setenv("WANDB_CONFIG", json.dumps(overrides))
         test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
         run.config.dataset = arti_inst
@@ -629,83 +504,6 @@ def test_run_in_launch_context_with_artifact_name_string_used_as_config(
         assert arti_inst.name == "test:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "dataset"
-
-
-def test_run_in_launch_context_with_artifacts_api(
-    runner, live_mock_server, test_settings, capsys
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {
-            "run_config": {"epochs": 10},
-            "artifacts": {"old_name:v0": arti},
-        },
-    }
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        public_api = PublicApi()
-        art = public_api.artifact("old_name:v0")
-        arti_inst = run.use_artifact(art)
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "old_name:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "old_name:v0"
-        _, err = capsys.readouterr()
-        assert (
-            "Swapping artifacts is not supported when using a non-draft artifact."
-            in err
-        )
-
-
-def test_run_in_launch_context_with_artifacts_no_match(
-    runner, live_mock_server, test_settings
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test/test/test:v0",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {
-            "run_config": {"epochs": 10},
-            "artifacts": {"unfound_name": arti},
-        },
-    }
-    with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
-        with open(path, "w") as fp:
-            json.dump(overrides, fp)
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        test_settings.update(
-            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
-        )
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name:v0")
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "old_name:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "old_name:v0"
 
 
 # this test includes building a docker container which can take some time,
