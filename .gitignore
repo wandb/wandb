@@ -30,3 +30,6 @@ wandb/proto_check/
 .yea-requirements.txt
 .yeadoc/
 logs/
+
+# Conventional location for Python virtual environments.
+.venv/*
