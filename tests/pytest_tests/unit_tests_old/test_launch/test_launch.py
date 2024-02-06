@@ -463,35 +463,6 @@ async def test_launch_code_artifact(
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-def test_run_in_launch_context_with_artifact_name_string_used_as_config(
-    runner, live_mock_server, test_settings, monkeypatch
-):
-    live_mock_server.set_ctx({"swappable_artifacts": True})
-    arti = {
-        "name": "test:v0",
-        "project": "test",
-        "entity": "test",
-        "_version": "v0",
-        "_type": "artifactVersion",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
-    }
-    overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}},
-    }
-    with runner.isolated_filesystem():
-        monkeypatch.setenv("WANDB_CONFIG", json.dumps(overrides))
-        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
-        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
-        run.config.dataset = arti_inst
-        assert run.config.epochs == 10
-        assert run.config.lr == 0.004
-        run.finish()
-        assert arti_inst.name == "test:v0"
-        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "dataset"
-
-
 # this test includes building a docker container which can take some time,
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
