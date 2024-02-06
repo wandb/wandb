@@ -7,6 +7,7 @@ import socket
 import threading
 import time
 import traceback
+import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -658,7 +659,7 @@ class Scheduler(ABC):
             pidx = entry_point.index("${program}")
             entry_point[pidx] = self._sweep_config["program"]
 
-        launch_config = self._wandb_run.config.get("launch", {})
+        launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
@@ -694,7 +695,13 @@ class Scheduler(ABC):
             )
 
         # override resource and args of job
-        _job_launch_config = self._wandb_run.config.get("launch") or {}
+        _job_launch_config = copy.deepcopy(self._wandb_run.config.get("launch")) or {}
+
+        # if we have both resource args and template vars, only pass template vars
+        resource_args = _job_launch_config.get("resource_args")
+        template_variables = _job_launch_config.get("template_variables")
+        if resource_args and template_variables:
+            resource_args = None
 
         # default priority is "medium"
         _priority = int(launch_config.get("priority", 2))  # type: ignore
@@ -711,8 +718,8 @@ class Scheduler(ABC):
             queue_name=self._kwargs.get("queue"),
             project_queue=self._project_queue,
             resource=_job_launch_config.get("resource"),
-            resource_args=_job_launch_config.get("resource_args"),
-            template_variables=_job_launch_config.get("template_variables"),
+            resource_args=resource_args,
+            template_variables=template_variables,
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
             priority=_priority,
