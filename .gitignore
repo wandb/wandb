@@ -31,6 +31,9 @@ wandb/proto_check/
 .yeadoc/
 logs/
 
+# Conventional location for Python virtual environments.
+.venv/*
+
 # Swift compiler's cache when building Apple stats monitoring library.
 core/pkg/monitor/apple/.build/*
 
