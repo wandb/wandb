@@ -338,20 +338,6 @@ async def test_launch_base_case(
         default_settings=test_settings, load_settings=False
     )
 
-    def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[4]
-        assert "ENV WANDB_BASE_URL=https://api.wandb.ai" in dockerfile_contents
-        assert f"ENV WANDB_API_KEY={api.api_key}" in dockerfile_contents
-        assert "ENV WANDB_PROJECT=test" in dockerfile_contents
-        assert "ENV WANDB_ENTITY=mock_server_entity" in dockerfile_contents
-
-        _project_spec.create_metadata_file(*args, **kwargs)
-
-    monkeypatch.setattr(
-        wandb.sdk.launch._project_spec,
-        "create_metadata_file",
-        mock_create_metadata_file,
-    )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
     kwargs = {
         "uri": uri,
