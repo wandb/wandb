@@ -1,13 +1,12 @@
 import os
 import pathlib
-import subprocess
 import sys
 
 import click
 from core import winibuild as build_core
 from core.pkg.monitor.apple import winibuild as build_applestats
 
-from . import workspace
+from . import print, subprocess, workspace
 
 
 @click.group()
@@ -65,21 +64,28 @@ def install():
 
 
 def _do_install():
-    wheel_files = [
-        f
-        for f in os.listdir("./core/dist/")
-        if f.startswith("wandb_core-") and f.endswith(".whl")
-    ]
+    try:
+        wheel_files = [
+            f
+            for f in os.listdir("./core/dist/")
+            if f.startswith("wandb_core-") and f.endswith(".whl")
+        ]
+    except FileNotFoundError:
+        print.error(
+            "No ./core/dist/ directory. Did you forget to run"
+            " `./wini package release`?"
+        )
+        sys.exit(1)
 
     if len(wheel_files) == 0:
-        click.echo(
+        print.error(
             "No wandb_core wheel found. Did you forget to run"
             " `./wini package release`?"
         )
         sys.exit(1)
 
     if len(wheel_files) > 1:
-        click.echo(
+        print.error(
             "Found more than one wandb_core wheel, which is not currently supported."
         )
         sys.exit(1)
