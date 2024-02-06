@@ -298,6 +298,10 @@ def construct_launch_spec(
         else:
             launch_config["registry"] = {"url": repository}
 
+    # dont send both resource args and template variables
+    if launch_spec["resource_args"] and launch_spec["template_variables"]:
+        launch_spec["resource_args"] = None
+
     return launch_spec
 
 
