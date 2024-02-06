@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import sys
@@ -40,6 +41,14 @@ from ..utils import (
     event_loop_thread_exec,
     resolve_build_and_registry_config,
 )
+
+# Use the appropriate import based on your Python version
+try:
+    # Python >=3.11
+    import tomli as toml
+except ImportError:
+    # Python <3.11
+    import toml
 
 _logger = logging.getLogger(__name__)
 
@@ -339,16 +348,28 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
-        if launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.txt")
-        ):
+        assert launch_project.project_dir is not None
+        base_path = pathlib.Path(launch_project.project_dir)
+        # If there is a requirements.txt at root of build context, use that.
+        if (base_path / "requirements.txt").exists():
             requirements_files += ["src/requirements.txt"]
             pip_install_line = "pip install -r requirements.txt"
-        elif launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.frozen.txt")
-        ):
-            # if we have frozen requirements stored, copy those over and have them take precedence
-            requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
+        # Elif there is pyproject.toml at build context, convert the dependencies
+        # section to a requirements.txt and use that.
+        elif (base_path / "pyproject.toml").exists():
+            with open(base_path / "pyproject.toml", "rb") as f:
+                contents = toml.load(f)
+            deps = (str(d) for d in contents.get("project", {}).get("dependencies", []))
+            with open(base_path / "requirements.txt", "w") as f:
+                f.write("\n".join(deps))
+            requirements_files += ["src/requirements.txt"]
+            pip_install_line = "pip install -r requirements.txt"
+        # Else use frozen requirements from wandb run.
+        elif (base_path / "requirements.frozen.txt").exists():
+            requirements_files += [
+                "src/requirements.frozen.txt",
+                "_wandb_bootstrap.py",
+            ]
             pip_install_line = (
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
@@ -443,12 +464,6 @@ def generate_dockerfile(
         entrypoint_section=entrypoint_section,
     )
     return dockerfile_contents
-
-
-def construct_gcp_registry_uri(
-    gcp_repo: str, gcp_project: str, gcp_registry: str
-) -> str:
-    return "/".join([gcp_registry, gcp_project, gcp_repo])
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
