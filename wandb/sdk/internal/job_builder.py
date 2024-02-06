@@ -292,6 +292,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
+    # TODO: Accept pyproject.toml here.
     def build(self) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(

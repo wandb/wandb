@@ -363,6 +363,7 @@ def _create_repo_metadata(
     return metadata
 
 
+# TODO: Accept pyproject.toml here.
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
 ) -> Tuple[Dict[str, Any], List[str]]:

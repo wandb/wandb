@@ -327,6 +327,7 @@ def get_env_vars_dict(
     return env_vars
 
 
+# TODO: Install requirements from pyproject.toml here.
 def get_requirements_section(launch_project: LaunchProject, builder_type: str) -> str:
     if builder_type == "docker":
         buildx_installed = docker.is_buildx_installed()
