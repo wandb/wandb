@@ -36,7 +36,7 @@ async def test_launch_incorrect_backend(
     api = InternalApi()
 
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.fetch_and_validate_project",
+        "wandb.sdk.launch._launch.LaunchProject.fetch_and_validate_project",
         lambda _1, _2: launch_project,
     )
 
@@ -54,9 +54,11 @@ async def test_launch_incorrect_backend(
         "wandb.sdk.launch.loader.environment_from_config",
         lambda *args, **kawrgs: None,
     )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.loader.registry_from_config", lambda *args, **kawrgs: None
-    ),
+    (
+        monkeypatch.setattr(
+            "wandb.sdk.launch.loader.registry_from_config", lambda *args, **kawrgs: None
+        ),
+    )
 
     monkeypatch.setattr(
         "wandb.sdk.launch.loader.builder_from_config",

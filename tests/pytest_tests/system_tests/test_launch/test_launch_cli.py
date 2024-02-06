@@ -272,7 +272,7 @@ def test_launch_build_with_local(
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
+        "LaunchProject.from_spec",
         lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
     )
 
