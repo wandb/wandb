@@ -712,6 +712,7 @@ class Scheduler(ABC):
             project_queue=self._project_queue,
             resource=_job_launch_config.get("resource"),
             resource_args=_job_launch_config.get("resource_args"),
+            template_variables=_job_launch_config.get("template_variables"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
             priority=_priority,
