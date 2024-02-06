@@ -1597,7 +1597,6 @@ def launch(
             sys.exit(0)
     else:
         try:
-            asyncio.run(
                 _launch_add(
                     api,
                     uri,
@@ -1619,7 +1618,7 @@ def launch(
                     repository=repository,
                     priority=priority,
                 )
-            )
+
         except Exception as e:
             wandb._sentry.exception(e)
             raise e

@@ -106,8 +106,7 @@ def launch_add(
     """
     api = Api()
 
-    return asyncio.run(
-        _launch_add(
+    return _launch_add(
             api,
             uri,
             job,
@@ -130,10 +129,10 @@ def launch_add(
             author=author,
             priority=priority,
         )
-    )
 
 
-async def _launch_add(
+
+def _launch_add(
     api: Api,
     uri: Optional[str],
     job: Optional[str],
@@ -186,9 +185,10 @@ async def _launch_add(
             launch_spec["job"] = None
 
         launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = await build_image_from_project(
+        
+        docker_image_uri = asyncio.run(build_image_from_project(
             launch_project, api, config or {}
-        )
+        ))
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],
