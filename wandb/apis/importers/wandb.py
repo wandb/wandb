@@ -48,8 +48,6 @@ ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 logger = logging.getLogger("import_logger")
 # target_size = 80 * 1024**3  # 80GB
 
-os.environ["WANDB_IMPORTER_MODE_ENABLED"] = "true"
-
 
 @dataclass
 class ArtifactSequence:
@@ -890,6 +888,7 @@ class WandbImporter:
         terminal_output: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
+        os.environ["WANDB_IMPORTER_MODE_ENABLED"] = "true"
         logger.info("START: Import runs")
 
         logger.info("Setting up for import")
@@ -933,6 +932,8 @@ class WandbImporter:
 
         for_each(_import_run_wrapped, runs, max_workers=max_workers, parallel=parallel)
         logger.info("END: Importing runs")
+
+        del os.environ["WANDB_IMPORTER_MODE_ENABLED"]
 
     def import_reports(
         self,
