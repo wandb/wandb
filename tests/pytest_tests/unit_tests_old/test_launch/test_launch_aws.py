@@ -79,17 +79,6 @@ async def test_launch_aws_sagemaker_no_instance(
     monkeypatch,
     capsys,
 ):
-    def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[4]
-        expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
-        assert expected_entrypoint in dockerfile_contents, dockerfile_contents
-        _project_spec.create_metadata_file(*args, **kwargs)
-
-    monkeypatch.setattr(
-        wandb.sdk.launch._project_spec,
-        "create_metadata_file",
-        mock_create_metadata_file,
-    )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
@@ -134,12 +123,6 @@ async def test_launch_aws_sagemaker_no_instance(
 async def test_launch_aws_sagemaker(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
-    def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[4]
-        expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
-        assert expected_entrypoint in dockerfile_contents, dockerfile_contents
-        _project_spec.create_metadata_file(*args, **kwargs)
-
     mock_env = MagicMock(spec=AwsEnvironment)
     session = MagicMock()
     session.client.return_value = mock_sagemaker_client()
@@ -158,11 +141,6 @@ async def test_launch_aws_sagemaker(
         wandb.sdk.launch.loader,
         "registry_from_config",
         lambda *args: None,
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch._project_spec,
-        "create_metadata_file",
-        mock_create_metadata_file,
     )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(

@@ -23,17 +23,11 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.util import get_module
 
-from .._project_spec import (
-    EntryPoint,
-    LaunchProject,
-    create_metadata_file,
-    get_entry_point_command,
-)
+from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     get_kube_context_and_api_client,
-    sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
 from .build import (
@@ -271,16 +265,6 @@ class KanikoBuilder(AbstractBuilder):
 
         _logger.info(f"Building image {image_uri}...")
 
-        entry_cmd = " ".join(
-            get_entry_point_command(entrypoint, launch_project.override_args)
-        )
-
-        create_metadata_file(
-            launch_project,
-            image_uri,
-            sanitize_wandb_api_key(entry_cmd),
-            sanitize_wandb_api_key(dockerfile_str),
-        )
         context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         run_id = launch_project.run_id
 
