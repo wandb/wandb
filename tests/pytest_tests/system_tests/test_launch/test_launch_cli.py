@@ -112,8 +112,8 @@ def test_launch_build_fails(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch._project.spec,
-        "LaunchAgent",
+        wandb.sdk.launch.builder.build,
+        "LaunchProject",
         lambda *args, **kwargs: MagicMock(),
     )
 
