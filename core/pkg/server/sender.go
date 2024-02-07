@@ -873,6 +873,7 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	}
 
 	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
+	fmt.Println("outputFile", outputFile)
 	// append line to file
 	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
