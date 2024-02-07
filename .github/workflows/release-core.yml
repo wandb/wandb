@@ -46,6 +46,11 @@ jobs:
           brew link --force --overwrite go@1.21
           echo "/opt/homebrew/bin" >> $env:GITHUB_PATH
 
+      # Necessary for Swift 5.9.
+      - name: Use Xcode 15 on MacOS
+        if: runner.os == 'MacOS'
+        run: xcode-select -s /Applications/Xcode_15.0.app
+
       - name: Verify Go Version
         run: |
           go version
