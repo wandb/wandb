@@ -15,6 +15,17 @@ class Member(Attrs):
     }
   """
     )
+    DISABLE_MEMBER_MUTATION = gql(
+        """
+    mutation DeleteUser($id: ID!) {
+        deleteUser(input: {id: $id}) {
+            user {
+            id
+            }
+        }
+    }
+  """
+    )
     CHECK_TEAM_ORG_ID_QUERY = gql(
         """
     query BasicTeamOrganization($entityName: String) {
@@ -27,7 +38,7 @@ class Member(Attrs):
     }
   """
     )
-    REMOVE_USER_ORGANIZATION_QUERY = gql(
+    REMOVE_MEMBER_FROM_ORGANIZATION_QUERY = gql(
         """
     mutation removeUserFromOrganization($userName: String!, $organizationId: ID!) {
         removeUserFromOrganization(input: { userName: $userName, organizationId: $organizationId}){
@@ -45,54 +56,67 @@ class Member(Attrs):
         """Remove a member from a team.
 
         Arguments:
-            remove_from_org (bool): If True, also remove the member from the organization.
+            remove_from_org (bool): When set to True, removes the member from the organization. For local server instances, user is disabled.
 
         Returns:
             Boolean indicating success
         """
-        try:
-            delete_member_response = self._client.execute(
-                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
-            )
-            delete_success = delete_member_response.get("deleteInvite", {}).get("success", False)
-            action_status = "Successfully" if delete_success else "Failed to"
-            print(f"{action_status} removed user '{self.username}' from team '{self.team}'.")
-            if not delete_success or not remove_from_org:
-                return delete_success
+        def execute_query(query, variables, operation):
+            """Execute a GraphQL request with given variables and return the response."""
+            try:
+                response = self._client.execute(query, variables)
+                return response
+            except Exception as e:
+                print(f"An error occurred while executing the {operation} request: {e}")
+                return None
 
-            if self._client.app_url == "https://wandb.ai/":
-                org_check_response = self._client.execute(
-                    self.CHECK_TEAM_ORG_ID_QUERY, {"entityName": self.team}
-                )
-                org_data = org_check_response.get("entity", {}).get("organization", {})
-                org_id, org_name = org_data.get("id"), org_data.get("name")
-                org_id = org_check_response.get("entity", {}).get("organization", {}).get("id")
-                
-                if org_id:
-                    remove_org_response = self._client.execute(
-                        self.REMOVE_MEMBER_FROM_ORGANIZATION_QUERY,
-                        {"userName": self.username, "organizationId": org_id}
-                    )
-                    remove_org_success = remove_org_response.get("removeUserFromOrganization", {}).get("success", False)
-                    action_status = "Successfully" if remove_org_success else "Failed to"
-                    print(f"{action_status} removed user '{self.username}' from organization '{org_name}'.")
-                    return remove_org_success
-                else:
-                    print(f"Organization ID not found for team '{self.team}'.")
-                    return False
+        def print_requests_status(success, action, target):
+            """Prints the request status message."""
+            status = "Successfully" if success else "Failed to"
+            print(f"{status} {action} '{self.username}' from {target}.")
+
+        def remove_member_from_team():
+            """Remove a member from the team."""
+            response = execute_query(self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}, "remove from team")
+            if response is None: return False
+            success = response.get("deleteInvite", {}).get("success", False)
+            print_requests_status(success, "removed", f"team '{self.team}'")
+            return success
+
+        def remove_member_from_organization():
+            """Remove a member from the organization, if applicable."""
+            response = execute_query(self.CHECK_TEAM_ORG_ID_QUERY, {"entityName": self.team}, "remove from organization")
+            if response is None: return False
+            org_data = response.get("entity", {}).get("organization", {})
+            if org_data.get("id"):
+                response = execute_query(self.REMOVE_MEMBER_FROM_ORGANIZATION_QUERY, {"userName": self.username, "organizationId": org_data["id"]}, "remove from organization")
+                if response is None: return False
+                success = response.get("removeUserFromOrganization", {}).get("success", False)
+                print_requests_status(success, "removed", f"organization '{org_data.get('name')}'")
+                return success
             else:
-                disable_member_response = self._client.execute(
-                    self.DISABLE_MEMBER_MUTATION, {"id": self.id}
-                )
-                disable_member_success = disable_member_response.get('deleteUser', {}).get('user', {}).get('id', None)
-                if disable_member_success:
-                    action_status = "Successfully"
-                else:
-                    action_status = "Failed to"
-                print(f"{action_status} disabled user '{self.username}' from instance.")
+                print(f"Organization ID not found for team '{self.team}'.")
+                return False
 
-        except requests.exceptions.HTTPError as e:
+        def disable_member():
+            """Disable the member from local instance."""
+            response = execute_query(self.DISABLE_MEMBER_MUTATION, {"id": self.id}, "disable from organization")
+            if response is None: return False
+            success = bool(response.get('deleteUser', {}).get('user', {}).get('id'))
+            print_requests_status(success, "disabled", "instance")
+            return success
+
+        # Start by removing the member from the team
+        if not remove_member_from_team():
             return False
+
+        # If requested, attempt to remove the member from the organization or disable the member
+        if remove_from_org and self._client.app_url == "https://wandb.ai/":
+            return remove_member_from_organization()
+        elif not remove_from_org:
+            return True  # Success from team removal, no further action required
+        else:
+            return disable_member()
 
     def __repr__(self):
         return f"<Member {self.name} ({self.account_type})>"
