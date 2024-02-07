@@ -12,15 +12,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import pkg_resources
 import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
-from numpy import require
-from regex import R
 from six.moves import shlex_quote
 
 import wandb
 import wandb.docker as docker
 import wandb.env
 from wandb.apis.internal import Api
-from wandb.old.core import termwarn
 from wandb.sdk.launch.loader import (
     builder_from_config,
     environment_from_config,
