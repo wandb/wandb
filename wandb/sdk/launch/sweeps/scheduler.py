@@ -1,13 +1,13 @@
 """Abstract Scheduler class."""
 import asyncio
 import base64
+import copy
 import logging
 import os
 import socket
 import threading
 import time
 import traceback
-import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
