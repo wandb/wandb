@@ -58,6 +58,12 @@ func (as *ArtifactSaver) createArtifact() (
 			},
 		)
 	}
+
+	var runId *string
+	if !as.Artifact.UserCreated {
+		runId = &as.Artifact.RunId
+	}
+
 	response, err := gql.CreateArtifact(
 		as.Ctx,
 		as.GraphqlClient,
@@ -65,7 +71,7 @@ func (as *ArtifactSaver) createArtifact() (
 		as.Artifact.Project,
 		as.Artifact.Type,
 		as.Artifact.Name,
-		&as.Artifact.RunId,
+		runId,
 		as.Artifact.Digest,
 		utils.NilIfZero(as.Artifact.Description),
 		aliases,
