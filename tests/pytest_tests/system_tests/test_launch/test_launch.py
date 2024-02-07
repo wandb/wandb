@@ -37,7 +37,7 @@ async def test_launch_incorrect_backend(
 
     monkeypatch.setattr(
         "wandb.sdk.launch._launch.LaunchProject.fetch_and_validate_project",
-        lambda _1, _2: launch_project,
+        lambda *args, **kwargs: launch_project,
     )
 
     monkeypatch.setattr(

@@ -261,7 +261,7 @@ def test_launch_build_with_local(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
+        wandb.sdk.launch._project_spec,
         "LaunchProject",
         lambda *args, **kwargs: MagicMock(),
     )

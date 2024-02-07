@@ -140,8 +140,8 @@ def _setup_requeue(mocker):
     mocker.project.return_value.run_id = "test-run-id"
 
     mocker.patch(
-        "wandb.sdk.launch.agent.agent.LaunchProject.fetch_and_validate_project",
-        MagicMock(),
+        "wandb.sdk.launch.agent.agent.LaunchProject",
+        return_value=MagicMock(),
     )
     mocker.patch(
         "wandb.sdk.launch.agent.agent.loader.builder_from_config",

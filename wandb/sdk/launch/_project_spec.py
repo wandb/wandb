@@ -284,10 +284,25 @@ class LaunchProject:
 
     @property
     def docker_image(self) -> Optional[str]:
+        """Returns the Docker image associated with this LaunchProject.
+
+        This will only be set if an image_uri is being run outside a job.
+
+        Returns:
+            Optional[str]: The Docker image or None if not specified.
+        """
         return self._docker_image
 
     @docker_image.setter
     def docker_image(self, value: str) -> None:
+        """Sets the Docker image for the project.
+
+        Args:
+            value (str): The Docker image to set.
+
+        Returns:
+            None
+        """
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
 
@@ -316,8 +331,8 @@ class LaunchProject:
         """Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
 
         Arguments:
-        launch_project: LaunchProject to fetch and validate.
-        api: Instance of wandb.apis.internal Api
+            launch_project: LaunchProject to fetch and validate.
+            api: Instance of wandb.apis.internal Api
 
         Returns:
             A validated `LaunchProject` object.
@@ -347,6 +362,14 @@ class LaunchProject:
             self.deps_type = "conda"
 
     def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
+        """Get the entrypoint file from the given command.
+
+        Args:
+            entrypoint (List[str]): List of command and arguments.
+
+        Returns:
+            Optional[str]: The entrypoint file if found, otherwise None.
+        """
         if not entrypoint:
             return None
         if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
@@ -381,12 +404,22 @@ class LaunchProject:
             raise LaunchError("Unknown source type when determing image source string")
 
     def _ensure_not_docker_image_and_local_process(self) -> None:
+        """Ensure that docker image is not specified with local-process resource runner.
+
+        Raises:
+            LaunchError: If docker image is specified with local-process resource runner.
+        """
         if self.docker_image is not None and self.resource == "local-process":
             raise LaunchError(
                 "Cannot specify docker image with local-process resource runner"
             )
 
     def _fetch_job(self) -> None:
+        """Fetches the job details from the public API and configures the launch project.
+
+        Raises:
+            LaunchError: If there is an error accessing the job.
+        """
         public_api = wandb.apis.public.Api()
         job_dir = tempfile.mkdtemp()
         try:
