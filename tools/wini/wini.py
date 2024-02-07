@@ -26,22 +26,27 @@ def build():
     """Commands to build parts of the application."""
 
 
-@build.command(name="wandb-core-go")
+@build.command(name="wandb-core-artifacts")
 @click.option("--coverage", "with_coverage", is_flag=True, default=False)
-def build_wandb_core_go(with_coverage):
-    """Builds the wandb-core Go package.
+def build_wandb_core_artifacts(with_coverage):
+    """Builds artifacts to include in the wandb-core wheel.
 
-    The binary is named "wandb-core" and stored in ./core/wandb_core/ to be
-    included in the wandb-core Python wheel.
+    The artifacts are stored in ./core/wandb_core/ to be included in the
+    wandb-core Python wheel.
     """
-    _build_wandb_core_go(with_coverage=with_coverage)
+    _build_wandb_core_artifacts(with_coverage=with_coverage)
 
 
-def _build_wandb_core_go(*, with_coverage):
+def _build_wandb_core_artifacts(*, with_coverage):
     build_core.build_wandb_core(
         output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
         with_code_coverage=with_coverage,
     )
+
+    if workspace.target_os() == workspace.OS.DARWIN:
+        build_applestats.build_applestats(
+            output_path=pathlib.PurePath("./core/wandb_core/AppleStats")
+        )
 
 
 @wini.group()
@@ -66,12 +71,7 @@ def package():
 )
 def package_wandb_core(should_install, with_coverage):
     """Creates the wandb-core wheel, optionally installing it."""
-    _build_wandb_core_go(with_coverage=with_coverage)
-
-    if workspace.target_os() == workspace.OS.DARWIN:
-        build_applestats.build_applestats(
-            output_path=pathlib.PurePath("./core/wandb_core/AppleStats")
-        )
+    _build_wandb_core_artifacts(with_coverage=with_coverage)
 
     subprocess.run(
         [
