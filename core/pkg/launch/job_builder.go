@@ -559,6 +559,8 @@ func (j *JobBuilder) Build(
 		Finalize:         true,
 		ClientId:         utils.GenerateAlphanumericSequence(128),
 		SequenceClientId: utils.GenerateAlphanumericSequence(128),
+		UseAfterCommit:   true,
+		UserCreated:      true,
 	}
 
 	return j.buildArtifact(baseArtifact, sourceInfo, fileDir, *sourceType)
