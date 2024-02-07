@@ -221,6 +221,11 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
     return config_entity or api.default_entity
 
 
+def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
+    if launch_spec["resource_args"] and launch_spec["template_variables"]:
+        launch_spec["resource_args"] = None
+
+
 def construct_launch_spec(
     uri: Optional[str],
     job: Optional[str],
@@ -299,8 +304,7 @@ def construct_launch_spec(
             launch_config["registry"] = {"url": repository}
 
     # dont send both resource args and template variables
-    if launch_spec["resource_args"] and launch_spec["template_variables"]:
-        launch_spec["resource_args"] = None
+    strip_resource_args_and_template_vars(launch_spec)
 
     return launch_spec
 
