@@ -3,7 +3,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-import wandb.docker
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder import build
 from wandb.sdk.launch.builder.build import (
@@ -189,9 +188,11 @@ def _setup(mocker):
 
 
 @pytest.fixture
-def no_buildx(monkeypatch):
+def no_buildx(mocker):
     """Patches wandb.docker.is_buildx_installed to always return False."""
-    monkeypatch.setattr(wandb.docker, "is_buildx_installed", lambda: False)
+    mocker.patch(
+        "wandb.sdk.launch.builder.build.docker.is_buildx_installed", lambda: False
+    )
 
 
 def test_get_requirements_section_user_provided_requirements(
@@ -203,7 +204,7 @@ def test_get_requirements_section_user_provided_requirements(
     assert get_requirements_section(
         mock_launch_project, "docker"
     ) == PIP_TEMPLATE.format(
-        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.txt",
         pip_install="pip install -r requirements.txt",
     )
@@ -218,7 +219,7 @@ def test_get_requirements_section_frozen_requirements(
     assert get_requirements_section(
         mock_launch_project, "docker"
     ) == PIP_TEMPLATE.format(
-        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.frozen.txt _wandb_bootstrap.py",
         pip_install="python _wandb_bootstrap.py",
     )
@@ -236,7 +237,7 @@ def test_get_requirements_section_pyproject(mock_launch_project, tmp_path, no_bu
     assert get_requirements_section(
         mock_launch_project, "docker"
     ) == PIP_TEMPLATE.format(
-        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.txt",  # We convert into this format.
         pip_install="pip install -r requirements.txt",
     )
@@ -251,7 +252,7 @@ def test_get_requirements_poetry(mock_launch_project, tmp_path, no_buildx):
     assert get_requirements_section(
         mock_launch_project, "docker"
     ) == PIP_TEMPLATE.format(
-        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/pyproject.toml",
         pip_install=(
             "pip install poetry && "
