@@ -51,36 +51,47 @@ class Member(Attrs):
             Boolean indicating success
         """
         try:
-            delete_response = self._client.execute(
+            delete_member_response = self._client.execute(
                 self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
             )
-            delete_success = delete_response.get("deleteInvite", {}).get("success", False)
+            delete_success = delete_member_response.get("deleteInvite", {}).get("success", False)
             action_status = "Successfully" if delete_success else "Failed to"
             print(f"{action_status} removed user '{self.username}' from team '{self.team}'.")
             if not delete_success or not remove_from_org:
                 return delete_success
 
-            org_response = self._client.execute(
-                self.CHECK_TEAM_ORG_ID_QUERY, {"entityName": self.team}
-            )
-            org_data = org_response.get("entity", {}).get("organization", {})
-            org_id, org_name = org_data.get("id"), org_data.get("name")
-            org_id = org_response.get("entity", {}).get("organization", {}).get("id")
-
-            if org_id:
-                remove_org_response = self._client.execute(
-                    self.REMOVE_USER_ORGANIZATION_QUERY,
-                    {"userName": self.username, "organizationId": org_id}
+            if self._client.app_url == "https://wandb.ai/":
+                org_check_response = self._client.execute(
+                    self.CHECK_TEAM_ORG_ID_QUERY, {"entityName": self.team}
                 )
-                remove_org_success = remove_org_response.get("removeUserFromOrganization", {}).get("success", False)
-                action_status = "Successfully" if remove_org_success else "Failed to"
-                print(f"{action_status} removed user '{self.username}' from organization '{org_name}'.")
-                return remove_org_success
+                org_data = org_check_response.get("entity", {}).get("organization", {})
+                org_id, org_name = org_data.get("id"), org_data.get("name")
+                org_id = org_check_response.get("entity", {}).get("organization", {}).get("id")
+                
+                if org_id:
+                    remove_org_response = self._client.execute(
+                        self.REMOVE_MEMBER_FROM_ORGANIZATION_QUERY,
+                        {"userName": self.username, "organizationId": org_id}
+                    )
+                    remove_org_success = remove_org_response.get("removeUserFromOrganization", {}).get("success", False)
+                    action_status = "Successfully" if remove_org_success else "Failed to"
+                    print(f"{action_status} removed user '{self.username}' from organization '{org_name}'.")
+                    return remove_org_success
+                else:
+                    print(f"Organization ID not found for team '{self.team}'.")
+                    return False
             else:
-                print(f"Organization ID not found for team '{self.team}'.")
-                return False
+                disable_member_response = self._client.execute(
+                    self.DISABLE_MEMBER_MUTATION, {"id": self.id}
+                )
+                disable_member_success = disable_member_response.get('deleteUser', {}).get('user', {}).get('id', None)
+                if disable_member_success:
+                    action_status = "Successfully"
+                else:
+                    action_status = "Failed to"
+                print(f"{action_status} disabled user '{self.username}' from instance.")
 
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as e:
             return False
 
     def __repr__(self):
