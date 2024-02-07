@@ -1,5 +1,5 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 import wandb
@@ -112,9 +112,9 @@ def test_launch_build_fails(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build.LaunchAgent,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: None,
+        wandb.sdk.launch.builder.build,
+        "LaunchAgent",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
@@ -196,8 +196,8 @@ def test_launch_repository_arg(
         patched_launch,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.LaunchAgent.fetch_and_validate_project",
-        lambda *args, **kwargs: None,
+        "wandb.sdk.launch._launch.LaunchAgent",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
@@ -261,9 +261,9 @@ def test_launch_build_with_local(
     )
 
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build.LaunchProject,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: None,
+        wandb.sdk.launch.builder.build,
+        "LaunchProject",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
