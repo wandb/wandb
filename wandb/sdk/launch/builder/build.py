@@ -341,6 +341,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
+        pip_install_line = None
         assert launch_project.project_dir is not None
         base_path = pathlib.Path(launch_project.project_dir)
         # If there is a requirements.txt at root of build context, use that.

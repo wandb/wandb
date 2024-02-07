@@ -5,7 +5,11 @@ from unittest.mock import MagicMock
 import pytest
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder import build
-from wandb.sdk.launch.builder.build import registry_from_uri
+from wandb.sdk.launch.builder.build import (
+    PIP_TEMPLATE,
+    get_requirements_section,
+    registry_from_uri,
+)
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -111,6 +115,7 @@ def mock_launch_project(mocker):
     launch_project = MagicMock(
         spec=LaunchProject,
         entry_point=EntryPoint("main.py", ["python", "main.py"]),
+        deps_type="pip",
         docker_image="test-docker-image",
         name="test-name",
         launch_spec={"author": "test-author"},
@@ -180,3 +185,68 @@ def _setup(mocker):
     mocker.api = api
 
     mocker.patch("json.dumps", lambda x: "test-wandb-artifacts")
+
+
+def test_get_requirements_section_user_provided_requirements(
+    mock_launch_project, tmp_path
+):
+    """Test that we use the user provided requirements.txt."""
+    mock_launch_project.project_dir = tmp_path
+    (tmp_path / "requirements.txt").write_text("")
+    assert get_requirements_section(
+        mock_launch_project, "docker"
+    ) == PIP_TEMPLATE.format(
+        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        requirements_files="src/requirements.txt",
+        pip_install="pip install -r requirements.txt",
+    )
+
+
+def test_get_requirements_section_frozen_requirements(mock_launch_project, tmp_path):
+    """Test that we use frozen requirements.txt if nothing else is provided."""
+    mock_launch_project.project_dir = tmp_path
+    (tmp_path / "requirements.frozen.txt").write_text("")
+    assert get_requirements_section(
+        mock_launch_project, "docker"
+    ) == PIP_TEMPLATE.format(
+        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        requirements_files="src/requirements.frozen.txt _wandb_bootstrap.py",
+        pip_install="python _wandb_bootstrap.py",
+    )
+
+
+def test_get_requirements_section_pyproject(mock_launch_project, tmp_path):
+    """Test that we install deps from [project.dependencies] in pyprojec.toml.
+
+    This should only happen if there is no requirements.txt in the directory.
+    """
+    mock_launch_project.project_dir = tmp_path
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\ndependencies = ['wandb==0.0.0', 'pandas==0.0.0']\n"
+    )
+    assert get_requirements_section(
+        mock_launch_project, "docker"
+    ) == PIP_TEMPLATE.format(
+        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        requirements_files="src/requirements.txt",  # We convert into this format.
+        pip_install="pip install -r requirements.txt",
+    )
+
+
+def test_get_requirements_poetry(mock_launch_project, tmp_path):
+    """Test that we setup the poetry install correctly."""
+    mock_launch_project.project_dir = tmp_path
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.poetry.dependencies]\nwandb = '0.0.0'\npandas = '0.0.0'"
+    )
+    assert get_requirements_section(
+        mock_launch_project, "docker"
+    ) == PIP_TEMPLATE.format(
+        buildx_optional_prefix="RUN --mount=type=cache,mode=0777,target=/root/.cache/pip",
+        requirements_files="src/pyproject.toml",
+        pip_install=(
+            "pip install poetry && "
+            "poetry config virtualenvs.create false --local && "
+            "poetry install --no-root"
+        ),
+    )
