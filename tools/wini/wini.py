@@ -108,7 +108,7 @@ def _do_install():
     except FileNotFoundError:
         print.error(
             "No ./core/dist/ directory. Did you forget to run"
-            " `./wini package release`?"
+            " `./wini package wandb-core`?"
         )
         sys.exit(1)
 
