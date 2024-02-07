@@ -14,8 +14,6 @@ plotly
 bokeh
 
 tqdm
-click
-rich
 
 ipython
 ipython<8.13; python_version < '3.9'
