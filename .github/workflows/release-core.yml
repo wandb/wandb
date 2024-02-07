@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-11]
+        os: [ubuntu-20.04, windows-2019, macos-13]
 
     steps:
       - uses: actions/checkout@v4
@@ -71,8 +71,6 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
-
-# TODO: build swift library for ARM macs GPU stats collection
 
 # TODO: build sdist
 #      - name: Build sdist
