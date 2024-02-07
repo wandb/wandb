@@ -17,7 +17,7 @@ class MockBuilder:
     async def verify(self):
         pass
 
-    async def build(self, *args, **kwargs):
+    async def build_image(self, *args, **kwargs):
         pass
 
 
@@ -36,8 +36,9 @@ async def test_launch_incorrect_backend(
     api = InternalApi()
 
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.LaunchProject.fetch_and_validate_project",
-        lambda *args, **kwargs: launch_project,
+        wandb.sdk.launch.builder.build,
+        "LaunchProject",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
