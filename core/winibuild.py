@@ -7,7 +7,7 @@ from typing import Mapping
 from tools.wini import subprocess, workspace
 
 
-def build_nexus(
+def build_wandb_core(
     output_path: pathlib.PurePath,
     with_code_coverage: bool,
 ) -> None:

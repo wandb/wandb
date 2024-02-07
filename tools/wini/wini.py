@@ -101,7 +101,7 @@ def _do_install():
 
 
 def _package(is_testing: bool):
-    build_core.build_nexus(
+    build_core.build_wandb_core(
         output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
         with_code_coverage=is_testing,
     )
