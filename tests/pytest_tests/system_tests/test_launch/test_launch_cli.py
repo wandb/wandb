@@ -111,13 +111,10 @@ def test_launch_build_fails(
         lambda: None,
     )
 
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
+        wandb.sdk.launch.builder.build.LaunchAgent,
         "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        lambda *args, **kwargs: None,
     )
 
     monkeypatch.setattr(
@@ -198,13 +195,9 @@ def test_launch_repository_arg(
         "wandb.sdk.launch._launch._launch",
         patched_launch,
     )
-
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.fetch_and_validate_project",
-        patched_fetch_and_val,
+        "wandb.sdk.launch._launch.LaunchAgent.fetch_and_validate_project",
+        lambda *args, **kwargs: None,
     )
 
     monkeypatch.setattr(
@@ -267,13 +260,10 @@ def test_launch_build_with_local(
         lambda: None,
     )
 
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "LaunchProject.from_spec",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        wandb.sdk.launch.builder.build.LaunchProject,
+        "fetch_and_validate_project",
+        lambda *args, **kwargs: None,
     )
 
     monkeypatch.setattr(
