@@ -3,7 +3,6 @@
 Arguments can come from a launch spec or call to wandb launch.
 """
 import enum
-import json
 import logging
 import os
 import tempfile
@@ -25,7 +24,6 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
 # need to make user root for sagemaker, so users have access to /opt/ml directories
 # that let users create artifacts and access input data
@@ -159,8 +157,6 @@ class LaunchProject:
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
-
-        self.aux_dir = tempfile.mkdtemp()
 
     @property
     def base_image(self) -> str:
@@ -555,25 +551,3 @@ def fetch_and_validate_project(
         launch_project.deps_type = "conda"
 
     return launch_project
-
-
-def create_metadata_file(
-    launch_project: LaunchProject,
-    image_uri: str,
-    sanitized_entrypoint_str: str,
-    sanitized_dockerfile_contents: str,
-) -> None:
-    assert launch_project.project_dir is not None
-    with open(
-        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
-        "w",
-    ) as f:
-        json.dump(
-            {
-                **launch_project.launch_spec,
-                "image_uri": image_uri,
-                "command": sanitized_entrypoint_str,
-                "dockerfile_contents": sanitized_dockerfile_contents,
-            },
-            f,
-        )

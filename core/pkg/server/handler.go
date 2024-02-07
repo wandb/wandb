@@ -377,6 +377,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record) {
+	fmt.Println("handleLogArtifact", record)
 	h.sendRecord(record)
 }
 
