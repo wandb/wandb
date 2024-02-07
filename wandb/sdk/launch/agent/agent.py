@@ -752,6 +752,14 @@ class LaunchAgent:
             run = job_tracker.run
             status = (await run.get_status()).state
 
+            # if we've lost connection with the submitted run
+            # we try to use the state from wandb
+            if status == "unknown":
+                is_finished = await job_tracker.check_wandb_run_finished(self._api)
+                if is_finished:
+                    return True
+            # if the run is preempted, we want to requeue it
+            # but we can only requeue runs that in the same entity
             if status == "preempted" and job_tracker.entity == self._entity:
                 config = launch_spec.copy()
                 config["run_id"] = job_tracker.run_id
@@ -778,6 +786,7 @@ class LaunchAgent:
                     queue_name=job_tracker.queue,
                 )
                 return True
+            # if the run is in a terminal state, we're done
             # TODO change these statuses to an enum
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
