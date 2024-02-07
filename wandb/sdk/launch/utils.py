@@ -222,6 +222,10 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
 
 
 def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
+    wandb.termwarn(
+        "Launch spec contains both resource_args and template_variables, "
+        "only one can be set. Using template_variables."
+    )
     if launch_spec.get("resource_args", None) and launch_spec.get(
         "template_variables", None
     ):
