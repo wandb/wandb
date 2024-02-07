@@ -351,7 +351,13 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         # section to a requirements.txt and use that.
         elif (base_path / "pyproject.toml").exists():
             tomli = get_module("tomli")
-            if tomli is not None:
+            if tomli is None:
+                wandb.termwarn(
+                    "pyproject.toml found but tomli could not be loaded. To "
+                    "install dependencies from pyproject.toml please run "
+                    "`pip install tomli` and try again."
+                )
+            else:
                 with open(base_path / "pyproject.toml", "rb") as f:
                     contents = tomli.load(f)
                 deps = (
@@ -361,12 +367,6 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
                     f.write("\n".join(deps))
                 requirements_files += ["src/requirements.txt"]
                 pip_install_line = "pip install -r requirements.txt"
-            else:
-                wandb.termwarn(
-                    "pyproject.toml found but tomli could not be loaded. To "
-                    "install dependencies from pyproject.toml please run "
-                    "`pip install tomli` and try again."
-                )
         # Else use frozen requirements from wandb run.
         elif (base_path / "requirements.frozen.txt").exists():
             requirements_files += [
