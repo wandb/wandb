@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import pkg_resources
 import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
+from numpy import require
+from regex import R
 from six.moves import shlex_quote
 
 import wandb
@@ -359,15 +361,26 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
                     "`pip install tomli` and try again."
                 )
             else:
+                # First try to read deps from standard pyproject format.
                 with open(base_path / "pyproject.toml", "rb") as f:
                     contents = tomli.load(f)
-                deps = (
+                project_deps = [
                     str(d) for d in contents.get("project", {}).get("dependencies", [])
-                )
-                with open(base_path / "requirements.txt", "w") as f:
-                    f.write("\n".join(deps))
-                requirements_files += ["src/requirements.txt"]
-                pip_install_line = "pip install -r requirements.txt"
+                ]
+                if project_deps:
+                    with open(base_path / "requirements.txt", "w") as f:
+                        f.write("\n".join(project_deps))
+                    requirements_files += ["src/requirements.txt"]
+                    pip_install_line = "pip install -r requirements.txt"
+                # If not found, check to see if we can install with poetry.
+                else:
+                    if "poetry" in contents.get("tool"):
+                        requirements_files += ["src/pyproject.toml"]
+                        pip_install_line = (
+                            "pip install poetry && "
+                            "poetry config virtualenvs.create false --local && "
+                            "poetry install --no-root"
+                        )
         # Else use frozen requirements from wandb run.
         if not pip_install_line and (base_path / "requirements.frozen.txt").exists():
             requirements_files += [
