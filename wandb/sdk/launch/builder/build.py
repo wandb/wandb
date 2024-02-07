@@ -23,6 +23,7 @@ from wandb.sdk.launch.loader import (
     environment_from_config,
     registry_from_config,
 )
+from wandb.util import get_module
 
 from .._project_spec import (
     EntryPoint,
@@ -41,14 +42,6 @@ from ..utils import (
     event_loop_thread_exec,
     resolve_build_and_registry_config,
 )
-
-# Use the appropriate import based on your Python version
-try:
-    # Python >=3.11
-    import tomli as toml
-except ImportError:
-    # Python <3.11
-    import toml
 
 _logger = logging.getLogger(__name__)
 
@@ -357,13 +350,23 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         # Elif there is pyproject.toml at build context, convert the dependencies
         # section to a requirements.txt and use that.
         elif (base_path / "pyproject.toml").exists():
-            with open(base_path / "pyproject.toml", "rb") as f:
-                contents = toml.load(f)
-            deps = (str(d) for d in contents.get("project", {}).get("dependencies", []))
-            with open(base_path / "requirements.txt", "w") as f:
-                f.write("\n".join(deps))
-            requirements_files += ["src/requirements.txt"]
-            pip_install_line = "pip install -r requirements.txt"
+            tomli = get_module("tomli")
+            if tomli is not None:
+                with open(base_path / "pyproject.toml", "rb") as f:
+                    contents = tomli.load(f)
+                deps = (
+                    str(d) for d in contents.get("project", {}).get("dependencies", [])
+                )
+                with open(base_path / "requirements.txt", "w") as f:
+                    f.write("\n".join(deps))
+                requirements_files += ["src/requirements.txt"]
+                pip_install_line = "pip install -r requirements.txt"
+            else:
+                wandb.termwarn(
+                    "pyproject.toml found but tomli could not be loaded. To "
+                    "install dependencies from pyproject.toml please run "
+                    "`pip install tomli` and try again."
+                )
         # Else use frozen requirements from wandb run.
         elif (base_path / "requirements.frozen.txt").exists():
             requirements_files += [
