@@ -44,7 +44,22 @@ class EntrypointDefaults(List[str]):
 
 
 class LaunchProject:
-    """A launch project specification."""
+    """A launch project specification.
+
+    The LaunchProject is initialized from a raw launch spec an internal API
+    object. The project encapsulates logic for taking a launch spec and converting
+    it into the executable code.
+
+    The LaunchProject needs to ultimately produce a full container spec for
+    execution in docker, k8s, sagemaker, or vertex. This container spec includes:
+    - container image uri
+    - environment variables for configuring wandb etc.
+    - entrypoint command and arguments
+    - additional arguments specific to the target resource (e.g. instance type, node selector)
+
+    This class is stateful and certain methods can only be called after
+    `LaunchProject.fetch_and_validate_project()` has been called.
+    """
 
     def __init__(
         self,
@@ -120,7 +135,7 @@ class LaunchProject:
         if override_entrypoint:
             _logger.info("Adding override entry point")
             self.override_entrypoint = EntryPoint(
-                name=self._get_entrypoint_file(override_entrypoint),
+                name=_get_entrypoint_file(override_entrypoint),
                 command=override_entrypoint,
             )
 
@@ -359,23 +374,6 @@ class LaunchProject:
         elif os.path.exists(os.path.join(self.project_dir, "environment.yml")):
             self.deps_type = "conda"
 
-    def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
-        """Get the entrypoint file from the given command.
-
-        Args:
-            entrypoint (List[str]): List of command and arguments.
-
-        Returns:
-            Optional[str]: The entrypoint file if found, otherwise None.
-        """
-        if not entrypoint:
-            return None
-        if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
-            return entrypoint[0]
-        if len(entrypoint) < 2:
-            return None
-        return entrypoint[1]
-
     def get_image_source_string(self) -> str:
         """Returns a unique string identifying the source of an image."""
         if self.source == LaunchSource.LOCAL:
@@ -532,6 +530,24 @@ class LaunchProject:
             )
             if self.git_version is None:
                 self.git_version = branch_name
+
+
+def _get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+    """Get the entrypoint file from the given command.
+
+    Args:
+        entrypoint (List[str]): List of command and arguments.
+
+    Returns:
+        Optional[str]: The entrypoint file if found, otherwise None.
+    """
+    if not entrypoint:
+        return None
+    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+        return entrypoint[0]
+    if len(entrypoint) < 2:
+        return None
+    return entrypoint[1]
 
 
 class EntryPoint:
