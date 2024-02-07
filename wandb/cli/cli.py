@@ -433,11 +433,14 @@ def beta():
     from wandb.util import get_core_path
 
     if not get_core_path():
-        msg = (
-            "wandb beta commands require wandb-core, please install with"
-            " `pip install wandb-core`"
+        click.secho(
+            (
+                "wandb beta commands require wandb-core, please install with"
+                " `pip install wandb-core`"
+            ),
+            fg="red",
+            err=True,
         )
-        click.echo(click.style(msg, fg="red"))
 
 
 @beta.command(
