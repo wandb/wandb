@@ -18,6 +18,7 @@ import wandb
 import wandb.docker as docker
 import wandb.env
 from wandb.apis.internal import Api
+from wandb.old.core import termwarn
 from wandb.sdk.launch.loader import (
     builder_from_config,
     environment_from_config,
@@ -368,7 +369,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
                 requirements_files += ["src/requirements.txt"]
                 pip_install_line = "pip install -r requirements.txt"
         # Else use frozen requirements from wandb run.
-        elif (base_path / "requirements.frozen.txt").exists():
+        if not pip_install_line and (base_path / "requirements.frozen.txt").exists():
             requirements_files += [
                 "src/requirements.frozen.txt",
                 "_wandb_bootstrap.py",
@@ -377,6 +378,11 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
             )
+
+        if not pip_install_line:
+            wandb.termwarn("No python dependency files found, only installing wandb.")
+            pip_install_line = "pip install --upgrade wandb"
+
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
 
