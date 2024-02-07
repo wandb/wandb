@@ -5,7 +5,6 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-from os import link
 import time
 from abc import abstractmethod
 from multiprocessing.process import BaseProcess

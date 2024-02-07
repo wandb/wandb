@@ -20,7 +20,6 @@ from typing import (
     Tuple,
     cast,
 )
-import wandb
 
 from wandb.proto.wandb_internal_pb2 import (
     HistoryRecord,
