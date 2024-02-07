@@ -12,7 +12,7 @@ from . import workspace
 
 @click.group()
 def wini():
-    """Ad-hoc tools for the wandb repository.
+    """Collection of scripts for the wandb repository.
 
     'Wini' stands for 'W(eights and Biases) I(nitialize), and also it is a
     reference to Winnie-the-Pooh who doesn't wear pants, because we wanted
@@ -22,83 +22,51 @@ def wini():
 
 
 @wini.group()
+def build():
+    """Commands to build parts of the application."""
+
+
+@build.command(name="wandb-core-go")
+@click.option("--coverage", "with_coverage", is_flag=True, default=False)
+def build_wandb_core_go(with_coverage):
+    """Builds the wandb-core Go package.
+
+    The binary is named "wandb-core" and stored in ./core/wandb_core/ to be
+    included in the wandb-core Python wheel.
+    """
+    _build_wandb_core_go(with_coverage=with_coverage)
+
+
+def _build_wandb_core_go(*, with_coverage):
+    build_core.build_wandb_core(
+        output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
+        with_code_coverage=with_coverage,
+    )
+
+
+@wini.group()
 def package():
     """Commands to produce packages for testing and distribution."""
 
 
-@package.command()
-@click.option("--install", "should_install", is_flag=True, default=False)
-def release(should_install):
-    """Creates a release build of the wandb-core wheel.
-
-    The output wheel is ./core/dist/wandb_core-*, with the exact name selected
-    by setuptools based on the library version and target platform.
-    """
-    _package(is_testing=False)
-
-    if should_install:
-        _do_install()
-
-
-@package.command()
-@click.option("--install", "should_install", is_flag=True, default=False)
-def testing(should_install):
-    """Creates a build of the wandb-core wheel for testing.
-
-    The output wheel is ./core/dist/wandb_core-*, with the exact name selected
-    by setuptools based on the library version and target platform.
-    """
-    _package(is_testing=True)
-
-    if should_install:
-        _do_install()
-
-
-@package.command()
-def install():
-    """Installs the built wandb-core wheel.
-
-    Assumes that `./wini package release` or `./wini package testing`
-    was invoked. Runs `pip install` on the output.
-    """
-    _do_install()
-
-
-def _do_install():
-    wheel_files = [
-        f
-        for f in os.listdir("./core/dist/")
-        if f.startswith("wandb_core-") and f.endswith(".whl")
-    ]
-
-    if len(wheel_files) == 0:
-        click.echo(
-            "No wandb_core wheel found. Did you forget to run"
-            " `./wini package release`?"
-        )
-        sys.exit(1)
-
-    if len(wheel_files) > 1:
-        click.echo(
-            "Found more than one wandb_core wheel, which is not currently supported."
-        )
-        sys.exit(1)
-
-    subprocess.check_call(
-        [
-            "pip",
-            "install",
-            "--force-reinstall",
-            f"./core/dist/{wheel_files[0]}",
-        ]
-    )
-
-
-def _package(is_testing: bool):
-    build_core.build_wandb_core(
-        output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
-        with_code_coverage=is_testing,
-    )
+@package.command(name="wandb-core")
+@click.option(
+    "--install",
+    "should_install",
+    help="Install the wheel locally using pip install.",
+    is_flag=True,
+    default=False,
+)
+@click.option(
+    "--coverage",
+    "with_coverage",
+    help="Build Go with code coverage enabled (go build -cover).",
+    is_flag=True,
+    default=False,
+)
+def package_wandb_core(should_install, with_coverage):
+    """Creates the wandb-core wheel, optionally installing it."""
+    _build_wandb_core_go(with_coverage=with_coverage)
 
     if workspace.target_os() == workspace.OS.DARWIN:
         build_applestats.build_applestats(
@@ -114,6 +82,49 @@ def _package(is_testing: bool):
             "-n",  # Disable building the project in an isolated venv.
             "-x",  # Do not check that build deps are installed.
             "./core",
+        ]
+    )
+
+    if should_install:
+        _do_install()
+
+
+@package.command()
+def install():
+    """Installs the built wandb-core wheel.
+
+    Assumes that `./wini package wandb-core` was invoked. Runs
+    `pip install` on the output.
+    """
+    _do_install()
+
+
+def _do_install():
+    wheel_files = [
+        f
+        for f in os.listdir("./core/dist/")
+        if f.startswith("wandb_core-") and f.endswith(".whl")
+    ]
+
+    if len(wheel_files) == 0:
+        click.echo(
+            "No wandb_core wheel found. Did you forget to run"
+            " `./wini package wandb-core`?"
+        )
+        sys.exit(1)
+
+    if len(wheel_files) > 1:
+        click.echo(
+            "Found more than one wandb_core wheel, which is not currently supported."
+        )
+        sys.exit(1)
+
+    subprocess.check_call(
+        [
+            "pip",
+            "install",
+            "--force-reinstall",
+            f"./core/dist/{wheel_files[0]}",
         ]
     )
 
