@@ -222,7 +222,9 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
 
 
 def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
-    if launch_spec["resource_args"] and launch_spec["template_variables"]:
+    if launch_spec.get("resource_args", None) and launch_spec.get(
+        "template_variables", None
+    ):
         launch_spec["resource_args"] = None
 
 
