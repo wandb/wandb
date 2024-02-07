@@ -755,7 +755,9 @@ class LaunchAgent:
             # if we've lost connection with the submitted run
             # we try to use the state from wandb
             if status == "unknown":
-                is_finished = await job_tracker.check_wandb_run_finished(self._api)
+                is_finished = await job_tracker.check_wandb_run_finished_state(
+                    self._api
+                )
                 if is_finished:
                     return True
             # if the run is preempted, we want to requeue it
