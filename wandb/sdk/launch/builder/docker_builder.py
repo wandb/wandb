@@ -11,18 +11,12 @@ from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
-from .._project_spec import (
-    EntryPoint,
-    LaunchProject,
-    create_metadata_file,
-    get_entry_point_command,
-)
+from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     event_loop_thread_exec,
-    sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
 from .build import (
@@ -155,14 +149,6 @@ class DockerBuilder(AbstractBuilder):
             f"image {image_uri} does not already exist in repository, building."
         )
 
-        entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)
-
-        create_metadata_file(
-            launch_project,
-            image_uri,
-            sanitize_wandb_api_key(" ".join(entry_cmd)),
-            dockerfile_str,
-        )
         build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
         dockerfile = os.path.join(build_ctx_path, _WANDB_DOCKERFILE_NAME)
         try:

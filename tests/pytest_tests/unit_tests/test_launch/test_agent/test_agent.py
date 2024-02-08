@@ -135,13 +135,13 @@ def _setup_requeue(mocker):
     mocker.launch_add = MagicMock()
 
     mocker.project = MagicMock()
-    mocker.patch(
-        "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
-    )
-    mocker.project.return_value.target_entity = "test-entity"
-    mocker.project.return_value.run_id = "test-run-id"
+    mocker.project.target_entity = "test-entity"
+    mocker.project.run_id = "test-run-id"
 
-    mocker.patch("wandb.sdk.launch.agent.agent.fetch_and_validate_project", MagicMock())
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.LaunchProject.from_spec",
+        return_value=mocker.project,
+    )
     mocker.patch(
         "wandb.sdk.launch.agent.agent.loader.builder_from_config",
         return_value=None,
@@ -171,8 +171,9 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
     job_tracker = JobAndRunStatusTracker(
-        mock_job["runQueueItemId"], "test-queue", MagicMock()
+        mock_job["runQueueItemId"], "test-queue", MagicMock(), entity="test-entity"
     )
+    assert job_tracker.entity == "test-entity"
 
     await agent.task_run_job(
         launch_spec=mock_launch_spec,
