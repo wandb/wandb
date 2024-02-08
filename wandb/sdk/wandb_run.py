@@ -1420,8 +1420,7 @@ class Run:
     def _get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
         if len(keys) == 1:
             return d[keys[0]]
-        else:
-            return self._get_nested_value(d[keys[0]], keys[1:])
+        return self._get_nested_value(d[keys[0]], keys[1:])
 
     def _set_nested_value(
         self, d: Dict[str, Any], keys: List[str], value: Any, split_table: bool
