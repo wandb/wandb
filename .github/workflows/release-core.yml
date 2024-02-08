@@ -51,11 +51,11 @@ jobs:
           go version
           gcc --version
 
-      # Necessary for Swift 5.9. Provided in macos-13; see docs at
-      # https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md
-      - name: Use Xcode 15 on MacOS
+      - name: Set up Swift
         if: runner.os == 'MacOS'
-        run: sudo xcode-select -s /Applications/Xcode_15.1.app
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: "5.9"
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
