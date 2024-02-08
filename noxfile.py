@@ -466,7 +466,7 @@ def bump_core_version(session: nox.Session) -> None:
 @nox.session(python=False, name="proto-go")
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
-    _generate_proto_go()
+    _generate_proto_go(session)
 
 
 def _generate_proto_go(session: nox.Session) -> None:
