@@ -61,7 +61,7 @@ def test_launch_build_succeeds(
         lambda: None,
     )
 
-    async def patched_launch_add(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         if not kwargs.get("build"):
             raise Exception(kwargs)
 
@@ -607,7 +607,7 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     ]
     expected_template_variables = {"test_str": "str1", "test_int": 2, "test_num": 2.5}
 
-    async def patched_launch_add(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         # Assert template variables are as expected
         if not isinstance(args[4], dict) or args[4] != expected_template_variables:
             raise Exception(args)

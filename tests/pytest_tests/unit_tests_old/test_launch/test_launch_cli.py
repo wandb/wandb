@@ -179,28 +179,27 @@ def test_launch_cli_with_config_file_and_params(
 def test_launch_cli_with_priority(
     runner, mocked_fetchable_git_repo, monkeypatch, live_mock_server
 ):
-    async def patched_asyncio_run(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         pass
 
     monkeypatch.setattr(
-        "asyncio.run",
-        patched_asyncio_run,
+        f"wandb.cli.cli._launch_add",
+        patched_launch_add,
     )
 
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch,
-            [
-                "--job",
-                "test/test/test:latest",
-                "--queue",
-                "prioritized",
-                "--priority",
-                "critical",
-            ],
-        )
-        print(result.output)
-        assert result.exit_code == 0
+    result = runner.invoke(
+        cli.launch,
+        [
+            "--job",
+            "test/test/test:latest",
+            "--queue",
+            "prioritized",
+            "--priority",
+            "critical",
+        ],
+    )
+    print(result.output)
+    assert result.exit_code == 0
 
 
 def test_launch_cli_with_config_and_params(
