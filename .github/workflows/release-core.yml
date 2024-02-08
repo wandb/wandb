@@ -51,12 +51,6 @@ jobs:
           go version
           gcc --version
 
-      # Necessary for Swift 5.9. Provided in macos-13; see docs at
-      # https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md
-      - name: Use Xcode 15 on MacOS
-        if: runner.os == 'MacOS'
-        run: sudo xcode-select -s /Applications/Xcode_15.1.app
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
         with:
@@ -66,7 +60,7 @@ jobs:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
           CIBW_BEFORE_ALL: >
             pip install -r ./requirements_tools.txt &&
-            ./wini build wandb-core-artifacts
+            ./wini build wandb-core-artifacts --skip-swift-build
           CIBW_BEFORE_ALL_LINUX: >
             python core/scripts/build/install_go.py &&
             pip install -r ./requirements_tools.txt &&
@@ -77,25 +71,6 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
-
-          # Skip `delocate` step (https://github.com/matthew-brett/delocate).
-          #
-          # On MacOS, the repair command uses `delocate` by default. Unfortunately,
-          # possibly due to containerization, the Swift compiler outputs standard
-          # Swift libraries as "@rpath/" entries rather than "/usr/lib/swift/".
-          # `delocate` is hard-coded to skip system paths, but for @rpath it tries
-          # to search for the referenced libraries. Those libraries do not actually
-          # exist in /usr/lib/swift/ even on my personal Mac, which doesn't seem
-          # to be a problem for the binary, but `delocate` fails because it can't
-          # find them.
-          #
-          # To list referenced libraries in a compiled executable:
-          #   otool -L AppleStats
-          #
-          # To see load commands, where "LC_RPATH" entries are the paths that
-          # are searched when a library is loaded with "@rpath/...":
-          #   otool -l AppleStats
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
 
 # TODO: build sdist
 #      - name: Build sdist
