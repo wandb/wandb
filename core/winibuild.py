@@ -2,10 +2,9 @@
 
 import os
 import pathlib
-import subprocess
 from typing import Mapping
 
-from tools.wini import workspace
+from tools.wini import subprocess, workspace
 
 
 def build_wandb_core(
@@ -26,17 +25,18 @@ def build_wandb_core(
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
-    cmd = [
-        "go",
-        "build",
-        *coverage_flags,
-        *ld_flags,
-        *output_flags,
-        "cmd/wandb-core/main.go",
-    ]
-
-    print(f"Running: {cmd}")
-    subprocess.check_call(cmd, cwd="./core", env=_go_env())
+    subprocess.check_call(
+        [
+            "go",
+            "build",
+            *coverage_flags,
+            *ld_flags,
+            *output_flags,
+            "cmd/wandb-core/main.go",
+        ],
+        cwd="./core",
+        env=_go_env(),
+    )
 
 
 def _go_linker_flags() -> str:
