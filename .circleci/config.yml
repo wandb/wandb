@@ -716,7 +716,7 @@ jobs:
         type: string
         default: ""
     macos:
-      xcode: 14.3.1
+      xcode: 15.0.1
     resource_class: macos.m1.medium.gen1
     parallelism: << parameters.parallelism >>
     environment:
