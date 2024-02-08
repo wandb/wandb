@@ -57,18 +57,6 @@ jobs:
         if: runner.os == 'MacOS'
         run: sudo xcode-select -s /Applications/Xcode_15.1.app
 
-      # Macs before macOS 14.4 don't include the Swift runtime libraries,
-      # so we have to download them directly. cibuildwheel has a step to
-      # "delocate" dynamic libraries referenced by the wheel---i.e. to
-      # copy them into the wheel---and this step fails if the runtime
-      # libraries are not present on the system.
-      #
-      # Cask source code https://github.com/thii/homebrew-swift-runtime
-      # Delocate package: https://github.com/matthew-brett/delocate
-      - name: Install Swift runtime libraries
-        if: runner.os == 'MacOS'
-        run: brew install --cask ./casks/swift-runtime.rb
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
         with:

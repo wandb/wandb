@@ -20,6 +20,7 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
         "release",
         "-Xswiftc",
         "-cross-module-optimization",
+        "--static-swift-stdlib",
     ]
 
     source_path = pathlib.PurePath("./core/pkg/monitor/apple")
