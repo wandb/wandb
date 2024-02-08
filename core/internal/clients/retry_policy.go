@@ -15,15 +15,15 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
-		return false, nil
+		return false, err
 	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
-		return false, nil
+		return false, err
 	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
-		return false, nil
+		return false, err
 	case statusCode == http.StatusNotFound: // don't retry on 404 not found
-		return false, nil
+		return false, err
 	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
-		return true, nil
+		return true, err
 	default: // use default retry policy for all other status codes
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
@@ -33,11 +33,11 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
-		return false, nil
+		return false, err
 	case statusCode == http.StatusConflict: // retry on 409 Conflict
-		return true, nil
+		return true, err
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
-		return false, nil
+		return false, err
 	default: // use default retry policy for all other status codes
 		return DefaultRetryPolicy(ctx, resp, err)
 	}
