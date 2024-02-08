@@ -67,7 +67,7 @@ jobs:
       # Delocate package: https://github.com/matthew-brett/delocate
       - name: Install Swift runtime libraries
         if: runner.os == 'MacOS'
-        run: brew cask install thii/swift-runtime/swift-runtime
+        run: brew install --cask ./casks/swift-runtime.rb
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
