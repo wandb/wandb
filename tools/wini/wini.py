@@ -40,7 +40,11 @@ def build_wandb_core_artifacts(with_coverage, skip_swift_build):
     )
 
 
-def _build_wandb_core_artifacts(*, with_coverage, skip_swift_build):
+def _build_wandb_core_artifacts(
+    *,
+    with_coverage,
+    skip_swift_build=False,
+):
     build_core.build_wandb_core(
         output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
         with_code_coverage=with_coverage,
