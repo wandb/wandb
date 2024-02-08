@@ -55,7 +55,7 @@ jobs:
       # https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md
       - name: Use Xcode 15 on MacOS
         if: runner.os == 'MacOS'
-        run: sudo xcode-select -s /Applications/Xcode_15.1
+        run: sudo xcode-select -s /Applications/Xcode_15.1.app
 
       # Macs before macOS 14.4 don't include the Swift runtime libraries,
       # so we have to download them directly. cibuildwheel has a step to
