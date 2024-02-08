@@ -10,7 +10,7 @@ import wandb
 from wandb.apis.internal import Api
 
 from . import loader
-from ._project_spec import create_project_from_spec, fetch_and_validate_project
+from ._project_spec import LaunchProject
 from .agent import LaunchAgent
 from .builder.build import construct_agent_configs
 from .environment.local_environment import LocalEnvironment
@@ -221,8 +221,8 @@ async def _launch(
         author=None,
     )
     validate_launch_spec_source(launch_spec)
-    launch_project = create_project_from_spec(launch_spec, api)
-    launch_project = fetch_and_validate_project(launch_project, api)
+    launch_project = LaunchProject.from_spec(launch_spec, api)
+    launch_project.fetch_and_validate_project()
     entrypoint = launch_project.get_single_entry_point()
     image_uri = launch_project.docker_image  # Either set by user or None.
 

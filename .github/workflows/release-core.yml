@@ -51,11 +51,23 @@ jobs:
           go version
           gcc --version
 
-      - name: Set up Swift
+      # Necessary for Swift 5.9. Provided in macos-13; see docs at
+      # https://github.com/actions/runner-images/blob/main/images/macos/macos-13-Readme.md
+      - name: Use Xcode 15 on MacOS
         if: runner.os == 'MacOS'
-        uses: swift-actions/setup-swift@v1
-        with:
-          swift-version: "5.9"
+        run: sudo xcode-select -s /Applications/Xcode_15.1
+
+      # Macs before macOS 14.4 don't include the Swift runtime libraries,
+      # so we have to download them directly. cibuildwheel has a step to
+      # "delocate" dynamic libraries referenced by the wheel---i.e. to
+      # copy them into the wheel---and this step fails if the runtime
+      # libraries are not present on the system.
+      #
+      # Cask source code https://github.com/thii/homebrew-swift-runtime
+      # Delocate package: https://github.com/matthew-brett/delocate
+      - name: Install Swift runtime libraries
+        if: runner.os == 'MacOS'
+        run: brew cask install thii/swift-runtime/swift-runtime
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.15.0
