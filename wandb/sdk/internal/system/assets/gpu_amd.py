@@ -30,10 +30,10 @@ ROCM_SMI_CMD: Final[str] = shutil.which("rocm-smi") or "/usr/bin/rocm-smi"
 
 def get_rocm_smi_stats() -> Dict[str, Any]:
     command = [str(ROCM_SMI_CMD), "-a", "--json"]
-    output = (
-        subprocess.check_output(command, universal_newlines=True).strip().split("\n")
-    )[0]
-    return json.loads(output)  # type: ignore
+    output = subprocess.check_output(command, universal_newlines=True).strip()
+    if "No AMD GPUs specified" in output:
+        return {}
+    return json.loads(output.split("\n")[0])  # type: ignore
 
 
 _StatsKeys = Literal[
@@ -166,13 +166,29 @@ class GPUAMD:
     @classmethod
     def is_available(cls) -> bool:
         rocm_smi_available = shutil.which(ROCM_SMI_CMD) is not None
-        if rocm_smi_available:
-            try:
-                _ = get_rocm_smi_stats()
-                return True
-            except Exception:
-                pass
-        return False
+        if not rocm_smi_available:
+            # If rocm-smi is not available, we can't monitor AMD GPUs
+            return False
+
+        is_driver_initialized = False
+
+        try:
+            # inspired by https://github.com/ROCm/rocm_smi_lib/blob/5d2cd0c2715ae45b8f9cfe1e777c6c2cd52fb601/python_smi_tools/rocm_smi.py#L71C1-L81C17
+            with open("/sys/module/amdgpu/initstate") as file:
+                file_content = file.read()
+                if "live" in file_content:
+                    is_driver_initialized = True
+        except FileNotFoundError:
+            pass
+
+        can_read_rocm_smi = False
+        try:
+            if get_rocm_smi_stats():
+                can_read_rocm_smi = True
+        except Exception:
+            pass
+
+        return is_driver_initialized and can_read_rocm_smi
 
     def start(self) -> None:
         self.metrics_monitor.start()
