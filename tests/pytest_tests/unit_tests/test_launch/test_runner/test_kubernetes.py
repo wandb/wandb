@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
+from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
@@ -23,6 +24,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     add_entrypoint_args_overrides,
     add_label_to_pods,
     add_wandb_env,
+    ensure_api_key_secret,
     maybe_create_imagepull_secret,
 )
 
@@ -227,6 +229,7 @@ class MockCoreV1Api:
     def __init__(self):
         self.pods = dict()
         self.secrets = []
+        self.calls = {"delete": 0}
 
     async def list_namespaced_pod(
         self, label_selector=None, namespace="default", field_selector=None
@@ -240,10 +243,25 @@ class MockCoreV1Api:
         return self.pods[name]
 
     async def delete_namespaced_secret(self, namespace, name):
-        pass
+        self.secrets = list(
+            filter(
+                lambda s: not (s[0] == namespace and s[1].metadata.name == name),
+                self.secrets,
+            )
+        )
+        self.calls["delete"] += 1
 
     async def create_namespaced_secret(self, namespace, body):
+        for s in self.secrets:
+            if s[0] == namespace and s[1].metadata.name == body.metadata.name:
+                raise ApiException(status=409)
+
         self.secrets.append((namespace, body))
+
+    async def read_namespaced_secret(self, namespace, name):
+        for s in self.secrets:
+            if s[0] == namespace and s[1].metadata.name == name:
+                return s[1]
 
 
 class MockCustomObjectsApi:
@@ -368,7 +386,7 @@ def mock_maybe_create_image_pullsecret(monkeypatch):
 def mock_create_from_dict(monkeypatch):
     """Patches the kubernetes create_from_dict with a mock and returns it."""
     function_mock = MagicMock()
-    function_mock.return_value = [[MockDict({"metadata": {"name": "test-job"}})]]
+    function_mock.return_value = [MockDict({"metadata": {"name": "test-job"}})]
 
     async def _mock_create_from_yaml(*args, **kwargs):
         return function_mock(*args, **kwargs)
@@ -694,17 +712,53 @@ async def test_maybe_create_imagepull_secret_given_creds():
     ).decode("utf-8")
 
 
+@pytest.mark.asyncio
+async def test_create_api_key_secret():
+    api = MockCoreV1Api()
+    await ensure_api_key_secret(api, "wandb-api-key-testagent", "wandb", "testsecret")
+    namespace, secret = api.secrets[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "wandb-api-key-testagent"
+    assert secret.data["password"] == base64.b64encode(b"testsecret").decode()
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_secret_exists():
+    api = MockCoreV1Api()
+
+    # Create secret with same name but different data, assert it gets overwritten
+    secret_data = "bad data"
+    labels = {"wandb.ai/created-by": "launch-agent"}
+    secret = client.V1Secret(
+        data=secret_data,
+        metadata=client.V1ObjectMeta(
+            name="wandb-api-key-testagent", namespace="wandb", labels=labels
+        ),
+        kind="Secret",
+        type="kubernetes.io/basic-auth",
+    )
+    await api.create_namespaced_secret("wandb", secret)
+
+    await ensure_api_key_secret(api, "wandb-api-key-testagent", "wandb", "testsecret")
+    namespace, secret = api.secrets[0]
+    assert namespace == "wandb"
+    assert secret.metadata.name == "wandb-api-key-testagent"
+    assert secret.data["password"] == base64.b64encode(b"testsecret").decode()
+    assert api.calls["delete"] == 1
+
+
 # Test monitor class.
 
 
-def job_factory(name, statuses):
+def job_factory(name, statuses, type="MODIFIED"):
     """Factory for creating job events."""
     return MockDict(
         {
+            "type": f"{type}",
             "object": {
                 "status": {f"{status}": 1 for status in statuses},
                 "metadata": {"name": name},
-            }
+            },
         }
     )
 
@@ -831,6 +885,26 @@ async def test_monitor_running(
     )
     await asyncio.sleep(0.1)
     assert LaunchKubernetesMonitor.get_status("job-name").state == "running"
+
+
+@pytest.mark.asyncio
+async def test_monitor_job_deleted(
+    mock_event_streams,
+    mock_kube_context_and_api_client,
+    mock_batch_api,
+    mock_core_api,
+    clean_monitor,
+):
+    """Test if the monitor thread detects a job being deleted."""
+    await LaunchKubernetesMonitor.ensure_initialized()
+    LaunchKubernetesMonitor.monitor_namespace("wandb")
+    job_event_stream, pod_event_stream = mock_event_streams
+    await asyncio.sleep(0.1)
+    await pod_event_stream.add(pod_factory("ADDED", "job-name", [], []))
+    await asyncio.sleep(0.1)
+    await job_event_stream.add(job_factory("job-name", ["active"], type="DELETED"))
+    await asyncio.sleep(0.1)
+    assert LaunchKubernetesMonitor.get_status("job-name").state == "failed"
 
 
 # Test util functions

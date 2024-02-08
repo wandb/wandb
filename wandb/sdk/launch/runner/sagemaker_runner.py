@@ -239,7 +239,7 @@ class SageMakerRunner(AbstractRunner):
             launch_project,
             self._api,
             role_arn,
-            launch_project.override_entrypoint,
+            entry_point,
             launch_project.override_args,
             MAX_ENV_LENGTHS[self.__class__.__name__],
             image_uri,

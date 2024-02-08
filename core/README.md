@@ -29,6 +29,11 @@ Note: ensure you have `wandb>=0.16.1`.
 
 For other platforms, build `wandb-core` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
 
+### W&B Server Compatibility
+
+`wandb-core` is compatible with our production and dedicated cloud deployments as well as
+[W&B Server](https://docs.wandb.ai/guides/hosting) versions `>=0.40.0`.
+
 ### Switching Back to the Old SDK Backend
 
 To revert to the old SDK backend, simply uninstall `wandb-core` from your environment:
@@ -46,7 +51,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b6`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b8`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -93,8 +98,8 @@ Status legend:
 |             | `<other commands>`| 🚧[^CLI.2]      |
 | Artifacts   |                   | ✅               |
 | Sweeps      |                   | ✅               |
-| Launch      |                   | ❌[^L.1]         |
-|             | Sweeps on Launch  | ❌[^L.1]         |
+| Launch      |                   | ✅               |
+|             | Sweeps on Launch  | 🚧[^L.1]         |
 
 [^E.1]: `sync_tensorboard` only uploads `tfevent` files to W&B, but
     metrics will not be logged in native W&B charts.
@@ -106,4 +111,4 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Launch is not yet supported.
+[^L.1]: Sweeps on Launch requires verification.
