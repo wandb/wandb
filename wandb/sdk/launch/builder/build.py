@@ -386,8 +386,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
             )
 
         if not pip_install_line:
-            wandb.termwarn("No python dependency files found, only installing wandb.")
-            pip_install_line = "pip install --upgrade wandb"
+            raise LaunchError(f"No dependency sources found for {launch_project}")
 
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"

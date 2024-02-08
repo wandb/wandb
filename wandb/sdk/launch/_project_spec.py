@@ -173,7 +173,11 @@ class LaunchProject:
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-        self.aux_dir = tempfile.mkdtemp()
+    def __repr__(self) -> str:
+        """String representation of LaunchProject."""
+        if self.source == LaunchSource.JOB:
+            return f"{self.job}"
+        return self.uri
 
     @classmethod
     def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
