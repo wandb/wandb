@@ -6,7 +6,6 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -15,6 +14,8 @@ from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
+
+from ._project_spec import LaunchProject
 
 
 def push_to_queue(
@@ -183,8 +184,7 @@ def _launch_add(
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
 
-        launch_project = create_project_from_spec(launch_spec, api)
-
+        launch_project = LaunchProject.from_spec(launch_spec, api)
         docker_image_uri = asyncio.run(
             build_image_from_project(launch_project, api, config or {})
         )
