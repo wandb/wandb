@@ -15,8 +15,8 @@ This step is not required, but it is highly recommended.
 To install wandb-core, you will need to run the following commands (assuming you are in the
 root of the repository):
 ```shell
-pip install -r requirements_build.txt  # Install build dependencies, if needed
-nox -s build-core install-core
+pip install -r requirements_tools.txt  # For running wini.
+./wini package wandb-core --install
 ```
 This will build wandb-core for your current platform and install it into your current Python environment.
 Note that every time you make a change to the code, you will need to re-run this command to install
