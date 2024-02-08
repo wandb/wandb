@@ -177,7 +177,7 @@ class LaunchProject:
         """String representation of LaunchProject."""
         if self.source == LaunchSource.JOB:
             return f"{self.job}"
-        return self.uri
+        return f"{self.uri}"
 
     @classmethod
     def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
