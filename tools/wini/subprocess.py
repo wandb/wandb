@@ -1,7 +1,7 @@
 """Wrappers around `subprocess` for wini that print debug info."""
 
 import subprocess
-from typing import List, Mapping
+from typing import List, Mapping, Optional
 
 from . import print
 
@@ -9,8 +9,8 @@ from . import print
 def check_call(
     cmd: List[str],
     *,
-    cwd: str | None = None,
-    env: Mapping[str, str] | None = None,
+    cwd: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
 ) -> None:
     """Invokes `subprocess.check_call`.
 
