@@ -1,13 +1,13 @@
 """Wrappers around `subprocess` for wini that print debug info."""
 
 import subprocess
-from typing import Mapping
+from typing import List, Mapping
 
 from . import print
 
 
 def check_call(
-    cmd: list[str],
+    cmd: List[str],
     *,
     cwd: str | None = None,
     env: Mapping[str, str] | None = None,
@@ -33,7 +33,7 @@ def check_call(
     )
 
 
-def run(cmd: list[str]) -> None:
+def run(cmd: List[str]) -> None:
     """Invokes `subprocess.run`.
 
     Args:

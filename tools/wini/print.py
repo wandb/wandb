@@ -1,5 +1,7 @@
 """Terminal output functions for wini."""
 
+from typing import List
+
 import rich
 from rich.padding import Padding
 from rich.pretty import Pretty
@@ -13,7 +15,7 @@ def info(msg: str) -> None:
     rich.print(text)
 
 
-def command(parts: list[str]) -> None:
+def command(parts: List[str]) -> None:
     """Prints out a terminal command."""
     rich.print(Padding(Pretty(parts), (0, 2)))
 
