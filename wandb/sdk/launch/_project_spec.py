@@ -44,7 +44,22 @@ class EntrypointDefaults(List[str]):
 
 
 class LaunchProject:
-    """A launch project specification."""
+    """A launch project specification.
+
+    The LaunchProject is initialized from a raw launch spec an internal API
+    object. The project encapsulates logic for taking a launch spec and converting
+    it into the executable code.
+
+    The LaunchProject needs to ultimately produce a full container spec for
+    execution in docker, k8s, sagemaker, or vertex. This container spec includes:
+    - container image uri
+    - environment variables for configuring wandb etc.
+    - entrypoint command and arguments
+    - additional arguments specific to the target resource (e.g. instance type, node selector)
+
+    This class is stateful and certain methods can only be called after
+    `LaunchProject.fetch_and_validate_project()` has been called.
+    """
 
     def __init__(
         self,
@@ -120,7 +135,7 @@ class LaunchProject:
         if override_entrypoint:
             _logger.info("Adding override entry point")
             self.override_entrypoint = EntryPoint(
-                name=self._get_entrypoint_file(override_entrypoint),
+                name=_get_entrypoint_file(override_entrypoint),
                 command=override_entrypoint,
             )
 
@@ -158,20 +173,38 @@ class LaunchProject:
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-    @property
-    def base_image(self) -> str:
-        """Returns {PROJECT}_base:{PYTHON_VERSION}."""
-        # TODO: this should likely be source_project when we have it...
+        self.aux_dir = tempfile.mkdtemp()
 
-        # don't make up a separate base image name if user provides a docker image
-        if self.docker_image is not None:
-            return self.docker_image
+    @classmethod
+    def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
+        """Constructs a LaunchProject instance using a launch spec.
 
-        python_version = (self.python_version or "3").replace("+", "dev")
-        generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), python_version
+        Arguments:
+            launch_spec: Dictionary representation of launch spec
+            api: Instance of wandb.apis.internal Api
+
+        Returns:
+            An initialized `LaunchProject` object
+        """
+        name: Optional[str] = None
+        if launch_spec.get("name"):
+            name = launch_spec["name"]
+        return LaunchProject(
+            launch_spec.get("uri"),
+            launch_spec.get("job"),
+            api,
+            launch_spec,
+            launch_spec["entity"],
+            launch_spec["project"],
+            name,
+            launch_spec.get("docker", {}),
+            launch_spec.get("git", {}),
+            launch_spec.get("overrides", {}),
+            launch_spec.get("resource", None),
+            launch_spec.get("resource_args", {}),
+            launch_spec.get("run_id", None),
+            launch_spec.get("sweep_id", {}),
         )
-        return self._base_image or generated_name
 
     @property
     def image_name(self) -> str:
@@ -210,15 +243,6 @@ class LaunchProject:
     @run_queue_item_id.setter
     def run_queue_item_id(self, value: str) -> None:
         self._run_queue_item_id = value
-
-    def _get_entrypoint_file(self, entrypoint: List[str]) -> Optional[str]:
-        if not entrypoint:
-            return None
-        if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
-            return entrypoint[0]
-        if len(entrypoint) < 2:
-            return None
-        return entrypoint[1]
 
     def fill_macros(self, image: str) -> Dict[str, Any]:
         """Substitute values for macros in resource arguments.
@@ -273,10 +297,25 @@ class LaunchProject:
 
     @property
     def docker_image(self) -> Optional[str]:
+        """Returns the Docker image associated with this LaunchProject.
+
+        This will only be set if an image_uri is being run outside a job.
+
+        Returns:
+            Optional[str]: The Docker image or None if not specified.
+        """
         return self._docker_image
 
     @docker_image.setter
     def docker_image(self, value: str) -> None:
+        """Sets the Docker image for the project.
+
+        Args:
+            value (str): The Docker image to set.
+
+        Returns:
+            None
+        """
         self._docker_image = value
         self._ensure_not_docker_image_and_local_process()
 
@@ -301,24 +340,39 @@ class LaunchProject:
         self._entry_point = new_entrypoint
         return new_entrypoint
 
-    def _ensure_not_docker_image_and_local_process(self) -> None:
-        if self.docker_image is not None and self.resource == "local-process":
-            raise LaunchError(
-                "Cannot specify docker image with local-process resource runner"
-            )
+    def fetch_and_validate_project(self) -> None:
+        """Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
 
-    def _fetch_job(self) -> None:
-        public_api = wandb.apis.public.Api()
-        job_dir = tempfile.mkdtemp()
-        try:
-            job = public_api.job(self.job, path=job_dir)
-        except CommError as e:
-            msg = e.message
-            raise LaunchError(
-                f"Error accessing job {self.job}: {msg} on {public_api.settings.get('base_url')}"
-            )
-        job.configure_launch_project(self)
-        self._job_artifact = job._job_artifact
+        Arguments:
+            launch_project: LaunchProject to fetch and validate.
+            api: Instance of wandb.apis.internal Api
+
+        Returns:
+            A validated `LaunchProject` object.
+
+        """
+        if self.source == LaunchSource.DOCKER:
+            return
+        if self.source == LaunchSource.LOCAL:
+            if not self._entry_point:
+                wandb.termlog(
+                    f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
+                )
+                self.set_entry_point(EntrypointDefaults.PYTHON)
+        elif self.source == LaunchSource.JOB:
+            self._fetch_job()
+        else:
+            self._fetch_project_local(internal_api=self.api)
+
+        assert self.project_dir is not None
+        # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
+        # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+        if os.path.exists(
+            os.path.join(self.project_dir, "requirements.txt")
+        ) or os.path.exists(os.path.join(self.project_dir, "requirements.frozen.txt")):
+            self.deps_type = "pip"
+        elif os.path.exists(os.path.join(self.project_dir, "environment.yml")):
+            self.deps_type = "conda"
 
     def get_image_source_string(self) -> str:
         """Returns a unique string identifying the source of an image."""
@@ -344,6 +398,35 @@ class LaunchProject:
             return self.docker_image
         else:
             raise LaunchError("Unknown source type when determing image source string")
+
+    def _ensure_not_docker_image_and_local_process(self) -> None:
+        """Ensure that docker image is not specified with local-process resource runner.
+
+        Raises:
+            LaunchError: If docker image is specified with local-process resource runner.
+        """
+        if self.docker_image is not None and self.resource == "local-process":
+            raise LaunchError(
+                "Cannot specify docker image with local-process resource runner"
+            )
+
+    def _fetch_job(self) -> None:
+        """Fetches the job details from the public API and configures the launch project.
+
+        Raises:
+            LaunchError: If there is an error accessing the job.
+        """
+        public_api = wandb.apis.public.Api()
+        job_dir = tempfile.mkdtemp()
+        try:
+            job = public_api.job(self.job, path=job_dir)
+        except CommError as e:
+            msg = e.message
+            raise LaunchError(
+                f"Error accessing job {self.job}: {msg} on {public_api.settings.get('base_url')}"
+            )
+        job.configure_launch_project(self)
+        self._job_artifact = job._job_artifact
 
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
@@ -449,6 +532,24 @@ class LaunchProject:
                 self.git_version = branch_name
 
 
+def _get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+    """Get the entrypoint file from the given command.
+
+    Args:
+        entrypoint (List[str]): List of command and arguments.
+
+    Returns:
+        Optional[str]: The entrypoint file if found, otherwise None.
+    """
+    if not entrypoint:
+        return None
+    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+        return entrypoint[0]
+    if len(entrypoint) < 2:
+        return None
+    return entrypoint[1]
+
+
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
@@ -479,75 +580,3 @@ def get_entry_point_command(
     if entry_point is None:
         return []
     return entry_point.compute_command(parameters)
-
-
-def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
-    """Constructs a LaunchProject instance using a launch spec.
-
-    Arguments:
-    launch_spec: Dictionary representation of launch spec
-    api: Instance of wandb.apis.internal Api
-
-    Returns:
-        An initialized `LaunchProject` object
-    """
-    name: Optional[str] = None
-    if launch_spec.get("name"):
-        name = launch_spec["name"]
-    return LaunchProject(
-        launch_spec.get("uri"),
-        launch_spec.get("job"),
-        api,
-        launch_spec,
-        launch_spec["entity"],
-        launch_spec["project"],
-        name,
-        launch_spec.get("docker", {}),
-        launch_spec.get("git", {}),
-        launch_spec.get("overrides", {}),
-        launch_spec.get("resource", None),
-        launch_spec.get("resource_args", {}),
-        launch_spec.get("run_id", None),
-        launch_spec.get("sweep_id", {}),
-    )
-
-
-def fetch_and_validate_project(
-    launch_project: LaunchProject, api: Api
-) -> LaunchProject:
-    """Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
-
-    Arguments:
-    launch_project: LaunchProject to fetch and validate.
-    api: Instance of wandb.apis.internal Api
-
-    Returns:
-        A validated `LaunchProject` object.
-
-    """
-    if launch_project.source == LaunchSource.DOCKER:
-        return launch_project
-    if launch_project.source == LaunchSource.LOCAL:
-        if not launch_project._entry_point:
-            wandb.termlog(
-                f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
-            )
-            launch_project.set_entry_point(EntrypointDefaults.PYTHON)
-    elif launch_project.source == LaunchSource.JOB:
-        launch_project._fetch_job()
-    else:
-        launch_project._fetch_project_local(internal_api=api)
-
-    assert launch_project.project_dir is not None
-    # this prioritizes pip, and we don't support any cases where both are present conda projects when uploaded to
-    # wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
-    if os.path.exists(
-        os.path.join(launch_project.project_dir, "requirements.txt")
-    ) or os.path.exists(
-        os.path.join(launch_project.project_dir, "requirements.frozen.txt")
-    ):
-        launch_project.deps_type = "pip"
-    elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
-        launch_project.deps_type = "conda"
-
-    return launch_project
