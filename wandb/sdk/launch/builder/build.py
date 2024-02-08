@@ -25,12 +25,7 @@ from wandb.sdk.launch.loader import (
 )
 from wandb.util import get_module
 
-from .._project_spec import (
-    EntryPoint,
-    EntrypointDefaults,
-    LaunchProject,
-    fetch_and_validate_project,
-)
+from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
@@ -647,7 +642,7 @@ async def build_image_from_project(
     if not builder:
         raise LaunchError("Unable to build image. No builder found.")
 
-    launch_project = fetch_and_validate_project(launch_project, api)
+    launch_project.fetch_and_validate_project()
 
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name=EntrypointDefaults.PYTHON[-1],
