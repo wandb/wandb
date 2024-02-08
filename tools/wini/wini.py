@@ -28,22 +28,26 @@ def build():
 
 @build.command(name="wandb-core-artifacts")
 @click.option("--coverage", "with_coverage", is_flag=True, default=False)
-def build_wandb_core_artifacts(with_coverage):
+@click.option("--skip-swift-build", is_flag=True, default=False)
+def build_wandb_core_artifacts(with_coverage, skip_swift_build):
     """Builds artifacts to include in the wandb-core wheel.
 
     The artifacts are stored in ./core/wandb_core/ to be included in the
     wandb-core Python wheel.
     """
-    _build_wandb_core_artifacts(with_coverage=with_coverage)
+    _build_wandb_core_artifacts(
+        with_coverage=with_coverage,
+        skip_swift_build=skip_swift_build,
+    )
 
 
-def _build_wandb_core_artifacts(*, with_coverage):
+def _build_wandb_core_artifacts(*, with_coverage, skip_swift_build):
     build_core.build_wandb_core(
         output_path=pathlib.PurePath("./core/wandb_core/wandb-core"),
         with_code_coverage=with_coverage,
     )
 
-    if workspace.target_os() == workspace.OS.DARWIN:
+    if workspace.target_os() == workspace.OS.DARWIN and not skip_swift_build:
         build_applestats.build_applestats(
             output_path=pathlib.PurePath("./core/wandb_core/AppleStats")
         )
