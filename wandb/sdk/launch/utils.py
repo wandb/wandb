@@ -849,7 +849,6 @@ def fetch_and_validate_template_variables(
 
 class CliFormatter(logging.Formatter):
     prefix = f"{click.style('wandb:', 'blue')} {click.style('launch:', 'magenta')}"
-    emojis = {}
 
     def format(self, record: logging.LogRecord):
         return f"{self.prefix} {record.getMessage()}"
