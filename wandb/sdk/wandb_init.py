@@ -197,10 +197,8 @@ class _WandbInit:
         # TODO(kdg): allow users to control this via launch settings
         if self._wl.settings.launch and singleton is not None:
             if self._wl.settings.get("run_id") is not None:
-                print("PATH 1")
                 self._wl.settings.update({"run_id": None}, source=Source.INIT)
             else:
-                print("PATH 2")
                 self._wl.settings.update(
                     {"run_id": os.environ.get("WANDB_RUN_ID")}, source=Source.INIT
                 )
