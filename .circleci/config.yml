@@ -266,15 +266,6 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
-executors:
-  macos:
-    macos: {xcode: 15.0.1}
-    resource_class: macos.m1.medium.gen1
-
-  docker-python310:
-    docker: [image: "python:3.10"]
-    resource_class: xlarge
-
 jobs:
   regression:
     parameters:
@@ -352,13 +343,26 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
-  unit-tests-sdk:
+  unit-tests-new:
     parameters:
       python_version_major: {type: integer}
       python_version_minor: {type: integer}
       with_core: {type: boolean}
+      tests:
+        type: enum
+        enum: [sdk, other]
+
     docker:
       - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+
+    # We're testing some heavy "units". Ideally we would use the default,
+    # but for that we must pare down the unit tests.
+    resource_class: xlarge
+
+    # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
+    # https://circleci.com/docs/parallelism-faster-jobs/
+    parallelism: 2
+
     steps:
       - checkout
       - install_go
@@ -374,20 +378,44 @@ jobs:
           command: pip install -U tox nox pip
           no_output_timeout: 5m
 
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            CI_PYTEST_SPLIT_ARGS=" \
-              --splits $CIRCLE_NODE_TOTAL \
-              --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-            tox run -v \
-              -e <<#parameters.with_core>>core-<</parameters.with_core
-                >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-              -- \
-              tests/pytest_tests/unit_tests/ \
-              --ignore tests/pytest_tests/unit_tests/test_launch/ \
-              --ignore tests/pytest_tests/unit_tests/test_reports/
+      # For now, this step needs to be duplicated because there's no way
+      # in YAML or CircleCI's config to change just the final argument to
+      # tox run. Ideally, we would just pass "sdk" or "other" directly to
+      # the test command, and have it decide on the paths to run.
+      - when:
+          condition: { equal: [tests, "sdk"] }
+          steps:
+            - run:
+                name: Run tests owned by SDK
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS=" \
+                    --splits $CIRCLE_NODE_TOTAL \
+                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v \
+                    -e <<#parameters.with_core>>core-<</parameters.with_core
+                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                    -- \
+                    tests/pytest_tests/unit_tests/ \
+                    --ignore tests/pytest_tests/unit_tests/test_launch/ \
+                    --ignore tests/pytest_tests/unit_tests/test_reports/
+
+      - when:
+          condition: { equal: [tests, "other"] }
+          steps:
+            - run:
+                name: Run tests not owned by SDK
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS=" \
+                    --splits $CIRCLE_NODE_TOTAL \
+                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v \
+                    -e <<#parameters.with_core>>core-<</parameters.with_core
+                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                    -- \
+                    tests/pytest_tests/unit_tests/test_launch/ \
+                    tests/pytest_tests/unit_tests/test_reports/
 
       - run:
           name: Upload code coverage results
@@ -1562,7 +1590,7 @@ workflows:
       #
       # Unit tests with pytest on Linux
       #
-      - unit-tests-sdk:
+      - unit-tests-new:
           requires:
             - unit-tests
           matrix:
@@ -1570,6 +1598,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 12]
               with_core: [true, false]
+              tests: [sdk, other]
 
       #
       # Unit tests with pytest on Windows and MacOS
