@@ -8,7 +8,7 @@ from core.pkg.monitor.apple import winibuild as build_applestats
 
 from . import print, subprocess, workspace
 
-_CORE_WHEEL_DIR = pathlib.Path("./core/dist/")
+_CORE_WHEEL_DIR = pathlib.Path("./.wini/core/")
 """The output directory for the wandb-core wheel."""
 
 
@@ -92,6 +92,7 @@ def package_wandb_core(should_install, with_coverage):
             ]
         )
 
+    _CORE_WHEEL_DIR.mkdir(parents=True)
     subprocess.run(
         [
             "python",
@@ -100,6 +101,8 @@ def package_wandb_core(should_install, with_coverage):
             "-w",  # Only build the wheel.
             "-n",  # Disable building the project in an isolated venv.
             "-x",  # Do not check that build deps are installed.
+            "--outdir",
+            _CORE_WHEEL_DIR,
             "./core",
         ]
     )
