@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import google.auth  # type: ignore
 import google.cloud.artifactregistry  # type: ignore
 
+from wandb import termwarn
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     GCP_ARTIFACT_REGISTRY_URI_REGEX,
@@ -92,6 +93,9 @@ class GoogleArtifactRegistry(AbstractRegistry):
             self.repository = match.group("repository")
             self.image_name = match.group("image_name")
         else:
+            termwarn(
+                "Setting the Google Artifact Registry with repository, region and image-name is deprecated. Please use the uri key."
+            )
             if any(x is None for x in (repository, region, image_name)):
                 raise LaunchError(
                     "The Google Artifact Registry must be specified with either "
