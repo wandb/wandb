@@ -1,5 +1,6 @@
 """Definition of the config object used by the Launch agent."""
 
+import logging
 from enum import Enum
 from typing import List, Optional
 
@@ -12,7 +13,6 @@ from pydantic import (  # type: ignore
     validator,
 )
 
-import wandb
 from wandb.sdk.launch.utils import (
     AZURE_BLOB_REGEX,
     AZURE_CONTAINER_REGISTRY_URI_REGEX,
@@ -21,6 +21,9 @@ from wandb.sdk.launch.utils import (
     GCS_URI_RE,
     S3_URI_RE,
 )
+
+_logger = logging.getLogger(__name__)
+
 
 __all__ = [
     "ValidationError",
@@ -111,7 +114,7 @@ class EnvironmentConfig(BaseModel):
         """Check for extra fields and print a warning."""
         for key in values:
             if key not in ["type", "region"]:
-                wandb.termwarn(
+                _logger.warning(
                     f"Unrecognized field {key} in environment block. Please check your config file."
                 )
         return values

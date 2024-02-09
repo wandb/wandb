@@ -113,7 +113,7 @@ class KubernetesSubmittedRun(AbstractRun):
             )
             pod_names = [pi.metadata.name for pi in pods.items]
             if not pod_names:
-                wandb.termwarn(f"Found no pods for kubernetes job: {self.name}")
+                _logger.warning(f"Found no pods for kubernetes job: {self.name}")
                 return None
             logs = await self.core_api.read_namespaced_pod_log(
                 name=pod_names[0], namespace=self.namespace
@@ -121,10 +121,10 @@ class KubernetesSubmittedRun(AbstractRun):
             if logs:
                 return str(logs)
             else:
-                wandb.termwarn(f"No logs for kubernetes pod(s): {pod_names}")
+                _logger.warning(f"No logs for kubernetes pod(s): {pod_names}")
             return None
         except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+            _logger.error(f"{LOG_PREFIX}Failed to get pod logs: {e}")
             return None
 
     async def wait(self) -> bool:
@@ -135,7 +135,7 @@ class KubernetesSubmittedRun(AbstractRun):
         """
         while True:
             status = await self.get_status()
-            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
+            _logger.info(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
             if status.state in ["finished", "failed", "preempted"]:
                 break
             await asyncio.sleep(5)
@@ -229,7 +229,7 @@ class CrdSubmittedRun(AbstractRun):
                     name=pod_name, namespace=self.namespace
                 )
         except ApiException as e:
-            wandb.termwarn(f"Failed to get logs for {self.name}: {str(e)}")
+            _logger.warning(f"Failed to get logs for {self.name}: {str(e)}")
             return None
         if not logs:
             return None
@@ -259,7 +259,7 @@ class CrdSubmittedRun(AbstractRun):
         """Wait for this custom object to finish running."""
         while True:
             status = await self.get_status()
-            wandb.termlog(f"{LOG_PREFIX}Job {self.name} status: {status}")
+            _logger.info(f"{LOG_PREFIX}Job {self.name} status: {status}")
             if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
             await asyncio.sleep(5)
@@ -476,7 +476,7 @@ class KubernetesRunner(AbstractRunner):
         await LaunchKubernetesMonitor.ensure_initialized()
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
-            wandb.termlog(
+            _logger.info(
                 f"{LOG_PREFIX}Note: no resource args specified. Add a "
                 "Kubernetes yaml spec or other options in a json file "
                 "with --resource-args <json>."

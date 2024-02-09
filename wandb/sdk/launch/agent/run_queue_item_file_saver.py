@@ -1,5 +1,6 @@
 """Implementation of the run queue item file saver class."""
 
+import logging
 import os
 import sys
 from typing import List, Optional, Union
@@ -12,6 +13,8 @@ else:
     from typing_extensions import Literal
 
 FileSubtypes = Literal["warning", "error"]
+
+_logger = logging.getLogger(__name__)
 
 
 class RunQueueItemFileSaver:
@@ -29,7 +32,7 @@ class RunQueueItemFileSaver:
         self, contents: str, fname: str, file_sub_type: FileSubtypes
     ) -> Optional[List[str]]:
         if not isinstance(self.run, wandb.sdk.wandb_run.Run):
-            wandb.termwarn("Not saving file contents because agent has no run")
+            _logger.warning("Not saving file contents because agent has no run")
             return None
         root_dir = self.run._settings.files_dir
         saved_run_path = os.path.join(self.run_queue_item_id, file_sub_type, fname)
@@ -41,7 +44,7 @@ class RunQueueItemFileSaver:
         if isinstance(res, list):
             return [saved_run_path]
         else:
-            wandb.termwarn(
+            _logger.warning(
                 f"Failed to save files for run queue item: {self.run_queue_item_id}"
             )
             return None

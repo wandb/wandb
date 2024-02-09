@@ -99,10 +99,10 @@ def _create_job(
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
-    wandb.termlog(f"Creating launch job of type: {job_type}...")
+    _logger.info(f"Creating launch job of type: {job_type}...")
 
     if name and name != make_artifact_name_safe(name):
-        wandb.termerror(
+        _logger.error(
             f"Artifact names may only contain alphanumeric characters, dashes, underscores, and dots. Did you mean: {make_artifact_name_safe(name)}"
         )
         return None, "", []
@@ -121,7 +121,7 @@ def _create_job(
         if not metadata:
             return None, "", []
     except Exception as e:
-        wandb.termerror(f"Error creating job: {e}")
+        _logger.error(f"Error creating job: {e}")
         return None, "", []
 
     _dump_metadata_and_requirements(
@@ -162,7 +162,7 @@ def _create_job(
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build()
     if not artifact:
-        wandb.termerror("JobBuilder failed to build a job")
+        _logger.error("JobBuilder failed to build a job")
         _logger.debug("Failed to build job, check job source and metadata")
         return None, "", []
 
@@ -235,7 +235,7 @@ def _make_metadata_for_partial_job(
     if job_type == "code":
         path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         if not entrypoint:
-            wandb.termerror(
+            _logger.error(
                 "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
             )
             return None, None
@@ -250,18 +250,18 @@ def _make_metadata_for_partial_job(
 
     if job_type == "image":
         if runtime:
-            wandb.termwarn(
+            _logger.warning(
                 "Setting runtime is not supported for image jobs, ignoring runtime"
             )
         # TODO(gst): support entrypoint for image based jobs
         if entrypoint:
-            wandb.termwarn(
+            _logger.warning(
                 "Setting an entrypoint is not currently supported for image jobs, ignoring entrypoint argument"
             )
         metadata.update({"python": runtime or "", "docker": path})
         return metadata, None
 
-    wandb.termerror(f"Invalid job type: {job_type}")
+    _logger.error(f"Invalid job type: {job_type}")
     return None, None
 
 
@@ -274,15 +274,15 @@ def _create_repo_metadata(
 ) -> Optional[Dict[str, Any]]:
     # Make sure the entrypoint doesn't contain any backward path traversal
     if entrypoint and ".." in entrypoint:
-        wandb.termerror("Entrypoint cannot contain backward path traversal")
+        _logger.error("Entrypoint cannot contain backward path traversal")
         return None
     if not _is_git_uri(path):
-        wandb.termerror("Path must be a git URI")
+        _logger.error("Path must be a git URI")
         return None
 
     ref = GitReference(path, git_hash)
     if not ref:
-        wandb.termerror("Could not parse git URI")
+        _logger.error("Could not parse git URI")
         return None
 
     ref.fetch(tempdir)
@@ -290,7 +290,7 @@ def _create_repo_metadata(
     commit = ref.commit_hash
     if not commit:
         if not ref.commit_hash:
-            wandb.termerror("Could not find git commit hash")
+            _logger.error("Could not find git commit hash")
             return None
         commit = ref.commit_hash
 
@@ -312,7 +312,7 @@ def _create_repo_metadata(
     # check if entrypoint is valid
     assert entrypoint is not None
     if not os.path.exists(os.path.join(local_dir, entrypoint)):
-        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
+        _logger.error(f"Entrypoint {entrypoint} not found in git repo")
         return None
 
     # check if requirements.txt exists
@@ -325,7 +325,7 @@ def _create_repo_metadata(
 
     # If there is a Dockerfile.wandb in the starting rec dir, don't require a requirements.txt
     if os.path.exists(os.path.join(req_dir, "Dockerfile.wandb")):
-        wandb.termlog(
+        _logger.info(
             f"Using Dockerfile.wandb in {req_dir.replace(tempdir, '') or 'repository root'}"
         )
     else:
@@ -339,12 +339,12 @@ def _create_repo_metadata(
             path_with_subdir = os.path.dirname(
                 os.path.join(path or "", entrypoint or "")
             )
-            wandb.termerror(
+            _logger.error(
                 f"Could not find requirements.txt file in git repo at {path_with_subdir}"
             )
             return None
 
-        wandb.termlog(
+        _logger.info(
             f"Using requirements.txt in {req_dir.replace(tempdir, '') or 'repository root'}"
         )
 
@@ -367,11 +367,11 @@ def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
 ) -> Tuple[Dict[str, Any], List[str]]:
     if not os.path.exists(path):
-        wandb.termerror("Path must be a valid file or directory")
+        _logger.error("Path must be a valid file or directory")
         return {}, []
 
     if not os.path.exists(os.path.join(path, "requirements.txt")):
-        wandb.termerror(f"Could not find requirements.txt file in: {path}")
+        _logger.error(f"Could not find requirements.txt file in: {path}")
         return {}, []
 
     # read local requirements.txt and dump to temp dir for builder
@@ -394,22 +394,22 @@ def _handle_artifact_entrypoint(
     if os.path.isfile(path):
         if entrypoint and path.endswith(entrypoint):
             path = path.replace(entrypoint, "")
-            wandb.termwarn(
+            _logger.warning(
                 f"Both entrypoint provided and path contains file. Using provided entrypoint: {entrypoint}, path is now: {path}"
             )
         elif entrypoint:
-            wandb.termwarn(
+            _logger.warning(
                 f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
             )
         entrypoint = path.split("/")[-1]
         path = "/".join(path.split("/")[:-1])
     elif not entrypoint:
-        wandb.termerror("Entrypoint not valid")
+        _logger.error("Entrypoint not valid")
         return "", None
     path = path or "."  # when path is just an entrypoint, use cdw
 
     if not os.path.exists(os.path.join(path, entrypoint)):
-        wandb.termerror(
+        _logger.error(
             f"Could not find execution point: {os.path.join(path, entrypoint)}"
         )
         return "", None
@@ -469,10 +469,10 @@ def _make_code_artifact(
         code_artifact.add_dir(path)
     except Exception as e:
         if os.path.islink(path):
-            wandb.termerror(
+            _logger.error(
                 "Symlinks are not supported for code artifact jobs, please copy the code into a directory and try again"
             )
-        wandb.termerror(f"Error adding to code artifact: {e}")
+        _logger.error(f"Error adding to code artifact: {e}")
         return None
 
     res, _ = api.create_artifact(

@@ -181,7 +181,7 @@ def _launch_add(
             )
 
         if launch_spec.get("job") is not None:
-            wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
+            _logger.warning("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
 
         launch_project = LaunchProject.from_spec(launch_spec, api)
@@ -234,10 +234,10 @@ def _launch_add(
             launch_spec["resource"] = updated_spec.get("resource")
 
     if project_queue == LAUNCH_DEFAULT_PROJECT:
-        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+        _logger.info(f"{LOG_PREFIX}Added run to queue {queue_name}.")
     else:
-        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
-    wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
+        _logger.info(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
+    _logger.info(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
 
     public_api = public.Api()
     if job is not None:

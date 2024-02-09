@@ -84,7 +84,7 @@ class LaunchProject:
         self.uri = uri
         self.job = job
         if job is not None:
-            wandb.termlog(f"{LOG_PREFIX}Launching job: {job}")
+            _logger.info(f"{LOG_PREFIX}Launching job: {job}")
         self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
@@ -157,7 +157,7 @@ class LaunchProject:
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         elif self.uri is not None and "placeholder-" in self.uri:
-            wandb.termlog(
+            _logger.info(
                 f"{LOG_PREFIX}Launch received placeholder URI, replacing with local path."
             )
             self.uri = os.getcwd()
@@ -355,7 +355,7 @@ class LaunchProject:
             return
         if self.source == LaunchSource.LOCAL:
             if not self._entry_point:
-                wandb.termlog(
+                _logger.info(
                     f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
                 )
                 self.set_entry_point(EntrypointDefaults.PYTHON)
@@ -521,7 +521,7 @@ class LaunchProject:
                 "Non-wandb URI %s should be a Git URI" % self.uri
             )
             if not self._entry_point:
-                wandb.termlog(
+                _logger.info(
                     f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
                 )
                 self.set_entry_point(EntrypointDefaults.PYTHON)

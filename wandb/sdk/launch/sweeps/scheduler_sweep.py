@@ -45,7 +45,7 @@ class SweepScheduler(Scheduler):
                 return None
 
             if _run_id in self._runs:
-                wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
+                _logger.info(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
                 continue
 
             return SweepRun(

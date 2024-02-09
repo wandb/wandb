@@ -1657,7 +1657,7 @@ def launch(
 @click.option(
     "--log-file",
     "-l",
-    default=None,
+    default="-",
     help=(
         "Destination for internal agent logs. Use - for stdout. "
         "By default all agents logs will go to debug.log in your wandb/ "
@@ -1702,7 +1702,7 @@ def launch_agent(
     import wandb.sdk.launch._launch as _launch
 
     if log_file is not None:
-        _launch.set_launch_logfile(log_file)
+        launch_utils.set_launch_logfile(log_file)
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
@@ -1717,7 +1717,6 @@ def launch_agent(
 
     launch_utils.check_logged_in(api)
 
-    wandb.termlog("Starting launch agent ✨")
     try:
         _launch.create_and_run_agent(api, agent_config)
     except Exception as e:

@@ -208,7 +208,7 @@ def set_project_entity_defaults(
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(
+    _logger.info(
         f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
     )
     return project, entity
@@ -222,7 +222,7 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
 
 
 def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
-    wandb.termwarn(
+    _logger.warning(
         "Launch spec contains both resource_args and template_variables, "
         "only one can be set. Using template_variables."
     )
@@ -416,7 +416,7 @@ def get_local_python_deps(
             subprocess.call(["pip", "freeze"], env=env, stdout=f)
         return filename
     except subprocess.CalledProcessError as e:
-        wandb.termerror(f"Command failed: {e}")
+        _logger.error(f"Command failed: {e}")
         return None
 
 
@@ -732,7 +732,7 @@ def warn_failed_packages_from_build_logs(
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:
         _msg = f"Failed to install the following packages: {match.group(1)} for image: {image_uri}. Will attempt to launch image without them."
-        wandb.termwarn(_msg)
+        _logger.warning(_msg)
         if job_tracker is not None:
             res = job_tracker.saver.save_contents(
                 _msg, "failed-packages.log", "warning"
@@ -846,3 +846,29 @@ def fetch_and_validate_template_variables(
             raise LaunchError(f"Value for {key} must be of type {field_type}.")
         template_variables[key] = val
     return template_variables
+
+
+def set_launch_logfile(logfile: str) -> None:
+    """Set the logfile for the launch agent."""
+    # Get logger of parent module
+    _launch_logger = logging.getLogger("wandb.sdk.launch")
+    if logfile == "-":
+        logfile_stream = sys.stdout
+    else:
+        try:
+            logfile_stream = open(logfile, "w")
+        # check if file is writable
+        except Exception as e:
+            _logger.error(
+                f"Could not open {logfile} for writing logs. Please check "
+                f"the path and permissions.\nError: {e}"
+            )
+            return
+
+    handler = logging.StreamHandler(logfile_stream)
+    handler.formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
+        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
+    )
+    _launch_logger.addHandler(handler)
+    _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)

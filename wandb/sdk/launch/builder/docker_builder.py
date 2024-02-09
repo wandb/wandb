@@ -84,7 +84,7 @@ class DockerBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri:
             if registry is not None:
-                wandb.termwarn(
+                _logger.warning(
                     f"{LOG_PREFIX}Overriding registry from registry config"
                     f" with {image_uri} from builder config."
                 )
@@ -176,7 +176,7 @@ class DockerBuilder(AbstractBuilder):
 
         if repository:
             reg, tag = image_uri.split(":")
-            wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
+            _logger.info(f"{LOG_PREFIX}Pushing image {image_uri}")
             push_resp = await event_loop_thread_exec(docker.push)(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")

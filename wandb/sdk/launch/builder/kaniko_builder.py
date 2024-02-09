@@ -67,9 +67,9 @@ async def _wait_for_completion(
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
-            wandb.termerror(f"{LOG_PREFIX}Build job {job.status.failed} failed {job}")
+            _logger.error(f"{LOG_PREFIX}Build job {job.status.failed} failed {job}")
             return False
-        wandb.termlog(f"{LOG_PREFIX}Waiting for build job to complete...")
+        _logger.info(f"{LOG_PREFIX}Waiting for build job to complete...")
         if deadline_secs is not None and time.time() - start_time > deadline_secs:
             return False
 
@@ -281,7 +281,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job = await self._create_kaniko_job(
             build_job_name, repo_uri, image_uri, build_context, core_v1
         )
-        wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
+        _logger.info(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         try:
             if isinstance(self.registry, AzureContainerRegistry):
@@ -329,16 +329,16 @@ class KanikoBuilder(AbstractBuilder):
                     logs, image_uri, launch_project.api, job_tracker
                 )
             except Exception as e:
-                wandb.termwarn(
+                _logger.warning(
                     f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"
                 )
         except Exception as e:
-            wandb.termerror(
+            _logger.error(
                 f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
             )
             raise e
         finally:
-            wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
+            _logger.info(f"{LOG_PREFIX}Cleaning up resources")
             try:
                 if isinstance(self.registry, AzureContainerRegistry):
                     await core_v1.delete_namespaced_config_map(

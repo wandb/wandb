@@ -83,13 +83,13 @@ def _log_err_task_callback(task: asyncio.Task) -> None:
     exec = task.exception()
     if exec is not None:
         if isinstance(exec, asyncio.CancelledError):
-            wandb.termlog(f"Task {task.get_name()} was cancelled")
+            _logger.info(f"Task {task.get_name()} was cancelled")
             return
         name = str(task) if sys.version_info < (3, 8) else task.get_name()
-        wandb.termerror(f"Exception in task {name}")
+        _logger.error(f"Exception in task {name}")
         tb = exec.__traceback__
         tb_str = "".join(traceback.format_tb(tb))
-        wandb.termerror(tb_str)
+        _logger.error(tb_str)
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
@@ -426,13 +426,13 @@ class SafeWatch:
                 if self._stopped:
                     break
             except urllib3.exceptions.ProtocolError as e:
-                wandb.termwarn(f"Broken event stream: {e}, attempting to recover")
+                _logger.warning(f"Broken event stream: {e}, attempting to recover")
             except ApiException as e:
                 if e.status == 410:
                     # If resource version is too old we need to start over.
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
             except Exception as E:
-                wandb.termerror(
+                _logger.error(
                     f"Unknown exception in event stream: {E}, attempting to recover"
                 )

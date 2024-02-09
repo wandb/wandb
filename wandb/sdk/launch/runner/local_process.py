@@ -80,7 +80,7 @@ class LocalProcessRunner(AbstractRunner):
                     launch_project.project_dir,
                 )
             except Exception:
-                wandb.termwarn("Unable to validate python dependencies")
+                _logger.warning("Unable to validate python dependencies")
         env_vars = get_env_vars_dict(
             launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
@@ -92,7 +92,7 @@ class LocalProcessRunner(AbstractRunner):
 
         command_str = " ".join(cmd).strip()
         _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"
-        wandb.termlog(_msg)
+        _logger.info(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
             await run.wait()
