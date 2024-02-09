@@ -197,7 +197,11 @@ class _WandbInit:
         # when using launch, we don't want to reuse the same run id from the singleton
         # since users might launch multiple runs in the same process
         # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
+        if (
+            settings.launch
+            and singleton is not None
+            and len(singleton._global_run_stack) > 0
+        ):
             settings.update({"run_id": None}, source=Source.INIT)
 
         settings_param = kwargs.pop("settings", None)
