@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder

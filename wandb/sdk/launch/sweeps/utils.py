@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
+from wandb import util
 from wandb.sdk.launch.errors import LaunchError
 
 if TYPE_CHECKING:

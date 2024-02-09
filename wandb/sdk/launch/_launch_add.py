@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import pprint
 from typing import Any, Dict, List, Optional, Union
 
@@ -16,6 +17,8 @@ from wandb.sdk.launch.utils import (
 )
 
 from ._project_spec import LaunchProject
+
+_logger = logging.getLogger(__name__)
 
 
 def push_to_queue(

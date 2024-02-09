@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, cast
 if False:
     import boto3  # type: ignore
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError

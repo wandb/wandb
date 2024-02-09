@@ -9,7 +9,6 @@ import time
 import traceback
 from typing import Optional
 
-import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.builder.build import registry_from_uri

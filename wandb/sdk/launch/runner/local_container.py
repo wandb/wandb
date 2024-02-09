@@ -7,7 +7,6 @@ import sys
 import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-import wandb
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 

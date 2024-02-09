@@ -16,7 +16,6 @@ from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
     V1PodStatus,
 )
 
-import wandb
 from wandb.sdk.launch.agent import LaunchAgent
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import State, Status

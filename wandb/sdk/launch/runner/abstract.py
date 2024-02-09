@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.lib import runid
 
