@@ -368,7 +368,10 @@ jobs:
           steps:
             run:
               name: Install system deps
-              command: apt-get update && apt-get install -y libsndfile1 ffmpeg
+              command: |
+                apt-get update
+                apt-get install -y libsndfile1 ffmpeg
+                curl https://pyenv.run | bash
 
       - when:
           condition: { equal: [<<parameters.executor>>, "macos"]}
@@ -385,7 +388,7 @@ jobs:
 
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip pyenv
+          command: pip install -U tox nox pip
           no_output_timeout: 5m
 
       - run:
@@ -1585,9 +1588,6 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 12]
               with_core: [true, false]
-          name: "unit-tests-new-linux\
-            <<#matrix.with_core>>-core<</matrix.with_core>>\
-            -py<<matrix.python_version_major>><<matrix.python_version_minor>>"
 
       #
       # Unit tests with pytest on Windows and MacOS
