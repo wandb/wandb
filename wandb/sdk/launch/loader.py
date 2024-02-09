@@ -99,6 +99,9 @@ def registry_from_config(
     if registry_type == "gcr":
         from .registry.google_artifact_registry import GoogleArtifactRegistry
 
+        # if no region or uri given GAR will try to infer from environment
+        if config.get("uri") is None and config.get("region") is None:
+            config["region"] = environment.region
         return GoogleArtifactRegistry.from_config(config)
     if registry_type == "acr":
         from .registry.azure_container_registry import AzureContainerRegistry
