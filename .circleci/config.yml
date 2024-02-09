@@ -354,7 +354,7 @@ jobs:
 
   unit-tests-sdk:
     parameters:
-      executor: {type: executor}
+      executor: {type: string}
       python_version_major: {type: integer}
       python_version_minor: {type: integer}
       with_core: {type: boolean}
@@ -364,7 +364,7 @@ jobs:
       - install_go
 
       - when:
-          condition: { equal: [<<parameters.executor>>, "docker-python310"]}
+          condition: { equal: [<<parameters.executor>>, docker-python310]}
           steps:
             run:
               name: Install system deps
@@ -374,7 +374,7 @@ jobs:
                 curl https://pyenv.run | bash
 
       - when:
-          condition: { equal: [<<parameters.executor>>, "macos"]}
+          condition: { equal: [<<parameters.executor>>, macos]}
           steps:
             run:
               name: Install system deps
