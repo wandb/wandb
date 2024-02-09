@@ -358,7 +358,7 @@ jobs:
       python_version_minor: {type: integer}
       with_core: {type: boolean}
     docker:
-      - image: python<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+      - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
     steps:
       - checkout
       - install_go
