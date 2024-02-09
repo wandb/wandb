@@ -1,8 +1,8 @@
 """Implementation of launch agent."""
 import asyncio
+import json
 import logging
 import os
-import pprint
 import threading
 import time
 import traceback
@@ -441,8 +441,7 @@ class LaunchAgent:
         Arguments:
             job: Job to run.
         """
-        _msg = f"Launch agent received job:\n{pprint.pformat(job)}\n"
-        _logger.info(_msg)
+        _msg = f"Launch agent received job:\n{json.dumps(job)}\n"
         _logger.info(_msg)
         # update agent status
         await self.update_status(AGENT_RUNNING)
