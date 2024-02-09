@@ -6,10 +6,7 @@ import click
 from core import winibuild as build_core
 from core.pkg.monitor.apple import winibuild as build_applestats
 
-from . import print
-from . import subprocess
-from . import workspace
-
+from . import print, subprocess, workspace
 
 _CORE_WHEEL_DIR = pathlib.Path("./core/dist/")
 """The output directory for the wandb-core wheel."""
