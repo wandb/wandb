@@ -132,6 +132,8 @@ class _WandbLogin:
         self._relogin = kwargs.pop("relogin", None)
         login_settings._apply_login(kwargs, _logger=_logger)
 
+        # don't save run id on login settings
+        login_settings.update({"run_id": None}, source=Source.LOGIN)
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
         self._settings = self._wl.settings

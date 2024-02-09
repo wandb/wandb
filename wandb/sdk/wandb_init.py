@@ -195,15 +195,16 @@ class _WandbInit:
         settings: Settings = self._wl.settings.copy()
 
         # when using launch, we don't want to reuse the same run id from the singleton
-        # if the user already launched a run since users might launch multiple runs in
-        # the same process
+        # since users might launch multiple runs in the same process but only
+        # do this if run id is populated because wandb login also creates a singleton
         # TODO(kdg): allow users to control this via launch settings
-        if (
-            settings.launch
-            and singleton is not None
-            and len(singleton._global_run_stack) > 0
-        ):
-            settings.update({"run_id": None}, source=Source.INIT)
+        if settings.launch and singleton is not None:
+            if settings.run_id is not None:
+                settings.update({"run_id": None}, source=Source.INIT)
+            else:
+                settings.update(
+                    {"run_id": os.environ.get("WANDB_RUN_ID")}, source=Source.INIT
+                )
 
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
