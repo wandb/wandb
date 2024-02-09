@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/segmentio/encoding/json"
@@ -114,6 +115,8 @@ type Sender struct {
 	store *Store
 
 	jobBuilder *launch.JobBuilder
+
+	wg sync.WaitGroup
 }
 
 // NewSender creates a new Sender with the given settings
@@ -133,6 +136,7 @@ func NewSender(
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
+		wg:         sync.WaitGroup{},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -442,6 +446,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
+		s.wg.Wait()
 		s.fileTransferManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
@@ -990,7 +995,11 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		if strings.HasPrefix(file.GetPath(), "media") {
 			file.Type = service.FilesItem_MEDIA
 		}
-		s.sendFile(file)
+		s.wg.Add(1)
+		go func(file *service.FilesItem) {
+			s.sendFile(file)
+			s.wg.Done()
+		}(file)
 	}
 }
 
