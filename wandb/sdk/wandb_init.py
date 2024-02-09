@@ -195,7 +195,8 @@ class _WandbInit:
         settings: Settings = self._wl.settings.copy()
 
         # when using launch, we don't want to reuse the same run id from the singleton
-        # since users might launch multiple runs in the same process
+        # if the user already launched a run since users might launch multiple runs in
+        # the same process
         # TODO(kdg): allow users to control this via launch settings
         if (
             settings.launch
