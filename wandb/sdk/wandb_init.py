@@ -191,20 +191,22 @@ class _WandbInit:
         assert self._wl is not None
         _set_logger(self._wl._get_logger())
 
-        # Start with settings from wandb library singleton
-        settings: Settings = self._wl.settings.copy()
-
         # when using launch, we don't want to reuse the same run id from the singleton
         # since users might launch multiple runs in the same process but only
         # do this if run id is populated because wandb login also creates a singleton
         # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
-            if settings.run_id is not None:
-                settings.update({"run_id": None}, source=Source.INIT)
+        if self._wl.settings.launch and singleton is not None:
+            if self._wl.settings.get("run_id") is not None:
+                print("PATH 1")
+                self._wl.settings.update({"run_id": None}, source=Source.INIT)
             else:
-                settings.update(
+                print("PATH 2")
+                self._wl.settings.update(
                     {"run_id": os.environ.get("WANDB_RUN_ID")}, source=Source.INIT
                 )
+
+        # Start with settings from wandb library singleton
+        settings: Settings = self._wl.settings.copy()
 
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
