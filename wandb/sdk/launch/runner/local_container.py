@@ -14,7 +14,6 @@ from .._project_spec import LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
-    LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
@@ -177,7 +176,7 @@ class LocalContainerRunner(AbstractRunner):
             )
         ).strip()
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
-        _msg = f"{LOG_PREFIX}Launching run in docker with command: {sanitized_cmd_str}"
+        _msg = f"Launching run in docker with command: {sanitized_cmd_str}"
         _logger.info(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:

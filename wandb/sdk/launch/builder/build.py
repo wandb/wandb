@@ -31,7 +31,6 @@ from ..utils import (
     ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
     GCP_ARTIFACT_REGISTRY_URI_REGEX,
     LAUNCH_CONFIG_FILE,
-    LOG_PREFIX,
     event_loop_thread_exec,
     resolve_build_and_registry_config,
 )
@@ -613,7 +612,7 @@ async def build_image_from_project(
         name=EntrypointDefaults.PYTHON[-1],
         command=EntrypointDefaults.PYTHON,
     )
-    _logger.info(f"{LOG_PREFIX}Building docker image from uri source")
+    _logger.info("Building docker image from uri source")
     image_uri = await builder.build_image(launch_project, entry_point)
     if not image_uri:
         raise LaunchError("Error building image uri")

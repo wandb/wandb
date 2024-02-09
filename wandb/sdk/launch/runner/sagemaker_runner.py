@@ -14,7 +14,6 @@ from .._project_spec import EntryPoint, LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
-    LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     event_loop_thread_exec,
@@ -84,7 +83,7 @@ class SagemakerSubmittedRun(AbstractRun):
         while True:
             status_state = (await self.get_status()).state
             _logger.info(
-                f"{LOG_PREFIX}Training job {self.training_job_name} status: {status_state}"
+                f"Training job {self.training_job_name} status: {status_state}"
             )
             if status_state in ["stopped", "failed", "finished"]:
                 break
@@ -227,12 +226,10 @@ class SageMakerRunner(AbstractRunner):
         )
         if command_args:
             command_str = " ".join(command_args)
-            _logger.info(
-                f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}"
-            )
+            _logger.info(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
             _logger.info(
-                f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
+                "Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
             launch_project,
@@ -392,13 +389,11 @@ async def launch_sagemaker_job(
         raise LaunchError("Failed to create training job when submitting to SageMaker")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client, log_client)
-    _logger.info(
-        f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
-    )
+    _logger.info(f"Run job submitted with arn: {resp.get('TrainingJobArn')}")
     url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
-    _logger.info(f"{LOG_PREFIX}See training job status at: {url}")
+    _logger.info(f"See training job status at: {url}")
     return run
 
 

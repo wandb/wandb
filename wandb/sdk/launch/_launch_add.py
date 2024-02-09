@@ -11,7 +11,6 @@ from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
     construct_launch_spec,
     validate_launch_spec_source,
 )
@@ -237,10 +236,10 @@ def _launch_add(
             launch_spec["resource"] = updated_spec.get("resource")
 
     if project_queue == LAUNCH_DEFAULT_PROJECT:
-        _logger.info(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+        _logger.info(f"Added run to queue {queue_name}.")
     else:
-        _logger.info(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
-    _logger.info(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
+        _logger.info(f"Added run to queue {project_queue}/{queue_name}.")
+    _logger.info(f"Launch spec:\n{pprint.pformat(launch_spec)}\n")
 
     public_api = public.Api()
     if job is not None:

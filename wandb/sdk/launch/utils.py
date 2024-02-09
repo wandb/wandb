@@ -82,7 +82,6 @@ LAUNCH_CONFIG_FILE = "~/.config/wandb/launch-config.yaml"
 LAUNCH_DEFAULT_PROJECT = "model-registry"
 
 _logger = logging.getLogger(__name__)
-LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
@@ -209,7 +208,7 @@ def set_project_entity_defaults(
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
     _logger.info(
-        f"{LOG_PREFIX}{prefix}Launching run into {entity}{'/' + project if project else ''}"
+        f"{prefix}Launching run into {entity}{'/' + project if project else ''}"
     )
     return project, entity
 
@@ -848,27 +847,44 @@ def fetch_and_validate_template_variables(
     return template_variables
 
 
+class CliFormatter(logging.Formatter):
+    prefix = f"{click.style('wandb:', 'blue')} {click.style('launch:', 'magenta')}"
+    emojis = {}
+
+    def format(self, record: logging.LogRecord):
+        return f"{self.prefix} {record.getMessage()}"
+
+
 def set_launch_logfile(logfile: str) -> None:
     """Set the logfile for the launch agent."""
     # Get logger of parent module
     _launch_logger = logging.getLogger("wandb.sdk.launch")
     if logfile == "-":
-        logfile_stream = sys.stdout
-    else:
-        try:
-            logfile_stream = open(logfile, "w")
-        # check if file is writable
-        except Exception as e:
-            _logger.error(
-                f"Could not open {logfile} for writing logs. Please check "
-                f"the path and permissions.\nError: {e}"
-            )
-            return
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.addFilter(lambda record: record.levelno <= logging.INFO)
+        stdout_handler.formatter = CliFormatter()
+
+        # Handler for higher level messages (WARNING, ERROR, CRITICAL)
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        stderr_handler.formatter = CliFormatter()
+
+        _launch_logger.handlers.extend([stdout_handler, stderr_handler])
+        return
+
+    try:
+        logfile_stream = open(logfile, "w")
+    # check if file is writable
+    except Exception as e:
+        _logger.error(
+            f"Could not open {logfile} for writing logs. Please check "
+            f"the path and permissions.\nError: {e}"
+        )
+        return
 
     handler = logging.StreamHandler(logfile_stream)
-    handler.formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-    )
+    handler.formatter = logging.Formatter("%(message)s")
     _launch_logger.addHandler(handler)
-    _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
+    if logfile != "-":
+        _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)

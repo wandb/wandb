@@ -28,7 +28,6 @@ from .._project_spec import EntryPoint, LaunchProject
 from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
-    LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     get_kube_context_and_api_client,
@@ -123,7 +122,7 @@ class KubernetesSubmittedRun(AbstractRun):
                 _logger.warning(f"No logs for kubernetes pod(s): {pod_names}")
             return None
         except Exception as e:
-            _logger.error(f"{LOG_PREFIX}Failed to get pod logs: {e}")
+            _logger.error(f"Failed to get pod logs: {e}")
             return None
 
     async def wait(self) -> bool:
@@ -134,7 +133,7 @@ class KubernetesSubmittedRun(AbstractRun):
         """
         while True:
             status = await self.get_status()
-            _logger.info(f"{LOG_PREFIX}Job {self.name} status: {status.state}")
+            _logger.info(f"Job {self.name} status: {status.state}")
             if status.state in ["finished", "failed", "preempted"]:
                 break
             await asyncio.sleep(5)
@@ -258,7 +257,7 @@ class CrdSubmittedRun(AbstractRun):
         """Wait for this custom object to finish running."""
         while True:
             status = await self.get_status()
-            _logger.info(f"{LOG_PREFIX}Job {self.name} status: {status}")
+            _logger.info(f"Job {self.name} status: {status}")
             if status.state in ["finished", "failed", "preempted"]:
                 return status.state == "finished"
             await asyncio.sleep(5)
@@ -476,7 +475,7 @@ class KubernetesRunner(AbstractRunner):
         resource_args = launch_project.fill_macros(image_uri).get("kubernetes", {})
         if not resource_args:
             _logger.info(
-                f"{LOG_PREFIX}Note: no resource args specified. Add a "
+                "Note: no resource args specified. Add a "
                 "Kubernetes yaml spec or other options in a json file "
                 "with --resource-args <json>."
             )

@@ -17,7 +17,7 @@ from wandb.sdk.launch import utils
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
-from .utils import LOG_PREFIX, recursive_macro_sub
+from .utils import recursive_macro_sub
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -80,11 +80,11 @@ class LaunchProject:
     ):
         if uri is not None and utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
-            _logger.info(f"{LOG_PREFIX}Updating uri with base uri: {uri}")
+            _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
         self.job = job
         if job is not None:
-            _logger.info(f"{LOG_PREFIX}Launching job: {job}")
+            _logger.info(f"Launching job: {job}")
         self._job_artifact: Optional[Artifact] = None
         self.api = api
         self.launch_spec = launch_spec
@@ -111,7 +111,7 @@ class LaunchProject:
         uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
-            _logger.info(f"{LOG_PREFIX}Retrieved base image uid {uid}")
+            _logger.info(f"Retrieved base image uid {uid}")
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
@@ -157,9 +157,7 @@ class LaunchProject:
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         elif self.uri is not None and "placeholder-" in self.uri:
-            _logger.info(
-                f"{LOG_PREFIX}Launch received placeholder URI, replacing with local path."
-            )
+            _logger.info("Launch received placeholder URI, replacing with local path.")
             self.uri = os.getcwd()
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
@@ -356,7 +354,7 @@ class LaunchProject:
         if self.source == LaunchSource.LOCAL:
             if not self._entry_point:
                 _logger.info(
-                    f"{LOG_PREFIX}Entry point for repo not specified, defaulting to `python main.py`"
+                    "Entry point for repo not specified, defaulting to `python main.py`"
                 )
                 self.set_entry_point(EntrypointDefaults.PYTHON)
         elif self.source == LaunchSource.JOB:
@@ -522,7 +520,7 @@ class LaunchProject:
             )
             if not self._entry_point:
                 _logger.info(
-                    f"{LOG_PREFIX}Entry point for repo not specified, defaulting to python main.py"
+                    "Entry point for repo not specified, defaulting to python main.py"
                 )
                 self.set_entry_point(EntrypointDefaults.PYTHON)
             branch_name = utils._fetch_git_repo(
