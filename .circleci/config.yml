@@ -383,7 +383,7 @@ jobs:
       # tox run. Ideally, we would just pass "sdk" or "other" directly to
       # the test command, and have it decide on the paths to run.
       - when:
-          condition: { equal: [tests, "sdk"] }
+          condition: { equal: [<<parameters.tests>>, sdk] }
           steps:
             - run:
                 name: Run tests owned by SDK
@@ -401,7 +401,7 @@ jobs:
                     --ignore tests/pytest_tests/unit_tests/test_reports/
 
       - when:
-          condition: { equal: [tests, "other"] }
+          condition: { equal: [<<parameters.tests>>, other] }
           steps:
             - run:
                 name: Run tests not owned by SDK
