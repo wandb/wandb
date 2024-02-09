@@ -378,9 +378,9 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            CI_PYTEST_SPLIT_ARGS="\
-              --splits $CIRCLE_NODE_TOTAL\
-              --group $(( $CIRCLE_NODE_INDEX + 1 ))"\
+            CI_PYTEST_SPLIT_ARGS=" \
+              --splits $CIRCLE_NODE_TOTAL \
+              --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
             tox run -v \
               -e <<#parameters.with_core>>core-<</parameters.with_core
                 >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
