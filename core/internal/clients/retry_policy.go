@@ -14,7 +14,9 @@ const CtxRetryPolicyKey ContextKey = "retryFunc"
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	statusCode := resp.StatusCode
 	switch {
-	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
+	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
+		return false, err
+	case statusCode == http.StatusConflict:
 		return false, err
 	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
 		return false, err
@@ -37,6 +39,8 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	case statusCode == http.StatusConflict: // retry on 409 Conflict
 		return true, err
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
+		return false, err
+	case statusCode == http.StatusUnprocessableEntity:
 		return false, err
 	default: // use default retry policy for all other status codes
 		return DefaultRetryPolicy(ctx, resp, err)
