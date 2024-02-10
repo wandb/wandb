@@ -7,7 +7,7 @@ from . import print
 
 
 def check_call(
-    cmd: List[str],
+    cmd: List[object],
     *,
     cwd: Optional[str] = None,
     env: Optional[Mapping[str, str]] = None,
@@ -24,7 +24,7 @@ def check_call(
     else:
         print.info("Running")
 
-    print.command(cmd)
+    print.command([str(part) for part in cmd])
 
     subprocess.check_call(
         cmd,
@@ -33,12 +33,12 @@ def check_call(
     )
 
 
-def run(cmd: List[str]) -> None:
+def run(cmd: List[object]) -> None:
     """Invokes `subprocess.run`.
 
     Args:
         cmd: The command to run.
     """
     print.info("Running")
-    print.command(cmd)
+    print.command([str(part) for part in cmd])
     subprocess.run(cmd)
