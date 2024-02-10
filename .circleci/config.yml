@@ -1630,6 +1630,13 @@ workflows:
       #
       # Unit tests with pytest on macOS
       #
+      # This differs from the Linux tests above only in:
+      #   - executor
+      #   - install_deps
+      #
+      # Unfortunately, CircleCI does not seem to provide a way to define
+      # the common part separately and reuse it.
+      #
       - unit-tests-new:
           requires:
             - unit-tests
@@ -1639,6 +1646,7 @@ workflows:
             <<matrix.tests>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+
           matrix:
             parameters:
               python_version_major: [3]
