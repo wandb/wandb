@@ -1631,6 +1631,7 @@ workflows:
       # This differs from the Linux tests above only in:
       #   - executor
       #   - install_deps
+      #   - Python versions tested (Homebrew doesn't have 3.7)
       #
       # Unfortunately, CircleCI does not seem to provide a way to define
       # the common part separately and reuse it.
@@ -1648,7 +1649,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 12]
+              python_version_minor: [9, 12]
               with_core: [true, false]
               tests: [sdk, other]
 
@@ -1660,10 +1661,6 @@ workflows:
                 command: |
                   brew install ffmpeg \
                     python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
-            - run:
-                name: Add unversioned 'python' to PATH
-                command: |
-                  echo "export PATH=$(brew --prefix python)/libexec/bin:\$PATH"
 
 
       #
