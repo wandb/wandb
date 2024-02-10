@@ -1,7 +1,6 @@
 package filetransfer
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -176,8 +175,7 @@ func (fm *FileTransferManager) transfer(task *Task) error {
 	case DownloadTask:
 		err = fm.fileTransfer.Download(task)
 	default:
-		err = fmt.Errorf("unknown task type")
-		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
+		fm.logger.CaptureFatalAndPanic("transfer: unknown task type", err)
 	}
 	return err
 }

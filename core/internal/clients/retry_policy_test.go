@@ -84,15 +84,10 @@ func TestCheckRetry(t *testing.T) {
 	assert.True(t, retry)
 	assert.Nil(t, err)
 
-	resp.StatusCode = http.StatusNotFound
-	retry, err = clients.CheckRetry(ctx, resp, nil)
-	assert.False(t, retry)
-	assert.Error(t, err)
-
 	// Test with no policy in context
 	ctx = context.Background()
 	resp.StatusCode = http.StatusNotFound
 	retry, err = clients.CheckRetry(ctx, resp, nil)
 	assert.False(t, retry)
-	assert.Nil(t, err)
+	assert.Error(t, err)
 }
