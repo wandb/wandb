@@ -16,6 +16,7 @@ else:
 import click
 
 import wandb
+from wandb.env import LAUNCH
 from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
@@ -78,7 +79,7 @@ def login(
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
-    if wandb.setup()._settings._noop:
+    if wandb.setup()._settings._noop or os.environ.get(LAUNCH):
         return True
     kwargs = dict(locals())
     _verify = kwargs.pop("verify", False)
