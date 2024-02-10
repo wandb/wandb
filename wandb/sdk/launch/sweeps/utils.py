@@ -1,11 +1,11 @@
 import json
-import logging
 import os
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
+import wandb
 from wandb import util
 from wandb.sdk.launch.errors import LaunchError
 
@@ -19,9 +19,6 @@ DEFAULT_SWEEP_COMMAND: List[str] = [
     "${args}",
 ]
 SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
-
-
-_logger = logging.getLogger(__name__)
 
 
 def parse_sweep_id(parts_dict: dict) -> Optional[str]:
@@ -93,7 +90,7 @@ def handle_sweep_config_violations(warnings: List[str]) -> None:
     """
     warning = sweep_config_err_text_from_jsonschema_violations(warnings)
     if len(warnings) > 0:
-        _logger.warning(warning)
+        wandb.termwarn(warning)
 
 
 def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
@@ -101,15 +98,15 @@ def load_sweep_config(sweep_config_path: str) -> Optional[Dict[str, Any]]:
     try:
         yaml_file = open(sweep_config_path)
     except OSError:
-        _logger.error(f"Couldn't open sweep file: {sweep_config_path}")
+        wandb.termerror(f"Couldn't open sweep file: {sweep_config_path}")
         return None
     try:
         config: Optional[Dict[str, Any]] = yaml.safe_load(yaml_file)
     except yaml.YAMLError as err:
-        _logger.error(f"Error in configuration file: {err}")
+        wandb.termerror(f"Error in configuration file: {err}")
         return None
     if not config:
-        _logger.error("Configuration file is empty")
+        wandb.termerror("Configuration file is empty")
         return None
     return config
 
@@ -139,12 +136,12 @@ def construct_scheduler_args(
     job = sweep_config.get("job")
     image_uri = sweep_config.get("image_uri")
     if not job and not image_uri:  # don't allow empty string
-        _logger.error(
+        wandb.termerror(
             "No 'job' nor 'image_uri' top-level key found in sweep config, exactly one is required for a launch-sweep"
         )
         return None
     elif job and image_uri:
-        _logger.error(
+        wandb.termerror(
             "Sweep config has both 'job' and 'image_uri' but a launch-sweep can use only one"
         )
         return None
@@ -293,7 +290,7 @@ def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
     try:
         public_api.job(job)
     except Exception as e:
-        _logger.error(f"Failed to load job. {e}")
+        wandb.termerror(f"Failed to load job. {e}")
         return False
     return True
 

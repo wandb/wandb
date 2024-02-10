@@ -3,6 +3,7 @@ import logging
 from pprint import pformat as pf
 from typing import Any, Dict, List, Optional
 
+import wandb
 from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
 
 _logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class SweepScheduler(Scheduler):
                 return None
 
             if _run_id in self._runs:
-                _logger.info(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
+                wandb.termlog(f"{LOG_PREFIX}Skipping duplicate run: {_run_id}")
                 continue
 
             return SweepRun(
