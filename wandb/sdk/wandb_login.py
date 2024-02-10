@@ -16,7 +16,7 @@ else:
 import click
 
 import wandb
-from wandb.env import LAUNCH
+from wandb.env import API_KEY, LAUNCH
 from wandb.errors import AuthenticationError, UsageError
 from wandb.old.settings import Settings as OldSettings
 
@@ -80,7 +80,7 @@ def login(
     """
     _handle_host_wandb_setting(host)
     if os.environ.get(LAUNCH):
-        return False
+        return os.environ.get(API_KEY) is not None
     if wandb.setup()._settings._noop:
         return True
     kwargs = dict(locals())
