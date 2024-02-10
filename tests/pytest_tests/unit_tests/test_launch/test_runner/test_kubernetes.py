@@ -5,7 +5,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-import wandb
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
@@ -1007,7 +1006,10 @@ def test_custom_resource_helper():
 @pytest.mark.asyncio
 async def test_log_error_callback(monkeypatch):
     """Test that our callback logs exceptions for crashed tasks."""
-    monkeypatch.setattr("wandb.termerror", MagicMock())
+    mock_logger = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_monitor._logger", mock_logger
+    )
 
     async def _error_raiser():
         raise LaunchError("test error")
@@ -1016,8 +1018,8 @@ async def test_log_error_callback(monkeypatch):
     task.add_done_callback(_log_err_task_callback)
     with pytest.raises(LaunchError):
         await task
-    assert wandb.termerror.call_count == 2
-    assert wandb.termerror.call_args_list[0][0][0].startswith("Exception in task")
+    assert mock_logger.error.call_count == 2
+    assert mock_logger.error.call_args_list[0][0][0].startswith("Exception in task")
 
 
 # Tests for KubernetesSubmittedRun

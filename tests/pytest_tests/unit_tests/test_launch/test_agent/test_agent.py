@@ -20,18 +20,20 @@ def clean_agent():
     LaunchAgent._instance = None
 
 
+@pytest.fixture
+def mock_agent_logger(mocker):
+    """Mock the logger in agent.py and return it."""
+    mock_logger = MagicMock()
+    mocker.patch("wandb.sdk.launch.agent.agent._logger", mock_logger)
+    return mock_logger
+
+
 def _setup(mocker):
     mocker.api = MagicMock()
     mock_agent_response = {"name": "test-name", "stopPolling": False}
     mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
     mocker.api.fail_run_queue_item = MagicMock(side_effect=KeyboardInterrupt)
-    mocker.termlog = MagicMock()
-    mocker.termwarn = MagicMock()
-    mocker.termerror = MagicMock()
     mocker.wandb_init = MagicMock()
-    mocker.patch("wandb.termlog", mocker.termlog)
-    mocker.patch("wandb.termwarn", mocker.termwarn)
-    mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
 
     mocker.status = MagicMock()
@@ -55,7 +57,7 @@ def _setup(mocker):
 
 
 @pytest.mark.asyncio
-async def test_loop_capture_stack_trace(mocker, clean_agent):
+async def test_loop_capture_stack_trace(mocker, mock_agent_logger, clean_agent):
     _setup(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -68,7 +70,9 @@ async def test_loop_capture_stack_trace(mocker, clean_agent):
 
     await agent.loop()
 
-    assert "Traceback (most recent call last):" in mocker.termerror.call_args[0][0]
+    assert (
+        "Traceback (most recent call last):" in mock_agent_logger.error.call_args[0][0]
+    )
 
 
 @pytest.mark.asyncio
@@ -190,7 +194,7 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     )
 
 
-def test_team_entity_warning(mocker, clean_agent):
+def test_team_entity_warning(mocker, clean_agent, mock_agent_logger):
     _setup(mocker)
     mocker.api.entity_is_team = MagicMock(return_value=True)
     mock_config = {
@@ -198,10 +202,12 @@ def test_team_entity_warning(mocker, clean_agent):
         "project": "test-project",
     }
     _ = LaunchAgent(api=mocker.api, config=mock_config)
-    assert "Agent is running on team entity" in mocker.termwarn.call_args[0][0]
+    assert (
+        "Agent is running on team entity" in mock_agent_logger.warning.call_args[0][0]
+    )
 
 
-def test_non_team_entity_no_warning(mocker, clean_agent):
+def test_non_team_entity_no_warning(mocker, clean_agent, mock_agent_logger):
     _setup(mocker)
     mocker.api.entity_is_team = MagicMock(return_value=False)
     mock_config = {
@@ -209,7 +215,7 @@ def test_non_team_entity_no_warning(mocker, clean_agent):
         "project": "test-project",
     }
     _ = LaunchAgent(api=mocker.api, config=mock_config)
-    assert not mocker.termwarn.call_args
+    assert not mock_agent_logger.warning.call_args
 
 
 @pytest.mark.parametrize(
@@ -255,16 +261,12 @@ def _setup_thread_finish(mocker):
     mock_agent_response = {"name": "test-name", "stopPolling": False}
     mocker.api.get_launch_agent = MagicMock(return_value=mock_agent_response)
     mocker.api.fail_run_queue_item = MagicMock()
-    mocker.termlog = MagicMock()
-    mocker.termerror = MagicMock()
     mocker.wandb_init = MagicMock()
-    mocker.patch("wandb.termlog", mocker.termlog)
-    mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
 
 
 @pytest.mark.asyncio
-async def test_thread_finish_no_fail(mocker, clean_agent):
+async def test_thread_finish_no_fail(mocker, clean_agent, mock_agent_logger):
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",

@@ -331,7 +331,6 @@ async def test_build_image_success(
     runner,
     mock_boto3,
     test_settings,
-    capsys,
     tmp_path,
 ):
     api = wandb.sdk.internal.internal_api.Api(
@@ -340,6 +339,8 @@ async def test_build_image_success(
     monkeypatch.setattr(
         wandb.sdk.launch._project_spec.LaunchProject, "build_required", lambda x: True
     )
+    mock_logger = MagicMock()
+    monkeypatch.setattr(wandb.sdk.launch.builder.kaniko_builder, "_logger", mock_logger)
     with runner.isolated_filesystem():
         os.makedirs("./test/context/path/", exist_ok=True)
         with open("./test/context/path/Dockerfile.wandb", "wb") as f:
@@ -378,7 +379,7 @@ async def test_build_image_success(
         image_uri = await builder.build_image(project, entry_point)
         assert (
             "Created kaniko job wandb-launch-container-build-"
-            in capsys.readouterr().err
+            in mock_logger.info.call_args_list[1][0][0]
         )
         assert "12345678.dkr.ecr.us-east-1.amazonaws.com/test-repo" in image_uri
 
