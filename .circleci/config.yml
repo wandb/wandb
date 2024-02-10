@@ -87,6 +87,7 @@ executors:
   macos:
     macos:
       xcode: 15.1.0
+    resource_class: macos.m1.medium.gen1
 
   linux-python:
     parameters:
@@ -94,6 +95,7 @@ executors:
       python_version_minor: {type: integer}
     docker:
       - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+    resource_class: xlarge
 
 commands:
   save-test-results:
@@ -367,10 +369,6 @@ jobs:
         enum: [sdk, other]
 
     executor: <<parameters.executor>>
-
-    # We're testing some heavy "units". Ideally we would use the default,
-    # but for that we must pare down the unit tests.
-    resource_class: xlarge
 
     # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
     # https://circleci.com/docs/parallelism-faster-jobs/
