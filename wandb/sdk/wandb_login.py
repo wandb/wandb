@@ -79,7 +79,9 @@ def login(
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
-    if wandb.setup()._settings._noop or os.environ.get(LAUNCH):
+    if os.environ.get(LAUNCH):
+        return False
+    if wandb.setup()._settings._noop:
         return True
     kwargs = dict(locals())
     _verify = kwargs.pop("verify", False)
