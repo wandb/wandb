@@ -85,10 +85,6 @@ parameters:
 
 executors:
   macos:
-    # TODO: Ignored
-    parameters:
-      python_version_major: {type: integer}
-      python_version_minor: {type: integer}
     macos:
       xcode: 15.1.0
 
@@ -361,7 +357,7 @@ jobs:
 
   unit-tests-new:
     parameters:
-      executor: {type: string}
+      executor: {type: executor}
       install_deps: {type: steps}
       python_version_major: {type: integer}
       python_version_minor: {type: integer}
@@ -370,10 +366,7 @@ jobs:
         type: enum
         enum: [sdk, other]
 
-    executor:
-      name: <<parameters.executor>>
-      python_version_major: <<parameters.python_version_major>>
-      python_version_minor: <<parameters.python_version_minor>>
+    executor: <<parameters.executor>>
 
     # We're testing some heavy "units". Ideally we would use the default,
     # but for that we must pare down the unit tests.
@@ -1622,7 +1615,11 @@ workflows:
               with_core: [true, false]
               tests: [sdk, other]
 
-          executor: linux-python
+          executor:
+            name: linux-python
+            python_version_major: <<matrix.python_version_major>>
+            python_version_minor: <<matrix.python_version_minor>>
+
           install_deps:
             - run:
                 name: Install system deps
@@ -1650,6 +1647,7 @@ workflows:
               tests: [sdk, other]
 
           executor: macos
+
           install_deps:
             - run:
                 name: Install system deps
