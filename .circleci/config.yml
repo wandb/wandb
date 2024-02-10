@@ -83,6 +83,22 @@ parameters:
     type: string
     default: "master"
 
+executors:
+  macos:
+    # TODO: Ignored
+    parameters:
+      python_version_major: {type: integer}
+      python_version_minor: {type: integer}
+    macos:
+      xcode: 15.1.0
+
+  linux-python:
+    parameters:
+      python_version_major: {type: integer}
+      python_version_minor: {type: integer}
+    docker:
+      - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+
 commands:
   save-test-results:
     description: "Save test results"
@@ -345,6 +361,8 @@ jobs:
 
   unit-tests-new:
     parameters:
+      executor: {type: string}
+      install_deps: {type: steps}
       python_version_major: {type: integer}
       python_version_minor: {type: integer}
       with_core: {type: boolean}
@@ -352,8 +370,10 @@ jobs:
         type: enum
         enum: [sdk, other]
 
-    docker:
-      - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+    executor:
+      name: <<parameters.executor>>
+      python_version_major: <<parameters.python_version_major>>
+      python_version_minor: <<parameters.python_version_minor>>
 
     # We're testing some heavy "units". Ideally we would use the default,
     # but for that we must pare down the unit tests.
@@ -365,13 +385,8 @@ jobs:
 
     steps:
       - checkout
+      - <<parameters.install_deps>>
       - install_go
-
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-            apt-get install -y libsndfile1 ffmpeg
 
       - run:
           name: Install Python dependencies
@@ -1593,12 +1608,59 @@ workflows:
       - unit-tests-new:
           requires:
             - unit-tests
+          name: "\
+            unit-tests-linux-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.tests>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [7, 12]
               with_core: [true, false]
               tests: [sdk, other]
+
+          executor: linux-python
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
+
+      #
+      # Unit tests with pytest on macOS
+      #
+      - unit-tests-new:
+          requires:
+            - unit-tests
+          name: "\
+            unit-tests-macos-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.tests>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 12]
+              with_core: [true, false]
+              tests: [sdk, other]
+
+          executor: macos
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  brew install ffmpeg \
+                    python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
+            - run:
+                name: Add unversioned 'python' to PATH
+                command: |
+                  echo "export PATH=$(brew --prefix python)/libexec/bin:\$PATH"
+
 
       #
       # Unit tests with pytest on Windows and MacOS
