@@ -1609,7 +1609,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 12]
+              python_version_minor: [8, 12]
               with_core: [true, false]
               tests: [sdk, other]
 
