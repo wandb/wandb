@@ -363,7 +363,6 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
-
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
@@ -1034,14 +1033,15 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 		s.logger.CaptureError("sender received error", err)
 		return
 	}
-
+	headers := data.GetCreateRunFiles().GetUploadHeaders()
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
 		task := &filetransfer.Task{
-			Type: filetransfer.UploadTask,
-			Path: fullPath,
-			Name: f.Name,
-			Url:  *f.UploadUrl,
+			Type:    filetransfer.UploadTask,
+			Path:    fullPath,
+			Name:    f.Name,
+			Url:     *f.UploadUrl,
+			Headers: headers,
 		}
 
 		task.SetProgressCallback(

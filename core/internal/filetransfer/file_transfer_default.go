@@ -63,14 +63,12 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		return err
 	}
 	for _, header := range task.Headers {
-		parts := strings.Split(header, ":")
+		parts := strings.SplitN(header, ":", 2)
 		req.Header.Set(parts[0], parts[1])
 	}
-
-	if _, err = ft.client.Do(req); err != nil {
+	if _, err := ft.client.Do(req); err != nil {
 		return err
 	}
-
 	return nil
 }
 
