@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -14,18 +15,16 @@ const CtxRetryPolicyKey ContextKey = "retryFunc"
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	statusCode := resp.StatusCode
 	switch {
-	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
-		return false, err
-	case statusCode == http.StatusConflict:
-		return false, err
+	case statusCode == http.StatusBadRequest, statusCode == http.StatusConflict: // don't retry on 400 bad request or 409 conflict
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
-		return false, err
+		return false, fmt.Errorf("the API key you provided is either invalid or missing. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
-		return false, err
+		return false, fmt.Errorf("you don't have permission to access this resource. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusNotFound: // don't retry on 404 not found
-		return false, err
+		return false, fmt.Errorf("the resource you requested could not be found. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
-		return true, err
+		return true, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	default: // use default retry policy for all other status codes
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
@@ -35,13 +34,9 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
-		return false, err
+		return false, fmt.Errorf("the server responded with an error. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	case statusCode == http.StatusConflict: // retry on 409 Conflict
-		return true, err
-	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
-		return false, err
-	case statusCode == http.StatusUnprocessableEntity:
-		return false, err
+		return true, fmt.Errorf("conflict, retrying. (Error %d: %s)", statusCode, http.StatusText(statusCode))
 	default: // use default retry policy for all other status codes
 		return DefaultRetryPolicy(ctx, resp, err)
 	}

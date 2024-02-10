@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/segmentio/encoding/json"
@@ -115,8 +114,6 @@ type Sender struct {
 	store *Store
 
 	jobBuilder *launch.JobBuilder
-
-	wg sync.WaitGroup
 }
 
 // NewSender creates a new Sender with the given settings
@@ -136,7 +133,6 @@ func NewSender(
 		summaryMap: make(map[string]*service.SummaryItem),
 		configMap:  make(map[string]interface{}),
 		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
-		wg:         sync.WaitGroup{},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -151,6 +147,9 @@ func NewSender(
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
+			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
+				return resp.StatusCode >= 400
+			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
 			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
@@ -363,6 +362,7 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
 		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
@@ -445,7 +445,6 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
-		s.wg.Wait()
 		s.fileTransferManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
@@ -706,8 +705,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
-			// TODO(run update): handle error communication back to the client
-			fmt.Println("ERROR: failed to upsert bucket", err.Error())
 			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
 			//  Need to inform the sync service that this ops failed.
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -994,11 +991,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		if strings.HasPrefix(file.GetPath(), "media") {
 			file.Type = service.FilesItem_MEDIA
 		}
-		s.wg.Add(1)
-		go func(file *service.FilesItem) {
-			s.sendFile(file)
-			s.wg.Done()
-		}(file)
+		s.sendFile(file)
 	}
 }
 
