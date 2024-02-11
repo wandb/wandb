@@ -64,6 +64,10 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	}
 	for _, header := range task.Headers {
 		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
 		req.Header.Set(parts[0], parts[1])
 	}
 	if _, err := ft.client.Do(req); err != nil {
