@@ -223,11 +223,9 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 						outChan <- record
 					},
 				)
-				task.AddCompletionCallback(func(task *filetransfer.Task) {
-					taskResultsChan <- TaskResult{task, name}
-				})
-				task.AddCompletionCallback(
+				task.SetCompletionCallback(
 					func(*filetransfer.Task) {
+						taskResultsChan <- TaskResult{task, name}
 						record := &service.Record{
 							RecordType: &service.Record_Request{
 								Request: &service.Request{
@@ -311,11 +309,9 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		Url:     *uploadUrl,
 		Headers: uploadHeaders,
 	}
-	task.AddCompletionCallback(func(task *filetransfer.Task) {
-		resultChan <- task
-	})
-	task.AddCompletionCallback(
+	task.SetCompletionCallback(
 		func(*filetransfer.Task) {
+			resultChan <- task
 			record := &service.Record{
 				RecordType: &service.Record_Request{
 					Request: &service.Request{

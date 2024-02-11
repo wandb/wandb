@@ -93,28 +93,29 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 		return err
 	}
 
+	// TODO: redo it to use the progress writer, to track the download progress
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {
 		return err
 	}
 	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
+		if err := file.Close(); err != nil {
 			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
 		}
 	}(file)
 
-	resp, err := ft.client.Get(task.Url)
-	if err != nil {
-		return err
-	}
 	defer func(file io.ReadCloser) {
-		err := file.Close()
-		if err != nil {
+		if err := file.Close(); err != nil {
 			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
 		}
 	}(resp.Body)
+
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err

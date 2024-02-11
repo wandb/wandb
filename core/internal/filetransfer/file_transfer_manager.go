@@ -118,9 +118,7 @@ func (fm *FileTransferManager) Start() {
 					)
 				}
 				// Execute the callback.
-				for _, callback := range task.CompletionCallback {
-					callback(task)
-				}
+				task.CompletionCallback(task)
 				// mark the task as done
 				fm.wg.Done()
 			}(task)
