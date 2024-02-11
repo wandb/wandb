@@ -165,15 +165,8 @@ class WandbRun:
         return self.run.tags
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
-        if self._artifacts is not None:
-            yield from self._artifacts
-            return
-
-        try:
+        if self._artifacts is None:
             self._artifacts = list(self.run.logged_artifacts())
-        except Exception as e:
-            logger.error(f"Error downloading {self._artifacts=}, {e=}")
-            return []
 
         new_arts = []
         for art in self._artifacts:
@@ -184,21 +177,15 @@ class WandbRun:
         self._artifacts = new_arts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
-        if self._used_artifacts is not None:
-            yield from self._used_artifacts
-            return
-
-        try:
+        if self._used_artifacts is None:
             self._used_artifacts = list(self.run.used_artifacts())
-        except Exception as e:
-            logger.error(f"Error downloading {self._used_artifacts=}, {e=}")
-            return []
 
         new_arts = []
         for art in self._used_artifacts:
             new_art = _clone_art(art)
             new_arts.append(new_art)
             yield new_art
+
         self._used_artifacts = new_arts
 
     def os_version(self) -> Optional[str]:
@@ -317,14 +304,7 @@ class WandbRun:
         yield from rows
 
     def _get_parquet_history_paths(self) -> List[str]:
-        if not self._artifacts:
-            try:
-                self._artifacts = list(self.run.logged_artifacts())
-            except Exception as e:
-                logger.error(f"Error downloading artifacts: {self._artifacts=}, {e=}")
-                return
-
-        for art in self._artifacts:
+        for art in self.artifacts():
             if art.type != "wandb-history":
                 continue
             if (path := _download_art(art, root=f"./artifacts/src/{art.name}")) is None:
