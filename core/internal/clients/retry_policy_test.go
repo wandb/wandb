@@ -94,5 +94,5 @@ func TestCheckRetry(t *testing.T) {
 	resp.StatusCode = http.StatusNotFound
 	retry, err = clients.CheckRetry(ctx, resp, nil)
 	assert.False(t, retry)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
