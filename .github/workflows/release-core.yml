@@ -52,7 +52,7 @@ jobs:
           gcc --version
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.15.0
+        uses: pypa/cibuildwheel@v2.16.5
         with:
            package-dir: "core"
            output-dir: "core/wheelhouse"
