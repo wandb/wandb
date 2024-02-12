@@ -151,9 +151,6 @@ func NewSender(
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
-				return resp.StatusCode >= 400
-			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
 			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
 			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
@@ -710,6 +707,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
+			// TODO(run update): handle error communication back to the client
+			fmt.Println("ERROR: failed to upsert bucket", err.Error())
 			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
 			//  Need to inform the sync service that this ops failed.
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -1035,14 +1034,15 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 		s.logger.CaptureError("sender received error", err)
 		return
 	}
-
+	headers := data.GetCreateRunFiles().GetUploadHeaders()
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
 		task := &filetransfer.Task{
-			Type: filetransfer.UploadTask,
-			Path: fullPath,
-			Name: f.Name,
-			Url:  *f.UploadUrl,
+			Type:    filetransfer.UploadTask,
+			Path:    fullPath,
+			Name:    f.Name,
+			Url:     *f.UploadUrl,
+			Headers: headers,
 		}
 
 		task.SetProgressCallback(
@@ -1067,9 +1067,9 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
-		task.AddCompletionCallback(
-			func(*filetransfer.Task) {
+		task.SetCompletionCallback(
+			func(t *filetransfer.Task) {
+				s.fileTransferManager.FileStreamCallback(t)
 				fileCounts := &service.FileCounts{}
 				switch file.GetType() {
 				case service.FilesItem_MEDIA:
@@ -1087,8 +1087,8 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 								FileTransferInfo: &service.FileTransferInfoRequest{
 									Type:       service.FileTransferInfoRequest_Upload,
 									Path:       fullPath,
-									Size:       task.Size,
-									Processed:  task.Size,
+									Size:       t.Size,
+									Processed:  t.Size,
 									FileCounts: fileCounts,
 								},
 							},
@@ -1098,7 +1098,6 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-
 		s.fileTransferManager.AddTask(task)
 	}
 }
