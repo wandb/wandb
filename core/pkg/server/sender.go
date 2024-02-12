@@ -1025,14 +1025,15 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 		s.logger.CaptureError("sender received error", err)
 		return
 	}
-
+	headers := data.GetCreateRunFiles().GetUploadHeaders()
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
 		task := &filetransfer.Task{
-			Type: filetransfer.UploadTask,
-			Path: fullPath,
-			Name: f.Name,
-			Url:  *f.UploadUrl,
+			Type:    filetransfer.UploadTask,
+			Path:    fullPath,
+			Name:    f.Name,
+			Url:     *f.UploadUrl,
+			Headers: headers,
 		}
 
 		task.SetProgressCallback(
@@ -1057,9 +1058,9 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
-		task.AddCompletionCallback(
-			func(*filetransfer.Task) {
+		task.SetCompletionCallback(
+			func(t *filetransfer.Task) {
+				s.fileTransferManager.FileStreamCallback(t)
 				fileCounts := &service.FileCounts{}
 				switch file.GetType() {
 				case service.FilesItem_MEDIA:
@@ -1077,8 +1078,8 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 								FileTransferInfo: &service.FileTransferInfoRequest{
 									Type:       service.FileTransferInfoRequest_Upload,
 									Path:       fullPath,
-									Size:       task.Size,
-									Processed:  task.Size,
+									Size:       t.Size,
+									Processed:  t.Size,
 									FileCounts: fileCounts,
 								},
 							},
@@ -1088,7 +1089,6 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-
 		s.fileTransferManager.AddTask(task)
 	}
 }
