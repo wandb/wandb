@@ -1,3 +1,4 @@
+import glob
 import os
 import pathlib
 import sys
@@ -84,15 +85,11 @@ def package_wandb_core(should_install, with_coverage):
     _build_wandb_core_artifacts(with_coverage=with_coverage)
 
     if _CORE_WHEEL_DIR.exists():
-        subprocess.run(
-            [
-                "rm",
-                "-rf",
-                _CORE_WHEEL_DIR,
-            ]
-        )
+        # Remove old wheel files to prevent ambiguity issues when installing.
+        for file in _CORE_WHEEL_DIR.glob("*"):
+            file.unlink()
 
-    _CORE_WHEEL_DIR.mkdir(parents=True)
+    _CORE_WHEEL_DIR.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             "python",
