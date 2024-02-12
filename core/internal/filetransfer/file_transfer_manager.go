@@ -134,17 +134,15 @@ func (fm *FileTransferManager) AddTask(task *Task) {
 }
 
 // FileStreamCallback returns a callback for filestream updates
-func (fm *FileTransferManager) FileStreamCallback() func(task *Task) {
-	return func(task *Task) {
-		fm.logger.Debug("uploader: filestream callback", "task", task)
-		if task.Err != nil {
-			return
-		}
-		record := &service.FilesUploaded{
-			Files: []string{task.Name},
-		}
-		fm.fsChan <- record
+func (fm *FileTransferManager) FileStreamCallback(task *Task) {
+	fm.logger.Debug("uploader: filestream callback", "task", task)
+	if task.Err != nil {
+		return
 	}
+	record := &service.FilesUploaded{
+		Files: []string{task.Name},
+	}
+	fm.fsChan <- record
 }
 
 // Close closes the fileTransfer

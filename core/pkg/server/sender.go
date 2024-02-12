@@ -1060,8 +1060,8 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 			},
 		)
 		task.SetCompletionCallback(
-			func(*filetransfer.Task) {
-				s.fileTransferManager.FileStreamCallback()
+			func(task *filetransfer.Task) {
+				s.fileTransferManager.FileStreamCallback(task)
 				fileCounts := &service.FileCounts{}
 				switch file.GetType() {
 				case service.FilesItem_MEDIA:
@@ -1090,7 +1090,6 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-
 		s.fileTransferManager.AddTask(task)
 	}
 }
