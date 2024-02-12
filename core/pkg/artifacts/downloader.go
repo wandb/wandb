@@ -156,8 +156,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						Url:  *entry.DownloadURL,
 					}
 					task.SetCompletionCallback(
-						func(task *filetransfer.Task) {
-							taskResultsChan <- TaskResult{task, *entry.LocalPath}
+						func(t *filetransfer.Task) {
+							taskResultsChan <- TaskResult{t, *entry.LocalPath}
 						},
 					)
 					numInProgress++
