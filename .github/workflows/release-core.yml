@@ -65,6 +65,9 @@ jobs:
             python core/scripts/build/install_go.py &&
             pip install -r ./requirements_tools.txt &&
             ./wini build wandb-core-artifacts
+          CIBW_BEFORE_ALL_WINDOWS: >
+            pip install -r .\requirements_tools.txt &&
+            .\wini build wandb-core-artifacts
           CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
