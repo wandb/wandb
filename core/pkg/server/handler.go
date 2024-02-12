@@ -377,7 +377,6 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 }
 
 func (h *Handler) handleLogArtifact(record *service.Record) {
-	fmt.Println("handleLogArtifact", record)
 	h.sendRecord(record)
 }
 
@@ -519,26 +518,31 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 	// initialize the run metadata from settings
-	metadata := &service.MetadataRequest{
-		Os:            h.settings.GetXOs().GetValue(),
-		Python:        h.settings.GetXPython().GetValue(),
-		Host:          h.settings.GetHost().GetValue(),
-		Cuda:          h.settings.GetXCuda().GetValue(),
-		Program:       h.settings.GetProgram().GetValue(),
-		CodePath:      h.settings.GetProgramAbspath().GetValue(),
-		CodePathLocal: h.settings.GetProgramAbspath().GetValue(), // todo(launch): add this
-		Email:         h.settings.GetEmail().GetValue(),
-		Root:          h.settings.GetRootDir().GetValue(),
-		Username:      h.settings.GetUsername().GetValue(),
-		Docker:        h.settings.GetDocker().GetValue(),
-		Executable:    h.settings.GetXExecutable().GetValue(),
-		Args:          h.settings.GetXArgs().GetValue(),
-		Colab:         h.settings.GetColabUrl().GetValue(),
-		StartedAt:     run.GetStartTime(),
-		Git: &service.GitRepoRecord{
+	var git *service.GitRepoRecord
+	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
+		git = &service.GitRepoRecord{
 			RemoteUrl: run.GetGit().GetRemoteUrl(),
 			Commit:    run.GetGit().GetCommit(),
-		},
+		}
+	}
+
+	metadata := &service.MetadataRequest{
+		Os:       h.settings.GetXOs().GetValue(),
+		Python:   h.settings.GetXPython().GetValue(),
+		Host:     h.settings.GetHost().GetValue(),
+		Cuda:     h.settings.GetXCuda().GetValue(),
+		Program:  h.settings.GetProgram().GetValue(),
+		CodePath: h.settings.GetProgramAbspath().GetValue(),
+		// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
+		Email:      h.settings.GetEmail().GetValue(),
+		Root:       h.settings.GetRootDir().GetValue(),
+		Username:   h.settings.GetUsername().GetValue(),
+		Docker:     h.settings.GetDocker().GetValue(),
+		Executable: h.settings.GetXExecutable().GetValue(),
+		Args:       h.settings.GetXArgs().GetValue(),
+		Colab:      h.settings.GetColabUrl().GetValue(),
+		StartedAt:  run.GetStartTime(),
+		Git:        git,
 	}
 
 	if !h.settings.GetXDisableStats().GetValue() {
