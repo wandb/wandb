@@ -164,3 +164,9 @@ def test_login_invalid_key():
         wandb.ensure_configured()
         with pytest.raises(wandb.errors.AuthenticationError):
             wandb.login(verify=True)
+
+
+def test_login_launch():
+    with mock.patch.dict("os.environ", WANDB_LAUNCH="true" * 40):
+        wandb.login()
+        assert wandb.wandb_sdk.wandb_setup._WandbSetup._instance is None
