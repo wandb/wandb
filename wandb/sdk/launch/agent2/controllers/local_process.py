@@ -3,10 +3,7 @@ import json
 import logging
 from typing import Any, Awaitable, Dict
 
-from wandb.sdk.launch._project_spec import (
-    create_project_from_spec,
-    fetch_and_validate_project,
-)
+from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
 from ...queue_driver import passthrough
@@ -113,11 +110,12 @@ class LocalProcessesManager:
         item_id = item["runQueueItemId"]
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
-        project = create_project_from_spec(item["runSpec"], self.legacy.api)
+        project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
         project.queue_name = self.config["job_set_spec"]["name"]
         project.queue_entity = self.config["job_set_spec"]["entity_name"]
         project.run_queue_item_id = item["runQueueItemId"]
-        project = fetch_and_validate_project(project, self.legacy.api)
+        project.fetch_and_validate_project()
+        
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
