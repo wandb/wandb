@@ -8,6 +8,7 @@ import wandb
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.errors.term import termlog
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
@@ -401,6 +402,43 @@ class ArtifactCollection:
             raise ValueError("Could not find artifact type %s" % self.type)
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
+
+    def change_type(self, new_type: str) -> None:
+        """Change the type of the artifact collection.
+
+        Arguments:
+            new_type: The new collection type to use, freeform string.
+        """
+        if not self.is_sequence():
+            raise ValueError("Artifact collection needs to be a sequence")
+        termlog(f"Changing artifact collection type of " f"{self.type} to {new_type}")
+        template = """
+            mutation MoveArtifactCollection(
+                $artifactSequenceID: ID!
+                $destinationArtifactTypeName: String!
+            ) {
+                moveArtifactSequence(
+                input: {
+                    artifactSequenceID: $artifactSequenceID
+                    destinationArtifactTypeName: $destinationArtifactTypeName
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                    __typename
+                }
+                }
+            }
+            """
+        variable_values = {
+            "artifactSequenceID": self.id,
+            "destinationArtifactTypeName": new_type,
+        }
+        mutation = gql(template)
+        self.client.execute(mutation, variable_values=variable_values)
+        self.type = new_type
 
     @normalize_exceptions
     def is_sequence(self) -> bool:
