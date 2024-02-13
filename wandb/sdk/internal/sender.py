@@ -969,7 +969,7 @@ class SendManager:
             config_override = self._consolidated_config
             config_dict = self._resume_state.config
             config_dict = config_util.dict_strip_value_dict(config_dict)
-            config_dict.update(config_override)
+            config_override.update(config_dict)
             self._consolidated_config.update(config_dict)
             config_value_dict = self._config_format(self._consolidated_config)
             self._config_save(config_value_dict)
