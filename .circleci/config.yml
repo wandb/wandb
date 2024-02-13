@@ -424,7 +424,7 @@ jobs:
                     tests/pytest_tests/unit_tests/test_launch/ \
                     tests/pytest_tests/unit_tests/test_reports/
 
-      - codecov/upload: {flags: unit}
+      - codecov/upload: {flags: unit, validate: false}
 
       - save-test-results
 
@@ -515,7 +515,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload: {flags: <<parameters.codecov_flags>>}
+                  - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -599,7 +599,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload: {flags: <<parameters.codecov_flags>>}
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -627,7 +627,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - codecov/upload: {flags: unit}
+      - codecov/upload: {flags: unit, validate: false}
 
   protobuf-compatability:
     parameters:
@@ -760,7 +760,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload: {flags: <<parameters.codecov_flags>>}
+                  - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
             - save-test-results
 
   mac:
@@ -815,7 +815,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload: {flags: <<parameters.codecov_flags>>}
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
 
   launch:
@@ -859,7 +859,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload: {flags: <<parameters.codecov_flags>>}
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
 
   slack_notify:
