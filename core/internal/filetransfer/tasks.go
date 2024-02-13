@@ -31,7 +31,7 @@ type Task struct {
 	Err error
 
 	// Callback to execute after completion (success or failure).
-	CompletionCallback []func(*Task)
+	CompletionCallback func(*Task)
 
 	// ProgressCallback is a callback to execute on progress updates
 	ProgressCallback func(int, int)
@@ -41,6 +41,6 @@ func (ut *Task) SetProgressCallback(callback func(int, int)) {
 	ut.ProgressCallback = callback
 }
 
-func (ut *Task) AddCompletionCallback(callback func(*Task)) {
-	ut.CompletionCallback = append(ut.CompletionCallback, callback)
+func (ut *Task) SetCompletionCallback(callback func(*Task)) {
+	ut.CompletionCallback = callback
 }

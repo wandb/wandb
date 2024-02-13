@@ -20,11 +20,7 @@ from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import runid
 
 from .. import loader
-from .._project_spec import (
-    LaunchProject,
-    create_project_from_spec,
-    fetch_and_validate_project,
-)
+from .._project_spec import LaunchProject
 from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
@@ -629,7 +625,7 @@ class LaunchAgent:
         thread_id: int,
         job_tracker: JobAndRunStatusTracker,
     ) -> None:
-        project = create_project_from_spec(launch_spec, api)
+        project = LaunchProject.from_spec(launch_spec, api)
         self._set_queue_and_rqi_in_project(project, job, job_tracker.queue)
         ack = event_loop_thread_exec(api.ack_run_queue_item)
         await ack(job["runQueueItemId"], project.run_id)
@@ -638,7 +634,7 @@ class LaunchAgent:
 
         job_tracker.update_run_info(project)
         _logger.info("Fetching and validating project...")
-        project = fetch_and_validate_project(project, api)
+        project.fetch_and_validate_project()
         _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {

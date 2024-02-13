@@ -226,6 +226,17 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
     return config_entity or api.default_entity
 
 
+def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
+    wandb.termwarn(
+        "Launch spec contains both resource_args and template_variables, "
+        "only one can be set. Using template_variables."
+    )
+    if launch_spec.get("resource_args", None) and launch_spec.get(
+        "template_variables", None
+    ):
+        launch_spec["resource_args"] = None
+
+
 def construct_launch_spec(
     uri: Optional[str],
     job: Optional[str],
@@ -302,6 +313,9 @@ def construct_launch_spec(
             launch_config["registry"]["url"] = repository
         else:
             launch_config["registry"] = {"url": repository}
+
+    # dont send both resource args and template variables
+    strip_resource_args_and_template_vars(launch_spec)
 
     return launch_spec
 

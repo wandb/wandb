@@ -2,7 +2,7 @@ import torch
 from diffusers import PixArtAlphaPipeline
 from wandb.integration.diffusers import autolog
 
-autolog(init=dict(project="diffusers_logging", job_type="pixart-alpha"))
+autolog()
 
 pipe = PixArtAlphaPipeline.from_pretrained(
     "PixArt-alpha/PixArt-XL-2-1024-MS", torch_dtype=torch.float16
@@ -10,4 +10,5 @@ pipe = PixArtAlphaPipeline.from_pretrained(
 pipe.enable_model_cpu_offload()
 
 prompt = "A small cactus with a happy face in the Sahara desert."
-image = pipe(prompt).images[0]
+generator = torch.Generator(device="cuda").manual_seed(10)
+image = pipe(prompt, generator=generator).images[0]

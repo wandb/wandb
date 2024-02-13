@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-11]
+        os: [ubuntu-20.04, windows-2019, macos-13]
 
     steps:
       - uses: actions/checkout@v4
@@ -52,21 +52,25 @@ jobs:
           gcc --version
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.15.0
+        uses: pypa/cibuildwheel@v2.16.5
         with:
            package-dir: "core"
            output-dir: "core/wheelhouse"
         env:
           CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-          CIBW_BEFORE_ALL_LINUX: python core/scripts/build/install_go.py
+          CIBW_BEFORE_ALL: >
+            pip install -r requirements_tools.txt &&
+            bash wini build wandb-core-artifacts --skip-swift-build
+          CIBW_BEFORE_ALL_LINUX: >
+            python core/scripts/build/install_go.py &&
+            pip install -r requirements_tools.txt &&
+            bash wini build wandb-core-artifacts
           CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
           CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
           CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_BUILD_VERBOSITY: 3
-
-# TODO: build swift library for ARM macs GPU stats collection
 
 # TODO: build sdist
 #      - name: Build sdist
