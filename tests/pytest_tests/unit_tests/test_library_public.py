@@ -259,6 +259,7 @@ SYMBOLS_CONFIG_OTHER = {
     "as_dict",
     "update_locked",
     "persist",
+    "merge_locked",
 }
 
 

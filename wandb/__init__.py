@@ -11,8 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.3.dev1"
-_minimum_core_version = "0.17.0b6"
+__version__ = "0.16.4.dev1"
+_minimum_core_version = "0.17.0b9"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -61,6 +61,10 @@ wandb.sdk.wandb_require._import_module_hook()
 from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
+from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
+
+_cleanup_media_tmp_dir()
+
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly

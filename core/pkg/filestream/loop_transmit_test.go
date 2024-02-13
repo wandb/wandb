@@ -77,7 +77,7 @@ func TestSendChunks(t *testing.T) {
 	}
 	expect := FsTransmitData{
 		Files: map[string]fsTransmitFileData{
-			"wandb-history.jsonl": fsTransmitFileData{
+			"wandb-history.jsonl": {
 				Offset:  0,
 				Content: []string{"this is a line"},
 			},

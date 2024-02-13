@@ -5,6 +5,7 @@ package monitor
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -54,9 +55,35 @@ func NewGPUAMD(settings *service.Settings) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
+func GetRocmSMICmd() (string, error) {
+	if foundCmd, err := exec.LookPath("rocm-smi"); err == nil {
+		return foundCmd, nil
+	}
+	// try to use the default path
+	if _, err := os.Stat(rocmSMICmd); err == nil {
+		return rocmSMICmd, nil
+	}
+	return "", fmt.Errorf("rocm-smi not found")
+}
+
 func (g *GPUAMD) IsAvailable() bool {
-	_, err := exec.LookPath(rocmSMICmd)
-	return err == nil
+	_, err := GetRocmSMICmd()
+	if err != nil {
+		return false
+	}
+
+	isDriverInitialized := false
+	fileContent, err := os.ReadFile("/sys/module/amdgpu/initstate")
+	if err == nil && strings.Contains(string(fileContent), "live") {
+		isDriverInitialized = true
+	}
+
+	canReadRocmSmi := false
+	if _, err := getROCMSMIStats(); err == nil {
+		canReadRocmSmi = true
+	}
+
+	return isDriverInitialized && canReadRocmSmi
 }
 
 func (g *GPUAMD) getCards() map[int]Stats {
@@ -187,6 +214,10 @@ func (g *GPUAMD) Samples() map[string][]float64 {
 }
 
 func getROCMSMIStats() (InfoDict, error) {
+	rocmSMICmd, err := GetRocmSMICmd()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
 	output, err := cmd.Output()
 	if err != nil {
@@ -253,8 +284,8 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 }
 
 func (g *GPUAMD) SampleMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	cards := g.getCards()
 
@@ -273,15 +304,15 @@ func parseFloat(s string) (float64, error) {
 }
 
 func (g *GPUAMD) ClearMetrics() {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	g.metrics = make(map[string][]float64)
 }
 
 func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {

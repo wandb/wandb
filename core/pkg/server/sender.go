@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/segmentio/encoding/json"
@@ -22,9 +23,11 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -82,6 +85,8 @@ type Sender struct {
 	fileTransferManager *filetransfer.FileTransferManager
 
 	// RunRecord is the run record
+	// TODO: remove this and use properly updated settings
+	//       + a flag indicating whether the run has started
 	RunRecord *service.RunRecord
 
 	// resumeState is the resume state
@@ -108,6 +113,10 @@ type Sender struct {
 	syncService *SyncService
 
 	store *Store
+
+	jobBuilder *launch.JobBuilder
+
+	wgFileTransfer sync.WaitGroup
 }
 
 // NewSender creates a new Sender with the given settings
@@ -120,13 +129,14 @@ func NewSender(
 ) *Sender {
 
 	sender := &Sender{
-		ctx:        ctx,
-		cancel:     cancel,
-		settings:   settings,
-		logger:     logger,
-		summaryMap: make(map[string]*service.SummaryItem),
-		configMap:  make(map[string]interface{}),
-		telemetry:  &service.TelemetryRecord{CoreVersion: version.Version},
+		ctx:            ctx,
+		cancel:         cancel,
+		settings:       settings,
+		logger:         logger,
+		summaryMap:     make(map[string]*service.SummaryItem),
+		configMap:      make(map[string]interface{}),
+		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer: sync.WaitGroup{},
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseHeaders := map[string]string{
@@ -141,28 +151,29 @@ func NewSender(
 				settings.GetXExtraHttpHeaders().GetValue(),
 			),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
-				return resp.StatusCode >= 400
-			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXGraphqlTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue())),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
 
+		headers := map[string]string{}
+		if settings.GetXShared().GetValue() {
+			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+		}
 		fileStreamRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
 			}),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileStreamTimeoutSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue()),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue())),
+			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), headers),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
@@ -171,14 +182,16 @@ func NewSender(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
 			fs.WithHttpClient(fileStreamRetryClient),
+			fs.WithClientId(shared.ShortID(32)),
 		)
+
 		fileTransferRetryClient := clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
 			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(time.Duration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientRetryWaitMax(time.Duration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue()*int32(time.Second))),
-			clients.WithRetryClientHttpTimeout(time.Duration(settings.GetXFileTransferTimeoutSeconds().GetValue()*int32(time.Second))),
+			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
+			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
+			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		)
 		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
@@ -193,6 +206,10 @@ func NewSender(
 		)
 
 		sender.getServerInfo()
+
+		if !settings.GetDisableJobCreation().GetValue() {
+			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
+		}
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
@@ -275,6 +292,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_LinkArtifact:
 		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
+		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
@@ -317,17 +335,28 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	}
 }
 
-// updateSettingsStartTime sets run start time in the settings if it is not set
-func (s *Sender) updateSettingsStartTime() {
-	// TODO: rewrite in a cleaner way
-	if s.settings == nil || s.settings.XStartTime != nil {
+// updateSettings updates the settings from the run record upon a run start
+// with the information from the server
+func (s *Sender) updateSettings() {
+	if s.settings == nil || s.RunRecord == nil {
 		return
 	}
-	if s.RunRecord == nil || s.RunRecord.StartTime == nil {
-		return
+
+	if s.settings.XStartTime == nil && s.RunRecord.StartTime != nil {
+		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
-	startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
-	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+
+	// TODO: verify that this is the correct update logic
+	if s.RunRecord.GetEntity() != "" {
+		s.settings.Entity = &wrapperspb.StringValue{Value: s.RunRecord.Entity}
+	}
+	if s.RunRecord.GetProject() != "" && s.settings.Project == nil {
+		s.settings.Project = &wrapperspb.StringValue{Value: s.RunRecord.Project}
+	}
+	if s.RunRecord.GetDisplayName() != "" && s.settings.RunName == nil {
+		s.settings.RunName = &wrapperspb.StringValue{Value: s.RunRecord.DisplayName}
+	}
 }
 
 // sendRun starts up all the resources for a run
@@ -338,12 +367,47 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
 
-	s.updateSettingsStartTime()
+	s.updateSettings()
 	s.fileStream.Start()
 	s.fileTransferManager.Start()
 }
 
 func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+}
+
+func (s *Sender) sendJobFlush() {
+	if s.jobBuilder == nil {
+		return
+	}
+	input := s.configMap
+	output := make(map[string]interface{})
+
+	var out interface{}
+	for k, v := range s.summaryMap {
+		bytes := []byte(v.GetValueJson())
+		err := json.Unmarshal(bytes, &out)
+		if err != nil {
+			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
+			return
+		}
+		output[k] = out
+	}
+
+	artifact, err := s.jobBuilder.Build(input, output)
+	if err != nil {
+		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		return
+	}
+	if artifact == nil {
+		s.logger.Info("sender: sendDefer: no job artifact to save")
+		return
+	}
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
+	)
+	if _, err = saver.Save(s.fwdChan); err != nil {
+		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+	}
 }
 
 func (s *Sender) sendDefer(request *service.DeferRequest) {
@@ -375,12 +439,14 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
+		s.sendJobFlush()
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
+		s.wgFileTransfer.Wait()
 		s.fileTransferManager.Close()
 		request.State++
 		s.sendRequestDefer(request)
@@ -444,6 +510,14 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendUseArtifact(record *service.Record) {
+	if s.jobBuilder == nil {
+		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
+		return
+	}
+	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
 // updateConfig updates the config map with the config record
@@ -633,6 +707,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if err != nil {
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
+			// TODO(run update): handle error communication back to the client
+			fmt.Println("ERROR: failed to upsert bucket", err.Error())
 			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
 			//  Need to inform the sync service that this ops failed.
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -919,7 +995,11 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 		if strings.HasPrefix(file.GetPath(), "media") {
 			file.Type = service.FilesItem_MEDIA
 		}
-		s.sendFile(file)
+		s.wgFileTransfer.Add(1)
+		go func(file *service.FilesItem) {
+			s.sendFile(file)
+			s.wgFileTransfer.Done()
+		}(file)
 	}
 }
 
@@ -951,16 +1031,18 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		s.logger.CaptureError("sender received error", err)
+		return
 	}
-
+	headers := data.GetCreateRunFiles().GetUploadHeaders()
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
 		task := &filetransfer.Task{
-			Type: filetransfer.UploadTask,
-			Path: fullPath,
-			Name: f.Name,
-			Url:  *f.UploadUrl,
+			Type:    filetransfer.UploadTask,
+			Path:    fullPath,
+			Name:    f.Name,
+			Url:     *f.UploadUrl,
+			Headers: headers,
 		}
 
 		task.SetProgressCallback(
@@ -985,9 +1067,9 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-		task.AddCompletionCallback(s.fileTransferManager.FileStreamCallback())
-		task.AddCompletionCallback(
-			func(*filetransfer.Task) {
+		task.SetCompletionCallback(
+			func(t *filetransfer.Task) {
+				s.fileTransferManager.FileStreamCallback(t)
 				fileCounts := &service.FileCounts{}
 				switch file.GetType() {
 				case service.FilesItem_MEDIA:
@@ -1005,8 +1087,8 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 								FileTransferInfo: &service.FileTransferInfoRequest{
 									Type:       service.FileTransferInfoRequest_Upload,
 									Path:       fullPath,
-									Size:       task.Size,
-									Processed:  task.Size,
+									Size:       t.Size,
+									Processed:  t.Size,
 									FileCounts: fileCounts,
 								},
 							},
@@ -1016,7 +1098,6 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 				s.fwdChan <- record
 			},
 		)
-
 		s.fileTransferManager.AddTask(task)
 	}
 }
@@ -1044,6 +1125,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
+	s.jobBuilder.HandleLogArtifactResult(&response, record)
 	s.outChan <- result
 }
 

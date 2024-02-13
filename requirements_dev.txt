@@ -43,7 +43,6 @@ responses
 respx
 prometheus_client
 google-cloud-aiplatform
-
 aiohttp==3.9.0b0; python_version >= '3.12'
 
 .[async]
