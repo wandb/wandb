@@ -3198,7 +3198,6 @@ class Run:
                 can be in the following forms:
                     - model_artifact_name:version
                     - model_artifact_name:alias
-                    - model_artifact_name:digest.
 
         Examples:
             ```python
