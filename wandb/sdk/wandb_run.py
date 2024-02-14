@@ -2292,7 +2292,7 @@ class Run:
                     from importlib_metadata import distributions  # type: ignore
                 import collections
 
-                WorkingSet = collections.namedtuple("NamedTuple", "key version")
+                WorkingSet = collections.namedtuple("WorkingSet", "key version")
 
                 logger.debug(
                     "Saving list of pip packages installed into the current environment"

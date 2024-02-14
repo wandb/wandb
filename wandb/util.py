@@ -61,7 +61,7 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
-    import packaging.version
+    import packaging.version  # type: ignore[import-not-found]
 
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
