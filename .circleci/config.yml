@@ -589,7 +589,7 @@ jobs:
         default: "core"
       toxenv:
         type: string
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
       notify_on_failure:
@@ -645,12 +645,10 @@ jobs:
       - when:
           condition:
             not:
-              equal: ["", << parameters.codecov_args >>]
+              equal: ["", << parameters.codecov_flags >>]
           steps:
-            - run:
-                name: Upload coverage to codecov
-                command: |
-                  nox -s codecov -- << parameters.codecov_args >>
+            - codecov/upload:
+                { flags: <<parameters.codecov_flags>>, validate: false }
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -1654,7 +1652,7 @@ workflows:
           name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/"
-          codecov_args: "-F system"
+          codecov_flags: "system"
       #
       # Functional tests with pytest on Linux, using real wandb server
       #
