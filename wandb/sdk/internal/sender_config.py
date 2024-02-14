@@ -4,7 +4,6 @@ from typing import Any, Dict, ItemsView, NewType, Optional, Sequence
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import proto_util, telemetry
 
-
 BackendConfigDict = NewType("BackendConfigDict", Dict[str, Any])
 
 
