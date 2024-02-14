@@ -1850,6 +1850,25 @@ def get_core_path() -> str:
     return core_path
 
 
+def working_set() -> Iterable:
+    """Return the working set of installed distributions.
+
+    This function returns a list of namedtuples representing the installed distributions.
+    Each namedtuple has two fields: `key` and `version`. If the `importlib.metadata` module
+    is available, it uses that to get the working set. Otherwise, it falls back to the
+    `importlib_metadata` module.
+    """
+    try:
+        from importlib.metadata import distributions
+    except ImportError:  # Python 3.7
+        from importlib_metadata import distributions  # type: ignore
+    import collections
+
+    WorkingSet = collections.namedtuple("WorkingSet", "key version")
+    for d in distributions():
+        yield WorkingSet(key=d.metadata["Name"], version=d.version)
+
+
 def parse_version(version: str) -> "packaging.version.Version":
     """Parse a version string into a version object.
 
@@ -1858,7 +1877,7 @@ def parse_version(version: str) -> "packaging.version.Version":
     is not installed, it falls back to the `pkg_resources` library.
     """
     try:
-        from packaging.version import parse as parse_version
+        from packaging.version import parse as parse_version  # type: ignore
     except ImportError:
         from pkg_resources import parse_version
 

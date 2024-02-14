@@ -2286,23 +2286,12 @@ class Run:
 
         if self._settings._save_requirements:
             if self._backend and self._backend.interface:
-                try:
-                    from importlib.metadata import distributions
-                except ImportError:  # Python 3.7
-                    from importlib_metadata import distributions  # type: ignore
-                import collections
-
-                WorkingSet = collections.namedtuple("WorkingSet", "key version")
+                from wandb.util import working_set
 
                 logger.debug(
                     "Saving list of pip packages installed into the current environment"
                 )
-                self._backend.interface.publish_python_packages(
-                    [
-                        WorkingSet(key=d.metadata["Name"], version=d.version)
-                        for d in distributions()
-                    ]
-                )
+                self._backend.interface.publish_python_packages(working_set())
 
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
@@ -2362,11 +2351,9 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
-        import pkg_resources
+        from wandb.util import working_set
 
-        installed_packages_list = sorted(
-            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        )
+        installed_packages_list = sorted(f"{d.key}=={d.version}" for d in working_set())
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
 
