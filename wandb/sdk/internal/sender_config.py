@@ -140,10 +140,7 @@ class ConfigState:
         del remove_from[key_path[-1]]
 
 
-def _key_path(
-    self,
-    config_item: wandb_internal_pb2.ConfigItem,
-) -> Sequence[str]:
+def _key_path(config_item: wandb_internal_pb2.ConfigItem) -> Sequence[str]:
     """Returns the key path referenced by the config item."""
     if config_item.nested_key:
         return config_item.nested_key
