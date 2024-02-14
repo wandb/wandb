@@ -73,16 +73,19 @@ class ConfigState:
         ###################################################
         # Telemetry information
         ###################################################
-        if py_version := telemetry_record.python_version:
+        py_version = telemetry_record.python_version
+        if py_version:
             wandb_internal["python_version"] = py_version
 
-        if cli_version := telemetry_record.cli_version:
+        cli_version = telemetry_record.cli_version
+        if cli_version:
             wandb_internal["cli_version"] = cli_version
 
         if framework:
             wandb_internal["framework"] = framework
 
-        if huggingface_version := telemetry_record.huggingface_version:
+        huggingface_version = telemetry_record.huggingface_version
+        if huggingface_version:
             wandb_internal["huggingface_version"] = huggingface_version
 
         wandb_internal["is_jupyter_run"] = telemetry_record.env.jupyter
