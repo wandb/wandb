@@ -1,5 +1,6 @@
 import colorsys
 import contextlib
+import dataclasses
 import functools
 import gzip
 import importlib
@@ -1850,23 +1851,31 @@ def get_core_path() -> str:
     return core_path
 
 
-def working_set() -> Iterable:
+@dataclasses.dataclass(frozen=True)
+class InstalledDistribution:
+    """An installed distribution.
+
+    Attributes:
+        key: The distribution name as it would be imported.
+        version: The distribution's version string.
+    """
+
+    key: str
+    version: str
+
+
+def working_set() -> Iterable[InstalledDistribution]:
     """Return the working set of installed distributions.
 
-    This function returns a list of namedtuples representing the installed distributions.
-    Each namedtuple has two fields: `key` and `version`. If the `importlib.metadata` module
-    is available, it uses that to get the working set. Otherwise, it falls back to the
-    `importlib_metadata` module.
+    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
     """
     try:
         from importlib.metadata import distributions
-    except ImportError:  # Python 3.7
+    except ImportError:
         from importlib_metadata import distributions  # type: ignore
-    import collections
 
-    WorkingSet = collections.namedtuple("WorkingSet", "key version")
     for d in distributions():
-        yield WorkingSet(key=d.metadata["Name"], version=d.version)
+        yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
 
 
 def parse_version(version: str) -> "packaging.version.Version":
