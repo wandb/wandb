@@ -13,8 +13,8 @@ _WANDB_INTERNAL_KEY = "_wandb"
 class ConfigState:
     """The configuration of a run."""
 
-    def __init__(self) -> None:
-        self._tree: Dict[str, Any] = {}
+    def __init__(self, tree: Optional[Dict[str, Any]] = None) -> None:
+        self._tree: Dict[str, Any] = tree or {}
         """A tree with string-valued nodes and JSON leaves.
 
         Leaves are Python objects that are valid JSON values:
