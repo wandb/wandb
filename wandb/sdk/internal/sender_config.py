@@ -91,8 +91,7 @@ class ConfigState:
         wandb_internal["is_kaggle_kernel"] = telemetry_record.env.kaggle
         wandb_internal["start_time"] = start_time_millis
 
-        # The full telemetry record. Admittedly this is redundant with some of
-        # the above, but we do it because.. uh...
+        # The full telemetry record.
         wandb_internal["t"] = proto_util.proto_encode_to_dict(telemetry_record)
 
         ###################################################
