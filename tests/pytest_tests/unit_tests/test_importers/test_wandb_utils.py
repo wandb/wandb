@@ -12,7 +12,7 @@ if sys.version_info >= (3, 8):
 
     @pytest.fixture
     def setup_dirs(request):
-        config = request.param  # Directly use request.param, expecting a dictionary
+        config = request.param
         src_dir = Path(tempfile.mkdtemp())
         dst_dir = Path(tempfile.mkdtemp())
 
@@ -20,17 +20,13 @@ if sys.version_info >= (3, 8):
         for filename, content, directory in config.get("create_files", []):
             dir_path = src_dir if directory == "src" else dst_dir
             file_path = dir_path / filename
-            file_path.parent.mkdir(
-                parents=True, exist_ok=True
-            )  # Ensure parent directories exist
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content)
 
         for subdir, directory in config.get("create_subdirs", []):
             dir_path = src_dir if directory == "src" else dst_dir
             subdir_path = dir_path / subdir
-            subdir_path.mkdir(
-                parents=True, exist_ok=True
-            )  # This creates the subdirectory and any parents
+            subdir_path.mkdir(parents=True, exist_ok=True)
 
         yield src_dir, dst_dir, config["expected"]
 
@@ -84,6 +80,7 @@ if sys.version_info >= (3, 8):
     @pytest.mark.parametrize(
         "setup_dirs",
         [
+            # 1. Src has an extra file
             {
                 "create_files": [("unique_src_file.txt", "Content in source", "src")],
                 "expected": {
@@ -93,6 +90,7 @@ if sys.version_info >= (3, 8):
                     "subdir_differences": {},
                 },
             },
+            # 2. Dst has an extra file
             {
                 "create_files": [
                     ("unique_dst_file.txt", "Content in destination", "dst")
@@ -104,6 +102,7 @@ if sys.version_info >= (3, 8):
                     "subdir_differences": {},
                 },
             },
+            # 3. Both have the same file with different content
             {
                 "create_files": [
                     ("common_file.txt", "Src content", "src"),
@@ -116,6 +115,7 @@ if sys.version_info >= (3, 8):
                     "subdir_differences": {},
                 },
             },
+            # 4. Src has an extra file in a subdir
             {
                 "create_subdirs": [("subdir", "src"), ("subdir", "dst")],
                 "create_files": [
@@ -142,7 +142,6 @@ if sys.version_info >= (3, 8):
         src_dir, dst_dir, expected = setup_dirs
         differences = WandbImporter._compare_artifact_dirs(src_dir, dst_dir)
 
-        # Assert the expected outcome
         assert differences is not None
         assert set(differences["left_only"]) == set(expected["left_only"])
         assert set(differences["right_only"]) == set(expected["right_only"])
