@@ -18,12 +18,10 @@ from typing import (
     Dict,
     Generator,
     List,
-    NewType,
     Optional,
     Tuple,
     Type,
     Union,
-    cast,
 )
 
 import requests
@@ -43,6 +41,7 @@ from wandb.sdk.internal import (
     file_stream,
     internal_api,
     job_builder,
+    sender_config,
     update,
 )
 from wandb.sdk.internal.file_pusher import FilePusher
@@ -84,9 +83,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-DictWithValues = NewType("DictWithValues", Dict[str, Any])
-DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
@@ -263,8 +259,9 @@ class SendManager:
         self._project = None
 
         # keep track of config from key/val updates
-        self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
-        self._start_time: float = 0
+        self._consolidated_config = sender_config.ConfigState()
+
+        self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
@@ -540,7 +537,7 @@ class SendManager:
         self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
-        config_value_dict = self._config_format(self._consolidated_config)
+        config_value_dict = self._config_backend_dict()
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
@@ -856,51 +853,20 @@ class SendManager:
         )
         return framework
 
-    def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add legacy telemetry to config object."""
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        s: str
-        b: bool
-        s = self._telemetry_obj.python_version
-        if s:
-            config_dict[wandb_key]["python_version"] = s
-        s = self._telemetry_obj.cli_version
-        if s:
-            config_dict[wandb_key]["cli_version"] = s
-        s = self._telemetry_get_framework()
-        if s:
-            config_dict[wandb_key]["framework"] = s
-        s = self._telemetry_obj.huggingface_version
-        if s:
-            config_dict[wandb_key]["huggingface_version"] = s
-        b = self._telemetry_obj.env.jupyter
-        config_dict[wandb_key]["is_jupyter_run"] = b
-        b = self._telemetry_obj.env.kaggle
-        config_dict[wandb_key]["is_kaggle_kernel"] = b
+    def _config_backend_dict(self) -> sender_config.BackendConfigDict:
+        config = self._consolidated_config or sender_config.ConfigState()
 
-        config_dict[wandb_key]["start_time"] = self._start_time
+        return config.to_backend_dict(
+            telemetry_record=self._telemetry_obj,
+            framework=self._telemetry_get_framework(),
+            start_time_millis=self._start_time,
+            metric_pbdicts=self._config_metric_pbdict_list,
+        )
 
-        t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
-        config_dict[wandb_key]["t"] = t
-
-    def _config_metric_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add default xaxis to config."""
-        if not self._config_metric_pbdict_list:
-            return
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
-
-    def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
-        """Format dict into value dict with telemetry info."""
-        config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
-        self._config_telemetry_update(config_dict)
-        self._config_metric_update(config_dict)
-        config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
-        return config_value_dict
-
-    def _config_save(self, config_value_dict: DictWithValues) -> None:
+    def _config_save(
+        self,
+        config_value_dict: sender_config.BackendConfigDict,
+    ) -> None:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
@@ -931,7 +897,7 @@ class SendManager:
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() / 1e6
+        self._start_time = run.start_time.ToMicroseconds() // 1e6
 
         # update telemetry
         if run.telemetry:
@@ -940,10 +906,10 @@ class SendManager:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
-        config_value_dict: Optional[DictWithValues] = None
+        config_value_dict: Optional[sender_config.BackendConfigDict] = None
         if run.config:
-            config_util.update_from_proto(self._consolidated_config, run.config)
-            config_value_dict = self._config_format(self._consolidated_config)
+            self._consolidated_config.update_from_proto(run.config)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         if is_wandb_init:
@@ -966,19 +932,19 @@ class SendManager:
         # Save the resumed config
         if self._resume_state.config is not None:
             # TODO: should we merge this with resumed config?
-            config_override = self._consolidated_config
             config_dict = self._resume_state.config
             config_dict = config_util.dict_strip_value_dict(config_dict)
-            config_dict.update(config_override)
-            self._consolidated_config.update(config_dict)
-            config_value_dict = self._config_format(self._consolidated_config)
+
+            self._consolidated_config.add_unset_keys(config_dict)
+
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         # handle empty config
         # TODO(jhr): consolidate the 4 ways config is built:
         #            (passed config, empty config, resume config, send_config)
         if not config_value_dict:
-            config_value_dict = self._config_format(None)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         try:
@@ -1012,7 +978,7 @@ class SendManager:
     def _init_run(
         self,
         run: "RunRecord",
-        config_dict: Optional[DictWithValues],
+        config_dict: Optional[sender_config.BackendConfigDict],
     ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = (
@@ -1344,8 +1310,7 @@ class SendManager:
         self._config_needs_debounce = True
 
     def send_config(self, record: "Record") -> None:
-        cfg = record.config
-        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._consolidated_config.update_from_proto(record.config)
         self._update_config()
 
     def send_metric(self, record: "Record") -> None:
@@ -1640,6 +1605,7 @@ class SendManager:
         if self._job_builder.disable or self._settings._offline:
             return
         self._job_builder.set_config(
+            # TODO: Can the key ever be "_wandb"?
             {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
         )
         summary_dict = self._cached_summary.copy()
