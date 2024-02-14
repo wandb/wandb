@@ -5,13 +5,12 @@ import re
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from pkg_resources import parse_version
-
 import wandb
 from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
+from wandb.util import parse_version
 
 openai = util.get_module(
     name="openai",

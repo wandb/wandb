@@ -61,6 +61,8 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
+    import packaging.version
+
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -840,7 +842,7 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence]
+    v: Union[int, float, str, Mapping, Sequence],
 ) -> Union[int, float, str]:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
@@ -1782,7 +1784,7 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def remove_keys_with_none_values(
-    d: Union[Dict[str, Any], Any]
+    d: Union[Dict[str, Any], Any],
 ) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
@@ -1848,10 +1850,23 @@ def get_core_path() -> str:
     return core_path
 
 
+def parse_version(version: str) -> "packaging.version.Version":
+    """Parse a version string into a version object.
+
+    This function is a wrapper around the `packaging.version.parse` function, which
+    is used to parse version strings into version objects. If the `packaging` library
+    is not installed, it falls back to the `pkg_resources` library.
+    """
+    try:
+        from packaging.version import parse as parse_version
+    except ImportError:
+        from pkg_resources import parse_version
+
+    return parse_version(version)
+
+
 def _check_wandb_core_version_compatibility(core_version: str) -> None:
     """Checks if the installed wandb-core version is compatible with the wandb version."""
-    from pkg_resources import parse_version
-
     if parse_version(core_version) < parse_version(wandb._minimum_core_version):
         raise ImportError(
             f"Requires wandb-core version {wandb._minimum_core_version} or later, "

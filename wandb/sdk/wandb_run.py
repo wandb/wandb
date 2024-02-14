@@ -2286,13 +2286,22 @@ class Run:
 
         if self._settings._save_requirements:
             if self._backend and self._backend.interface:
-                import pkg_resources
+                try:
+                    from importlib.metadata import distributions
+                except ImportError:  # Python 3.7
+                    from importlib_metadata import distributions  # type: ignore
+                import collections
+
+                WorkingSet = collections.namedtuple("NamedTuple", "key version")
 
                 logger.debug(
                     "Saving list of pip packages installed into the current environment"
                 )
                 self._backend.interface.publish_python_packages(
-                    pkg_resources.working_set
+                    [
+                        WorkingSet(key=d.metadata["Name"], version=d.version)
+                        for d in distributions()
+                    ]
                 )
 
         if self._backend and self._backend.interface and not self._settings._offline:
