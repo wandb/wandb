@@ -57,8 +57,8 @@ class ConfigState:
         """Adds visualizations from the existing config into this one.
 
         Programmatic custom charts are unfortunately stored in the run config.
-        When resuming a run, we want to avoid discarding custom charts logged
-        by that run, hence this step.
+        When resuming a run, we want to avoid discarding custom charts that
+        were previously logged.
         """
         visualize_key = "visualize"
 
@@ -70,13 +70,8 @@ class ConfigState:
         if not old_visualize:
             return
 
-        new_wandb_internal = self._tree.get(_WANDB_INTERNAL_KEY)
-        if not new_wandb_internal:
-            return
-
-        new_visualize: Dict[str, Any] = new_wandb_internal.get(visualize_key)
-        if not new_visualize:
-            return
+        new_wandb_internal = self._tree.setdefault(_WANDB_INTERNAL_KEY, {})
+        new_visualize: Dict[str, Any] = new_wandb_internal.setdefault(visualize_key, {})
 
         for chart_key, chart_value in old_visualize.items():
             if chart_key not in new_visualize:
