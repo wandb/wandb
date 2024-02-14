@@ -185,11 +185,12 @@ def _subtree(
     for key in key_path:
         subtree = tree.get(key)
 
-        if not subtree and create:
-            subtree = {}
-            tree[key] = subtree
-        else:
-            return None
+        if not subtree:
+            if create:
+                subtree = {}
+                tree[key] = subtree
+            else:
+                return None
 
         tree = subtree
 
