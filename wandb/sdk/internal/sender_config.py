@@ -111,7 +111,7 @@ class ConfigState:
                     "desc": None,
                     "value": value,
                 }
-                for key, value in self._tree
+                for key, value in self._tree.items()
             }
         )
 
