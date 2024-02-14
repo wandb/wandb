@@ -1604,10 +1604,7 @@ class SendManager:
     def _flush_job(self) -> None:
         if self._job_builder.disable or self._settings._offline:
             return
-        self._job_builder.set_config(
-            # TODO: Can the key ever be "_wandb"?
-            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
-        )
+        self._job_builder.set_config(self._consolidated_config.non_internal_config())
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)

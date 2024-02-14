@@ -1,11 +1,13 @@
 import json
-from typing import Any, Dict, ItemsView, NewType, Optional, Sequence
+from typing import Any, Dict, NewType, Optional, Sequence
 
 from wandb.proto import wandb_internal_pb2
 from wandb.sdk.lib import proto_util, telemetry
 
 BackendConfigDict = NewType("BackendConfigDict", Dict[str, Any])
 """Run config dictionary in the format used by the backend."""
+
+_WANDB_INTERNAL_KEY = "_wandb"
 
 
 class ConfigState:
@@ -22,12 +24,9 @@ class ConfigState:
         * Lists of JSON objects
         """
 
-    def items(self) -> ItemsView[str, Any]:
-        """Returns the items of the underlying dictionary representation.
-
-        Note, this is not the same dictionary as returned by `to_backend_dict`.
-        """
-        return self._tree.items()
+    def non_internal_config(self) -> Dict[str, Any]:
+        """Returns the config settings minus "_wandb"."""
+        return {k: v for k, v in self._tree.items() if k != _WANDB_INTERNAL_KEY}
 
     def update_from_proto(
         self,
@@ -68,7 +67,7 @@ class ConfigState:
             metric_pbdicts: List of dict representations of metric protobuffers.
         """
         backend_dict = self._tree.copy()
-        wandb_internal = backend_dict.setdefault("_wandb", {})
+        wandb_internal = backend_dict.setdefault(_WANDB_INTERNAL_KEY, {})
 
         ###################################################
         # Telemetry information
@@ -90,8 +89,6 @@ class ConfigState:
 
         wandb_internal["is_jupyter_run"] = telemetry_record.env.jupyter
         wandb_internal["is_kaggle_kernel"] = telemetry_record.env.kaggle
-
-        # TODO: ?
         wandb_internal["start_time"] = start_time_millis
 
         # The full telemetry record. Admittedly this is redundant with some of
