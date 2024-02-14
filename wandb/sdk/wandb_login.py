@@ -79,6 +79,10 @@ def login(
         UsageError - if api_key cannot be configured and no tty
     """
     _handle_host_wandb_setting(host)
+    # in the launch context we set the required env vars to specify api kye,
+    # entity and project. Because of the way launch works, if the
+    # singleton is created before a run is created, the connection
+    # to the associated run will not be properly set.
     if os.environ.get(LAUNCH):
         return os.environ.get(API_KEY) is not None
     if wandb.setup()._settings._noop:

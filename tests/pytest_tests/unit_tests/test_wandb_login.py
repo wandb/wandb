@@ -167,6 +167,6 @@ def test_login_invalid_key():
 
 
 def test_login_launch():
-    with mock.patch.dict("os.environ", WANDB_LAUNCH="true" * 40):
+    with mock.patch.dict("os.environ", WANDB_LAUNCH="true"):
         wandb.login()
         assert wandb.wandb_sdk.wandb_setup._WandbSetup._instance is None
