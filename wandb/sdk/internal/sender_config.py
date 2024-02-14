@@ -11,7 +11,7 @@ BackendConfigDict = NewType("BackendConfigDict", Dict[str, Any])
 class ConfigState:
     """The configuration of a run."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tree: Dict[str, Any] = {}
         """A tree with string-valued nodes and JSON leaves.
 
@@ -45,7 +45,7 @@ class ConfigState:
 
     def add_unset_keys(self, other_config_tree: Dict[str, Any]) -> None:
         """Uses the given dict for any keys that aren't already set."""
-        for k, v in other_config_tree:
+        for k, v in other_config_tree.items():
             if k not in self._tree.items():
                 self._tree[k] = v
 
