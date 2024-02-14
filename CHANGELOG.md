@@ -1,3 +1,51 @@
+# 0.16.3 (Feb 6, 2024)
+
+### :magic_wand: Enhancements
+* feat(core): generate data type info in core by @dmitryduev in https://github.com/wandb/wandb/pull/6827
+* feat(core): add support for Launch 🚀 by @kptkin in https://github.com/wandb/wandb/pull/6822
+* feat(public-api): Added option to control number of grouped sampled runs in reports by @thanos-wandb in https://github.com/wandb/wandb/pull/6840
+* feat(sdk): add shared mode to enable multiple independent writers to the same run by @dmitryduev in https://github.com/wandb/wandb/pull/6882
+* perf(artifacts): Reduce artifact download latency via optional cache copy + threads by @biaslucas in https://github.com/wandb/wandb/pull/6878
+* feat(artifacts): Add partial file downloads, via directory prefix by @biaslucas in https://github.com/wandb/wandb/pull/6911
+* feat(integrations): Update the Diffusers Integration by @soumik12345 in https://github.com/wandb/wandb/pull/6804
+* feat(integrations): Update Ultralytics Integration by @soumik12345 in https://github.com/wandb/wandb/pull/6796
+* feat(integrations): Add Pytorch Lightning Fabric Logger by @ash0ts in https://github.com/wandb/wandb/pull/6919
+* feat(core): update go packages by @kptkin in https://github.com/wandb/wandb/pull/6908
+### :hammer: Fixes
+* fix(launch): Remove project and runner fields from agent config by @KyleGoyette in https://github.com/wandb/wandb/pull/6818
+* fix(launch): recognize deleted k8s jobs as failed by @bcsherma in https://github.com/wandb/wandb/pull/6824
+* fix(launch): warn of extra fields in environment block instead of erroring by @bcsherma in https://github.com/wandb/wandb/pull/6833
+* fix(sdk): entity override bug where ENVVAR is prioritized over kwargs by @biaslucas in https://github.com/wandb/wandb/pull/6843
+* fix(launch): Local container runner doesn't ignore override args by @TimH98 in https://github.com/wandb/wandb/pull/6844
+* fix(sdk): merge-update config with sweep/launch config by @dannygoldstein in https://github.com/wandb/wandb/pull/6841
+* fix(sdk): fix retry logic in wandb-core and system_tests conftest by @dmitryduev in https://github.com/wandb/wandb/pull/6847
+* fix(core): use RW locks in system monitor's assets management by @dmitryduev in https://github.com/wandb/wandb/pull/6852
+* fix(launch): set build context to entrypoint dir if it contains Dockerfile.wandb by @bcsherma in https://github.com/wandb/wandb/pull/6855
+* security(launch): Mount wandb api key in launch job pods from a k8s secret by @TimH98 in https://github.com/wandb/wandb/pull/6722
+* fix(launch): wandb job create should not look for requirements.txt if Dockerfile.wandb is next to entrypoint by @bcsherma in https://github.com/wandb/wandb/pull/6861
+* fix(sdk): fix _parse_path when only id is passed to wandb.Api().run() by @luisbergua in https://github.com/wandb/wandb/pull/6858
+* fix(media): Update video.py: Fix fps bug by @stellargo in https://github.com/wandb/wandb/pull/6887
+* fix(sdk): clean up temp folders by @dmitryduev in https://github.com/wandb/wandb/pull/6891
+* fix(artifacts): fix long artifact paths on Windows by @ArtsiomWB in https://github.com/wandb/wandb/pull/6846
+* fix(sdk): Update Report API to work with pydantic2.6 by @andrewtruong in https://github.com/wandb/wandb/pull/6925
+* fix(launch): fetch all commits to enable checking out by sha by @bcsherma in https://github.com/wandb/wandb/pull/6926
+* fix(sweeps): dont swallow exceptions in pyagent by @dannygoldstein in https://github.com/wandb/wandb/pull/6927
+* fix(artifacts): artifact file upload progress in nexus by @ibindlish in https://github.com/wandb/wandb/pull/6939
+* fix(sdk): exercise caution in system monitor when rocm-smi is installed on a system with no amd gpus by @dmitryduev in https://github.com/wandb/wandb/pull/6938
+* fix(cli): typo in cli.py by @eltociear in https://github.com/wandb/wandb/pull/6892
+* fix(launch): remove deadsnakes from accelerator build step by @bcsherma in https://github.com/wandb/wandb/pull/6933
+### :books: Docs
+* docs(sdk): update sweep `docstrings` by @ngrayluna in https://github.com/wandb/wandb/pull/6830
+* docs(sdk): Updates the Tables reference docs. by @katjacksonWB in https://github.com/wandb/wandb/pull/6880
+* docs(sdk): Artifact docstrings PR by @ngrayluna in https://github.com/wandb/wandb/pull/6825
+
+## New Contributors
+* @biaslucas made their first contribution in https://github.com/wandb/wandb/pull/6843
+* @stellargo made their first contribution in https://github.com/wandb/wandb/pull/6887
+* @timoffex made their first contribution in https://github.com/wandb/wandb/pull/6916
+
+**Full Changelog**: https://github.com/wandb/wandb/compare/v0.16.2...v0.16.3
+
 # 0.16.2 (Jan 9, 2024)
 
 ### :magic_wand: Enhancements

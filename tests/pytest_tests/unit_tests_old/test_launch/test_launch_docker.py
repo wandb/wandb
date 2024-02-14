@@ -2,11 +2,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import wandb
 from wandb.docker import DockerError
-from wandb.sdk.launch._project_spec import (
-    EntryPoint,
-    create_project_from_spec,
-    fetch_and_validate_project,
-)
+from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.build import generate_dockerfile, get_base_setup
 from wandb.sdk.launch.utils import docker_image_exists
 
@@ -38,8 +34,8 @@ def test_accelerator_base_setup(
             }
         },
     }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
     base_setup = get_base_setup(test_project, "3.7", "3")
     assert "FROM nvidia/cuda:11.0-runtime as base" in base_setup
     assert "python3-pip" in base_setup and "python3-setuptools" in base_setup
@@ -66,8 +62,8 @@ def test_run_accelerator_version(
             }
         },
     }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
@@ -80,8 +76,8 @@ def test_run_accelerator_version(
         "resource": "local",
         "resource_args": {},
     }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
     dockerfile = generate_dockerfile(
         test_project, EntryPoint("main.py", ["python", "train.py"]), "local", "docker"
     )
@@ -102,8 +98,8 @@ def test_dockerfile_conda(
         "project": "test",
         "resource": "local",
     }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
 
     assert test_project.deps_type == "conda"
 
@@ -130,8 +126,8 @@ def test_dockerfile_nodeps(
         "resource": "local",
     }
 
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
 
     assert test_project.deps_type is None
 
@@ -155,8 +151,8 @@ def test_dockerfile_override(
         "resource": "local",
     }
 
-    test_project = create_project_from_spec(test_spec, api)
-    test_project = fetch_and_validate_project(test_project, api)
+    test_project = LaunchProject.from_spec(test_spec, api)
+    test_project.fetch_and_validate_project()
 
     assert test_project.deps_type is None
 
