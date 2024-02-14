@@ -189,6 +189,5 @@ if sys.version_info >= (3, 8):
         problems = WandbImporter._compare_artifact_manifests(src_art, dst_art)
         problems_set = set(problems)
 
-        # Assertions based on the expected outcomes
         for p in expected_problems:
             assert any(p in problem for problem in problems_set)
