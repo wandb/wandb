@@ -142,7 +142,6 @@ if sys.version_info >= (3, 8):
         src_dir, dst_dir, expected = setup_dirs
         differences = WandbImporter._compare_artifact_dirs(src_dir, dst_dir)
 
-        assert differences is not None
         assert set(differences["left_only"]) == set(expected["left_only"])
         assert set(differences["right_only"]) == set(expected["right_only"])
         assert set(differences["diff_files"]) == set(expected["diff_files"])

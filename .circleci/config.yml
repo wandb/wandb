@@ -1648,7 +1648,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [8]
+              python_version_minor: [9]
               shard: ["wandb"] # TODO: add back mlflow in the mlflow PR
           name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
