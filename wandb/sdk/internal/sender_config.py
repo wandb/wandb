@@ -42,11 +42,45 @@ class ConfigState:
         for config_item in config_record.remove:
             self._delete_at_path(_key_path(config_item))
 
-    def add_unset_keys(self, other_config_tree: Dict[str, Any]) -> None:
-        """Uses the given dict for any keys that aren't already set."""
-        for k, v in other_config_tree.items():
+    def merge_resumed_config(self, old_config_tree: Dict[str, Any]) -> None:
+        """Merges the config from a run that's being resumed."""
+        self._add_unset_keys(old_config_tree)
+        self._merge_visualization_key(old_config_tree)
+
+    def _add_unset_keys(self, old_config_tree: Dict[str, Any]) -> None:
+        """Uses the given dict for any config keys not already set."""
+        for k, v in old_config_tree.items():
             if k not in self._tree.items():
                 self._tree[k] = v
+
+    def _merge_visualization_key(self, old_config_tree: Dict[str, Any]) -> None:
+        """Adds visualizations from the existing config into this one.
+
+        Programmatic custom charts are unfortunately stored in the run config.
+        When resuming a run, we want to avoid discarding custom charts logged
+        by that run, hence this step.
+        """
+        visualize_key = "visualize"
+
+        old_wandb_internal = old_config_tree.get(_WANDB_INTERNAL_KEY)
+        if not old_wandb_internal:
+            return
+
+        old_visualize: Dict[str, Any] = old_wandb_internal.get(visualize_key)
+        if not old_visualize:
+            return
+
+        new_wandb_internal = self._tree.get(_WANDB_INTERNAL_KEY)
+        if not new_wandb_internal:
+            return
+
+        new_visualize: Dict[str, Any] = new_wandb_internal.get(visualize_key)
+        if not new_visualize:
+            return
+
+        for chart_key, chart_value in old_visualize.items():
+            if chart_key not in new_visualize:
+                new_visualize[chart_key] = chart_value
 
     def to_backend_dict(
         self,
