@@ -14,21 +14,13 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 from unittest.mock import patch
 
 import filelock
+import polars as pl
 import requests
 import urllib3
 import yaml
 from wandb_gql import gql
 
 import wandb
-
-try:
-    import polars as pl
-except ImportError:
-    wandb.termerror(
-        "`polars` is not installed. Please install it with `pip install polars`."
-    )
-
-
 import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File

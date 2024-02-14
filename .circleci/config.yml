@@ -444,7 +444,8 @@ jobs:
                     -- \
                     tests/pytest_tests/unit_tests/ \
                     --ignore tests/pytest_tests/unit_tests/test_launch/ \
-                    --ignore tests/pytest_tests/unit_tests/test_reports/
+                    --ignore tests/pytest_tests/unit_tests/test_reports/ \
+                    --ignore tests/pytest_tests/unit_tests/test_importers/
 
       - when:
           condition: { equal: [<<parameters.tests>>, other] }
@@ -461,7 +462,8 @@ jobs:
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/test_launch/ \
-                    tests/pytest_tests/unit_tests/test_reports/
+                    tests/pytest_tests/unit_tests/test_reports/ \
+                    tests/pytest_tests/unit_tests/test_importers/
 
       - codecov/upload: { flags: unit, validate: false }
 
@@ -1651,7 +1653,7 @@ workflows:
               shard: ["wandb"] # TODO: add back mlflow in the mlflow PR
           name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/"
+          tox_args: "tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/,tests/pytest_tests/unit_tests/test_importers/test_<<matrix.shard>>_utils.py/"
           codecov_flags: "system"
       #
       # Functional tests with pytest on Linux, using real wandb server
