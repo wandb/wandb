@@ -576,23 +576,24 @@ class WandbImporter:
                 else:
                     raise e
 
-    def _compare_artifact_dirs(self, src_dir, dst_dir):
+    @staticmethod
+    def _compare_artifact_dirs(src_dir, dst_dir):
         def compare(src_dir, dst_dir):
             comparison = filecmp.dircmp(src_dir, dst_dir)
             differences = {
-                "left_only": comparison.left_only,  # Items only in dir1
-                "right_only": comparison.right_only,  # Items only in dir2
-                "diff_files": comparison.diff_files,  # Different files
-                "subdir_differences": {},  # Differences in subdirectories
+                "left_only": comparison.left_only,
+                "right_only": comparison.right_only,
+                "diff_files": comparison.diff_files,
+                "subdir_differences": {},
             }
 
             # Recursively find differences in subdirectories
             for subdir in comparison.subdirs:
-                subdir_differences = compare(
-                    os.path.join(src_dir, subdir), os.path.join(dst_dir, subdir)
-                )
+                subdir_src = os.path.join(src_dir, subdir)
+                subdir_dst = os.path.join(dst_dir, subdir)
+                subdir_differences = compare(subdir_src, subdir_dst)
                 # If there are differences, add them to the result
-                if any(subdir_differences.values()):
+                if subdir_differences and any(subdir_differences.values()):
                     differences["subdir_differences"][subdir] = subdir_differences
 
             if all(not diff for diff in differences.values()):
@@ -602,7 +603,8 @@ class WandbImporter:
 
         return compare(src_dir, dst_dir)
 
-    def _compare_artifact_manifests(self, src_art: Artifact, dst_art: Artifact):
+    @staticmethod
+    def _compare_artifact_manifests(src_art: Artifact, dst_art: Artifact):
         problems = []
         if isinstance(dst_art, wandb.CommError):
             return ["commError"]
@@ -619,7 +621,7 @@ class WandbImporter:
             for attr in ["path", "digest", "size"]:
                 if getattr(src_entry, attr) != getattr(dst_entry, attr):
                     problems.append(
-                        f"manifest entry {attr=} mismatch, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
+                        f"manifest entry mismatch {attr=}, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
                     )
 
         return problems

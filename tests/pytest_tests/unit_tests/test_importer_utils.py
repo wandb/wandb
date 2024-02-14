@@ -1,7 +1,41 @@
+import shutil
 import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+import wandb
 
 if sys.version_info >= (3, 8):
     from wandb.apis.importers.internals.util import for_each, parallelize
+    from wandb.apis.importers.wandb import WandbImporter
+
+    @pytest.fixture
+    def setup_dirs(request):
+        config = request.param  # Directly use request.param, expecting a dictionary
+        src_dir = Path(tempfile.mkdtemp())
+        dst_dir = Path(tempfile.mkdtemp())
+
+        # Populate directories based on the test case
+        for filename, content, directory in config.get("create_files", []):
+            dir_path = src_dir if directory == "src" else dst_dir
+            file_path = dir_path / filename
+            file_path.parent.mkdir(
+                parents=True, exist_ok=True
+            )  # Ensure parent directories exist
+            file_path.write_text(content)
+
+        for subdir, directory in config.get("create_subdirs", []):
+            dir_path = src_dir if directory == "src" else dst_dir
+            subdir_path = dir_path / subdir
+            subdir_path.mkdir(
+                parents=True, exist_ok=True
+            )  # This creates the subdirectory and any parents
+
+        yield src_dir, dst_dir, config["expected"]
+
+        shutil.rmtree(src_dir)
+        shutil.rmtree(dst_dir)
 
     def test_parallelize():
         def safe_func(x):
@@ -46,3 +80,115 @@ if sys.version_info >= (3, 8):
         result = set(for_each(unsafe_func, [1, 2, 3], parallel=True))
         expected = set([1, 2, None])
         assert result == expected
+
+    @pytest.mark.parametrize(
+        "setup_dirs",
+        [
+            {
+                "create_files": [("unique_src_file.txt", "Content in source", "src")],
+                "expected": {
+                    "left_only": ["unique_src_file.txt"],
+                    "right_only": [],
+                    "diff_files": [],
+                    "subdir_differences": {},
+                },
+            },
+            {
+                "create_files": [
+                    ("unique_dst_file.txt", "Content in destination", "dst")
+                ],
+                "expected": {
+                    "left_only": [],
+                    "right_only": ["unique_dst_file.txt"],
+                    "diff_files": [],
+                    "subdir_differences": {},
+                },
+            },
+            {
+                "create_files": [
+                    ("common_file.txt", "Src content", "src"),
+                    ("common_file.txt", "Dst content", "dst"),
+                ],
+                "expected": {
+                    "left_only": [],
+                    "right_only": [],
+                    "diff_files": ["common_file.txt"],
+                    "subdir_differences": {},
+                },
+            },
+            {
+                "create_subdirs": [("subdir", "src"), ("subdir", "dst")],
+                "create_files": [
+                    ("subdir/unique_src_file.txt", "Subdir content", "src")
+                ],
+                "expected": {
+                    "left_only": [],
+                    "right_only": [],
+                    "diff_files": [],
+                    "subdir_differences": {
+                        "subdir": {
+                            "left_only": ["unique_src_file.txt"],
+                            "right_only": [],
+                            "diff_files": [],
+                            "subdir_differences": {},
+                        }
+                    },
+                },
+            },
+        ],
+        indirect=True,
+    )
+    def test_compare_artifact_dirs(setup_dirs):
+        src_dir, dst_dir, expected = setup_dirs
+        differences = WandbImporter._compare_artifact_dirs(src_dir, dst_dir)
+
+        # Assert the expected outcome
+        assert differences is not None
+        assert set(differences["left_only"]) == set(expected["left_only"])
+        assert set(differences["right_only"]) == set(expected["right_only"])
+        assert set(differences["diff_files"]) == set(expected["diff_files"])
+        assert differences["subdir_differences"] == expected["subdir_differences"]
+
+    @pytest.mark.parametrize(
+        "file_setup, expected_problems",
+        [
+            # 1. No mismatch
+            ((("test.txt", "content"), ("test.txt", "content")), set()),
+            # 2. Digest mismatch and missing manifest entry due to different filenames
+            (
+                (("test.txt", "content"), ("test2.txt", "content")),
+                {"digest mismatch", "missing manifest entry"},
+            ),
+            # 3. Digest mismatch and entry mismatch due to different content in the same file
+            (
+                (("test.txt", "content"), ("test.txt", "content2")),
+                {"digest mismatch", "manifest entry mismatch"},
+            ),
+        ],
+    )
+    def test_artifact_manifest_entry_mismatches(
+        tmp_path, file_setup, expected_problems
+    ):
+        src_file, dst_file = file_setup
+        src_filename, src_content = src_file
+        dst_filename, dst_content = dst_file
+
+        # Create and add file to source artifact
+        src_path = tmp_path / src_filename
+        src_path.write_text(src_content)
+        src_art = wandb.Artifact("src_artifact", type="dataset")
+        src_art.add_file(str(src_path))
+
+        # Create and add file to destination artifact
+        dst_path = tmp_path / dst_filename
+        dst_path.write_text(dst_content)
+        dst_art = wandb.Artifact("dst_artifact", type="dataset")
+        dst_art.add_file(str(dst_path))
+
+        # Compare artifacts and collect problems
+        problems = WandbImporter._compare_artifact_manifests(src_art, dst_art)
+        problems_set = set(problems)
+
+        # Assertions based on the expected outcomes
+        for p in expected_problems:
+            assert any(p in problem for problem in problems_set)
