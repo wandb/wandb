@@ -23,12 +23,7 @@ from wandb.sdk.launch.loader import (
     registry_from_config,
 )
 
-from .._project_spec import (
-    EntryPoint,
-    EntrypointDefaults,
-    LaunchProject,
-    fetch_and_validate_project,
-)
+from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
@@ -315,7 +310,6 @@ def get_env_vars_dict(
     _inject_wandb_config_env_vars(
         launch_project.override_config, env_vars, max_env_length
     )
-    # env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     artifacts = {}
     # if we're spinning up a launch process from a job
     # we should tell the run to use that artifact
@@ -613,7 +607,7 @@ async def build_image_from_project(
     if not builder:
         raise LaunchError("Unable to build image. No builder found.")
 
-    launch_project = fetch_and_validate_project(launch_project, api)
+    launch_project.fetch_and_validate_project()
 
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name=EntrypointDefaults.PYTHON[-1],

@@ -1,132 +1,10 @@
 import os
-import pathlib
 import platform
 from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b8"
-
-
-PACKAGE: str = "wandb_core"
-PLATFORMS_TO_BUILD_WITH_CGO = (
-    "darwin-arm64",
-    "linux-amd64",
-)
-
-
-@nox.session(python=False, name="build-core")
-def build_core(session: nox.Session) -> None:
-    """Builds the wandb-core binary for the current platform."""
-    session.run(
-        "python3",
-        "-m",
-        "build",
-        "-w",  # only build the wheel
-        "-n",  # disable building the project in an isolated virtual environment
-        "-x",  # do not check that build dependencies are installed
-        "./core",
-        external=True,
-    )
-
-
-@nox.session(python=False, name="install-core")
-def install_core(session: nox.Session) -> None:
-    """Installs the wandb-core wheel into the current environment."""
-    # get the wheel file in ./core/dist/:
-    wheel_file = [
-        f
-        for f in os.listdir("./core/dist/")
-        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
-    ][0]
-    session.run(
-        "pip",
-        "install",
-        "--force-reinstall",
-        f"./core/dist/{wheel_file}",
-        external=True,
-    )
-
-
-@nox.session(python=False, name="build-go")
-def build_go(session: nox.Session) -> None:
-    """Builds the wandb-core binary for the current platform."""
-    env = os.environ.copy()
-
-    goos = platform.system().lower()
-    goarch = platform.machine().lower()
-    if goarch == "x86_64":
-        goarch = "amd64"
-    elif goarch == "aarch64":
-        goarch = "arm64"
-    elif goarch == "armv7l":
-        goarch = "armv6l"
-
-    # Check the PLAT environment variable available in cibuildwheel
-    cibw_plat = env.get("PLAT", "")
-
-    # Custom logic for darwin-arm64 in cibuildwheel
-    # (it's built on an x86_64 mac with qemu, so we need to override the arch)
-    if goos == "darwin" and cibw_plat.endswith("arm64"):
-        goarch = "arm64"
-
-    # build a binary for coverage profiling if the GOCOVERDIR env var is set
-    gocover = True if os.environ.get("GOCOVERDIR") else False
-
-    # cgo is needed on:
-    #  - arm macs to build the gopsutil dependency,
-    #    otherwise several system metrics will be unavailable.
-    #  - linux to build the dependencies needed to get GPU metrics.
-    if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
-        env["CGO_ENABLED"] = "1"
-
-    commit = session.run(
-        "git",
-        "rev-parse",
-        "HEAD",
-        external=True,
-        silent=True,
-    ).strip()
-
-    session.log(f"Commit: {commit}")
-
-    # build the wandb-core binary in ./core:
-    with session.chdir("core"):
-        src_dir = pathlib.Path.cwd()
-        out_dir = src_dir.parent / "client" / "wandb_core"
-
-        ldflags = f"-s -w -X main.commit={commit}"
-        if f"{goos}-{goarch}" == "linux-amd64":
-            # TODO: try llvm's lld linker
-            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
-        cmd = [
-            "go",
-            "build",
-            f"-ldflags={ldflags}",
-            "-o",
-            str(out_dir / "wandb-core"),
-            "cmd/wandb-core/main.go",
-        ]
-        if gocover:
-            cmd.insert(2, "-cover")
-
-        session.log(f"Building for {goos}-{goarch}")
-        session.log(f"Running command: {' '.join(cmd)}")
-        session.run(*cmd, env=env, external=True)
-
-        # on arm macs, copy over the stats monitor binary, if available
-        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
-        # having to wait for that to build on every run.
-        if goos == "darwin" and goarch == "arm64":
-            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
-            if monitor_path.exists():
-                session.log("Copying AppleStats binary")
-                session.run(
-                    "cp",
-                    str(monitor_path),
-                    str(out_dir),
-                    external=True,
-                )
+CORE_VERSION = "0.17.0b9"
 
 
 @nox.session(python=False, name="build-rust")
@@ -213,59 +91,6 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
         ],
         plugins=[my_plugin],
     )
-
-
-@nox.session(python=False, name="download-codecov")
-def download_codecov(session: nox.Session) -> None:
-    system = platform.system().lower()
-    if system == "darwin":
-        system = "macos"
-    url = f"https://uploader.codecov.io/latest/{system}/codecov"
-    if system == "windows":
-        url += ".exe"
-        local_file = "codecov.exe"
-    else:
-        local_file = "codecov"
-
-    session.run(
-        "curl",
-        "-o",
-        local_file,
-        url,
-        external=True,
-    )
-
-    session.run("chmod", "+x", local_file, external=True)
-
-
-@nox.session(python=False, name="run-codecov")
-def run_codecov(session: nox.Session) -> None:
-    args = session.posargs or []
-
-    system = platform.system().lower()
-    if system == "linux":
-        command = ["./codecov"]
-    elif system == "darwin":
-        arch = platform.machine().lower()
-        if arch != "x86_64":
-            session.run("softwareupdate", "--install-rosetta", "--agree-to-license")
-            command = ["arch", "-x86_64", "./codecov"]
-        else:
-            command = ["./codecov"]
-    elif system == "windows":
-        command = ["codecov.exe"]
-    else:
-        raise OSError("Unsupported operating system")
-
-    command.extend(args)
-
-    session.run(*command, external=True)
-
-
-@nox.session(python=False, name="codecov")
-def codecov(session: nox.Session) -> None:
-    session.notify("download-codecov")
-    session.notify("run-codecov", posargs=session.posargs)
 
 
 @nox.session(python=False, name="build-apple-stats-monitor")
@@ -466,7 +291,7 @@ def bump_core_version(session: nox.Session) -> None:
 @nox.session(python=False, name="proto-go")
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
-    _generate_proto_go()
+    _generate_proto_go(session)
 
 
 def _generate_proto_go(session: nox.Session) -> None:

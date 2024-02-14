@@ -1392,6 +1392,20 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
             artifact.download()
 
 
+def test_change_artifact_collection_type(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        artifact.collection.change_type("lucas_type")
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        assert artifact.type == "lucas_type"
+
+
 def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch, wandb_init, capsys
 ):

@@ -2769,7 +2769,6 @@ class Run:
                 can be in the following forms:
                     - name:version
                     - name:alias
-                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
@@ -3199,7 +3198,6 @@ class Run:
                 can be in the following forms:
                     - model_artifact_name:version
                     - model_artifact_name:alias
-                    - model_artifact_name:digest.
 
         Examples:
             ```python
