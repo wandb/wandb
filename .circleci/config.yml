@@ -3,8 +3,9 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
-  go: circleci/go@1.9.0
+  go: circleci/go@1.11.0
   gcloud: circleci/gcp-cli@3.1.1
+  codecov: codecov/codecov@4.0.1
 
 parameters:
   manual:
@@ -48,7 +49,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.21.6"
+    default: "1.22.0"
   container_registry:
     type: string
     default: "gcr.io"
@@ -423,9 +424,7 @@ jobs:
                     tests/pytest_tests/unit_tests/test_launch/ \
                     tests/pytest_tests/unit_tests/test_reports/
 
-      - run:
-          name: Upload code coverage results
-          command: nox -s codecov -- -F unit
+      - codecov/upload: {flags: unit, validate: false}
 
       - save-test-results
 
@@ -461,7 +460,7 @@ jobs:
       coverage_dir:
         type: string
         default: ""
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
       shard:
@@ -514,12 +513,9 @@ jobs:
             - when:
                 condition:
                   not:
-                    equal: ["", << parameters.codecov_args >>]
+                    equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - run:
-                      name: Upload coverage to codecov
-                      command: |
-                        nox -s codecov -- << parameters.codecov_args >>
+                  - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -553,7 +549,7 @@ jobs:
         default: "core"
       toxenv:
         type: string
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
       notify_on_failure:
@@ -601,12 +597,9 @@ jobs:
       - when:
           condition:
             not:
-              equal: ["", << parameters.codecov_args >>]
+              equal: ["", << parameters.codecov_flags >>]
           steps:
-            - run:
-                name: Upload coverage to codecov
-                command: |
-                  nox -s codecov -- << parameters.codecov_args >>
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
       # conditionally post a notification to slack if the job failed
       - when:
@@ -634,10 +627,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - run:
-          name: Upload coverage to codecov
-          command: |
-            nox -s codecov -- -F unit
+      - codecov/upload: {flags: unit, validate: false}
 
   protobuf-compatability:
     parameters:
@@ -708,7 +698,7 @@ jobs:
       coverage_dir:
         type: string
         default: ""
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
       parallelism:
@@ -768,12 +758,9 @@ jobs:
             - when:
                 condition:
                   not:
-                    equal: ["", << parameters.codecov_args >>]
+                    equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - run:
-                      name: Upload coverage to codecov
-                      command: |
-                        nox -s codecov -- << parameters.codecov_args >>
+                  - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
             - save-test-results
 
   mac:
@@ -798,7 +785,7 @@ jobs:
       tox_args:
         type: string
         default: ""
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
     macos:
@@ -826,12 +813,9 @@ jobs:
       - when:
           condition:
             not:
-              equal: ["", << parameters.codecov_args >>]
+              equal: ["", << parameters.codecov_flags >>]
           steps:
-            - run:
-                name: Upload coverage to codecov
-                command: |
-                  python3 -m nox -s codecov -- << parameters.codecov_args >>
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
 
   launch:
@@ -846,7 +830,7 @@ jobs:
       python_version_minor:
         type: integer
         default: 7
-      codecov_args:
+      codecov_flags:
         type: string
         default: ""
     machine:
@@ -873,12 +857,9 @@ jobs:
       - when:
           condition:
             not:
-              equal: ["", << parameters.codecov_args >>]
+              equal: ["", << parameters.codecov_flags >>]
           steps:
-            - run:
-                name: Upload coverage to codecov
-                command: |
-                  python3 -m nox -s codecov -- << parameters.codecov_args >>
+            - codecov/upload: {flags: <<parameters.codecov_flags>>, validate: false}
       - save-test-results
 
   slack_notify:
@@ -1526,7 +1507,7 @@ workflows:
           name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
-          codecov_args: "-F system"
+          codecov_flags: system
       #
       # Functional tests with pytest on Linux, using real wandb server
       #
@@ -1540,7 +1521,7 @@ workflows:
           name: "functional-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_functional"
-          codecov_args: "-F func"
+          codecov_flags: func
 
       #
       # System tests with Service
@@ -1555,7 +1536,7 @@ workflows:
           name: "system(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
-          codecov_args: "-F system"
+          codecov_flags: system
       #
       # core unit tests
       #
@@ -1574,7 +1555,7 @@ workflows:
           name: "unit-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_args: "-F unit"
+          codecov_flags: unit
       #
       # Unit tests with pytest on Linux, using the old mock server
       #
@@ -1588,7 +1569,7 @@ workflows:
           name: "unit(service)-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_args: "-F unit"
+          codecov_flags: unit
       #
       # Unit tests with pytest on Linux
       #
@@ -1673,7 +1654,7 @@ workflows:
       #         python_version_minor: [9]
       #     name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_args: "-F unit"
+      #     codecov_flags: unit
       #     tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       - win:
@@ -1691,7 +1672,7 @@ workflows:
               python_version_minor: [9]
           name: "unit(service)-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F unit"
+          codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
 
       # - win:
@@ -1709,7 +1690,7 @@ workflows:
       #         python_version_minor: [9]
       #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
       #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_args: "-F unit"
+      #     codecov_flags: unit
       #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - win:
@@ -1725,7 +1706,7 @@ workflows:
               python_version_minor: [9]
           name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F unit"
+          codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - mac:
@@ -1738,7 +1719,7 @@ workflows:
           name: "unit-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_args: "-F unit"
+          codecov_flags: unit
 
       - mac:
           requires:
@@ -1750,7 +1731,7 @@ workflows:
           name: "unit(service)-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_args: "-F unit"
+          codecov_flags: unit
 
       #
       # Functional tests with yea on Linux (base only)
@@ -1770,7 +1751,7 @@ workflows:
           tox_args: "tests/functional_tests"
           parallelism: 4
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F func"
+          codecov_flags: func
 
       - tox-base:
           requires:
@@ -1785,7 +1766,7 @@ workflows:
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F func"
+          codecov_flags: func
 
       - tox-base:
           requires:
@@ -1805,7 +1786,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F func"
+          codecov_flags: func
 
       - tox-base:
           requires:
@@ -1826,7 +1807,7 @@ workflows:
           toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F func"
+          codecov_flags: func
 
       #
       # Functional tests with yea on Windows
@@ -1862,7 +1843,7 @@ workflows:
               python_version_minor: [9]
           name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_args: "-F unit"
+          codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
       - pytest:
@@ -1879,7 +1860,7 @@ workflows:
           name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_<<matrix.shard>>"
-          codecov_args: "-F system"
+          codecov_flags: system
 
       - pytest:
           requires:
@@ -1895,7 +1876,7 @@ workflows:
           name: "system(service)-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
-          codecov_args: "-F system"
+          codecov_flags: system
 
       #
       # notebook tests
@@ -1910,7 +1891,7 @@ workflows:
           name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "core-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_notebooks"
-          codecov_args: "-F system"
+          codecov_flags: system
 
       - pytest:
           requires:
@@ -1922,7 +1903,7 @@ workflows:
           name: "system(service)-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_notebooks"
-          codecov_args: "-F system"
+          codecov_flags: system
 
       #
       # functional tests with different executors
