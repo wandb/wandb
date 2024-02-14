@@ -1,13 +1,15 @@
 import os
 import pathlib
-import subprocess
 import sys
 
 import click
 from core import winibuild as build_core
 from core.pkg.monitor.apple import winibuild as build_applestats
 
-from . import workspace
+from . import print, subprocess, workspace
+
+_CORE_WHEEL_DIR = pathlib.Path("./.wini/core/")
+"""The output directory for the wandb-core wheel."""
 
 
 @click.group()
@@ -81,6 +83,12 @@ def package_wandb_core(should_install, with_coverage):
     """Creates the wandb-core wheel, optionally installing it."""
     _build_wandb_core_artifacts(with_coverage=with_coverage)
 
+    if _CORE_WHEEL_DIR.exists():
+        # Remove old wheel files to prevent ambiguity issues when installing.
+        for file in _CORE_WHEEL_DIR.glob("*"):
+            file.unlink()
+
+    _CORE_WHEEL_DIR.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             "python",
@@ -89,6 +97,8 @@ def package_wandb_core(should_install, with_coverage):
             "-w",  # Only build the wheel.
             "-n",  # Disable building the project in an isolated venv.
             "-x",  # Do not check that build deps are installed.
+            "--outdir",
+            _CORE_WHEEL_DIR,
             "./core",
         ]
     )
@@ -108,21 +118,28 @@ def install():
 
 
 def _do_install():
-    wheel_files = [
-        f
-        for f in os.listdir("./core/dist/")
-        if f.startswith("wandb_core-") and f.endswith(".whl")
-    ]
+    try:
+        wheel_files = [
+            f
+            for f in os.listdir(_CORE_WHEEL_DIR)
+            if f.startswith("wandb_core-") and f.endswith(".whl")
+        ]
+    except FileNotFoundError:
+        print.error(
+            f"No {_CORE_WHEEL_DIR} directory. Did you forget to run"
+            " `./wini package wandb-core`?"
+        )
+        sys.exit(1)
 
     if len(wheel_files) == 0:
-        click.echo(
+        print.error(
             "No wandb_core wheel found. Did you forget to run"
             " `./wini package wandb-core`?"
         )
         sys.exit(1)
 
     if len(wheel_files) > 1:
-        click.echo(
+        print.error(
             "Found more than one wandb_core wheel, which is not currently supported."
         )
         sys.exit(1)
@@ -132,7 +149,7 @@ def _do_install():
             "pip",
             "install",
             "--force-reinstall",
-            f"./core/dist/{wheel_files[0]}",
+            _CORE_WHEEL_DIR / wheel_files[0],
         ]
     )
 

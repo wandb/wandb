@@ -2,12 +2,11 @@
 
 import pathlib
 import platform
-import subprocess
+
+from tools.wini import subprocess
 
 
-def build_applestats(
-    output_path: pathlib.PurePath,
-) -> None:
+def build_applestats(output_path: pathlib.PurePath) -> None:
     """Builds the AppleStats Swift binary.
 
     Args:
@@ -35,7 +34,6 @@ def build_applestats(
         / "AppleStats"
     )
 
-    print(f"Running: {cmd}")
     subprocess.check_call(cmd, cwd=source_path)
 
     subprocess.check_call(

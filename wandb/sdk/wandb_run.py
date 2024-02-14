@@ -1420,8 +1420,7 @@ class Run:
     def _get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
         if len(keys) == 1:
             return d[keys[0]]
-        else:
-            return self._get_nested_value(d[keys[0]], keys[1:])
+        return self._get_nested_value(d[keys[0]], keys[1:])
 
     def _set_nested_value(
         self, d: Dict[str, Any], keys: List[str], value: Any, split_table: bool
@@ -1439,20 +1438,20 @@ class Run:
         chart_keys = set()
         split_table_set = set()
 
-        def transform(key: str, value: Any) -> Any:
+        def transform(key: str | List[str], value: Any) -> Any:
             if isinstance(value, dict):
-                return {k: transform(f"{key}®{k}", v) for k, v in value.items()}
+                return {k: transform([*key, k], v) for k, v in value.items()}
             if isinstance(value, Visualize):
-                config_key = value.get_config_key(key)
-                config_value = value.get_config_value(key)
+                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
+                config_value = value.get_config_value(key if isinstance(key, str) else ".".join(key))
                 value = value._data
                 self._config_callback(val=config_value, key=config_key)
                 return value
             elif isinstance(value, CustomChart):
-                formatted_key = key.replace("®", ".")
+                formatted_key = ".".join(key)
 
                 chart_keys.add(key)
-                config_key = value.get_config_key(key)
+                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
                 if value._split_table:
                     config_value = value.get_config_value(
                         "Vega2",
@@ -1473,7 +1472,7 @@ class Run:
             row[k] = transform(k, v)
 
         for k in chart_keys:
-            klist = k.split("®")
+            klist = k.split(".")
             value = self._get_nested_value(row, klist)
 
             if k in split_table_set:
@@ -2798,7 +2797,6 @@ class Run:
                 can be in the following forms:
                     - name:version
                     - name:alias
-                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
@@ -3228,7 +3226,6 @@ class Run:
                 can be in the following forms:
                     - model_artifact_name:version
                     - model_artifact_name:alias
-                    - model_artifact_name:digest.
 
         Examples:
             ```python

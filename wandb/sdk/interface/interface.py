@@ -567,8 +567,8 @@ class InterfaceBase:
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-
             item.value_json = json_dumps_safer_history(v)
+
         if publish_step and step is not None:
             partial_history.step.num = step
         if flush is not None:
