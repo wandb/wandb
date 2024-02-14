@@ -46,7 +46,7 @@ class ConfigState:
     def add_unset_keys(self, other_config_tree: Dict[str, Any]) -> None:
         """Uses the given dict for any keys that aren't already set."""
         for k, v in other_config_tree:
-            if k not in self._tree:
+            if k not in self._tree.items():
                 self._tree[k] = v
 
     def to_backend_dict(
