@@ -19,7 +19,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -102,7 +101,7 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	configMap map[string]interface{}
+	configMap *RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -134,7 +133,7 @@ func NewSender(
 		settings:       settings,
 		logger:         logger,
 		summaryMap:     make(map[string]*service.SummaryItem),
-		configMap:      make(map[string]interface{}),
+		configMap:      NewRunConfig(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
@@ -379,7 +378,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.configMap
+	input := s.configMap.Tree()
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -484,7 +483,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
-	s.updateConfigPrivate(s.telemetry)
+	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
 	s.sendConfig(nil, nil /*configRecord*/)
 }
@@ -520,65 +519,30 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// updateConfig updates the config map with the config record
+// Applies the change record to the run configuration.
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	// TODO: handle nested key updates and deletes
-	for _, d := range configRecord.GetUpdate() {
-		var value interface{}
-		if err := json.Unmarshal([]byte(d.GetValueJson()), &value); err != nil {
-			s.logger.CaptureError("unmarshal problem", err)
-			continue
-		}
-		keyList := d.GetNestedKey()
-		if keyList == nil {
-			keyList = []string{d.GetKey()}
-		}
-		target := s.configMap
-		for _, k := range keyList[:len(keyList)-1] {
-			val, ok := target[k].(map[string]interface{})
-			if !ok {
-				val = make(map[string]interface{})
-				target[k] = val
-			}
-			target = val
-		}
-		target[keyList[len(keyList)-1]] = value
-	}
-	for _, d := range configRecord.GetRemove() {
-		delete(s.configMap, d.GetKey())
-	}
+	s.configMap.ApplyChangeRecord(configRecord, func(err error) {
+		s.logger.CaptureError("Error updating run config", err)
+	})
 }
 
-// updateConfigPrivate updates the private part of the config map
-func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
-	if _, ok := s.configMap["_wandb"]; !ok {
-		s.configMap["_wandb"] = make(map[string]interface{})
+// Inserts W&B-internal information into the run configuration.
+//
+// Uses the given telemetry
+func (s *Sender) updateConfigPrivate() {
+	metrics := []map[int]interface{}(nil)
+	if s.metricSender != nil {
+		metrics = s.metricSender.configMetrics
 	}
 
-	switch v := s.configMap["_wandb"].(type) {
-	case map[string]interface{}:
-		if telemetry.GetCliVersion() != "" {
-			v["cli_version"] = telemetry.CliVersion
-		}
-		if telemetry.GetPythonVersion() != "" {
-			v["python_version"] = telemetry.PythonVersion
-		}
-		v["t"] = corelib.ProtoEncodeToDict(s.telemetry)
-		if s.metricSender != nil {
-			v["m"] = s.metricSender.configMetrics
-		}
-		// todo: add the rest of the telemetry from telemetry
-	default:
-		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
-	}
+	s.configMap.AddTelemetryAndMetrics(s.telemetry, metrics)
 }
 
 // serializeConfig serializes the config map to a json string
 // that can be sent to the server
 func (s *Sender) serializeConfig(format string) string {
 	valueConfig := make(map[string]map[string]interface{})
-	for key, elem := range s.configMap {
+	for key, elem := range s.configMap.Tree() {
 		valueConfig[key] = make(map[string]interface{})
 		valueConfig[key]["value"] = elem
 	}
@@ -636,7 +600,11 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		return err
 	}
 
-	if result, err := s.resumeState.Update(data, s.RunRecord, s.configMap); err != nil {
+	if result, err := s.resumeState.Update(
+		data,
+		s.RunRecord,
+		s.configMap.Tree(),
+	); err != nil {
 		s.sendRunResult(record, result)
 		return err
 	}
@@ -664,7 +632,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
-		s.updateConfigPrivate(run.Telemetry)
+		s.updateConfigPrivate()
 		config := s.serializeConfig("json")
 
 		var tags []string
@@ -984,7 +952,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	}
 
 	s.encodeMetricHints(record, metric)
-	s.updateConfigPrivate(nil /*telemetry*/)
+	s.updateConfigPrivate()
 	s.sendConfig(nil, nil /*configRecord*/)
 }
 

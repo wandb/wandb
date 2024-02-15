@@ -1,0 +1,200 @@
+package server
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/pkg/service"
+)
+
+type RunConfigDict map[string]interface{}
+
+// The configuration of a run.
+//
+// This is usually used for hyperparameters and some run metadata like the
+// start time and the ML framework used. In a somewhat hacky way, it is also
+// used to store programmatic custom charts for the run.
+//
+// The server process builds this up incrementally throughout a run's lifetime.
+type RunConfig struct {
+	// The underlying configuration tree.
+	//
+	// Nodes are strings and leaves are types supported by JSON,
+	// such as primitives and lists.
+	tree RunConfigDict
+}
+
+func NewRunConfig() *RunConfig {
+	return &RunConfig{make(RunConfigDict)}
+}
+
+// Returns the underlying config tree.
+//
+// Provided temporarily as part of a refactor. Avoid using this, especially
+// mutating it.
+func (runConfig *RunConfig) Tree() RunConfigDict {
+	return runConfig.tree
+}
+
+// Updates and/or removes values from the configuration tree.
+//
+// Does a best-effort job to apply all changes. Errors are passed to `onError`
+// and skipped.
+func (runConfig *RunConfig) ApplyChangeRecord(
+	configRecord *service.ConfigRecord,
+	onError func(error),
+) {
+	for _, configItem := range configRecord.Update {
+		path := keyPath(configItem)
+
+		var value interface{}
+		if err := json.Unmarshal(
+			[]byte(configItem.GetValueJson()),
+			&value,
+		); err != nil {
+			onError(
+				fmt.Errorf(
+					"Failed to unmarshall JSON for config key %v: %w",
+					path,
+					err,
+				),
+			)
+			continue
+		}
+
+		if err := runConfig.updateAtPath(path, value); err != nil {
+			onError(err)
+			continue
+		}
+	}
+
+	for _, configItem := range configRecord.Remove {
+		runConfig.removeAtPath(keyPath(configItem))
+	}
+}
+
+// Inserts W&B-internal values into the run's configuration.
+func (runConfig *RunConfig) AddTelemetryAndMetrics(
+	telemetry *service.TelemetryRecord,
+	metrics []map[int]interface{},
+) {
+	wandbInternal := runConfig.internalSubtree()
+
+	if telemetry.GetCliVersion() != "" {
+		wandbInternal["cli_version"] = telemetry.CliVersion
+	}
+	if telemetry.GetPythonVersion() != "" {
+		wandbInternal["python_version"] = telemetry.PythonVersion
+	}
+
+	wandbInternal["t"] = corelib.ProtoEncodeToDict(telemetry)
+
+	if metrics != nil {
+		wandbInternal["m"] = metrics
+	}
+}
+
+func (runConfig *RunConfig) internalSubtree() RunConfigDict {
+	node, found := runConfig.tree["_wandb"]
+
+	if !found {
+		wandbInternal := make(RunConfigDict)
+		runConfig.tree["_wandb"] = wandbInternal
+		return wandbInternal
+	}
+
+	// Panic if the type is wrong, which should never happen.
+	return node.(RunConfigDict)
+}
+
+// Sets the value at the path in the config tree.
+func (runConfig *RunConfig) updateAtPath(
+	path []string,
+	value interface{},
+) error {
+	pathPrefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree, err := getOrMakeSubtree(runConfig.tree, pathPrefix)
+
+	if err != nil {
+		return err
+	}
+
+	subtree[key] = value
+	return nil
+}
+
+// Removes the value at the path in the config tree.
+func (runConfig *RunConfig) removeAtPath(path []string) {
+	pathPrefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree := getSubtree(runConfig.tree, pathPrefix)
+	if subtree != nil {
+		delete(subtree, key)
+	}
+}
+
+// Returns the key path referenced by the config item.
+func keyPath(configItem *service.ConfigItem) []string {
+	path := configItem.NestedKey
+
+	if path == nil {
+		path = []string{configItem.Key}
+	}
+
+	return path
+}
+
+// Returns the subtree at the path, or nil if it does not exist.
+func getSubtree(
+	tree RunConfigDict,
+	path []string,
+) RunConfigDict {
+	for _, key := range path {
+		node, ok := tree[key]
+		if !ok {
+			return nil
+		}
+
+		subtree, ok := node.(RunConfigDict)
+		if !ok {
+			return nil
+		}
+
+		tree = subtree
+	}
+
+	return tree
+}
+
+// Returns the subtree at the path, creating it if necessary.
+//
+// Returns an error if there exists a non-map value at the path.
+func getOrMakeSubtree(
+	tree RunConfigDict,
+	path []string,
+) (RunConfigDict, error) {
+	for _, key := range path {
+		node, ok := tree[key]
+		if !ok {
+			tree[key] = make(RunConfigDict)
+			continue
+		}
+
+		subtree, ok := node.(RunConfigDict)
+		if !ok {
+			return nil, fmt.Errorf(
+				"Config value at path %v is type %T, not a map",
+				path,
+				node,
+			)
+		}
+
+		tree = subtree
+	}
+
+	return tree, nil
+}
