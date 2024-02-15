@@ -5,7 +5,7 @@ import subprocess
 import sys
 from typing import List, Tuple
 
-from pkg_resources import parse_version  # noqa: F401
+from packaging.version import parse as parse_version  # noqa: F401
 
 
 def get_available_protobuf_versions() -> List[str]:

@@ -8,7 +8,6 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-import pkg_resources
 import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
@@ -447,6 +446,8 @@ def construct_gcp_registry_uri(
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
+    import pkg_resources
+
     requirements_line = ""
     assert launch_project.project_dir is not None
     base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")

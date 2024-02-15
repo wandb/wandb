@@ -1465,7 +1465,7 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
-        from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1509,7 +1509,7 @@ class SendManager:
         return res, future
 
     def send_alert(self, record: "Record") -> None:
-        from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
