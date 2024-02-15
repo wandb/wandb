@@ -1,11 +1,13 @@
 import logging
 import os
 import sys
+import tempfile
+from glob import glob
 
 import monai
+import nibabel as nib
 import numpy as np
 import torch
-import wandb
 from ignite.engine import (
     Events,
     _prepare_batch,
@@ -13,111 +15,113 @@ from ignite.engine import (
     create_supervised_trainer,
 )
 from ignite.handlers import EarlyStopping
-from monai.data import DataLoader, decollate_batch
-from monai.handlers import ROCAUC, StatsHandler, stopping_fn_from_metric
+from monai.data import create_test_image_3d, decollate_batch, list_data_collate
+from monai.handlers import MeanDice, StatsHandler, stopping_fn_from_metric
 from monai.transforms import (
     Activations,
     AsDiscrete,
     Compose,
+    EnsureChannelFirstd,
     LoadImaged,
+    RandCropByPosNegLabeld,
     RandRotate90d,
-    Resized,
     ScaleIntensityd,
 )
+from torch.utils.data import DataLoader
+
+import wandb
 from wandb.integration.monai import WandbModelCheckpoint, WandbStatsHandler
 
 
-def main():
+def main(tempdir):
     monai.config.print_config()
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    wandb.init(project="monai-test")
+    wandb.init()
     config = wandb.config
-    config.batch_size = 2
-    config.num_workers = 4
-    config.validation_every_n_epochs = 1
-    config.lr = 1e-5
-    config.train_epochs = 2
+    config.train_batch_size = 2
+    config.val_batch_size = 5
+    config.epochs = 2
 
-    # IXI dataset as a demo, original dataset downloadable from
-    # https://brain-development.org/ixi-dataset/
-    artifact = wandb.use_artifact("geekyrakshit/monai-test/ixi-dataset-t1:v0")
-    data_path = artifact.download()
-    images = [
-        "IXI314-IOP-0889-T1.nii.gz",
-        "IXI249-Guys-1072-T1.nii.gz",
-        "IXI609-HH-2600-T1.nii.gz",
-        "IXI173-HH-1590-T1.nii.gz",
-        "IXI020-Guys-0700-T1.nii.gz",
-        "IXI342-Guys-0909-T1.nii.gz",
-        "IXI134-Guys-0780-T1.nii.gz",
-        "IXI577-HH-2661-T1.nii.gz",
-        "IXI066-Guys-0731-T1.nii.gz",
-        "IXI130-HH-1528-T1.nii.gz",
-        "IXI607-Guys-1097-T1.nii.gz",
-        "IXI175-HH-1570-T1.nii.gz",
-        "IXI385-HH-2078-T1.nii.gz",
-        "IXI344-Guys-0905-T1.nii.gz",
-        "IXI409-Guys-0960-T1.nii.gz",
-        "IXI584-Guys-1129-T1.nii.gz",
-        "IXI253-HH-1694-T1.nii.gz",
-        "IXI092-HH-1436-T1.nii.gz",
-        "IXI574-IOP-1156-T1.nii.gz",
-        "IXI585-Guys-1130-T1.nii.gz",
-    ]
-    images = [os.sep.join([data_path, f]) for f in images]
+    # create a temporary directory and 40 random image, mask pairs
+    print(f"generating synthetic data to {tempdir} (this may take a while)")
+    for i in range(40):
+        im, seg = create_test_image_3d(128, 128, 128, num_seg_classes=1, channel_dim=-1)
 
-    # 2 binary labels for gender classification: man and woman
-    labels = np.array(
-        [0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0], dtype=np.int64
-    )
-    train_files = [
-        {"img": img, "label": label} for img, label in zip(images[:10], labels[:10])
-    ]
-    val_files = [
-        {"img": img, "label": label} for img, label in zip(images[-10:], labels[-10:])
-    ]
+        n = nib.Nifti1Image(im, np.eye(4))
+        nib.save(n, os.path.join(tempdir, f"img{i:d}.nii.gz"))
 
-    # define transforms for image
+        n = nib.Nifti1Image(seg, np.eye(4))
+        nib.save(n, os.path.join(tempdir, f"seg{i:d}.nii.gz"))
+
+    images = sorted(glob(os.path.join(tempdir, "img*.nii.gz")))
+    segs = sorted(glob(os.path.join(tempdir, "seg*.nii.gz")))
+    train_files = [{"img": img, "seg": seg} for img, seg in zip(images[:20], segs[:20])]
+    val_files = [{"img": img, "seg": seg} for img, seg in zip(images[-20:], segs[-20:])]
+
+    # define transforms for image and segmentation
     train_transforms = Compose(
         [
-            LoadImaged(keys=["img"], ensure_channel_first=True),
-            ScaleIntensityd(keys=["img"]),
-            Resized(keys=["img"], spatial_size=(96, 96, 96)),
-            RandRotate90d(keys=["img"], prob=0.8, spatial_axes=[0, 2]),
+            LoadImaged(keys=["img", "seg"]),
+            EnsureChannelFirstd(keys=["img", "seg"]),
+            ScaleIntensityd(keys="img"),
+            RandCropByPosNegLabeld(
+                keys=["img", "seg"],
+                label_key="seg",
+                spatial_size=[96, 96, 96],
+                pos=1,
+                neg=1,
+                num_samples=4,
+            ),
+            RandRotate90d(keys=["img", "seg"], prob=0.5, spatial_axes=[0, 2]),
         ]
     )
     val_transforms = Compose(
         [
-            LoadImaged(keys=["img"], ensure_channel_first=True),
-            ScaleIntensityd(keys=["img"]),
-            Resized(keys=["img"], spatial_size=(96, 96, 96)),
+            LoadImaged(keys=["img", "seg"]),
+            EnsureChannelFirstd(keys=["img", "seg"]),
+            ScaleIntensityd(keys="img"),
         ]
     )
 
-    # define dataset, data loader
-    check_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
-    check_loader = DataLoader(
-        check_ds,
-        batch_size=config.batch_size,
-        num_workers=config.num_workers,
+    # create a training data loader
+    train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=config.train_batch_size,
+        shuffle=True,
+        num_workers=4,
+        collate_fn=list_data_collate,
         pin_memory=torch.cuda.is_available(),
     )
-    check_data = monai.utils.misc.first(check_loader)
-    print(check_data["img"].shape, check_data["label"])
+    # create a validation data loader
+    val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=config.val_batch_size,
+        num_workers=8,
+        collate_fn=list_data_collate,
+        pin_memory=torch.cuda.is_available(),
+    )
 
-    # create DenseNet121, CrossEntropyLoss and Adam optimizer
+    # create UNet, DiceLoss and Adam optimizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net = monai.networks.nets.DenseNet121(
-        spatial_dims=3, in_channels=1, out_channels=2
+    net = monai.networks.nets.UNet(
+        spatial_dims=3,
+        in_channels=1,
+        out_channels=1,
+        channels=(16, 32, 64, 128, 256),
+        strides=(2, 2, 2, 2),
+        num_res_units=2,
     ).to(device)
-    loss = torch.nn.CrossEntropyLoss()
-    opt = torch.optim.Adam(net.parameters(), config.lr)
+    loss = monai.losses.DiceLoss(sigmoid=True)
+    lr = 1e-3
+    opt = torch.optim.Adam(net.parameters(), lr)
 
-    # Ignite trainer expects batch=(img, label) and returns output=loss at every iteration,
+    # Ignite trainer expects batch=(img, seg) and returns output=loss at every iteration,
     # user can add output_transform to return other values, like: y_pred, y, etc.
     def prepare_batch(batch, device=None, non_blocking=False):
-        return _prepare_batch((batch["img"], batch["label"]), device, non_blocking)
+        return _prepare_batch((batch["img"], batch["seg"]), device, non_blocking)
 
     trainer = create_supervised_trainer(
         net, opt, loss, device, False, prepare_batch=prepare_batch
@@ -139,28 +143,43 @@ def main():
     train_stats_handler = StatsHandler(name="trainer", output_transform=lambda x: x)
     train_stats_handler.attach(trainer)
 
-    # WandbStatsHandler logs loss at every iteration and plots metrics at every epoch to Weights & Biases
+    # TensorBoardStatsHandler plots loss at every iteration and plots metrics at every epoch, same as StatsHandler
     train_wandb_stats_handler = WandbStatsHandler(output_transform=lambda x: x)
     train_wandb_stats_handler.attach(trainer)
 
-    metric_name = "AUC"
+    validation_every_n_iters = 5
+    # set parameters for validation
+    metric_name = "Mean_Dice"
     # add evaluation metric to the evaluator engine
-    val_metrics = {metric_name: ROCAUC()}
+    val_metrics = {metric_name: MeanDice()}
 
-    post_label = Compose([AsDiscrete(to_onehot=2)])
-    post_pred = Compose([Activations(softmax=True)])
-    # Ignite evaluator expects batch=(img, label) and returns output=(y_pred, y) at every iteration,
+    post_pred = Compose([Activations(sigmoid=True), AsDiscrete(threshold=0.5)])
+    post_label = Compose([AsDiscrete(threshold=0.5)])
+
+    # Ignite evaluator expects batch=(img, seg) and returns output=(y_pred, y) at every iteration,
     # user can add output_transform to return other values
     evaluator = create_supervised_evaluator(
         net,
         val_metrics,
         device,
         True,
-        prepare_batch=prepare_batch,
         output_transform=lambda x, y, y_pred: (
             [post_pred(i) for i in decollate_batch(y_pred)],
-            [post_label(i) for i in decollate_batch(y, detach=False)],
+            [post_label(i) for i in decollate_batch(y)],
         ),
+        prepare_batch=prepare_batch,
+    )
+
+    @trainer.on(Events.ITERATION_COMPLETED(every=validation_every_n_iters))
+    def run_validation(engine):
+        evaluator.run(val_loader)
+
+    # add early stopping handler to evaluator
+    early_stopper = EarlyStopping(
+        patience=4, score_function=stopping_fn_from_metric(metric_name), trainer=trainer
+    )
+    evaluator.add_event_handler(
+        event_name=Events.EPOCH_COMPLETED, handler=early_stopper
     )
 
     # add stats event handler to print validation stats via evaluator
@@ -171,47 +190,16 @@ def main():
     )  # fetch global epoch number from trainer
     val_stats_handler.attach(evaluator)
 
-    # add handler to record metrics to Weights & Biases at every epoch
+    # add handler to record metrics to TensorBoard at every validation epoch
     val_wandb_stats_handler = WandbStatsHandler(
-        output_transform=lambda x: None,
-        global_epoch_transform=lambda x: trainer.state.epoch,
-    )
+        output_transform=lambda x: None,  # no need to plot loss value, so disable per iteration output
+        global_epoch_transform=lambda x: trainer.state.iteration,
+    )  # fetch global iteration number from trainer
     val_wandb_stats_handler.attach(evaluator)
 
-    # add early stopping handler to evaluator
-    early_stopper = EarlyStopping(
-        patience=4, score_function=stopping_fn_from_metric(metric_name), trainer=trainer
-    )
-    evaluator.add_event_handler(
-        event_name=Events.EPOCH_COMPLETED, handler=early_stopper
-    )
-
-    # create a validation data loader
-    val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=2,
-        num_workers=config.num_workers,
-        pin_memory=torch.cuda.is_available(),
-    )
-
-    @trainer.on(Events.EPOCH_COMPLETED(every=config.validation_every_n_epochs))
-    def run_validation(engine):
-        evaluator.run(val_loader)
-
-    # create a training data loader
-    train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=torch.cuda.is_available(),
-    )
-
-    state = trainer.run(train_loader, config.train_epochs)
-    print(state)
+    state = trainer.run(train_loader, config.epochs)
 
 
 if __name__ == "__main__":
-    main()
+    with tempfile.TemporaryDirectory() as tempdir:
+        main(tempdir)

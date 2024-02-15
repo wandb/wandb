@@ -10,15 +10,14 @@ depend:
     requirements:
         - "monai>=1.3.0"
         - "pytorch-ignite>=0.4.11"
+        - "nibabel>=5.2.0"
 assert:
     - :wandb:runs_len: 1
-    - :wandb:runs[0][config][batch_size]: 2
-    - :wandb:runs[0][config][lr]: 0.00001
-    - :wandb:runs[0][config][num_workers]: 4
-    - :wandb:runs[0][config][train_epochs]: 2
-    - :wandb:runs[0][config][validation_every_n_epochs]: 1
+    - :wandb:runs[0][config][epochs]: 2
+    - :wandb:runs[0][config][train_batch_size]: 2
+    - :wandb:runs[0][config][val_batch_size]: 5
     - :op:>=:
-        - :wandb:runs[0][summary][epoch/AUC]
+        - :wandb:runs[0][summary][epoch/Mean_Dice]
         - 0
     - :op:==:
         - :wandb:runs[0][summary][epoch/epoch]
@@ -28,5 +27,5 @@ assert:
         - 0
     - :op:==:
         - :wandb:runs[0][summary][iteration/iteration]
-        - 10
+        - 20
     - :wandb:runs[0][exitcode]: 0
