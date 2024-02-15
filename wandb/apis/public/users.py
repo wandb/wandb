@@ -33,6 +33,17 @@ class User(Attrs):
     }
   """
     )
+    ENABLE_USER_MUTATION = gql(
+        """
+    mutation UndeleteUser($id: ID!) {
+        undeleteUser(input: {id: $id}) {
+            user {
+            id
+            }
+        }
+    }
+  """
+    )
     DELETE_API_KEY_MUTATION = gql(
         """
     mutation DeleteApiKey($id: String!) {
@@ -151,6 +162,25 @@ class User(Attrs):
             print(f"An error occurred while disabling the user: {e}")
             return None
         
+    def enable(self):
+        """Re-enable user on local instance.
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            response = self._client.execute(
+                self.ENABLE_USER_MUTATION, {"id": self.id}
+            )
+            if response is None: return False
+            success = bool(response.get('undeleteUser', {}).get('user', {}).get('id'))
+            status = "Successfully" if success else "Failed to"
+            print(f"{status} re-enabled '{self.username}' on instance.")
+            return success
+        except Exception as e:
+            print(f"An error occurred while re-enabling the user: {e}")
+            return None
+            
     def __repr__(self):
         if "email" in self._attrs:
             return f"<User {self._attrs['email']}>"
