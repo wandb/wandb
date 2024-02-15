@@ -29,6 +29,10 @@ func NewRunConfig() *RunConfig {
 	return &RunConfig{make(RunConfigDict)}
 }
 
+func NewRunConfigFrom(tree RunConfigDict) *RunConfig {
+	return &RunConfig{tree}
+}
+
 // Returns the underlying config tree.
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
