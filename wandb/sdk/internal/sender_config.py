@@ -42,11 +42,39 @@ class ConfigState:
         for config_item in config_record.remove:
             self._delete_at_path(_key_path(config_item))
 
-    def add_unset_keys(self, other_config_tree: Dict[str, Any]) -> None:
-        """Uses the given dict for any keys that aren't already set."""
-        for k, v in other_config_tree.items():
-            if k not in self._tree.items():
-                self._tree[k] = v
+    def merge_resumed_config(self, old_config_tree: Dict[str, Any]) -> None:
+        """Merges the config from a run that's being resumed."""
+        # Add any top-level keys that aren't already set.
+        self._add_unset_keys_from_subtree(old_config_tree, [])
+
+        # Unfortunately, when a user logs visualizations, we store them in the
+        # run's config. When resuming a run, we want to avoid erasing previously
+        # logged visualizations, hence this special handling:
+        self._add_unset_keys_from_subtree(
+            old_config_tree,
+            [_WANDB_INTERNAL_KEY, "visualize"],
+        )
+        self._add_unset_keys_from_subtree(
+            old_config_tree,
+            [_WANDB_INTERNAL_KEY, "viz"],
+        )
+
+    def _add_unset_keys_from_subtree(
+        self,
+        old_config_tree: Dict[str, Any],
+        path: Sequence[str],
+    ) -> None:
+        """Uses the given subtree for keys that aren't already set."""
+        old_subtree = _subtree(old_config_tree, path, create=False)
+        if not old_subtree:
+            return
+
+        new_subtree = _subtree(self._tree, path, create=True)
+        assert new_subtree is not None
+
+        for chart_key, chart_value in old_subtree.items():
+            if chart_key not in new_subtree:
+                new_subtree[chart_key] = chart_value
 
     def to_backend_dict(
         self,
@@ -120,24 +148,19 @@ class ConfigState:
         value: Any,
     ) -> None:
         """Sets the value at the path in the config tree."""
-        update_in = self._tree
-        for key in key_path[:-1]:
-            update_in = update_in.setdefault(key, {})
-        update_in[key_path[-1]] = value
+        subtree = _subtree(self._tree, key_path[:-1], create=True)
+        assert subtree is not None
+
+        subtree[key_path[-1]] = value
 
     def _delete_at_path(
         self,
         key_path: Sequence[str],
     ) -> None:
         """Removes the subtree at the path in the config tree."""
-        remove_from = self._tree
-
-        for key in key_path[:-1]:
-            if key not in remove_from:
-                return
-            remove_from = remove_from[key]
-
-        del remove_from[key_path[-1]]
+        subtree = _subtree(self._tree, key_path[:-1], create=False)
+        if subtree:
+            del subtree[key_path[-1]]
 
 
 def _key_path(config_item: wandb_internal_pb2.ConfigItem) -> Sequence[str]:
@@ -150,3 +173,25 @@ def _key_path(config_item: wandb_internal_pb2.ConfigItem) -> Sequence[str]:
         raise AssertionError(
             "Invalid ConfigItem: either key or nested_key must be set",
         )
+
+
+def _subtree(
+    tree: Dict[str, Any],
+    key_path: Sequence[str],
+    *,
+    create: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Returns a subtree at the given path."""
+    for key in key_path:
+        subtree = tree.get(key)
+
+        if not subtree:
+            if create:
+                subtree = {}
+                tree[key] = subtree
+            else:
+                return None
+
+        tree = subtree
+
+    return tree

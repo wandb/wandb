@@ -931,11 +931,9 @@ class SendManager:
 
         # Save the resumed config
         if self._resume_state.config is not None:
-            # TODO: should we merge this with resumed config?
-            config_dict = self._resume_state.config
-            config_dict = config_util.dict_strip_value_dict(config_dict)
-
-            self._consolidated_config.add_unset_keys(config_dict)
+            self._consolidated_config.merge_resumed_config(
+                config_util.dict_strip_value_dict(self._resume_state.config)
+            )
 
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
