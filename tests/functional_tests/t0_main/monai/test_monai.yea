@@ -1,11 +1,11 @@
-id: 0.monai.classification
+id: 0.monai.segmentation
 plugin:
     - wandb
 tag:
   platforms:
     - linux
 command:
-    program: test_monai_classification.py
+    program: test_monai.py
 depend:
     requirements:
         - "monai>=1.3.0"

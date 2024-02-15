@@ -8,6 +8,7 @@ import monai
 import nibabel as nib
 import numpy as np
 import torch
+import wandb
 from ignite.engine import (
     Events,
     _prepare_batch,
@@ -28,8 +29,6 @@ from monai.transforms import (
     ScaleIntensityd,
 )
 from torch.utils.data import DataLoader
-
-import wandb
 from wandb.integration.monai import WandbModelCheckpoint, WandbStatsHandler
 
 
@@ -198,6 +197,7 @@ def main(tempdir):
     val_wandb_stats_handler.attach(evaluator)
 
     state = trainer.run(train_loader, config.epochs)
+    print(state)
 
 
 if __name__ == "__main__":
