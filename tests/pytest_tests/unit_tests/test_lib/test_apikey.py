@@ -9,4 +9,3 @@ def test_write_netrc():
         assert f.read() == (
             "machine localhost\n" "  login vanpelt\n" "  password %s\n" % api_key
         )
-
