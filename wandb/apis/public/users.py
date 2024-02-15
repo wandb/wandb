@@ -22,7 +22,17 @@ class User(Attrs):
     }
         """
     )
-
+    DISABLE_USER_MUTATION = gql(
+        """
+    mutation DeleteUser($id: ID!) {
+        deleteUser(input: {id: $id}) {
+            user {
+            id
+            }
+        }
+    }
+  """
+    )
     DELETE_API_KEY_MUTATION = gql(
         """
     mutation DeleteApiKey($id: String!) {
@@ -122,6 +132,25 @@ class User(Attrs):
         except (requests.exceptions.HTTPError, AttributeError):
             return None
 
+    def disable(self):
+        """Disable a user from local instance.
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            response = self._client.execute(
+                self.DISABLE_USER_MUTATION, {"id": self.id}
+            )
+            if response is None: return False
+            success = bool(response.get('deleteUser', {}).get('user', {}).get('id'))
+            status = "Successfully" if success else "Failed to"
+            print(f"{status} disabled '{self.username}' from instance.")
+            return success
+        except Exception as e:
+            print(f"An error occurred while disabling the user: {e}")
+            return None
+        
     def __repr__(self):
         if "email" in self._attrs:
             return f"<User {self._attrs['email']}>"
