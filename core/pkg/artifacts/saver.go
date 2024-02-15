@@ -58,6 +58,12 @@ func (as *ArtifactSaver) createArtifact() (
 			},
 		)
 	}
+
+	var runId *string
+	if !as.Artifact.UserCreated {
+		runId = &as.Artifact.RunId
+	}
+
 	response, err := gql.CreateArtifact(
 		as.Ctx,
 		as.GraphqlClient,
@@ -65,7 +71,7 @@ func (as *ArtifactSaver) createArtifact() (
 		as.Artifact.Project,
 		as.Artifact.Type,
 		as.Artifact.Name,
-		&as.Artifact.RunId,
+		runId,
 		as.Artifact.Digest,
 		utils.NilIfZero(as.Artifact.Description),
 		aliases,
@@ -217,20 +223,18 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 						outChan <- record
 					},
 				)
-				task.AddCompletionCallback(func(task *filetransfer.Task) {
-					taskResultsChan <- TaskResult{task, name}
-				})
-				task.AddCompletionCallback(
-					func(*filetransfer.Task) {
+				task.SetCompletionCallback(
+					func(t *filetransfer.Task) {
+						taskResultsChan <- TaskResult{t, name}
 						record := &service.Record{
 							RecordType: &service.Record_Request{
 								Request: &service.Request{
 									RequestType: &service.Request_FileTransferInfo{
 										FileTransferInfo: &service.FileTransferInfoRequest{
 											Type:      service.FileTransferInfoRequest_Upload,
-											Path:      task.Path,
-											Size:      task.Size,
-											Processed: task.Size,
+											Path:      t.Path,
+											Size:      t.Size,
+											Processed: t.Size,
 											FileCounts: &service.FileCounts{
 												ArtifactCount: 1,
 											},
@@ -305,20 +309,18 @@ func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, 
 		Url:     *uploadUrl,
 		Headers: uploadHeaders,
 	}
-	task.AddCompletionCallback(func(task *filetransfer.Task) {
-		resultChan <- task
-	})
-	task.AddCompletionCallback(
-		func(*filetransfer.Task) {
+	task.SetCompletionCallback(
+		func(t *filetransfer.Task) {
+			resultChan <- t
 			record := &service.Record{
 				RecordType: &service.Record_Request{
 					Request: &service.Request{
 						RequestType: &service.Request_FileTransferInfo{
 							FileTransferInfo: &service.FileTransferInfoRequest{
 								Type:       service.FileTransferInfoRequest_Upload,
-								Path:       task.Path,
-								Size:       task.Size,
-								Processed:  task.Size,
+								Path:       t.Path,
+								Size:       t.Size,
+								Processed:  t.Size,
 								FileCounts: &service.FileCounts{ArtifactCount: 1},
 							},
 						},

@@ -165,15 +165,8 @@ class WandbRun:
         return self.run.tags
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
-        if self._artifacts is not None:
-            yield from self._artifacts
-            return
-
-        try:
+        if self._artifacts is None:
             self._artifacts = list(self.run.logged_artifacts())
-        except Exception as e:
-            logger.error(f"Error downloading {self._artifacts=}, {e=}")
-            return []
 
         new_arts = []
         for art in self._artifacts:
@@ -184,21 +177,15 @@ class WandbRun:
         self._artifacts = new_arts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
-        if self._used_artifacts is not None:
-            yield from self._used_artifacts
-            return
-
-        try:
+        if self._used_artifacts is None:
             self._used_artifacts = list(self.run.used_artifacts())
-        except Exception as e:
-            logger.error(f"Error downloading {self._used_artifacts=}, {e=}")
-            return []
 
         new_arts = []
         for art in self._used_artifacts:
             new_art = _clone_art(art)
             new_arts.append(new_art)
             yield new_art
+
         self._used_artifacts = new_arts
 
     def os_version(self) -> Optional[str]:
@@ -317,14 +304,7 @@ class WandbRun:
         yield from rows
 
     def _get_parquet_history_paths(self) -> List[str]:
-        if not self._artifacts:
-            try:
-                self._artifacts = list(self.run.logged_artifacts())
-            except Exception as e:
-                logger.error(f"Error downloading artifacts: {self._artifacts=}, {e=}")
-                return
-
-        for art in self._artifacts:
+        for art in self.artifacts():
             if art.type != "wandb-history":
                 continue
             if (path := _download_art(art, root=f"./artifacts/src/{art.name}")) is None:
@@ -596,23 +576,24 @@ class WandbImporter:
                 else:
                     raise e
 
-    def _compare_artifact_dirs(self, src_dir, dst_dir):
+    @staticmethod
+    def _compare_artifact_dirs(src_dir, dst_dir):
         def compare(src_dir, dst_dir):
             comparison = filecmp.dircmp(src_dir, dst_dir)
             differences = {
-                "left_only": comparison.left_only,  # Items only in dir1
-                "right_only": comparison.right_only,  # Items only in dir2
-                "diff_files": comparison.diff_files,  # Different files
-                "subdir_differences": {},  # Differences in subdirectories
+                "left_only": comparison.left_only,
+                "right_only": comparison.right_only,
+                "diff_files": comparison.diff_files,
+                "subdir_differences": {},
             }
 
             # Recursively find differences in subdirectories
             for subdir in comparison.subdirs:
-                subdir_differences = compare(
-                    os.path.join(src_dir, subdir), os.path.join(dst_dir, subdir)
-                )
+                subdir_src = os.path.join(src_dir, subdir)
+                subdir_dst = os.path.join(dst_dir, subdir)
+                subdir_differences = compare(subdir_src, subdir_dst)
                 # If there are differences, add them to the result
-                if any(subdir_differences.values()):
+                if subdir_differences and any(subdir_differences.values()):
                     differences["subdir_differences"][subdir] = subdir_differences
 
             if all(not diff for diff in differences.values()):
@@ -622,7 +603,8 @@ class WandbImporter:
 
         return compare(src_dir, dst_dir)
 
-    def _compare_artifact_manifests(self, src_art: Artifact, dst_art: Artifact):
+    @staticmethod
+    def _compare_artifact_manifests(src_art: Artifact, dst_art: Artifact):
         problems = []
         if isinstance(dst_art, wandb.CommError):
             return ["commError"]
@@ -639,7 +621,7 @@ class WandbImporter:
             for attr in ["path", "digest", "size"]:
                 if getattr(src_entry, attr) != getattr(dst_entry, attr):
                     problems.append(
-                        f"manifest entry {attr=} mismatch, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
+                        f"manifest entry mismatch {attr=}, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
                     )
 
         return problems
