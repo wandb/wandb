@@ -8,7 +8,11 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-type RunConfigDict map[string]interface{}
+// A RunConfig representation.
+//
+// This is a type alias for refactoring purposes; it should be new type
+// otherwise.
+type RunConfigDict = map[string]interface{}
 
 // The configuration of a run.
 //
