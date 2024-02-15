@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -117,9 +118,7 @@ func (fm *FileTransferManager) Start() {
 					)
 				}
 				// Execute the callback.
-				for _, callback := range task.CompletionCallback {
-					callback(task)
-				}
+				task.CompletionCallback(task)
 				// mark the task as done
 				fm.wg.Done()
 			}(task)
@@ -135,17 +134,15 @@ func (fm *FileTransferManager) AddTask(task *Task) {
 }
 
 // FileStreamCallback returns a callback for filestream updates
-func (fm *FileTransferManager) FileStreamCallback() func(task *Task) {
-	return func(task *Task) {
-		fm.logger.Debug("uploader: filestream callback", "task", task)
-		if task.Err != nil {
-			return
-		}
-		record := &service.FilesUploaded{
-			Files: []string{task.Name},
-		}
-		fm.fsChan <- record
+func (fm *FileTransferManager) FileStreamCallback(task *Task) {
+	fm.logger.Debug("uploader: filestream callback", "task", task)
+	if task.Err != nil {
+		return
 	}
+	record := &service.FilesUploaded{
+		Files: []string{task.Name},
+	}
+	fm.fsChan <- record
 }
 
 // Close closes the fileTransfer
@@ -175,7 +172,8 @@ func (fm *FileTransferManager) transfer(task *Task) error {
 	case DownloadTask:
 		err = fm.fileTransfer.Download(task)
 	default:
-		fm.logger.CaptureFatalAndPanic("transfer: unknown task type", err)
+		err = fmt.Errorf("unknown task type")
+		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
 	}
 	return err
 }

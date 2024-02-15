@@ -63,14 +63,16 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		return err
 	}
 	for _, header := range task.Headers {
-		parts := strings.Split(header, ":")
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
 		req.Header.Set(parts[0], parts[1])
 	}
-
-	if _, err = ft.client.Do(req); err != nil {
+	if _, err := ft.client.Do(req); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -91,28 +93,29 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 		return err
 	}
 
+	// TODO: redo it to use the progress writer, to track the download progress
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {
 		return err
 	}
 	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
+		if err := file.Close(); err != nil {
 			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
 		}
 	}(file)
 
-	resp, err := ft.client.Get(task.Url)
-	if err != nil {
-		return err
-	}
 	defer func(file io.ReadCloser) {
-		err := file.Close()
-		if err != nil {
+		if err := file.Close(); err != nil {
 			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
 		}
 	}(resp.Body)
+
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err
