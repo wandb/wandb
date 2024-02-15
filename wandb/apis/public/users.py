@@ -44,6 +44,17 @@ class User(Attrs):
     }
   """
     )
+    PURGE_USER_MUTATION = gql(
+        """
+    mutation PurgeUser($username: String!, $email: String!) {
+        purgeUser(input: {username: $username, email: $email}) {
+            user {
+            id
+            }
+        }
+    }
+  """
+    )
     DELETE_API_KEY_MUTATION = gql(
         """
     mutation DeleteApiKey($id: String!) {
@@ -180,7 +191,35 @@ class User(Attrs):
         except Exception as e:
             print(f"An error occurred while re-enabling the user: {e}")
             return None
-            
+
+    def purge(self, confirm=False):
+        """Remove/Delete user from local instance.
+
+        Note: This function purges the user from the local instance, will permanently delete all user data and is not a reversable action
+        
+        Args:
+            confirm (bool): Must be True to proceed with purging the user.
+        
+        Returns:
+            Boolean indicating success
+        """
+        if not confirm:
+            print("User purge not confirmed. Set confirm=True to proceed.")
+            return None
+    
+        try:
+            response = self._client.execute(
+                self.PURGE_USER_MUTATION, {"username": self.username, "email": self.email}
+            )
+            if response is None: return False
+            success = bool(response.get('purgeUser', {}).get('user', {}).get('id'))
+            status = "Successfully" if success else "Failed to"
+            print(f"{status} purged '{self.username}' from instance.")
+            return success
+        except Exception as e:
+            print(f"An error occurred while purging user {self.username}: {e}")
+            return None
+                    
     def __repr__(self):
         if "email" in self._attrs:
             return f"<User {self._attrs['email']}>"
