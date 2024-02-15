@@ -635,7 +635,7 @@ class Api:
         query = gql(
             """
             query JobSetIntrospection {
-                JobSetType: __type(name: "JobSet") {
+                JobSetDiffType: __type(name: "JobSetDiff") {
                     name
                 }
             }
@@ -643,7 +643,7 @@ class Api:
         )
 
         res = self.gql(query)
-        return res.get("JobSetType", {}).get("name") or None
+        return res.get("JobSetDiffType", {}).get("name") or None
 
     @normalize_exceptions
     def create_run_queue_introspection(self) -> Tuple[bool, bool, bool]:
@@ -4217,15 +4217,14 @@ class Api:
     @normalize_exceptions
     def get_job_set_by_id(
         self,
+        agent_id: str,
         id: str,
     ):
         query = gql(
             """
-            query getJobSetById($id: ID!) {
-                jobSet(id: $id) {
-                    id
-                    name
-                    jobs {
+            query getJobSetById($agentID: ID!, $id: ID!) {
+                jobSetDiff(id: $id, fromVersion: -1, agentID: $agentID) {
+                    jobs: upsertJobs {
                         createdAt
                         updatedAt
                         id
@@ -4244,26 +4243,26 @@ class Api:
         response = self.gql(
             query,
             variable_values={
+                "agentID": agent_id,
                 "id": id,
             },
         )
 
-        return response["jobSet"]
+        return response["jobSetDiff"]
 
     @normalize_exceptions
     def get_job_set_by_spec(
         self,
+        agent_id: str,
         job_set_name: str,
         entity_name: str,
         project_name: Optional[str],
     ):
         query = gql(
             """
-            query getJobSetBySpec($jobSetName: String!, $entityName: String!, $projectName: String) {
-                jobSet(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }) {
-                    id
-                    name
-                    jobs {
+            query getJobSetBySpec($agentID: ID! $jobSetName: String!, $entityName: String!, $projectName: String) {
+                jobSetDiff(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }, fromVersion: -1, agentID: $agentID) {
+                    jobs: upsertJobs {
                         createdAt
                         updatedAt
                         id
@@ -4282,13 +4281,14 @@ class Api:
         response = self.gql(
             query,
             variable_values={
+                "agentID": agent_id,
                 "jobSetName": job_set_name,
                 "entityName": entity_name,
                 "projectName": project_name,
             },
         )
 
-        return response["jobSet"]
+        return response["jobSetDiff"]
 
     @normalize_exceptions
     def get_job_set_diff_by_id(
@@ -4323,6 +4323,7 @@ class Api:
         response = self.gql(
             query,
             variable_values={
+                "agentID": agent_id,
                 "id": id,
                 "fromVersion": from_version,
                 "agentID": agent_id,

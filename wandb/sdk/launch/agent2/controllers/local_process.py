@@ -115,7 +115,7 @@ class LocalProcessesManager:
         project.queue_entity = self.config["job_set_spec"]["entity_name"]
         project.run_queue_item_id = item["runQueueItemId"]
         project.fetch_and_validate_project()
-        
+
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)

@@ -33,6 +33,7 @@ def create_job_set(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Lo
         job_set_name=spec["name"],
         entity_name=spec["entity_name"],
         project_name=spec["project_name"],
+        agent_id=agent_id,
     )
     return JobSet(api, job_set_response, agent_id, logger)
 
@@ -44,8 +45,8 @@ class JobSet:
         self.api = api
         self.agent_id = agent_id
 
-        self.id = job_set.pop("id")
-        self.name = job_set.pop("name")
+        self.id = job_set["metadata"]["@id"]
+        self.name = job_set["metadata"]["@name"]
         self._metadata = job_set["metadata"]
         self._lock = asyncio.Lock()
 

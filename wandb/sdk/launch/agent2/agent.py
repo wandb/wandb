@@ -190,28 +190,28 @@ class LaunchAgent2:
             def file_saver_factory(job_id):
                 return RunQueueItemFileSaver(self._wandb_run, job_id)
 
-            def job_tracker_factory(job_id):
+            def job_tracker_factory(job_id, q=q):
                 return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
 
             legacy_resources = LegacyResources(
                 self._api, builder, registry, runner, job_tracker_factory
             )
 
-            controller_task = asyncio.create_task(
-                controller_impl(
-                    {
-                        "agent_id": self._id,
-                        "job_set_spec": spec,
-                        "job_set_metadata": job_set.metadata,
-                    },
-                    job_set,
-                    self._logger,
-                    self._shutdown_controllers_event,
-                    legacy_resources,
-                )
-            )
-            self._launch_controller_tasks.add(controller_task)
-            controller_task.add_done_callback(self._controller_done_callback)
+            # controller_task = asyncio.create_task(
+            #     controller_impl(
+            #         {
+            #             "agent_id": self._id,
+            #             "job_set_spec": spec,
+            #             "job_set_metadata": job_set.metadata,
+            #         },
+            #         job_set,
+            #         self._logger,
+            #         self._shutdown_controllers_event,
+            #         legacy_resources,
+            #     )
+            # )
+            # self._launch_controller_tasks.add(controller_task)
+            # controller_task.add_done_callback(self._controller_done_callback)
 
         try:
             while True:
