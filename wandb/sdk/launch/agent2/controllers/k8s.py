@@ -16,8 +16,8 @@ async def k8s_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-) -> Awaitable[Any]:
-    name = config["job_set_spec"]["name"]
+) -> Any:
+    name = config["job_set_spec"].name
     iter = 0
     max_concurrency = config["job_set_metadata"]["@max_concurrency"]
     if max_concurrency is None or max_concurrency == "auto":
@@ -47,6 +47,8 @@ async def k8s_controller(
     await asyncio.sleep(2)  # TODO: get rid of this
     logger.debug(f"[Controller {name}] Done!")
 
+    return None
+
 
 class KubernetesManager:
     """Maintains state for multiple Kubernetes jobs."""
@@ -65,7 +67,7 @@ class KubernetesManager:
         self.legacy = legacy
         self.max_concurrency = max_concurrency
 
-        self.id = config["job_set_spec"]["name"]
+        self.id = config["job_set_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
 
     async def reconcile(self):
@@ -128,14 +130,17 @@ class KubernetesManager:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
-        project.queue_name = self.config["job_set_spec"]["name"]
-        project.queue_entity = self.config["job_set_spec"]["entity_name"]
+        project.queue_name = self.config["job_set_spec"].name
+        project.queue_entity = self.config["job_set_spec"].entity_name
         project.run_queue_item_id = item["id"]
         project.fetch_and_validate_project()
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
+        assert (
+            project.docker_image is not None
+        ), "Docker image must be set when using k8s"
         run = await self.legacy.runner.run(project, project.docker_image)
         if not run:
             job_tracker.failed_to_start = True

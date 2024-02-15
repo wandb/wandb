@@ -1726,7 +1726,7 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config, useLaunchAgent2=experimental)
+        _launch.create_and_run_agent(api, agent_config, use_launch_agent2=experimental)
     except Exception as e:
         wandb._sentry.exception(e)
         raise e

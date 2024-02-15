@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
@@ -44,7 +44,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
 
     async def ack_run_queue_item(
         self, item_id: str, run_id: Optional[str] = None
-    ) -> bool:
+    ) -> Awaitable[bool]:
         def _rq_ack():
             return self.api.ack_run_queue_item(item_id, run_id)
 
@@ -56,7 +56,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
-    ) -> bool:
+    ) -> Awaitable[bool]:
         def _rqi_fail():
             return self.api.fail_run_queue_item(
                 run_queue_item_id,

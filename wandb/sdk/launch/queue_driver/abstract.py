@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
 
@@ -19,7 +19,7 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def ack_run_queue_item(self, job_id: str, run_name: str) -> bool:
+    async def ack_run_queue_item(self, job_id: str, run_name: str) -> Awaitable[bool]:
         """Mark a run queue item as running.
 
         Arguments:
@@ -38,7 +38,7 @@ class AbstractQueueDriver(ABC):
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
-    ) -> bool:
+    ) -> Awaitable[bool]:
         """Mark a run queue item as failed.
 
         Arguments:

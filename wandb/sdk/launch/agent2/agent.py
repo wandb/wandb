@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import sys
 import traceback
 from typing import Any, Dict, Optional, Set, TypedDict
@@ -15,13 +16,12 @@ from wandb.sdk.launch.builder.build import construct_agent_configs
 from wandb.sdk.launch.utils import (
     LOG_PREFIX,
     PROJECT_SYNCHRONOUS,
-    TARGET_RESOURCE,
     event_loop_thread_exec,
 )
 
 from .builder import BuilderService
 from .controller import LaunchController, LegacyResources
-from .job_set import JobSet, create_job_set
+from .job_set import JobSet, JobSetSpec, create_job_set
 
 
 class AgentConfig(TypedDict):
@@ -33,24 +33,6 @@ class AgentConfig(TypedDict):
     queues: list[str]
     poll_interval: Optional[int]
     environment: Optional[Dict[str, Any]]
-
-
-# TODO: Only need this because logging isnt working?
-class PrintLogger:
-    def debug(self, msg: str):
-        print(msg)
-
-    def info(self, msg: str):
-        print(msg)
-
-    def warn(self, msg: str):
-        print(msg)
-
-    def error(self, msg: str):
-        print(msg)
-
-    def fatal(self, msg: str):
-        print(msg)
 
 
 class LaunchAgent2:
@@ -94,9 +76,8 @@ class LaunchAgent2:
         self._last_state = None
         self._wandb_version: str = "wandb@" + wandb.__version__
         self._task = None
-        # TODO: why isn't logging working?
-        # self._logger = logging.getLogger("wandb.launch.agent2")
-        self._logger = PrintLogger()
+        self._logger = logging.getLogger("wandb.launch.agent2")
+        self._logger.addHandler(logging.StreamHandler(sys.stdout))
 
         self._logger.info(f"[Agent] Got config: {json.dumps(self._config, indent=2)}")
 
@@ -108,7 +89,7 @@ class LaunchAgent2:
 
         # remove project field from agent config before sending to back end
         # because otherwise it shows up in the config in the UI and confuses users
-        trimmed_config = config.copy()
+        trimmed_config = dict(config.copy())
         if "project" in trimmed_config:
             del trimmed_config["project"]
 
@@ -149,11 +130,11 @@ class LaunchAgent2:
         # Start job set and controller loops
         for q in self._config["queues"]:
             # Start a JobSet for each queue
-            spec = {
-                "name": q,
-                "entity_name": self._config["entity"],
-                "project_name": self._config["project"],
-            }
+            spec = JobSetSpec(
+                name=q,
+                entity_name=self._config["entity"],
+                project_name=self._config["project"],
+            )
             job_set = create_job_set(
                 spec,
                 self._api,
@@ -197,21 +178,21 @@ class LaunchAgent2:
                 self._api, builder, registry, runner, job_tracker_factory
             )
 
-            # controller_task = asyncio.create_task(
-            #     controller_impl(
-            #         {
-            #             "agent_id": self._id,
-            #             "job_set_spec": spec,
-            #             "job_set_metadata": job_set.metadata,
-            #         },
-            #         job_set,
-            #         self._logger,
-            #         self._shutdown_controllers_event,
-            #         legacy_resources,
-            #     )
-            # )
-            # self._launch_controller_tasks.add(controller_task)
-            # controller_task.add_done_callback(self._controller_done_callback)
+            controller_task = asyncio.create_task(
+                controller_impl(
+                    {
+                        "agent_id": self._id,
+                        "job_set_spec": spec,
+                        "job_set_metadata": job_set.metadata,
+                    },
+                    job_set,
+                    self._logger,
+                    self._shutdown_controllers_event,
+                    legacy_resources,
+                )
+            )
+            self._launch_controller_tasks.add(controller_task)
+            controller_task.add_done_callback(self._controller_done_callback)
 
         try:
             while True:
@@ -295,8 +276,8 @@ class LaunchAgent2:
         self._logger.info(f"[Agent {self._id}] Poll loop stopped")
 
 
-def create_and_run_agent2(config: AgentConfig, api: Api) -> None:
-    agent = LaunchAgent2(config, api)
+def create_and_run_agent2(api: Api, config: AgentConfig) -> None:
+    agent = LaunchAgent2(api, config)
     try:
         asyncio.run(agent.loop())
     except asyncio.CancelledError:

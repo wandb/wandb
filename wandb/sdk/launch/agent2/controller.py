@@ -33,7 +33,9 @@ class LegacyResources:
 
 
 class LaunchController(Protocol):
-    """A LaunchController is an async function that receives a LaunchControllerConfig and
+    """An async controller for a Launch Queue.
+
+    A LaunchController is an async function that receives a LaunchControllerConfig and
     a JobSet, and is expected to work continuously to run jobs in the JobSet until the
     JobSet is empty.
 

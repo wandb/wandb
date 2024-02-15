@@ -155,7 +155,7 @@ def create_and_run_agent(
     api: Api,
     config: Dict[str, Any],
     *,
-    useLaunchAgent2: Optional[bool] = False,
+    use_launch_agent2: Optional[bool] = False,
 ) -> None:
     try:
         from wandb.sdk.launch.agent import config as agent_config
@@ -177,7 +177,7 @@ def create_and_run_agent(
             msg += f": {error['msg']}"
             wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
-    if useLaunchAgent2:
+    if use_launch_agent2:
         agent = LaunchAgent2(api, config)
     else:
         agent = LaunchAgent(api, config)

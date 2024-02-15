@@ -23,7 +23,7 @@ async def local_container_controller(
     # to drive the launch controller here
     job_set.stop_sync_loop()
 
-    name = config["job_set_spec"]["name"]
+    name = config["job_set_spec"].name
     iter = 0
     max_concurrency = config["job_set_metadata"][MAX_CONCURRENCY]
 
@@ -66,14 +66,14 @@ class LocalContainerManager:
         self.legacy = legacy
         self.max_concurrency = max_concurrency
 
-        self.id = config["job_set_spec"]["name"]
+        self.id = config["job_set_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
 
         self.queue_driver = passthrough.PassthroughQueueDriver(
             api=job_set.api,
-            queue_name=config["job_set_spec"]["name"],
-            entity=config["job_set_spec"]["entity_name"],
-            project=config["job_set_spec"]["project_name"],
+            queue_name=config["job_set_spec"].name,
+            entity=config["job_set_spec"].entity_name,
+            project=config["job_set_spec"].project_name,
             agent_id=config["agent_id"],
         )
 
@@ -103,8 +103,8 @@ class LocalContainerManager:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
-        project.queue_name = self.config["job_set_spec"]["name"]
-        project.queue_entity = self.config["job_set_spec"]["entity_name"]
+        project.queue_name = self.config["job_set_spec"].name
+        project.queue_entity = self.config["job_set_spec"].entity_name
         project.run_queue_item_id = item["runQueueItemId"]
         project.fetch_and_validate_project()
         run_id = project.run_id
@@ -112,7 +112,7 @@ class LocalContainerManager:
         job_tracker.update_run_info(project)
 
         entrypoint = project.get_single_entry_point()
-        # assert entrypoint is not None
+        assert entrypoint is not None
         image_uri = await self.legacy.builder.build_image(
             project, entrypoint, job_tracker
         )

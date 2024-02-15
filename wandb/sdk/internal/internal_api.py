@@ -4323,7 +4323,6 @@ class Api:
         response = self.gql(
             query,
             variable_values={
-                "agentID": agent_id,
                 "id": id,
                 "fromVersion": from_version,
                 "agentID": agent_id,

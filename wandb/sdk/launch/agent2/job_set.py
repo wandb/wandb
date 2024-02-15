@@ -30,15 +30,17 @@ JobSetId = str
 def create_job_set(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Logger):
     # Retrieve the job set via Api.get_job_set_diff_by_spec
     job_set_response = api.get_job_set_by_spec(
-        job_set_name=spec["name"],
-        entity_name=spec["entity_name"],
-        project_name=spec["project_name"],
+        job_set_name=spec.name,
+        entity_name=spec.entity_name,
+        project_name=spec.project_name,
         agent_id=agent_id,
     )
     return JobSet(api, job_set_response, agent_id, logger)
 
 
 class JobSet:
+    _task: Optional[asyncio.Task] = None
+
     def __init__(
         self, api: Api, job_set: Dict[str, Any], agent_id: str, logger: logging.Logger
     ):

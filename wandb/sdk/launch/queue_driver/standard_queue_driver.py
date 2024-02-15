@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.job_set import JobSet
@@ -27,12 +27,12 @@ class StandardQueueDriver(AbstractQueueDriver):
         # attempt to acquire lease
         lease_result = await self.job_set.lease_job(job["id"])
         if not lease_result:
-            return
+            return None
 
         # confirm the item was removed from the job set
         await self.job_set.wait_for_update()
         if job in self.job_set.jobs:
-            return
+            return None
 
         # if lease successful, return job from jobset
         return job

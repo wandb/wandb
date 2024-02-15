@@ -19,16 +19,16 @@ async def local_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-) -> Awaitable[Any]:
+) -> Any:
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
     job_set.stop_sync_loop()
 
     logger.debug(
-        f"[Controller {config['job_set_spec']['name']}] received config: {config}"
+        f"[Controller {config['job_set_spec'].name}] received config: {config}"
     )
 
-    name = config["job_set_spec"]["name"]
+    name = config["job_set_spec"].name
     iter = 0
     max_concurrency = config["job_set_metadata"]["@max_concurrency"]
 
@@ -58,6 +58,8 @@ async def local_process_controller(
     await asyncio.sleep(2)  # TODO: get rid of this
     logger.debug(f"[Controller {name}] Done!")
 
+    return None
+
 
 class LocalProcessesManager:
     """Maintains state for multiple local processes."""
@@ -75,14 +77,14 @@ class LocalProcessesManager:
         self.legacy = legacy
         self.max_concurrency = max_concurrency
 
-        self.id = config["job_set_spec"]["name"]
+        self.id = config["job_set_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
 
         self.queue_driver = passthrough.PassthroughQueueDriver(
             api=job_set.api,
-            queue_name=config["job_set_spec"]["name"],
-            entity=config["job_set_spec"]["entity_name"],
-            project=config["job_set_spec"]["project_name"],
+            queue_name=config["job_set_spec"].name,
+            entity=config["job_set_spec"].entity_name,
+            project=config["job_set_spec"].project_name,
             agent_id=config["agent_id"],
         )
 
@@ -92,7 +94,6 @@ class LocalProcessesManager:
         return next_item
 
     async def reconcile(self):
-        new_items = []
         num_runs_needed = self.max_concurrency - len(self.active_runs)
         if num_runs_needed > 0:
             for _ in range(num_runs_needed):
@@ -111,8 +112,8 @@ class LocalProcessesManager:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
-        project.queue_name = self.config["job_set_spec"]["name"]
-        project.queue_entity = self.config["job_set_spec"]["entity_name"]
+        project.queue_name = self.config["job_set_spec"].name
+        project.queue_entity = self.config["job_set_spec"].entity_name
         project.run_queue_item_id = item["runQueueItemId"]
         project.fetch_and_validate_project()
 
@@ -120,7 +121,7 @@ class LocalProcessesManager:
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
-        run = await self.legacy.runner.run(project, project.docker_image)
+        run = await self.legacy.runner.run(project, "")  # image is unused
         if not run:
             job_tracker.failed_to_start = True
             self.logger.error(f"Failed to start run for item {item['id']}")
