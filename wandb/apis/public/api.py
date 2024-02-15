@@ -702,16 +702,22 @@ class Api:
         """
         return public.Team.create(self, team, admin_username)
 
-    def delete_team(self, team):
+    def delete_team(self, team, confirm=False):
         """Delete a new team.
+
+        Note: This function deletes the team and will permanently delete all data from the team and is not a reversable action
 
         Arguments:
             team: (str) The name of the team
+            confirm (bool): Must be True to proceed with deleting the team.
 
         Returns:
             Boolean indicating success
         """
-        return public.Team.create(self, team)
+        if not confirm:
+            print("Team deletion not confirmed. Set confirm=True to proceed. Note: This deleting a team is irreversible and will permanently delete all team data.")
+            return None
+        return public.Team.delete(self, team)
     
     def team(self, team):
         return public.Team(self.client, team)

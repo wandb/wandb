@@ -252,9 +252,11 @@ class Team(Attrs):
                 cls.DELETE_TEAM_MUTATION,
                 {"teamName": team},
             )
-        except requests.exceptions.HTTPError:
-            pass
-        return True
+            print(f"Successfully deleted team {team}.")
+            return True
+        except requests.exceptions.HTTPError as e:
+            print(f"Failed to delete team {team}. Exception caught: {e}")
+            return False
     
     def invite(self, username_or_email, admin=False):
         """Invite a user to a team.
