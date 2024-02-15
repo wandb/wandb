@@ -170,7 +170,7 @@ class User(Attrs):
             print(f"{status} disabled '{self.username}' from instance.")
             return success
         except Exception as e:
-            print(f"An error occurred while disabling the user: {e}")
+            print(f"An error occurred while disabling the user {self.username}: {e}")
             return None
         
     def enable(self):
@@ -189,7 +189,7 @@ class User(Attrs):
             print(f"{status} re-enabled '{self.username}' on instance.")
             return success
         except Exception as e:
-            print(f"An error occurred while re-enabling the user: {e}")
+            print(f"An error occurred while re-enabling the user {self.username}: {e}")
             return None
 
     def purge(self, confirm=False):
