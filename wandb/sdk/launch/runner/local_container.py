@@ -234,7 +234,13 @@ def _thread_process_runner(
         if not chunk:
             break
         index = chunk.find(b"\r")
-        decoded_chunk = chunk.decode()
+        decoded_chunk = None
+        while not decoded_chunk:
+            try:
+                decoded_chunk = chunk.decode()
+            except UnicodeDecodeError:
+                # Multi-byte character cut off, try to get the rest of it
+                chunk += os.read(process.stdout.fileno(), 1)  # type: ignore
         if index != -1:
             run._stdout += decoded_chunk
             print(chunk.decode(), end="")
