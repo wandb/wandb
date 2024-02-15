@@ -38,7 +38,7 @@ class Member(Attrs):
     }
   """
     )
-    REMOVE_MEMBER_FROM_ORGANIZATION_QUERY = gql(
+    REMOVE_MEMBER_FROM_ORGANIZATION_MUTATION = gql(
         """
     mutation removeUserFromOrganization($userName: String!, $organizationId: ID!) {
         removeUserFromOrganization(input: { userName: $userName, organizationId: $organizationId}){
@@ -89,7 +89,7 @@ class Member(Attrs):
             if response is None: return False
             org_data = response.get("entity", {}).get("organization", {})
             if org_data.get("id"):
-                response = execute_query(self.REMOVE_MEMBER_FROM_ORGANIZATION_QUERY, {"userName": self.username, "organizationId": org_data["id"]}, "remove from organization")
+                response = execute_query(self.REMOVE_MEMBER_FROM_ORGANIZATION_MUTATION, {"userName": self.username, "organizationId": org_data["id"]}, "remove from organization")
                 if response is None: return False
                 success = response.get("removeUserFromOrganization", {}).get("success", False)
                 print_requests_status(success, "removed", f"organization '{org_data.get('name')}'")
