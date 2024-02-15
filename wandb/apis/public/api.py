@@ -715,7 +715,7 @@ class Api:
             Boolean indicating success
         """
         if not confirm:
-            print("Team deletion not confirmed. Set confirm=True to proceed. Note: This deleting a team is irreversible and will permanently delete all team data.")
+            print("Team deletion not confirmed. Set confirm=True to proceed. Note: Deleting a team is irreversible and will permanently remove all team data.")
             return None
         return public.Team.delete(self, team)
     
