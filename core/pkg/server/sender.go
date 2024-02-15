@@ -100,7 +100,7 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	configMap *RunConfig
+	runConfig *RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -132,7 +132,7 @@ func NewSender(
 		settings:       settings,
 		logger:         logger,
 		summaryMap:     make(map[string]*service.SummaryItem),
-		configMap:      NewRunConfig(),
+		runConfig:      NewRunConfig(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
@@ -377,7 +377,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.configMap.Tree()
+	input := s.runConfig.Tree()
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -520,7 +520,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 
 // Applies the change record to the run configuration.
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	s.configMap.ApplyChangeRecord(configRecord, func(err error) {
+	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
 		s.logger.CaptureError("Error updating run config", err)
 	})
 }
@@ -534,12 +534,12 @@ func (s *Sender) updateConfigPrivate() {
 		metrics = s.metricSender.configMetrics
 	}
 
-	s.configMap.AddTelemetryAndMetrics(s.telemetry, metrics)
+	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
 }
 
 // Serializes the run configuration to send to the backend.
 func (s *Sender) serializeConfig(format ConfigFormat) string {
-	serializedConfig, err := s.configMap.Serialize(format)
+	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
@@ -590,7 +590,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if result, err := s.resumeState.Update(
 		data,
 		s.RunRecord,
-		s.configMap.Tree(),
+		s.runConfig,
 	); err != nil {
 		s.sendRunResult(record, result)
 		return err

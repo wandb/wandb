@@ -40,7 +40,7 @@ type Bucket = gql.RunResumeStatusModelProjectBucketRun
 func (r *ResumeState) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
-	config map[string]interface{},
+	config *RunConfig,
 ) (*service.RunUpdateResult, error) {
 	// If we get that the run is not a resume run, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
@@ -175,8 +175,12 @@ func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) (*se
 	return nil, nil
 }
 
-func (r *ResumeState) updateConfig(bucket *Bucket, config map[string]interface{}) (*service.RunUpdateResult, error) {
-	var cfg map[string]interface{}
+// Merges the original run's config into the current config.
+func (r *ResumeState) updateConfig(
+	bucket *Bucket,
+	config *RunConfig,
+) (*service.RunUpdateResult, error) {
+	var cfg RunConfigDict
 	if err := json.Unmarshal([]byte(*bucket.GetConfig()), &cfg); err != nil {
 		err = fmt.Errorf("sender: checkAndUpdateResumeState: failed to unmarshal config: %s", err)
 		if r.ResumeMode == "must" {
@@ -190,17 +194,8 @@ func (r *ResumeState) updateConfig(bucket *Bucket, config map[string]interface{}
 		}
 	}
 
-	for key, value := range cfg {
-		switch v := value.(type) {
-		case map[string]interface{}:
-			if val, ok := v["value"]; ok {
-				config[key] = val
-			}
-		default:
-			r.logger.Error("sender: updateResumeState: config value is not a map[string]interface{}")
-		}
-	}
-	return nil, nil
+	err := config.MergeResumedConfig(cfg)
+	return nil, err
 }
 
 func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) {

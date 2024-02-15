@@ -15,6 +15,9 @@ import (
 // otherwise.
 type RunConfigDict = map[string]interface{}
 
+// A key path determining a node in the run config tree.
+type RunConfigPath []string
+
 // The configuration of a run.
 //
 // This is usually used for hyperparameters and some run metadata like the
@@ -112,6 +115,36 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 	}
 }
 
+// Incorporates the config from a run that's being resumed.
+func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
+	// Add any top-level keys that aren't already set.
+	if err := runConfig.addUnsetKeysFromSubtree(
+		oldConfig,
+		RunConfigPath{},
+	); err != nil {
+		return err
+	}
+
+	// When a user logs visualizations, we unfortunately store them in the
+	// run's config. When resuming a run, we want to avoid erasing previously
+	// logged visualizations, hence this special handling.
+	if err := runConfig.addUnsetKeysFromSubtree(
+		oldConfig,
+		RunConfigPath{"_wandb", "visualize"},
+	); err != nil {
+		return err
+	}
+
+	if err := runConfig.addUnsetKeysFromSubtree(
+		oldConfig,
+		RunConfigPath{"_wandb", "viz"},
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Serializes the run configuration to send to the backend.
 func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
@@ -130,6 +163,30 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("Unknown format: %v", format)
+}
+
+// Uses the given subtree for keys that aren't already set.
+func (runConfig *RunConfig) addUnsetKeysFromSubtree(
+	tree RunConfigDict,
+	path RunConfigPath,
+) error {
+	oldSubtree := getSubtree(tree, path)
+	if oldSubtree == nil {
+		return nil
+	}
+
+	newSubtree, err := getOrMakeSubtree(tree, path)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range oldSubtree {
+		if _, exists := newSubtree[key]; !exists {
+			newSubtree[key] = value
+		}
+	}
+
+	return nil
 }
 
 // Returns the "_wandb" subtree of the config.
@@ -165,7 +222,7 @@ func (runConfig *RunConfig) updateAtPath(
 }
 
 // Removes the value at the path in the config tree.
-func (runConfig *RunConfig) removeAtPath(path []string) {
+func (runConfig *RunConfig) removeAtPath(path RunConfigPath) {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
@@ -176,20 +233,18 @@ func (runConfig *RunConfig) removeAtPath(path []string) {
 }
 
 // Returns the key path referenced by the config item.
-func keyPath(configItem *service.ConfigItem) []string {
-	path := configItem.NestedKey
-
-	if path == nil {
-		path = []string{configItem.Key}
+func keyPath(configItem *service.ConfigItem) RunConfigPath {
+	if len(configItem.GetNestedKey()) > 0 {
+		return RunConfigPath(configItem.NestedKey)
+	} else {
+		return RunConfigPath{configItem.Key}
 	}
-
-	return path
 }
 
 // Returns the subtree at the path, or nil if it does not exist.
 func getSubtree(
 	tree RunConfigDict,
-	path []string,
+	path RunConfigPath,
 ) RunConfigDict {
 	for _, key := range path {
 		node, ok := tree[key]
@@ -213,7 +268,7 @@ func getSubtree(
 // Returns an error if there exists a non-map value at the path.
 func getOrMakeSubtree(
 	tree RunConfigDict,
-	path []string,
+	path RunConfigPath,
 ) (RunConfigDict, error) {
 	for _, key := range path {
 		node, exists := tree[key]
