@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/pkg/service"
+	"gopkg.in/yaml.v3"
 )
 
 // A RunConfig representation.
@@ -28,6 +29,13 @@ type RunConfig struct {
 	// such as primitives and lists.
 	tree RunConfigDict
 }
+
+type ConfigFormat int
+
+const (
+	FORMAT_YAML ConfigFormat = iota
+	FORMAT_JSON
+)
 
 func NewRunConfig() *RunConfig {
 	return &RunConfig{make(RunConfigDict)}
@@ -101,6 +109,26 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 	if metrics != nil {
 		wandbInternal["m"] = metrics
 	}
+}
+
+// Serializes the run configuration to send to the backend.
+func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
+	// A configuration dict in the format expected by the backend.
+	valueConfig := make(map[string]map[string]interface{})
+	for treeKey, treeValue := range runConfig.tree {
+		valueConfig[treeKey] = map[string]interface{}{
+			"value": treeValue,
+		}
+	}
+
+	switch format {
+	case FORMAT_YAML:
+		return yaml.Marshal(valueConfig)
+	case FORMAT_JSON:
+		return json.Marshal(valueConfig)
+	}
+
+	return nil, fmt.Errorf("Unknown format: %v", format)
 }
 
 func (runConfig *RunConfig) internalSubtree() RunConfigDict {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/segmentio/encoding/json"
-	"gopkg.in/yaml.v3"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -538,27 +537,15 @@ func (s *Sender) updateConfigPrivate() {
 	s.configMap.AddTelemetryAndMetrics(s.telemetry, metrics)
 }
 
-// serializeConfig serializes the config map to a json string
-// that can be sent to the server
-func (s *Sender) serializeConfig(format string) string {
-	valueConfig := make(map[string]map[string]interface{})
-	for key, elem := range s.configMap.Tree() {
-		valueConfig[key] = make(map[string]interface{})
-		valueConfig[key]["value"] = elem
-	}
-	var serializedConfig []byte
-	var err error
-	if format == "yaml" {
-		serializedConfig, err = yaml.Marshal(valueConfig)
-	} else {
-		// json
-		serializedConfig, err = json.Marshal(valueConfig)
-	}
+// Serializes the run configuration to send to the backend.
+func (s *Sender) serializeConfig(format ConfigFormat) string {
+	serializedConfig, err := s.configMap.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
+
 	return string(serializedConfig)
 }
 
@@ -633,7 +620,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
-		config := s.serializeConfig("json")
+		config := s.serializeConfig(FORMAT_JSON)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -757,7 +744,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig("json")
+	config := s.serializeConfig(FORMAT_JSON)
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
@@ -794,7 +781,7 @@ func (s *Sender) writeAndSendConfigFile() {
 		return
 	}
 
-	config := s.serializeConfig("yaml")
+	config := s.serializeConfig(FORMAT_YAML)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)

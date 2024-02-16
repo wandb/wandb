@@ -67,4 +67,30 @@ func TestConfigRemove(t *testing.T) {
 	)
 }
 
+func TestConfigSerialize(t *testing.T) {
+	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
+		"number": 9,
+		"nested": server.RunConfigDict{
+			"list": []string{"a", "b", "c"},
+			"text": "xyz",
+		},
+	})
+
+	yaml, _ := runConfig.Serialize(server.FORMAT_YAML)
+
+	assert.Equal(t,
+		string(yaml),
+		""+
+			"nested:\n"+
+			"    value:\n"+
+			"        list:\n"+
+			"            - a\n"+
+			"            - b\n"+
+			"            - c\n"+
+			"        text: xyz\n"+
+			"number:\n"+
+			"    value: 9\n",
+	)
+}
+
 func ignoreError(_err error) {}
