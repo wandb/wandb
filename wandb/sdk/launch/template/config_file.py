@@ -22,7 +22,11 @@ class ConfigFile:
         patched with the override.
         """
         self.path = path
-        self.name = alias or os.path.basename(path)
+        self.basename = os.path.basename(path)
+        self.name = alias or self.basename
+        _, ext = os.path.splitext(path)
+        if ext not in [".json", ".yaml", ".yml"]:
+            raise ValueError(f"Unsupported config file extensiona: {ext}")
         self._ensure_override()  # Ensure that the config file is patched with any overrides.
 
     def _ensure_override(self) -> None:
