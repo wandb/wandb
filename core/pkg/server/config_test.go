@@ -1,15 +1,16 @@
-package server
+package server_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestConfigUpdate(t *testing.T) {
-	runConfig := NewRunConfigFrom(RunConfigDict{
-		"b": RunConfigDict{
+	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
+		"b": server.RunConfigDict{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -31,9 +32,9 @@ func TestConfigUpdate(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		RunConfigDict{
+		server.RunConfigDict{
 			"a": 1.0,
-			"b": RunConfigDict{
+			"b": server.RunConfigDict{
 				"c": "text",
 				"d": 123.0,
 			},
@@ -43,9 +44,9 @@ func TestConfigUpdate(t *testing.T) {
 }
 
 func TestConfigRemove(t *testing.T) {
-	runConfig := NewRunConfigFrom(RunConfigDict{
+	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
 		"a": 9,
-		"b": RunConfigDict{
+		"b": server.RunConfigDict{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -61,7 +62,7 @@ func TestConfigRemove(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		RunConfigDict{"b": RunConfigDict{"d": 123.0}},
+		server.RunConfigDict{"b": server.RunConfigDict{"d": 123.0}},
 		runConfig.Tree(),
 	)
 }
