@@ -186,10 +186,10 @@ func getOrMakeSubtree(
 	path []string,
 ) (RunConfigDict, error) {
 	for _, key := range path {
-		node, ok := tree[key]
-		if !ok {
-			tree[key] = make(RunConfigDict)
-			continue
+		node, exists := tree[key]
+		if !exists {
+			node = make(RunConfigDict)
+			tree[key] = node
 		}
 
 		subtree, ok := node.(RunConfigDict)
