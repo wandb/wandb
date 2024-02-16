@@ -175,7 +175,7 @@ func (runConfig *RunConfig) addUnsetKeysFromSubtree(
 		return nil
 	}
 
-	newSubtree, err := getOrMakeSubtree(tree, path)
+	newSubtree, err := getOrMakeSubtree(runConfig.tree, path)
 	if err != nil {
 		return err
 	}

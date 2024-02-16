@@ -180,7 +180,7 @@ func (r *ResumeState) updateConfig(
 	bucket *Bucket,
 	config *RunConfig,
 ) (*service.RunUpdateResult, error) {
-	var cfg RunConfigDict
+	var cfg map[string]interface{}
 	if err := json.Unmarshal([]byte(*bucket.GetConfig()), &cfg); err != nil {
 		err = fmt.Errorf("sender: checkAndUpdateResumeState: failed to unmarshal config: %s", err)
 		if r.ResumeMode == "must" {
@@ -194,7 +194,24 @@ func (r *ResumeState) updateConfig(
 		}
 	}
 
-	err := config.MergeResumedConfig(cfg)
+	deserializedConfig := make(RunConfigDict)
+	for key, value := range cfg {
+		valueDict, ok := value.(map[string]interface{})
+
+		if !ok {
+			r.logger.Error(
+				fmt.Sprintf(
+					"sender: updateResumeState: config value for '%v'"+
+						" is not a map[string]interface{}",
+					key,
+				),
+			)
+		} else if val, ok := valueDict["value"]; ok {
+			deserializedConfig[key] = val
+		}
+	}
+
+	err := config.MergeResumedConfig(deserializedConfig)
 	return nil, err
 }
 
