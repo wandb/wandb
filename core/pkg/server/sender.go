@@ -600,26 +600,32 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 }
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
-
-	if s.RunRecord == nil && s.graphqlClient != nil {
-		var ok bool
-		s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
-		if !ok {
-			err := fmt.Errorf("failed to clone RunRecord")
-			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
-		}
-
-		if err := s.checkAndUpdateResumeState(record); err != nil {
-			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
-			return
-		}
-	}
-
 	if s.graphqlClient != nil {
-
+		// The first run record sent by the client is encoded incorrectly,
+		// causing it to overwrite the entire "_wandb" config key rather than
+		// just the necessary part ("_wandb/code_path"). This can overwrite
+		// the config from a resumed run, so we have to do this first.
+		//
+		// Logically, it would make more sense to instead start with the
+		// resumed config and apply updates on top of it.
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
+
+		if s.RunRecord == nil {
+			var ok bool
+			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
+			if !ok {
+				err := fmt.Errorf("failed to clone RunRecord")
+				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+			}
+
+			if err := s.checkAndUpdateResumeState(record); err != nil {
+				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				return
+			}
+		}
+
 		config := s.serializeConfig(FORMAT_JSON)
 
 		var tags []string
