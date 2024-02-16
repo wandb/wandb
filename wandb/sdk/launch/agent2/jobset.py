@@ -1,6 +1,4 @@
 import asyncio
-import datetime
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Dict, List, Optional
@@ -96,24 +94,27 @@ class JobSet:
 
     async def _sync_loop(self):
         while not self._shutdown_event.is_set():
-            await self._sync()
-            wait_task = asyncio.create_task(self._poll_now_task())
-            await asyncio.wait(
-                [wait_task],
-                timeout=self._next_poll_interval,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if self._poll_now_event.is_set():
-                self._poll_now_event.clear()
+            try:
+                await self._sync()
+                wait_task = asyncio.create_task(self._poll_now_task())
+                await asyncio.wait(
+                    [wait_task],
+                    timeout=self._next_poll_interval,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if self._poll_now_event.is_set():
+                    self._poll_now_event.clear()
+            except Exception as e:
+                self._logger.exception(e)
+                await asyncio.sleep(5)
         self._logger.info("Sync loop exited.")
         self._done_event.set()
 
     async def _sync(self):
         self._logger.debug("Updating...")
         next_state = await self._refresh_jobset()
-        self._logger.debug(
-            f"Got state: {json.dumps(next_state)}"
-        )
+
+        self._logger.debug(f"Got state: {next_state}")
 
         # just grabbed a diff from the server, now to add to our local state
         self._last_state = next_state
@@ -128,9 +129,7 @@ class JobSet:
 
             for job_id in self._last_state.remove_jobs:
                 if not self._jobs.pop(job_id, False):
-                    self._logger.warn(
-                        f"Delete Job {job_id}, but it doesn't exist"
-                    )
+                    self._logger.warn(f"Delete Job {job_id}, but it doesn't exist")
                     continue
                 self._logger.debug(f"Deleted Job {job_id}")
         self._ready_event.set()

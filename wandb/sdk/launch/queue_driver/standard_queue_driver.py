@@ -47,6 +47,4 @@ class StandardQueueDriver(AbstractQueueDriver):
         stage: str,
         file_paths: Optional[List[str]] = None,
     ):
-        return await self.jobset.fail_job(
-            run_queue_item_id, message, stage, file_paths
-        )
+        return await self.jobset.fail_job(run_queue_item_id, message, stage, file_paths)

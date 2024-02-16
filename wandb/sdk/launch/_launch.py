@@ -185,7 +185,6 @@ def create_and_run_agent(
     agent_task = loop.create_task(agent.loop())
 
     def done_callback(task: asyncio.Task) -> None:
-        print("agent_task done")
         loop.stop()
 
     agent_task.add_done_callback(done_callback)
@@ -193,7 +192,6 @@ def create_and_run_agent(
     try:
         loop.run_forever()
     except KeyboardInterrupt:
-        print("\n(Keyboard Interrupt)")
         agent_task.cancel()
     finally:
         loop.run_until_complete(agent_task)

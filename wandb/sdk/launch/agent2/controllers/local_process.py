@@ -24,9 +24,7 @@ async def local_process_controller(
     # to drive the launch controller here
     jobset.stop_sync_loop()
 
-    logger.debug(
-        f"[Controller {config['jobset_spec'].name}] received config: {config}"
-    )
+    logger.debug(f"[Controller {config['jobset_spec'].name}] received config: {config}")
 
     name = config["jobset_spec"].name
     iter = 0

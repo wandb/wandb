@@ -7,6 +7,11 @@ from .abstract import AbstractQueueDriver
 
 
 class PassthroughQueueDriver(AbstractQueueDriver):
+    """PassthroughQueueDriver does not use a local jobset, instead acts as a simple proxy to the original backend.
+
+    Useful for queue types that support or need multiple agents and need the backend to manage the queue.
+    """
+
     queue_name: str
     entity: Optional[str]
     project: Optional[str]
@@ -25,14 +30,6 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         self.entity = entity
         self.project = project
         self.agent_id = agent_id
-
-        print(
-            "PassthroughQueueDriver.__init__ got args:",
-            queue_name,
-            entity,
-            project,
-            agent_id,
-        )
 
     async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]]:
         def _rq_pop():
