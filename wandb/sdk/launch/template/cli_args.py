@@ -4,6 +4,25 @@ import argparse
 from typing import Any
 
 
+class CliArg:
+    """A class for declaring a single command-line argument as part of a run template."""
+
+    def __init__(
+        self,
+        name: str,
+        type: Any = str,
+        help: str = "",
+        default: Any = None,
+        nargs: Any = None,
+    ):
+        """Initialize a CliArg object."""
+        self.name = name
+        self.type = type
+        self.help = help
+        self.default = default
+        self.nargs = nargs
+
+
 class CliParser:
     """A class for extracting run template parameters from a command line argument parser."""
 
