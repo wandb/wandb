@@ -4,9 +4,7 @@
 /tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
 # Adding or removing dependencies needs extra scrutiny
 /pyproject.toml @wandb/sdk-team
-/setup.cfg @wandb/sdk-team
 /setup.py @wandb/sdk-team
-/requirements.txt @wandb/sdk-team
 # core changes need extra scrutiny during the initial rollout
 /core/ @wandb/sdk-team
 
