@@ -8,7 +8,7 @@ import wandb
 def _find_available(
     current_version: str,
 ) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
 
