@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Dict, List, Optional
@@ -27,29 +28,29 @@ class JobSetDiff:
 JobSetId = str
 
 
-def create_job_set(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Logger):
-    # Retrieve the job set via Api.get_job_set_diff_by_spec
-    job_set_response = api.get_job_set_by_spec(
-        job_set_name=spec.name,
+def create_jobset(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Logger):
+    # Retrieve the job set via Api.get_jobset_diff_by_spec
+    jobset_response = api.get_jobset_by_spec(
+        jobset_name=spec.name,
         entity_name=spec.entity_name,
         project_name=spec.project_name,
         agent_id=agent_id,
     )
-    return JobSet(api, job_set_response, agent_id, logger)
+    return JobSet(api, jobset_response, agent_id, logger)
 
 
 class JobSet:
     _task: Optional[asyncio.Task] = None
 
     def __init__(
-        self, api: Api, job_set: Dict[str, Any], agent_id: str, logger: logging.Logger
+        self, api: Api, jobset: Dict[str, Any], agent_id: str, logger: logging.Logger
     ):
         self.api = api
         self.agent_id = agent_id
 
-        self.id = job_set["metadata"]["@id"]
-        self.name = job_set["metadata"]["@name"]
-        self._metadata = job_set["metadata"]
+        self.id = jobset["metadata"]["@id"]
+        self.name = jobset["metadata"]["@name"]
+        self._metadata = jobset["metadata"]
         self._lock = asyncio.Lock()
 
         self._logger = logger
@@ -85,7 +86,7 @@ class JobSet:
         await self._updated_event.wait()
 
     @property
-    def job_set_diff_version(self):
+    def jobset_diff_version(self):
         if self._last_state is None:
             return -1
         return self._last_state.version
@@ -104,14 +105,14 @@ class JobSet:
             )
             if self._poll_now_event.is_set():
                 self._poll_now_event.clear()
-        self._logger.debug(f"[JobSet {self.name or self.id}] Sync loop exited.")
+        self._logger.info("Sync loop exited.")
         self._done_event.set()
 
     async def _sync(self):
-        self._logger.debug(f"[JobSet {self.name or self.id}] Updating...")
-        next_state = await self._refresh_job_set()
+        self._logger.debug("Updating...")
+        next_state = await self._refresh_jobset()
         self._logger.debug(
-            f"[JobSet nextstate] [{datetime.datetime.now().isoformat()}] {next_state}"
+            f"Got state: {json.dumps(next_state)}"
         )
 
         # just grabbed a diff from the server, now to add to our local state
@@ -121,29 +122,24 @@ class JobSet:
         # self._metadata = next_state.metadata
         async with self.lock:
             for job in self._last_state.upsert_jobs:
-                self._jobs[job["id"]] = job
-                self._logger.debug(
-                    f'[JobSet {self.name or self.id}] Updated Job {job["id"]}'
-                )
+                id = job["id"]
+                self._jobs[id] = job
+                self._logger.debug(f"Upsert Job: {id}")
 
             for job_id in self._last_state.remove_jobs:
                 if not self._jobs.pop(job_id, False):
-                    self._logger.error(
-                        f"[JobSet {self.name or self.id}] Deleted Job {job_id}, but it did not exist"
+                    self._logger.warn(
+                        f"Delete Job {job_id}, but it doesn't exist"
                     )
                     continue
-                self._logger.debug(
-                    f"[JobSet {self.name or self.id}] Deleted Job {job_id}"
-                )
-
-        self._logger.debug(f"[JobSet {self.name or self.id}] Done.")
+                self._logger.debug(f"Deleted Job {job_id}")
         self._ready_event.set()
         self._updated_event.set()
 
-    async def _refresh_job_set(self) -> JobSetDiff:
-        get_job_set_diff_by_id = event_loop_thread_exec(self.api.get_job_set_diff_by_id)
-        diff = await get_job_set_diff_by_id(
-            self.id, self.job_set_diff_version, self.agent_id
+    async def _refresh_jobset(self) -> JobSetDiff:
+        get_jobset_diff_by_id = event_loop_thread_exec(self.api.get_jobset_diff_by_id)
+        diff = await get_jobset_diff_by_id(
+            self.id, self.jobset_diff_version, self.agent_id
         )
         return JobSetDiff(
             version=diff["version"],
@@ -160,14 +156,14 @@ class JobSet:
         if self._task is None:
             self._loop = loop
             self._shutdown_event.clear()
-            self._logger.debug(f"[JobSet {self.name or self.id}] Starting sync loop")
+            self._logger.debug("Starting sync loop")
             self._task = self._loop.create_task(self._sync_loop())
         else:
             raise RuntimeError("Tried to start JobSet but already started")
 
     def stop_sync_loop(self):
         if self._task is not None:
-            self._logger.debug(f"[JobSet {self.name or self.id}] Stopping sync loop")
+            self._logger.debug("Stopping sync loop")
             self._shutdown_event.set()
             self._poll_now_event.set()
             self._task = None
@@ -178,15 +174,15 @@ class JobSet:
         await self._ready_event.wait()
 
     async def lease_job(self, job_id: str) -> Awaitable[bool]:
-        lease_job_set_item = event_loop_thread_exec(self.api.lease_job_set_item)
-        result = await lease_job_set_item(self.id, job_id, self.agent_id)
+        lease_jobset_item = event_loop_thread_exec(self.api.lease_jobset_item)
+        result = await lease_jobset_item(self.id, job_id, self.agent_id)
         if result:
             self._poll_now()
         return result
 
     async def ack_job(self, job_id: str, run_name: str) -> Awaitable[bool]:
-        ack_job_set_item = event_loop_thread_exec(self.api.ack_job_set_item)
-        result = await ack_job_set_item(self.id, job_id, self.agent_id, run_name)
+        ack_jobset_item = event_loop_thread_exec(self.api.ack_jobset_item)
+        result = await ack_jobset_item(self.id, job_id, self.agent_id, run_name)
         if result:
             self._poll_now()
         return result

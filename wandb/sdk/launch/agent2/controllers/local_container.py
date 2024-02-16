@@ -9,23 +9,23 @@ from wandb.sdk.launch.runner.abstract import AbstractRun
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..job_set import JobSet
+from ..jobset import JobSet
 
 
 async def local_container_controller(
     config: LaunchControllerConfig,
-    job_set: JobSet,
+    jobset: JobSet,
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ):
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
-    job_set.stop_sync_loop()
+    jobset.stop_sync_loop()
 
-    name = config["job_set_spec"].name
+    name = config["jobset_spec"].name
     iter = 0
-    max_concurrency = config["job_set_metadata"][MAX_CONCURRENCY]
+    max_concurrency = config["jobset_metadata"][MAX_CONCURRENCY]
 
     if max_concurrency is None or max_concurrency == "auto":
         # detect # of cpus available
@@ -40,7 +40,7 @@ async def local_container_controller(
         f"[Controller {name}] Starting local container controller with max concurrency {max_concurrency}"
     )
 
-    mgr = LocalContainerManager(config, job_set, logger, legacy, max_concurrency)
+    mgr = LocalContainerManager(config, jobset, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -56,7 +56,7 @@ class LocalContainerManager:
     def __init__(
         self,
         config: LaunchControllerConfig,
-        job_set: JobSet,
+        jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
         max_concurrency: int,
@@ -66,14 +66,14 @@ class LocalContainerManager:
         self.legacy = legacy
         self.max_concurrency = max_concurrency
 
-        self.id = config["job_set_spec"].name
+        self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
 
         self.queue_driver = passthrough.PassthroughQueueDriver(
-            api=job_set.api,
-            queue_name=config["job_set_spec"].name,
-            entity=config["job_set_spec"].entity_name,
-            project=config["job_set_spec"].project_name,
+            api=jobset.api,
+            queue_name=config["jobset_spec"].name,
+            entity=config["jobset_spec"].entity_name,
+            project=config["jobset_spec"].project_name,
             agent_id=config["agent_id"],
         )
 
@@ -103,8 +103,8 @@ class LocalContainerManager:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
-        project.queue_name = self.config["job_set_spec"].name
-        project.queue_entity = self.config["job_set_spec"].entity_name
+        project.queue_name = self.config["jobset_spec"].name
+        project.queue_entity = self.config["jobset_spec"].entity_name
         project.run_queue_item_id = item["runQueueItemId"]
         project.fetch_and_validate_project()
         run_id = project.run_id

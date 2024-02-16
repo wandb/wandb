@@ -9,13 +9,13 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
-from .job_set import JobSet, JobSetSpec
+from .jobset import JobSet, JobSetSpec
 
 
 class LaunchControllerConfig(TypedDict):
     agent_id: str
-    job_set_spec: JobSetSpec
-    job_set_metadata: Dict[str, Any]
+    jobset_spec: JobSetSpec
+    jobset_metadata: Dict[str, Any]
 
 
 @dataclass
@@ -39,9 +39,9 @@ class LaunchController(Protocol):
     a JobSet, and is expected to work continuously to run jobs in the JobSet until the
     JobSet is empty.
 
-    To run a job, the controller must first lease the job by calling job_set.lease_job(id).
+    To run a job, the controller must first lease the job by calling jobset.lease_job(id).
 
-    Once the job is running, the controller must ack the job by calling job_set.ack_job(id).
+    Once the job is running, the controller must ack the job by calling jobset.ack_job(id).
 
     Once a job has finished, regardless of success/failure, JobSet will automatically remove it from the set. (TODO)
 
@@ -51,15 +51,15 @@ class LaunchController(Protocol):
     be killed after 30 seconds. (TODO)
 
     Where appropriate, the controller should honor the configuration specified in
-    config.job_set_metadata, e.g., limiting the number of concurrent runs to
-    config.job_set_metadata["@max_concurrency"].
+    config.jobset_metadata, e.g., limiting the number of concurrent runs to
+    config.jobset_metadata["@max_concurrency"].
 
     """
 
     def __call__(
         self,
         config: LaunchControllerConfig,
-        job_set: JobSet,
+        jobset: JobSet,
         logger: logging.Logger,
         shutdown_event: asyncio.Event,
         legacy: LegacyResources,

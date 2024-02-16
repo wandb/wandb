@@ -7,19 +7,19 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..job_set import JobSet
+from ..jobset import JobSet
 
 
 async def k8s_controller(
     config: LaunchControllerConfig,
-    job_set: JobSet,
+    jobset: JobSet,
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ) -> Any:
-    name = config["job_set_spec"].name
+    name = config["jobset_spec"].name
     iter = 0
-    max_concurrency = config["job_set_metadata"]["@max_concurrency"]
+    max_concurrency = config["jobset_metadata"]["@max_concurrency"]
     if max_concurrency is None or max_concurrency == "auto":
         max_concurrency = 1000
     else:
@@ -34,7 +34,7 @@ async def k8s_controller(
         f"[Controller {name}] Starting local process controller with max concurrency {max_concurrency}"
     )
 
-    mgr = KubernetesManager(config, job_set, logger, legacy, max_concurrency)
+    mgr = KubernetesManager(config, jobset, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -56,22 +56,22 @@ class KubernetesManager:
     def __init__(
         self,
         config: LaunchControllerConfig,
-        job_set: JobSet,
+        jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
         max_concurrency: int,
     ):
         self.config = config
-        self.job_set = job_set
+        self.jobset = jobset
         self.logger = logger
         self.legacy = legacy
         self.max_concurrency = max_concurrency
 
-        self.id = config["job_set_spec"].name
+        self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
 
     async def reconcile(self):
-        raw_items = list(self.job_set.jobs.values())
+        raw_items = list(self.jobset.jobs.values())
 
         # Dump all raw items
         self.logger.info(
@@ -108,7 +108,7 @@ class KubernetesManager:
                 await self.release_item(item)
 
     async def lease_next_item(self) -> Any:
-        raw_items = list(self.job_set.jobs.values())
+        raw_items = list(self.jobset.jobs.values())
         pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
         if len(pending_items) == 0:
             return None
@@ -118,7 +118,7 @@ class KubernetesManager:
         )
         next_item = sorted_items[0]
         self.logger.info(f"Next item: {json.dumps(next_item, indent=2)}")
-        lease_result = await self.job_set.lease_job(next_item["id"])
+        lease_result = await self.jobset.lease_job(next_item["id"])
         self.logger.info(f"Leased item: {json.dumps(lease_result, indent=2)}")
 
     async def launch_item(self, item: Any) -> Any:
@@ -130,8 +130,8 @@ class KubernetesManager:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
         project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
-        project.queue_name = self.config["job_set_spec"].name
-        project.queue_entity = self.config["job_set_spec"].entity_name
+        project.queue_name = self.config["jobset_spec"].name
+        project.queue_entity = self.config["jobset_spec"].entity_name
         project.run_queue_item_id = item["id"]
         project.fetch_and_validate_project()
         run_id = project.run_id
@@ -147,7 +147,7 @@ class KubernetesManager:
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.job_set.ack_job(item["id"], run_id)
+        ack_result = await self.jobset.ack_job(item["id"], run_id)
         self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
         self.active_runs[item["id"]] = run
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")

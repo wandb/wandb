@@ -21,7 +21,7 @@ from wandb.sdk.launch.utils import (
 
 from .builder import BuilderService
 from .controller import LaunchController, LegacyResources
-from .job_set import JobSet, JobSetSpec, create_job_set
+from .jobset import JobSet, JobSetSpec, create_jobset
 
 
 class AgentConfig(TypedDict):
@@ -49,7 +49,7 @@ class LaunchAgent2:
         cls._controller_impls[queue_type] = impl
 
     @classmethod
-    def get_controller_for_job_set(cls, queue_type: str) -> LaunchController:
+    def get_controller_for_jobset(cls, queue_type: str) -> LaunchController:
         if queue_type not in cls._controller_impls:
             raise ValueError(f"No controller registered for queue type '{queue_type}'")
         return cls._controller_impls[queue_type]
@@ -66,9 +66,7 @@ class LaunchAgent2:
 
         self._config = config
         self._api = api
-        self._builder = BuilderService()  # TODO
-        self._registry = RegistryService()  # TODO
-        self._job_sets: Dict[str, JobSet] = {}
+        self._jobsets: Dict[str, JobSet] = {}
         self._launch_controller_tasks: Set[asyncio.Task] = set()
         self._shutdown_controllers_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
@@ -76,14 +74,16 @@ class LaunchAgent2:
         self._last_state = None
         self._wandb_version: str = "wandb@" + wandb.__version__
         self._task: Optional[asyncio.Task[Any]] = None
+        
         self._logger = logging.getLogger("wandb.launch.agent2")
-        self._logger.addHandler(logging.StreamHandler(sys.stdout))
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s"))
+        self._logger.addHandler(handler)
 
-        self._logger.info(f"[Agent] Got config: {json.dumps(self._config, indent=2)}")
+        self._logger.info(f"Got config: {json.dumps(self._config, indent=2)}")
 
         # ensure backend supports Launch Agent v2
-        # self._logger.debug(f"[Agent ???] Checking backend for Launch Agent v2 support...")
-        introspection_result = self._api.job_set_introspection()
+        introspection_result = self._api.jobset_introspection()
         if introspection_result is None:
             raise NotImplementedError("Server does not support Launch Agent v2")
 
@@ -93,7 +93,7 @@ class LaunchAgent2:
         if "project" in trimmed_config:
             del trimmed_config["project"]
 
-        self._logger.debug("[Agent ???] Registering agent...")
+        self._logger.info("Registering with backend...")
         create_agent_result = self._api.create_launch_agent(
             self._config["entity"],
             self._config["project"],
@@ -103,14 +103,15 @@ class LaunchAgent2:
             True,  # gorilla_agent_support
         )
         self._id = create_agent_result["launchAgentId"]
+        
 
         get_agent_result = self._api.get_launch_agent(self._id, True)
         self._name = get_agent_result["name"]
-        self._logger.info(f"[Agent {self._name}] Registered.")
+        self._logger.info(f"Successfully registered with backend. name = {self._name}")
 
         if self._api.entity_is_team(self._config["entity"]):
             self._logger.warn(
-                f"{LOG_PREFIX}Agent is running on team entity ({self._config['entity']}). Members of this team will be able to run code on this device."
+                f"Agent is running on team entity ({self._config['entity']}). Members of this team will be able to run code on this machine."
             )
 
         self._wandb_run = wandb.init(
@@ -135,20 +136,20 @@ class LaunchAgent2:
                 entity_name=self._config["entity"],
                 project_name=self._config["project"],
             )
-            job_set = create_job_set(
+            jobset_logger = self._logger.getChild("jobset." + q)
+            jobset = create_jobset(
                 spec,
                 self._api,
                 self._id,
-                self._logger,
+                jobset_logger,
             )
-            self._job_sets[q] = job_set
-            self._logger.debug(f"[Agent job_set.start_sync_loop {event_loop} ")
-            job_set.start_sync_loop(event_loop)
+            self._jobsets[q] = jobset
+            jobset.start_sync_loop(event_loop)
 
             # Start a controller for each queue once job set is ready
-            await job_set.ready()
-            resource = job_set.metadata["@target_resource"]
-            controller_impl = self.get_controller_for_job_set(resource)
+            await jobset.ready()
+            resource = jobset.metadata["@target_resource"]
+            controller_impl = self.get_controller_for_jobset(resource)
 
             # Taken from original agent, need to factor this out
             _, build_config, registry_config = construct_agent_configs(
@@ -179,16 +180,18 @@ class LaunchAgent2:
             legacy_resources = LegacyResources(
                 self._api, builder, registry, runner, job_tracker_factory
             )
+            
+            controller_logger = self._logger.getChild("controller." + q)
 
             controller_task: asyncio.Task = asyncio.create_task(
                 controller_impl(
                     {
                         "agent_id": self._id,
-                        "job_set_spec": spec,
-                        "job_set_metadata": job_set.metadata,
+                        "jobset_spec": spec,
+                        "jobset_metadata": jobset.metadata,
                     },
-                    job_set,
-                    self._logger,
+                    jobset,
+                    controller_logger,
                     self._shutdown_controllers_event,
                     legacy_resources,
                 )
@@ -200,7 +203,7 @@ class LaunchAgent2:
             while True:
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
-            self._logger.info(f"{LOG_PREFIX}Main agent loop cancelled!")
+            self._logger.info("Main agent loop cancelled!")
         finally:
             await self.shutdown()
 
@@ -210,50 +213,47 @@ class LaunchAgent2:
         except Exception:
             tb = traceback.format_exc()
             self._logger.error(
-                f"{LOG_PREFIX}Controller task {task} failed with exception: {tb}"
+                f"Controller task {task} failed with exception: {tb}"
             )
         finally:
             self._launch_controller_tasks.discard(task)
 
     async def shutdown(self):
-        self._logger.info(f"{LOG_PREFIX}Shutting down...")
+        self._logger.info(f"Shutting down agent...")
         # shut down all controllers
         self._shutdown_controllers_event.set()
         await asyncio.gather(*self._launch_controller_tasks)
-        self._logger.info(f"{LOG_PREFIX}All controllers shut down.")
+        self._logger.info(f"All controllers shut down.")
 
-        # shut down all job_sets
-        for job_set in self._job_sets.values():
+        # shut down all jobsets
+        for jobset in self._jobsets.values():
             try:
-                job_set.stop_sync_loop()
+                jobset.stop_sync_loop()
             except RuntimeError:
                 # already stopped
                 pass
 
         await asyncio.gather(
-            *[job_set.wait_for_done for job_set in self._job_sets.values()]
+            *[jobset.wait_for_done for jobset in self._jobsets.values()]
         )
-        self._logger.info(f"{LOG_PREFIX}All job sets shut down.")
+        self._logger.info(f"All jobsets shut down.")
 
         # shut down main poll loop
         self.stop_poll_loop()
-        self._logger.info(f"{LOG_PREFIX}Main agent loop shut down.")
+        self._logger.info(f"Main agent loop shut down.")
 
     # Agent polls for its own state
     async def _poll_loop(self):
         while not self._shutdown_event.is_set():
-            self._logger.info(f"[Agent {self._id}] Polling...")
+            self._logger.info(f"Polling...")
             await self._poll()
             await asyncio.sleep(self._poll_interval)
-        self._logger.info(f"[Agent {self._id}] Shutting down poll loop...")
+        self._logger.info(f"Shutting down agent poll loop...")
 
     async def _poll(self):
-        self._logger.debug(f"[Agent {self._id}] Updating...")
         next_state = await self._fetch_agent_state()
         self._last_state = next_state
-        self._logger.debug(
-            f"[Agent {self._id}] Updated: {json.dumps(next_state, indent=2)}"
-        )
+        self._logger.debug(f"Agent state: {json.dumps(next_state)}")
 
     async def _fetch_agent_state(self):
         get_launch_agent = event_loop_thread_exec(self._api.get_launch_agent)
@@ -263,19 +263,19 @@ class LaunchAgent2:
         if self._task is None:
             self._loop = loop
             self._shutdown_event.clear()
-            self._logger.info(f"[Agent {self._id}] Starting poll loop")
+            self._logger.info(f"Starting poll loop")
             self._task = self._loop.create_task(self._poll_loop())
         else:
             raise RuntimeError("Tried to start Agent but already started")
 
     def stop_poll_loop(self):
         if self._task is not None:
-            self._logger.info(f"[Agent {self._id}] Stopping poll loop")
+            self._logger.info(f"Stopping poll loop")
             self._task.cancel()
             self._task = None
         else:
             raise RuntimeError("Tried to stop Agent but not started")
-        self._logger.info(f"[Agent {self._id}] Poll loop stopped")
+        self._logger.info(f"Poll loop stopped")
 
 
 def create_and_run_agent2(api: Api, config: AgentConfig) -> None:
@@ -283,5 +283,4 @@ def create_and_run_agent2(api: Api, config: AgentConfig) -> None:
     try:
         asyncio.run(agent.loop())
     except asyncio.CancelledError:
-        print("(Main Loop Cancelled)", file=sys.stderr)
         raise

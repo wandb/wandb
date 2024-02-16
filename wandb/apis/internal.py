@@ -209,8 +209,8 @@ class Api:
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
 
-    def job_set_introspection(self, *args, **kwargs):
-        return self.api.job_set_introspection(*args, **kwargs)
+    def jobset_introspection(self, *args, **kwargs):
+        return self.api.jobset_introspection(*args, **kwargs)
 
     def fail_run_queue_item_introspection(self, *args, **kwargs):
         return self.api.fail_run_queue_item_introspection(*args, **kwargs)
@@ -227,23 +227,23 @@ class Api:
     def stop_run(self, *args, **kwargs):
         return self.api.stop_run(*args, **kwargs)
 
-    def get_job_set_by_id(self, *args, **kwargs):
-        return self.api.get_job_set_by_id(*args, **kwargs)
+    def get_jobset_by_id(self, *args, **kwargs):
+        return self.api.get_jobset_by_id(*args, **kwargs)
 
-    def get_job_set_by_spec(self, *args, **kwargs):
-        return self.api.get_job_set_by_spec(*args, **kwargs)
+    def get_jobset_by_spec(self, *args, **kwargs):
+        return self.api.get_jobset_by_spec(*args, **kwargs)
 
-    def get_job_set_diff_by_id(self, *args, **kwargs):
-        return self.api.get_job_set_diff_by_id(*args, **kwargs)
+    def get_jobset_diff_by_id(self, *args, **kwargs):
+        return self.api.get_jobset_diff_by_id(*args, **kwargs)
 
-    def get_job_set_diff_by_spec(self, *args, **kwargs):
-        return self.api.get_job_set_diff_by_spec(*args, **kwargs)
+    def get_jobset_diff_by_spec(self, *args, **kwargs):
+        return self.api.get_jobset_diff_by_spec(*args, **kwargs)
 
-    def lease_job_set_item(self, *args, **kwargs):
-        return self.api.lease_job_set_item(*args, **kwargs)
+    def lease_jobset_item(self, *args, **kwargs):
+        return self.api.lease_jobset_item(*args, **kwargs)
 
-    def ack_job_set_item(self, *args, **kwargs):
-        return self.api.ack_job_set_item(*args, **kwargs)
+    def ack_jobset_item(self, *args, **kwargs):
+        return self.api.ack_jobset_item(*args, **kwargs)
 
 
 __all__ = ["Api"]
