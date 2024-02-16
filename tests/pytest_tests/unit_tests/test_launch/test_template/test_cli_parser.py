@@ -16,7 +16,7 @@ def test_extract_schema():
     ]
     assert schema["options"] == [
         {"name": "--foo", "type": "string", "help": "foo help"},
-        {"name": "--bar", "type": "string", "help": "bar help", "nargs": 1},
+        {"name": "--bar", "type": "string", "help": "bar help", "nargs": "1"},
     ]
 
 
@@ -32,7 +32,7 @@ def test_extract_schema_subcommands():
     subparser2.add_argument("--bar", help="bar help")
     schema = template.CliParser(parser).extract_schema()
     assert schema["description"] == "Test parser"
-    assert schema["commands"] == [
+    assert schema["subcommands"] == [
         {
             "name": "foo",
             "description": None,
