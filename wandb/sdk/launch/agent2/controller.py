@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, Protocol, TypedDict
+from typing import Any, Callable, Coroutine, Dict, Protocol, TypedDict
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -63,5 +63,5 @@ class LaunchController(Protocol):
         logger: logging.Logger,
         shutdown_event: asyncio.Event,
         legacy: LegacyResources,
-    ) -> Awaitable[Any]:
+    ) -> Coroutine[Any, Any, Any]:
         ...

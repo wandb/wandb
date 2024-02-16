@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Dict
+from typing import Any, Dict
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun

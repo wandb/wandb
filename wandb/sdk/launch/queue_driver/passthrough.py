@@ -34,7 +34,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
             agent_id,
         )
 
-    async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
+    async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]]:
         def _rq_pop():
             return self.api.pop_from_run_queue(
                 self.queue_name, self.entity, self.project, self.agent_id

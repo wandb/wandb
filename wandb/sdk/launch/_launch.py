@@ -178,13 +178,13 @@ def create_and_run_agent(
             wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
     if use_launch_agent2:
-        agent = LaunchAgent2(api, config)
+        agent = LaunchAgent2(api, config)  # type: ignore
     else:
-        agent = LaunchAgent(api, config)
+        agent = LaunchAgent(api, config)  # type: ignore
     loop = asyncio.get_event_loop()
     agent_task = loop.create_task(agent.loop())
 
-    def done_callback():
+    def done_callback(task: asyncio.Task) -> None:
         print("agent_task done")
         loop.stop()
 

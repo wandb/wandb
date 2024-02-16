@@ -75,7 +75,7 @@ class LaunchAgent2:
         self._poll_interval = self._config.get("poll_interval", 5)
         self._last_state = None
         self._wandb_version: str = "wandb@" + wandb.__version__
-        self._task = None
+        self._task: Optional[asyncio.Task[Any]] = None
         self._logger = logging.getLogger("wandb.launch.agent2")
         self._logger.addHandler(logging.StreamHandler(sys.stdout))
 
@@ -151,7 +151,9 @@ class LaunchAgent2:
             controller_impl = self.get_controller_for_job_set(resource)
 
             # Taken from original agent, need to factor this out
-            _, build_config, registry_config = construct_agent_configs(self._config)
+            _, build_config, registry_config = construct_agent_configs(
+                dict(self._config)
+            )
             environment = loader.environment_from_config(
                 self._config.get("environment", {})
             )
@@ -178,7 +180,7 @@ class LaunchAgent2:
                 self._api, builder, registry, runner, job_tracker_factory
             )
 
-            controller_task = asyncio.create_task(
+            controller_task: asyncio.Task = asyncio.create_task(
                 controller_impl(
                     {
                         "agent_id": self._id,

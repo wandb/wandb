@@ -15,7 +15,7 @@ class StandardQueueDriver(AbstractQueueDriver):
         self.api = api
         self.job_set = job_set
 
-    async def pop_from_run_queue(self) -> Optional[Dict[str, Any]]:
+    async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]] | None:
         # get highest prio job
         if self.job_set.metadata.get(PRIORITIZATION_MODE) == "V0":
             job = sorted(
@@ -37,7 +37,7 @@ class StandardQueueDriver(AbstractQueueDriver):
         # if lease successful, return job from jobset
         return job
 
-    async def ack_run_queue_item(self, item_id: str, run_id: str) -> bool:
+    async def ack_run_queue_item(self, item_id: str, run_id: str):
         return await self.job_set.ack_job(item_id, run_id)
 
     async def fail_run_queue_item(
@@ -46,7 +46,7 @@ class StandardQueueDriver(AbstractQueueDriver):
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
-    ) -> bool:
+    ):
         return await self.job_set.fail_job(
             run_queue_item_id, message, stage, file_paths
         )
