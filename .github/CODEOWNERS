@@ -7,6 +7,10 @@
 /setup.py @wandb/sdk-team
 # core changes need extra scrutiny during the initial rollout
 /core/ @wandb/sdk-team
+# CircleCI configuration changes need extra scrutiny
+/.circleci @wandb/sdk-team
+# GitHub configuration changes need extra scrutiny
+/.github @wandb/sdk-team
 
 # ML Workflows team
 /core/pkg/artifacts/ @wandb/mlw-team
