@@ -26,7 +26,7 @@ class ConfigFile:
         self.name = alias or self.basename
         _, ext = os.path.splitext(path)
         if ext not in [".json", ".yaml", ".yml"]:
-            raise ValueError(f"Unsupported config file extensiona: {ext}")
+            raise ValueError(f"Unsupported config file extension: {ext}")
         self._ensure_override()  # Ensure that the config file is patched with any overrides.
 
     def _ensure_override(self) -> None:

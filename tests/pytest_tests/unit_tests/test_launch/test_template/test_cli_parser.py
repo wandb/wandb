@@ -63,7 +63,7 @@ def test_extract_schema_nested_subcommands():
     subparser3 = subparser2.add_subparsers()
     subparser3_1 = subparser3.add_parser("baz")
     subparser3_1.add_argument("config", help="config help")
-    subparser3_1.add_argument("--baz", help="baz help")
+    subparser3_1.add_argument("--baz", nargs="+", help="baz help")
     schema = template.CliParser(parser).extract_schema()
     assert schema["description"] == "Test parser"
     assert schema["subcommands"] == [
@@ -87,7 +87,12 @@ def test_extract_schema_nested_subcommands():
                         {"name": "config", "type": "string", "help": "config help"}
                     ],
                     "options": [
-                        {"name": "--baz", "type": "string", "help": "baz help"}
+                        {
+                            "name": "--baz",
+                            "type": "string",
+                            "nargs": "+",
+                            "help": "baz help",
+                        }
                     ],
                     "subcommands": [],
                 }
