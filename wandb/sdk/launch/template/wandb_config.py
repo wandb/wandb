@@ -1,6 +1,6 @@
 """Functions for declaring wandb.config keys that should be used as template parameters."""
 
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 
 class WandbConfigKeys:
@@ -8,7 +8,7 @@ class WandbConfigKeys:
 
     def __init__(
         self,
-        keys: Optional[list[str]] = None,
+        keys: Optional[List[str]] = None,
         include_fn: Optional[Callable[[str], bool]] = None,
         exclude_fn: Optional[Callable[[str], bool]] = None,
     ):
