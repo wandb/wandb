@@ -18,9 +18,9 @@ from rdkit import Chem
 from ...utils import WandbServerSettings, spin_wandb_server
 
 # `local-testcontainer2` ports
-LOCAL_BASE_PORT2 = "9180"
-SERVICES_API_PORT2 = "9183"
-FIXTURE_SERVICE_PORT2 = "9115"
+LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_BASE_PORT2", "9180")
+SERVICES_API_PORT2 = os.getenv("WANDB_TEST_SERVICES_API_PORT2", "9183")
+FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
 
 DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
 DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
