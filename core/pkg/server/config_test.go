@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -79,7 +80,6 @@ func TestConfigSerialize(t *testing.T) {
 	yaml, _ := runConfig.Serialize(server.FORMAT_YAML)
 
 	assert.Equal(t,
-		string(yaml),
 		""+
 			"nested:\n"+
 			"    value:\n"+
@@ -90,6 +90,27 @@ func TestConfigSerialize(t *testing.T) {
 			"        text: xyz\n"+
 			"number:\n"+
 			"    value: 9\n",
+		string(yaml),
+	)
+}
+
+func TestAddTelemetryAndMetrics(t *testing.T) {
+	runConfig := server.NewRunConfig()
+	telemetry := &service.TelemetryRecord{}
+
+	runConfig.AddTelemetryAndMetrics(
+		telemetry,
+		[]map[int]interface{}{},
+	)
+
+	assert.Equal(t,
+		server.RunConfigDict{
+			"_wandb": server.RunConfigDict{
+				"t": corelib.ProtoEncodeToDict(telemetry),
+				"m": []map[int]interface{}{},
+			},
+		},
+		runConfig.Tree(),
 	)
 }
 

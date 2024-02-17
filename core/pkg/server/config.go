@@ -19,7 +19,8 @@ type RunConfigDict = map[string]interface{}
 //
 // This is usually used for hyperparameters and some run metadata like the
 // start time and the ML framework used. In a somewhat hacky way, it is also
-// used to store programmatic custom charts for the run.
+// used to store programmatic custom charts for the run and various other
+// things.
 //
 // The server process builds this up incrementally throughout a run's lifetime.
 type RunConfig struct {
