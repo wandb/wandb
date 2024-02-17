@@ -139,6 +139,7 @@ class Artifact:
         layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
         policy_config = {"storageLayout": layout}
         self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._added_objs: Dict[
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
