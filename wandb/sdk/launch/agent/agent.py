@@ -1,8 +1,8 @@
 """Implementation of launch agent."""
 import asyncio
+import json
 import logging
 import os
-import pprint
 import threading
 import time
 import traceback
@@ -23,12 +23,7 @@ from .. import loader
 from .._project_spec import LaunchProject
 from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
-from ..utils import (
-    LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
-    PROJECT_SYNCHRONOUS,
-    event_loop_thread_exec,
-)
+from ..utils import LAUNCH_DEFAULT_PROJECT, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from .job_status_tracker import JobAndRunStatusTracker
 from .run_queue_item_file_saver import RunQueueItemFileSaver
 
@@ -218,8 +213,8 @@ class LaunchAgent:
         )
         self._id = create_response["launchAgentId"]
         if self._api.entity_is_team(self._entity):
-            wandb.termwarn(
-                f"{LOG_PREFIX}Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
+            _logger.warning(
+                f"Agent is running on team entity ({self._entity}). Members of this team will be able to run code on this device."
             )
 
         agent_response = self._api.get_launch_agent(
@@ -309,12 +304,9 @@ class LaunchAgent:
         output_str += (
             f"running {self.num_running_jobs} out of a maximum of {self._max_jobs} jobs"
         )
-
-        wandb.termlog(f"{LOG_PREFIX}{output_str}")
         if self.num_running_jobs > 0:
             output_str += f": {','.join(str(job_id) for job_id in self.thread_ids)}"
-
-        _logger.info(output_str)
+        _logger.info(f"{output_str}")
 
     async def update_status(self, status: str) -> None:
         """Update the status of the agent.
@@ -327,7 +319,7 @@ class LaunchAgent:
             self._id, status, self.gorilla_supports_agents
         )
         if not update_ret["success"]:
-            wandb.termerror(f"{LOG_PREFIX}Failed to update agent status to {status}")
+            _logger.error(f"Failed to update agent status to {status}")
 
     def _check_run_exists_and_inited(
         self, entity: str, project: str, run_id: str, rqi_id: str
@@ -381,9 +373,7 @@ class LaunchAgent:
             _logger.error(
                 f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
             )
-            wandb.termerror(
-                "Missing project or run id on thread called finish thread id"
-            )
+            _logger.error("Missing project or run id on thread called finish thread id")
             await self.fail_run_queue_item(
                 job_and_run_status.run_queue_item_id,
                 "submitted job was finished without assigned project or run id",
@@ -451,8 +441,7 @@ class LaunchAgent:
         Arguments:
             job: Job to run.
         """
-        _msg = f"{LOG_PREFIX}Launch agent received job:\n{pprint.pformat(job)}\n"
-        wandb.termlog(_msg)
+        _msg = f"Launch agent received job:\n{json.dumps(job)}\n"
         _logger.info(_msg)
         # update agent status
         await self.update_status(AGENT_RUNNING)
@@ -536,16 +525,16 @@ class LaunchAgent:
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
                                 if self.num_running_schedulers >= self._max_schedulers:
-                                    wandb.termwarn(
-                                        f"{LOG_PREFIX}Agent already running the maximum number "
+                                    _logger.warning(
+                                        f"Agent already running the maximum number "
                                         f"of sweep schedulers: {self._max_schedulers}. To set "
                                         "this value use `max_schedulers` key in the agent config"
                                     )
                                     continue
                             await self.run_job(job, queue, file_saver)
                         except Exception as e:
-                            wandb.termerror(
-                                f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
+                            _logger.error(
+                                f"Error running job: {traceback.format_exc()}"
                             )
                             wandb._sentry.exception(e)
 
@@ -577,7 +566,7 @@ class LaunchAgent:
 
         except KeyboardInterrupt:
             await self.update_status(AGENT_KILLED)
-            wandb.termlog(f"{LOG_PREFIX}Shutting down, active jobs:")
+            _logger.info("Shutting down, active jobs:")
             self.print_status()
         finally:
             self._jobs_event.clear()
@@ -601,17 +590,17 @@ class LaunchAgent:
                 launch_spec, job, default_config, api, rqi_id, job_tracker
             )
         except LaunchDockerError as e:
-            wandb.termerror(
-                f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
+            _logger.error(
+                f"agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             exception = e
             wandb._sentry.exception(e)
         except LaunchError as e:
-            wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
+            _logger.error(f"Error running job: {e}")
             exception = e
             wandb._sentry.exception(e)
         except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
+            _logger.error(f"Error running job: {traceback.format_exc()}")
             exception = e
             wandb._sentry.exception(e)
         finally:
@@ -641,7 +630,6 @@ class LaunchAgent:
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        _logger.info("Loading backend")
         override_build_config = launch_spec.get("builder")
 
         _, build_config, registry_config = construct_agent_configs(
@@ -661,7 +649,6 @@ class LaunchAgent:
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
-        _logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
             run = await backend.run(project, image_uri)
         else:
@@ -670,8 +657,8 @@ class LaunchAgent:
         if _is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
-            wandb.termlog(
-                f"{LOG_PREFIX}Preparing to run sweep scheduler "
+            _logger.info(
+                f"Preparing to run sweep scheduler "
                 f"({self.num_running_schedulers}/{self._max_schedulers})"
             )
 
@@ -755,13 +742,11 @@ class LaunchAgent:
                 with self._jobs_lock:
                     job_tracker.completed_status = status
                 if config["_resume_count"] > MAX_RESUME_COUNT:
-                    wandb.termlog(
-                        f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
+                    _logger.info(
+                        f"Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
                     )
                     return True
-                wandb.termlog(
-                    f"{LOG_PREFIX}Run {job_tracker.run_id} was preempted, requeueing..."
-                )
+                _logger.info(f"Run {job_tracker.run_id} was preempted, requeueing...")
 
                 if "sweep_id" in config:
                     # allow resumed runs from sweeps that have already completed by removing
@@ -777,7 +762,7 @@ class LaunchAgent:
             # TODO change these statuses to an enum
             if status in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
-                    wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
+                    _logger.info(f"Scheduler finished with ID: {run.id}")
                     if status == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:
@@ -790,23 +775,23 @@ class LaunchAgent:
                         except Exception as e:
                             raise LaunchError(f"Failed to update sweep state: {e}")
                 else:
-                    wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
+                    _logger.info(f"Job finished with ID: {run.id}")
                 with self._jobs_lock:
                     job_tracker.completed_status = status
                 return True
 
             return False
         except LaunchError as e:
-            wandb.termerror(
-                f"{LOG_PREFIX}Terminating job {run.id} because it failed to start: {str(e)}"
+            _logger.error(
+                f"Terminating job {run.id} because it failed to start: {str(e)}"
             )
             known_error = True
             with self._jobs_lock:
                 job_tracker.failed_to_start = True
         # TODO: make get_status robust to errors for each runner, and handle them
         except Exception as e:
-            wandb.termerror(f"{LOG_PREFIX}Error getting status for job {run.id}")
-            wandb.termerror(traceback.format_exc())
+            _logger.error(f"Error getting status for job {run.id}")
+            _logger.error(traceback.format_exc())
             _logger.info("---")
             _logger.info("Caught exception while getting status.")
             _logger.info(f"Job ID: {run.id}")

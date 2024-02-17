@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.lib import runid
 
@@ -101,7 +100,7 @@ class AbstractRun(ABC):
                     return popen.stdout.read()
             return popen
         except subprocess.CalledProcessError as e:
-            wandb.termerror(f"Command failed: {e}")
+            _logger.error(f"Command failed: {e}")
             return None
 
     @abstractmethod
@@ -165,10 +164,10 @@ class AbstractRunner(ABC):
     def verify(self) -> bool:
         """This is called on first boot to verify the needed commands, and permissions are available.
 
-        For now just call `wandb.termerror` and `sys.exit(1)`
+        For now just call `_logger.error` and `sys.exit(1)`
         """
         if self._api.api_key is None:
-            wandb.termerror(
+            _logger.error(
                 "Couldn't find W&B api key, run wandb login or set WANDB_API_KEY"
             )
             sys.exit(1)

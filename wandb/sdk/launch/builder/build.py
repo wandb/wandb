@@ -30,7 +30,6 @@ from ..utils import (
     ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
     GCP_ARTIFACT_REGISTRY_URI_REGEX,
     LAUNCH_CONFIG_FILE,
-    LOG_PREFIX,
     event_loop_thread_exec,
     resolve_build_and_registry_config,
 )
@@ -324,7 +323,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
     if builder_type == "docker":
         buildx_installed = docker.is_buildx_installed()
         if not buildx_installed:
-            wandb.termwarn(
+            _logger.warning(
                 "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
             )
             prefix = "RUN WANDB_DISABLE_CACHE=true"
@@ -362,7 +361,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
     else:
         # this means no deps file was found
         requirements_line = "RUN mkdir -p env/"  # Docker fails otherwise
-        wandb.termwarn("No requirements file found. No packages will be installed.")
+        _logger.warning("No requirements file found. No packages will be installed.")
 
     return requirements_line
 
@@ -394,7 +393,7 @@ def generate_dockerfile(
         if not os.path.exists(path):
             raise LaunchError(f"Dockerfile does not exist at {path}")
         launch_project.project_dir = os.path.dirname(path)
-        wandb.termlog(f"Using dockerfile: {dockerfile}")
+        _logger.info(f"Using dockerfile: {dockerfile}")
         return open(path).read()
 
     # get python versions truncated to major.minor to ensure image availability
@@ -614,7 +613,7 @@ async def build_image_from_project(
         name=EntrypointDefaults.PYTHON[-1],
         command=EntrypointDefaults.PYTHON,
     )
-    wandb.termlog(f"{LOG_PREFIX}Building docker image from uri source")
+    _logger.info("Building docker image from uri source")
     image_uri = await builder.build_image(launch_project, entry_point)
     if not image_uri:
         raise LaunchError("Error building image uri")

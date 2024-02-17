@@ -3,7 +3,6 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -14,11 +13,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchDockerError, LaunchError
 from ..registry.local_registry import LocalRegistry
-from ..utils import (
-    LOG_PREFIX,
-    event_loop_thread_exec,
-    warn_failed_packages_from_build_logs,
-)
+from ..utils import event_loop_thread_exec, warn_failed_packages_from_build_logs
 from .build import (
     _WANDB_DOCKERFILE_NAME,
     _create_docker_build_ctx,
@@ -84,8 +79,8 @@ class DockerBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri:
             if registry is not None:
-                wandb.termwarn(
-                    f"{LOG_PREFIX}Overriding registry from registry config"
+                _logger.warning(
+                    f"Overriding registry from registry config"
                     f" with {image_uri} from builder config."
                 )
             registry = registry_from_uri(image_uri)
@@ -99,7 +94,7 @@ class DockerBuilder(AbstractBuilder):
     async def login(self) -> None:
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
-            _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
+            _logger.info("No registry configured, skipping login.")
         else:
             username, password = await self.registry.get_username_password()
             login = event_loop_thread_exec(docker.login)
@@ -171,12 +166,12 @@ class DockerBuilder(AbstractBuilder):
         try:
             os.remove(build_ctx_path)
         except Exception:
-            _msg = f"{LOG_PREFIX}Temporary docker context file {build_ctx_path} was not deleted."
+            _msg = f"Temporary docker context file {build_ctx_path} was not deleted."
             _logger.info(_msg)
 
         if repository:
             reg, tag = image_uri.split(":")
-            wandb.termlog(f"{LOG_PREFIX}Pushing image {image_uri}")
+            _logger.info(f"Pushing image {image_uri}")
             push_resp = await event_loop_thread_exec(docker.push)(reg, tag)
             if push_resp is None:
                 raise LaunchError("Failed to push image to repository")

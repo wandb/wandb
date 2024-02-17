@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import pprint
 from typing import Any, Dict, List, Optional, Union
 
@@ -10,12 +11,13 @@ from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
     LAUNCH_DEFAULT_PROJECT,
-    LOG_PREFIX,
     construct_launch_spec,
     validate_launch_spec_source,
 )
 
 from ._project_spec import LaunchProject
+
+_logger = logging.getLogger(__name__)
 
 
 def push_to_queue(
@@ -181,7 +183,7 @@ def _launch_add(
             )
 
         if launch_spec.get("job") is not None:
-            wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
+            _logger.warning("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
 
         launch_project = LaunchProject.from_spec(launch_spec, api)
@@ -234,10 +236,10 @@ def _launch_add(
             launch_spec["resource"] = updated_spec.get("resource")
 
     if project_queue == LAUNCH_DEFAULT_PROJECT:
-        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+        _logger.info(f"Added run to queue {queue_name}.")
     else:
-        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
-    wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
+        _logger.info(f"Added run to queue {project_queue}/{queue_name}.")
+    _logger.info(f"Launch spec:\n{pprint.pformat(launch_spec)}\n")
 
     public_api = public.Api()
     if job is not None:

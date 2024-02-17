@@ -9,7 +9,6 @@ import time
 import traceback
 from typing import Optional
 
-import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.builder.build import registry_from_uri
@@ -26,7 +25,6 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
-    LOG_PREFIX,
     get_kube_context_and_api_client,
     warn_failed_packages_from_build_logs,
 )
@@ -67,9 +65,9 @@ async def _wait_for_completion(
         if job.status.succeeded is not None and job.status.succeeded >= 1:
             return True
         elif job.status.failed is not None and job.status.failed >= 1:
-            wandb.termerror(f"{LOG_PREFIX}Build job {job.status.failed} failed {job}")
+            _logger.error(f"Build job {job.status.failed} failed {job}")
             return False
-        wandb.termlog(f"{LOG_PREFIX}Waiting for build job to complete...")
+        _logger.info("Waiting for build job to complete...")
         if deadline_secs is not None and time.time() - start_time > deadline_secs:
             return False
 
@@ -281,7 +279,7 @@ class KanikoBuilder(AbstractBuilder):
         build_job = await self._create_kaniko_job(
             build_job_name, repo_uri, image_uri, build_context, core_v1
         )
-        wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
+        _logger.info(f"Created kaniko job {build_job_name}")
 
         try:
             if isinstance(self.registry, AzureContainerRegistry):
@@ -329,16 +327,14 @@ class KanikoBuilder(AbstractBuilder):
                     logs, image_uri, launch_project.api, job_tracker
                 )
             except Exception as e:
-                wandb.termwarn(
-                    f"{LOG_PREFIX}Failed to get logs for kaniko job {build_job_name}: {e}"
+                _logger.warning(
+                    f"Failed to get logs for kaniko job {build_job_name}: {e}"
                 )
         except Exception as e:
-            wandb.termerror(
-                f"{LOG_PREFIX}Exception when creating Kubernetes resources: {e}\n"
-            )
+            _logger.error(f"Exception when creating Kubernetes resources: {e}\n")
             raise e
         finally:
-            wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
+            _logger.info("Cleaning up resources")
             try:
                 if isinstance(self.registry, AzureContainerRegistry):
                     await core_v1.delete_namespaced_config_map(

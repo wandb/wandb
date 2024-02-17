@@ -1,12 +1,10 @@
 import asyncio
 import logging
 import os
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
-import wandb
 from wandb.apis.internal import Api
 
 from . import loader
@@ -25,35 +23,6 @@ from .utils import (
 )
 
 _logger = logging.getLogger(__name__)
-
-
-def set_launch_logfile(logfile: str) -> None:
-    """Set the logfile for the launch agent."""
-    # Get logger of parent module
-    _launch_logger = logging.getLogger("wandb.sdk.launch")
-    if logfile == "-":
-        logfile_stream = sys.stdout
-    else:
-        try:
-            logfile_stream = open(logfile, "w")
-        # check if file is writable
-        except Exception as e:
-            wandb.termerror(
-                f"Could not open {logfile} for writing logs. Please check "
-                f"the path and permissions.\nError: {e}"
-            )
-            return
-
-    wandb.termlog(
-        f"Internal agent logs printing to {'stdout' if logfile == '-' else logfile}. "
-    )
-    handler = logging.StreamHandler(logfile_stream)
-    handler.formatter = logging.Formatter(
-        "%(asctime)s %(levelname)-7s %(threadName)-10s:%(process)d "
-        "[%(filename)s:%(funcName)s():%(lineno)s] %(message)s"
-    )
-    _launch_logger.addHandler(handler)
-    _launch_logger.log(logging.INFO, "Internal agent logs printing to %s", logfile)
 
 
 def resolve_agent_config(  # noqa: C901
@@ -143,7 +112,7 @@ def resolve_agent_config(  # noqa: C901
     if resolved_config.get("entity") is None:
         resolved_config.update({"entity": api.default_entity})
     if user_set_project:
-        wandb.termwarn(
+        _logger.warning(
             "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
         )
 
@@ -161,6 +130,7 @@ def create_and_run_agent(
             "wandb launch-agent requires pydantic to be installed. "
             "Please install with `pip install wandb[launch]`"
         )
+    _logger.info("Starting launch agent ✨")
     try:
         agent_config.AgentConfig(**config)
     except agent_config.ValidationError as e:
@@ -172,7 +142,7 @@ def create_and_run_agent(
             if not isinstance(value, dict):
                 msg += f" (value: {value})"
             msg += f": {error['msg']}"
-            wandb.termerror(msg)
+            _logger.error(msg)
         raise LaunchError("Invalid launch agent config")
     agent = LaunchAgent(api, config)
     try:

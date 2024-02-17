@@ -154,6 +154,7 @@ def test_launch_cli_with_config_file_and_params(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.info", print)
 
     with runner.isolated_filesystem():
         with open("config.json", "w") as fp:
@@ -226,6 +227,7 @@ def test_launch_cli_with_config_and_params(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
         patched_run_run_entry,
     )
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.info", print)
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
@@ -301,6 +303,8 @@ def test_launch_github_url(
         "build_image",
         lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.info", print)
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.error", print)
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
@@ -326,6 +330,8 @@ def test_launch_local_dir(runner, live_mock_server, monkeypatch):
         "build_image",
         lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.info", print)
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.error", print)
     with runner.isolated_filesystem():
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
@@ -416,6 +422,7 @@ def test_launch_name_run_id_environment_variable(
         "build_image",
         lambda s, lp, e, jt: _mock_build(s, lp, e, jt),
     )
+    monkeypatch.setattr("wandb.sdk.launch.runner.local_container._logger.info", print)
 
     run_id = "test_run_id"
     run_name = "test_run_name"

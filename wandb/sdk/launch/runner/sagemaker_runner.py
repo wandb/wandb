@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, cast
 if False:
     import boto3  # type: ignore
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
@@ -15,7 +14,6 @@ from .._project_spec import EntryPoint, LaunchProject, get_entry_point_command
 from ..builder.build import get_env_vars_dict
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
-    LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     event_loop_thread_exec,
@@ -57,7 +55,7 @@ class SagemakerSubmittedRun(AbstractRun):
                 logStreamNamePrefix=self.training_job_name,
             )
             if len(describe_res["logStreams"]) == 0:
-                wandb.termwarn(
+                _logger.warning(
                     f"Failed to get logs for training job: {self.training_job_name}"
                 )
                 return None
@@ -71,12 +69,12 @@ class SagemakerSubmittedRun(AbstractRun):
                 [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
             )
         except self.log_client.exceptions.ResourceNotFoundException:
-            wandb.termwarn(
+            _logger.warning(
                 f"Failed to get logs for training job: {self.training_job_name}"
             )
             return None
         except Exception as e:
-            wandb.termwarn(
+            _logger.warning(
                 f"Failed to handle logs for training job: {self.training_job_name} with error {str(e)}"
             )
             return None
@@ -84,8 +82,8 @@ class SagemakerSubmittedRun(AbstractRun):
     async def wait(self) -> bool:
         while True:
             status_state = (await self.get_status()).state
-            wandb.termlog(
-                f"{LOG_PREFIX}Training job {self.training_job_name} status: {status_state}"
+            _logger.info(
+                f"Training job {self.training_job_name} status: {status_state}"
             )
             if status_state in ["stopped", "failed", "finished"]:
                 break
@@ -186,7 +184,7 @@ class SageMakerRunner(AbstractRunner):
         try:
             log_client = session.client("logs")
         except Exception as e:
-            wandb.termwarn(
+            _logger.warning(
                 f"Failed to connect to cloudwatch logs with error {str(e)}, logs will not be available"
             )
 
@@ -228,12 +226,10 @@ class SageMakerRunner(AbstractRunner):
         )
         if command_args:
             command_str = " ".join(command_args)
-            wandb.termlog(
-                f"{LOG_PREFIX}Launching run on sagemaker with entrypoint: {command_str}"
-            )
+            _logger.info(f"Launching run on sagemaker with entrypoint: {command_str}")
         else:
-            wandb.termlog(
-                f"{LOG_PREFIX}Launching run on sagemaker with user-provided entrypoint in image"
+            _logger.info(
+                "Launching run on sagemaker with user-provided entrypoint in image"
             )
         sagemaker_args = build_sagemaker_args(
             launch_project,
@@ -393,13 +389,11 @@ async def launch_sagemaker_job(
         raise LaunchError("Failed to create training job when submitting to SageMaker")
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client, log_client)
-    wandb.termlog(
-        f"{LOG_PREFIX}Run job submitted with arn: {resp.get('TrainingJobArn')}"
-    )
+    _logger.info(f"Run job submitted with arn: {resp.get('TrainingJobArn')}")
     url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
-    wandb.termlog(f"{LOG_PREFIX}See training job status at: {url}")
+    _logger.info(f"See training job status at: {url}")
     return run
 
 
