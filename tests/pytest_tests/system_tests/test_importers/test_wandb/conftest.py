@@ -170,6 +170,10 @@ def server_src(user):
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:
+    seed = 1337
+    np.random.seed(seed)
+    random.seed(seed)
+
     steps = np.arange(1, n + 1, 1)
     data = {}
     fns: list[typing.Any] = [
