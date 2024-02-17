@@ -132,6 +132,7 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	return nil, fmt.Errorf("Unknown format: %v", format)
 }
 
+// Returns the "_wandb" subtree of the config.
 func (runConfig *RunConfig) internalSubtree() RunConfigDict {
 	node, found := runConfig.tree["_wandb"]
 
