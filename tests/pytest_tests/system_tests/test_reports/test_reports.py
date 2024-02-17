@@ -1,5 +1,3 @@
-import os
-
 import wandb.apis.reports.v2 as wr
 
 
