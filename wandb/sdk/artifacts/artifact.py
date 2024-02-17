@@ -118,6 +118,7 @@ class Artifact:
         metadata: Optional[Dict[str, Any]] = None,
         incremental: bool = False,
         use_as: Optional[str] = None,
+        # custom_iapi_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -139,6 +140,14 @@ class Artifact:
         layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
         policy_config = {"storageLayout": layout}
         self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+
+        # if not custom_iapi_settings:
+        #     self._storage_policy = storage_policy_cls.from_config(config=policy_config)
+        # else:
+        #     self._storage_policy = storage_policy_cls(
+        #         config=policy_config,
+        #         api=wandb.InternalApi(default_settings=custom_iapi_settings),
+        #     )
 
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         self._added_objs: Dict[
