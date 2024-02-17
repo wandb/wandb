@@ -27,7 +27,7 @@ class StoragePolicy:
 
     @classmethod
     def from_config(
-        cls, config: Dict, *, api: Optional[InternalApi] = None
+        cls, config: Dict, api: Optional[InternalApi] = None
     ) -> "StoragePolicy":
         raise NotImplementedError
 

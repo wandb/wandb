@@ -15,7 +15,7 @@ class ArtifactManifestV1(ArtifactManifest):
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: Dict, *, api: Optional[InternalApi] = None
+        cls, manifest_json: Dict, api: Optional[InternalApi] = None
     ) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(

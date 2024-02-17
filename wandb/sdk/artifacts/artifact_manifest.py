@@ -14,7 +14,7 @@ class ArtifactManifest:
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: Dict, *, api: Optional[InternalApi] = None
+        cls, manifest_json: Dict, api: Optional[InternalApi] = None
     ) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")

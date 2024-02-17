@@ -61,7 +61,7 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: Dict, *, api: Optional[InternalApi] = None
+        cls, config: Dict, api: Optional[InternalApi] = None
     ) -> "WandbStoragePolicy":
         return cls(config=config, api=api)
 
