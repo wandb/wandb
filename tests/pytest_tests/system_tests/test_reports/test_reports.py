@@ -1,8 +1,6 @@
 import os
 
-os.environ["WANDB_REPORT_API_ENABLE_V2"] = "True"
-
-import wandb.apis.reports as wr
+import wandb.apis.reports.v2 as wr
 
 
 def test_load_report_from_url(user):
