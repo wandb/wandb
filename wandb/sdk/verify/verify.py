@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import click
 import requests
-from pkg_resources import parse_version
 from wandb_gql import gql
 
 import wandb
@@ -469,6 +468,8 @@ def check_wandb_version(api: Api) -> None:
     min_cli_version = server_info.get("cliVersionInfo", {}).get(
         "min_cli_version", "0.0.1"
     )
+    from wandb.util import parse_version
+
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
             max_cli_version

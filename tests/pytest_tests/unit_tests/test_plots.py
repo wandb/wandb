@@ -39,7 +39,7 @@ def test_roc(dummy_classifier):
 
 def test_precision_recall(dummy_classifier):
     sklearn = pytest.importorskip("sklearn")
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     # note: sklearn fixed the calculation of precision and recall see: https://github.com/scikit-learn/scikit-learn/issues/23213
     *_, y_test, _, y_probas = dummy_classifier

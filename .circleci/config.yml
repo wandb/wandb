@@ -1713,30 +1713,6 @@ workflows:
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
-      - mac:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_flags: unit
-
-      - mac:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_flags: unit
-
       #
       # Functional tests with yea on Linux (base only)
       #
