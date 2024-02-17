@@ -338,7 +338,6 @@ class WandbStoragePolicy(StoragePolicy):
                 extra_headers,
             )
             assert resp.storage_path is not None
-            assert resp.upload_id is not None
             self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
