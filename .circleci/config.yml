@@ -650,6 +650,7 @@ jobs:
             pyenv local << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pip install -U tox nox pip
             while ! curl http://localhost:8080/healthz; do sleep 1; done
+            while ! curl http://localhost:<< parameters.local_base_port2 >>/healthz; do sleep 1; done
           no_output_timeout: 5m
       - run:
           name: Run tests
