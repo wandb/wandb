@@ -602,6 +602,15 @@ jobs:
       tox_args:
         type: string
         default: ""
+      local_base_port2:
+        type: string
+        default: "9180"
+      services_api_port2:
+        type: string
+        default: "9183"
+      fixture_service_port2:
+        type: string
+        default: "9115"
     machine: true
     resource_class: xlarge
     working_directory: ~/project
@@ -622,11 +631,16 @@ jobs:
           name: Authenticate with GCP Artifact Registry
           command: |
             echo $GCP_SERVICE_ACCOUNT_JSON_DECODED | docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev
+      # The default testcontainer (used as the "source" system)
       - start_local_testcontainer
+
+      # The second test container (used as the "destination" system, where data is imported into)
+      # We use 2 containers to better simulate importing between two distinct instances and to avoid
+      # issues like artifact deduping (if importing to the same server) which might affect the import
       - start_local_testcontainer:
-          local_base_port: "9180"
-          services_api_port: "9183"
-          fixture_service_port: "9115"
+          local_base_port: << parameters.local_base_port2 >>
+          services_api_port: << parameters.services_api_port2 >>
+          fixture_service_port: << parameters.fixture_service_port2 >>
           container_name: "wandb-local-testcontainer2"
           volume_name: "wandb-local-testcontainer-vol2"
       - run:
@@ -640,6 +654,10 @@ jobs:
       - run:
           name: Run tests
           no_output_timeout: 10m
+          environment:
+            LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
+            SERVICES_API_PORT2: << parameters.services_api_port2 >>
+            FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>> -- << parameters.tox_args >>
@@ -1853,30 +1871,6 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
-
-      - mac:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_flags: unit
-
-      - mac:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-legacy-macos-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_flags: unit
 
       #
       # Functional tests with yea on Linux (base only)
