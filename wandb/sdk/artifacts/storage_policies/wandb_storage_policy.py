@@ -133,6 +133,7 @@ class WandbStoragePolicy(StoragePolicy):
         if manifest_entry._download_url is None:
             auth = None
             if not _thread_local_api_settings.cookies:
+                assert self._api.api_key is not None
                 auth = ("api", self._api.api_key)
             response = self._session.get(
                 self._file_url(self._api, artifact.entity, manifest_entry),
@@ -224,9 +225,10 @@ class WandbStoragePolicy(StoragePolicy):
                     extra_headers={
                         "content-md5": md5_b64_str,
                         "content-length": str(len(data)),
-                        "content-type": extra_headers.get("Content-Type"),
+                        "content-type": extra_headers.get("Content-Type", ""),
                     },
                 )
+                assert upload_resp is not None
                 etags.append(
                     {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
                 )
@@ -335,6 +337,8 @@ class WandbStoragePolicy(StoragePolicy):
                 multipart_urls,
                 extra_headers,
             )
+            assert resp.storage_path is not None
+            assert resp.upload_id is not None
             self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
