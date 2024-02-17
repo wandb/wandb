@@ -8,7 +8,6 @@ from urllib.parse import quote
 import requests
 import urllib3
 
-from wandb.apis import InternalApi
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
@@ -28,6 +27,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_local_artifact_handler import (
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
@@ -60,8 +60,10 @@ class WandbStoragePolicy(StoragePolicy):
         return WANDB_STORAGE_POLICY
 
     @classmethod
-    def from_config(cls, config: Dict) -> "WandbStoragePolicy":
-        return cls(config=config)
+    def from_config(
+        cls, config: Dict, *, api: Optional[InternalApi] = None
+    ) -> "WandbStoragePolicy":
+        return cls(config=config, api=api)
 
     def __init__(
         self,
