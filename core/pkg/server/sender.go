@@ -100,7 +100,7 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	configMap *RunConfig
+	runConfig *RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -132,7 +132,7 @@ func NewSender(
 		settings:       settings,
 		logger:         logger,
 		summaryMap:     make(map[string]*service.SummaryItem),
-		configMap:      NewRunConfig(),
+		runConfig:      NewRunConfig(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
@@ -377,7 +377,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.configMap.Tree()
+	input := s.runConfig.Tree()
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -520,7 +520,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 
 // Applies the change record to the run configuration.
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	s.configMap.ApplyChangeRecord(configRecord, func(err error) {
+	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
 		s.logger.CaptureError("Error updating run config", err)
 	})
 }
@@ -534,12 +534,12 @@ func (s *Sender) updateConfigPrivate() {
 		metrics = s.metricSender.configMetrics
 	}
 
-	s.configMap.AddTelemetryAndMetrics(s.telemetry, metrics)
+	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
 }
 
 // Serializes the run configuration to send to the backend.
 func (s *Sender) serializeConfig(format ConfigFormat) string {
-	serializedConfig, err := s.configMap.Serialize(format)
+	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
@@ -590,7 +590,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if result, err := s.resumeState.Update(
 		data,
 		s.RunRecord,
-		s.configMap.Tree(),
+		s.runConfig,
 	); err != nil {
 		s.sendRunResult(record, result)
 		return err
@@ -600,26 +600,32 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 }
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
-
-	if s.RunRecord == nil && s.graphqlClient != nil {
-		var ok bool
-		s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
-		if !ok {
-			err := fmt.Errorf("failed to clone RunRecord")
-			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
-		}
-
-		if err := s.checkAndUpdateResumeState(record); err != nil {
-			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
-			return
-		}
-	}
-
 	if s.graphqlClient != nil {
-
+		// The first run record sent by the client is encoded incorrectly,
+		// causing it to overwrite the entire "_wandb" config key rather than
+		// just the necessary part ("_wandb/code_path"). This can overwrite
+		// the config from a resumed run, so we have to do this first.
+		//
+		// Logically, it would make more sense to instead start with the
+		// resumed config and apply updates on top of it.
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
+
+		if s.RunRecord == nil {
+			var ok bool
+			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
+			if !ok {
+				err := fmt.Errorf("failed to clone RunRecord")
+				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+			}
+
+			if err := s.checkAndUpdateResumeState(record); err != nil {
+				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				return
+			}
+		}
+
 		config := s.serializeConfig(FORMAT_JSON)
 
 		var tags []string
