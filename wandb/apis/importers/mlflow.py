@@ -4,20 +4,14 @@ import re
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from mlflow import MlflowClient
+import mlflow
 from packaging.version import Version  # type: ignore
 
 import wandb
 from wandb import Artifact
-from wandb.util import get_module
 
 from .internals import internal
 from .internals.util import Namespace, for_each
-
-mlflow = get_module(
-    "mlflow",
-    required="To use the MlflowImporter, please install mlflow: `pip install mlflow`",
-)
 
 mlflow_version = Version(mlflow.__version__)
 
@@ -27,7 +21,7 @@ logger = logging.getLogger("import_logger")
 class MlflowRun:
     def __init__(self, run, mlflow_client):
         self.run = run
-        self.mlflow_client: MlflowClient = mlflow_client
+        self.mlflow_client: mlflow.MlflowClient = mlflow_client
 
     def run_id(self) -> str:
         return self.run.info.run_id
@@ -71,19 +65,32 @@ class MlflowRun:
         return self.run.data.tags.get("mlflow.note.content")
 
     def tags(self) -> Optional[List[str]]:
-        mlflow_tags = {
-            k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
-        }
+        mlflow_tags = {}
+        for k, v in self.run.data.tags.items():
+            if not k.startswith("mlflow."):
+                if len(v) > 64:
+                    logger.warn(
+                        f"Tag {k} is too long, truncating to 64 characters (first 32 and last 29)"
+                    )
+                    v = v[:32] + "..." + v[-29:]
+                mlflow_tags[k] = v
+
+        # mlflow_tags = {
+        #     k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
+        # }
         return [f"{k}={v}" for k, v in mlflow_tags.items()]
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:  # type: ignore
         if mlflow_version < Version("2.0.0"):
             dir_path = self.mlflow_client.download_artifacts(
-                run_id=self.run.info.run_id, path=""
+                run_id=self.run.info.run_id,
+                path="",
             )
         else:
             dir_path = mlflow.artifacts.download_artifacts(run_id=self.run.info.run_id)
 
+        # Since mlflow doesn't have extra metadata about the artifacts,
+        # we just lump them all together into a single wandb.Artifact
         artifact_name = self._handle_incompatible_strings(self.display_name())
         art = wandb.Artifact(artifact_name, "imported-artifacts")
         art.add_dir(dir_path)
@@ -204,6 +211,7 @@ class MlflowImporter:
         self,
         run: MlflowRun,
         *,
+        artifacts: bool = True,
         namespace: Optional[Namespace] = None,
         config: Optional[internal.SendManagerConfig] = None,
     ) -> None:
@@ -237,25 +245,27 @@ class MlflowImporter:
         )
 
         # in mlflow, the artifacts come with the runs, so import them together
-        arts = list(run.artifacts())
-        logger.debug(f"Importing history artifacts, {run=}")
-        internal.send_artifacts_with_send_manager(
-            arts,
-            run,
-            overrides=namespace.send_manager_overrides,
-            settings_override=settings_override,
-            config=internal.SendManagerConfig(log_artifacts=True),
-        )
+        if artifacts:
+            arts = list(run.artifacts())
+            logger.debug(f"Importing history artifacts, {run=}")
+            internal.send_artifacts_with_send_manager(
+                arts,
+                run,
+                overrides=namespace.send_manager_overrides,
+                settings_override=settings_override,
+                config=internal.SendManagerConfig(log_artifacts=True),
+            )
 
     def import_runs(
         self,
         runs: Iterable[MlflowRun],
         *,
+        artifacts: bool = True,
         namespace: Optional[Namespace] = None,
         parallel: bool = True,
         max_workers: Optional[int] = None,
     ) -> None:
         def _import_run_wrapped(run):
-            self._import_run(run, namespace=namespace)
+            self._import_run(run, namespace=namespace, artifacts=artifacts)
 
         for_each(_import_run_wrapped, runs, parallel=parallel, max_workers=max_workers)

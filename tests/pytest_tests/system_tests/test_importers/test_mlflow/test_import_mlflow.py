@@ -9,6 +9,8 @@ from wandb.apis.importers.mlflow import MlflowImporter
 @pytest.mark.timeout(60)
 @pytest.mark.skipif(sys.version_info < (3, 8), reason="MLFlow requires python>=3.8")
 def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
+    # TODO: This test is tightly coupled with the `prelogged_mlflow_server` fixture; refactor
+
     project = "imported-from-mlflow"
 
     importer = MlflowImporter(
@@ -23,8 +25,16 @@ def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
     runs = list(api.runs(f"{user}/{project}"))
     assert len(runs) == mlflow_logging_config.total_runs
     for run in runs:
-        assert len(list(run.scan_history())) == mlflow_logging_config.n_steps_per_run
+        # Check history
+        history = list(run.scan_history())
+        assert len(history) == mlflow_logging_config.n_steps_per_run
+        for r in history:
+            assert len(r) == 4  # 1 step + 3 (int, float, bool) metrics
 
-        # only one artifact containing everything in mlflow
+        # Check params
+        assert len(run.config) == 9
+
+        # Check artifacts (note: all mlflow artifacts are lumped
+        # into a single wandb.Artifact, so len(art) == 1 always)
         art = list(run.logged_artifacts())[0]
         assert len(art.files()) == mlflow_logging_config.total_files
