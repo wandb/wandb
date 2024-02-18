@@ -319,6 +319,7 @@ commands:
               << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
             # Wait for local-testcontainer to be ready
             while ! curl http://localhost:<< parameters.local_base_port >>/healthz; do sleep 1; done
+            echo "Started local test container with local_base_port:<< parameters.local_base_port >>, services_api_port:<< parameters.services_api_port >>, fixture_service_port:<< parameters.fixture_service_port >>"
 
 jobs:
   regression:
@@ -659,9 +660,9 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           environment:
-            LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
-            SERVICES_API_PORT2: << parameters.services_api_port2 >>
-            FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
+            WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
+            WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
+            WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>> -- << parameters.tox_args >>
