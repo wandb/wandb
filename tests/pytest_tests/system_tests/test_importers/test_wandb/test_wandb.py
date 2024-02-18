@@ -43,6 +43,8 @@ def test_import_runs(request, server_src, user, user2):
 
 def test_import_artifact_sequences(request, server_src, user, user2):
     project_name = "test"
+
+    # Run multiple times to check incremental import logic
     for _ in range(3):
         importer = WandbImporter(
             src_base_url=request.config.wandb_server_settings.base_url,

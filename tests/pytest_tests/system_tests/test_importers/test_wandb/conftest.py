@@ -3,6 +3,7 @@ import random
 import string
 import subprocess
 import tempfile
+import time
 import typing
 
 import numpy as np
@@ -18,12 +19,17 @@ from rdkit import Chem
 from ...utils import WandbServerSettings, spin_wandb_server
 
 # `local-testcontainer2` ports
-LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_BASE_PORT2", "9180")
+LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_LOCAL_BASE_PORT2", "9180")
 SERVICES_API_PORT2 = os.getenv("WANDB_TEST_SERVICES_API_PORT2", "9183")
 FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
 
 DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
 DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
+
+# set seed for reproducibility
+SEED = 1337
+np.random.seed(SEED)
+random.seed(SEED)
 
 
 def pytest_addoption(parser):
@@ -122,6 +128,7 @@ def server_src(user):
 
     for _ in range(n_experiments):
         run = wandb.init(entity=user, project=project_name)
+        print(f"Inside run, {run.entity=}, {run.project=}")
 
         # log metrics
         data = generate_random_data(n_steps, n_metrics)
@@ -147,6 +154,8 @@ def server_src(user):
         for _ in range(2):
             art = make_artifact("logged_art")
             run.log_artifact(art)
+            art.wait()
+            print(f"Logged artifact {run.name=}, {art.version=}")
 
         art2 = make_artifact("used_art")
         run.use_artifact(art2)
@@ -170,10 +179,6 @@ def server_src(user):
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:
-    seed = 1337
-    np.random.seed(seed)
-    random.seed(seed)
-
     steps = np.arange(1, n + 1, 1)
     data = {}
     fns: list[typing.Any] = [
@@ -289,6 +294,9 @@ def create_random_molecule():
 
 
 def make_artifact(name):
+    # temporarily enable randomness so the artifacts are not deduped
+    random.seed(time.time())
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         filename = os.path.join(tmpdirname, "random_text.txt")
 
@@ -301,4 +309,6 @@ def make_artifact(name):
 
         artifact = wandb.Artifact(name, name)
         artifact.add_file(filename)
-        return artifact
+
+    random.seed(SEED)
+    return artifact
