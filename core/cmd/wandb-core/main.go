@@ -22,33 +22,29 @@ func init() {
 }
 
 func main() {
-	portFilename := flag.String(
-		"port-filename",
-		"port_file.txt",
-		"filename for port to communicate with client",
-	)
-	pid := flag.Int("pid", 0, "pid")
-	debug := flag.Bool("debug", false, "debug mode")
-	noAnalytics := flag.Bool("no-observability", false, "turn off observability")
+	// Flags to control the server
+	portFilename := flag.String("port-filename", "port_file.txt", "filename for port to communicate with client")
+	pid := flag.Int("pid", 0, "pid of the process to communicate with")
+	debugLevel := flag.Bool("debug", false, "enable debug logging")
+	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
+	traceFile := flag.String("trace", "", "file name to write trace output to")
 	// todo: remove these flags, they are here for backward compatibility
 	serveSock := flag.Bool("serve-sock", false, "use sockets")
 
 	flag.Parse()
 
-	ctx := context.Background()
 	// set up sentry reporting
-	observability.InitSentry(*noAnalytics, commit)
+	observability.InitSentry(*disableAnalytics, commit)
 	defer sentry.Flush(2)
 
 	// store commit hash in context
+	ctx := context.Background()
 	ctx = context.WithValue(ctx, observability.Commit("commit"), commit)
 
 	var loggerPath string
-	file, _ := observability.GetLoggerPath()
-	if file != nil {
+	if file, _ := observability.GetLoggerPath(); file != nil {
 		level := slog.LevelInfo
-		// TODO: replace this with the debug flag
-		if os.Getenv("WANDB_CORE_DEBUG") != "" {
+		if *debugLevel {
 			level = slog.LevelDebug
 		}
 		opts := &slog.HandlerOptions{
@@ -57,23 +53,23 @@ func main() {
 		}
 		logger := slog.New(slog.NewJSONHandler(file, opts))
 		slog.SetDefault(logger)
-		slog.Info("started logging")
 		logger.LogAttrs(
 			ctx,
-			slog.LevelDebug,
-			"Flags",
+			slog.LevelInfo,
+			"started logging, with flags",
 			slog.String("fname", *portFilename),
 			slog.Int("pid", *pid),
-			slog.Bool("debug", *debug),
-			slog.Bool("noAnalytics", *noAnalytics),
+			slog.Bool("debug", *debugLevel),
+			slog.Bool("noAnalytics", *disableAnalytics),
 			slog.Bool("serveSock", *serveSock),
 		)
 		loggerPath = file.Name()
 		defer file.Close()
 	}
 
-	if os.Getenv("_WANDB_TRACE") != "" {
-		f, err := os.Create("trace.out")
+	// TODO: replace it with a flag
+	if *traceFile != "" {
+		f, err := os.Create(*traceFile)
 		if err != nil {
 			slog.Error("failed to create trace output file", "err", err)
 			panic(err)
@@ -81,7 +77,6 @@ func main() {
 		defer func() {
 			if err = f.Close(); err != nil {
 				slog.Error("failed to close trace file", "err", err)
-				panic(err)
 			}
 		}()
 
