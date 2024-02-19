@@ -464,6 +464,7 @@ class _WandbInit:
 
     def _jupyter_setup(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
+        print(settings.disable_code)
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
 
