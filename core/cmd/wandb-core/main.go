@@ -22,6 +22,25 @@ func init() {
 	runtime.SetBlockProfileRate(1)
 }
 
+func defaultLogger(writers ...io.Writer) *slog.Logger {
+
+	level := slog.LevelInfo
+	// TODO: add a log level to the settings
+	if os.Getenv("WANDB_CORE_DEBUG") != "" {
+		level = slog.LevelDebug
+	}
+
+	writer := io.MultiWriter(writers...)
+	opts := &slog.HandlerOptions{
+		Level:     level,
+		AddSource: true,
+	}
+	logger := slog.New(slog.NewJSONHandler(writer, opts))
+	slog.SetDefault(logger)
+	slog.Info("started logging")
+	return logger
+}
+
 func main() {
 	portFilename := flag.String(
 		"port-filename",
@@ -48,10 +67,7 @@ func main() {
 		defer file.Close()
 	}
 
-	if os.Getenv("WANDB_CORE_DEBUG") != "" {
-		writers = append(writers, os.Stderr)
-	}
-	logger := server.SetupDefaultLogger(writers...)
+	logger := defaultLogger(writers...)
 	ctx := context.Background()
 
 	// set up sentry reporting
