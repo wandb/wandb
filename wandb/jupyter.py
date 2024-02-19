@@ -433,8 +433,6 @@ class Notebook:
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook."""
-        if self.settings.disable_code:
-            return
         try:
             from nbformat import v4, validator, write
         except ImportError:
@@ -445,7 +443,9 @@ class Notebook:
             return
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        if len(hist) <= 1 or not self.settings.save_code:
+        if len(hist) <= 1 or (
+            not self.settings.save_code or self.settings.disable_code
+        ):
             logger.info("not saving jupyter history")
             return
         try:
