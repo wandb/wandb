@@ -433,6 +433,8 @@ class Notebook:
 
     def save_history(self):
         """This saves all cell executions in the current session as a new notebook."""
+        if self.settings.disable_code:
+            return
         try:
             from nbformat import v4, validator, write
         except ImportError:
