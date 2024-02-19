@@ -223,7 +223,7 @@ class SystemInfo:
         # save pip, conda, code patches to disk
         if self.settings._save_requirements:
             self._save_conda()
-        if self.settings.save_code:
+        if self.settings.save_code and not self.settings.disable_code:
             self._save_code()
             self._save_patches()
 
