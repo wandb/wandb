@@ -28,8 +28,8 @@ func main() {
 	debugLevel := flag.Bool("debug", false, "enable debug logging")
 	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
 	traceFile := flag.String("trace", "", "file name to write trace output to")
-	// todo: remove these flags, they are here for backward compatibility
-	serveSock := flag.Bool("serve-sock", false, "use sockets")
+	// TODO: remove these flags, they are here for backward compatibility
+	_ = flag.Bool("serve-sock", false, "use sockets")
 
 	flag.Parse()
 
@@ -57,11 +57,10 @@ func main() {
 			ctx,
 			slog.LevelInfo,
 			"started logging, with flags",
-			slog.String("fname", *portFilename),
+			slog.String("port-filename", *portFilename),
 			slog.Int("pid", *pid),
 			slog.Bool("debug", *debugLevel),
-			slog.Bool("noAnalytics", *disableAnalytics),
-			slog.Bool("serveSock", *serveSock),
+			slog.Bool("disable-analytics", *disableAnalytics),
 		)
 		loggerPath = file.Name()
 		defer file.Close()

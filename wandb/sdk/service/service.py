@@ -171,10 +171,12 @@ class _Service:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
-                if os.environ.get("WANDB_CORE_DEBUG"):
+                if os.environ.get("WANDB_CORE_DEBUG", False):
                     service_args.append("--debug")
-                if os.environ.get("_WANDB_TRACE"):
-                    service_args.extend(["--trace", os.environ.get("_WANDB_TRACE")])
+                trace_filename = os.environ.get("_WANDB_TRACE")
+                if trace_filename is not None:
+                    service_args.extend(["--trace", trace_filename])
+
                 exec_cmd_list = []
                 # TODO: remove this after the wandb-core GA release
                 wandb_core = get_module("wandb_core")
