@@ -668,9 +668,9 @@ class Run:
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping: Dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
-        if self._settings.disable_code or (
-            self._settings.save_code and self._settings.program_relpath
-        ):
+        if (
+            not self._settings.disable_code or self._settings.save_code
+        ) and self._settings.program_relpath:
             config[wandb_key]["code_path"] = LogicalPath(
                 os.path.join("code", self._settings.program_relpath)
             )
