@@ -96,8 +96,8 @@ func streamLogger(settings *service.Settings) *observability.CoreLogger {
 	}
 
 	opts := &slog.HandlerOptions{
-		Level:     level,
-		AddSource: true,
+		Level: level,
+		// AddSource: true,
 	}
 
 	logger := observability.NewCoreLogger(
