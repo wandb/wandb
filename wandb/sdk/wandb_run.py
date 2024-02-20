@@ -2286,14 +2286,12 @@ class Run:
 
         if self._settings._save_requirements:
             if self._backend and self._backend.interface:
-                import pkg_resources
+                from wandb.util import working_set
 
                 logger.debug(
                     "Saving list of pip packages installed into the current environment"
                 )
-                self._backend.interface.publish_python_packages(
-                    pkg_resources.working_set
-                )
+                self._backend.interface.publish_python_packages(working_set())
 
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
@@ -2353,11 +2351,9 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
-        import pkg_resources
+        from wandb.util import working_set
 
-        installed_packages_list = sorted(
-            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        )
+        installed_packages_list = sorted(f"{d.key}=={d.version}" for d in working_set())
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
 
@@ -2769,7 +2765,6 @@ class Run:
                 can be in the following forms:
                     - name:version
                     - name:alias
-                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
@@ -3199,7 +3194,6 @@ class Run:
                 can be in the following forms:
                     - model_artifact_name:version
                     - model_artifact_name:alias
-                    - model_artifact_name:digest.
 
         Examples:
             ```python

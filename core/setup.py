@@ -1,11 +1,6 @@
-import os
-import platform
-import subprocess
 from distutils import log
-from pathlib import Path
 
 from setuptools import setup
-from setuptools.command.develop import develop
 from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # Package naming
@@ -14,111 +9,12 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # wandb-core versioning
 # ---------------------
-CORE_VERSION = "0.17.0b8"
+CORE_VERSION = "0.17.0b9"
+
+PACKAGE = "wandb_core"
 
 
-PACKAGE: str = "wandb_core"
-PLATFORMS_TO_BUILD_WITH_CGO = (
-    "darwin-arm64",
-    "linux-amd64",
-)
-
-
-class WBCoreBase:
-    @staticmethod
-    def _get_package_path():
-        base = Path(__file__).parent / PACKAGE
-        print(f"Package path: {base}")
-        return base
-
-    def _build_core(self):
-        core_path = self._get_package_path()
-
-        src_dir = Path(__file__).parent
-
-        env = os.environ.copy()
-        log.info(env)
-
-        goos = platform.system().lower()
-        goarch = platform.machine().lower()
-        if goarch == "x86_64":
-            goarch = "amd64"
-        elif goarch == "aarch64":
-            goarch = "arm64"
-        elif goarch == "armv7l":
-            goarch = "armv6l"
-
-        # Check the PLAT environment variable available in cibuildwheel
-        cibw_plat = env.get("PLAT", "")
-
-        # Custom logic for darwin-arm64 in cibuildwheel
-        # (it's built on an x86_64 mac with qemu, so we need to override the arch)
-        if goos == "darwin" and cibw_plat.endswith("arm64"):
-            goarch = "arm64"
-
-        # build a binary for coverage profiling if the GOCOVERDIR env var is set
-        gocover = True if os.environ.get("GOCOVERDIR") else False
-
-        # cgo is needed on:
-        #  - arm macs to build the gopsutil dependency,
-        #    otherwise several system metrics will be unavailable.
-        #  - linux to build the dependencies needed to get GPU metrics.
-        if f"{goos}-{goarch}" in PLATFORMS_TO_BUILD_WITH_CGO:
-            env["CGO_ENABLED"] = "1"
-
-        os.makedirs(core_path, exist_ok=True)
-        commit = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=src_dir)
-            .decode("utf-8")
-            .strip()
-        )
-
-        ldflags = f"-s -w -X main.commit={commit}"
-        if f"{goos}-{goarch}" == "linux-amd64":
-            # TODO: try llvm's lld linker
-            ldflags += ' -extldflags "-fuse-ld=gold -Wl,--weak-unresolved-symbols"'
-        cmd = [
-            "go",
-            "build",
-            f"-ldflags={ldflags}",
-            "-o",
-            str(core_path / "wandb-core"),
-            "cmd/wandb-core/main.go",
-        ]
-        if gocover:
-            cmd.insert(2, "-cover")
-        log.info(f"Building for {goos}-{goarch}")
-        log.info(f"Running command: {' '.join(cmd)}")
-        subprocess.check_call(cmd, cwd=src_dir, env=env)
-
-        # TODO: this is a temporary hack
-        # copy the binary to ../client
-        client_path = src_dir.parent / "client"
-        if client_path.exists():
-            log.info("Copying wandb-core binary")
-            # mkdir core_path / "wandb":
-            os.makedirs(client_path / "wandb", exist_ok=True)
-            subprocess.check_call(
-                ["cp", str(core_path / "wandb-core"), str(client_path / "wandb")]
-            )
-
-        # on arm macs, copy over the stats monitor binary, if available
-        # it is built separately with `nox -s build-apple-stats-monitor` to avoid
-        # having to wait for that to build on every run.
-        if goos == "darwin" and goarch == "arm64":
-            monitor_path = src_dir / "pkg/monitor/apple/AppleStats"
-            if monitor_path.exists():
-                log.info("Copying AppleStats binary")
-                subprocess.check_call(["cp", str(monitor_path), str(core_path)])
-
-
-class WrapDevelop(develop, WBCoreBase):
-    def run(self):
-        develop.run(self)
-        self._build_core()
-
-
-class WrapBdistWheel(bdist_wheel, WBCoreBase):
+class WrapBdistWheel(bdist_wheel):
     def get_tag(self):
         # Use the default implementation to get python and abi tags
         python, abi = bdist_wheel.get_tag(self)[:2]
@@ -128,7 +24,6 @@ class WrapBdistWheel(bdist_wheel, WBCoreBase):
         return python, abi, plat_name
 
     def run(self):
-        self._build_core()
         bdist_wheel.run(self)
 
 
@@ -146,8 +41,5 @@ if __name__ == "__main__":
         include_package_data=True,
         license="MIT license",
         python_requires=">=3.6",
-        cmdclass={
-            "develop": WrapDevelop,
-            "bdist_wheel": WrapBdistWheel,
-        },
+        cmdclass={"bdist_wheel": WrapBdistWheel},
     )
