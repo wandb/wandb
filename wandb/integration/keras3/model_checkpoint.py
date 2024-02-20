@@ -1,5 +1,4 @@
-import os
-from typing import Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 from keras.callbacks import ModelCheckpoint
 
