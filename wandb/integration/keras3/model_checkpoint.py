@@ -11,23 +11,6 @@ Verbosity = Literal[0, 1]
 SaveStrategy = Literal["epoch"]
 
 
-def _log_artifact(
-    filepath: StrPath, aliases: Optional[List] = None, metadata: Optional[Dict] = None
-):
-    aliases = ["latest"] if aliases is None else aliases + ["latest"]
-    metadata = wandb.run.config.as_dict() if metadata is None else metadata
-    model_checkpoint_artifact = wandb.Artifact(
-        f"run_{wandb.run.id}_model", type="model", metadata=metadata
-    )
-    if os.path.isfile(filepath):
-        model_checkpoint_artifact.add_file(filepath)
-    elif os.path.isdir(filepath):
-        model_checkpoint_artifact.add_dir(filepath)
-    else:
-        raise FileNotFoundError(f"No such file or directory {filepath}")
-    wandb.log_artifact(model_checkpoint_artifact, aliases=aliases or [])
-
-
 class WandbModelCheckpoint(ModelCheckpoint):
     """A checkpoint that periodically saves a Keras model or model weights.
 
@@ -122,8 +105,8 @@ class WandbModelCheckpoint(ModelCheckpoint):
         super().on_train_batch_end(batch, logs)
         if self._should_save_on_batch(batch):
             filepath = self._get_file_path(self._current_epoch, batch, logs)
-            _log_artifact(
-                filepath,
+            wandb.log_model(
+                path=filepath,
                 aliases=[f"epoch_{self._current_epoch}_batch_{batch}", "latest"],
             )
 
@@ -131,4 +114,4 @@ class WandbModelCheckpoint(ModelCheckpoint):
         super().on_epoch_end(epoch, logs)
         if self.save_freq == "epoch":
             filepath = self._get_file_path(epoch, None, logs)
-            _log_artifact(filepath, aliases=[f"epoch_{epoch}", "latest"])
+            wandb.log_model(filepath, aliases=[f"epoch_{epoch}", "latest"])
