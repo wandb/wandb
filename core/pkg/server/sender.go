@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -130,7 +132,7 @@ func NewSender(
 		ctx:            ctx,
 		cancel:         cancel,
 		settings:       settings,
-		logger:         logger,
+		logger:         observability.NewCoreLogger(slog.New(logger.Handler().WithGroup("sender"))),
 		summaryMap:     make(map[string]*service.SummaryItem),
 		runConfig:      NewRunConfig(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
@@ -225,15 +227,16 @@ func NewSender(
 // do sending of messages to the server
 func (s *Sender) Do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
-	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
+	s.logger.Info("sender started")
 
 	for record := range inChan {
+		s.logger.Debug("received record", "record", record.RecordType)
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 	}
 	s.Close()
-	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
+	s.logger.Info("sender finished")
 }
 
 func (s *Sender) Close() {
@@ -256,7 +259,6 @@ func (s *Sender) SendRecord(record *service.Record) {
 
 // sendRecord sends a record
 func (s *Sender) sendRecord(record *service.Record) {
-	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
@@ -293,17 +295,20 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 	case nil:
-		err := fmt.Errorf("sender: sendRecord: nil RecordType")
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
+		err := fmt.Errorf("record is nil")
+		s.logger.Error("error sending record", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
 	default:
-		err := fmt.Errorf("sender: sendRecord: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: unexpected type", err)
+		err := fmt.Errorf("record is unexpected type %T", x)
+		s.logger.Error("error sending record", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendRecord: unexpected type", err)
 	}
 }
 
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
-
 	switch x := request.RequestType.(type) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
@@ -325,11 +330,17 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
-		err := fmt.Errorf("sender: sendRequest: nil RequestType")
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
+		// err := fmt.Errorf("sender: sendRequest: nil RequestType")
+		err := fmt.Errorf("request is nil")
+		s.logger.Error("error sending request", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
 	default:
-		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
+		// err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
+		err := fmt.Errorf("request is unexpected type %T", x)
+		s.logger.Error("error sending request", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
 	}
 }
 
@@ -385,7 +396,7 @@ func (s *Sender) sendJobFlush() {
 		bytes := []byte(v.GetValueJson())
 		err := json.Unmarshal(bytes, &out)
 		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
+			s.logger.Error("failed to unmarshal summary item", "error", err)
 			return
 		}
 		output[k] = out
@@ -393,18 +404,18 @@ func (s *Sender) sendJobFlush() {
 
 	artifact, err := s.jobBuilder.Build(input, output)
 	if err != nil {
-		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		s.logger.Error("failed to build job artifact", "error", err)
 		return
 	}
 	if artifact == nil {
-		s.logger.Info("sender: sendDefer: no job artifact to save")
+		s.logger.Info("no job artifact to build")
 		return
 	}
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
-		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+		s.logger.Error("failed to save job artifact", "error", err)
 	}
 }
 
@@ -465,8 +476,11 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		// cancel tells the stream to close the loopback channel
 		s.cancel()
 	default:
-		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
-		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
+		// err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
+		err := fmt.Errorf("unexpected state %v", request.State)
+		s.logger.Error("error sending defer", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
 	}
 }
 
@@ -500,7 +514,9 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+		s.logger.Error("failed to link artifact", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
 	}
 
 	result := &service.Result{
@@ -512,7 +528,7 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 
 func (s *Sender) sendUseArtifact(record *service.Record) {
 	if s.jobBuilder == nil {
-		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
+		s.logger.Warn("job builder is nil, cannot handle use artifact")
 		return
 	}
 	s.jobBuilder.HandleUseArtifactRecord(record)
@@ -521,7 +537,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 // Applies the change record to the run configuration.
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
-		s.logger.CaptureError("Error updating run config", err)
+		s.logger.CaptureError("error updating run config", err)
 	})
 }
 
@@ -542,8 +558,9 @@ func (s *Sender) serializeConfig(format ConfigFormat) string {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
-		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+		s.logger.Error("failed to marshal config", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
 
 	return string(serializedConfig)
@@ -576,8 +593,8 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	// If we couldn't get the resume status, we should fail if resume is set
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
-		err = fmt.Errorf("failed to get run resume status: %s", err)
-		s.logger.Error("sender:", "error", err)
+		// err = fmt.Errorf("failed to get run resume status: %s", err)
+		s.logger.Error("failed to get run resume status", "error", err)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: err.Error(),
@@ -617,11 +634,13 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
 				err := fmt.Errorf("failed to clone RunRecord")
-				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+				s.logger.Error("failed to send run", "error", err)
+				panic(err)
+				// s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 			}
 
 			if err := s.checkAndUpdateResumeState(record); err != nil {
-				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				s.logger.Error("failed to check and update resume state", "error", err)
 				return
 			}
 		}
@@ -666,8 +685,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			nil,                              // summaryMetrics
 		)
 		if err != nil {
-			err = fmt.Errorf("failed to upsert bucket: %s", err)
-			s.logger.Error("sender: sendRun:", "error", err)
+			s.logger.Error("failed to send run", "error", err)
 			// TODO(run update): handle error communication back to the client
 			fmt.Println("ERROR: failed to upsert bucket", err.Error())
 			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
@@ -790,7 +808,7 @@ func (s *Sender) writeAndSendConfigFile() {
 	config := s.serializeConfig(FORMAT_YAML)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		s.logger.Error("failed to write config file", "error", err)
 	}
 
 	record := &service.Record{
@@ -841,14 +859,14 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 	// append line to file
 	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		s.logger.Error("sender: sendOutputRaw: failed to open output file", "error", err)
+		s.logger.Error("failed to open output file", "error", err)
 	}
 	if _, err := f.WriteString(outputRaw.Line + "\n"); err != nil {
-		s.logger.Error("sender: sendOutputRaw: failed to write to output file", "error", err)
+		s.logger.Error("failed to write to output file", "error", err)
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			s.logger.Error("sender: sendOutputRaw: failed to close output file", "error", err)
+			s.logger.Error("failed to close output file", "error", err)
 		}
 	}()
 
@@ -867,8 +885,10 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		err := fmt.Errorf("run record not set")
+		s.logger.Error("failed to send alert", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
@@ -885,10 +905,10 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		&alert.WaitDuration,
 	)
 	if err != nil {
-		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.Error("failed to send alert", "error", err)
+		// s.logger.CaptureError("sender received error", err)
 	} else {
-		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
+		s.logger.Debug("alert sent", "data", data)
 	}
 
 }
@@ -940,7 +960,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	}
 
 	if metric.GetGlobName() != "" {
-		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+		s.logger.Warn("glob name is not supported in the backend yet", "globName", metric.GetGlobName())
 		return
 	}
 
@@ -972,13 +992,15 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		err := fmt.Errorf("run record not set")
+		s.logger.Error("failed to send file", "error", err)
+		panic(err)
+		// s.logger.CaptureFatalAndPanic("sender received error", err)
 	}
 
 	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.GetPath())
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		s.logger.Warn("sender: sendFile: file does not exist", "path", fullPath)
+		s.logger.Warn("file does not exist", "path", fullPath)
 		return
 	}
 
@@ -1179,7 +1201,8 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+			s.logger.Error("failed to send sender read", "error", err)
+			// s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
 			return
 		}
 		s.store = store
@@ -1204,7 +1227,7 @@ func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderR
 			return
 		}
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			s.logger.CaptureError("failed to read record", err)
 			return
 		}
 	}
@@ -1217,13 +1240,13 @@ func (s *Sender) getServerInfo() {
 
 	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
 	if err != nil {
-		err = fmt.Errorf("sender: getServerInfo: failed to get server info: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.Error("failed to get server info", "error", err)
+		// s.logger.CaptureError("sender received error", err)
 		return
 	}
 	s.serverInfo = data.GetServerInfo()
 
-	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
+	s.logger.Info("received server info", "serverInfo", s.serverInfo)
 }
 
 // TODO: this function is for deciding which GraphQL query/mutation versions to use
@@ -1258,4 +1281,32 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := addMetric(metric, metric.GetName(), &s.metricSender.definedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.metricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.metricIndex[metric.GetName()]; ok {
+		s.metricSender.configMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.configMetrics)
+		s.metricSender.configMetrics = append(s.metricSender.configMetrics, encodeMetric)
+		s.metricSender.metricIndex[metric.GetName()] = int32(nextIndex)
+	}
 }

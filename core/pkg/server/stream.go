@@ -97,11 +97,19 @@ func streamLogger(settings *service.Settings) *observability.CoreLogger {
 
 	opts := &slog.HandlerOptions{
 		Level:     level,
-		AddSource: true,
+		AddSource: false,
 	}
+	attr := make([]slog.Attr, 1)
+	attr = append(attr, slog.Group("stream",
+		slog.String("id", settings.GetRunId().GetValue()),
+		slog.String("entity", settings.GetEntity().GetValue()),
+		slog.String("project", settings.GetProject().GetValue()),
+		slog.String("base_url", settings.GetBaseUrl().GetValue()),
+	))
+	handler := slog.NewJSONHandler(writer, opts).WithAttrs(attr)
 
 	logger := observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, opts)),
+		slog.New(handler),
 		observability.WithTags(observability.Tags{}),
 		observability.WithCaptureMessage(observability.CaptureMessage),
 		observability.WithCaptureException(observability.CaptureException),
@@ -159,7 +167,7 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.RunId)
+	s.logger.Info("created stream")
 	return s
 }
 
@@ -230,12 +238,11 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.RunId)
+	s.logger.Info("started stream")
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
-	s.logger.Debug("handling record", "record", rec)
 	s.inChan <- rec
 }
 
@@ -279,7 +286,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.RunId)
+	s.logger.Info("closed stream")
 }
 
 func (s *Stream) PrintFooter() {
