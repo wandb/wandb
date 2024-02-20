@@ -88,10 +88,7 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        try:
-            from packaging.version import Version as parse_version  # noqa: N813
-        except ImportError:
-            from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]

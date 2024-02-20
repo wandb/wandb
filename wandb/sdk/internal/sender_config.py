@@ -72,9 +72,9 @@ class ConfigState:
         new_subtree = _subtree(self._tree, path, create=True)
         assert new_subtree is not None
 
-        for chart_key, chart_value in old_subtree.items():
-            if chart_key not in new_subtree:
-                new_subtree[chart_key] = chart_value
+        for key, value in old_subtree.items():
+            if key not in new_subtree:
+                new_subtree[key] = value
 
     def to_backend_dict(
         self,
