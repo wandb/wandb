@@ -940,11 +940,11 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 }
 
 func (h *Handler) handleConfigFileParameter(record *service.Record) {
-	fmt.Println("handleConfigFileParameter: not implemented")
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	fmt.Println("handleWandbConfigParameters: not implemented")
+	h.sendRecord(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

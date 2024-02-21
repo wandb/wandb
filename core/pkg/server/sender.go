@@ -258,6 +258,7 @@ func (s *Sender) SendRecord(record *service.Record) {
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
+
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Footer:
@@ -292,6 +293,10 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
+	case *service.Record_ConfigFileParameter:
+		s.sendConfigFileParameter(record, x.ConfigFileParameter)
+	case *service.Record_WandbConfigParameters:
+		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -1258,4 +1263,14 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendConfigFileParameter(record *service.Record, _ *service.ConfigFileParameterRecord) {
+	// panic
+	s.logger.CaptureFatalAndPanic("sender: sendConfigFileParameter: not implemented", nil)
+	fmt.Println("sender: sendConfigFileParameter: not implemented")
+}
+
+func (s *Sender) sendWandbConfigParameters(record *service.Record, _ *service.WandbConfigParametersRecord) {
+	fmt.Println("sender: sendWandbConfigParameters: not implemented")
 }
