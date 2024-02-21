@@ -361,20 +361,11 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// and step. If the user provided a step in the request,
 	// use that, otherwise use 0.
 	if h.activeHistory == nil {
-		var step int64
-		switch {
-		case request.Step != nil:
-			step = request.Step.Num
-		case h.runRecord != nil:
-			step = h.runRecord.StartingStep
-		default:
-			// TODO: this should never happen, but we should handle it
-			// gracefully, should we raise an error?
-			step = 0
-		}
 
 		h.activeHistory = NewActiveHistory(
-			WithStep(step),
+			// Although technically the backend allows negative steps, in practice it is all set up to work with non-negative steps
+			// so if we receive a negative step, it will be discarded
+			WithStep(h.runRecord.GetStartingStep()),
 			WithFlush(
 				func(step *service.HistoryStep, items []*service.HistoryItem) {
 					record := &service.HistoryRecord{
@@ -433,7 +424,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
-	if (request.Step == nil && request.Action == nil) || (request.Action != nil && request.Action.Flush) {
+	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
 		h.activeHistory.Flush()
 		step := h.activeHistory.GetStep().Num + 1
 		h.activeHistory.UpdateStep(step)
