@@ -77,7 +77,7 @@ func TestConfigSerialize(t *testing.T) {
 		},
 	})
 
-	yaml, _ := runConfig.Serialize(server.FORMAT_YAML)
+	yaml, _ := runConfig.Serialize(server.FormatYaml)
 
 	assert.Equal(t,
 		""+
