@@ -150,10 +150,6 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 		filestream.WithAPIClient(apitest.TestingClient(
 			tserver.hserver.URL,
 			api.ClientOptions{},
-			// clients.NewRetryClient(
-			// 	clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
-			// 	clients.WithRetryClientLogger(tserver.logger),
-			// ),
 		)),
 	)
 	fs.Start()
@@ -174,8 +170,8 @@ func NewHistoryRecord() *service.Record {
 			History: &service.HistoryRecord{
 				Step: &service.HistoryStep{Num: 0},
 				Item: []*service.HistoryItem{
-					&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", 0.0)},
-					&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", 0)},
+					{Key: "_runtime", ValueJson: fmt.Sprintf("%f", 0.0)},
+					{Key: "_step", ValueJson: fmt.Sprintf("%d", 0)},
 				}}}}
 	return msg
 }
