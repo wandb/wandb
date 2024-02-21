@@ -49,7 +49,7 @@ func main() {
 		}
 		opts := &slog.HandlerOptions{
 			Level:     level,
-			AddSource: true,
+			AddSource: false,
 		}
 		logger := slog.New(slog.NewJSONHandler(file, opts))
 		slog.SetDefault(logger)
