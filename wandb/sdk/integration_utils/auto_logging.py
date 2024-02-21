@@ -93,7 +93,8 @@ class PatchAPI:
                 else:
                     wandb.termerror(
                         "The W&B autolog integration works with openai <= 0.28.1. "
-                        "Install the correct version of openai with pip install openai==0.28.1."
+                        f"Your current openai version is {openai_version}. "
+                        "Install the correct version of openai with `pip install openai==0.28.1`."
                     )
                     sys.exit(0)
 
