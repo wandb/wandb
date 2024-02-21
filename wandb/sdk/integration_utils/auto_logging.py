@@ -7,8 +7,11 @@ from typing import Any, Dict, Optional, Sequence, TypeVar
 
 import wandb.sdk
 import wandb.util
+import wandb.errors
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
+from wandb.util import parse_version
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
@@ -77,6 +80,19 @@ class PatchAPI:
                 f"package installed. Please install it with `pip install {lib_name}`.",
                 lazy=False,
             )
+
+            if self._api.__name__ == "openai":
+                openai_version = self._api.__version__
+                if parse_version(openai_version) <= parse_version("0.28.1"):
+                    deprecate(
+                        field_name=Deprecated.openai_autolog,
+                        warning_message=(
+                            "The OpenAI autolog feature will not be supported for openai version >= 1.0."
+                        ),
+                    )
+                else:
+                    wandb.errors.termerror("do something")
+
         return self._api
 
     def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:

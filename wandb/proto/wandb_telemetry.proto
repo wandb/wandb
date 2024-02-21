@@ -233,6 +233,7 @@ message Deprecated {
   bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9;  // wandb.keras.WandbCallback(save_model=True) called
   bool langchain_tracer = 10;           // wandb.integration.langchain.WandbTracer called
+  bool openai_autolog = 11;             // wandb.integration.openai.autolog
 }
 
 message Issues {
