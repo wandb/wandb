@@ -1723,10 +1723,10 @@ workflows:
                 - "default"
                 - "artifacts"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           parallelism: 4
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
 
       - tox-base:
@@ -1759,9 +1759,9 @@ workflows:
                 - "tf26"
                 - "xgboost"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
 
       - tox-base:
@@ -1780,9 +1780,9 @@ workflows:
                 - "sklearn"
                 - "metaflow"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
 
       #
@@ -1802,7 +1802,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "func-default-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
