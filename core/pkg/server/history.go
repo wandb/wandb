@@ -364,7 +364,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 
 		h.activeHistory = NewActiveHistory(
 			// Although technically the backend allows negative steps, in practice it is all set up to work with non-negative steps
-			// so if we receive a negative step, it will be discarded.
+			// so if we receive a negative step, it will be discarded
 			WithStep(h.runRecord.GetStartingStep()),
 			WithFlush(
 				func(step *service.HistoryStep, items []*service.HistoryItem) {
