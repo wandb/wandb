@@ -37,6 +37,14 @@ type Backend struct {
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
 	Send(*Request) (*http.Response, error)
+
+	// Sends an arbitrary HTTP request.
+	//
+	// This is used for libraries that accept a custom HTTP client that they
+	// then use to make requests to the backend, like GraphQL. If the request
+	// URL matches the backend's base URL, there's special handling as in
+	// Send().
+	Do(*http.Request) (*http.Response, error)
 }
 
 // Implementation of the Client interface.
@@ -67,7 +75,7 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in the request.
+	// Additional HTTP headers to include in request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
@@ -121,7 +129,11 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional headers to pass in each request.
+	// Additional headers to pass in each request to the backend.
+	//
+	// Note that these are only passed when communicating with the W&B backend.
+	// In particular, they are not sent if using this client to send
+	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 }
 
