@@ -152,7 +152,6 @@ message GitRepoRecord {
   string commit = 2;
 }
 
-
 message ConfigFileParameterRecord {
   string relpath = 1;
   string abspath = 2;
