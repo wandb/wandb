@@ -171,6 +171,12 @@ class _Service:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
+                if os.environ.get("WANDB_CORE_DEBUG", False):
+                    service_args.append("--debug")
+                trace_filename = os.environ.get("_WANDB_TRACE")
+                if trace_filename is not None:
+                    service_args.extend(["--trace", trace_filename])
+
                 exec_cmd_list = []
                 # TODO: remove this after the wandb-core GA release
                 wandb_core = get_module("wandb_core")
@@ -180,14 +186,13 @@ class _Service:
                     repeat=False,
                 )
             else:
-                service_args.extend(["wandb", "service"])
+                service_args.extend(["wandb", "service", "--debug"])
 
             service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
                 pid,
-                "--debug",
             ]
             service_args.append("--serve-sock")
 
