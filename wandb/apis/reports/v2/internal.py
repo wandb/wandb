@@ -844,6 +844,7 @@ BlockTypes = Union[
     TableOfContents,
     BlockQuote,
     Twitter,
+    WeaveBlock,
     UnknownBlock,
 ]
 
@@ -901,3 +902,7 @@ def is_valid_color(color_str: str) -> bool:
         pass
 
     return False
+
+
+def _get_weave_block_inputs(config: dict) -> dict:
+    return config["panelConfig"]["exp"]["fromOp"]["inputs"]

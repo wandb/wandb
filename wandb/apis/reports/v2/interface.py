@@ -708,6 +708,487 @@ class WeaveBlock(Block):
     ...
 
 
+@dataclass(config=dataclass_config)
+class WeaveBlockSummaryTable(WeaveBlock):
+    # TODO: Replace with actual weave blocks when ready
+    entity: str
+    project: str
+    table_name: str
+
+    def to_model(self):
+        return internal.WeaveBlock(
+            config={
+                "panelConfig": {
+                    "exp": {
+                        "nodeType": "output",
+                        "type": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "tagged",
+                                "tag": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "entityName": "string",
+                                        "projectName": "string",
+                                    },
+                                },
+                                "value": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {"project": "project"},
+                                },
+                            },
+                            "value": {
+                                "type": "list",
+                                "objectType": {
+                                    "type": "tagged",
+                                    "tag": {
+                                        "type": "typedDict",
+                                        "propertyTypes": {"run": "run"},
+                                    },
+                                    "value": {
+                                        "type": "union",
+                                        "members": [
+                                            {
+                                                "type": "file",
+                                                "extension": "json",
+                                                "wbObjectType": {
+                                                    "type": "table",
+                                                    "columnTypes": {},
+                                                },
+                                            },
+                                            "none",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                        "fromOp": {
+                            "name": "pick",
+                            "inputs": {
+                                "obj": {
+                                    "nodeType": "output",
+                                    "type": {
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "tagged",
+                                            "tag": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "entityName": "string",
+                                                    "projectName": "string",
+                                                },
+                                            },
+                                            "value": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {"project": "project"},
+                                            },
+                                        },
+                                        "value": {
+                                            "type": "list",
+                                            "objectType": {
+                                                "type": "tagged",
+                                                "tag": {
+                                                    "type": "typedDict",
+                                                    "propertyTypes": {"run": "run"},
+                                                },
+                                                "value": {
+                                                    "type": "union",
+                                                    "members": [
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "_wandb": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "runtime": "number"
+                                                                    },
+                                                                }
+                                                            },
+                                                        },
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "_step": "number",
+                                                                "table": {
+                                                                    "type": "file",
+                                                                    "extension": "json",
+                                                                    "wbObjectType": {
+                                                                        "type": "table",
+                                                                        "columnTypes": {},
+                                                                    },
+                                                                },
+                                                                "_wandb": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "runtime": "number"
+                                                                    },
+                                                                },
+                                                                "_runtime": "number",
+                                                                "_timestamp": "number",
+                                                            },
+                                                        },
+                                                        {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {},
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        },
+                                    },
+                                    "fromOp": {
+                                        "name": "run-summary",
+                                        "inputs": {
+                                            "run": {
+                                                "nodeType": "output",
+                                                "type": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "tagged",
+                                                        "tag": {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "entityName": "string",
+                                                                "projectName": "string",
+                                                            },
+                                                        },
+                                                        "value": {
+                                                            "type": "typedDict",
+                                                            "propertyTypes": {
+                                                                "project": "project"
+                                                            },
+                                                        },
+                                                    },
+                                                    "value": {
+                                                        "type": "list",
+                                                        "objectType": "run",
+                                                    },
+                                                },
+                                                "fromOp": {
+                                                    "name": "project-runs",
+                                                    "inputs": {
+                                                        "project": {
+                                                            "nodeType": "output",
+                                                            "type": {
+                                                                "type": "tagged",
+                                                                "tag": {
+                                                                    "type": "typedDict",
+                                                                    "propertyTypes": {
+                                                                        "entityName": "string",
+                                                                        "projectName": "string",
+                                                                    },
+                                                                },
+                                                                "value": "project",
+                                                            },
+                                                            "fromOp": {
+                                                                "name": "root-project",
+                                                                "inputs": {
+                                                                    "entityName": {
+                                                                        "nodeType": "const",
+                                                                        "type": "string",
+                                                                        "val": self.entity,
+                                                                    },
+                                                                    "projectName": {
+                                                                        "nodeType": "const",
+                                                                        "type": "string",
+                                                                        "val": self.project,
+                                                                    },
+                                                                },
+                                                            },
+                                                        }
+                                                    },
+                                                },
+                                            }
+                                        },
+                                    },
+                                },
+                                "key": {
+                                    "nodeType": "const",
+                                    "type": "string",
+                                    "val": self.table_name,
+                                },
+                            },
+                        },
+                        "__userInput": True,
+                    }
+                }
+            }
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.WeaveBlock):
+        inputs = internal._get_weave_block_inputs(model.config)
+        entity = inputs["obj"]["fromOp"]["inputs"]["run"]["fromOp"]["inputs"][
+            "project"
+        ]["fromOp"]["inputs"]["entityName"]["val"]
+        project = inputs["obj"]["fromOp"]["inputs"]["run"]["fromOp"]["inputs"][
+            "project"
+        ]["fromOp"]["inputs"]["projectName"]["val"]
+        table_name = inputs["key"]["val"]
+        return cls(entity, project, table_name)
+
+
+@dataclass(config=dataclass_config)
+class WeaveBlockArtifactVersionedFile(WeaveBlock):
+    # TODO: Replace with actual weave blocks when ready
+    entity: str
+    project: str
+    artifact: str
+    version: str
+    file: str
+
+    def to_model(self):
+        return internal.WeaveBlock(
+            config={
+                "panelConfig": {
+                    "exp": {
+                        "nodeType": "output",
+                        "type": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "tagged",
+                                "tag": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "entityName": "string",
+                                        "projectName": "string",
+                                    },
+                                },
+                                "value": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "project": "project",
+                                        "artifactName": "string",
+                                        "artifactVersionAlias": "string",
+                                    },
+                                },
+                            },
+                            "value": {
+                                "type": "file",
+                                "extension": "json",
+                                "wbObjectType": {"type": "table", "columnTypes": {}},
+                            },
+                        },
+                        "fromOp": {
+                            "name": "artifactVersion-file",
+                            "inputs": {
+                                "artifactVersion": {
+                                    "nodeType": "output",
+                                    "type": {
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "tagged",
+                                            "tag": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "entityName": "string",
+                                                    "projectName": "string",
+                                                },
+                                            },
+                                            "value": {
+                                                "type": "typedDict",
+                                                "propertyTypes": {
+                                                    "project": "project",
+                                                    "artifactName": "string",
+                                                    "artifactVersionAlias": "string",
+                                                },
+                                            },
+                                        },
+                                        "value": "artifactVersion",
+                                    },
+                                    "fromOp": {
+                                        "name": "project-artifactVersion",
+                                        "inputs": {
+                                            "project": {
+                                                "nodeType": "output",
+                                                "type": {
+                                                    "type": "tagged",
+                                                    "tag": {
+                                                        "type": "typedDict",
+                                                        "propertyTypes": {
+                                                            "entityName": "string",
+                                                            "projectName": "string",
+                                                        },
+                                                    },
+                                                    "value": "project",
+                                                },
+                                                "fromOp": {
+                                                    "name": "root-project",
+                                                    "inputs": {
+                                                        "entityName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": self.entity,
+                                                        },
+                                                        "projectName": {
+                                                            "nodeType": "const",
+                                                            "type": "string",
+                                                            "val": self.project,
+                                                        },
+                                                    },
+                                                },
+                                            },
+                                            "artifactName": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": self.artifact,
+                                            },
+                                            "artifactVersionAlias": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": self.version,
+                                            },
+                                        },
+                                    },
+                                },
+                                "path": {
+                                    "nodeType": "const",
+                                    "type": "string",
+                                    "val": self.file,
+                                },
+                            },
+                        },
+                        "__userInput": True,
+                    }
+                }
+            }
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.WeaveBlock):
+        inputs = internal._get_weave_block_inputs(model.config)
+        entity = inputs["artifactVersion"]["fromOp"]["inputs"]["project"]["fromOp"][
+            "inputs"
+        ]["entityName"]["val"]
+        project = inputs["artifactVersion"]["fromOp"]["inputs"]["project"]["fromOp"][
+            "inputs"
+        ]["projectName"]["val"]
+        artifact = inputs["artifactVersion"]["fromOp"]["inputs"]["artifactName"]["val"]
+        version = inputs["artifactVersion"]["fromOp"]["inputs"]["artifactVersionAlias"][
+            "val"
+        ]
+        file = inputs["path"]["val"]
+        return cls(entity, project, artifact, version, file)
+
+
+@dataclass(config=dataclass_config)
+class WeaveBlockArtifact(WeaveBlock):
+    # TODO: Replace with actual weave blocks when ready
+    entity: str
+    project: str
+    artifact: str
+    tab: Literal["overview", "metadata", "usage", "files", "lineage"] = "overview"
+
+    def to_model(self):
+        return internal.WeaveBlock(
+            config={
+                "panelConfig": {
+                    "exp": {
+                        "nodeType": "output",
+                        "type": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "tagged",
+                                "tag": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "entityName": "string",
+                                        "projectName": "string",
+                                    },
+                                },
+                                "value": {
+                                    "type": "typedDict",
+                                    "propertyTypes": {
+                                        "project": "project",
+                                        "artifactName": "string",
+                                    },
+                                },
+                            },
+                            "value": "artifact",
+                        },
+                        "fromOp": {
+                            "name": "project-artifact",
+                            "inputs": {
+                                "project": {
+                                    "nodeType": "output",
+                                    "type": {
+                                        "type": "tagged",
+                                        "tag": {
+                                            "type": "typedDict",
+                                            "propertyTypes": {
+                                                "entityName": "string",
+                                                "projectName": "string",
+                                            },
+                                        },
+                                        "value": "project",
+                                    },
+                                    "fromOp": {
+                                        "name": "root-project",
+                                        "inputs": {
+                                            "entityName": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": self.entity,
+                                            },
+                                            "projectName": {
+                                                "nodeType": "const",
+                                                "type": "string",
+                                                "val": self.project,
+                                            },
+                                        },
+                                    },
+                                },
+                                "artifactName": {
+                                    "nodeType": "const",
+                                    "type": "string",
+                                    "val": self.artifact,
+                                },
+                            },
+                        },
+                        "__userInput": True,
+                    },
+                    "panelInputType": {
+                        "type": "tagged",
+                        "tag": {
+                            "type": "tagged",
+                            "tag": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "entityName": "string",
+                                    "projectName": "string",
+                                },
+                            },
+                            "value": {
+                                "type": "typedDict",
+                                "propertyTypes": {
+                                    "project": "project",
+                                    "artifactName": "string",
+                                },
+                            },
+                        },
+                        "value": "artifact",
+                    },
+                    "panelConfig": {
+                        "tabConfigs": {"overview": {"selectedTab": self.tab}}
+                    },
+                }
+            }
+        )
+
+    @classmethod
+    def from_model(cls, model: internal.WeaveBlock):
+        inputs = internal._get_weave_block_inputs(model.config)
+        entity = inputs["project"]["fromOp"]["inputs"]["entityName"]["val"]
+        project = inputs["project"]["fromOp"]["inputs"]["projectName"]["val"]
+        artifact = inputs["artifactName"]["val"]
+        tab = model.config["panelConfig"]["panelConfig"]["tabConfigs"]["overview"][
+            "selectedTab"
+        ]
+        return cls(entity, project, artifact, tab)
+
+
+defined_weave_blocks = [WeaveBlockSummaryTable]
+
 BlockTypes = Union[
     H1,
     H2,
@@ -730,6 +1211,10 @@ BlockTypes = Union[
     TableOfContents,
     BlockQuote,
     Twitter,
+    WeaveBlockSummaryTable,
+    WeaveBlockArtifactVersionedFile,
+    WeaveBlockArtifact,
+    WeaveBlock,
     UnknownBlock,
 ]
 
@@ -753,6 +1238,7 @@ block_mapping = {
     internal.Twitter: Twitter,
     internal.SoundCloud: SoundCloud,
     internal.UnknownBlock: UnknownBlock,
+    internal.WeaveBlock: WeaveBlock,
 }
 
 
@@ -1593,6 +2079,19 @@ def _url_to_report_id(url):
 
 def _lookup(block):
     cls = block_mapping.get(block.__class__, UnknownBlock)
+
+    if cls is UnknownBlock:
+        wandb.termwarn(f"Unknown block type: {block.__class__}")
+
+    if cls is WeaveBlock:
+        for cls in defined_weave_blocks:
+            try:
+                cls.from_model(block)
+            except Exception:
+                continue
+            else:
+                break
+
     return cls.from_model(block)
 
 

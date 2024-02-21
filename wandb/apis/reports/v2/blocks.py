@@ -21,5 +21,9 @@ from .interface import (
     UnorderedList,
     UnorderedListItem,
     Video,
-    WeaveBlock,
+    # TODO: Add full weave blocks when they are ready
+    # WeaveBlock,
+    WeaveBlockSummaryTable,
+    WeaveBlockArtifactVersionedFile,
+    WeaveBlockArtifact,
 )
