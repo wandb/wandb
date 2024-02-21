@@ -1252,7 +1252,7 @@ class Artifact:
                 reference URI. Checksumming is strongly recommended as it enables
                 automatic integrity validation. Disabling checksumming will speed up
                 artifact creation but reference directories will not iterated through so the
-                objects in the directory will not be saved to the artifact. We reccomend
+                objects in the directory will not be saved to the artifact. We recommend
                 adding reference objects in the case checksumming is false.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
