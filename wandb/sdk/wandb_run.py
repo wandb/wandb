@@ -3038,8 +3038,6 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                handle.add_probe(self._on_probe_exit)
-                handle.add_progress(self._on_progress_exit)
                 artifact._set_save_handle(handle, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
