@@ -5,13 +5,13 @@ import logging
 import sys
 from typing import Any, Dict, Optional, Sequence, TypeVar
 
+import wandb.errors
 import wandb.sdk
 import wandb.util
-import wandb.errors
 from wandb.sdk.lib import telemetry as wb_telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.timer import Timer
 from wandb.util import parse_version
-from wandb.sdk.lib.deprecate import Deprecated, deprecate
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
