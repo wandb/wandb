@@ -15,7 +15,7 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 		req.Body,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("api: failed to create request: %w", err)
+		return nil, fmt.Errorf("api: failed to create request: %v", err)
 	}
 
 	for headerKey, headerValue := range req.Headers {
@@ -24,7 +24,7 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 
 	resp, err := client.retryableHTTP.Do(retryableReq)
 	if err != nil {
-		return nil, fmt.Errorf("api: failed sending: %w", err)
+		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
 
 	return resp, nil
