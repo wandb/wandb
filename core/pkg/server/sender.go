@@ -141,7 +141,7 @@ func NewSender(
 	if !settings.GetXOffline().GetValue() {
 		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
 		if err != nil {
-			// TODO
+			logger.CaptureFatalAndPanic("sender: failed to parse base URL", err)
 		}
 		backend := api.New(baseURL)
 
