@@ -37,8 +37,8 @@ type RunConfig struct {
 type ConfigFormat int
 
 const (
-	FORMAT_YAML ConfigFormat = iota
-	FORMAT_JSON
+	FormatYaml ConfigFormat = iota
+	FormatJson
 )
 
 func NewRunConfig() *RunConfig {
@@ -75,7 +75,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 		); err != nil {
 			onError(
 				fmt.Errorf(
-					"Failed to unmarshall JSON for config key %v: %w",
+					"config: failed to unmarshall JSON for config key %v: %w",
 					path,
 					err,
 				),
@@ -156,13 +156,13 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	}
 
 	switch format {
-	case FORMAT_YAML:
+	case FormatYaml:
 		return yaml.Marshal(valueConfig)
-	case FORMAT_JSON:
+	case FormatJson:
 		return json.Marshal(valueConfig)
 	}
 
-	return nil, fmt.Errorf("Unknown format: %v", format)
+	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
 // Uses the given subtree for keys that aren't already set.
@@ -280,7 +280,7 @@ func getOrMakeSubtree(
 		subtree, ok := node.(RunConfigDict)
 		if !ok {
 			return nil, fmt.Errorf(
-				"Config value at path %v is type %T, not a map",
+				"config: value at path %v is type %T, not a map",
 				path,
 				node,
 			)
