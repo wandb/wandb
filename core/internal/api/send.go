@@ -8,8 +8,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// Sends an HTTP request to the W&B backend.
-func (client *Client) Send(req *Request) (*http.Response, error) {
+func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	retryableReq, err := retryablehttp.NewRequest(
 		req.Method,
 		client.backend.baseURL.JoinPath(req.Path).String(),
@@ -33,13 +32,13 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (client *Client) addClientHeaders(req *retryablehttp.Request) {
+func (client *clientImpl) addClientHeaders(req *retryablehttp.Request) {
 	for headerKey, headerValue := range client.extraHeaders {
 		req.Header.Add(headerKey, headerValue)
 	}
 }
 
-func (client *Client) addAuthHeaders(req *retryablehttp.Request) {
+func (client *clientImpl) addAuthHeaders(req *retryablehttp.Request) {
 	req.Header.Add("User-Agent", "wandb-core")
 	req.Header.Add(
 		"Authorization",

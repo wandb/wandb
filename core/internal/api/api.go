@@ -34,7 +34,13 @@ type Backend struct {
 //
 // TODO: The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
-type Client struct {
+type Client interface {
+	// Sends an HTTP request to the W&B backend.
+	Send(*Request) (*http.Response, error)
+}
+
+// Implementation of the Client interface.
+type clientImpl struct {
 	// A reference to the backend.
 	backend *Backend
 
@@ -120,7 +126,7 @@ type ClientOptions struct {
 }
 
 // Creates a new [Client] for making requests to the [Backend].
-func (backend *Backend) NewClient(opts ClientOptions) *Client {
+func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP := clients.NewRetryClient(
 		clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 		clients.WithRetryClientRetryMax(opts.RetryMax),
@@ -133,13 +139,15 @@ func (backend *Backend) NewClient(opts ClientOptions) *Client {
 		retryableHTTP.CheckRetry = opts.RetryPolicy
 	}
 
-	retryableHTTP.ResponseLogHook = hookLogErrors(backend.logger)
-	retryableHTTP.Logger = slog.NewLogLogger(
-		backend.logger.Handler(),
-		slog.LevelDebug,
-	)
+	if backend.logger != nil {
+		retryableHTTP.ResponseLogHook = hookLogErrors(backend.logger)
+		retryableHTTP.Logger = slog.NewLogLogger(
+			backend.logger.Handler(),
+			slog.LevelDebug,
+		)
+	}
 
-	return &Client{backend, retryableHTTP, opts.ExtraHeaders}
+	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }
 
 // Returns a hook that logs all HTTP error responses.

@@ -63,7 +63,7 @@ func testSendAndReceive(t *testing.T, chunks []processedChunk, fsd FsTransmitDat
 
 	fs := NewFileStream(
 		WithLogger(fsTest.logger),
-		WithAPIClient(apitest.FakeClient("", fsTest.client)),
+		WithAPIClient(apitest.ForwardingClient(fsTest.client)),
 	)
 	for _, d := range chunks {
 		fs.transmitChan <- d

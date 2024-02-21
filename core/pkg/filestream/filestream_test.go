@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/clients"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -147,12 +147,13 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 		filestream.WithPath(fstreamPath),
 		filestream.WithSettings(tserver.settings),
 		filestream.WithLogger(tserver.logger),
-		filestream.WithAPIClient(apitest.FakeClient(
+		filestream.WithAPIClient(apitest.TestingClient(
 			tserver.hserver.URL,
-			clients.NewRetryClient(
-				clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
-				clients.WithRetryClientLogger(tserver.logger),
-			),
+			api.ClientOptions{},
+			// clients.NewRetryClient(
+			// 	clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
+			// 	clients.WithRetryClientLogger(tserver.logger),
+			// ),
 		)),
 	)
 	fs.Start()
