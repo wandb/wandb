@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -21,6 +22,8 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 	for headerKey, headerValue := range req.Headers {
 		retryableReq.Header.Add(headerKey, headerValue)
 	}
+	client.addClientHeaders(retryableReq)
+	client.addAuthHeaders(retryableReq)
 
 	resp, err := client.retryableHTTP.Do(retryableReq)
 	if err != nil {
@@ -28,4 +31,19 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 	}
 
 	return resp, nil
+}
+
+func (client *Client) addClientHeaders(req *retryablehttp.Request) {
+	for headerKey, headerValue := range client.extraHeaders {
+		req.Header.Add(headerKey, headerValue)
+	}
+}
+
+func (client *Client) addAuthHeaders(req *retryablehttp.Request) {
+	req.Header.Add("User-Agent", "wandb-core")
+	req.Header.Add(
+		"Authorization",
+		"Basic "+base64.StdEncoding.EncodeToString(
+			[]byte("api:"+client.backend.apiKey)),
+	)
 }
