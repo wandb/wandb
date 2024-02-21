@@ -1267,12 +1267,10 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	s.outChan <- result
 }
 
-func (s *Sender) sendConfigFileParameter(record *service.Record, _ *service.ConfigFileParameterRecord) {
-	// panic
-	s.logger.CaptureFatalAndPanic("sender: sendConfigFileParameter: not implemented", nil)
-	fmt.Println("sender: sendConfigFileParameter: not implemented")
+func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.ConfigFileParameterRecord) {
+	s.jobBuilder.HandleConfigFileParameterRecord(configFileParameter)
 }
 
-func (s *Sender) sendWandbConfigParameters(record *service.Record, _ *service.WandbConfigParametersRecord) {
-	fmt.Println("sender: sendWandbConfigParameters: not implemented")
+func (s *Sender) sendWandbConfigParameters(record *service.Record, wandbConfigParameters *service.WandbConfigParametersRecord) {
+	s.jobBuilder.HandleWandbConfigParametersRecord(wandbConfigParameters)
 }

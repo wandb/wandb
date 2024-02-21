@@ -153,11 +153,13 @@ type JobBuilder struct {
 
 	PartialJobSource *PartialJobSource
 
-	Disable         bool
-	settings        *service.Settings
-	RunCodeArtifact *ArtifactInfoForJob
-	aliases         []string
-	isNotebookRun   bool
+	Disable               bool
+	settings              *service.Settings
+	RunCodeArtifact       *ArtifactInfoForJob
+	aliases               []string
+	isNotebookRun         bool
+	wandbConfigParameters *service.WandbConfigParametersRecord
+	configFiles           []*service.ConfigFileParameterRecord
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -697,4 +699,16 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: artifactRecord.Name,
 		}
 	}
+}
+
+func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
+	j.logger.Debug("jobBuilder: handling config file parameter record")
+	j.configFiles = append(j.configFiles, configFileParameter)
+}
+
+func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {
+	if j.wandbConfigParameters != nil {
+		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
+	}
+	j.wandbConfigParameters = wandbConfigParameters
 }
