@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -137,6 +139,12 @@ func NewSender(
 		wgFileTransfer: sync.WaitGroup{},
 	}
 	if !settings.GetXOffline().GetValue() {
+		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
+		if err != nil {
+			// TODO
+		}
+		backend := api.New(baseURL)
+
 		baseHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
@@ -162,7 +170,7 @@ func NewSender(
 		if settings.GetXShared().GetValue() {
 			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		}
-		fileStreamRetryClient := clients.NewRetryClient(
+		fileStreamRetryClient := backend.NewClient(clients.NewRetryClient(
 			clients.WithRetryClientLogger(logger),
 			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
 				return resp.StatusCode >= 400
@@ -175,11 +183,11 @@ func NewSender(
 			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
 			// TODO(core:beta): add custom retry function
 			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		)
+		))
 		sender.fileStream = fs.NewFileStream(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
-			fs.WithHttpClient(fileStreamRetryClient),
+			fs.WithAPIClient(fileStreamRetryClient),
 			fs.WithClientId(shared.ShortID(32)),
 		)
 
@@ -359,8 +367,12 @@ func (s *Sender) updateSettings() {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+	fsPath := fmt.Sprintf(
+		"files/%s/%s/%s/file_stream",
+		s.RunRecord.Entity,
+		s.RunRecord.Project,
+		s.RunRecord.RunId,
+	)
 
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)

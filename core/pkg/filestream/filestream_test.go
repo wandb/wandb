@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -143,12 +144,16 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 	fstreamPath := "/test/" + tName
 	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
 	fs := filestream.NewFileStream(
-		filestream.WithPath(tserver.hserver.URL+fstreamPath),
+		filestream.WithPath(fstreamPath),
 		filestream.WithSettings(tserver.settings),
 		filestream.WithLogger(tserver.logger),
-		filestream.WithHttpClient(clients.NewRetryClient(
-			clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
-			clients.WithRetryClientLogger(tserver.logger))),
+		filestream.WithAPIClient(api.FakeClient(
+			tserver.hserver.URL,
+			clients.NewRetryClient(
+				clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
+				clients.WithRetryClientLogger(tserver.logger),
+			),
+		)),
 	)
 	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
