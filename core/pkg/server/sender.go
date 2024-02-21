@@ -255,6 +255,8 @@ func (s *Sender) SendRecord(record *service.Record) {
 }
 
 // sendRecord sends a record
+//
+//gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
