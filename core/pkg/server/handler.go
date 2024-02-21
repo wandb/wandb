@@ -256,6 +256,10 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
+	case *service.Record_ConfigFileParameter:
+		h.handleConfigFileParameter(record)
+	case *service.Record_WandbConfigParameters:
+		h.handleWandbConfigParameters(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -933,6 +937,14 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 	if err != nil {
 		h.logger.CaptureError("error handling tbrecord", err)
 	}
+}
+
+func (h *Handler) handleConfigFileParameter(record *service.Record) {
+	fmt.Println("handleConfigFileParameter: not implemented")
+}
+
+func (h *Handler) handleWandbConfigParameters(record *service.Record) {
+	fmt.Println("handleWandbConfigParameters: not implemented")
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

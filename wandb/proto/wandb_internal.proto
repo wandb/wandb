@@ -46,6 +46,8 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    ConfigFileParameterRecord config_file_parameter = 26;
+    WandbConfigParametersRecord wandb_config_parameters = 27;
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -148,6 +150,20 @@ message RunRecord {
 message GitRepoRecord {
   string remote_url = 1 [json_name = "remote"];
   string commit = 2;
+}
+
+
+message ConfigFileParameterRecord {
+  string relpath = 1;
+  string abspath = 2;
+  string alias = 3;
+  repeated string ignore = 4;
+  repeated string include = 5;
+}
+
+message WandbConfigParametersRecord {
+  repeated string ignore = 1;
+  repeated string include = 2;
 }
 
 message RunUpdateResult {

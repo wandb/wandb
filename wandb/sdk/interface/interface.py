@@ -13,7 +13,17 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -752,6 +762,40 @@ class InterfaceBase:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
+
+    def publish_config_file_parameter(
+        self,
+        relpath: str,
+        abspath: str,
+        alias: str,
+        ignore: List[str],
+        include: List[str],
+    ):
+        config_file_parameter = pb.ConfigFileParameterRecord()
+        config_file_parameter.relpath = relpath
+        config_file_parameter.abspath = abspath
+        config_file_parameter.alias = alias
+        config_file_parameter.ignore.extend(ignore)
+        config_file_parameter.include.extend(include)
+        return self._publish_config_file_parameter(config_file_parameter)
+
+    @abstractmethod
+    def _publish_config_file_parameter(
+        self, config_file_parameter: pb.ConfigFileParameterRecord
+    ) -> MailboxHandle:
+        raise NotImplementedError
+
+    def publish_wandb_config_parameters(self, ignore: List[str], include: List[str]):
+        config_parameters = pb.WandbConfigParametersRecord()
+        config_parameters.ignore.extend(ignore)
+        config_parameters.include.extend(include)
+        return self._publish_wandb_config_parameters(config_parameters)
+
+    @abstractmethod
+    def _publish_wandb_config_parameters(
+        self, config_parameters: pb.WandbConfigParametersRecord
+    ) -> MailboxHandle:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
