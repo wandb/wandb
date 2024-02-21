@@ -25,7 +25,7 @@ func main() {
 	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt", "filename for port to communicate with client")
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
-	debugLevel := flag.Bool("debug", false, "enable debug logging")
+	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
 	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
 	traceFile := flag.String("trace", "", "file name to write trace output to")
 	// TODO: remove these flags, they are here for backward compatibility
@@ -44,7 +44,7 @@ func main() {
 	var loggerPath string
 	if file, _ := observability.GetLoggerPath(); file != nil {
 		level := slog.LevelInfo
-		if *debugLevel {
+		if *enableDebugLogging {
 			level = slog.LevelDebug
 		}
 		opts := &slog.HandlerOptions{
@@ -59,14 +59,13 @@ func main() {
 			"started logging, with flags",
 			slog.String("port-filename", *portFilename),
 			slog.Int("pid", *pid),
-			slog.Bool("debug", *debugLevel),
+			slog.Bool("debug", *enableDebugLogging),
 			slog.Bool("disable-analytics", *disableAnalytics),
 		)
 		loggerPath = file.Name()
 		defer file.Close()
 	}
 
-	// TODO: replace it with a flag
 	if *traceFile != "" {
 		f, err := os.Create(*traceFile)
 		if err != nil {
@@ -87,7 +86,7 @@ func main() {
 	}
 	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
 	if err != nil {
-		slog.Error("failed to start server")
+		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
 	serve.SetDefaultLoggerPath(loggerPath)

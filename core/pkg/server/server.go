@@ -34,7 +34,6 @@ type Server struct {
 func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		slog.Error("can not listen", "error", err)
 		return nil, err
 	}
 
