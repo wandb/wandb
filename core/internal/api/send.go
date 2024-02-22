@@ -46,7 +46,16 @@ func (client *clientImpl) sendToWandbBackend(
 ) (*http.Response, error) {
 	client.addClientHeaders(req)
 	client.addAuthHeaders(req)
-	return client.sendArbitrary(req)
+
+	client.backend.waitIfRateLimited()
+
+	response, err := client.sendArbitrary(req)
+
+	if response != nil {
+		client.backend.processRateLimitHeaders(response)
+	}
+
+	return response, err
 }
 
 func (client *clientImpl) sendArbitrary(
