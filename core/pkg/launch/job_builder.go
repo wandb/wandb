@@ -545,10 +545,10 @@ func (j *JobBuilder) Build(
 
 	if j.wandbConfigParameters != nil {
 		if j.wandbConfigParameters.Ignore != nil {
-			input = filterDataStructure(input, j.wandbConfigParameters.Ignore, false)
+			input = FilterDataStructure(input, j.wandbConfigParameters.Ignore, false)
 		}
 		if j.wandbConfigParameters.Include != nil {
-			input = filterDataStructure(input, j.wandbConfigParameters.Include, true)
+			input = FilterDataStructure(input, j.wandbConfigParameters.Include, true)
 		}
 	}
 
@@ -722,7 +722,7 @@ func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *se
 	j.wandbConfigParameters = wandbConfigParameters
 }
 
-func filterDataStructure(ds map[string]interface{}, endpoints []string, filterIn bool) map[string]interface{} {
+func FilterDataStructure(ds map[string]interface{}, endpoints []string, filterIn bool) map[string]interface{} {
 	if filterIn {
 		// For filter in, start with an empty map and only add matching paths
 		newDs := make(map[string]interface{})
