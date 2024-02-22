@@ -1238,7 +1238,7 @@ class WandbImporter:
             run_id = row["run_id"]
 
             run = self.src_api.run(f"{src_entity}/{src_project}/{run_id}")
-            yield WandbRun(run)
+            yield WandbRun(run, **self.run_api_kwargs)
 
     def _filter_previously_checked_artifacts(self, seqs: Iterable[ArtifactSequence]):
         if (df := _read_ndjson(ARTIFACT_SUCCESSES_FNAME)) is None:
