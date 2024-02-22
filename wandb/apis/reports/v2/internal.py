@@ -848,7 +848,7 @@ BlockTypes = Union[
     UnknownBlock,
 ]
 
-block_type_mapping = {
+block_type_mapping: Dict[str, BlockTypes] = {
     "twitter": Twitter,
     "heading": Heading,
     "paragraph": Paragraph,
@@ -906,3 +906,7 @@ def is_valid_color(color_str: str) -> bool:
 
 def _get_weave_block_inputs(config: dict) -> dict:
     return config["panelConfig"]["exp"]["fromOp"]["inputs"]
+
+
+def _get_weave_panel_inputs(config: dict) -> dict:
+    return config["panel2Config"]["exp"]["fromOp"]["inputs"]

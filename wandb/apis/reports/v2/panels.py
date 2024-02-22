@@ -11,5 +11,8 @@ from .interface import (
     RunComparer,
     ScalarChart,
     ScatterPlot,
+    WeavePanelSummaryTable,
+    WeavePanelArtifactVersionedFile,
+    WeavePanelArtifact,
     WeavePanel,
 )
