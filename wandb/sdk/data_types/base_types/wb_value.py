@@ -11,7 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_client_ids() -> bool:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do

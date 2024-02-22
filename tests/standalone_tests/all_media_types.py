@@ -11,10 +11,11 @@ import plotly.graph_objs as go
 import tensorflow
 import torch
 import wandb
-from pkg_resources import parse_version
 
 
 def dummy_torch_tensor(size, requires_grad=True):
+    from wandb.util import parse_version
+
     if parse_version(torch.__version__) >= parse_version("0.4"):
         return torch.ones(size, requires_grad=requires_grad)
     else:
