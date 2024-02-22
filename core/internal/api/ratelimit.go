@@ -36,7 +36,15 @@ func (backend *Backend) processRateLimitHeaders(response *http.Response) {
 		return
 	}
 
-	backend.markRateLimitedFor(time.Duration(resetSeconds) * time.Second)
+	// If the server sends rate-limits using the wrong units, don't hang
+	// the whole program.
+	const maxDuration = time.Duration(30) * time.Second
+	resetDuration := time.Duration(resetSeconds) * time.Second
+	if resetDuration > maxDuration {
+		resetDuration = maxDuration
+	}
+
+	backend.markRateLimitedFor(resetDuration)
 }
 
 // Marks us as rate-limited for the given duration.
