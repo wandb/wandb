@@ -653,9 +653,14 @@ jobs:
             pyenv install << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pyenv local << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pip install -U tox nox pip
+          no_output_timeout: 5m
+      - run:
+          name: Wait for test-container startup
+          command: |
             while ! curl http://localhost:8080/healthz; do sleep 1; done
             while ! curl http://localhost:<< parameters.local_base_port2 >>/healthz; do sleep 1; done
           no_output_timeout: 5m
+
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -733,6 +738,10 @@ jobs:
           name: Install Python dependencies
           command: |
             pip install -U tox nox pip
+          no_output_timeout: 5m
+      - run:
+          name: Wait for test-container startup
+          command: |
             while ! curl http://localhost:8080/healthz; do sleep 1; done
           no_output_timeout: 5m
       - install_go
