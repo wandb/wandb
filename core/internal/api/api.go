@@ -35,7 +35,7 @@ type Backend struct {
 // Multiple Clients can be created for one Backend when different retry
 // policies are needed.
 //
-// TODO: The client is responsible for setting auth headers, retrying
+// The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
