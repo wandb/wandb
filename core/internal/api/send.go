@@ -19,10 +19,10 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	}
 
 	for headerKey, headerValue := range req.Headers {
-		retryableReq.Header.Add(headerKey, headerValue)
+		retryableReq.Header.Set(headerKey, headerValue)
 	}
-	client.addClientHeaders(retryableReq)
-	client.addAuthHeaders(retryableReq)
+	client.setClientHeaders(retryableReq)
+	client.setAuthHeaders(retryableReq)
 
 	resp, err := client.retryableHTTP.Do(retryableReq)
 	if err != nil {
@@ -32,15 +32,15 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (client *clientImpl) addClientHeaders(req *retryablehttp.Request) {
+func (client *clientImpl) setClientHeaders(req *retryablehttp.Request) {
 	for headerKey, headerValue := range client.extraHeaders {
-		req.Header.Add(headerKey, headerValue)
+		req.Header.Set(headerKey, headerValue)
 	}
 }
 
-func (client *clientImpl) addAuthHeaders(req *retryablehttp.Request) {
-	req.Header.Add("User-Agent", "wandb-core")
-	req.Header.Add(
+func (client *clientImpl) setAuthHeaders(req *retryablehttp.Request) {
+	req.Header.Set("User-Agent", "wandb-core")
+	req.Header.Set(
 		"Authorization",
 		"Basic "+base64.StdEncoding.EncodeToString(
 			[]byte("api:"+client.backend.apiKey)),
