@@ -71,15 +71,13 @@ class ArtifactSequence:
     def from_collection(cls, collection: ArtifactCollection):
         arts = collection.artifacts()
         arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        if arts:
-            art = arts[0]
-            entity = art.entity
-            project = art.project
-            name, _ = _get_art_name_ver(art)
-            _type = art.type
-        else:
-            arts = []
-        return ArtifactSequence(arts, entity, project, _type, name)
+        return ArtifactSequence(
+            arts,
+            collection.entity,
+            collection.project,
+            collection.type,
+            collection.name,
+        )
 
 
 class WandbRun:
