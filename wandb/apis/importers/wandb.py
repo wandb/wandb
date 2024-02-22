@@ -29,7 +29,6 @@ from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .internals import internal
-from .internals.internal import _thread_local_settings
 from .internals.util import Namespace, for_each
 
 Artifact = wandb.Artifact
@@ -395,12 +394,6 @@ class WandbImporter:
             overrides={"base_url": dst_base_url},
             **custom_api_kwargs,
         )
-
-        # There is probably a better way of doing this
-        _thread_local_settings.src_api_key = src_api_key
-        _thread_local_settings.src_base_url = src_base_url
-        _thread_local_settings.dst_api_key = dst_api_key
-        _thread_local_settings.dst_base_url = dst_base_url
 
     def __repr__(self):
         return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
