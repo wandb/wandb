@@ -1096,7 +1096,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.jobBuilder.HandleLogArtifactResult(&response, record)
+	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
 	s.outChan <- result
 }
 

@@ -1,6 +1,7 @@
 """Storage policy."""
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
@@ -25,7 +26,9 @@ class StoragePolicy:
         raise NotImplementedError
 
     @classmethod
-    def from_config(cls, config: Dict) -> "StoragePolicy":
+    def from_config(
+        cls, config: Dict, api: Optional[InternalApi] = None
+    ) -> "StoragePolicy":
         raise NotImplementedError
 
     def config(self) -> Dict:
