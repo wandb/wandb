@@ -102,13 +102,6 @@ class WandbRun:
             overrides={"base_url": dst_base_url},
         )
 
-        self.run_api_kwargs = {
-            "src_base_url": src_base_url,
-            "src_api_key": src_api_key,
-            "dst_base_url": dst_base_url,
-            "dst_api_key": dst_api_key,
-        }
-
         # For caching
         self._files: Optional[Iterable[Tuple[str, str]]] = None
         self._artifacts: Optional[Iterable[Artifact]] = None
@@ -394,6 +387,13 @@ class WandbImporter:
             overrides={"base_url": dst_base_url},
             **custom_api_kwargs,
         )
+
+        self.run_api_kwargs = {
+            "src_base_url": src_base_url,
+            "src_api_key": src_api_key,
+            "dst_base_url": dst_base_url,
+            "dst_api_key": dst_api_key,
+        }
 
     def __repr__(self):
         return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
