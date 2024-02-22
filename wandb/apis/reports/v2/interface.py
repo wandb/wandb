@@ -234,16 +234,15 @@ class P(Block):
 
 
 @dataclass(config=dataclass_config)
-class ListItem(Base):
+class _ListItem(Base):
+    """Helper class to parse items for _List."""
+
     @classmethod
     def from_model(cls, model: internal.ListItem):
         text = _internal_children_to_text(model.children)
         if model.checked is not None:
             return CheckedListItem(text=text, checked=model.checked)
         return text
-        # if model.ordered is not None:
-        #     return OrderedListItem(text=text)
-        # return UnorderedListItem(text=text)
 
 
 @dataclass(config=dataclass_config)
@@ -286,14 +285,16 @@ class UnorderedListItem(Base):
 
 
 @dataclass(config=dataclass_config)
-class List(Block):
+class _List(Block):
+    """Helper class to parse lists because the backend treats all lists as type 'list'."""
+
     @classmethod
     def from_model(cls, model: internal.List):
         if not model.children:
             return UnorderedList()
 
         item = model.children[0]
-        items = [ListItem.from_model(x) for x in model.children]
+        items = [_ListItem.from_model(x) for x in model.children]
         if item.checked is not None:
             return CheckedList(items=items)
 
@@ -305,7 +306,7 @@ class List(Block):
 
 
 @dataclass(config=dataclass_config)
-class CheckedList(List):
+class CheckedList(_List):
     items: LList[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
     def to_model(self):
@@ -314,7 +315,7 @@ class CheckedList(List):
 
 
 @dataclass(config=dataclass_config)
-class OrderedList(List):
+class OrderedList(_List):
     items: LList[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
@@ -323,7 +324,7 @@ class OrderedList(List):
 
 
 @dataclass(config=dataclass_config)
-class UnorderedList(List):
+class UnorderedList(_List):
     items: LList[str] = Field(default_factory=lambda: [""])
 
     def to_model(self):
@@ -606,9 +607,9 @@ class Runset(Base):
 
 @dataclass(config=dataclass_config)
 class Panel(Base):
-    id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
 
+    _id: str = Field(default_factory=internal._generate_name, init=False, repr=False)
     _ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
@@ -743,7 +744,7 @@ block_mapping = {
     internal.HorizontalRule: HorizontalRule,
     internal.Image: Image,
     internal.LatexBlock: LatexBlock,
-    internal.List: List,
+    internal.List: _List,
     internal.MarkdownBlock: MarkdownBlock,
     internal.PanelGrid: PanelGrid,
     internal.TableOfContents: TableOfContents,
@@ -832,7 +833,7 @@ class LinePlot(Panel):
                 aggregate=self.aggregate,
                 x_expression=self.xaxis_expression,
             ),
-            id=self.id,
+            id=self._id,
             layout=self.layout.to_model(),
         )
         obj.ref = self._ref
@@ -921,7 +922,7 @@ class ScatterPlot(Panel):
                 show_linear_regression=self.regression,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -998,7 +999,7 @@ class BarPlot(Panel):
                 override_colors=self.line_colors,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1051,7 +1052,7 @@ class ScalarChart(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1081,7 +1082,7 @@ class CodeComparer(Panel):
         obj = internal.CodeComparer(
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1150,7 +1151,7 @@ class ParallelCoordinatesPlot(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1186,7 +1187,7 @@ class ParameterImportancePlot(Panel):
                 target_key=self.with_respect_to
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1210,7 +1211,7 @@ class RunComparer(Panel):
         obj = internal.RunComparer(
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1238,7 +1239,7 @@ class MediaBrowser(Panel):
                 media_keys=self.media_keys,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1263,7 +1264,7 @@ class MarkdownPanel(Panel):
         obj = internal.MarkdownPanel(
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
         )
         obj.ref = self._ref
         return obj
@@ -1772,7 +1773,7 @@ def _collides(p1: Panel, p2: Panel) -> bool:
     l1, l2 = p1.layout, p2.layout
 
     if (
-        (p1.id == p2.id)
+        (p1._id == p2._id)
         or (l1.x + l1.w <= l2.x)
         or (l1.x >= l2.w + l2.x)
         or (l1.y + l1.h <= l2.y)
