@@ -17,7 +17,7 @@ def main():
 
             local_path = f"{tmpdir}/boom.txt"
             artifact.add_file(local_path, "test-name")
-            run.link_artifact(artifact, "entity/project/test_portfolio")
+            run.link_artifact(artifact, "project/test_portfolio")
 
 
 if __name__ == "__main__":
