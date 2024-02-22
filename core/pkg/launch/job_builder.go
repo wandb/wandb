@@ -543,6 +543,15 @@ func (j *JobBuilder) Build(
 
 	sourceInfo.Runtime = metadata.Python
 
+	if j.wandbConfigParameters != nil {
+		if j.wandbConfigParameters.Ignore != nil {
+			input = filterDataStructure(input, j.wandbConfigParameters.Ignore, false)
+		}
+		if j.wandbConfigParameters.Include != nil {
+			input = filterDataStructure(input, j.wandbConfigParameters.Include, true)
+		}
+	}
+
 	if input != nil {
 		sourceInfo.InputTypes = data_types.ResolveTypes(input)
 	}
@@ -711,4 +720,68 @@ func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *se
 		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
 	}
 	j.wandbConfigParameters = wandbConfigParameters
+}
+
+func filterDataStructure(ds map[string]interface{}, endpoints []string, filterIn bool) map[string]interface{} {
+	if filterIn {
+		// For filter in, start with an empty map and only add matching paths
+		newDs := make(map[string]interface{})
+		for _, endpoint := range endpoints {
+			parts := strings.Split(endpoint, ".")
+			addFilteredPath(newDs, ds, parts, 0, true)
+		}
+		return newDs
+	} else {
+		// For filter out, clone the ds and remove matching paths
+		clonedDs := cloneMap(ds)
+		for _, endpoint := range endpoints {
+			parts := strings.Split(endpoint, ".")
+			removeFilteredPath(clonedDs, parts, 0)
+		}
+		return clonedDs
+	}
+}
+
+// Recursively clone map to avoid modifying the original
+func cloneMap(original map[string]interface{}) map[string]interface{} {
+	cloned := make(map[string]interface{})
+	for key, value := range original {
+		if subMap, ok := value.(map[string]interface{}); ok {
+			cloned[key] = cloneMap(subMap)
+		} else {
+			cloned[key] = value
+		}
+	}
+	return cloned
+}
+
+// Recursively remove paths that match the endpoints
+func removeFilteredPath(ds map[string]interface{}, parts []string, index int) {
+	if index == len(parts)-1 {
+		delete(ds, parts[index])
+		return
+	}
+	if next, ok := ds[parts[index]].(map[string]interface{}); ok {
+		removeFilteredPath(next, parts, index+1)
+	}
+}
+
+// Recursively add paths that match the endpoints (for filter in functionality)
+func addFilteredPath(newDs, originalDs map[string]interface{}, parts []string, index int, add bool) {
+	if add {
+		if index < len(parts) {
+			part := parts[index]
+			if index == len(parts)-1 {
+				// At endpoint, add the value
+				newDs[part] = originalDs[part]
+			} else {
+				if _, ok := newDs[part]; !ok {
+					newDs[part] = make(map[string]interface{})
+				}
+				if next, ok := originalDs[part].(map[string]interface{}); ok {
+					addFilteredPath(newDs[part].(map[string]interface{}), next, parts, index+1, add)
+				}
+			}
+		}
+	}
 }
