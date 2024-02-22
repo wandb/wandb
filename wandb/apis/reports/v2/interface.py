@@ -606,9 +606,7 @@ class Runset(Base):
 
 @dataclass(config=dataclass_config)
 class Panel(Base):
-    id: str = Field(
-        default_factory=internal._generate_name, kw_only=True, init=False, repr=False
-    )
+    id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
 
     _ref: Optional[internal.Ref] = Field(
