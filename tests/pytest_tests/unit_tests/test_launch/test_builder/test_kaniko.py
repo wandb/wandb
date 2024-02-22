@@ -213,8 +213,6 @@ async def test_create_kaniko_job_static(
             MagicMock(),
             elastic_container_registry,
             build_context_store="s3://test-bucket/test-prefix",
-            secret_name="test-secret",
-            secret_key="test-key",
         )
         job_name = "test_job_name"
         repo_url = "repository-url"
@@ -245,39 +243,9 @@ async def test_create_kaniko_job_static(
             "--compressed-caching=false",
         ]
 
-        assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
-            {
-                "name": "docker-config",
-                "mount_path": "/kaniko/.docker/",
-            },
-            {
-                "name": "test-secret",
-                "mount_path": "/root/.aws",
-                "read_only": True,
-            },
-        ]
+        assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == []
 
-        assert job["spec"]["template"]["spec"]["volumes"][0] == {
-            "name": "docker-config",
-            "config_map": {"name": "docker-config-test_job_name"},
-        }
-        assert job["spec"]["template"]["spec"]["volumes"][1]["name"] == "test-secret"
-        assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["secret_name"]
-            == "test-secret"
-        )
-        assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].key
-            == "test-key"
-        )
-        assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].path
-            == "credentials"
-        )
-        assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].mode
-            is None
-        )
+        assert job["spec"]["template"]["spec"]["volumes"] == []
 
 
 @pytest.mark.asyncio

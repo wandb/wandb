@@ -20,7 +20,6 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
-from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -83,8 +82,6 @@ class KanikoBuilder(AbstractBuilder):
 
     build_job_name: str
     build_context_store: str
-    secret_name: Optional[str]
-    secret_key: Optional[str]
     image: str
 
     def __init__(
@@ -93,8 +90,6 @@ class KanikoBuilder(AbstractBuilder):
         registry: AbstractRegistry,
         build_job_name: str = "wandb-launch-container-build",
         build_context_store: str = "",
-        secret_name: str = "",
-        secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
     ):
         """Initialize a KanikoBuilder.
@@ -104,8 +99,6 @@ class KanikoBuilder(AbstractBuilder):
             registry (AbstractRegistry): The registry to use.
             build_job_name (str, optional): The name of the build job.
             build_context_store (str, optional): The name of the build context store.
-            secret_name (str, optional): The name of the secret to use for the registry.
-            secret_key (str, optional): The key of the secret to use for the registry.
             verify (bool, optional): Whether to verify the functionality of the builder.
                 Defaults to True.
         """
@@ -119,8 +112,6 @@ class KanikoBuilder(AbstractBuilder):
         self.registry = registry
         self.build_job_name = build_job_name
         self.build_context_store = build_context_store.rstrip("/")
-        self.secret_name = secret_name
-        self.secret_key = secret_key
         self.image = image
 
     @classmethod
@@ -156,8 +147,6 @@ class KanikoBuilder(AbstractBuilder):
                 "storage url in the 'build_context_store' field of your builder config."
             )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
-        secret_name = config.get("secret-name", "")
-        secret_key = config.get("secret-key", "")
         kaniko_image = config.get(
             "kaniko-image", "gcr.io/kaniko-project/executor:v1.11.0"
         )
@@ -169,8 +158,6 @@ class KanikoBuilder(AbstractBuilder):
             registry,
             build_context_store=build_context_store,
             build_job_name=build_job_name,
-            secret_name=secret_name,
-            secret_key=secret_key,
             image=kaniko_image,
         )
 
@@ -214,14 +201,6 @@ class KanikoBuilder(AbstractBuilder):
             immutable=True,
         )
         await corev1_client.create_namespaced_config_map(NAMESPACE, ecr_config_map)
-
-    async def _delete_docker_ecr_config_map(
-        self, job_name: str, client: client.CoreV1Api
-    ) -> None:
-        if self.secret_name:
-            await client.delete_namespaced_config_map(
-                f"docker-config-{job_name}", NAMESPACE
-            )
 
     async def _upload_build_context(self, run_id: str, context_path: str) -> str:
         # creat a tar archive of the build context and upload it to s3
@@ -302,10 +281,6 @@ class KanikoBuilder(AbstractBuilder):
                 await core_v1.create_namespaced_config_map(
                     "wandb", dockerfile_config_map
                 )
-            if self.secret_name:
-                await self._create_docker_ecr_config_map(
-                    build_job_name, core_v1, repo_uri
-                )
             await batch_v1.create_namespaced_job(NAMESPACE, build_job)
 
             # wait for double the job deadline since it might take time to schedule
@@ -344,8 +319,6 @@ class KanikoBuilder(AbstractBuilder):
                     await core_v1.delete_namespaced_config_map(
                         f"docker-config-{build_job_name}", "wandb"
                     )
-                if self.secret_name:
-                    await self._delete_docker_ecr_config_map(build_job_name, core_v1)
                 await batch_v1.delete_namespaced_job(build_job_name, NAMESPACE)
             except Exception as e:
                 traceback.print_exc()
@@ -365,11 +338,6 @@ class KanikoBuilder(AbstractBuilder):
         env = []
         volume_mounts = []
         volumes = []
-        if bool(self.secret_name) != bool(self.secret_key):
-            raise LaunchError(
-                "Both secret_name and secret_key or neither must be specified "
-                "for kaniko build. You provided only one of them."
-            )
         if isinstance(self.registry, ElasticContainerRegistry):
             env += [
                 client.V1EnvVar(
@@ -404,60 +372,6 @@ class KanikoBuilder(AbstractBuilder):
                 )
             ]
 
-        if self.secret_name and self.secret_key:
-            volumes += [
-                client.V1Volume(
-                    name="docker-config",
-                    config_map=client.V1ConfigMapVolumeSource(
-                        name=f"docker-config-{job_name}",
-                    ),
-                ),
-            ]
-            volume_mounts += [
-                client.V1VolumeMount(
-                    name="docker-config", mount_path="/kaniko/.docker/"
-                ),
-            ]
-            # TODO: I don't like conditioning on the registry type here. As a
-            # future change I want the registry and environment classes to provide
-            # a list of environment variables and volume mounts that need to be
-            # added to the job. The environment class provides credentials for
-            # build context access, and the registry class provides credentials
-            # for pushing the image. This way we can have separate secrets for
-            # each and support build contexts and registries that require
-            # different credentials.
-            if isinstance(self.registry, ElasticContainerRegistry):
-                mount_path = "/root/.aws"
-                key = "credentials"
-            elif isinstance(self.registry, GoogleArtifactRegistry):
-                mount_path = "/kaniko/.config/gcloud"
-                key = "config.json"
-                env += [
-                    client.V1EnvVar(
-                        name="GOOGLE_APPLICATION_CREDENTIALS",
-                        value="/kaniko/.config/gcloud/config.json",
-                    )
-                ]
-            else:
-                raise LaunchError(
-                    f"Registry type {type(self.registry)} not supported by kaniko"
-                )
-            volume_mounts += [
-                client.V1VolumeMount(
-                    name=self.secret_name,
-                    mount_path=mount_path,
-                    read_only=True,
-                )
-            ]
-            volumes += [
-                client.V1Volume(
-                    name=self.secret_name,
-                    secret=client.V1SecretVolumeSource(
-                        secret_name=self.secret_name,
-                        items=[client.V1KeyToPath(key=self.secret_key, path=key)],
-                    ),
-                )
-            ]
         if isinstance(self.registry, AzureContainerRegistry):
             # ADd the docker config map
             volume_mounts += [
