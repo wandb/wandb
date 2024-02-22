@@ -25,9 +25,6 @@ type Backend struct {
 
 	// API key for backend requests.
 	apiKey string
-
-	// The capability to respect rate-limit headers.
-	ratelimit rateLimiter
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -103,10 +100,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL:   opts.BaseURL,
-		logger:    opts.Logger,
-		apiKey:    opts.APIKey,
-		ratelimit: newRateLimiter(),
+		baseURL: opts.BaseURL,
+		logger:  opts.Logger,
+		apiKey:  opts.APIKey,
 	}
 }
 
@@ -162,6 +158,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 			slog.LevelDebug,
 		)
 	}
+
+	retryableHTTP.HTTPClient.Transport = backend.rateLimitedTransport(
+		retryableHTTP.HTTPClient.Transport,
+	)
 
 	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }

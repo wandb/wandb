@@ -54,15 +54,7 @@ func (client *clientImpl) sendToWandbBackend(
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
 	client.setAuthHeaders(req)
-
-	client.backend.waitIfRateLimited()
-
 	response, err := client.send(req)
-
-	if response != nil {
-		client.backend.processRateLimitHeaders(response)
-	}
-
 	return response, err
 }
 

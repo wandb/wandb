@@ -18,27 +18,31 @@ type rateLimiter struct {
 
 	// Condvar for waiting for isRateLimited to become false.
 	isRateLimitedCond *sync.Cond
+
+	// Logger for rate-limiting information.
+	logger *slog.Logger
 }
 
-func newRateLimiter() rateLimiter {
+func newRateLimiter(logger *slog.Logger) rateLimiter {
 	return rateLimiter{
 		isRateLimited:     false,
 		isRateLimitedCond: sync.NewCond(&sync.Mutex{}),
+		logger:            logger,
 	}
 }
 
 // Blocks until we don't need to rate-limit requests.
-func (backend *Backend) waitIfRateLimited() {
-	backend.ratelimit.isRateLimitedCond.L.Lock()
-	defer backend.ratelimit.isRateLimitedCond.L.Unlock()
+func (ratelimit *rateLimiter) waitIfRateLimited() {
+	ratelimit.isRateLimitedCond.L.Lock()
+	defer ratelimit.isRateLimitedCond.L.Unlock()
 
-	for backend.ratelimit.isRateLimited {
-		backend.ratelimit.isRateLimitedCond.Wait()
+	for ratelimit.isRateLimited {
+		ratelimit.isRateLimitedCond.Wait()
 	}
 }
 
 // Processes rate-limiting headers from the server response.
-func (backend *Backend) processRateLimitHeaders(response *http.Response) {
+func (ratelimit *rateLimiter) processRateLimitHeaders(response *http.Response) {
 	remainingStr := response.Header.Get("RateLimit-Remaining")
 	resetStr := response.Header.Get("RateLimit-Reset")
 
@@ -65,20 +69,14 @@ func (backend *Backend) processRateLimitHeaders(response *http.Response) {
 		resetDuration = maxDuration
 	}
 
-	backend.ratelimit.markRateLimitedFor(
-		resetDuration,
-		backend.logger,
-	)
+	ratelimit.markRateLimitedFor(resetDuration)
 }
 
 // Marks us as rate-limited for the given duration.
 //
 // At the end of the duration, wakes all goroutines blocked on
 // [waitIfRateLimited].
-func (ratelimit *rateLimiter) markRateLimitedFor(
-	duration time.Duration,
-	logger *slog.Logger,
-) {
+func (ratelimit *rateLimiter) markRateLimitedFor(duration time.Duration) {
 	ratelimit.isRateLimitedCond.L.Lock()
 	defer ratelimit.isRateLimitedCond.L.Unlock()
 
@@ -86,7 +84,7 @@ func (ratelimit *rateLimiter) markRateLimitedFor(
 		return
 	}
 
-	logger.Debug(fmt.Sprintf("api: rate limiting for %v", duration))
+	ratelimit.logger.Debug(fmt.Sprintf("api: rate limiting for %v", duration))
 	ratelimit.isRateLimited = true
 
 	go func() {
