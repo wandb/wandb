@@ -160,6 +160,16 @@ class BuilderConfig(BaseModel):
         description="Name prefix of the build job.",
         alias="build-job-name",
     )
+    secret_name: Optional[str] = Field(
+        None,
+        description="The name of the secret to use for the build job.",
+        alias="secret-name",
+    )
+    secret_key: Optional[str] = Field(
+        None,
+        description="The key of the secret to use for the build job.",
+        alias="secret-key",
+    )
     kaniko_image: Optional[str] = Field(
         "gcr.io/kaniko-project/executor:latest",
         description="The image to use for the kaniko executor.",
