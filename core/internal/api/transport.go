@@ -11,7 +11,7 @@ type backendTransport struct {
 	ratelimit rateLimiter
 }
 
-// Adds rate-limiting to an HTTP transport for the W&B backend.
+// Rate-limits an HTTP transport for the W&B backend.
 func (backend *Backend) rateLimitedTransport(
 	delegate http.RoundTripper,
 ) *backendTransport {
