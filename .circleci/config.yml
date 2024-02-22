@@ -986,7 +986,6 @@ jobs:
       - checkout
       - go/install
       - gcloud/install
-      - gcloud/install
       - setup_gcloud
       - create_gke_cluster:
           cluster: << parameters.cluster >>
@@ -1722,6 +1721,7 @@ workflows:
               shard:
                 - "default"
                 - "artifacts"
+                - "launch"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
@@ -1779,6 +1779,15 @@ workflows:
                 - "ray2"
                 - "sklearn"
                 - "metaflow"
+                - "fastai"
+                - "catboost"
+                - "jax"
+                - "prefect"
+                - "prodigy"
+                - "torch"
+                - "sacred"
+                - "sb3"
+                - "tf"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"

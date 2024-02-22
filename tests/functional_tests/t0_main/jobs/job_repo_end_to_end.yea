@@ -4,6 +4,7 @@ plugin:
 tag:
   platforms:
     - linux
+  shard: launch
 depend:
   requirements:
     - pytest
