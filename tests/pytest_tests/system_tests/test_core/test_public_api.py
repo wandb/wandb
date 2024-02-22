@@ -652,6 +652,37 @@ def test_create_team(relay_server, inject_graphql_response):
         assert t.name == "test"
         assert repr(t) == "<Team test>"
 
+def test_delete_team(relay_server, inject_graphql_response):
+    inject_create_response = inject_graphql_response(
+        body=json.dumps(
+            {
+                "data": {
+                    "createTeam": {
+                        "team": {
+                            "name": "test",
+                        },
+                    },
+                },
+            },
+        ),
+        query_match_fn=lambda query, _: "mutation CreateTeam(" in query,
+        application_pattern="1",
+    )
+    inject_delete_response = inject_graphql_response(
+        body=json.dumps({"data": {"deleteTeam": {"success": True}}}),
+        query_match_fn=lambda query, _: "mutation deleteTeam(" in query,
+        application_pattern="1",
+    )
+    with relay_server(inject=[inject_create_response, inject_delete_response]):
+        created_team = Api().create_team("test")
+        assert created_team.name == "test"
+        assert repr(created_team) == "<Team test>"
+
+        deletion_result_no_confirm = Api().delete_team("test", confirm=False)
+        assert deletion_result_no_confirm is None
+        deletion_result_confirm = Api().delete_team("test", confirm=True)
+        assert deletion_result_confirm == True
+
 
 def test_delete_api_key(relay_server, inject_users, inject_graphql_response):
     email = "test@test.com"
