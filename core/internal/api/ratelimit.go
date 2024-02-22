@@ -3,16 +3,35 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
+// Book-keeping for rate-limiting. Accessed only in this file.
+type rateLimiter struct {
+	// Whether the backend is currently rate-limiting us.
+	//
+	// Only read/write this while isRateLimitedCond is locked.
+	isRateLimited bool
+
+	// Condvar for waiting for isRateLimited to become false.
+	isRateLimitedCond *sync.Cond
+}
+
+func newRateLimiter() rateLimiter {
+	return rateLimiter{
+		isRateLimited:     false,
+		isRateLimitedCond: sync.NewCond(&sync.Mutex{}),
+	}
+}
+
 // Blocks until we don't need to rate-limit requests.
 func (backend *Backend) waitIfRateLimited() {
-	backend.isRateLimitedCond.L.Lock()
-	defer backend.isRateLimitedCond.L.Unlock()
+	backend.ratelimit.isRateLimitedCond.L.Lock()
+	defer backend.ratelimit.isRateLimitedCond.L.Unlock()
 
-	for backend.isRateLimited {
-		backend.isRateLimitedCond.Wait()
+	for backend.ratelimit.isRateLimited {
+		backend.ratelimit.isRateLimitedCond.Wait()
 	}
 }
 
@@ -44,28 +63,28 @@ func (backend *Backend) processRateLimitHeaders(response *http.Response) {
 		resetDuration = maxDuration
 	}
 
-	backend.markRateLimitedFor(resetDuration)
+	backend.ratelimit.markRateLimitedFor(resetDuration)
 }
 
 // Marks us as rate-limited for the given duration.
 //
 // At the end of the duration, wakes all goroutines blocked on
 // [waitIfRateLimited].
-func (backend *Backend) markRateLimitedFor(duration time.Duration) {
-	backend.isRateLimitedCond.L.Lock()
-	defer backend.isRateLimitedCond.L.Unlock()
+func (ratelimit *rateLimiter) markRateLimitedFor(duration time.Duration) {
+	ratelimit.isRateLimitedCond.L.Lock()
+	defer ratelimit.isRateLimitedCond.L.Unlock()
 
-	if !backend.isRateLimited {
-		backend.isRateLimited = true
+	if !ratelimit.isRateLimited {
+		ratelimit.isRateLimited = true
 
 		go func() {
 			time.Sleep(duration)
 
-			backend.isRateLimitedCond.L.Lock()
-			backend.isRateLimited = false
-			backend.isRateLimitedCond.L.Unlock()
+			ratelimit.isRateLimitedCond.L.Lock()
+			ratelimit.isRateLimited = false
+			ratelimit.isRateLimitedCond.L.Unlock()
 
-			backend.isRateLimitedCond.Broadcast()
+			ratelimit.isRateLimitedCond.Broadcast()
 		}()
 	}
 

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -27,13 +26,8 @@ type Backend struct {
 	// API key for backend requests.
 	apiKey string
 
-	// Whether the backend is currently rate-limiting us.
-	//
-	// Only read/write this while isRateLimitedCond is locked.
-	isRateLimited bool
-
-	// Condvar for waiting for isRateLimited to become false.
-	isRateLimitedCond *sync.Cond
+	// The capability to respect rate-limit headers.
+	ratelimit rateLimiter
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -109,12 +103,10 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL: opts.BaseURL,
-		logger:  opts.Logger,
-		apiKey:  opts.APIKey,
-
-		isRateLimited:     false,
-		isRateLimitedCond: sync.NewCond(&sync.Mutex{}),
+		baseURL:   opts.BaseURL,
+		logger:    opts.Logger,
+		apiKey:    opts.APIKey,
+		ratelimit: newRateLimiter(),
 	}
 }
 
