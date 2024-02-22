@@ -564,6 +564,11 @@ class Runset(Base):
 
     _id: str = Field(default_factory=internal._generate_name, init=False, repr=False)
 
+    def set_filters_with_python_expr(self, expr: str):
+        raise DeprecationWarning(
+            "This method was removed in v2.  Use `filters` in the constructor instead."
+        )
+
     def to_model(self):
         project = None
         if self.entity or self.project:
