@@ -74,18 +74,19 @@ func (ratelimit *rateLimiter) markRateLimitedFor(duration time.Duration) {
 	ratelimit.isRateLimitedCond.L.Lock()
 	defer ratelimit.isRateLimitedCond.L.Unlock()
 
-	if !ratelimit.isRateLimited {
-		ratelimit.isRateLimited = true
-
-		go func() {
-			time.Sleep(duration)
-
-			ratelimit.isRateLimitedCond.L.Lock()
-			ratelimit.isRateLimited = false
-			ratelimit.isRateLimitedCond.L.Unlock()
-
-			ratelimit.isRateLimitedCond.Broadcast()
-		}()
+	if ratelimit.isRateLimited {
+		return
 	}
 
+	ratelimit.isRateLimited = true
+
+	go func() {
+		time.Sleep(duration)
+
+		ratelimit.isRateLimitedCond.L.Lock()
+		ratelimit.isRateLimited = false
+		ratelimit.isRateLimitedCond.L.Unlock()
+
+		ratelimit.isRateLimitedCond.Broadcast()
+	}()
 }
