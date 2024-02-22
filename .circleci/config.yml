@@ -659,7 +659,7 @@ jobs:
           command: |
             while ! curl http://localhost:8080/healthz; do sleep 1; done
             while ! curl http://localhost:<< parameters.local_base_port2 >>/healthz; do sleep 1; done
-          no_output_timeout: 5m
+          no_output_timeout: 1m
 
       - run:
           name: Run tests
@@ -743,7 +743,7 @@ jobs:
           name: Wait for test-container startup
           command: |
             while ! curl http://localhost:8080/healthz; do sleep 1; done
-          no_output_timeout: 5m
+          no_output_timeout: 1m
       - install_go
       - run:
           name: Run tests
