@@ -198,17 +198,6 @@ class BuilderConfig(BaseModel):
 
     @root_validator(pre=True)  # type: ignore
     @classmethod
-    def validate_kaniko(cls, values: dict) -> dict:
-        """Validate that kaniko is configured correctly."""
-        if values.get("type") == BuilderType.kaniko:
-            if values.get("build-context-store") is None:
-                raise ValueError(
-                    "builder.build-context-store is required if builder.type is set to kaniko."
-                )
-        return values
-
-    @root_validator(pre=True)  # type: ignore
-    @classmethod
     def validate_docker(cls, values: dict) -> dict:
         """Right now there are no required fields for docker builds."""
         return values

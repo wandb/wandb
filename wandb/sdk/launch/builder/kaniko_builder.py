@@ -63,7 +63,7 @@ if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
         NAMESPACE = f.read().strip()
 else:
-    NAMESPACE = "wandb"
+    NAMESPACE = "default"
 
 
 async def _wait_for_completion(
@@ -150,7 +150,7 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError(
                 "Builder config must include 'type':'kaniko' to create a KanikoBuilder."
             )
-        build_context_store = config.get("build-context-store")
+        build_context_store = config.get("build-context-store", "")
         if build_context_store is None:
             if not PVC_MOUNT_PATH:
                 raise LaunchError(
@@ -186,7 +186,8 @@ class KanikoBuilder(AbstractBuilder):
         """
         if self.environment is None:
             raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.verify_storage_uri(self.build_context_store)
+        if self.build_context_store:
+            await self.environment.verify_storage_uri(self.build_context_store)
 
     def login(self) -> None:
         """Login to the registry."""
@@ -247,7 +248,7 @@ class KanikoBuilder(AbstractBuilder):
                 raise LaunchError(
                     f"Error copying build context to PVC mounted at {PVC_MOUNT_PATH}: {e}"
                 ) from e
-            return f"/context/{run_id}.tgz"
+            return f"tar:///context/{run_id}.tgz"
 
     async def build_image(
         self,
@@ -382,10 +383,15 @@ class KanikoBuilder(AbstractBuilder):
 
         if PVC_MOUNT_PATH:
             volumes.append(
-                client.V1Volume(name="kaniko-pvc", persistent_volume_claim=PVC_NAME)
+                client.V1Volume(
+                    name="kaniko-pvc",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=PVC_NAME
+                    ),
+                )
             )
             volume_mounts.append(
-                client.V1VolumeMount(name="kaniko-pvc-mount", mount_path="/context")
+                client.V1VolumeMount(name="kaniko-pvc", mount_path="/context")
             )
 
         if bool(self.secret_name) != bool(self.secret_key):
