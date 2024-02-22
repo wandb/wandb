@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import tarfile
 import tempfile
 import time
@@ -50,6 +51,13 @@ _logger = logging.getLogger(__name__)
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
+PVC_NAME = os.environ.get("WANDB_LAUNCH_KANIKO_PVC_NAME")
+PVC_MOUNT_PATH = (
+    os.environ.get("WANDB_LAUNCH_KANIKO_PVC_MOUNT_PATH", "/kaniko").rstrip("/")
+    if PVC_NAME
+    else None
+)
+
 
 if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
@@ -109,12 +117,6 @@ class KanikoBuilder(AbstractBuilder):
             verify (bool, optional): Whether to verify the functionality of the builder.
                 Defaults to True.
         """
-        if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  storage url "
-                "in the 'build-context-store' field of your builder config."
-            )
         self.environment = environment
         self.registry = registry
         self.build_job_name = build_job_name
@@ -150,11 +152,13 @@ class KanikoBuilder(AbstractBuilder):
             )
         build_context_store = config.get("build-context-store")
         if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  "
-                "storage url in the 'build_context_store' field of your builder config."
-            )
+            if not PVC_MOUNT_PATH:
+                raise LaunchError(
+                    "You must specify a build context store for kaniko builds. "
+                    "You can set builder.build-context-store in your agent config "
+                    "to a valid s3, gcs, or azure blog storage URI. Or, configure "
+                    "a persistent volume claim through the agent helm chart."
+                )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
@@ -229,11 +233,21 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-        destination = f"{self.build_context_store}/{run_id}.tgz"
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.upload_file(context_file.name, destination)
-        return destination
+        if PVC_MOUNT_PATH is None:
+            destination = f"{self.build_context_store}/{run_id}.tgz"
+            if self.environment is None:
+                raise LaunchError("No environment specified for Kaniko build.")
+            await self.environment.upload_file(context_file.name, destination)
+            return destination
+        else:
+            destination = f"{PVC_MOUNT_PATH}/{run_id}.tgz"
+            try:
+                shutil.copy(context_file.name, destination)
+            except Exception as e:
+                raise LaunchError(
+                    f"Error copying build context to PVC mounted at {PVC_MOUNT_PATH}: {e}"
+                ) from e
+            return f"/context/{run_id}.tgz"
 
     async def build_image(
         self,
@@ -365,6 +379,15 @@ class KanikoBuilder(AbstractBuilder):
         env = []
         volume_mounts = []
         volumes = []
+
+        if PVC_MOUNT_PATH:
+            volumes.append(
+                client.V1Volume(name="kaniko-pvc", persistent_volume_claim=PVC_NAME)
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(name="kaniko-pvc-mount", mount_path="/context")
+            )
+
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
