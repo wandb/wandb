@@ -20,7 +20,7 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	}
 
 	for headerKey, headerValue := range req.Headers {
-		retryableReq.Header.Add(headerKey, headerValue)
+		retryableReq.Header.Set(headerKey, headerValue)
 	}
 
 	return client.sendToWandbBackend(retryableReq)
@@ -44,8 +44,8 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
-	client.addClientHeaders(req)
-	client.addAuthHeaders(req)
+	client.setClientHeaders(req)
+	client.setAuthHeaders(req)
 	return client.sendArbitrary(req)
 }
 
@@ -60,15 +60,15 @@ func (client *clientImpl) sendArbitrary(
 	return resp, nil
 }
 
-func (client *clientImpl) addClientHeaders(req *retryablehttp.Request) {
+func (client *clientImpl) setClientHeaders(req *retryablehttp.Request) {
 	for headerKey, headerValue := range client.extraHeaders {
-		req.Header.Add(headerKey, headerValue)
+		req.Header.Set(headerKey, headerValue)
 	}
 }
 
-func (client *clientImpl) addAuthHeaders(req *retryablehttp.Request) {
-	req.Header.Add("User-Agent", "wandb-core")
-	req.Header.Add(
+func (client *clientImpl) setAuthHeaders(req *retryablehttp.Request) {
+	req.Header.Set("User-Agent", "wandb-core")
+	req.Header.Set(
 		"Authorization",
 		"Basic "+base64.StdEncoding.EncodeToString(
 			[]byte("api:"+client.backend.apiKey)),
