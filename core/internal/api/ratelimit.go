@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -63,14 +65,20 @@ func (backend *Backend) processRateLimitHeaders(response *http.Response) {
 		resetDuration = maxDuration
 	}
 
-	backend.ratelimit.markRateLimitedFor(resetDuration)
+	backend.ratelimit.markRateLimitedFor(
+		resetDuration,
+		backend.logger,
+	)
 }
 
 // Marks us as rate-limited for the given duration.
 //
 // At the end of the duration, wakes all goroutines blocked on
 // [waitIfRateLimited].
-func (ratelimit *rateLimiter) markRateLimitedFor(duration time.Duration) {
+func (ratelimit *rateLimiter) markRateLimitedFor(
+	duration time.Duration,
+	logger *slog.Logger,
+) {
 	ratelimit.isRateLimitedCond.L.Lock()
 	defer ratelimit.isRateLimitedCond.L.Unlock()
 
@@ -78,6 +86,7 @@ func (ratelimit *rateLimiter) markRateLimitedFor(duration time.Duration) {
 		return
 	}
 
+	logger.Debug(fmt.Sprintf("api: rate limiting for %v", duration))
 	ratelimit.isRateLimited = true
 
 	go func() {
