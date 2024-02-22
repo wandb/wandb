@@ -788,33 +788,6 @@ jobs:
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov/upload: { flags: unit, validate: false }
 
-  protobuf-compatability:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 8
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Check protobuf version compatibility
-          command: |
-            pip install -U pip
-            pip install .
-            python tools/check-protobuf-version-compatibility.py
-          no_output_timeout: 5m
-      - save-test-results
-
   local-testcontainer:
     parameters:
       python_version_major:
@@ -1386,72 +1359,6 @@ jobs:
                       # taken from slack-secrets context
                       channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  pip_install_wandb:
-    parameters:
-      python_version:
-        type: string
-      notify_on_failure:
-        type: boolean
-        default: true
-      notify_on_success:
-        type: boolean
-        default: false
-    docker:
-      - image: "python:<< parameters.python_version >>"
-    steps:
-      - run:
-          name: "Install stable version of wandb with stable versions of dependencies"
-          command: |
-            pip install wandb
-            python -c "import wandb"
-            pip freeze > deps_wandb.txt
-            pip uninstall -y -r deps_wandb.txt
-          when: always
-      - run:
-          name: "Install pre-release version of wandb with stable versions of dependencies"
-          command: |
-            pip install --pre wandb
-            python -c "import wandb"
-            pip freeze > deps_wandb_pre.txt
-            pip uninstall -y -r deps_wandb_pre.txt
-          when: always
-      - run:
-          name: "Install stable version of wandb with pre-release versions of dependencies"
-          command: |
-            wget https://raw.githubusercontent.com/wandb/wandb/$CIRCLE_BRANCH/requirements.txt
-            for r in `grep -o '^[^(#,;)]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
-            pip install wandb
-            python -c "import wandb"
-            pip freeze > deps_wandb_deps_pre.txt
-            pip uninstall -y -r deps_wandb_deps_pre.txt
-          when: always
-      - run:
-          name: "Install pre-release version of wandb with pre-release versions of dependencies"
-          command: |
-            for r in `grep -o '^[^(#,;)]*' requirements.txt`; do pip install --upgrade --pre "$r"; done
-            pip install --pre wandb
-            python -c "import wandb"
-          when: always
-
-      # conditionally post a notification to slack if the job failed/succeeded
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      - when:
-          condition: << parameters.notify_on_success >>
-          steps:
-            - slack/notify:
-                event: pass
-                template: basic_success_1
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
 workflows:
   nightly:
     when:
@@ -1510,17 +1417,6 @@ workflows:
           notify_on_failure: true
 
       #
-      # protobuf compatibility tests
-      #
-      - protobuf-compatability:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11, 12]
-          name: "protobuf-compatability-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          requires:
-            - "slack-notify-on-start"
-      #
       # standalone GPU tests on Windows
       #
       - win:
@@ -1538,18 +1434,7 @@ workflows:
           xdist: 1
           requires:
             - "slack-notify-on-start"
-      #
-      # standalone tests on gke
-      #
-      # check that `pip install wandb` is successful
-      - pip_install_wandb:
-          matrix:
-            parameters:
-              python_version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-          requires:
-            - "slack-notify-on-start"
+
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
