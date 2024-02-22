@@ -1,6 +1,8 @@
 id: 1.lightning_fabric.fabric_logging
 plugin:
     - wandb
+tag:
+  shard: lightning
 command:
     program: test_fabric_logging.py
 depend:

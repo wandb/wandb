@@ -1,6 +1,8 @@
 id: 1.lightning.strategy.ddp.spawn
 plugin:
   - wandb
+tag:
+  shard: lightning
 depend:
   requirements:
     - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch

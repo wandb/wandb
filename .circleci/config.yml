@@ -1788,6 +1788,7 @@ workflows:
                 - "sacred"
                 - "sb3"
                 - "tf"
+                - "lightning"
           name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
