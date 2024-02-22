@@ -175,7 +175,7 @@ func hookLogErrors(logger *slog.Logger) retryablehttp.ResponseLogHook {
 
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			logger.Info(
+			logger.Error(
 				"HTTP Error",
 				"status", response.StatusCode,
 				"body", string(body),
