@@ -32,15 +32,23 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("api: failed to parse request: %v", err)
 	}
 
-	if req.URL.Host == client.backend.baseURL.Host &&
-		strings.HasPrefix(req.URL.Path, client.backend.baseURL.Path) {
-
+	if client.isToWandb(req) {
 		return client.sendToWandbBackend(retryableReq)
 	}
 
-	return client.sendArbitrary(retryableReq)
+	return client.send(retryableReq)
 }
 
+// Returns whether the request would go to the W&B backend.
+func (client *clientImpl) isToWandb(req *http.Request) bool {
+	if req.URL.Host != client.backend.baseURL.Host {
+		return false
+	}
+
+	return strings.HasPrefix(req.URL.Path, client.backend.baseURL.Path)
+}
+
+// Sends a request intended for the W&B backend.
 func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
@@ -49,7 +57,7 @@ func (client *clientImpl) sendToWandbBackend(
 
 	client.backend.waitIfRateLimited()
 
-	response, err := client.sendArbitrary(req)
+	response, err := client.send(req)
 
 	if response != nil {
 		client.backend.processRateLimitHeaders(response)
@@ -58,10 +66,12 @@ func (client *clientImpl) sendToWandbBackend(
 	return response, err
 }
 
-func (client *clientImpl) sendArbitrary(
+// Sends any HTTP request.
+func (client *clientImpl) send(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
 	resp, err := client.retryableHTTP.Do(req)
+
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
