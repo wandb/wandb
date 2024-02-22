@@ -1601,12 +1601,6 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     return df
 
 
-def cleanup_cache():
-    ...
-    # cache = get_artifacts_cache()
-    # cache.cleanup(target_size=target_size)
-
-
 def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = None
     try:
@@ -1666,9 +1660,7 @@ def _clear_fname(fname: str) -> None:
 
 def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
-        cleanup_cache()
         with patch("click.echo"):
-            art.wait()
             return art.download(root=root, skip_cache=True)
     except Exception as e:
         logger.error(f"Error downloading artifact {art=}, {e=}")
