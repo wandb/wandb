@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import queue
-import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -48,32 +47,6 @@ class AlternateSendManager(sender.SendManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._send_artifact = exp_retry(self._send_artifact)
-
-
-@dataclass
-class ThreadLocalSettings(threading.local):
-    src_api_key: str = ""
-    src_base_url: str = ""
-    src_entity: str = ""
-    src_project: str = ""
-    src_run_id: str = ""
-
-    dst_api_key: str = ""
-    dst_base_url: str = ""
-
-
-_thread_local_settings = ThreadLocalSettings()
-
-
-# def set_thread_local_importer_settings(api_key, base_url):
-#     _thread_local_settings.src_api_key = api_key
-#     _thread_local_settings.src_base_url = base_url
-
-
-# def set_thread_local_run_settings(entity, project, run_id):
-#     _thread_local_settings.src_entity = entity
-#     _thread_local_settings.src_project = project
-#     _thread_local_settings.src_run_id = run_id
 
 
 @dataclass(frozen=True)
