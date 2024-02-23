@@ -292,7 +292,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
-		s.sendLogArtifact(record, x.Artifact, 0, "")
+		s.sendArtifact(record, x.Artifact)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -313,8 +313,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
-		msg := x.LogArtifact
-		s.sendLogArtifact(record, msg.Artifact, msg.HistoryStep, msg.StagingDir)
+		s.sendLogArtifact(record, x.LogArtifact)
 	case *service.Request_PollExit:
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
@@ -1065,10 +1064,22 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 }
 
-func (s *Sender) sendLogArtifact(record *service.Record, artifactRecord *service.ArtifactRecord, historyStep int64, stagingDir string) {
+func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
+	)
+	artifactID, err := saver.Save(s.fwdChan)
+	if err != nil {
+		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %d; error: %s", artifactID, err)
+		s.logger.CaptureError("sender received error", err)
+		return
+	}
+}
+
+func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, artifactRecord, historyStep, stagingDir,
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
@@ -1088,7 +1099,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, artifactRecord *service
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.jobBuilder.HandleLogArtifactResult(&response, artifactRecord)
+	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
 	s.outChan <- result
 }
 
