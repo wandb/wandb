@@ -1064,11 +1064,15 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 }
 
-func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+func (s *Sender) logArtifact(artifactRecord *service.ArtifactRecord, historyStep int64, stagingDir string) (string, error) {
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
+		s.ctx, s.graphqlClient, s.fileTransferManager, artifactRecord, historyStep, stagingDir,
 	)
-	artifactID, err := saver.Save(s.fwdChan)
+	return saver.Save(s.fwdChan)
+}
+
+func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+	artifactID, err := s.logArtifact(msg, 0, "")
 	if err != nil {
 		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
 		s.logger.CaptureError("sender received error", err)
@@ -1078,10 +1082,7 @@ func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecor
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
-	)
-	artifactID, err := saver.Save(s.fwdChan)
+	artifactID, err := s.logArtifact(msg.Artifact, msg.HistoryStep, msg.StagingDir)
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {
