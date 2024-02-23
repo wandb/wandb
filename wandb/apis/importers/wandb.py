@@ -546,7 +546,7 @@ class WandbImporter:
                 config=send_manager_config,
             )
             logger.info(
-                f"Uploaded partial artifact sequence, {i}/{len(groups_of_artifacts)}"
+                f"Uploaded partial artifact {seq=}, {i}/{len(groups_of_artifacts)}"
             )
         logger.info(f"Finished uploading {seq=}")
 
@@ -1674,18 +1674,19 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
     if (path := _download_art(art, root=root)) is None:
         raise ValueError(f"Problem downloading {art=}")
 
+    name, _ = art.name.split(":v")
+
+    # Hack: skip naming validation check for wandb-* types
+    new_art = Artifact(name, ART_DUMMY_PLACEHOLDER_TYPE)
+    new_art._type = art.type
+    new_art._created_at = art.created_at
+
+    new_art._aliases = art.aliases
+    new_art._description = art.description
+
     with patch("click.echo"):
-        name, _ = art.name.split(":v")
-
-        # Hack: skip naming validation check for wandb-* types
-        new_art = Artifact(name, ART_DUMMY_PLACEHOLDER_TYPE)
-        new_art._type = art.type
-        new_art._created_at = art.created_at
-
-        new_art._aliases = art.aliases
-        new_art._description = art.description
-
         new_art.add_dir(path)
+
     return new_art
 
 
