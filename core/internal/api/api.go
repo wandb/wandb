@@ -2,7 +2,7 @@
 package api
 
 import (
-	"io"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,7 +20,10 @@ type Backend struct {
 	// The URL prefix for all requests to the W&B API.
 	baseURL *url.URL
 
-	// The logger to use for debug information.
+	// The logger to use for HTTP-related logs.
+	//
+	// Note that these are only useful for debugging, and not helpful to a
+	// user. There's no guarantee that all logs are made at the Debug level.
 	logger *slog.Logger
 
 	// API key for backend requests.
@@ -135,12 +138,18 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		clients.WithRetryClientHttpTimeout(opts.NonRetryTimeout),
 	)
 
-	if opts.RetryPolicy != nil {
-		retryableHTTP.CheckRetry = opts.RetryPolicy
+	// Set the retry policy with debug logging if possible.
+	retryPolicy := opts.RetryPolicy
+	if retryPolicy == nil {
+		retryPolicy = retryablehttp.DefaultRetryPolicy
 	}
-
 	if backend.logger != nil {
-		retryableHTTP.ResponseLogHook = hookLogErrors(backend.logger)
+		retryPolicy = withRetryLogging(retryPolicy, backend.logger)
+	}
+	retryableHTTP.CheckRetry = retryPolicy
+
+	// Let the client log debug messages.
+	if backend.logger != nil {
 		retryableHTTP.Logger = slog.NewLogLogger(
 			backend.logger.Handler(),
 			slog.LevelDebug,
@@ -150,20 +159,21 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }
 
-// Returns a hook that logs all HTTP error responses.
-func hookLogErrors(logger *slog.Logger) retryablehttp.ResponseLogHook {
-	return func(_ retryablehttp.Logger, response *http.Response) {
-		if response.StatusCode < 400 {
-			return
-		}
+// Wraps a RetryPolicy to log retries.
+func withRetryLogging(
+	policy retryablehttp.CheckRetry,
+	logger *slog.Logger,
+) retryablehttp.CheckRetry {
+	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		willRetry, err := policy(ctx, resp, err)
 
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			logger.Error(
-				"HTTP Error",
-				"status", response.StatusCode,
-				"body", string(body),
+		if willRetry && resp.StatusCode >= 400 {
+			logger.Debug(
+				"Retrying HTTP error",
+				"status", resp.StatusCode,
 			)
 		}
+
+		return willRetry, err
 	}
 }
