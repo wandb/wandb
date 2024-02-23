@@ -292,6 +292,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
+		s.sendLogArtifact(record, x.Artifact, 0, "")
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -312,7 +313,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
-		s.sendLogArtifact(record, x.LogArtifact)
+		msg := x.LogArtifact
+		s.sendLogArtifact(record, msg.Artifact, msg.HistoryStep, msg.StagingDir)
 	case *service.Request_PollExit:
 	case *service.Request_ServerInfo:
 		s.sendServerInfo(record, x.ServerInfo)
@@ -1063,10 +1065,10 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 }
 
-func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
+func (s *Sender) sendLogArtifact(record *service.Record, artifactRecord *service.ArtifactRecord, historyStep int64, stagingDir string) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+		s.ctx, s.graphqlClient, s.fileTransferManager, artifactRecord, historyStep, stagingDir,
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
