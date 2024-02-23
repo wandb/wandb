@@ -15,12 +15,16 @@ import (
 )
 
 func TestSend(t *testing.T) {
-	server := channelServer()
+	server := NewRecordingServer()
 
 	{
 		defer server.Close()
 		_, err := apitest.
-			TestingClient(server.URL+"/wandb", api.ClientOptions{}).
+			TestingClient(server.URL+"/wandb", api.ClientOptions{
+				ExtraHeaders: map[string]string{
+					"ClientHeader": "xyz",
+				},
+			}).
 			Send(&api.Request{
 				Method: http.MethodGet,
 				Path:   "some/test/path",
@@ -42,11 +46,13 @@ func TestSend(t *testing.T) {
 	assert.Equal(t, "my test request", req.Body)
 	assert.Equal(t, "one", req.Header.Get("Header1"))
 	assert.Equal(t, "two", req.Header.Get("Header2"))
+	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
+	assert.Equal(t, "wandb-core", req.Header.Get("User-Agent"))
 	assert.Equal(t, "Basic YXBpOg==", req.Header.Get("Authorization"))
 }
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
-	server := channelServer()
+	server := NewRecordingServer()
 
 	{
 		defer server.Close()
@@ -68,7 +74,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 }
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
-	server := channelServer()
+	server := NewRecordingServer()
 
 	{
 		defer server.Close()
@@ -96,21 +102,22 @@ type RequestCopy struct {
 	Header http.Header
 }
 
-type ChannelServer struct {
+type RecordingServer struct {
 	*httptest.Server
 
 	requests *[]RequestCopy
 	mu       *sync.Mutex
 }
 
-func (s *ChannelServer) Requests() []RequestCopy {
+// All requests recorded by the server.
+func (s *RecordingServer) Requests() []RequestCopy {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return *s.requests
 }
 
-// Returns a server that copies requests to a channel.
-func channelServer() *ChannelServer {
+// Returns a server that records all requests made to it.
+func NewRecordingServer() *RecordingServer {
 	requests := new([]RequestCopy)
 	*requests = make([]RequestCopy, 0)
 
@@ -134,5 +141,5 @@ func channelServer() *ChannelServer {
 		}),
 	)
 
-	return &ChannelServer{server, requests, mu}
+	return &RecordingServer{server, requests, mu}
 }
