@@ -403,27 +403,6 @@ class KanikoBuilder(AbstractBuilder):
                 client.V1VolumeMount(name="kaniko-pvc", mount_path="/context")
             )
 
-        if DOCKER_CONFIG_SECRET:
-            volumes.append(
-                client.V1Volume(
-                    name="kaniko-docker-config",
-                    secret=client.V1SecretVolumeSource(
-                        secret_name=DOCKER_CONFIG_SECRET,
-                        items=[
-                            client.V1KeyToPath(
-                                key=".dockerconfigjson", path="config.json"
-                            )
-                        ],
-                    ),
-                )
-            )
-            volume_mounts.append(
-                client.V1VolumeMount(
-                    name="kaniko-docker-config",
-                    mount_path="/kaniko/.docker",
-                )
-            )
-
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
@@ -462,8 +441,27 @@ class KanikoBuilder(AbstractBuilder):
                     ),
                 )
             ]
-
-        if self.secret_name and self.secret_key:
+        if DOCKER_CONFIG_SECRET:
+            volumes.append(
+                client.V1Volume(
+                    name="kaniko-docker-config",
+                    secret=client.V1SecretVolumeSource(
+                        secret_name=DOCKER_CONFIG_SECRET,
+                        items=[
+                            client.V1KeyToPath(
+                                key=".dockerconfigjson", path="config.json"
+                            )
+                        ],
+                    ),
+                )
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name="kaniko-docker-config",
+                    mount_path="/kaniko/.docker",
+                )
+            )
+        elif self.secret_name and self.secret_key:
             volumes += [
                 client.V1Volume(
                     name="docker-config",

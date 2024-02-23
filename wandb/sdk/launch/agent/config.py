@@ -128,22 +128,6 @@ class BuilderConfig(BaseModel):
         "the image will be pushed to the registry.",
     )
 
-    @validator("destination")  # type: ignore
-    @classmethod
-    def validate_destination(cls, destination: str) -> str:
-        """Validate that the destination is a valid container registry URI."""
-        for regex in [
-            GCP_ARTIFACT_REGISTRY_URI_REGEX,
-            AZURE_CONTAINER_REGISTRY_URI_REGEX,
-            ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
-        ]:
-            if regex.match(destination):
-                return destination
-        raise ValueError(
-            "Invalid destination. Destination must be a repository URI for an "
-            "ECR, ACR, or GCP Artifact Registry."
-        )
-
     platform: Optional[TargetPlatform] = Field(
         None,
         description="The platform to use for the built image. If not provided, "
