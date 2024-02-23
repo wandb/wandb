@@ -74,7 +74,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from wandb.sdk.lib.mailbox import MailboxHandle
+    from wandb.sdk.interface.message_future import MessageFuture
 
 
 class Artifact:
@@ -145,7 +145,7 @@ class Artifact:
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_handle: Optional["MailboxHandle"] = None
+        self._save_future: Optional[MessageFuture] = None
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -725,7 +725,7 @@ class Artifact:
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_handle is not None
+        return self._save_future is not None
 
     def save(
         self,
@@ -768,10 +768,10 @@ class Artifact:
         else:
             wandb.run.log_artifact(self)
 
-    def _set_save_handle(
-        self, save_handle: "MailboxHandle", client: RetryingClient
+    def _set_save_future(
+        self, save_future: "MessageFuture", client: RetryingClient
     ) -> None:
-        self._save_handle = save_handle
+        self._save_future = save_future
         self._client = client
 
     def wait(self, timeout: Optional[int] = None) -> "Artifact":
@@ -784,13 +784,9 @@ class Artifact:
             An `Artifact` object.
         """
         if self.is_draft():
-            if self._save_handle is None:
+            if self._save_future is None:
                 raise ArtifactNotLoggedError(self, "wait")
-
-            if timeout is None:
-                timeout = -1
-            termlog(f"Waiting for artifact {self.name} to be committed...")
-            result = self._save_handle.wait(timeout=timeout)
+            result = self._save_future.get(timeout)
             if not result:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
@@ -799,8 +795,6 @@ class Artifact:
             if response.error_message:
                 raise ValueError(response.error_message)
             self._populate_after_save(response.artifact_id)
-            termlog(prefix=False, newline=True)
-            termlog(f"Committed artifact {self.qualified_name}")
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
