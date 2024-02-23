@@ -51,7 +51,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b8`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b9`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -111,4 +111,4 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Swweps on Launch requires verification.
+[^L.1]: Sweeps on Launch requires verification.

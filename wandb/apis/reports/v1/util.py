@@ -12,7 +12,7 @@ from typing import (
     get_type_hints,
 )
 
-from ..public import PanelMetricsHelper
+from ...public import PanelMetricsHelper
 from .validators import UNDEFINED_TYPE, TypeValidator, Validator
 
 # Func = TypeVar("Func")

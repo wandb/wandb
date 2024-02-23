@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -518,6 +518,14 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
 	// initialize the run metadata from settings
+	var git *service.GitRepoRecord
+	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
+		git = &service.GitRepoRecord{
+			RemoteUrl: run.GetGit().GetRemoteUrl(),
+			Commit:    run.GetGit().GetCommit(),
+		}
+	}
+
 	metadata := &service.MetadataRequest{
 		Os:       h.settings.GetXOs().GetValue(),
 		Python:   h.settings.GetXPython().GetValue(),
@@ -534,10 +542,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		Args:       h.settings.GetXArgs().GetValue(),
 		Colab:      h.settings.GetColabUrl().GetValue(),
 		StartedAt:  run.GetStartTime(),
-		Git: &service.GitRepoRecord{
-			RemoteUrl: run.GetGit().GetRemoteUrl(),
-			Commit:    run.GetGit().GetCommit(),
-		},
+		Git:        git,
 	}
 
 	if !h.settings.GetXDisableStats().GetValue() {

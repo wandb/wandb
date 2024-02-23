@@ -112,6 +112,10 @@ impl Run {
     fn id(&self) -> String {
         self.settings.proto.run_id.clone().unwrap()
     }
+
+    fn project(&self) -> String {
+        self.settings.proto.project.clone().unwrap()
+    }
 }
 
 #[pymethods]
@@ -136,7 +140,7 @@ impl Run {
         };
 
         // if offline, "offline-run", else "run"
-        let run_mode = if self.settings.proto.offline.is_some() {
+        let run_mode = if self.settings.proto.offline == Some(true) {
             "offline-run".to_string()
         } else {
             "run".to_string()
@@ -177,6 +181,7 @@ impl Run {
             record_type: Some(wandb_internal::record::RecordType::Run(
                 wandb_internal::RunRecord {
                     run_id: self.id(),
+                    project: self.project(),
                     // display_name: "gooba-gaba".to_string(),
                     info: Some(wandb_internal::RecordInfo {
                         stream_id: self.id(),
@@ -426,8 +431,8 @@ impl Run {
                         sampled_history_response,
                     )) => sampled_history_response.item,
                     _ => {
-                        tracing::warn!("Unexpected response type");
-                        return;
+                        tracing::debug!("Unexpected response type");
+                        return ();
                     }
                 }
             }

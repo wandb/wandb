@@ -52,7 +52,7 @@ def torch_trace_handler():
             prof.step()
     ```
     """
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     torch = wandb.util.get_module(PYTORCH_MODULE, required=True)
     torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)

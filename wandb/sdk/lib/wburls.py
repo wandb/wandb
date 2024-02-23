@@ -34,6 +34,7 @@ class WBURLs:
             wandb_init="https://wandb.me/wandb-init",
             wandb_server="https://wandb.me/wandb-server",
             wandb_define_metric="https://wandb.me/define-metric",
+            wandb_core="https://wandb.me/wandb-core",
         )
 
     def get(self, s: "URLS") -> str:

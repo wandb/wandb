@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from wandb import _sentry, termlog
 from wandb.env import error_reporting_enabled
 from wandb.errors import Error
+from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
@@ -170,16 +171,28 @@ class _Service:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
+                if os.environ.get("WANDB_CORE_DEBUG", False):
+                    service_args.append("--debug")
+                trace_filename = os.environ.get("_WANDB_TRACE")
+                if trace_filename is not None:
+                    service_args.extend(["--trace", trace_filename])
+
                 exec_cmd_list = []
+                # TODO: remove this after the wandb-core GA release
+                wandb_core = get_module("wandb_core")
+                termlog(
+                    f"Using wandb-core version {wandb_core.__version__} as the SDK backend. "
+                    f"Please refer to {wburls.get('wandb_core')} for more information.",
+                    repeat=False,
+                )
             else:
-                service_args.extend(["wandb", "service"])
+                service_args.extend(["wandb", "service", "--debug"])
 
             service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
                 pid,
-                "--debug",
             ]
             service_args.append("--serve-sock")
 

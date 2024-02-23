@@ -195,6 +195,7 @@ message Feature {
   bool lib_cpp = 57;                     // Using cpp wandb library
   bool openai_finetuning = 58;           // Using openai finetuning WandbLogger
   bool diffusers_autolog = 59;           // Using Diffusers autologger
+  bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
 }
 
 message Env {

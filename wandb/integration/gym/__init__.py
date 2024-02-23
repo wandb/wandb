@@ -47,7 +47,8 @@ def monitor():
             import gym
         else:
             import gymnasium as gym  # type: ignore
-        from pkg_resources import parse_version
+
+        from wandb.util import parse_version
 
         if parse_version(gym.__version__) < parse_version("0.26.0"):
             _gym_version_lt_0_26 = True
