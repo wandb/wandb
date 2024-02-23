@@ -33,12 +33,15 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if !client.isToWandb(req) {
-		client.backend.logger.Warn(
-			fmt.Sprintf(
-				"Unexpected request through HTTP client intended for W&B: %v",
-				req.URL,
-			),
-		)
+		if client.backend.logger != nil {
+			client.backend.logger.Warn(
+				fmt.Sprintf(
+					"Unexpected request through HTTP client intended for W&B: %v",
+					req.URL,
+				),
+			)
+		}
+
 		return client.send(retryableReq)
 	}
 
