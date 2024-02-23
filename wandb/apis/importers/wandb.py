@@ -23,12 +23,12 @@ from wandb_gql import gql
 import wandb
 import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
+from wandb.apis.public.artifacts import ArtifactType
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .internals import internal
-from .internals.internal import _thread_local_settings
 from .internals.util import Namespace, for_each
 
 Artifact = wandb.Artifact
@@ -71,32 +71,34 @@ class ArtifactSequence:
     def from_collection(cls, collection: ArtifactCollection):
         arts = collection.artifacts()
         arts = sorted(arts, key=lambda a: int(a.version.lstrip("v")))
-        if arts:
-            art = arts[0]
-            entity = art.entity
-            project = art.project
-            name, _ = _get_art_name_ver(art)
-            _type = art.type
-        else:
-            arts = []
-        return ArtifactSequence(arts, entity, project, _type, name)
+        return ArtifactSequence(
+            arts,
+            collection.entity,
+            collection.project,
+            collection.type,
+            collection.name,
+        )
 
 
 class WandbRun:
-    def __init__(self, run: Run) -> None:
+    def __init__(
+        self,
+        run: Run,
+        *,
+        src_base_url: str,
+        src_api_key: str,
+        dst_base_url: str,
+        dst_api_key: str,
+    ) -> None:
         self.run = run
         self.api = wandb.Api(
-            api_key=_thread_local_settings.src_api_key,
-            overrides={"base_url": _thread_local_settings.src_base_url},
+            api_key=src_api_key,
+            overrides={"base_url": src_base_url},
         )
         self.dst_api = wandb.Api(
-            api_key=_thread_local_settings.dst_api_key,
-            overrides={"base_url": _thread_local_settings.dst_base_url},
+            api_key=dst_api_key,
+            overrides={"base_url": dst_base_url},
         )
-
-        _thread_local_settings.src_entity = self.entity()
-        _thread_local_settings.src_project = self.project()
-        _thread_local_settings.src_run_id = self.run_id()
 
         # For caching
         self._files: Optional[Iterable[Tuple[str, str]]] = None
@@ -384,11 +386,12 @@ class WandbImporter:
             **custom_api_kwargs,
         )
 
-        # There is probably a better way of doing this
-        _thread_local_settings.src_api_key = src_api_key
-        _thread_local_settings.src_base_url = src_base_url
-        _thread_local_settings.dst_api_key = dst_api_key
-        _thread_local_settings.dst_base_url = dst_base_url
+        self.run_api_kwargs = {
+            "src_base_url": src_base_url,
+            "src_api_key": src_api_key,
+            "dst_base_url": dst_base_url,
+            "dst_api_key": dst_api_key,
+        }
 
     def __repr__(self):
         return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
@@ -463,12 +466,12 @@ class WandbImporter:
         try:
             dst_type = self.dst_api.artifact_type(src_art.type, f"{entity}/{project}")
             dst_collection = dst_type.collection(src_art.collection.name)
-        except wandb.CommError:
+        except (wandb.CommError, ValueError):
             return  # it didn't exist
 
         try:
             dst_collection.delete()
-        except wandb.CommError:
+        except (wandb.CommError, ValueError):
             return  # it's not allowed to be deleted
 
     def _import_artifact_sequence(
@@ -518,7 +521,7 @@ class WandbImporter:
         for i, group in enumerate(groups_of_artifacts, 1):
             art = group[0]
             if art.description == ART_SEQUENCE_DUMMY_PLACEHOLDER:
-                run = WandbRun(run_or_dummy)
+                run = WandbRun(run_or_dummy, **self.run_api_kwargs)
             else:
                 try:
                     wandb_run = art.logged_by()
@@ -533,7 +536,7 @@ class WandbImporter:
 
                 new_art = _clone_art(art)
                 group = [new_art]
-                run = WandbRun(wandb_run)
+                run = WandbRun(wandb_run, **self.run_api_kwargs)
 
             internal.send_artifacts_with_send_manager(
                 group,
@@ -543,7 +546,7 @@ class WandbImporter:
                 config=send_manager_config,
             )
             logger.info(
-                f"Uploaded partial artifact sequence, {i}/{len(groups_of_artifacts)}"
+                f"Uploaded partial artifact {seq=}, {i}/{len(groups_of_artifacts)}"
             )
         logger.info(f"Finished uploading {seq=}")
 
@@ -637,8 +640,10 @@ class WandbImporter:
 
     def _get_src_artifacts(self, entity: str, project: str):
         for t in self.src_api.artifact_types(f"{entity}/{project}"):
+            t: ArtifactType
             for c in t.collections():
-                yield from c.versions()
+                c: ArtifactCollection
+                yield from c.artifacts()
 
     def _get_run_problems(self, src_run, dst_run, force_retry=False):
         problems = []
@@ -769,7 +774,9 @@ class WandbImporter:
 
             logger.debug(f"Cleaning up, {ns=}")
             try:
-                runs = api.runs(ns.path, filters={"displayName": RUN_DUMMY_PLACEHOLDER})
+                runs = list(
+                    api.runs(ns.path, filters={"displayName": RUN_DUMMY_PLACEHOLDER})
+                )
             except ValueError as e:
                 if "Could not find project" in str(e):
                     logger.error("Could not find project, does it exist?")
@@ -844,7 +851,7 @@ class WandbImporter:
                 continue
 
             for wandb_run in used_by:
-                run = WandbRun(wandb_run)
+                run = WandbRun(wandb_run, **self.run_api_kwargs)
 
                 internal.send_run_with_send_manager(
                     run,
@@ -1229,7 +1236,7 @@ class WandbImporter:
             run_id = row["run_id"]
 
             run = self.src_api.run(f"{src_entity}/{src_project}/{run_id}")
-            yield WandbRun(run)
+            yield WandbRun(run, **self.run_api_kwargs)
 
     def _filter_previously_checked_artifacts(self, seqs: Iterable[ArtifactSequence]):
         if (df := _read_ndjson(ARTIFACT_SUCCESSES_FNAME)) is None:
@@ -1305,7 +1312,7 @@ class WandbImporter:
             artifacts = self._filter_previously_checked_artifacts(filtered_sequences())
         else:
             logger.info("Validating in non-incremental mode")
-            artifacts = [a for seq in seqs for a in seq.artifacts]
+            artifacts = [art for seq in seqs for art in seq.artifacts]
 
         def _validate_artifact_wrapped(args):
             art, entity, project = args
@@ -1370,7 +1377,7 @@ class WandbImporter:
             for ns in namespaces:
                 logger.debug(f"Collecting runs from {ns=}")
                 for run in api.runs(ns.path, filters=filters):
-                    yield WandbRun(run)
+                    yield WandbRun(run, **self.run_api_kwargs)
 
         runs = itertools.islice(_runs(), limit)
         yield from runs
@@ -1494,20 +1501,6 @@ def _get_art_name_ver(art: Artifact) -> Tuple[str, int]:
     return name, int(ver)
 
 
-def _make_new_art(art: Artifact) -> Artifact:
-    name, _ = art.name.split(":v")
-
-    # Hack: skip naming validation check for wandb-* types
-    new_art = Artifact(name, ART_DUMMY_PLACEHOLDER_TYPE)
-    new_art._type = art.type
-
-    new_art._created_at = art.created_at
-    new_art._aliases = art.aliases
-    new_art._description = art.description
-
-    return new_art
-
-
 def _make_dummy_art(name: str, _type: str, ver: int):
     art = Artifact(name, ART_DUMMY_PLACEHOLDER_TYPE)
     art._type = _type
@@ -1608,12 +1601,6 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     return df
 
 
-def cleanup_cache():
-    ...
-    # cache = get_artifacts_cache()
-    # cache.cleanup(target_size=target_size)
-
-
 def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = None
     try:
@@ -1673,9 +1660,8 @@ def _clear_fname(fname: str) -> None:
 
 def _download_art(art: Artifact, root: str) -> Optional[str]:
     try:
-        cleanup_cache()
         with patch("click.echo"):
-            return art.download(root=root)
+            return art.download(root=root, skip_cache=True)
     except Exception as e:
         logger.error(f"Error downloading artifact {art=}, {e=}")
 
@@ -1688,9 +1674,19 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
     if (path := _download_art(art, root=root)) is None:
         raise ValueError(f"Problem downloading {art=}")
 
+    name, _ = art.name.split(":v")
+
+    # Hack: skip naming validation check for wandb-* types
+    new_art = Artifact(name, ART_DUMMY_PLACEHOLDER_TYPE)
+    new_art._type = art.type
+    new_art._created_at = art.created_at
+
+    new_art._aliases = art.aliases
+    new_art._description = art.description
+
     with patch("click.echo"):
-        new_art = _make_new_art(art)
         new_art.add_dir(path)
+
     return new_art
 
 

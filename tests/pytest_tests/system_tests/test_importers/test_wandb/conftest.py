@@ -3,7 +3,6 @@ import random
 import string
 import subprocess
 import tempfile
-import time
 import typing
 
 import numpy as np
@@ -25,11 +24,6 @@ FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
 
 DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
 DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
-
-# set seed for reproducibility
-SEED = 1337
-np.random.seed(SEED)
-random.seed(SEED)
 
 
 def pytest_addoption(parser):
@@ -179,6 +173,8 @@ def server_src(user):
 
 
 def generate_random_data(n: int, n_metrics: int) -> list:
+    rng = np.random.RandomState(seed=1337)
+
     steps = np.arange(1, n + 1, 1)
     data = {}
     fns: list[typing.Any] = [
@@ -213,7 +209,7 @@ def generate_random_data(n: int, n_metrics: int) -> list:
         * (
             1 - np.exp(-steps * 0.0001)
         ),  # Logarithmic growth modulated by increasing accuracy
-        lambda steps: np.random.random()
+        lambda steps: rng.random()
         * (
             1 - np.exp(-steps * 0.0001)
         ),  # Random constant value modulated by increasing accuracy
@@ -225,11 +221,11 @@ def generate_random_data(n: int, n_metrics: int) -> list:
         # Add different types of noise
         noise_type = random.choice(["uniform", "normal", "triangular"])
         if noise_type == "uniform":
-            noise = np.random.uniform(low=-noise_fraction, high=noise_fraction, size=n)
+            noise = rng.uniform(low=-noise_fraction, high=noise_fraction, size=n)
         elif noise_type == "normal":
-            noise = np.random.normal(scale=noise_fraction, size=n)
+            noise = rng.normal(scale=noise_fraction, size=n)
         elif noise_type == "triangular":
-            noise = np.random.triangular(
+            noise = rng.triangular(
                 left=-noise_fraction, mode=0, right=noise_fraction, size=n
             )
         data[f"metric{j}"] = values + noise_fraction * values * noise
@@ -243,34 +239,42 @@ def generate_random_text(length=10):
 
 
 def create_random_dataframe(rows=100, columns=5):
-    data = np.random.randint(0, 100, (rows, columns))
+    rng = np.random.RandomState(seed=1337)
+
+    data = rng.randint(0, 100, (rows, columns))
     df = pd.DataFrame(data)
     return df
 
 
 def create_random_image(size=(100, 100)):
-    array = np.random.randint(0, 256, size + (3,), dtype=np.uint8)
+    rng = np.random.RandomState(seed=1337)
+
+    array = rng.randint(0, 256, size + (3,), dtype=np.uint8)
     img = Image.fromarray(array)
     return wandb.Image(img)
 
 
 def create_random_video():
-    frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+    rng = np.random.RandomState(seed=1337)
+
+    frames = rng.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
     return wandb.Video(frames, fps=4)
 
 
 def create_random_audio():
     # Generate a random numpy array for audio data
+    rng = np.random.RandomState(seed=1337)
+
     sampling_rate = 44100  # Typical audio sampling rate
     duration = 1.0  # duration in seconds
-    audio_data = np.random.uniform(
-        low=-1.0, high=1.0, size=int(sampling_rate * duration)
-    )
+    audio_data = rng.uniform(low=-1.0, high=1.0, size=int(sampling_rate * duration))
     return wandb.Audio(audio_data, sample_rate=sampling_rate, caption="its audio yo")
 
 
 def create_random_plotly():
-    df = pd.DataFrame({"x": np.random.rand(100), "y": np.random.rand(100)})
+    rng = np.random.RandomState(seed=1337)
+
+    df = pd.DataFrame({"x": rng.rand(100), "y": rng.rand(100)})
 
     # Create a scatter plot
     fig = px.scatter(df, x="x", y="y")
@@ -284,7 +288,9 @@ def create_random_html():
 
 
 def create_random_point_cloud():
-    point_cloud = np.random.rand(100, 3)
+    rng = np.random.RandomState(seed=1337)
+
+    point_cloud = rng.rand(100, 3)
     return wandb.Object3D(point_cloud)
 
 
@@ -295,8 +301,6 @@ def create_random_molecule():
 
 def make_artifact(name):
     # temporarily enable randomness so the artifacts are not deduped
-    random.seed(time.time())
-
     with tempfile.TemporaryDirectory() as tmpdirname:
         filename = os.path.join(tmpdirname, "random_text.txt")
 
@@ -310,5 +314,4 @@ def make_artifact(name):
         artifact = wandb.Artifact(name, name)
         artifact.add_file(filename)
 
-    random.seed(SEED)
     return artifact
