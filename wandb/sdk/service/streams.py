@@ -248,7 +248,7 @@ class StreamMux:
     def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
-            result = handle.wait(timeout=0, release=False)
+            result = handle.wait(timeout=0)
             if not result:
                 return
             probe_handle.set_probe_result(result)
