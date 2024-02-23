@@ -34,6 +34,7 @@ from wandb.util import (
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
+from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
 
@@ -452,7 +453,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def deliver_artifact(
+    def communicate_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -461,7 +462,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MailboxHandle:
+    ) -> MessageFuture:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -478,11 +479,13 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._deliver_artifact(log_artifact)
+        resp = self._communicate_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+    def _communicate_artifact(
+        self, log_artifact: pb.LogArtifactRequest
+    ) -> MessageFuture:
         raise NotImplementedError
 
     def deliver_download_artifact(
