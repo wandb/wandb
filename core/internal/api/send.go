@@ -67,6 +67,7 @@ func (client *clientImpl) send(
 		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
 
+	client.backend.logFinalResponseOnError(retryableReq, resp)
 	return resp, nil
 }
 
