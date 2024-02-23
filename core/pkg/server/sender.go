@@ -1070,7 +1070,7 @@ func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecor
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
-		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %d; error: %s", artifactID, err)
+		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
 		s.logger.CaptureError("sender received error", err)
 		return
 	}
