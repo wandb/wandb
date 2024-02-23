@@ -34,7 +34,7 @@ type Backend struct {
 // Multiple Clients can be created for one Backend when different retry
 // policies are needed.
 //
-// TODO: The client is responsible for setting auth headers, retrying
+// The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
@@ -77,7 +77,7 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in request.
+	// Additional HTTP headers to include in the request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
@@ -102,9 +102,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		opts.BaseURL,
-		opts.Logger,
-		opts.APIKey,
+		baseURL: opts.BaseURL,
+		logger:  opts.Logger,
+		apiKey:  opts.APIKey,
 	}
 }
 
@@ -166,6 +166,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 			slog.LevelDebug,
 		)
 	}
+
+	retryableHTTP.HTTPClient.Transport = backend.rateLimitedTransport(
+		retryableHTTP.HTTPClient.Transport,
+	)
 
 	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }
