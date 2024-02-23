@@ -1,37 +1,45 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+
+	"golang.org/x/time/rate"
+)
+
+const (
+	maxRequestsPerSecond = 100
+	maxBurst             = 20
+)
 
 // A rate-limited HTTP transport for requests to the W&B backend.
 //
 // Implements [http.RoundTripper] for use as a transport for an HTTP client.
-type backendTransport struct {
+type rateLimitedTransport struct {
 	backend   *Backend
 	delegate  http.RoundTripper
-	ratelimit rateLimiter
+	ratelimit *rate.Limiter
 }
 
 // Rate-limits an HTTP transport for the W&B backend.
 func (backend *Backend) rateLimitedTransport(
 	delegate http.RoundTripper,
-) *backendTransport {
-	return &backendTransport{
+) *rateLimitedTransport {
+	return &rateLimitedTransport{
 		backend:   backend,
 		delegate:  delegate,
-		ratelimit: newRateLimiter(backend.logger),
+		ratelimit: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
 	}
 }
 
-func (transport *backendTransport) RoundTrip(
+func (transport *rateLimitedTransport) RoundTrip(
 	req *http.Request,
 ) (*http.Response, error) {
-	transport.ratelimit.waitIfRateLimited()
-
-	response, err := transport.delegate.RoundTrip(req)
-
-	if response != nil {
-		transport.ratelimit.processRateLimitHeaders(response)
+	if err := transport.ratelimit.Wait(req.Context()); err != nil {
+		// Errors happen if:
+		//   - The request is canceled
+		//   - The rate limit exceeds the request deadline
+		return nil, err
 	}
 
-	return response, err
+	return transport.delegate.RoundTrip(req)
 }
