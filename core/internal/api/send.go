@@ -63,8 +63,7 @@ func (client *clientImpl) sendToWandbBackend(
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
 	client.setAuthHeaders(req)
-	response, err := client.send(req)
-	return response, err
+	return client.send(req)
 }
 
 // Sends any HTTP request.
