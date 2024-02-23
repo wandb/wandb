@@ -13,7 +13,7 @@ func (backend *Backend) logFinalResponseOnError(
 	req *retryablehttp.Request,
 	resp *http.Response,
 ) {
-	if resp.StatusCode < 400 {
+	if resp.StatusCode < 400 || backend.logger == nil {
 		return
 	}
 
@@ -32,6 +32,10 @@ func withRetryLogging(
 	policy retryablehttp.CheckRetry,
 	logger *slog.Logger,
 ) retryablehttp.CheckRetry {
+	if logger == nil {
+		panic("api: withRetryLogging: nil logger")
+	}
+
 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 		willRetry, err := policy(ctx, resp, err)
 
