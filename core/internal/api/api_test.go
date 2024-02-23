@@ -137,7 +137,7 @@ func NewRecordingServer() *RecordingServer {
 					Header: r.Header,
 				})
 
-			w.Write([]byte("OK"))
+			_, _ = w.Write([]byte("OK"))
 		}),
 	)
 
