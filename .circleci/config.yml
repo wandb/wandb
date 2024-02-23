@@ -481,6 +481,9 @@ jobs:
       tox_args:
         type: string
         default: ""
+      with_core:
+        type: bool
+        default: false
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
@@ -1718,12 +1721,10 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-              shard:
-                - "default"
-                - "artifacts"
-                - "launch"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+              with_core: [true, false]
+              shard: ["default", "artifacts", "launch"]
+          name: "func-<<#parameters.with_core>>core-<</parameters.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<#parameters.with_core>>core-<</parameters.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           parallelism: 4
           coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
@@ -1736,11 +1737,12 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
+              with_core: [true]
               shard:
                 - "mitm"
                 - "docs"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          name: "func-<<#parameters.with_core>>core-<</parameters.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<#parameters.with_core>>core-<</parameters.with_core>><<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
 
@@ -1751,15 +1753,10 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [7]
-              shard:
-                - "tf115"
-                - "tf21"
-                - "tf24"
-                - "tf25"
-                - "tf26"
-                - "xgboost"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+              with_core: [true]
+              shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+          name: "func-<<#parameters.with_core>>core-<</parameters.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<#parameters.with_core>>core-<</parameters.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
@@ -1772,6 +1769,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
+              with_core: [true]
               shard:
                 # - "llm"  # TODO: needs review
                 - "noml"
@@ -1789,8 +1787,8 @@ workflows:
                 - "sb3"
                 - "tf"
                 - "lightning"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          name: "func-<<#parameters.with_core>>core-<</parameters.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-<<#parameters.with_core>>core-<</parameters.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
