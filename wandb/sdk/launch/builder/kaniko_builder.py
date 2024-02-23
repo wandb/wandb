@@ -22,6 +22,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
+from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -57,6 +58,7 @@ PVC_MOUNT_PATH = (
     if PVC_NAME
     else None
 )
+DOCKER_CONFIG_SECRET = os.environ.get("WANDB_LAUNCH_KANIKO_AUTH_SECRET")
 
 
 if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
@@ -104,6 +106,7 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
+        destination: str = "",
     ):
         """Initialize a KanikoBuilder.
 
@@ -124,6 +127,7 @@ class KanikoBuilder(AbstractBuilder):
         self.secret_name = secret_name
         self.secret_key = secret_key
         self.image = image
+        self.destination = destination
 
     @classmethod
     def from_config(
@@ -168,6 +172,9 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri is not None:
             registry = registry_from_uri(image_uri)
+            if registry is None:
+                registry = LocalRegistry()
+
         return cls(
             environment,
             registry,
@@ -176,6 +183,7 @@ class KanikoBuilder(AbstractBuilder):
             secret_name=secret_name,
             secret_key=secret_key,
             image=kaniko_image,
+            destination=image_uri,
         )
 
     async def verify(self) -> None:
@@ -184,8 +192,6 @@ class KanikoBuilder(AbstractBuilder):
         Raises:
             LaunchError: If the builder config is invalid.
         """
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
         if self.build_context_store:
             await self.environment.verify_storage_uri(self.build_context_store)
 
@@ -196,8 +202,6 @@ class KanikoBuilder(AbstractBuilder):
     async def _create_docker_ecr_config_map(
         self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
-        if self.registry is None:
-            raise LaunchError("No registry specified for Kaniko build.")
         username, password = await self.registry.get_username_password()
         encoded = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
         ecr_config_map = client.V1ConfigMap(
@@ -257,9 +261,6 @@ class KanikoBuilder(AbstractBuilder):
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         await self.verify()
-        # TODO: this should probably throw an error if the registry is a local registry
-        if not self.registry:
-            raise LaunchError("No registry specified for Kaniko build.")
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
             launch_project=launch_project,
@@ -269,7 +270,15 @@ class KanikoBuilder(AbstractBuilder):
             dockerfile=launch_project.override_dockerfile,
         )
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
-        repo_uri = await self.registry.get_repo_uri()
+        if isinstance(self.registry, LocalRegistry):
+            if not DOCKER_CONFIG_SECRET:
+                raise LaunchError(
+                    "You must specify a DOCKER_CONFIG_SECRET environment variable "
+                    "to use non standard registry for kaniko builds."
+                )
+            repo_uri = self.destination
+        else:
+            repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
         if (
@@ -392,6 +401,27 @@ class KanikoBuilder(AbstractBuilder):
             )
             volume_mounts.append(
                 client.V1VolumeMount(name="kaniko-pvc", mount_path="/context")
+            )
+
+        if DOCKER_CONFIG_SECRET:
+            volumes.append(
+                client.V1Volume(
+                    name="kaniko-docker-config",
+                    secret=client.V1SecretVolumeSource(
+                        secret_name=DOCKER_CONFIG_SECRET,
+                        items=[
+                            client.V1KeyToPath(
+                                key=".dockerconfigjson", path="config.json"
+                            )
+                        ],
+                    ),
+                )
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name="kaniko-docker-config",
+                    mount_path="/kaniko/.docker",
+                )
             )
 
         if bool(self.secret_name) != bool(self.secret_key):

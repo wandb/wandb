@@ -41,7 +41,7 @@ _logger = logging.getLogger(__name__)
 _WANDB_DOCKERFILE_NAME = "Dockerfile.wandb"
 
 
-def registry_from_uri(uri: str) -> AbstractRegistry:
+def registry_from_uri(uri: str) -> Optional[AbstractRegistry]:
     """Create a registry helper object from a uri.
 
     This function parses the URI and determines which supported registry it
@@ -99,8 +99,7 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
 
         return ElasticContainerRegistry(uri=uri)
 
-    else:
-        raise LaunchError(f"Unsupported registry URI: {uri}. Unable to load helper.")
+    return None
 
 
 async def validate_docker_installation() -> None:
