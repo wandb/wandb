@@ -1480,6 +1480,7 @@ class Artifact:
 
         entry, wb_class = self._get_obj_entry(name)
         if entry is None or wb_class is None:
+            wandb.termwarn("\n\nreturning none\n\n")
             return None
 
         # If the entry is a reference from another artifact, then get it directly from
