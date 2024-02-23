@@ -32,11 +32,17 @@ func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("api: failed to parse request: %v", err)
 	}
 
-	if client.isToWandb(req) {
-		return client.sendToWandbBackend(retryableReq)
+	if !client.isToWandb(req) {
+		client.backend.logger.Warn(
+			fmt.Sprintf(
+				"Unexpected request through HTTP client intended for W&B: %v",
+				req.URL,
+			),
+		)
+		return client.send(retryableReq)
 	}
 
-	return client.send(retryableReq)
+	return client.sendToWandbBackend(retryableReq)
 }
 
 // Returns whether the request would go to the W&B backend.
