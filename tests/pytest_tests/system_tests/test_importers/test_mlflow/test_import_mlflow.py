@@ -32,7 +32,7 @@ def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
             assert len(r) == 4  # 1 step + 3 (int, float, bool) metrics
 
         # Check params
-        assert len(run.config) == 9
+        assert len(run.config) == 10  # 9 keys + `imported_mlflow_tags`
 
         # Check artifacts (note: all mlflow artifacts are lumped
         # into a single wandb.Artifact, so len(art) == 1 always)

@@ -33,7 +33,13 @@ class MlflowRun:
         return "imported-from-mlflow"
 
     def config(self) -> Dict[str, Any]:
-        return self.run.data.params
+        conf = self.run.data.params
+
+        # Add tags here since mlflow supports very long tag names but we only support up to 64 chars
+        tags = {
+            k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
+        }
+        return {**conf, "imported_mlflow_tags": tags}
 
     def summary(self) -> Dict[str, float]:
         return self.run.data.metrics
@@ -65,20 +71,10 @@ class MlflowRun:
         return self.run.data.tags.get("mlflow.note.content")
 
     def tags(self) -> Optional[List[str]]:
-        mlflow_tags = {}
-        for k, v in self.run.data.tags.items():
-            if not k.startswith("mlflow."):
-                if len(v) > 64:
-                    logger.warn(
-                        f"Tag {k} is too long, truncating to 64 characters (first 32 and last 29)"
-                    )
-                    v = v[:32] + "..." + v[-29:]
-                mlflow_tags[k] = v
+        ...
 
-        # mlflow_tags = {
-        #     k: v for k, v in self.run.data.tags.items() if not k.startswith("mlflow.")
-        # }
-        return [f"{k}={v}" for k, v in mlflow_tags.items()]
+        # W&B tags are different than mlflow tags.
+        # The full mlflow tags are added to config under key `imported_mlflow_tags` instead
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:  # type: ignore
         if mlflow_version < Version("2.0.0"):

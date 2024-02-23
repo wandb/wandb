@@ -345,6 +345,7 @@ def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
                 with mlflow.start_run() as run:
                     mlflow.set_tag("mlflow.runName", run_name)
                     mlflow.set_tags(make_tags())
+                    mlflow.set_tag("longTag", "abcd" * 100)
                     mlflow.log_params(make_params())
 
                     metrics = make_metrics(config.n_steps_per_run)
