@@ -193,13 +193,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_Artifact{
-				Artifact: &service.ArtifactRecord{
-					Name: "testArtifact",
-					Type: "code",
-				},
-			},
+		artifactRecord := &service.ArtifactRecord{
+			Name: "testArtifact",
+			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
 		artifact, err := jobBuilder.Build(nil, nil)
@@ -258,13 +254,9 @@ func TestJobBuilderArtifact(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_Artifact{
-				Artifact: &service.ArtifactRecord{
-					Name: "testArtifact",
-					Type: "code",
-				},
-			},
+		artifactRecord := &service.ArtifactRecord{
+			Name: "testArtifact",
+			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
 		artifact, err := jobBuilder.Build(nil, nil)

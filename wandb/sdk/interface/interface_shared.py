@@ -395,17 +395,17 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:
         rec = self._make_record(link_artifact=link_artifact)
         self._publish(rec)
 
-    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._deliver_record(rec)
+        return self._communicate_async(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest

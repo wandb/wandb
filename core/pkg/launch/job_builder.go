@@ -693,19 +693,18 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 }
 
-func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.Record) {
+func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
 	if j == nil {
 		return
 	}
 	j.logger.Debug("jobBuilder: handling log artifact result")
-	artifactRecord := record.GetArtifact()
 	if response == nil || response.ErrorMessage != "" {
 		return
 	}
-	if artifactRecord.GetType() == "code" {
+	if record.GetType() == "code" {
 		j.RunCodeArtifact = &ArtifactInfoForJob{
 			ID:   response.ArtifactId,
-			Name: artifactRecord.Name,
+			Name: record.Name,
 		}
 	}
 }
