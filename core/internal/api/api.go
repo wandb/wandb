@@ -2,7 +2,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -157,23 +156,4 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	}
 
 	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
-}
-
-// Wraps a RetryPolicy to log retries.
-func withRetryLogging(
-	policy retryablehttp.CheckRetry,
-	logger *slog.Logger,
-) retryablehttp.CheckRetry {
-	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		willRetry, err := policy(ctx, resp, err)
-
-		if willRetry && resp.StatusCode >= 400 {
-			logger.Debug(
-				"Retrying HTTP error",
-				"status", resp.StatusCode,
-			)
-		}
-
-		return willRetry, err
-	}
 }
