@@ -1,6 +1,5 @@
 """sender."""
 
-import concurrent.futures
 import json
 import logging
 import os
@@ -1420,40 +1419,27 @@ class SendManager:
             )
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.mailbox_slot
+        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
 
-        future = None
         try:
-            res, future = self._send_artifact(artifact, history_step)
+            res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res.get("id", None)
+            result.response.log_artifact_response.artifact_id = res["id"]
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
                 f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
-        def _respond_result(fut: concurrent.futures.Future):
-            if fut.exception() is not None:
-                result.response.log_artifact_response.error_message = f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}'
-            self._respond_result(result)
-
-        if future is not None:
-            # respond to the request only after the artifact is fully committed
-            future.add_done_callback(_respond_result)
-        else:
-            self._respond_result(result)
+        self._respond_result(result)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
-            res, future = self._send_artifact(artifact)
-            # wait for future to complete in send artifact
-            if future is not None:
-                future.result()
+            res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
@@ -1464,7 +1450,7 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
+    ) -> Optional[Dict]:
         from wandb.util import parse_version
 
         assert self._pusher
@@ -1485,10 +1471,10 @@ class SendManager:
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return {}, None
+                return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        res, future = saver.save(
+        res = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1506,7 +1492,7 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
-        return res, future
+        return res
 
     def send_alert(self, record: "Record") -> None:
         from wandb.util import parse_version

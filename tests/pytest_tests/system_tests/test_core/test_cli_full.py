@@ -168,7 +168,7 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
     # (as we used to use a mock backend)
     # todo: create a new test asset that will contain an artifact
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=({}, None)
+        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         copy_asset("wandb")
 
@@ -189,7 +189,7 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
 @pytest.mark.wandb_core_failure(feature="offline_sync")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=({}, None)
+        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
         copy_asset("wandb")
