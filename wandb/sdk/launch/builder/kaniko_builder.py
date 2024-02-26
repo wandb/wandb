@@ -64,7 +64,7 @@ if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
         NAMESPACE = f.read().strip()
 else:
-    NAMESPACE = "default"
+    NAMESPACE = "wandb"
 
 
 async def _wait_for_completion(

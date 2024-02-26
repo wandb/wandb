@@ -6,7 +6,6 @@ import pytest
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder import build
 from wandb.sdk.launch.builder.build import registry_from_uri
-from wandb.sdk.launch.errors import LaunchError
 
 
 @pytest.mark.parametrize(
@@ -21,7 +20,7 @@ from wandb.sdk.launch.errors import LaunchError
             "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo",
             "elastic_container_registry",
         ),
-        ("unsupported_format.com/my_repo", None),
+        ("unsupported_format.com/my_repo", "anon"),
     ],
 )
 def test_registry_from_uri(url, expected, mocker):
@@ -37,12 +36,11 @@ def test_registry_from_uri(url, expected, mocker):
         "wandb.sdk.launch.registry.elastic_container_registry.ElasticContainerRegistry",
         MagicMock(return_value="elastic_container_registry"),
     )
-
-    if expected is None:
-        with pytest.raises(LaunchError):
-            registry_from_uri(url)
-    else:
-        assert registry_from_uri(url) == expected
+    mocker.patch(
+        "wandb.sdk.launch.builder.build.AnonynmousRegistry",
+        MagicMock(return_value="anon"),
+    )
+    assert registry_from_uri(url) == expected
 
 
 def test_get_env_vars_dict(mocker):
