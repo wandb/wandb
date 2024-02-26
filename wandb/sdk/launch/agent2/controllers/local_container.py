@@ -33,11 +33,11 @@ async def local_container_controller(
 
         max_concurrency = max(1, multiprocessing.cpu_count() - 1)
         logger.debug(
-            f"[Controller {name}] Detecting max_concurrency as {max_concurrency} (based on # of CPUs available)"
+            f"Detecting max_concurrency as {max_concurrency} (based on # of CPUs available)"
         )
 
     logger.debug(
-        f"[Controller {name}] Starting local container controller with max concurrency {max_concurrency}"
+        f"Starting local container controller with max concurrency {max_concurrency}"
     )
 
     mgr = LocalContainerManager(config, jobset, logger, legacy, max_concurrency)
@@ -46,9 +46,6 @@ async def local_container_controller(
         await mgr.reconcile()
         await asyncio.sleep(5)
         iter += 1
-    logger.debug(f"[Controller {name}] Cleaning up...")
-    logger.debug(f"[Controller {name}] Done!")
-
 
 class LocalContainerManager:
     """Maintains state for multiple docker containers."""

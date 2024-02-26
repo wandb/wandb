@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Dict, List, Optional
@@ -111,11 +112,9 @@ class JobSet:
         self._done_event.set()
 
     async def _sync(self):
-        self._logger.debug("Updating...")
         next_state = await self._refresh_jobset()
-
-        self._logger.debug(f"Got state: {next_state}")
-
+        self._logger.debug(f"State: {next_state}")
+        
         # just grabbed a diff from the server, now to add to our local state
         self._last_state = next_state
 

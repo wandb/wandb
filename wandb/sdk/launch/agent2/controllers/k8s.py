@@ -31,7 +31,7 @@ async def k8s_controller(
             )
 
     logger.debug(
-        f"[Controller {name}] Starting local process controller with max concurrency {max_concurrency}"
+        f"Starting local process controller with max concurrency {max_concurrency}"
     )
 
     mgr = KubernetesManager(config, jobset, logger, legacy, max_concurrency)
@@ -42,10 +42,6 @@ async def k8s_controller(
             5
         )  # TODO(np): Ideally waits for job set or target resource events
         iter += 1
-    logger.debug(f"[Controller {name}] Cleaning up...")
-
-    await asyncio.sleep(2)  # TODO: get rid of this
-    logger.debug(f"[Controller {name}] Done!")
 
     return None
 
@@ -154,4 +150,5 @@ class KubernetesManager:
         return project.run_id
 
     async def release_item(self, item: Any) -> Any:
+        del self.active_runs[item["id"]]
         self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")

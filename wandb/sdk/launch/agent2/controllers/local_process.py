@@ -24,7 +24,7 @@ async def local_process_controller(
     # to drive the launch controller here
     jobset.stop_sync_loop()
 
-    logger.debug(f"[Controller {config['jobset_spec'].name}] received config: {config}")
+    logger.debug(f"received config: {config}")
 
     name = config["jobset_spec"].name
     iter = 0
@@ -36,11 +36,11 @@ async def local_process_controller(
 
         max_concurrency = max(1, multiprocessing.cpu_count() - 1)
         logger.debug(
-            f"[Controller {name}] Detecting max_concurrency as {max_concurrency} (based on # of CPUs available)"
+            f"Detecting max_concurrency as {max_concurrency} (based on # of CPUs available)"
         )
 
     logger.debug(
-        f"[Controller {name}] Starting local process controller with max concurrency {max_concurrency}"
+        f"Starting local process controller with max concurrency {max_concurrency}"
     )
 
     mgr = LocalProcessesManager(config, jobset, logger, legacy, max_concurrency)
@@ -51,11 +51,7 @@ async def local_process_controller(
             5
         )  # TODO(np): Ideally waits for job set or target resource events
         iter += 1
-    logger.debug(f"[Controller {name}] Cleaning up...")
-
-    await asyncio.sleep(2)  # TODO: get rid of this
-    logger.debug(f"[Controller {name}] Done!")
-
+    logger.debug(f"Shutdown complete")
     return None
 
 
