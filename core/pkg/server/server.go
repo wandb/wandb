@@ -31,11 +31,10 @@ type Server struct {
 }
 
 // NewServer creates a new server
-func NewServer(ctx context.Context, addr string, portFile string) *Server {
+func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		slog.Error("can not listen", "error", err)
-		// TODO: handle error
+		return nil, err
 	}
 
 	s := &Server{
@@ -50,7 +49,7 @@ func NewServer(ctx context.Context, addr string, portFile string) *Server {
 	writePortFile(portFile, port)
 	s.wg.Add(1)
 	go s.Serve()
-	return s
+	return s, nil
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
