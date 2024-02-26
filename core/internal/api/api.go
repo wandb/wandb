@@ -9,6 +9,12 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"golang.org/x/time/rate"
+)
+
+const (
+	maxRequestsPerSecond = 20
+	maxBurst             = 10
 )
 
 // The W&B backend server.
@@ -27,6 +33,9 @@ type Backend struct {
 
 	// API key for backend requests.
 	apiKey string
+
+	// Rate limit for all outgoing requests.
+	rateLimiter *rate.Limiter
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -102,9 +111,10 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL: opts.BaseURL,
-		logger:  opts.Logger,
-		apiKey:  opts.APIKey,
+		baseURL:     opts.BaseURL,
+		logger:      opts.Logger,
+		apiKey:      opts.APIKey,
+		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
 	}
 }
 
