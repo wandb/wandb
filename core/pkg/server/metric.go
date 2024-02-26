@@ -4,7 +4,6 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
@@ -79,33 +78,5 @@ func NewMetricSender() *MetricSender {
 		definedMetrics: make(map[string]*service.MetricRecord),
 		metricIndex:    make(map[string]int32),
 		configMetrics:  make([]map[int]interface{}, 0),
-	}
-}
-
-// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
-// are used to configure the plots in the UI.
-func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-
-	_, err := addMetric(metric, metric.GetName(), &s.metricSender.definedMetrics)
-	if err != nil {
-		return
-	}
-
-	if metric.GetStepMetric() != "" {
-		index, ok := s.metricSender.metricIndex[metric.GetStepMetric()]
-		if ok {
-			metric = proto.Clone(metric).(*service.MetricRecord)
-			metric.StepMetric = ""
-			metric.StepMetricIndex = index + 1
-		}
-	}
-
-	encodeMetric := corelib.ProtoEncodeToDict(metric)
-	if index, ok := s.metricSender.metricIndex[metric.GetName()]; ok {
-		s.metricSender.configMetrics[index] = encodeMetric
-	} else {
-		nextIndex := len(s.metricSender.configMetrics)
-		s.metricSender.configMetrics = append(s.metricSender.configMetrics, encodeMetric)
-		s.metricSender.metricIndex[metric.GetName()] = int32(nextIndex)
 	}
 }

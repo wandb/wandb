@@ -104,7 +104,7 @@ func (w *Writer) Do(inChan <-chan *service.Record) {
 	w.startStore()
 
 	for record := range inChan {
-		w.handleRecord(record)
+		w.writeRecord(record)
 	}
 	w.Close()
 	w.wg.Wait()
@@ -120,19 +120,19 @@ func (w *Writer) Close() {
 	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
 }
 
-// handleRecord Writing messages to the append-only log,
+// writeRecord Writing messages to the append-only log,
 // and passing them to the sender.
 // We ensure that the messages are written to the log
 // before they are sent to the server.
-func (w *Writer) handleRecord(record *service.Record) {
+func (w *Writer) writeRecord(record *service.Record) {
 	w.logger.Debug("write: got a message", "record", record, "stream_id", w.settings.RunId)
 	switch record.RecordType.(type) {
 	case *service.Record_Request:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 	case nil:
-		w.logger.Error("nil record type")
+		w.logger.Error("write: nil record type")
 	default:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 		w.storeRecord(record)
 	}
 }
@@ -147,7 +147,7 @@ func (w *Writer) storeRecord(record *service.Record) {
 	w.storeChan <- record
 }
 
-func (w *Writer) sendRecord(record *service.Record) {
+func (w *Writer) fwdRecord(record *service.Record) {
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return

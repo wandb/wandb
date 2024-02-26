@@ -19,6 +19,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -903,6 +904,15 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 }
 
+func (s *Sender) respond(record *service.Record, response *service.Response) {
+	result := &service.Result{
+		ResultType: &service.Result_Response{Response: response},
+		Control:    record.Control,
+		Uuid:       record.Uuid,
+	}
+	s.outChan <- result
+}
+
 // respondExit called from the end of the defer state machine
 func (s *Sender) respondExit(record *service.Record) {
 	if record == nil || s.settings.GetXSync().GetValue() {
@@ -918,6 +928,13 @@ func (s *Sender) respondExit(record *service.Record) {
 	}
 }
 
+func (s *Sender) fwdRecord(record *service.Record) {
+	if record == nil {
+		return
+	}
+	s.fwdChan <- record
+}
+
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
@@ -930,16 +947,16 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	request := &service.Request{RequestType: &service.Request_Defer{
 		Defer: &service.DeferRequest{State: service.DeferRequest_BEGIN}},
 	}
+	// TODO: reevaluate the logic here
 	if record.Control == nil {
 		record.Control = &service.Control{AlwaysSend: true}
 	}
-
 	rec := &service.Record{
 		RecordType: &service.Record_Request{Request: request},
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
-	s.fwdChan <- rec
+	s.fwdRecord(rec)
 }
 
 // sendMetric sends a metrics record to the file stream,
@@ -957,6 +974,34 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
 	s.sendConfig(nil, nil /*configRecord*/)
+}
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := addMetric(metric, metric.GetName(), &s.metricSender.definedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.metricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.metricIndex[metric.GetName()]; ok {
+		s.metricSender.configMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.configMetrics)
+		s.metricSender.configMetrics = append(s.metricSender.configMetrics, encodeMetric)
+		s.metricSender.metricIndex[metric.GetName()] = int32(nextIndex)
+	}
 }
 
 // sendFiles iterates over the files in the FilesRecord and sends them to
@@ -1035,7 +1080,7 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 						},
 					},
 				}
-				s.fwdChan <- record
+				s.fwdRecord(record)
 			},
 		)
 		task.SetCompletionCallback(
@@ -1066,7 +1111,7 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 						},
 					},
 				}
-				s.fwdChan <- record
+				s.fwdRecord(record)
 			},
 		)
 		s.fileTransferManager.AddTask(task)
@@ -1074,56 +1119,44 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 }
 
 func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
-	var response service.LogArtifactResponse
+	var logArtifactResponse service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
-		response.ErrorMessage = err.Error()
+		logArtifactResponse.ErrorMessage = err.Error()
 	} else {
-		response.ArtifactId = artifactID
+		logArtifactResponse.ArtifactId = artifactID
 	}
 
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_LogArtifactResponse{
-					LogArtifactResponse: &response,
-				},
-			},
+	response := &service.Response{
+		ResponseType: &service.Response_LogArtifactResponse{
+			LogArtifactResponse: &logArtifactResponse,
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
 	}
-	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
-	s.outChan <- result
+	s.jobBuilder.HandleLogArtifactResult(&logArtifactResponse, msg.Artifact)
+	s.respond(record, response)
 }
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	// TODO: this should be handled by a separate service starup mechanism
 	s.fileTransferManager.Start()
 
-	var response service.DownloadArtifactResponse
+	var downloadArtifactResponse service.DownloadArtifactResponse
 	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
 	err := downloader.Download()
 	if err != nil {
 		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
-		response.ErrorMessage = err.Error()
+		downloadArtifactResponse.ErrorMessage = err.Error()
 	}
 
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_DownloadArtifactResponse{
-					DownloadArtifactResponse: &response,
-				},
-			},
+	response := &service.Response{
+		ResponseType: &service.Response_DownloadArtifactResponse{
+			DownloadArtifactResponse: &downloadArtifactResponse,
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
 	}
-	s.outChan <- result
+	s.respond(record, response)
 }
 
 func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
@@ -1148,21 +1181,15 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
 			}
-			result := &service.Result{
-				ResultType: &service.Result_Response{
-					Response: &service.Response{
-						ResponseType: &service.Response_SyncResponse{
-							SyncResponse: &service.SyncResponse{
-								Url:   url,
-								Error: errorInfo,
-							},
-						},
+			response := &service.Response{
+				ResponseType: &service.Response_SyncResponse{
+					SyncResponse: &service.SyncResponse{
+						Url:   url,
+						Error: errorInfo,
 					},
 				},
-				Control: record.Control,
-				Uuid:    record.Uuid,
 			}
-			s.outChan <- result
+			s.respond(record, response)
 		}),
 	)
 	s.syncService.Start()
@@ -1181,7 +1208,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.fwdChan <- rec
+	s.fwdRecord(rec)
 }
 
 func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
@@ -1254,18 +1281,12 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		}
 	}
 
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_ServerInfoResponse{
-					ServerInfoResponse: &service.ServerInfoResponse{
-						LocalInfo: localInfo,
-					},
-				},
+	response := &service.Response{
+		ResponseType: &service.Response_ServerInfoResponse{
+			ServerInfoResponse: &service.ServerInfoResponse{
+				LocalInfo: localInfo,
 			},
 		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
 	}
-	s.outChan <- result
+	s.respond(record, response)
 }
