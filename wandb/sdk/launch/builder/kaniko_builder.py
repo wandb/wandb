@@ -17,7 +17,6 @@ from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
-from wandb.sdk.launch.registry.anon import AnonynmousRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
