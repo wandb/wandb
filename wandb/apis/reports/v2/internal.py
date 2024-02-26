@@ -761,7 +761,7 @@ class QueryField(ReportAPIBaseModel):
     args: LList[QueryFieldsValue] = Field(
         default_factory=lambda: [
             QueryFieldsValue(name="runSets", value="${runSets}"),
-            QueryFieldsValue(name="limit", value=500),
+            QueryFieldsValue(name="limit", value=1_000_000),
         ]
     )
     fields: LList[QueryFieldsField] = Field(
