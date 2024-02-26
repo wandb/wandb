@@ -2286,14 +2286,12 @@ class Run:
 
         if self._settings._save_requirements:
             if self._backend and self._backend.interface:
-                import pkg_resources
+                from wandb.util import working_set
 
                 logger.debug(
                     "Saving list of pip packages installed into the current environment"
                 )
-                self._backend.interface.publish_python_packages(
-                    pkg_resources.working_set
-                )
+                self._backend.interface.publish_python_packages(working_set())
 
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(
@@ -2353,11 +2351,9 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
-        import pkg_resources
+        from wandb.util import working_set
 
-        installed_packages_list = sorted(
-            f"{d.key}=={d.version}" for d in iter(pkg_resources.working_set)
-        )
+        installed_packages_list = sorted(f"{d.key}=={d.version}" for d in working_set())
         input_types = TypeRegistry.type_of(self.config.as_dict()).to_json()
         output_types = TypeRegistry.type_of(self.summary._as_dict()).to_json()
 
@@ -2428,8 +2424,6 @@ class Run:
         else:
             return artifact
 
-    # Add a recurring callback (probe) to poll the backend process
-    # for its status using the "poll_exit" message.
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
@@ -2441,8 +2435,6 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
-    # Handles the progress message from the backend process and prints
-    # the current status to the terminal footer
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         probe_handles = progress_handle.get_probe_handles()
         assert probe_handles and len(probe_handles) == 1
@@ -2730,9 +2722,6 @@ class Run:
         if self._backend and self._backend.interface:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
-            # artifact logging is async, wait until the artifact is committed
-            # before trying to link it
-            artifact.wait()
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
@@ -2769,7 +2758,6 @@ class Run:
                 can be in the following forms:
                     - name:version
                     - name:alias
-                    - digest
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
@@ -3034,7 +3022,7 @@ class Run:
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                handle = self._backend.interface.deliver_artifact(
+                future = self._backend.interface.communicate_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3043,9 +3031,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                handle.add_probe(self._on_probe_exit)
-                handle.add_progress(self._on_progress_exit)
-                artifact._set_save_handle(handle, self._public_api().client)
+                artifact._set_save_future(future, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -3199,7 +3185,6 @@ class Run:
                 can be in the following forms:
                     - model_artifact_name:version
                     - model_artifact_name:alias
-                    - model_artifact_name:digest.
 
         Examples:
             ```python

@@ -15,4 +15,4 @@
 set -e
 BASE=$(dirname $(dirname $(readlink -f $0)))
 cd $BASE
-go run cmd/core/main.go $*
+go run cmd/wandb-core/main.go $*

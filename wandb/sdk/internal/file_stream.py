@@ -274,7 +274,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         ret = []
         for a, b in intervals:
             processed_chunk: ProcessedChunk = {
-                "offset": a,
+                "offset": self._chunk_id + a,
                 "content": [console[i] for i in range(a, b + 1)],
             }
             ret.append(processed_chunk)

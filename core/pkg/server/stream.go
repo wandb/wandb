@@ -2,9 +2,15 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -59,13 +65,67 @@ type Stream struct {
 	dispatcher *Dispatcher
 }
 
+func streamLogger(settings *service.Settings) *observability.CoreLogger {
+	// TODO: when we add session concept re-do this to use user provided path
+	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "debug-core.log")
+	if path := defaultLoggerPath.Load(); path != nil {
+		path := path.(string)
+		// check path exists
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			err := os.Symlink(path, targetPath)
+			if err != nil {
+				slog.Error("error creating symlink", "error", err)
+			}
+		}
+	}
+
+	var writers []io.Writer
+	name := settings.GetLogInternal().GetValue()
+	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		slog.Error(fmt.Sprintf("error opening log file: %s", err))
+	} else {
+		writers = append(writers, file)
+	}
+	writer := io.MultiWriter(writers...)
+
+	// TODO: add a log level to the settings
+	level := slog.LevelInfo
+	if os.Getenv("WANDB_CORE_DEBUG") != "" {
+		level = slog.LevelDebug
+	}
+
+	opts := &slog.HandlerOptions{
+		Level: level,
+		// AddSource: true,
+	}
+
+	logger := observability.NewCoreLogger(
+		slog.New(slog.NewJSONHandler(writer, opts)),
+		observability.WithTags(observability.Tags{}),
+		observability.WithCaptureMessage(observability.CaptureMessage),
+		observability.WithCaptureException(observability.CaptureException),
+	)
+	logger.Info("using version", "core version", version.Version)
+	logger.Info("created symlink", "path", targetPath)
+	tags := observability.Tags{
+		"run_id":  settings.GetRunId().GetValue(),
+		"run_url": settings.GetRunUrl().GetValue(),
+		"project": settings.GetProject().GetValue(),
+		"entity":  settings.GetEntity().GetValue(),
+	}
+	logger.SetTags(tags)
+
+	return logger
+}
+
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       SetupStreamLogger(settings),
+		logger:       streamLogger(settings),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),

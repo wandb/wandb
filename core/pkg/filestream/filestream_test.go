@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/apitest"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -143,12 +144,13 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 	fstreamPath := "/test/" + tName
 	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
 	fs := filestream.NewFileStream(
-		filestream.WithPath(tserver.hserver.URL+fstreamPath),
+		filestream.WithPath(fstreamPath),
 		filestream.WithSettings(tserver.settings),
 		filestream.WithLogger(tserver.logger),
-		filestream.WithHttpClient(clients.NewRetryClient(
-			clients.WithRetryClientHttpAuthTransport(tserver.settings.GetApiKey().GetValue()),
-			clients.WithRetryClientLogger(tserver.logger))),
+		filestream.WithAPIClient(apitest.TestingClient(
+			tserver.hserver.URL,
+			api.ClientOptions{},
+		)),
 	)
 	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
@@ -168,8 +170,8 @@ func NewHistoryRecord() *service.Record {
 			History: &service.HistoryRecord{
 				Step: &service.HistoryStep{Num: 0},
 				Item: []*service.HistoryItem{
-					&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", 0.0)},
-					&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", 0)},
+					{Key: "_runtime", ValueJson: fmt.Sprintf("%f", 0.0)},
+					{Key: "_step", ValueJson: fmt.Sprintf("%d", 0)},
 				}}}}
 	return msg
 }
