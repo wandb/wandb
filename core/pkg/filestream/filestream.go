@@ -89,7 +89,7 @@ type FileStream struct {
 	logger *observability.CoreLogger
 
 	// The client for making API requests.
-	apiClient *api.Client
+	apiClient api.Client
 
 	maxItemsPerPush int
 	delayProcess    time.Duration
@@ -118,7 +118,7 @@ func WithPath(path string) FileStreamOption {
 	}
 }
 
-func WithAPIClient(client *api.Client) FileStreamOption {
+func WithAPIClient(client api.Client) FileStreamOption {
 	return func(fs *FileStream) {
 		fs.apiClient = client
 	}
