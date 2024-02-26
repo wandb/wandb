@@ -25,6 +25,7 @@ from wandb.sdk.launch.loader import (
 from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
+from ..registry.anon import AnonynmousRegistry
 from ..utils import (
     AZURE_CONTAINER_REGISTRY_URI_REGEX,
     ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
@@ -41,7 +42,7 @@ _logger = logging.getLogger(__name__)
 _WANDB_DOCKERFILE_NAME = "Dockerfile.wandb"
 
 
-def registry_from_uri(uri: str) -> Optional[AbstractRegistry]:
+def registry_from_uri(uri: str) -> AbstractRegistry:
     """Create a registry helper object from a uri.
 
     This function parses the URI and determines which supported registry it
@@ -99,7 +100,7 @@ def registry_from_uri(uri: str) -> Optional[AbstractRegistry]:
 
         return ElasticContainerRegistry(uri=uri)
 
-    return None
+    return AnonynmousRegistry(uri=uri)
 
 
 async def validate_docker_installation() -> None:

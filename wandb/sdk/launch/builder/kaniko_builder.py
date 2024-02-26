@@ -17,12 +17,12 @@ from wandb.sdk.launch.builder.build import registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.anon import AnonynmousRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
-from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -172,8 +172,6 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri is not None:
             registry = registry_from_uri(image_uri)
-            if registry is None:
-                registry = LocalRegistry()
 
         return cls(
             environment,
@@ -270,17 +268,8 @@ class KanikoBuilder(AbstractBuilder):
             dockerfile=launch_project.override_dockerfile,
         )
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
-        if isinstance(self.registry, LocalRegistry):
-            if not DOCKER_CONFIG_SECRET:
-                raise LaunchError(
-                    "You must specify a DOCKER_CONFIG_SECRET environment variable "
-                    "to use non standard registry for kaniko builds."
-                )
-            repo_uri = self.destination
-        else:
-            repo_uri = await self.registry.get_repo_uri()
+        repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
-
         if (
             not launch_project.build_required()
             and await self.registry.check_image_exists(image_uri)
