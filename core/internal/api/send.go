@@ -22,6 +22,8 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	for headerKey, headerValue := range req.Headers {
 		retryableReq.Header.Set(headerKey, headerValue)
 	}
+	client.setClientHeaders(retryableReq)
+	client.setAuthHeaders(retryableReq)
 
 	return client.sendToWandbBackend(retryableReq)
 }
