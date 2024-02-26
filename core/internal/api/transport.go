@@ -2,6 +2,9 @@ package api
 
 import (
 	"net/http"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // A rate-limited HTTP transport for requests to the W&B backend.
@@ -32,5 +35,30 @@ func (transport *rateLimitedTransport) RoundTrip(
 		return nil, err
 	}
 
-	return transport.delegate.RoundTrip(req)
+	transport.backend.rlTracker.TrackRequest()
+	resp, err := transport.delegate.RoundTrip(req)
+
+	if resp != nil {
+		transport.processRateLimitHeaders(resp)
+	}
+
+	return resp, err
+}
+
+func (transport *rateLimitedTransport) processRateLimitHeaders(
+	resp *http.Response,
+) {
+	// TODO
+	rlRemaining := 500
+	rlReset := 60
+
+	transport.backend.rlTracker.UpdateEstimates(
+		time.Now(),
+		rlRemaining,
+		rlReset,
+	)
+
+	// TODO: Don't do constantly?
+	transport.backend.rateLimiter.SetLimit(rate.Limit(
+		transport.backend.rlTracker.TargetRateLimit()))
 }
