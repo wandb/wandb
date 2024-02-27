@@ -185,10 +185,6 @@ type JobBuilderOption struct {
 
 func NewJobBuilder(opts JobBuilderOption) *JobBuilder {
 	settings := opts.Settings
-	if settings.GetDisableJobCreation().GetValue() {
-		return nil
-	}
-
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: settings.GetXJupyter().GetValue(),
