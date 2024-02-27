@@ -26,5 +26,10 @@
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true
-  }
+  },
+  "rust-analyzer.linkedProjects": ["./client/Cargo.toml"],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.typeCheckingMode": "off",
+  "go.buildFlags": ["-race"],
+  "go.testFlags": ["-race"]
 }

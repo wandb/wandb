@@ -1,6 +1,5 @@
 import os
 import shutil
-import sys
 import unittest.mock
 from pathlib import Path
 from queue import Queue
@@ -52,8 +51,7 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 
 @pytest.fixture(scope="function", autouse=True)
 def filesystem_isolate(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    kwargs = dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    kwargs = dict(temp_dir=tmp_path)
     with CliRunner().isolated_filesystem(**kwargs):
         yield
 
@@ -78,22 +76,11 @@ def local_settings(filesystem_isolate):
 @pytest.fixture(scope="function", autouse=True)
 def local_netrc(filesystem_isolate):
     """Never use our real credentials, put them in their own isolated dir."""
-    original_expanduser = os.path.expanduser  # TODO: this seems overkill...
-
-    open(".netrc", "wb").close()  # Touch that netrc file
-
-    def expand(path):
-        if "netrc" in path:
-            try:
-                full_path = os.path.realpath("netrc")
-            except OSError:
-                full_path = original_expanduser(path)
-        else:
-            full_path = original_expanduser(path)
-        return full_path
-
-    # monkeypatch.setattr(os.path, "expanduser", expand)
-    with unittest.mock.patch.object(os.path, "expanduser", expand):
+    # patch os.environ NETRC
+    with unittest.mock.patch.dict(
+        "os.environ",
+        {"NETRC": os.path.realpath("netrc")},
+    ):
         yield
 
 
@@ -210,7 +197,7 @@ def test_settings():
     def update_test_settings(
         extra_settings: Union[
             dict, wandb.sdk.wandb_settings.Settings
-        ] = dict_factory()  # noqa: B008
+        ] = dict_factory(),  # noqa: B008
     ):
         settings = wandb.Settings(
             console="off",

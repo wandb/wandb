@@ -20,7 +20,10 @@ def mock_sagemaker_environment():
 
 
 @pytest.mark.asyncio
-async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
+@pytest.mark.parametrize("override_entrypoint", [None, ["python", "test.py"]])
+async def test_sagemaker_resolved_submitted_job(
+    relay_server, monkeypatch, user, override_entrypoint
+):
     async def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]
@@ -84,8 +87,12 @@ async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user)
         project.run_id = "asdasd"
         project.sweep_id = "sweeeeep"
         project.override_config = {}
-        project.override_entrypoint = entrypoint
         project.get_single_entry_point.return_value = entrypoint
+        if override_entrypoint:
+            project.override_entrypoint = EntryPoint("blah2", override_entrypoint)
+        else:
+            project.override_entrypoint = None
+        project._entrypoint = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
         project.docker_image = "testimage"
         project.image_name = "testimage"
@@ -109,7 +116,7 @@ async def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user)
         assert req["AlgorithmSpecification"] == {
             "TrainingImage": "testimage",
             "TrainingInputMode": "File",
-            "ContainerEntrypoint": ["python", "test.py"],
+            "ContainerEntrypoint": override_entrypoint or entrypoint.command,
             "ContainerArguments": ["--a1", "20", "--a2", "10"],
         }
         assert req["ResourceConfig"] == {"blah": 2}

@@ -160,10 +160,6 @@ class LocalContainerRunner(AbstractRunner):
 
             assert launch_project.docker_image == image_uri
 
-        additional_args = (
-            launch_project.override_args if launch_project.docker_image else None
-        )
-
         entry_cmd = (
             launch_project.override_entrypoint.command
             if launch_project.override_entrypoint is not None
@@ -176,7 +172,7 @@ class LocalContainerRunner(AbstractRunner):
                 env_vars,
                 docker_args=docker_args,
                 entry_cmd=entry_cmd,
-                additional_args=additional_args,
+                additional_args=launch_project.override_args,
             )
         ).strip()
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
@@ -238,7 +234,13 @@ def _thread_process_runner(
         if not chunk:
             break
         index = chunk.find(b"\r")
-        decoded_chunk = chunk.decode()
+        decoded_chunk = None
+        while not decoded_chunk:
+            try:
+                decoded_chunk = chunk.decode()
+            except UnicodeDecodeError:
+                # Multi-byte character cut off, try to get the rest of it
+                chunk += os.read(process.stdout.fileno(), 1)  # type: ignore
         if index != -1:
             run._stdout += decoded_chunk
             print(chunk.decode(), end="")

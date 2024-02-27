@@ -12,7 +12,7 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
+import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
@@ -328,10 +328,7 @@ def test_add_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".")
 
-    # note: we are auto-using local_netrc resulting in
-    # the .netrc file being picked by the artifact, see manifest
-
-    assert artifact.digest == "c409156beb903b74fe9097bb249a26d2"
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -345,7 +342,7 @@ def test_add_named_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".", name="subdir")
 
-    assert artifact.digest == "a2184d2d318ddb2f3aa82818365827df"
+    assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["subdir/file1.txt"] == {
@@ -421,7 +418,7 @@ def test_add_reference_local_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd())
 
-    assert artifact.digest == "13d688af2d0dab74e0544a4c5c542735"
+    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -461,7 +458,7 @@ def test_add_reference_local_dir_no_checksum():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), checksum=False)
 
-    assert artifact.digest == "7ca355c7f600119151d607c98921ab50"
+    assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size_1)),
@@ -490,10 +487,12 @@ def test_add_reference_local_dir_with_name():
     with open("nest/nest/file3.txt", "w") as f:
         f.write("dude")
 
+    print(os.listdir("."))
+
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), name="top")
 
-    assert artifact.digest == "c406b09e8b6cb180e9be7fa010bf5a83"
+    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["top/file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -1372,7 +1371,7 @@ def test_http_storage_handler_uses_etag_for_digest(
 def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
@@ -1388,8 +1387,23 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with pytest.raises(FileNotFoundError, match="Unable to find"):
-        artifact.download()
+    with wandb_init(project="test") as run:
+        with pytest.raises(FileNotFoundError, match="Unable to find"):
+            artifact.download()
+
+
+def test_change_artifact_collection_type(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        artifact.collection.change_type("lucas_type")
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        assert artifact.type == "lucas_type"
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
@@ -1397,7 +1411,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 ):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
@@ -1413,7 +1427,8 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    artifact.download(allow_missing_references=True)
+    with wandb_init(project="test") as run:
+        artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
     assert "Unable to find my_object.pb" in capsys.readouterr().err
@@ -1423,7 +1438,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
+    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
@@ -1489,9 +1504,9 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
-    monkeypatch.setattr(artifacts_cache, "_artifacts_cache", cache)
-    assert cache == artifacts_cache.get_artifacts_cache()
+    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache == artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")

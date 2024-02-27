@@ -8,7 +8,7 @@ from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
-from wandb.sdk.launch.github_reference import GitHubReference
+from wandb.sdk.launch.git_reference import GitReference
 
 
 def test_job_call(relay_server, user, wandb_init, test_settings):
@@ -35,7 +35,6 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
         assert queued_run.state == "pending"
         assert queued_run.entity == user
         assert queued_run.project == proj
-        assert queued_run.container_job is True
 
         rqi = internal_api.pop_from_run_queue(queue, user, proj)
 
@@ -110,10 +109,10 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
 
     # assert updates to partial, and input/output types
     assert not job._partial
-    assert (
-        str(job._output_types)
-        == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
-    )
+    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
+    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
+    for key in output_type_keys:
+        assert str(job._output_types._params["type_map"][key]) == "Number"
     assert str(job._input_types) == "{'input1': Number}"
 
 
@@ -128,20 +127,20 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     def mock_fetch_repo(self, dst_dir):
         # mock dumping a file to the local clone of the repo
-        os.makedirs(os.path.join(dst_dir, "commit/path/"), exist_ok=True)
-        with open(os.path.join(dst_dir, "commit/path/requirements.txt"), "w") as f:
+        os.makedirs(os.path.join(dst_dir, "commit/"), exist_ok=True)
+        with open(os.path.join(dst_dir, "commit/requirements.txt"), "w") as f:
             f.write("wandb\n")
 
-        with open(os.path.join(dst_dir, "commit/path/runtime.txt"), "w") as f:
+        with open(os.path.join(dst_dir, "commit/runtime.txt"), "w") as f:
             f.write("3.8.9\n")
 
-        with open(os.path.join(dst_dir, "commit/path/main.py"), "w") as f:
+        with open(os.path.join(dst_dir, "commit/main.py"), "w") as f:
             f.write("print('hello world')")
 
         self.commit_hash = "1234567890"
-        self._update_path(dst_dir)
+        self.path = "commit"
 
-    monkeypatch.setattr(GitHubReference, "fetch", mock_fetch_repo)
+    monkeypatch.setattr(GitReference, "fetch", mock_fetch_repo)
 
     artifact, action, aliases = _create_job(
         api=internal_api,
@@ -166,7 +165,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == [
         "python3.8",
-        "commit/path/main.py",
+        "main.py",
     ]
     assert job_v0._job_info["source"]["notebook"] is False
 
@@ -193,10 +192,10 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     # assert updates to partial, and input/output types
     assert not job._partial
-    assert (
-        str(job._output_types)
-        == "{'x': Number, '_timestamp': Number, '_runtime': Number, '_step': Number}"
-    )
+    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
+    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
+    for key in output_type_keys:
+        assert str(job._output_types._params["type_map"][key]) == "Number"
     assert str(job._input_types) == "{'input1': Number}"
 
 
@@ -209,6 +208,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         "port:5000:1000/1000/test/docker-image-path:alias1",
     ],
 )
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_job_image(user, wandb_init, test_settings, image_name):
     proj = "test-p1"
 

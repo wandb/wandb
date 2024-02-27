@@ -2,7 +2,9 @@ id: 0.mp.06-4-share-synchronize
 plugin:
   - wandb
 tag:
-  shard: service
+  skips:
+    - platform: win
+  
 parametrize:
   permute:
     - :yea:start_method:

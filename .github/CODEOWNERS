@@ -4,11 +4,19 @@
 /tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
 # Adding or removing dependencies needs extra scrutiny
 /pyproject.toml @wandb/sdk-team
-/setup.cfg @wandb/sdk-team
 /setup.py @wandb/sdk-team
-/requirements.txt @wandb/sdk-team
-# Nexus changes need extra scrutiny during the initial rollout
-/nexus/ @wandb/sdk-team
+# core changes need extra scrutiny during the initial rollout
+/core/ @wandb/sdk-team
+# CircleCI configuration changes need extra scrutiny
+/.circleci @wandb/sdk-team
+# GitHub configuration changes need extra scrutiny
+/.github @wandb/sdk-team
 
+# ML Workflows team
+/core/pkg/artifacts/ @wandb/mlw-team
+/wandb/sdk/artifacts/ @wandb/mlw-team
+/tests/functional_tests/t0_main/artifacts/ @wandb/mlw-team
+/tests/pytest_tests/system_tests/test_artifacts/ @wandb/mlw-team
+/tests/pytest_tests/unit_tests/test_artifacts/ @wandb/mlw-team
 /tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
 /tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team

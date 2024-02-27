@@ -11,7 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_client_ids() -> bool:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
@@ -207,7 +207,7 @@ class WBValue:
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
-            ref_entry = self._artifact_source.artifact.get_path(
+            ref_entry = self._artifact_source.artifact.get_entry(
                 type(self).with_suffix(self._artifact_source.name)
             )
             return str(ref_entry.ref_url())
@@ -236,7 +236,7 @@ class WBValue:
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_path(
+            ref_entry = self._artifact_target.artifact.get_entry(
                 type(self).with_suffix(self._artifact_target.name)
             )
             return str(ref_entry.ref_url())
@@ -267,7 +267,7 @@ class WBValue:
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_path(
+            ref_entry = self._artifact_target.artifact.get_entry(
                 type(self).with_suffix(self._artifact_target.name)
             )
             return str(ref_entry.ref_url())

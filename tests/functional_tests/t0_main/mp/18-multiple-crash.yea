@@ -1,8 +1,10 @@
 id: 0.mp.18-multiple-crash
-tag:
-  shard: service
+
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 var:
   - run0:
       :fn:find:

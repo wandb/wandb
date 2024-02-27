@@ -1,0 +1,16 @@
+query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
+    artifact(id: $id) {
+        files(after: $cursor, first: $perPage) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            edges {
+                node {
+                    name
+                    directUrl
+                }
+            }
+        }
+    }
+}

@@ -31,11 +31,13 @@ class CustomChart:
         data: Table,
         fields: Dict[str, Any],
         string_fields: Dict[str, Any],
+        split_table: Optional[bool] = False,
     ) -> None:
         self._id = id
         self._data = data
         self._fields = fields
         self._string_fields = string_fields
+        self._split_table = split_table
 
     def get_config_value(
         self,
@@ -96,6 +98,7 @@ def custom_chart(
     data_table: Table,
     fields: Dict[str, Any],
     string_fields: Optional[Dict[str, Any]] = None,
+    split_table: Optional[bool] = False,
 ) -> CustomChart:
     if string_fields is None:
         string_fields = {}
@@ -108,6 +111,7 @@ def custom_chart(
         data=data_table,
         fields=fields,
         string_fields=string_fields,
+        split_table=split_table,
     )
 
 

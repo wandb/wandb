@@ -2,13 +2,12 @@
 
 import logging
 import os
-import re
 from typing import Dict, Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import event_loop_thread_exec
+from ..utils import S3_URI_RE, event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 boto3 = get_module(
@@ -23,8 +22,6 @@ botocore = get_module(
 )
 
 _logger = logging.getLogger(__name__)
-
-S3_URI_RE = re.compile(r"s3://([^/]+)/(.+)")
 
 
 class AwsEnvironment(AbstractEnvironment):
@@ -183,11 +180,14 @@ class AwsEnvironment(AbstractEnvironment):
                 destination is not a valid s3 URI, or the upload fails.
         """
         _logger.debug(f"Uploading {source} to {destination}")
+        _err_prefix = f"Error attempting to copy {source} to {destination}."
         if not os.path.isfile(source):
-            raise LaunchError(f"Source {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: Source {source} does not exist.")
         match = S3_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
+            raise LaunchError(
+                f"{_err_prefix}: Destination {destination} is not a valid s3 URI."
+            )
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
         if not key:
@@ -198,8 +198,8 @@ class AwsEnvironment(AbstractEnvironment):
             client.upload_file(source, bucket, key)
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
-                f"botocore error attempting to copy {source} to {destination}. {e}"
-            ) from e
+                f"{_err_prefix}: botocore error attempting to copy {source} to {destination}. {e}"
+            )
 
     async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to s3 from local storage.
@@ -219,11 +219,14 @@ class AwsEnvironment(AbstractEnvironment):
                 destination is not a valid s3 URI.
         """
         _logger.debug(f"Uploading {source} to {destination}")
+        _err_prefix = f"Error attempting to copy {source} to {destination}."
         if not os.path.isdir(source):
-            raise LaunchError(f"Source {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: Source {source} does not exist.")
         match = S3_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Destination {destination} is not a valid s3 URI.")
+            raise LaunchError(
+                f"{_err_prefix}: Destination {destination} is not a valid s3 URI."
+            )
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
         if not key:
@@ -244,11 +247,11 @@ class AwsEnvironment(AbstractEnvironment):
                     )
         except botocore.exceptions.ClientError as e:
             raise LaunchError(
-                f"botocore error attempting to copy {source} to {destination}. {e}"
+                f"{_err_prefix}: botocore error attempting to copy {source} to {destination}. {e}"
             ) from e
         except Exception as e:
             raise LaunchError(
-                f"Unexpected error attempting to copy {source} to {destination}. {e}"
+                f"{_err_prefix}: Unexpected error attempting to copy {source} to {destination}. {e}"
             ) from e
 
     async def verify_storage_uri(self, uri: str) -> None:
@@ -270,13 +273,25 @@ class AwsEnvironment(AbstractEnvironment):
         _logger.debug(f"Verifying storage {uri}")
         match = S3_URI_RE.match(uri)
         if not match:
-            raise LaunchError(f"Destination {uri} is not a valid s3 URI.")
+            raise LaunchError(
+                f"Failed to validate storage uri: {uri} is not a valid s3 URI."
+            )
         bucket = match.group(1)
         try:
             session = await self.get_session()
             client = await event_loop_thread_exec(session.client)("s3")
             client.head_bucket(Bucket=bucket)
         except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                raise LaunchError(
+                    f"Could not verify AWS storage uri {uri}. Bucket {bucket} does not exist."
+                )
+            if e.response["Error"]["Code"] == "403":
+                raise LaunchError(
+                    f"Could not verify AWS storage uri {uri}. "
+                    "Bucket {bucket} is not accessible. Please check that this "
+                    "client is authenticated with permission to access the bucket."
+                )
             raise LaunchError(
-                f"Could not verify AWS storage. Please verify that your AWS credentials are configured correctly. {e}"
-            ) from e
+                f"Failed to verify AWS storage uri {uri}. Response: {e.response} Please verify that your AWS credentials are configured correctly."
+            )

@@ -12,6 +12,8 @@ tag:
 var:
   - num_sentry_events:
       :fn:len: :wandb:sentry_events
+env:
+  - WANDB_ERROR_REPORTING: "true"
 assert:
   - :wandb:runs_len: 1
   - :num_sentry_events: 1
@@ -27,8 +29,6 @@ assert:
 import shutil
 
 import wandb
-
-wandb.require("service")
 
 # Triggers a FileNotFoundError from the internal process
 # because the internal process reads/writes to the current run directory.

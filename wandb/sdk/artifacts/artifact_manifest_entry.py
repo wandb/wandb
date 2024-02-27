@@ -102,7 +102,9 @@ class ArtifactManifestEntry:
             raise NotImplementedError
         return self._parent_artifact
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(
+        self, root: Optional[str] = None, skip_cache: Optional[bool] = None
+    ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -117,7 +119,13 @@ class ArtifactManifestEntry:
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
-        dest_path = os.path.join(root, self.path)
+        path = str(Path(self.path))
+        dest_path = os.path.join(root, path)
+
+        if skip_cache:
+            override_cache_path = dest_path
+        else:
+            override_cache_path = None
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
@@ -126,15 +134,19 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self, local=True
+                self, local=True, dest_path=override_cache_path
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self
+                self._parent_artifact, self, dest_path=override_cache_path
             )
-        return FilePathStr(
-            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-        )
+
+        if skip_cache:
+            return FilePathStr(dest_path)
+        else:
+            return FilePathStr(
+                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+            )
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.
@@ -164,7 +176,7 @@ class ArtifactManifestEntry:
         Examples:
             Basic usage
             ```
-            ref_url = source_artifact.get_path('file.txt').ref_url()
+            ref_url = source_artifact.get_entry('file.txt').ref_url()
             derived_artifact.add_reference(ref_url)
             ```
         """
