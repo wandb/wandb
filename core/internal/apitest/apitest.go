@@ -46,3 +46,13 @@ func (c *fakeClient) Send(req *api.Request) (*http.Response, error) {
 
 	return c.client.Do(retryableReq)
 }
+
+func (c *fakeClient) Do(req *http.Request) (*http.Response, error) {
+	retryableReq, err := retryablehttp.FromRequest(req)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return c.client.Do(retryableReq)
+}
