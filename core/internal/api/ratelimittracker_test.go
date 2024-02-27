@@ -25,10 +25,14 @@ func TestUpdate_NoSmoothing_FindsOptimalRate(t *testing.T) {
 		MinRequestsForEstimate: 1,
 	})
 
-	rl.UpdateEstimates(time.Time{}, 20, 8)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 20, Reset: 8})
 	rl.TrackRequest()
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(2*time.Second), 12, 6)
+	rl.UpdateEstimates(
+		time.Time{}.Add(2*time.Second),
+		api.RateLimitHeaders{Remaining: 12, Reset: 6})
 
 	// 2 requests used 8 quota, so 1 request = 4 quota
 	// There is 12 quota left, so we can make 3 more requests in 6 seconds.
@@ -43,21 +47,29 @@ func TestUpdate_MinRequestsForEstimate(t *testing.T) {
 		MinRequestsForEstimate: 2,
 	})
 
-	rl.UpdateEstimates(time.Time{}, 20, 7)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 20, Reset: 7})
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(time.Second), 15, 6)
+	rl.UpdateEstimates(
+		time.Time{}.Add(time.Second),
+		api.RateLimitHeaders{Remaining: 15, Reset: 6})
 
 	// After only 1 request, the estimate remains at its initial value.
 	assert.EqualValues(t, 10, rl.TargetRateLimit())
 
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(2*time.Second), 10, 5)
+	rl.UpdateEstimates(
+		time.Time{}.Add(2*time.Second),
+		api.RateLimitHeaders{Remaining: 10, Reset: 5})
 
 	// Once we have 2 requests, the estimate is updated.
 	assert.EqualValues(t, 0.4, rl.TargetRateLimit())
 
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(3*time.Second), 5, 4)
+	rl.UpdateEstimates(
+		time.Time{}.Add(3*time.Second),
+		api.RateLimitHeaders{Remaining: 5, Reset: 4})
 
 	// Once again, only one request does not update the estimate.
 	assert.EqualValues(t, 0.4, rl.TargetRateLimit())
@@ -73,14 +85,18 @@ func TestUpdate_Smoothing(t *testing.T) {
 
 	estimates := []float64{}
 
-	rl.UpdateEstimates(time.Time{}, 50, 10)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 50, Reset: 10})
 
 	for i := 1; i <= 9; i++ {
 		rl.TrackRequest()
 		rl.UpdateEstimates(
 			time.Time{}.Add(time.Second),
-			50-float64(i)*5,
-			10-float64(i),
+			api.RateLimitHeaders{
+				Remaining: 50 - float64(i)*5,
+				Reset:     10 - float64(i),
+			},
 		)
 
 		estimates = append(estimates, rl.TargetRateLimit())
@@ -103,9 +119,13 @@ func TestUpdate_OneSecondLeft(t *testing.T) {
 		MinRequestsForEstimate: 1,
 	})
 
-	rl.UpdateEstimates(time.Time{}, 6, 2)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 6, Reset: 2})
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(time.Second), 5, 1)
+	rl.UpdateEstimates(
+		time.Time{}.Add(time.Second),
+		api.RateLimitHeaders{Remaining: 5, Reset: 1})
 
 	// Since only one second remains before the quota resets, we don't update
 	// the limit to avoid incorrect numbers.
@@ -120,13 +140,19 @@ func TestUpdate_NoQuotaChange_RaisesLimit(t *testing.T) {
 		MinRequestsForEstimate: 1,
 	})
 
-	rl.UpdateEstimates(time.Time{}, 15, 6)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 15, Reset: 6})
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(time.Second), 10, 5)
+	rl.UpdateEstimates(
+		time.Time{}.Add(time.Second),
+		api.RateLimitHeaders{Remaining: 10, Reset: 5})
 	assert.EqualValues(t, 0.4, rl.TargetRateLimit())
 
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(2*time.Second), 10, 4)
+	rl.UpdateEstimates(
+		time.Time{}.Add(2*time.Second),
+		api.RateLimitHeaders{Remaining: 10, Reset: 4})
 
 	assert.EqualValues(t, 10, rl.TargetRateLimit())
 }
@@ -139,14 +165,20 @@ func TestUpdate_NewQuotaWindow_RaisesLimit(t *testing.T) {
 		MinRequestsForEstimate: 1,
 	})
 
-	rl.UpdateEstimates(time.Time{}, 15, 6)
+	rl.UpdateEstimates(
+		time.Time{},
+		api.RateLimitHeaders{Remaining: 15, Reset: 6})
 	rl.TrackRequest()
 	rl.TrackRequest()
-	rl.UpdateEstimates(time.Time{}.Add(time.Second), 10, 5)
+	rl.UpdateEstimates(
+		time.Time{}.Add(time.Second),
+		api.RateLimitHeaders{Remaining: 10, Reset: 5})
 	assert.EqualValues(t, 0.8, rl.TargetRateLimit())
 
 	// Simulate the quota resetting.
-	rl.UpdateEstimates(time.Time{}.Add(7*time.Second), 5, 10)
+	rl.UpdateEstimates(
+		time.Time{}.Add(7*time.Second),
+		api.RateLimitHeaders{Remaining: 5, Reset: 10})
 
 	// We increase the limit toward the max because we can't estimate how much
 	// quota a request consumes based on the delta (10 => 9999).

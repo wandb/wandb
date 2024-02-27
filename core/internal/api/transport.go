@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -49,24 +48,12 @@ func (transport *rateLimitedTransport) RoundTrip(
 func (transport *rateLimitedTransport) processRateLimitHeaders(
 	resp *http.Response,
 ) {
-	rlRemaining, err :=
-		strconv.ParseFloat(resp.Header.Get("RateLimit-Remaining"), 64)
-	if err != nil {
+	rateLimit, ok := ParseRateLimitHeaders(resp.Header)
+	if !ok {
 		return
 	}
 
-	rlReset, err :=
-		strconv.ParseFloat(resp.Header.Get("RateLimit-Reset"), 64)
-	if err != nil {
-		return
-	}
-
-	transport.backend.rlTracker.UpdateEstimates(
-		time.Now(),
-		rlRemaining,
-		rlReset,
-	)
-
+	transport.backend.rlTracker.UpdateEstimates(time.Now(), rateLimit)
 	transport.backend.rateLimiter.SetLimit(rate.Limit(
 		transport.backend.rlTracker.TargetRateLimit()))
 }

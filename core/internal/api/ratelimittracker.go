@@ -99,19 +99,18 @@ func (tracker *RateLimitTracker) TrackRequest() {
 // - rlReset: the RateLimit-Reset header
 func (tracker *RateLimitTracker) UpdateEstimates(
 	t time.Time,
-	rlRemaining float64,
-	rlReset float64,
+	rlHeader RateLimitHeaders,
 ) {
 	// Too little time left in the quota window, so we can't accurately
 	// approximate a rate.
-	if rlReset <= 1 {
+	if rlHeader.Reset <= 1 {
 		return
 	}
 
 	tracker.mu.Lock()
 	defer tracker.mu.Unlock()
 
-	window, ok := tracker.tryStartNewWindow(t, rlRemaining, rlReset)
+	window, ok := tracker.tryStartNewWindow(t, rlHeader)
 	if !ok {
 		return
 	}
@@ -167,8 +166,7 @@ type rateLimitStats struct {
 // Otherwise, the second return value is false.
 func (tracker *RateLimitTracker) tryStartNewWindow(
 	t time.Time,
-	rlRemaining float64,
-	rlReset float64,
+	rlHeader RateLimitHeaders,
 ) (rateLimitStats, bool) {
 	nRequests := tracker.requestsSinceLast.Swap(0)
 
@@ -181,13 +179,13 @@ func (tracker *RateLimitTracker) tryStartNewWindow(
 
 	lastRemaining := tracker.lastRemaining
 	lastInvalidTime := tracker.lastInvalidTime
-	tracker.lastRemaining = rlRemaining
-	tracker.lastInvalidTime = t.Add(time.Duration(rlReset) * time.Second)
+	tracker.lastRemaining = rlHeader.Remaining
+	tracker.lastInvalidTime = t.Add(time.Duration(rlHeader.Reset) * time.Second)
 
 	return rateLimitStats{
 		nRequests:         nRequests,
 		isNewQuotaWindow:  t.After(lastInvalidTime),
-		remainingDelta:    lastRemaining - rlRemaining,
-		targetUnitsPerSec: rlRemaining / rlReset,
+		remainingDelta:    lastRemaining - rlHeader.Remaining,
+		targetUnitsPerSec: rlHeader.Remaining / rlHeader.Reset,
 	}, true
 }
