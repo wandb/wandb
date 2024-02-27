@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
@@ -24,12 +25,60 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	client.setClientHeaders(retryableReq)
 	client.setAuthHeaders(retryableReq)
 
-	resp, err := client.retryableHTTP.Do(retryableReq)
+	return client.sendToWandbBackend(retryableReq)
+}
+
+func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
+	retryableReq, err := retryablehttp.FromRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("api: failed to parse request: %v", err)
+	}
+
+	if !client.isToWandb(req) {
+		if client.backend.logger != nil {
+			client.backend.logger.Warn(
+				fmt.Sprintf(
+					"Unexpected request through HTTP client intended for W&B: %v",
+					req.URL,
+				),
+			)
+		}
+
+		return client.send(retryableReq)
+	}
+
+	return client.sendToWandbBackend(retryableReq)
+}
+
+// Returns whether the request would go to the W&B backend.
+func (client *clientImpl) isToWandb(req *http.Request) bool {
+	if req.URL.Host != client.backend.baseURL.Host {
+		return false
+	}
+
+	return strings.HasPrefix(req.URL.Path, client.backend.baseURL.Path)
+}
+
+// Sends a request intended for the W&B backend.
+func (client *clientImpl) sendToWandbBackend(
+	req *retryablehttp.Request,
+) (*http.Response, error) {
+	client.setClientHeaders(req)
+	client.setAuthHeaders(req)
+	return client.send(req)
+}
+
+// Sends any HTTP request.
+func (client *clientImpl) send(
+	req *retryablehttp.Request,
+) (*http.Response, error) {
+	resp, err := client.retryableHTTP.Do(req)
+
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
 
-	client.backend.logFinalResponseOnError(retryableReq, resp)
+	client.backend.logFinalResponseOnError(req, resp)
 	return resp, nil
 }
 

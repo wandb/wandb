@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -148,26 +149,22 @@ func NewSender(
 			APIKey:  settings.GetApiKey().GetValue(),
 		})
 
-		baseHeaders := map[string]string{
+		graphqlHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
 		}
-		graphqlRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientHttpAuthTransport(
-				settings.GetApiKey().GetValue(),
-				baseHeaders,
-				settings.GetXExtraHttpHeaders().GetValue(),
-			),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
+		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
+
+		graphqlClient := backend.NewClient(api.ClientOptions{
+			RetryPolicy:     clients.CheckRetry,
+			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
+			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
+			ExtraHeaders:    graphqlHeaders,
+		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
 
 		fileStreamHeaders := map[string]string{}
 		if settings.GetXShared().GetValue() {
