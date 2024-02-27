@@ -224,7 +224,11 @@ func NewSender(
 
 		sender.getServerInfo()
 
-		sender.jobBuilder = launch.NewJobBuilder(settings, logger, sender.printer)
+		sender.jobBuilder = launch.NewJobBuilder(launch.JobBuilderOption{
+			Logger:   logger,
+			Settings: settings,
+			Printer:  sender.printer,
+		})
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,

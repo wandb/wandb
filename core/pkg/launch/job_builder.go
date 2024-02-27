@@ -177,7 +177,14 @@ func MakeArtifactNameSafe(name string) string {
 
 }
 
-func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger, printer *observability.PrinterService) *JobBuilder {
+type JobBuilderOption struct {
+	Logger   *observability.CoreLogger
+	Printer  *observability.PrinterService
+	Settings *service.Settings
+}
+
+func NewJobBuilder(opts JobBuilderOption) *JobBuilder {
+	settings := opts.Settings
 	if settings.GetDisableJobCreation().GetValue() {
 		return nil
 	}
@@ -185,8 +192,8 @@ func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger,
 	jobBuilder := JobBuilder{
 		settings:      settings,
 		isNotebookRun: settings.GetXJupyter().GetValue(),
-		logger:        logger,
-		printer:       printer,
+		logger:        opts.Logger,
+		printer:       opts.Printer,
 		Disable:       settings.GetDisableJobCreation().GetValue(),
 	}
 	return &jobBuilder
