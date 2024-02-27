@@ -28,7 +28,7 @@ type RateLimitTracker struct {
 	targetUnitsPerSec float64
 
 	// Most recent value of the RateLimit-Remaining header.
-	lastRemaining int
+	lastRemaining float64
 
 	// Most recent rate limit window reset time.
 	lastInvalidTime time.Time
@@ -99,8 +99,8 @@ func (tracker *RateLimitTracker) TrackRequest() {
 // - rlReset: the RateLimit-Reset header
 func (tracker *RateLimitTracker) UpdateEstimates(
 	t time.Time,
-	rlRemaining int,
-	rlReset int,
+	rlRemaining float64,
+	rlReset float64,
 ) {
 	// Too little time left in the rate limit window, so we can't accurately
 	// approximate a rate.
@@ -167,8 +167,8 @@ type rateLimitStats struct {
 // Otherwise, the second return value is false.
 func (tracker *RateLimitTracker) tryStartNewWindow(
 	t time.Time,
-	rlRemaining int,
-	rlReset int,
+	rlRemaining float64,
+	rlReset float64,
 ) (rateLimitStats, bool) {
 	nRequests := tracker.requestsSinceLast.Swap(0)
 
@@ -187,7 +187,7 @@ func (tracker *RateLimitTracker) tryStartNewWindow(
 	return rateLimitStats{
 		nRequests:         nRequests,
 		isNewQuotaWindow:  t.After(lastInvalidTime),
-		remainingDelta:    float64(lastRemaining) - float64(rlRemaining),
-		targetUnitsPerSec: float64(rlRemaining) / float64(rlReset),
+		remainingDelta:    lastRemaining - rlRemaining,
+		targetUnitsPerSec: rlRemaining / rlReset,
 	}, true
 }
