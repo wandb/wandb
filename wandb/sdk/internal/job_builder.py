@@ -121,7 +121,9 @@ class JobBuilder:
     def disable(self, val: bool) -> None:
         self._disable = val
 
-    def _handle_server_artifact(self, res: Dict, artifact: "ArtifactRecord") -> None:
+    def _handle_server_artifact(
+        self, res: Optional[Dict], artifact: "ArtifactRecord"
+    ) -> None:
         if artifact.type == "job" and res is not None:
             try:
                 if res["artifactSequence"]["latestArtifact"] is None:
@@ -135,7 +137,7 @@ class JobBuilder:
                 self._job_seq_id = res["artifactSequence"]["id"]
             except KeyError as e:
                 _logger.info(f"Malformed response from ArtifactSaver.save {e}")
-        if artifact.type == "code" and "id" in res:
+        if artifact.type == "code" and res is not None:
             self._logged_code_artifact = ArtifactInfoForJob(
                 {
                     "id": res["id"],
