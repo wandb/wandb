@@ -188,6 +188,12 @@ class RecordMaker:
             if not code and path.startswith("code/"):
                 continue
 
+            if "media" in path:
+                from pathlib import Path
+
+                p = Path(path)
+                path = str(p.relative_to(f"{self.run_dir}/files"))
+
             f = files_record.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)  # is this always end?
