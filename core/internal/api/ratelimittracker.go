@@ -24,13 +24,13 @@ type RateLimitTracker struct {
 	// response). We then compute a moving average.
 	requestsPerUnit float64
 
-	// Target number of units per second.
+	// Target number of quota units per second.
 	targetUnitsPerSec float64
 
 	// Most recent value of the RateLimit-Remaining header.
 	lastRemaining float64
 
-	// Most recent rate limit window reset time.
+	// Most recent quota window reset time.
 	lastInvalidTime time.Time
 
 	// Number of requests we've made since the recorded header values.
@@ -102,7 +102,7 @@ func (tracker *RateLimitTracker) UpdateEstimates(
 	rlRemaining float64,
 	rlReset float64,
 ) {
-	// Too little time left in the rate limit window, so we can't accurately
+	// Too little time left in the quota window, so we can't accurately
 	// approximate a rate.
 	if rlReset <= 1 {
 		return
@@ -116,26 +116,26 @@ func (tracker *RateLimitTracker) UpdateEstimates(
 		return
 	}
 
-	// If the quota didn't change, or if we entered a new quota window,
-	// then we can raise the rate limit.
+	tracker.targetUnitsPerSec = window.targetUnitsPerSec
+
 	if window.remainingDelta < 1 || window.isNewQuotaWindow {
-		tracker.targetUnitsPerSec = tracker.interp(
-			tracker.targetUnitsPerSec,
-			tracker.maxPerSecond/tracker.requestsPerUnit,
+		// If the quota didn't change, or if we entered a new quota window,
+		// then we can raise the rate limit, i.e. lower our estimate of how
+		// many requests we can make per quota unit.
+		//
+		// We push the conversion factor toward the value such that
+		//   (reqs / unit) * (target units / sec) = (max reqs / sec)
+		tracker.requestsPerUnit = tracker.interp(
+			tracker.requestsPerUnit,
+			tracker.maxPerSecond/window.targetUnitsPerSec,
 		)
-
-		return
+	} else {
+		// Otherwise, update our requestsPerUnit estimate normally.
+		tracker.requestsPerUnit = tracker.interp(
+			tracker.requestsPerUnit,
+			float64(window.nRequests)/window.remainingDelta,
+		)
 	}
-
-	tracker.targetUnitsPerSec = tracker.interp(
-		tracker.targetUnitsPerSec,
-		window.targetUnitsPerSec,
-	)
-
-	tracker.requestsPerUnit = tracker.interp(
-		tracker.requestsPerUnit,
-		float64(window.nRequests)/window.remainingDelta,
-	)
 }
 
 // Interpolate from old to new using the smoothing factor.
