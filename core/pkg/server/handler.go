@@ -64,6 +64,12 @@ func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
 	}
 }
 
+func WithHandlerPrinterService(printer *observability.PrinterService) HandlerOption {
+	return func(h *Handler) {
+		h.printer = printer
+	}
+}
+
 func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	return func(h *Handler) {
 		h.tbHandler = handler
@@ -146,6 +152,8 @@ type Handler struct {
 
 	// filesInfoHandler is the file transfer info for the stream
 	filesInfoHandler *FilesInfoHandler
+
+	printer *observability.PrinterService
 }
 
 // NewHandler creates a new handler
@@ -316,6 +324,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+		h.handleInternalMessages(record, response)
 	case *service.Request_Sync:
 		h.handleSync(record)
 		response = nil
@@ -628,6 +637,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		} else if step < current {
 			h.logger.CaptureWarn("received history record for a step that has already been received",
 				"received", step, "current", current)
+			fmt.Fprintf(h.printer, "received history record for a step that has already been received: received %d, current %d\n", step, current)
 			return
 		}
 	}
@@ -814,8 +824,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 	h.fwdRecord(record)
 
-	// start the tensorboard handler
+	// start the watcher
 	h.watcher.Start()
+
+	// start the printer
+	h.printer.Start()
 
 	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(h.fwdRecord),
@@ -1173,6 +1186,16 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	h.filesInfoHandler.Handle(record)
+}
+
+func (h *Handler) handleInternalMessages(record *service.Record, response *service.Response) {
+	response.ResponseType = &service.Response_InternalMessagesResponse{
+		InternalMessagesResponse: &service.InternalMessagesResponse{
+			Messages: &service.InternalMessages{
+				Warning: h.printer.Poll(),
+			},
+		},
+	}
 }
 
 func (h *Handler) handleSync(record *service.Record) {

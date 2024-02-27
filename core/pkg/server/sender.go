@@ -54,6 +54,12 @@ func WithSenderOutChannel(out chan *service.Result) SenderOption {
 	}
 }
 
+func WithSenderPrinterService(printer *observability.PrinterService) SenderOption {
+	return func(s *Sender) {
+		s.printer = printer
+	}
+}
+
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
@@ -65,6 +71,8 @@ type Sender struct {
 
 	// logger is the logger for the sender
 	logger *observability.CoreLogger
+
+	printer *observability.PrinterService
 
 	// settings is the settings for the sender
 	settings *service.Settings
@@ -138,6 +146,10 @@ func NewSender(
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
+	for _, opt := range opts {
+		opt(sender)
+	}
+
 	if !settings.GetXOffline().GetValue() {
 		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
 		if err != nil {
@@ -212,19 +224,13 @@ func NewSender(
 
 		sender.getServerInfo()
 
-		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
-		}
+		sender.jobBuilder = launch.NewJobBuilder(settings, logger, sender.printer)
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
 		configDebouncerBurstSize,
 		logger,
 	)
-
-	for _, opt := range opts {
-		opt(sender)
-	}
 
 	return sender
 }
@@ -310,7 +316,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
-
 	switch x := request.RequestType.(type) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
@@ -472,7 +477,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	case service.DeferRequest_END:
 		request.State++
 		s.syncService.Flush()
-		s.respondExit(s.exitRecord)
+		s.respondExitResult(s.exitRecord, &service.RunExitResult{})
 		// cancel tells the stream to close the loopback channel
 		s.cancel()
 	default:
@@ -513,12 +518,6 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 	if err != nil {
 		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
 	}
-
-	result := &service.Result{
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.outChan <- result
 }
 
 func (s *Sender) sendUseArtifact(record *service.Record) {
@@ -560,18 +559,6 @@ func (s *Sender) serializeConfig(format ConfigFormat) string {
 	return string(serializedConfig)
 }
 
-func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
-	result := &service.Result{
-		ResultType: &service.Result_RunResult{
-			RunResult: runResult,
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
-	s.outChan <- result
-
-}
-
 func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
@@ -594,7 +581,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 				Message: err.Error(),
 				Code:    service.ErrorInfo_COMMUNICATION,
 			}}
-		s.sendRunResult(record, result)
+		s.respondRunResult(record, result)
 		return err
 	}
 
@@ -603,7 +590,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		s.RunRecord,
 		s.runConfig,
 	); err != nil {
-		s.sendRunResult(record, result)
+		s.respondRunResult(record, result)
 		return err
 	}
 
@@ -683,21 +670,13 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			fmt.Println("ERROR: failed to upsert bucket", err.Error())
 			// TODO(sync): make this more robust in case of a failed UpsertBucket request.
 			//  Need to inform the sync service that this ops failed.
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				result := &service.Result{
-					ResultType: &service.Result_RunResult{
-						RunResult: &service.RunUpdateResult{
-							Error: &service.ErrorInfo{
-								Message: err.Error(),
-								Code:    service.ErrorInfo_COMMUNICATION,
-							},
-						},
-					},
-					Control: record.Control,
-					Uuid:    record.Uuid,
-				}
-				s.outChan <- result
+			result := &service.RunUpdateResult{
+				Error: &service.ErrorInfo{
+					Message: err.Error(),
+					Code:    service.ErrorInfo_COMMUNICATION,
+				},
 			}
+			s.respondRunResult(record, result)
 			return
 		}
 
@@ -711,14 +690,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if runResult == nil {
 			runResult = run
 		}
-		result := &service.Result{
-			ResultType: &service.Result_RunResult{
-				RunResult: &service.RunUpdateResult{Run: runResult},
-			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
-		}
-		s.outChan <- result
+		result := &service.RunUpdateResult{Run: runResult}
+		s.respondRunResult(record, result)
 	}
 }
 
@@ -904,30 +877,48 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 
 }
 
-func (s *Sender) respond(record *service.Record, response *service.Response) {
-	result := &service.Result{
-		ResultType: &service.Result_Response{Response: response},
-		Control:    record.Control,
-		Uuid:       record.Uuid,
+// respond
+func (s *Sender) respond(record *service.Record, result *service.Result) {
+	if record == nil {
+		return
 	}
+	result.Control = record.Control
+	result.Uuid = record.Uuid
 	s.outChan <- result
 }
 
-// respondExit called from the end of the defer state machine
-func (s *Sender) respondExit(record *service.Record) {
+// respondResponse sends a response record to the server
+func (s *Sender) respondResponse(record *service.Record, response *service.Response) {
+	result := &service.Result{
+		ResultType: &service.Result_Response{Response: response},
+	}
+	s.respond(record, result)
+}
+
+// respondExitResult called from the end of the defer state machine
+func (s *Sender) respondExitResult(record *service.Record, exitResult *service.RunExitResult) {
 	if record == nil || s.settings.GetXSync().GetValue() {
 		return
 	}
 	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
 		result := &service.Result{
-			ResultType: &service.Result_ExitResult{ExitResult: &service.RunExitResult{}},
-			Control:    record.Control,
-			Uuid:       record.Uuid,
+			ResultType: &service.Result_ExitResult{ExitResult: exitResult},
 		}
-		s.outChan <- result
+		s.respond(record, result)
 	}
 }
 
+func (s *Sender) respondRunResult(record *service.Record, runResult *service.RunUpdateResult) {
+	if record.Control.ReqResp || record.Control.MailboxSlot != "" {
+		result := &service.Result{
+			ResultType: &service.Result_RunResult{RunResult: runResult},
+		}
+		s.respond(record, result)
+	}
+}
+
+// fwdRecord forwards a record to the next stage in the pipeline
+// usually the handler
 func (s *Sender) fwdRecord(record *service.Record) {
 	if record == nil {
 		return
@@ -1136,7 +1127,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		},
 	}
 	s.jobBuilder.HandleLogArtifactResult(&logArtifactResponse, msg.Artifact)
-	s.respond(record, response)
+	s.respondResponse(record, response)
 }
 
 func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
@@ -1156,7 +1147,7 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 			DownloadArtifactResponse: &downloadArtifactResponse,
 		},
 	}
-	s.respond(record, response)
+	s.respondResponse(record, response)
 }
 
 func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
@@ -1189,7 +1180,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 					},
 				},
 			}
-			s.respond(record, response)
+			s.respondResponse(record, response)
 		}),
 	)
 	s.syncService.Start()
@@ -1288,5 +1279,5 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 			},
 		},
 	}
-	s.respond(record, response)
+	s.respondResponse(record, response)
 }
