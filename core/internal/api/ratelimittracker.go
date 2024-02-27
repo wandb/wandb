@@ -13,7 +13,7 @@ type RateLimitTracker struct {
 	smoothing    float64
 	minWindow    uint64
 
-	// Estimate of how many requests we're making per rate-limit unit.
+	// Estimate of how many requests we're making per quota unit.
 	//
 	// The backend's RateLimit-Remaining responses use an opaque unit that we
 	// must convert to a number of requests.
