@@ -77,7 +77,11 @@ func TestUpdate_Smoothing(t *testing.T) {
 
 	for i := 1; i <= 9; i++ {
 		rl.TrackRequest()
-		rl.UpdateEstimates(time.Time{}.Add(time.Second), 50-i*5, 10-i)
+		rl.UpdateEstimates(
+			time.Time{}.Add(time.Second),
+			50-float64(i)*5,
+			10-float64(i),
+		)
 
 		estimates = append(estimates, rl.TargetRateLimit())
 	}
