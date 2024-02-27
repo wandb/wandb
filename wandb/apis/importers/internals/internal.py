@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import queue
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,13 +7,11 @@ from typing import Any, Dict, Iterable, Optional
 from unittest.mock import MagicMock
 
 import numpy as np
-from google.protobuf.json_format import ParseDict
 from rich.logging import RichHandler
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
@@ -35,7 +32,8 @@ logging.basicConfig(
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
-logging.getLogger("import_logger").setLevel(logging.INFO)
+logger = logging.getLogger("import_logger")
+logger.setLevel(logging.DEBUG)
 
 
 exp_retry = retry(
@@ -88,6 +86,18 @@ class RecordMaker:
         run.run_id = self.run.run.run_id.return_value
 
         return self.interface._make_record(run=run)
+
+    def _make_header_record(self) -> pb.Record:
+        header = pb.HeaderRecord()
+        # header.run_id = self.run.run_id()
+        # header.project = self.run.project()
+        # header.entity = self.run.entity()
+        return self.interface._make_record(header=header)
+
+    def _make_footer_record(self) -> pb.Record:
+        footer = pb.FooterRecord()
+        # footer.run_id = self.run.run_id()
+        return self.interface._make_record(footer=footer)
 
     def _make_run_record(self) -> pb.Record:
         # unfortunate hack to get deleted wandb runs to work...
@@ -170,15 +180,26 @@ class RecordMaker:
             rec = self.interface._make_record(history=history)
             yield rec
 
-    def _make_files_record(self, metadata, artifacts, files, media, code) -> pb.Record:
+    def _make_files_record(
+        self, metadata, artifacts, files, media, code
+    ) -> pb.FilesRecord:
         files = self.run.files()
         metadata_fname = f"{self.run_dir}/files/wandb-metadata.json"
         if files is None:
             metadata_fname = self._make_metadata_file()
             files = [(metadata_fname, "end")]
 
+        # path = f"{self.run_dir}/files/media"
+        # logger.info(f"Made {path=}")
+        # filesystem.mkdir_exists_ok(path)
+
+        # path = f"{self.run_dir}/files/media/images"
+        # logger.info(f"Made {path=}")
+        # filesystem.mkdir_exists_ok(path)
+
         files_record = pb.FilesRecord()
         for path, policy in files:
+            print(f"Start making files record {path=}, {policy=}")
             if not metadata and path == metadata_fname:
                 continue
             if not artifacts and path.startswith("artifact/"):
@@ -191,8 +212,10 @@ class RecordMaker:
             f = files_record.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)  # is this always end?
+            print(f"Making files record {f=}")
 
-        return self.interface._make_record(files=files_record)
+        return files_record
+        # return self.interface._make_record(files=files_record)
 
     def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
@@ -262,13 +285,14 @@ def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = 
     _settings_override = coalesce(settings_override, {})
 
     default_settings: Dict[str, Any] = {
-        "files_dir": os.path.join(root_dir, "files"),
+        # "files_dir": os.path.join(root_dir, "files"),
+        "files_dir": "files",
         "root_dir": root_dir,
         "resume": "false",
         "program": None,
         "ignore_globs": [],
         "disable_job_creation": True,
-        "_start_time": 0,
+        "_start_time": 0.0,
         "_offline": None,
         "_sync": True,
         "_live_policy_rate_limit": 15,  # matches dir_watcher
@@ -278,33 +302,98 @@ def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = 
     }
 
     combined_settings = {**default_settings, **_settings_override}
-    settings_message = wandb_settings_pb2.Settings()
-    ParseDict(combined_settings, settings_message)
+    import os
 
-    return settings_static.SettingsStatic(settings_message)
+    from wandb import Settings
+    from wandb.proto import wandb_settings_pb2
+
+    Settings, wandb_settings_pb2
+
+    # settings_message = wandb_settings_pb2.Settings()
+    # settings = Settings(**combined_settings)
+    # s = settings_static.SettingsStatic(settings.to_proto())
+    # from google.protobuf.json_format import ParseDict
+
+    # ParseDict(combined_settings, settings_message)
+
+    # s = settings_static.SettingsStatic(settings_message)
+
+    settings = Settings(**combined_settings)
+    s = settings_static.SettingsStatic(settings.to_proto())
+    s.files_dir = os.path.join(root_dir, "files")
+    s._tmp_code_dir = os.path.join(root_dir, "tmp/code")
+    s.log_dir = os.path.join(root_dir, "logs")
+    s.log_internal = os.path.join(root_dir, "logs/debug-internal.log")
+    s.log_user = os.path.join(root_dir, "logs/debug.log")
+    s.sync_dir = root_dir
+    s.sync_file = os.path.join(root_dir, "run-something.wandb")
+    s.tmp_dir = os.path.join(root_dir, "tmp")
+
+    logger.info(f"Settings is {s=}")
+    return s
+
+
+def _handle_header_record(sm: sender.SendManager, rm: RecordMaker):
+    pass
+
+
+def _print_record_info(rec: pb.Record):
+    try:
+        record_type = rec.WhichOneof("record_type")
+    except:
+        record_type = "unknown"
+    print("\n----------------------------")
+    print(f"Parsed pb, {record_type=}")
+    print("----------------------------")
+    print(f"{rec=}")
 
 
 def _handle_run_record(sm: sender.SendManager, rm: RecordMaker):
-    sm.send(rm._make_run_record())
+    # run_id = rm.run.run_id()
+    # local_dir = f"./wandb_importer/{run_id}"
+
+    # # convert to full path
+    # full_path = os.path.abspath(local_dir)
+
+    # logging.getLogger("import_logger").info(f"{run_id=}")
+    # sm.send_run(rm._make_run_record(), file_dir=full_path)
+
+    rec = rm._make_run_record()
+    _print_record_info(rec)
+    sm.send(rec)
+    while not sm._record_q.empty():
+        data = sm._record_q.get(block=True)
+        print(f"inside extra send block, {data=}")
+        sm.send(data)
 
 
 def _handle_telem(sm: sender.SendManager, rm: RecordMaker):
-    sm.send(rm._make_telem_record())
+    rec = rm._make_telem_record()
+    _print_record_info(rec)
+    sm.send(rec)
 
 
-def _handle_metadata(
-    sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig
-):
+def _handle_files(sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig):
     has_artifacts = config.log_artifacts or config.use_artifacts
-    sm.send(
-        rm._make_files_record(
-            config.metadata,
-            has_artifacts,
-            config.files,
-            config.media,
-            config.code,
-        )
+    rec = rm._make_files_record(
+        config.metadata,
+        has_artifacts,
+        config.files,
+        config.media,
+        config.code,
     )
+    sm_rec = rm.interface._make_record(files=rec)
+    _print_record_info(sm_rec)
+    sm.send(sm_rec)
+
+    # logger.info(f"Made files {rec=}")
+    # sm.send(sm_rec)
+
+    sm._interface._publish_files(rec)
+    while not sm._record_q.empty():
+        data = sm._record_q.get(block=True)
+        print(f"inside extra send block, {data=}")
+        sm.send(data)
 
 
 def _handle_use_artifacts(
@@ -318,7 +407,9 @@ def _handle_use_artifacts(
             used_artifacts = list(used_artifacts)
 
             for artifact in used_artifacts:
-                sm.send(rm._make_artifact_record(artifact, use_artifact=True))
+                rec = rm._make_artifact_record(artifact, use_artifact=True)
+                _print_record_info(rec)
+                sm.send(rec)
 
 
 def _handle_log_artifacts(
@@ -331,7 +422,9 @@ def _handle_log_artifacts(
         if artifacts is not None:
             artifacts = list(artifacts)
             for artifact in artifacts:
-                sm.send(rm._make_artifact_record(artifact))
+                rec = rm._make_artifact_record(artifact)
+                _print_record_info(rec)
+                sm.send(rec)
 
 
 def _handle_log_specific_artifact(
@@ -341,7 +434,10 @@ def _handle_log_specific_artifact(
     config: SendManagerConfig,
 ):
     if config.log_artifacts:
-        sm.send(rm._make_artifact_record(art))
+        # sm.send(rm._make_artifact_record(art))
+        rec = rm._make_artifact_record(art)
+        _print_record_info(rec)
+        sm.send(rec)
 
 
 def _handle_use_specific_artifact(
@@ -351,7 +447,10 @@ def _handle_use_specific_artifact(
     config: SendManagerConfig,
 ):
     if config.use_artifacts:
-        sm.send(rm._make_artifact_record(art, use_artifact=True))
+        # sm.send(rm._make_artifact_record(art, use_artifact=True))
+        rec = rm._make_artifact_record(art, use_artifact=True)
+        _print_record_info(rec)
+        sm.send(rec)
 
 
 def _handle_history(
@@ -361,12 +460,16 @@ def _handle_history(
 ):
     if config.history:
         for history_record in rm._make_history_records():
+            _print_record_info(history_record)
             sm.send(history_record)
 
 
 def _handle_summary(sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig):
     if config.summary:
-        sm.send(rm._make_summary_record())
+        # sm.send(rm._make_summary_record())
+        rec = rm._make_summary_record()
+        _print_record_info(rec)
+        sm.send(rec)
 
 
 def _handle_terminal_output(
@@ -378,7 +481,10 @@ def _handle_terminal_output(
         lines = rm.run.logs()
         if lines is not None:
             for line in lines:
-                sm.send(rm._make_output_record(line))
+                # sm.send(rm._make_output_record(line))
+                rec = rm._make_output_record(line)
+                _print_record_info(rec)
+                sm.send(rec)
 
 
 def send_run_with_send_manager(
@@ -387,6 +493,7 @@ def send_run_with_send_manager(
     settings_override: Optional[Dict[str, Any]] = None,
     config: Optional[SendManagerConfig] = None,
 ) -> None:
+    logger.debug("inside send_run_with_send_manager")
     if config is None:
         config = SendManagerConfig()
 
@@ -406,17 +513,162 @@ def send_run_with_send_manager(
     interface = InterfaceQueue(record_q=record_q)
     context_keeper = context.ContextKeeper()
 
-    with AlternateSendManager(
-        settings, record_q, result_q, interface, context_keeper
-    ) as sm:
-        _handle_run_record(sm, rm)
-        _handle_telem(sm, rm)
-        _handle_metadata(sm, rm, config)
-        _handle_use_artifacts(sm, rm, config)
-        _handle_log_artifacts(sm, rm, config)
-        _handle_history(sm, rm, config)
-        _handle_summary(sm, rm, config)
-        _handle_terminal_output(sm, rm, config)
+    logger.debug("before setup AlternateSendManager")
+
+    sm = AlternateSendManager(settings, record_q, result_q, interface, context_keeper)
+    # sm = sender.SendManager.setup(root_dir, resume="true")
+
+    # with AlternateSendManager(
+    #     settings, record_q, result_q, interface, context_keeper
+    # ) as sm:
+
+    def clear_record_q():
+        print(f"clearing record q, {sm._record_q.empty()=}")
+        while not sm._record_q.empty():
+            data = sm._record_q.get(block=True)
+            print(f"clearing {data=}")
+            sm.send(data)
+
+    logger.debug("before handling records")
+
+    # handle header
+    rec = rm._make_header_record()
+    _print_record_info(rec)
+    sm.send(rec)
+
+    _handle_run_record(sm, rm)
+    clear_record_q()
+
+    _handle_files(sm, rm, config)
+    clear_record_q()
+
+    _handle_telem(sm, rm)
+    clear_record_q()
+
+    _handle_history(sm, rm, config)
+    clear_record_q()
+
+    _handle_use_artifacts(sm, rm, config)
+    clear_record_q()
+
+    _handle_log_artifacts(sm, rm, config)
+    clear_record_q()
+
+    _handle_summary(sm, rm, config)
+    clear_record_q()
+
+    _handle_terminal_output(sm, rm, config)
+    clear_record_q()
+
+    # print("sending cleanup requests")
+    # req = pb.DeferRequest()
+    # rec = sm._interface._make_request(defer=req)
+    # sm.send_request_defer(rec)
+
+    print("sending exit")
+    # rec = pb.RunExitRecord()
+    # rec.exit_code = 0
+    # rec.runtime = 0
+    sm.send_exit(rec)
+    clear_record_q()
+
+    # for i in range(0, 15):
+    # for i in range(1, 11):
+    #     req = pb.DeferRequest()
+    #     req.state = i
+
+    #     rec = sm._interface._make_request(defer=req)
+
+    #     _print_record_info(rec)
+    #     sm.send_request(rec)
+
+    print("sending final")
+    # sm._interface.publish_final()
+    rec = pb.FinalRecord()
+    _print_record_info(rec)
+    sm.send_final(rec)
+    clear_record_q()
+
+    # handle footer
+    rec = rm._make_footer_record()
+    _print_record_info(rec)
+    sm.send(rec)
+    clear_record_q()
+
+    logger.debug("before setup handler...")
+    # import datetime
+    # import tempfile
+    # import time
+
+    # from wandb import Settings
+
+    # temp_dir = tempfile.TemporaryDirectory()
+    # handler_settings = {
+    #     "root_dir": temp_dir.name,
+    #     "run_id": rm.run.run_id(),
+    #     "_start_datetime": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    #     "_start_time": time.time(),
+    # }
+
+    # # handler_settings = Settings(
+    # #     root_dir=temp_dir.name,
+    # #     run_id=rm.run.run_id(),
+    # #     _start_datetime=datetime.datetime.now(),
+    # #     _start_time=time.time(),
+    # # )
+
+    # settings_msg = Settings(
+    #     root_dir=temp_dir.name,
+    #     run_id=rm.run.run_id(),
+    #     _start_datetime=datetime.datetime.now(),
+    #     _start_time=time.time(),
+    # )
+
+    # # settings_msg = Settings()
+    # # ParseDict(handler_settings, settings_msg)
+    # handler_settings_static = SettingsStatic(settings_msg.to_proto())
+
+    # logger.debug("made handler settings static")
+
+    # handler_record_q = queue.Queue()
+    # handler_interface = InterfaceQueue(handler_record_q)
+    # handler_context_keeper = context.ContextKeeper()
+    # handle_manager = handler.HandleManager(
+    #     settings=handler_settings_static,
+    #     record_q=handler_record_q,
+    #     result_q=None,
+    #     stopped=False,
+    #     writer_q=record_q,
+    #     interface=handler_interface,
+    #     context_keeper=handler_context_keeper,
+    # )
+
+    # logger.debug("setup handle manager")
+    # while len(handle_manager) > 0:
+    #     data = next(handle_manager)
+    #     logger.debug(f"Handle manager has data, {data=}")
+    #     handle_manager.handle(data)
+    #     while len(sm) > 0:
+    #         data = next(sm)
+    #         logger.debug(f"Send manager has data, {data=}")
+    #         sm.send(data)
+
+    # handle_manager.finish()
+    # print(f"push remaining records, {len(sm)=}")
+    # while len(sm) > 0:
+    #     data = next(sm)
+    #     print(f"remaining records {len(sm)=}")
+    #     print(f"pushing {data=}")
+    #     sm.send(data)
+
+    # print(f"pushing record q, {sm._record_q.empty()=}")
+    # while not sm._record_q.empty():
+    #     data = sm._record_q.get(block=True)
+    #     print(f"pushing {data=}")
+    #     sm.send(data)
+
+    print("Finish up sm")
+    sm.finish()
 
 
 def send_artifacts_with_send_manager(

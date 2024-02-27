@@ -55,6 +55,7 @@ class SyncThread(threading.Thread):
         append=None,
         skip_console=None,
     ):
+        print("Starting up SyncThread")
         threading.Thread.__init__(self)
         # mark this process as internal
         wandb._set_internal_process(disable=True)
@@ -79,6 +80,9 @@ class SyncThread(threading.Thread):
         pb = wandb_internal_pb2.Record()
         pb.ParseFromString(data)
         record_type = pb.WhichOneof("record_type")
+        print("\n----------------------------")
+        print(f"Parsed pb, {record_type=}")
+        print("----------------------------")
         if self._view:
             if self._verbose:
                 print("Record:", pb)
@@ -104,6 +108,7 @@ class SyncThread(threading.Thread):
             assert exit_pb, "final seen without exit"
             pb = exit_pb
             exit_pb = None
+
         return pb, exit_pb, False
 
     def _find_tfevent_files(self, sync_item):
@@ -214,9 +219,11 @@ class SyncThread(threading.Thread):
         line = " Uploading data to wandb\r"
         while len(handle_manager) > 0:
             data = next(handle_manager)
+            print(f"Handle manager has data, {data=}")
             handle_manager.handle(data)
             while len(send_manager) > 0:
                 data = next(send_manager)
+                print(f"Send manager has data, {data=}")
                 send_manager.send(data)
 
             print_line = spinner_states[progress_step % 4] + line
@@ -245,9 +252,11 @@ class SyncThread(threading.Thread):
                 raise e
 
     def run(self):
+        print("Inside SyncThread.run")
         if self._log_path is not None:
             print(f"Find logs at: {self._log_path}")
         for sync_item in self._sync_list:
+            print(f"{sync_item=}")
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
                 files = os.listdir(sync_item)
@@ -259,22 +268,28 @@ class SyncThread(threading.Thread):
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
+
+            print(f"After processing, {sync_item=}")
             sync_tb = self._setup_tensorboard(
                 tb_root, tb_logdirs, tb_event_files, sync_item
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
             root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
+            print(f"sync setup {root_dir=}")
 
             # When appending we are allowing a possible resume, ie the run
             # doesnt have to exist already
             resume = "allow" if self._append else None
 
             sm = sender.SendManager.setup(root_dir, resume=resume)
+            print(f"sync setup {sm._settings=}")
             if sync_tb:
                 self._send_tensorboard(tb_root, tb_logdirs, sm)
                 continue
 
             ds = datastore.DataStore()
+            print(f"sync setup {ds=}")
+            print(f"sync setup {sync_item=}")
             try:
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
@@ -287,17 +302,21 @@ class SyncThread(threading.Thread):
             shown = False
             while True:
                 data = self._robust_scan(ds)
+                # print(f"inside send loop, {data=}")
                 if data is None:
                     break
                 pb, exit_pb, cont = self._parse_pb(data, exit_pb)
+                # print(f"inside send loop, {type(pb)=}, {pb=}, {exit_pb=}, {cont=}")
                 if exit_pb is not None:
                     finished = True
                 if cont:
                     continue
+                print(f"sending {pb=}")
                 sm.send(pb)
                 # send any records that were added in previous send
                 while not sm._record_q.empty():
                     data = sm._record_q.get(block=True)
+                    print(f"inside extra send block, {data=}")
                     sm.send(data)
 
                 if pb.control.req_resp:
@@ -340,6 +359,7 @@ class SyncManager:
         append=None,
         skip_console=None,
     ):
+        print("Setting up SyncManager")
         self._sync_list = []
         self._thread = None
         self._project = project

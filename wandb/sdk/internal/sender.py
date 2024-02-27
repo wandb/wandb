@@ -367,6 +367,7 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        print("Inside SendManager.send")
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
@@ -383,6 +384,11 @@ class SendManager:
         api_context = self._context_keeper.get(context_id)
         try:
             self._api.set_local_context(api_context)
+
+            print(
+                f"Sending... {record_type=}, {context_id=}, {api_context=}, {send_handler=}, {record=}, "
+            )
+
             send_handler(record)
         except ContextCancelledError:
             logger.debug(f"Record cancelled: {record_type}")
@@ -896,6 +902,8 @@ class SendManager:
         error = None
         is_wandb_init = self._run is None
 
+        logging.getLogger("import_logger").info(f"Inside send_run and {file_dir=}")
+
         # save start time of a run
         self._start_time = run.start_time.ToMicroseconds() // 1e6
 
@@ -1096,6 +1104,9 @@ class SendManager:
 
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, settings=self._settings)
+
+        print(f"Setting up dirwatcher with {self._settings=}")
+
         self._dir_watcher = DirWatcher(self._settings, self._pusher, file_dir)
         logger.info(
             "run started: %s with start time %s",
@@ -1371,6 +1382,7 @@ class SendManager:
         files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
+            print(f"saving file {k.path=} with {k.policy=}")
             self._save_file(
                 interface.GlobStr(k.path), interface.file_enum_to_policy(k.policy)
             )

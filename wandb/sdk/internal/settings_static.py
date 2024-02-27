@@ -49,11 +49,11 @@ class SettingsStatic(SettingsData):
                     value = None
             object.__setattr__(self, key, value)
 
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("Error: SettingsStatic is a readonly object")
+    # def __setattr__(self, name: str, value: object) -> None:
+    #     raise AttributeError("Error: SettingsStatic is a readonly object")
 
-    def __setitem__(self, key: str, val: object) -> None:
-        raise AttributeError("Error: SettingsStatic is a readonly object")
+    # def __setitem__(self, key: str, val: object) -> None:
+    #     raise AttributeError("Error: SettingsStatic is a readonly object")
 
     def keys(self) -> "Iterable[str]":
         return self.__dict__.keys()

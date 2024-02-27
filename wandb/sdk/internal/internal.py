@@ -249,6 +249,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         context_keeper: context.ContextKeeper,
         debounce_interval_ms: "float" = 1000,
     ) -> None:
+        print("Inside HandlerThread.__init__")
         super().__init__(
             input_record_q=record_q,
             result_q=result_q,

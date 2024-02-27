@@ -248,20 +248,28 @@ class WandbRun:
 
         self._files = []
         for f in self.run.files():
+            logger.debug(f"in Files: Looking at {f=}")
             f: File
             # These optimizations are intended to avoid rate limiting when importing many runs in parallel
             # Don't carry over empty files
-            if f.size == 0:
-                continue
+            # if f.size == 0:
+            #     logger.debug(f"Skipping empty file, {f=}")
+            #     continue
             # Skip deadlist to avoid overloading S3
-            if "wandb_manifest.json.deadlist" in f.name:
-                continue
+            # if "wandb_manifest.json.deadlist" in f.name:
+            #     logger.debug(f"Skipping deadlist, {f=}")
+            #     continue
 
             # Download and log file (is this the right wording?)
             file_and_policy = None
             result = f.download(files_dir, exist_ok=True, api=self.api)
-            file_and_policy = (result.name, "end")
+            logger.debug(f"Downloaded file {f=}")
+            # logger.debug(f"Downloading file, and {result=}")
+
+            file_and_policy = (result.name, "now")
+            # logger.debug(f"Creating new {file_and_policy=}")
             self._files.append(file_and_policy)
+            logger.debug(f"Yielding {file_and_policy=}")
             yield file_and_policy
 
     def logs(self) -> Optional[Iterable[str]]:

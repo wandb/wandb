@@ -192,8 +192,13 @@ class DirWatcher:
         file_pusher: "FilePusher",
         file_dir: Optional[PathStr] = None,
     ) -> None:
+        print(f"Setup dirwatcher, with {file_dir=}, {settings.files_dir=}")
+
         self._file_count = 0
         self._dir = file_dir or settings.files_dir
+
+        print(f"inside DirWatcher, {self._dir=}")
+
         self._settings = settings
         self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
         self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
@@ -224,6 +229,7 @@ class DirWatcher:
         # faster if the name happens to include glob escapable characters.  In
         # the future we may add a flag to "files" records that indicates it's
         # policy is not dynamic and doesn't need to be stored / checked.
+        print(f"inside update_policy, {path=}")
         save_name = LogicalPath(
             os.path.relpath(os.path.join(self._dir, path), self._dir)
         )
@@ -248,6 +254,7 @@ class DirWatcher:
 
     def _per_file_event_handler(self) -> "wd_events.FileSystemEventHandler":
         """Create a Watchdog file event handler that does different things for every file."""
+        print("inside _per_file_event_handler")
         file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified
@@ -268,6 +275,7 @@ class DirWatcher:
         return file_event_handler
 
     def _on_file_created(self, event: "wd_events.FileCreatedEvent") -> None:
+        print(f"Inside on_file_created, {event=}")
         logger.info("file/dir created: %s", event.src_path)
         if os.path.isdir(event.src_path):
             return None
@@ -285,6 +293,7 @@ class DirWatcher:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
+        print(f"Inside on_file_modified, {event=}")
         logger.info(f"file/dir modified: { event.src_path}")
         if os.path.isdir(event.src_path):
             return None
@@ -293,6 +302,7 @@ class DirWatcher:
 
     def _on_file_moved(self, event: "wd_events.FileMovedEvent") -> None:
         # TODO: test me...
+        print(f"Inside on_file_moved, {event=}")
         logger.info(f"file/dir moved: {event.src_path} -> {event.dest_path}")
         if os.path.isdir(event.dest_path):
             return None
@@ -315,9 +325,13 @@ class DirWatcher:
         save_name: its path relative to the run directory (aka the watch directory)
         """
         # Always return PolicyNow for any of our media files, except in importer mode
-        if (not os.getenv("WANDB_IMPORTER_MODE_ENABLED")) and save_name.startswith(
-            "media/"
-        ):
+        # if (not os.getenv("WANDB_IMPORTER_MODE_ENABLED")) and save_name.startswith(
+        #     "media/"
+        # ):
+        print(f"inside _get_file_event_handler, {file_path=}, {save_name=}")
+
+        if save_name.startswith("media/"):
+            print(f"Found media file {file_path=}, {save_name=}")
             return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:
             # TODO: we can use PolicyIgnore if there are files we never want to sync
@@ -357,6 +371,7 @@ class DirWatcher:
         return self._file_event_handlers[save_name]
 
     def finish(self) -> None:
+        print("Inside DirWatcher.finish")
         logger.info("shutting down directory watcher")
         try:
             # avoid hanging if we crashed before the observer was started
@@ -371,6 +386,7 @@ class DirWatcher:
                 self.emitter.queue_events(0)  # type: ignore[union-attr]
                 while True:
                     try:
+                        print("DirWatcher.finish: dispatch events")
                         self._file_observer.dispatch_events(
                             self._file_observer.event_queue, 0
                         )
@@ -385,11 +401,17 @@ class DirWatcher:
         except SystemError:
             pass
 
+        print("DirWatcher.finish: At scan: spot")
+
         # Ensure we've at least noticed every file in the run directory. Sometimes
         # we miss things because asynchronously watching filesystems isn't reliable.
         logger.info("scan: %s", self._dir)
 
+        print(f"DirWatcher.finish: Trying to walk {self._dir=}")
+
         for dirpath, _, filenames in os.walk(self._dir):
+            print(f"DirWatcher.finish: Scanning {dirpath=}, {filenames=}")
+            print(f"{self._settings.ignore_globs=}")
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = LogicalPath(os.path.relpath(file_path, self._dir))
@@ -397,9 +419,13 @@ class DirWatcher:
                 for glb in self._settings.ignore_globs:
                     if len(fnmatch.filter([save_name], glb)) > 0:
                         ignored = True
+                        print(f"Ignoring {save_name=} matching glob {glb=}")
                         logger.info("ignored: %s matching glob %s", save_name, glb)
                         break
                 if ignored:
                     continue
                 logger.info("scan save: %s %s", file_path, save_name)
+                print(
+                    f"Now getting file event handler and finishing, {file_path=}, {save_name=}"
+                )
                 self._get_file_event_handler(file_path, save_name).finish()

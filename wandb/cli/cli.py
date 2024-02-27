@@ -673,6 +673,7 @@ def sync(
     append=None,
     skip_console=None,
 ):
+    print("Hello from sync command!")
     api = _get_cling_api()
     if api.api_key is None:
         wandb.termlog("Login to W&B to sync offline runs")
@@ -725,6 +726,7 @@ def sync(
             )
 
     def _sync_path(_path, _sync_tensorboard):
+        print("Hello from sync path!")
         if run_id and len(_path) > 1:
             wandb.termerror("id can only be set for a single run.")
             sys.exit(1)
@@ -743,6 +745,7 @@ def sync(
             skip_console=skip_console,
         )
         for p in _path:
+            print(f"Adding {p=}")
             sm.add(p)
         sm.start()
         while not sm.is_done():
