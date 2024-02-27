@@ -105,7 +105,6 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
-        destination: str = "",
     ):
         """Initialize a KanikoBuilder.
 
@@ -126,7 +125,6 @@ class KanikoBuilder(AbstractBuilder):
         self.secret_name = secret_name
         self.secret_key = secret_key
         self.image = image
-        self.destination = destination
 
     @classmethod
     def from_config(
@@ -180,7 +178,6 @@ class KanikoBuilder(AbstractBuilder):
             secret_name=secret_name,
             secret_key=secret_key,
             image=kaniko_image,
-            destination=image_uri,
         )
 
     async def verify(self) -> None:
