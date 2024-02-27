@@ -1311,9 +1311,9 @@ class WandbImporter:
             art, entity, project = args
             if (
                 remapping is not None
-                and (ns := Namespace(entity, project)) in remapping
+                and (namespace := Namespace(entity, project)) in remapping
             ):
-                remapped_ns = remapping[ns]
+                remapped_ns = remapping[namespace]
                 entity = remapped_ns.entity
                 project = remapped_ns.project
 
