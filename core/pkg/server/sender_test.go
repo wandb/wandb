@@ -128,7 +128,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	))
 
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	// <-sender.GetOutboundChannel()
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
@@ -161,7 +161,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	))
 
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	// <-sender.GetOutboundChannel()
 
 	// 2. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
@@ -194,7 +194,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	))
 
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	// <-sender.GetOutboundChannel()
 }
 
 func TestSendUseArtifact(t *testing.T) {

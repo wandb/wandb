@@ -15,10 +15,10 @@ type PrinterService struct {
 	// requestChan is the channel for requestChan to be printed
 	requestChan chan Messages
 
-	//pollChan is the channel for polling messages
+	// pollChan is the channel for polling messages
 	pollChan chan chan Messages
 
-	//messages is the list of messages to be printed
+	// messages is the list of messages to be printed
 	messages Messages
 }
 
