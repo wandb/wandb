@@ -30,10 +30,30 @@ func Test_RemainingInvalid(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func Test_RemainingNegative(t *testing.T) {
+	header := http.Header{}
+	header.Set("RateLimit-Remaining", "-4")
+	header.Set("RateLimit-Reset", "9")
+
+	_, ok := api.ParseRateLimitHeaders(header)
+
+	assert.False(t, ok)
+}
+
 func Test_ResetInvalid(t *testing.T) {
 	header := http.Header{}
 	header.Set("RateLimit-Remaining", "123.5")
 	header.Set("RateLimit-Reset", "oops")
+
+	_, ok := api.ParseRateLimitHeaders(header)
+
+	assert.False(t, ok)
+}
+
+func Test_ResetNegative(t *testing.T) {
+	header := http.Header{}
+	header.Set("RateLimit-Remaining", "123.5")
+	header.Set("RateLimit-Reset", "-1")
 
 	_, ok := api.ParseRateLimitHeaders(header)
 
