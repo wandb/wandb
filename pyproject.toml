@@ -93,6 +93,7 @@ launch = [
     "nbformat",
     "pydantic",
     "typing_extensions",
+    "tomli",
     "PyYAML>=6.0.0",
 ]
 models = ["cloudpickle"]
