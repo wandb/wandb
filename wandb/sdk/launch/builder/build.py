@@ -336,13 +336,13 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
-        pip_install_line = None
+        deps_install_line = None
         assert launch_project.project_dir is not None
         base_path = pathlib.Path(launch_project.project_dir)
         # If there is a requirements.txt at root of build context, use that.
         if (base_path / "requirements.txt").exists():
             requirements_files += ["src/requirements.txt"]
-            pip_install_line = "pip install -r requirements.txt"
+            deps_install_line = "pip install -r requirements.txt"
         # Elif there is pyproject.toml at build context, convert the dependencies
         # section to a requirements.txt and use that.
         elif (base_path / "pyproject.toml").exists():
@@ -364,28 +364,19 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
                     with open(base_path / "requirements.txt", "w") as f:
                         f.write("\n".join(project_deps))
                     requirements_files += ["src/requirements.txt"]
-                    pip_install_line = "pip install -r requirements.txt"
-                # If not found, check to see if we can install with poetry.
-                else:
-                    if "poetry" in contents.get("tool"):
-                        requirements_files += ["src/pyproject.toml"]
-                        pip_install_line = (
-                            "pip install poetry && "
-                            "poetry config virtualenvs.create false --local && "
-                            "poetry install --no-root"
-                        )
+                    deps_install_line = "pip install -r requirements.txt"
         # Else use frozen requirements from wandb run.
-        if not pip_install_line and (base_path / "requirements.frozen.txt").exists():
+        if not deps_install_line and (base_path / "requirements.frozen.txt").exists():
             requirements_files += [
                 "src/requirements.frozen.txt",
                 "_wandb_bootstrap.py",
             ]
-            pip_install_line = (
+            deps_install_line = (
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
             )
 
-        if not pip_install_line:
+        if not deps_install_line:
             raise LaunchError(f"No dependency sources found for {launch_project}")
 
         if buildx_installed:
@@ -394,7 +385,7 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         requirements_line = PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
             requirements_files=" ".join(requirements_files),
-            pip_install=pip_install_line,
+            pip_install=deps_install_line,
         )
     elif launch_project.deps_type == "conda":
         if buildx_installed:

@@ -243,25 +243,6 @@ def test_get_requirements_section_pyproject(mock_launch_project, tmp_path, no_bu
     )
 
 
-def test_get_requirements_poetry(mock_launch_project, tmp_path, no_buildx):
-    """Test that we setup the poetry install correctly."""
-    mock_launch_project.project_dir = tmp_path
-    (tmp_path / "pyproject.toml").write_text(
-        "[tool.poetry.dependencies]\nwandb = '0.0.0'\npandas = '0.0.0'"
-    )
-    assert get_requirements_section(
-        mock_launch_project, "docker"
-    ) == PIP_TEMPLATE.format(
-        buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
-        requirements_files="src/pyproject.toml",
-        pip_install=(
-            "pip install poetry && "
-            "poetry config virtualenvs.create false --local && "
-            "poetry install --no-root"
-        ),
-    )
-
-
 def test_get_requirements_fail(mock_launch_project, tmp_path, no_buildx):
     """Test that we get a LaunchError if no dep sources are found."""
     mock_launch_project.project_dir = tmp_path
