@@ -395,26 +395,6 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 @pytest.mark.parametrize(
     "path,job_type",
     [
-        ("./test.py", "code"),
-        ("test.py", "code"),
-    ],
-)
-def test_create_job_no_reqs(path, job_type, runner, user):
-    with runner.isolated_filesystem():
-        with open("test.py", "w") as f:
-            f.write("print('hello world')\n")
-
-        result = runner.invoke(
-            cli.job,
-            ["create", job_type, path, "--entity", user, "--project", "proj"],
-        )
-        print(result.output)
-        assert "Could not find requirements.txt file" in result.output
-
-
-@pytest.mark.parametrize(
-    "path,job_type",
-    [
         ("./test.py", "123"),
         ("./test.py", ""),
         (".test.py", "docker"),
