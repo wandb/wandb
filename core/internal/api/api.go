@@ -95,7 +95,7 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in the request.
+	// Additional HTTP headers to include in request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
