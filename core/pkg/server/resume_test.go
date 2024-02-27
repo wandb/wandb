@@ -229,7 +229,7 @@ func TestUpdate(t *testing.T) {
 				},
 			}
 
-			configCopy := make(map[string]interface{})
+			configCopy := server.NewRunConfig()
 			_, err := rs.Update(fakeResp, tc.run, configCopy)
 
 			if tc.expectError {
@@ -253,8 +253,8 @@ func TestUpdate(t *testing.T) {
 				}
 
 				if tc.expectConfigUpdate {
-					require.Len(t, configCopy, 1)
-					value, ok := configCopy["lr"]
+					require.Len(t, configCopy.Tree(), 1)
+					value, ok := configCopy.Tree()["lr"]
 					require.True(t, ok, "Expected key 'lr' in config")
 					assert.Equal(t, 0.001, value)
 				}

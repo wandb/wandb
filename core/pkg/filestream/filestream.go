@@ -35,9 +35,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -66,6 +66,9 @@ const (
 
 // FileStream is a stream of data to the server
 type FileStream struct {
+	// The relative path on the server to which to make requests.
+	//
+	// This must not include the schema and hostname prefix.
 	path string
 
 	processChan  chan protoreflect.ProtoMessage
@@ -85,8 +88,8 @@ type FileStream struct {
 	// logger is the logger for the filestream
 	logger *observability.CoreLogger
 
-	// httpClient is the http client
-	httpClient *retryablehttp.Client
+	// The client for making API requests.
+	apiClient api.Client
 
 	maxItemsPerPush int
 	delayProcess    time.Duration
@@ -115,9 +118,9 @@ func WithPath(path string) FileStreamOption {
 	}
 }
 
-func WithHttpClient(client *retryablehttp.Client) FileStreamOption {
+func WithAPIClient(client api.Client) FileStreamOption {
 	return func(fs *FileStream) {
-		fs.httpClient = client
+		fs.apiClient = client
 	}
 }
 
