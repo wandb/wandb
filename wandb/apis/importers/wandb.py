@@ -168,27 +168,23 @@ class WandbRun:
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._artifacts is None:
-            self._artifacts = list(self.run.logged_artifacts())
+            new_arts = []
+            for art in self.run.logged_artifacts():
+                new_art = _clone_art(art)
+                new_arts.append(new_art)
+            self._artifacts = new_arts
 
-        new_arts = []
-        for art in self._artifacts:
-            new_art = _clone_art(art)
-            new_arts.append(new_art)
-            yield new_art
-
-        self._artifacts = new_arts
+        yield from self._artifacts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._used_artifacts is None:
-            self._used_artifacts = list(self.run.used_artifacts())
+            new_arts = []
+            for art in self.run.used_artifacts():
+                new_art = _clone_art(art)
+                new_arts.append(new_art)
 
-        new_arts = []
-        for art in self._used_artifacts:
-            new_art = _clone_art(art)
-            new_arts.append(new_art)
-            yield new_art
-
-        self._used_artifacts = new_arts
+            self._used_artifacts = new_arts
+        yield from self._used_artifacts
 
     def os_version(self) -> Optional[str]:
         ...  # pragma: no cover
@@ -736,7 +732,7 @@ class WandbImporter:
         # TODO
         return None
 
-    def _collect_failed_artifact_sequences2(self):
+    def _collect_failed_artifact_sequences(self):
         if (df := _read_ndjson(ARTIFACT_ERRORS_FNAME)) is None:
             logger.debug(f"{ARTIFACT_ERRORS_FNAME=} is empty, returning nothing")
             return
@@ -974,7 +970,7 @@ class WandbImporter:
         )
 
         logger.info("Collecting failed artifact sequences")
-        seqs = list(self._collect_failed_artifact_sequences2())
+        seqs = list(self._collect_failed_artifact_sequences())
 
         logger.info(f"Importing artifact sequences, {len(seqs)=}")
 
@@ -1313,7 +1309,10 @@ class WandbImporter:
 
         def _validate_artifact_wrapped(args):
             art, entity, project = args
-            if (ns := Namespace(entity, project)) in remapping:
+            if (
+                remapping is not None
+                and (ns := Namespace(entity, project)) in remapping
+            ):
                 remapped_ns = remapping[ns]
                 entity = remapped_ns.entity
                 project = remapped_ns.project

@@ -189,8 +189,6 @@ class RecordMaker:
                 continue
 
             if "media" in path:
-                from pathlib import Path
-
                 p = Path(path)
                 path = str(p.relative_to(f"{self.run_dir}/files"))
 
