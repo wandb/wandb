@@ -168,23 +168,22 @@ class WandbRun:
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._artifacts is None:
-            new_arts = []
-            for art in self.run.logged_artifacts():
-                new_art = _clone_art(art)
-                new_arts.append(new_art)
-            self._artifacts = new_arts
+            self._artifacts = list(self.run.logged_artifacts())
 
-        yield from self._artifacts
+        return self._artifacts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._used_artifacts is None:
-            new_arts = []
-            for art in self.run.used_artifacts():
-                new_art = _clone_art(art)
-                new_arts.append(new_art)
+            self._used_artifacts = list(self.run.used_artifacts())
 
-            self._used_artifacts = new_arts
-        yield from self._used_artifacts
+        return self._used_artifacts
+        #     new_arts = []
+        #     for art in self.run.used_artifacts():
+        #         new_art = _clone_art(art)
+        #         new_arts.append(new_art)
+
+        #     self._used_artifacts = new_arts
+        # yield from self._used_artifacts
 
     def os_version(self) -> Optional[str]:
         ...  # pragma: no cover
@@ -246,9 +245,11 @@ class WandbRun:
         for f in self.run.files():
             f: File
             # These optimizations are intended to avoid rate limiting when importing many runs in parallel
+
             # Don't carry over empty files
             if f.size == 0:
                 continue
+
             # Skip deadlist to avoid overloading S3
             if "wandb_manifest.json.deadlist" in f.name:
                 continue
@@ -281,14 +282,16 @@ class WandbRun:
         with open(fname) as f:
             return yaml.safe_load(f) or {}
 
-    def _get_rows_from_parquet_history_paths(self) -> None:
+    def _get_rows_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
         if self._parquet_history_paths is None:
             self._parquet_history_paths = list(self._get_parquet_history_paths())
 
         if not self._parquet_history_paths:
             # unfortunately, it's not feasible to validate non-parquet history
-            return pl.DataFrame()
+            yield {}
+            return
 
+        # collect and merge parquet history
         dfs = []
         for path in self._parquet_history_paths:
             for p in Path(path).glob("*.parquet"):
@@ -301,7 +304,7 @@ class WandbRun:
         rows = df.iter_rows(named=True)
         yield from rows
 
-    def _get_parquet_history_paths(self) -> List[str]:
+    def _get_parquet_history_paths(self) -> Iterable[str]:
         for art in self.artifacts():
             if art.type != "wandb-history":
                 continue
@@ -424,30 +427,23 @@ class WandbImporter:
             "resumed": True,
         }
 
-        logger.debug(f"Importing history, {run=}")
-        internal.send_run_with_send_manager(
-            run,
-            overrides=namespace.send_manager_overrides,
-            settings_override=settings_override,
-            config=config,
-        )
-
         logger.debug(f"Collecting history artifacts, {run=}")
         history_arts = []
         for art in run.artifacts():
-            logger.debug(f"Collecting history artifact {art.name=}")
             if art.type != "wandb-history":
                 continue
+            logger.debug(f"Collecting history artifact {art.name=}")
             new_art = _clone_art(art)
             history_arts.append(new_art)
 
-        logger.debug(f"Importing history artifacts, {run=}")
-        internal.send_artifacts_with_send_manager(
-            history_arts,
+        logger.debug(f"Importing history, {run=}")
+        internal.send_run(
             run,
+            extra_arts=history_arts,
+            extra_used_arts=history_arts,
             overrides=namespace.send_manager_overrides,
             settings_override=settings_override,
-            config=internal.SendManagerConfig(log_artifacts=True),
+            config=config,
         )
 
     def _delete_collection_in_dst(
@@ -510,9 +506,11 @@ class WandbImporter:
         # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
         self._delete_collection_in_dst(art, namespace)
 
-        # Each "group of artifacts" is either (1) a single "real" artifact in a list, or (2) a list of dummy artifacts
-        # that are uploaded together.  This guarantees the real artifacts have the correct version numbers and allows
-        # for parallel upload of dummies.
+        # Each `group_of_artifacts` is either:
+        # 1. A single "real" artifact in a list; or
+        # 2. A list of dummy artifacts that are uploaded together.
+        # This guarantees the real artifacts have the correct version numbers while allowing for parallel upload of dummies.
+
         groups_of_artifacts = list(_make_groups_of_artifacts(seq))
         for i, group in enumerate(groups_of_artifacts, 1):
             art = group[0]
@@ -534,9 +532,16 @@ class WandbImporter:
                 group = [new_art]
                 run = WandbRun(wandb_run, **self.run_api_kwargs)
 
-            internal.send_artifacts_with_send_manager(
-                group,
+            # internal.send_artifacts_with_send_manager(
+            #     group,
+            #     run,
+            #     overrides=namespace.send_manager_overrides,
+            #     settings_override=settings_override,
+            #     config=send_manager_config,
+            # )
+            internal.send_run(
                 run,
+                extra_arts=group,
                 overrides=namespace.send_manager_overrides,
                 settings_override=settings_override,
                 config=send_manager_config,
@@ -849,7 +854,7 @@ class WandbImporter:
             for wandb_run in used_by:
                 run = WandbRun(wandb_run, **self.run_api_kwargs)
 
-                internal.send_run_with_send_manager(
+                internal.send_run(
                     run,
                     overrides=namespace.send_manager_overrides,
                     settings_override=settings_override,
@@ -860,6 +865,7 @@ class WandbImporter:
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
+        remapping: Optional[Dict[Namespace, Namespace]] = None,
         parallel: bool = True,
         incremental: bool = True,
         max_workers: Optional[int] = None,
@@ -871,7 +877,6 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info("START: Import runs")
 
