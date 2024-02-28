@@ -609,7 +609,7 @@ jobs:
         default: ""
       server_url2:
         type: string
-        default: "localhost-wandb-2"
+        default: "http://localhost-wandb-2"
       local_base_port2:
         type: string
         default: "8080"
