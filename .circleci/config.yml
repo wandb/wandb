@@ -1283,10 +1283,10 @@ workflows:
       - tox-base:
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              with_core: [true]
               shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+          python_version_major: 3
+          python_version_minor: 7
+          with_core: true
           name: "\
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
