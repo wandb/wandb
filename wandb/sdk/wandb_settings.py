@@ -392,6 +392,8 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
+    fork_from_run_id: str
+    fork_from_run_step: int
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -800,6 +802,14 @@ class Settings(SettingsData):
                 ),
             },
             force={"preprocessor": _str_as_bool},
+            fork_from_run_id={
+                "value": None, 
+                "preprocessor": lambda x: x if x is None else str(x), 
+            },
+            fork_from_run_step={
+                "value": None,
+                "preprocessor": lambda x: x if x is None else int(x),
+            },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             ignore_globs={
@@ -1197,6 +1207,7 @@ class Settings(SettingsData):
                 f"Settings field `job_source`: {value!r} not in {valid_sources}"
             )
         return True
+    
 
     # other helper methods
     @staticmethod

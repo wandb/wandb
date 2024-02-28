@@ -185,6 +185,8 @@ message Settings {
   google.protobuf.StringValue colab_url = 160;
   google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.BoolValue _shared = 162;
+  google.protobuf.StringValue fork_from_run_id = 163;
+  google.protobuf.Int32Value  fork_from_run_step = 164;
 
   MapStringKeyStringValue _proxies = 200;
 

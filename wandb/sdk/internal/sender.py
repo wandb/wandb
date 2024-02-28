@@ -1002,6 +1002,8 @@ class SendManager:
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
             commit=run.git.commit or None,
+            fork_from_run_id=run.fork_from_run_id,
+            fork_from_run_step=run.fork_from_run_step,
         )
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent

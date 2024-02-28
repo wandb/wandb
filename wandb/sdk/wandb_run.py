@@ -506,6 +506,8 @@ class Run:
     _name: Optional[str]
     _notes: Optional[str]
     _sweep_id: Optional[str]
+    _fork_from_run_id: Optional[str]
+    _fork_from_run_step: Optional[int]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
@@ -615,6 +617,8 @@ class Run:
         self._remote_url = None
         self._commit = None
         self._sweep_id = None
+        self._fork_from_run_id = None
+        self._fork_from_run_step = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -800,6 +804,10 @@ class Run:
             self._tags = settings.run_tags
         if settings.sweep_id is not None:
             self._sweep_id = settings.sweep_id
+        if settings.fork_from_run_id is not None:
+            self._fork_from_run_id = settings.fork_from_run_id
+        if settings.fork_from_run_step is not None:
+            self._fork_from_run_step = settings.fork_from_run_step
 
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
@@ -828,6 +836,10 @@ class Run:
             run.git.commit = self._commit
         if self._sweep_id is not None:
             run.sweep_id = self._sweep_id
+        if self._fork_from_run_id is not None:
+            run.fork_from_run_id = self._fork_from_run_id
+        if self._fork_from_run_step is not None:
+            run.fork_from_run_step = self._fork_from_run_step
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:

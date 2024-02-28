@@ -2068,6 +2068,8 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
+        fork_from_run_id: Optional[str] = None,
+        fork_from_run_step: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
 
@@ -2091,6 +2093,8 @@ class Api:
             sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
+            fork_from_run_id (str, optional): The ID of the run to fork this run from
+            fork_from_run_step (int, optional): The step to fork from
         """
         query_string = """
         mutation UpsertBucket(
@@ -2113,6 +2117,8 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            $forkFromRunID: String,
+            $forkFromRunStep: Int,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -2134,6 +2140,8 @@ class Api:
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                forkFromRunID: $forkFromRunID,
+                forkFromRunStep: $forkFromRunStep,
             }) {
                 bucket {
                     id
