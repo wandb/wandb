@@ -1284,29 +1284,29 @@ workflows:
           matrix:
             parameters:
               shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
-          python_version_major: 3
-          python_version_minor: 7
-          with_core: true
+              python_version_major: [3]
+              python_version_minor: [7]
+              with_core: [true]
           name: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           toxenv: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
           notify_on_failure: true
 
@@ -1332,29 +1332,29 @@ workflows:
                 - sb3
                 - tf
                 - lightning
-          python_version_major: 3
-          python_version_minor: 9
-          with_core: true
+              python_version_major: [3]
+              python_version_minor: [9]
+              with_core: [true]
           name: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           toxenv: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
           coverage_dir: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
           notify_on_failure: true
 
@@ -1688,8 +1688,8 @@ workflows:
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
 
           parallelism: 4
 
@@ -1697,15 +1697,15 @@ workflows:
             parameters:
               with_core: [true, false]
               shard: ["default", "artifacts", "launch"]
-          python_version_major: 3
-          python_version_minor: 9
+              python_version_major: [3]
+              python_version_minor: [9]
 
           toxenv: "\
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
 
           tox_args: "tests/functional_tests"
@@ -1714,8 +1714,8 @@ workflows:
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
 
       - tox-base:
@@ -1723,29 +1723,29 @@ workflows:
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
 
           matrix:
             parameters:
               shard: [mitm, docs]
-          python_version_major: 3
-          python_version_minor: 9
-          with_core: true
+              python_version_major: [3]
+              python_version_minor: [9]
+              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
 
           coverage_dir: "\
-            func-<<#parameters.with_core>>core-<</parameters.with_core>>\
+            func-<<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-py\
-            <<parameters.python_version_major>>\
-            <<parameters.python_version_minor>>"
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
 
 
