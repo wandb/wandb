@@ -640,6 +640,10 @@ jobs:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
+          WANDB_TEST_SERVER_URL: << parameters.server_url2 >>
+          WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
+          WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
+          WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
         name: << parameters.server_url2 >>
 
     resource_class: xlarge
