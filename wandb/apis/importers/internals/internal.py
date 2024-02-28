@@ -25,6 +25,8 @@ from wandb.util import coalesce, recursive_cast_dictlike_to_dict
 
 from .protocols import ImporterRun
 
+ROOT_DIR = "./wandb-importer"
+
 # silences the internal messages; set to INFO or DEBUG to see them
 logging.basicConfig(
     level=logging.WARN,
@@ -74,16 +76,19 @@ class RecordMaker:
 
     @property
     def run_dir(self) -> str:
-        p = Path(f"./wandb-importer/{self.run.run_id()}/wandb")
+        p = Path(f"{ROOT_DIR}/{self.run.run_id()}/wandb")
         p.mkdir(parents=True, exist_ok=True)
-        return f"./wandb-importer/{self.run.run_id()}"
+        return f"{ROOT_DIR}/{self.run.run_id()}"
 
     def make_artifacts_only_records(
         self,
         artifacts: Optional[Iterable[Artifact]] = None,
         used_artifacts: Optional[Iterable[Artifact]] = None,
     ) -> Iterable[pb.Record]:
-        """Only make records required to upload artifacts."""
+        """Only make records required to upload artifacts.
+
+        Escape hatch for adding extra artifacts to a run.
+        """
         yield self._make_run_record()
 
         if used_artifacts:
