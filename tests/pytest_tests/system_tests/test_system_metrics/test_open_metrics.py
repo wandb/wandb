@@ -1,5 +1,6 @@
 import random
 import time
+from platform import python_version
 from typing import Union
 from unittest import mock
 
@@ -158,6 +159,7 @@ def mocked_requests_get(*args, **kwargs):
     ],
 )
 @pytest.mark.wandb_core_failure(feature="system_monitor_open_metrics")
+@pytest.mark.skipif(python_version() < "3.10", reason="requires python 3.10 or higher")
 def test_dcgm(
     wandb_init, relay_server, test_settings, filters, expected_keys, unexpected_keys
 ):
