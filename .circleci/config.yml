@@ -617,7 +617,7 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  gotest:
+  unit-tests-go:
     docker:
       - image: cimg/go:1.21
     steps:
