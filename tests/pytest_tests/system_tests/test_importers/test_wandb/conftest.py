@@ -17,7 +17,9 @@ from rdkit import Chem
 
 from ...utils import WandbServerSettings, spin_wandb_server
 
-# `local-testcontainer2` ports
+# `local-testcontainer2` url and ports
+# Normally these env vars are only set in CI
+DEFAULT_SERVER_URL2 = os.getenv("WANDB_TEST_SERVER_URL2", "http://localhost")
 LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_LOCAL_BASE_PORT2", "9180")
 SERVICES_API_PORT2 = os.getenv("WANDB_TEST_SERVICES_API_PORT2", "9183")
 FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
@@ -29,7 +31,7 @@ DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
 def pytest_addoption(parser):
     parser.addoption(
         "--wandb-second-server",
-        default=True,
+        default=False,
         help="Spin up a second server (for importer tests)",
     )
 
@@ -43,6 +45,7 @@ def pytest_configure(config):
         settings2 = WandbServerSettings(
             name=DEFAULT_SERVER_CONTAINER_NAME2,
             volume=DEFAULT_SERVER_VOLUME2,
+            url=DEFAULT_SERVER_URL2,
             local_base_port=LOCAL_BASE_PORT2,
             services_api_port=SERVICES_API_PORT2,
             fixture_service_port=FIXTURE_SERVICE_PORT2,
@@ -61,12 +64,20 @@ def pytest_configure(config):
         )
         config.wandb_server_settings2 = settings2
 
+        # Container spins up separately in CI
+        if os.getenv("CI"):
+            return
+
         success2 = spin_wandb_server(settings2)
         if not success2:
             pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_unconfigure(config):
+    # Container spins up separately in CI
+    if os.getenv("CI"):
+        return
+
     clean = config.getoption("--wandb-server-clean")
     if clean != "none":
         print("Cleaning up wandb server...")
@@ -148,8 +159,8 @@ def server_src(user):
         for _ in range(2):
             art = make_artifact("logged_art")
             run.log_artifact(art)
-            art.wait()
-            print(f"Logged artifact {run.name=}, {art.version=}")
+            # art.wait()
+            # print(f"Logged artifact {run.name=}, {art.version=}")
 
         art2 = make_artifact("used_art")
         run.use_artifact(art2)
@@ -300,7 +311,6 @@ def create_random_molecule():
 
 
 def make_artifact(name):
-    # temporarily enable randomness so the artifacts are not deduped
     with tempfile.TemporaryDirectory() as tmpdirname:
         filename = os.path.join(tmpdirname, "random_text.txt")
 
@@ -308,8 +318,6 @@ def make_artifact(name):
             for _ in range(100):  # Write 100 lines of 50 random chars
                 random_text = generate_random_text(50)
                 f.write(random_text + "\n")
-
-        print(f"Random text data has been written to {filename}")
 
         artifact = wandb.Artifact(name, name)
         artifact.add_file(filename)

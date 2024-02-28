@@ -1,8 +1,8 @@
 import logging
 import sys
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
 
-import wandb
+from wandb.sdk.artifacts.artifact import Artifact
 
 if sys.version_info >= (3, 8):
     from typing import Protocol, runtime_checkable
@@ -10,6 +10,9 @@ else:
     from typing_extensions import Protocol, runtime_checkable
 
 logger = logging.getLogger("import_logger")
+
+PathStr = str
+Policy = Literal["now", "end", "live"]
 
 
 @runtime_checkable
@@ -67,10 +70,10 @@ class ImporterRun(Protocol):
     def tags(self) -> Optional[List[str]]:
         ...  # pragma: no cover
 
-    def artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def artifacts(self) -> Optional[Iterable[Artifact]]:
         ...  # pragma: no cover
 
-    def used_artifacts(self) -> Optional[Iterable[wandb.Artifact]]:
+    def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         ...  # pragma: no cover
 
     def os_version(self) -> Optional[str]:
@@ -115,7 +118,7 @@ class ImporterRun(Protocol):
     def cli_version(self) -> Optional[str]:
         ...  # pragma: no cover
 
-    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
+    def files(self) -> Optional[Iterable[Tuple[PathStr, Policy]]]:
         ...  # pragma: no cover
 
     def logs(self) -> Optional[Iterable[str]]:

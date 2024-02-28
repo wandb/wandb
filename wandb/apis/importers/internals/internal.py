@@ -1,11 +1,11 @@
 import json
 import logging
+import math
 import os
 import queue
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
-from unittest.mock import MagicMock
 
 import numpy as np
 from google.protobuf.json_format import ParseDict
@@ -18,25 +18,29 @@ from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, sender, settings_static
-from wandb.util import cast_dictlike_to_dict, coalesce
+from wandb.sdk.internal import context
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.util import coalesce, recursive_cast_dictlike_to_dict
 
 from .protocols import ImporterRun
 
+ROOT_DIR = "./wandb-importer"
+
+# silences the internal messages; set to INFO or DEBUG to see them
 logging.basicConfig(
+    level=logging.WARN,
     handlers=[
         RichHandler(
             rich_tracebacks=True,
             tracebacks_show_locals=True,
         )
-    ]
+    ],
 )
-
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
-logger = logging.getLogger("import_logger")
-logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 exp_retry = retry(
@@ -44,7 +48,7 @@ exp_retry = retry(
 )
 
 
-class AlternateSendManager(sender.SendManager):
+class AlternateSendManager(SendManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._send_artifact = exp_retry(self._send_artifact)
@@ -72,29 +76,65 @@ class RecordMaker:
 
     @property
     def run_dir(self) -> str:
-        p = Path(f"./wandb-importer/{self.run.run_id()}/wandb")
+        p = Path(f"{ROOT_DIR}/{self.run.run_id()}/wandb")
         p.mkdir(parents=True, exist_ok=True)
-        return f"./wandb-importer/{self.run.run_id()}"
+        return f"{ROOT_DIR}/{self.run.run_id()}"
 
-    def _make_fake_run_record(self):
-        """Make a fake run record.
+    def make_artifacts_only_records(
+        self,
+        artifacts: Optional[Iterable[Artifact]] = None,
+        used_artifacts: Optional[Iterable[Artifact]] = None,
+    ) -> Iterable[pb.Record]:
+        """Only make records required to upload artifacts.
 
-        Unfortunately, the vanilla Run object does a check for existence on the server,
-        so we use this as the simplest hack to skip that check.
+        Escape hatch for adding extra artifacts to a run.
         """
-        # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
-        run = pb.RunRecord()
-        run.entity = self.run.run.entity.return_value
-        run.project = self.run.run.project.return_value
-        run.run_id = self.run.run.run_id.return_value
+        yield self._make_run_record()
 
-        return self.interface._make_record(run=run)
+        if used_artifacts:
+            for art in used_artifacts:
+                yield self._make_artifact_record(art, use_artifact=True)
+
+        if artifacts:
+            for art in artifacts:
+                yield self._make_artifact_record(art)
+
+    def make_records(
+        self,
+        config: SendManagerConfig,
+    ) -> Iterable[pb.Record]:
+        """Make all the records that constitute a run."""
+        yield self._make_run_record()
+        yield self._make_telem_record()
+
+        has_artifacts = config.log_artifacts or config.use_artifacts
+        yield self._make_files_record(
+            config.metadata,
+            has_artifacts,
+            config.files,
+            config.media,
+            config.code,
+        )
+
+        if config.use_artifacts:
+            if (used_artifacts := self.run.used_artifacts()) is not None:
+                for artifact in used_artifacts:
+                    yield self._make_artifact_record(artifact, use_artifact=True)
+
+        if config.log_artifacts:
+            if (artifacts := self.run.artifacts()) is not None:
+                for artifact in artifacts:
+                    yield self._make_artifact_record(artifact)
+
+        if config.history:
+            yield from self._make_history_records()
+
+        if config.terminal_output:
+            if (lines := self.run.logs()) is not None:
+                for line in lines:
+                    yield self._make_output_record(line)
 
     def _make_run_record(self) -> pb.Record:
-        # unfortunate hack to get deleted wandb runs to work...
-        if hasattr(self.run, "run") and isinstance(self.run.run, MagicMock):
-            return self._make_fake_run_record()
-
         run = pb.RunRecord()
         run.run_id = self.run.run_id()
         run.entity = self.run.entity()
@@ -143,13 +183,11 @@ class RecordMaker:
             "_runtime": self.run.runtime(),  # quirk of runtime -- it has to be here!
             # '_timestamp': self.run.start_time()/1000,
         }
-        d = cast_dictlike_to_dict(d)
+        d = recursive_cast_dictlike_to_dict(d)
         summary = self.interface._make_summary_from_dict(d)
         return self.interface._make_record(summary=summary)
 
     def _make_history_records(self) -> Iterable[pb.Record]:
-        import math
-
         for metrics in self.run.metrics():
             history = pb.HistoryRecord()
             for k, v in metrics.items():
@@ -189,13 +227,20 @@ class RecordMaker:
             if not code and path.startswith("code/"):
                 continue
 
+            # DirWatcher requires the path to start with media/ instead of the full path
+            if "media" in path:
+                p = Path(path)
+                path = str(p.relative_to(f"{self.run_dir}/files"))
+
             f = files_record.files.add()
             f.path = path
-            f.policy = file_policy_to_enum(policy)  # is this always end?
+            f.policy = file_policy_to_enum(policy)
 
         return self.interface._make_record(files=files_record)
 
-    def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
+    def _make_artifact_record(
+        self, artifact: Artifact, use_artifact=False
+    ) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
         proto.run_id = str(self.run.run_id())
         proto.project = str(self.run.project())
@@ -259,12 +304,15 @@ class RecordMaker:
         return fname
 
 
-def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = None):
+def _make_settings(
+    root_dir: str, settings_override: Optional[Dict[str, Any]] = None
+) -> SettingsStatic:
     _settings_override = coalesce(settings_override, {})
 
     default_settings: Dict[str, Any] = {
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
+        "sync_file": os.path.join(root_dir, "txlog.wandb"),
         "resume": "false",
         "program": None,
         "ignore_globs": [],
@@ -282,177 +330,56 @@ def _make_settings(root_dir: str, settings_override: Optional[Dict[str, Any]] = 
     settings_message = wandb_settings_pb2.Settings()
     ParseDict(combined_settings, settings_message)
 
-    return settings_static.SettingsStatic(settings_message)
+    return SettingsStatic(settings_message)
 
 
-def _handle_run_record(sm: sender.SendManager, rm: RecordMaker):
-    sm.send(rm._make_run_record())
+def send_run(
+    run: ImporterRun,
+    *,
+    extra_arts: Optional[Iterable[Artifact]] = None,
+    extra_used_arts: Optional[Iterable[Artifact]] = None,
+    config: Optional[SendManagerConfig] = None,
+    overrides: Optional[Dict[str, Any]] = None,
+    settings_override: Optional[Dict[str, Any]] = None,
+) -> None:
+    if config is None:
+        config = SendManagerConfig()
 
+    # does this need to be here for pmap?
+    if overrides:
+        for k, v in overrides.items():
+            # `lambda: v` won't work!
+            # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
+            setattr(run, k, lambda v=v: v)
 
-def _handle_telem(sm: sender.SendManager, rm: RecordMaker):
-    sm.send(rm._make_telem_record())
+    rm = RecordMaker(run)
+    root_dir = rm.run_dir
 
-
-def _handle_metadata(
-    sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig
-):
-    has_artifacts = config.log_artifacts or config.use_artifacts
-    sm.send(
-        rm._make_files_record(
-            config.metadata,
-            has_artifacts,
-            config.files,
-            config.media,
-            config.code,
-        )
+    settings = _make_settings(root_dir, settings_override)
+    sm_record_q = queue.Queue()
+    # wm_record_q = queue.Queue()
+    result_q = queue.Queue()
+    interface = InterfaceQueue(record_q=sm_record_q)
+    context_keeper = context.ContextKeeper()
+    sm = AlternateSendManager(
+        settings, sm_record_q, result_q, interface, context_keeper
     )
+    # wm = WriteManager(
+    #     settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
+    # )
 
+    if extra_arts or extra_used_arts:
+        records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)
+    else:
+        records = rm.make_records(config)
 
-def _handle_use_artifacts(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    config: SendManagerConfig,
-):
-    if config.use_artifacts:
-        used_artifacts = rm.run.used_artifacts()
-        if used_artifacts is not None:
-            used_artifacts = list(used_artifacts)
+    for r in records:
+        logger.debug(f"Sending {r=}")
+        # In a future update, it might be good to write to a transaction log and have
+        # incremental uploads only send the missing records.
+        # wm.write(r)
 
-            for artifact in used_artifacts:
-                sm.send(rm._make_artifact_record(artifact, use_artifact=True))
+        sm.send(r)
 
-
-def _handle_log_artifacts(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    config: SendManagerConfig,
-):
-    if config.log_artifacts:
-        artifacts = rm.run.artifacts()
-        if artifacts is not None:
-            artifacts = list(artifacts)
-            for artifact in artifacts:
-                sm.send(rm._make_artifact_record(artifact))
-
-
-def _handle_log_specific_artifact(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    art: Artifact,
-    config: SendManagerConfig,
-):
-    if config.log_artifacts:
-        sm.send(rm._make_artifact_record(art))
-
-
-def _handle_use_specific_artifact(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    art: Artifact,
-    config: SendManagerConfig,
-):
-    if config.use_artifacts:
-        sm.send(rm._make_artifact_record(art, use_artifact=True))
-
-
-def _handle_history(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    config: SendManagerConfig,
-):
-    if config.history:
-        for history_record in rm._make_history_records():
-            sm.send(history_record)
-
-
-def _handle_summary(sm: sender.SendManager, rm: RecordMaker, config: SendManagerConfig):
-    if config.summary:
-        sm.send(rm._make_summary_record())
-
-
-def _handle_terminal_output(
-    sm: sender.SendManager,
-    rm: RecordMaker,
-    config: SendManagerConfig,
-):
-    if config.terminal_output:
-        lines = rm.run.logs()
-        if lines is not None:
-            for line in lines:
-                sm.send(rm._make_output_record(line))
-
-
-def send_run_with_send_manager(
-    run: ImporterRun,
-    overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[Dict[str, Any]] = None,
-    config: Optional[SendManagerConfig] = None,
-) -> None:
-    if config is None:
-        config = SendManagerConfig()
-
-    # does this need to be here for pmap?
-    if overrides:
-        for k, v in overrides.items():
-            # `lambda: v` won't work!
-            # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
-            setattr(run, k, lambda v=v: v)
-    rm = RecordMaker(run)
-
-    root_dir = rm.run_dir
-    settings = _make_settings(root_dir, settings_override)
-
-    record_q: queue.Queue = queue.Queue()
-    result_q: queue.Queue = queue.Queue()
-    interface = InterfaceQueue(record_q=record_q)
-    context_keeper = context.ContextKeeper()
-
-    with AlternateSendManager(
-        settings, record_q, result_q, interface, context_keeper
-    ) as sm:
-        _handle_run_record(sm, rm)
-        _handle_telem(sm, rm)
-        _handle_metadata(sm, rm, config)
-        _handle_use_artifacts(sm, rm, config)
-        _handle_log_artifacts(sm, rm, config)
-        _handle_history(sm, rm, config)
-        _handle_summary(sm, rm, config)
-        _handle_terminal_output(sm, rm, config)
-
-
-def send_artifacts_with_send_manager(
-    arts: Iterable[Artifact],
-    run: ImporterRun,
-    overrides: Optional[Dict[str, Any]] = None,
-    settings_override: Optional[Dict[str, Any]] = None,
-    config: Optional[SendManagerConfig] = None,
-) -> None:
-    if config is None:
-        config = SendManagerConfig()
-
-    # does this need to be here for pmap?
-    if overrides:
-        for k, v in overrides.items():
-            # `lambda: v` won't work!
-            # https://stackoverflow.com/questions/10802002/why-deepcopy-doesnt-create-new-references-to-lambda-function
-            setattr(run, k, lambda v=v: v)
-
-    rm = RecordMaker(run)
-
-    root_dir = rm.run_dir
-    settings = _make_settings(root_dir, settings_override)
-
-    record_q: queue.Queue = queue.Queue()
-    result_q: queue.Queue = queue.Queue()
-    interface = InterfaceQueue(record_q=record_q)
-    context_keeper = context.ContextKeeper()
-
-    with AlternateSendManager(
-        settings, record_q, result_q, interface, context_keeper
-    ) as sm:
-        _handle_run_record(sm, rm)
-
-        # for art in progress.subsubtask_progress(arts):
-        for art in arts:
-            _handle_use_specific_artifact(sm, rm, art, config)
-            _handle_log_specific_artifact(sm, rm, art, config)
+    sm.finish()
+    # wm.finish()

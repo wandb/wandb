@@ -29,6 +29,7 @@ from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .internals import internal
+from .internals.protocols import PathStr, Policy
 from .internals.util import Namespace, for_each
 
 Artifact = wandb.Artifact
@@ -45,8 +46,10 @@ RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 ART_DUMMY_PLACEHOLDER_PATH = "__importer_temp__"
 ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 
-logger = logging.getLogger("import_logger")
-# target_size = 80 * 1024**3  # 80GB
+SRC_ART_PATH = "./artifacts/src"
+DST_ART_PATH = "./artifacts/dst"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,7 +57,7 @@ class ArtifactSequence:
     artifacts: Iterable[wandb.Artifact]
     entity: str
     project: str
-    _type: str
+    type_: str
     name: str
 
     def __iter__(self) -> Iterator:
@@ -64,8 +67,8 @@ class ArtifactSequence:
         return f"ArtifactSequence({self.identifier})"
 
     @property
-    def identifier(self):
-        return "/".join([self.entity, self.project, self._type, self.name])
+    def identifier(self) -> str:
+        return "/".join([self.entity, self.project, self.type_, self.name])
 
     @classmethod
     def from_collection(cls, collection: ArtifactCollection):
@@ -168,27 +171,23 @@ class WandbRun:
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._artifacts is None:
-            self._artifacts = list(self.run.logged_artifacts())
+            _artifacts = []
+            for art in self.run.logged_artifacts():
+                a = _clone_art(art)
+                _artifacts.append(a)
+            self._artifacts = _artifacts
 
-        new_arts = []
-        for art in self._artifacts:
-            new_art = _clone_art(art)
-            new_arts.append(new_art)
-            yield new_art
-
-        self._artifacts = new_arts
+        yield from self._artifacts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._used_artifacts is None:
-            self._used_artifacts = list(self.run.used_artifacts())
+            _used_artifacts = []
+            for art in self.run.used_artifacts():
+                a = _clone_art(art)
+                _used_artifacts.append(a)
+            self._used_artifacts = _used_artifacts
 
-        new_arts = []
-        for art in self._used_artifacts:
-            new_art = _clone_art(art)
-            new_arts.append(new_art)
-            yield new_art
-
-        self._used_artifacts = new_arts
+        yield from self._used_artifacts
 
     def os_version(self) -> Optional[str]:
         ...  # pragma: no cover
@@ -239,30 +238,26 @@ class WandbRun:
     def cli_version(self) -> Optional[str]:
         return self._config_file().get("_wandb", {}).get("value", {}).get("cli_version")
 
-    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
-        if self._files is not None:
-            yield from self._files
-            return
+    def files(self) -> Optional[Iterable[Tuple[PathStr, Policy]]]:
+        if self._files is None:
+            files_dir = f"{internal.ROOT_DIR}/{self.run_id()}/files"
+            _files = []
+            for f in self.run.files():
+                f: File
+                # These optimizations are intended to avoid rate limiting when importing many runs in parallel
+                # Don't carry over empty files
+                if f.size == 0:
+                    continue
+                # Skip deadlist to avoid overloading S3
+                if "wandb_manifest.json.deadlist" in f.name:
+                    continue
 
-        files_dir = f"./wandb-importer/{self.run_id()}/files"
+                result = f.download(files_dir, exist_ok=True, api=self.api)
+                file_and_policy = (result.name, "end")
+                _files.append(file_and_policy)
+            self._files = _files
 
-        self._files = []
-        for f in self.run.files():
-            f: File
-            # These optimizations are intended to avoid rate limiting when importing many runs in parallel
-            # Don't carry over empty files
-            if f.size == 0:
-                continue
-            # Skip deadlist to avoid overloading S3
-            if "wandb_manifest.json.deadlist" in f.name:
-                continue
-
-            # Download and log file (is this the right wording?)
-            file_and_policy = None
-            result = f.download(files_dir, exist_ok=True, api=self.api)
-            file_and_policy = (result.name, "end")
-            self._files.append(file_and_policy)
-            yield file_and_policy
+        yield from self._files
 
     def logs(self) -> Optional[Iterable[str]]:
         if (fname := self._find_in_files("output.log")) is None:
@@ -285,33 +280,37 @@ class WandbRun:
         with open(fname) as f:
             return yaml.safe_load(f) or {}
 
-    def _get_rows_from_parquet_history_paths(self) -> None:
-        if self._parquet_history_paths is None:
-            self._parquet_history_paths = list(self._get_parquet_history_paths())
+    def _get_rows_from_parquet_history_paths(self) -> Iterable[Dict[str, Any]]:
+        # Unfortunately, it's not feasible to validate non-parquet history
+        if not (paths := self._get_parquet_history_paths()):
+            yield {}
+            return
 
-        if not self._parquet_history_paths:
-            # unfortunately, it's not feasible to validate non-parquet history
-            return pl.DataFrame()
-
-        dfs = []
-        for path in self._parquet_history_paths:
-            for p in Path(path).glob("*.parquet"):
-                df = pl.read_parquet(p)
-                dfs.append(df)
-
+        # Collect and merge parquet history
+        dfs = [
+            pl.read_parquet(p) for path in paths for p in Path(path).glob("*.parquet")
+        ]
         df = _merge_dfs(dfs).sort("_step")
         if "_step" in df:
             df = df.with_columns(pl.col("_step").cast(pl.Int64))
         rows = df.iter_rows(named=True)
         yield from rows
 
-    def _get_parquet_history_paths(self) -> List[str]:
-        for art in self.artifacts():
-            if art.type != "wandb-history":
-                continue
-            if (path := _download_art(art, root=f"./artifacts/src/{art.name}")) is None:
-                continue
-            yield path
+    def _get_parquet_history_paths(self) -> Iterable[str]:
+        if self._parquet_history_paths is None:
+            paths = []
+            # self.artifacts() returns a copy of the artifacts; use this to get raw
+            for art in self.run.logged_artifacts():
+                if art.type != "wandb-history":
+                    continue
+                if (
+                    path := _download_art(art, root=f"{SRC_ART_PATH}/{art.name}")
+                ) is None:
+                    continue
+                paths.append(path)
+            self._parquet_history_paths = paths
+
+        yield from self._parquet_history_paths
 
     def _modify_table_artifact_paths(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # Modify artifact paths because they are different between systems
@@ -346,12 +345,10 @@ class WandbRun:
         return row
 
     def _find_in_files(self, name: str) -> Optional[str]:
-        if (files := self.files()) is None:
-            return None
-        for path, _ in files:
-            if name in path:
-                return path
-
+        if files := self.files():
+            for path, _ in files:
+                if name in path:
+                    return path
         return None
 
 
@@ -428,51 +425,66 @@ class WandbImporter:
             "resumed": True,
         }
 
-        logger.debug(f"Importing history, {run=}")
-        internal.send_run_with_send_manager(
+        # Send run with base config
+        logger.debug(f"Importing run, {run=}")
+        internal.send_run(
             run,
             overrides=namespace.send_manager_overrides,
             settings_override=settings_override,
             config=config,
         )
 
-        logger.debug(f"Collecting history artifacts, {run=}")
-        history_arts = []
-        for art in run.artifacts():
-            logger.debug(f"Collecting history artifact {art.name=}")
-            if art.type != "wandb-history":
-                continue
-            new_art = _clone_art(art)
-            history_arts.append(new_art)
+        if config.history:
+            # Send run again with history artifacts in case config history=True, artifacts=False
+            # The history artifact must come with the actual history data
 
-        logger.debug(f"Importing history artifacts, {run=}")
-        internal.send_artifacts_with_send_manager(
-            history_arts,
-            run,
-            overrides=namespace.send_manager_overrides,
-            settings_override=settings_override,
-            config=internal.SendManagerConfig(log_artifacts=True),
-        )
+            logger.debug(f"Collecting history artifacts, {run=}")
+            history_arts = []
+            for art in run.run.logged_artifacts():
+                if art.type != "wandb-history":
+                    continue
+                logger.debug(f"Collecting history artifact {art.name=}")
+                new_art = _clone_art(art)
+                history_arts.append(new_art)
+
+            logger.debug(f"Importing history artifacts, {run=}")
+            internal.send_run(
+                run,
+                extra_arts=history_arts,
+                extra_used_arts=history_arts,
+                overrides=namespace.send_manager_overrides,
+                settings_override=settings_override,
+                config=config,
+            )
 
     def _delete_collection_in_dst(
         self,
-        src_art: Artifact,
+        seq: ArtifactSequence,
         namespace: Optional[Namespace] = None,
     ):
-        """Deletes the equivalent artifact collection in destination.  Intended to clear the destination when an uploaded artifact does not pass validation."""
-        entity = coalesce(namespace.entity, src_art.entity)
-        project = coalesce(namespace.project, src_art.project)
+        """Deletes the equivalent artifact collection in destination.
 
+        Intended to clear the destination when an uploaded artifact does not pass validation.
+        """
+        entity = coalesce(namespace.entity, seq.entity)
+        project = coalesce(namespace.project, seq.project)
+        art_type = f"{entity}/{project}/{seq.type_}"
+        art_name = seq.name
+
+        logger.info(
+            f"Deleting collection {entity=}, {project=}, {art_type=}, {art_name=}"
+        )
         try:
-            dst_type = self.dst_api.artifact_type(src_art.type, f"{entity}/{project}")
-            dst_collection = dst_type.collection(src_art.collection.name)
+            dst_collection = self.dst_api.artifact_collection(art_type, art_name)
         except (wandb.CommError, ValueError):
-            return  # it didn't exist
+            logger.warn(f"Collection doesn't exist {art_type=}, {art_name=}")
+            return
 
         try:
             dst_collection.delete()
-        except (wandb.CommError, ValueError):
-            return  # it's not allowed to be deleted
+        except (wandb.CommError, ValueError) as e:
+            logger.warn(f"Collection can't be deleted, {art_type=}, {art_name=}, {e=}")
+            return
 
     def _import_artifact_sequence(
         self,
@@ -487,6 +499,7 @@ class WandbImporter:
         if not seq.artifacts:
             # The artifact sequence has no versions.  This usually means all artifacts versions were deleted intentionally,
             # but it can also happen if the sequence represents run history and that run was deleted.
+            logger.warn(f"Artifact {seq=} has no artifacts, skipping.")
             return
 
         if namespace is None:
@@ -501,22 +514,18 @@ class WandbImporter:
 
         send_manager_config = internal.SendManagerConfig(log_artifacts=True)
 
-        # Get a placeholder run for dummy artifacts we'll upload later
-        art = seq.artifacts[0]
-        try:
-            run_or_dummy: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
-        except requests.exceptions.HTTPError as e:
-            # If we had an http error, then just skip for now.
-            logger.warn(f"Failed to get run (try again later): {seq=}, {art=}, {e=}")
-            return
-
         # Delete any existing artifact sequence, otherwise versions will be out of order
         # Unfortunately, you can't delete only part of the sequence because versions are "remembered" even after deletion
-        self._delete_collection_in_dst(art, namespace)
+        self._delete_collection_in_dst(seq, namespace)
 
-        # Each "group of artifacts" is either (1) a single "real" artifact in a list, or (2) a list of dummy artifacts
-        # that are uploaded together.  This guarantees the real artifacts have the correct version numbers and allows
-        # for parallel upload of dummies.
+        # Get a placeholder run for dummy artifacts we'll upload later
+        art = seq.artifacts[0]
+        run_or_dummy: Optional[Run] = _get_run_or_dummy_from_art(art, self.src_api)
+
+        # Each `group_of_artifacts` is either:
+        # 1. A single "real" artifact in a list; or
+        # 2. A list of dummy artifacts that are uploaded together.
+        # This guarantees the real artifacts have the correct version numbers while allowing for parallel upload of dummies.
         groups_of_artifacts = list(_make_groups_of_artifacts(seq))
         for i, group in enumerate(groups_of_artifacts, 1):
             art = group[0]
@@ -526,11 +535,14 @@ class WandbImporter:
                 try:
                     wandb_run = art.logged_by()
                 except ValueError:
-                    pass  # see next line
+                    # The run used to exist but has since been deleted
+                    # wandb_run = None
+                    pass
 
+                # Could be logged by None (rare) or ValueError
                 if wandb_run is None:
                     logger.warn(
-                        f"Artifact run does not exist (deleted?), using {run_or_dummy=}"
+                        f"Run for {art.name=} does not exist (deleted?), using {run_or_dummy=}"
                     )
                     wandb_run = run_or_dummy
 
@@ -538,41 +550,40 @@ class WandbImporter:
                 group = [new_art]
                 run = WandbRun(wandb_run, **self.run_api_kwargs)
 
-            internal.send_artifacts_with_send_manager(
-                group,
+            logger.info(
+                f"Uploading partial artifact {seq=}, {i}/{len(groups_of_artifacts)}"
+            )
+            internal.send_run(
                 run,
+                extra_arts=group,
                 overrides=namespace.send_manager_overrides,
                 settings_override=settings_override,
                 config=send_manager_config,
             )
-            logger.info(
-                f"Uploaded partial artifact {seq=}, {i}/{len(groups_of_artifacts)}"
-            )
         logger.info(f"Finished uploading {seq=}")
 
         # query it back and remove placeholders
-        self._remove_placeholders(art)
+        self._remove_placeholders(seq)
 
-    def _remove_placeholders(self, art: Artifact) -> None:
-        name, _ = _get_art_name_ver(art)
+    def _remove_placeholders(self, seq: ArtifactSequence) -> None:
         try:
-            dst_versions = list(self.dst_api.artifacts(art.type, name))
+            retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
+            dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
-            # the artifact did not upload for some reason
-            logger.warn(f"Art doesn't exist in dst (already deleted?), {art=}")
+            logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
             return
-        except TypeError:
-            logger.error("Problem getting dst versions (try again later)")
+        except TypeError as e:
+            logger.error(f"Problem getting dst versions (try again later) {e=}")
             return
 
-        for version in dst_versions:
-            if version.description != ART_SEQUENCE_DUMMY_PLACEHOLDER:
+        for art in dst_arts:
+            if art.description != ART_SEQUENCE_DUMMY_PLACEHOLDER:
                 continue
-            if version.type in ("wandb-history", "job"):
+            if art.type in ("wandb-history", "job"):
                 continue
 
             try:
-                version.delete(delete_aliases=True)
+                art.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" in str(e):
                     logger.warn("Cannot delete system managed artifact")
@@ -580,7 +591,7 @@ class WandbImporter:
                     raise e
 
     @staticmethod
-    def _compare_artifact_dirs(src_dir, dst_dir):
+    def _compare_artifact_dirs(src_dir, dst_dir) -> list:
         def compare(src_dir, dst_dir):
             comparison = filecmp.dircmp(src_dir, dst_dir)
             differences = {
@@ -607,7 +618,7 @@ class WandbImporter:
         return compare(src_dir, dst_dir)
 
     @staticmethod
-    def _compare_artifact_manifests(src_art: Artifact, dst_art: Artifact):
+    def _compare_artifact_manifests(src_art: Artifact, dst_art: Artifact) -> list:
         problems = []
         if isinstance(dst_art, wandb.CommError):
             return ["commError"]
@@ -631,21 +642,23 @@ class WandbImporter:
 
     def _get_dst_art(
         self, src_art: Run, entity: Optional[str] = None, project: Optional[str] = None
-    ):
+    ) -> Artifact:
         entity = coalesce(entity, src_art.entity)
         project = coalesce(project, src_art.project)
         name = src_art.name
 
         return self.dst_api.artifact(f"{entity}/{project}/{name}")
 
-    def _get_src_artifacts(self, entity: str, project: str):
+    def _get_src_artifacts(self, entity: str, project: str) -> Iterable[Artifact]:
         for t in self.src_api.artifact_types(f"{entity}/{project}"):
             t: ArtifactType
             for c in t.collections():
                 c: ArtifactCollection
                 yield from c.artifacts()
 
-    def _get_run_problems(self, src_run, dst_run, force_retry=False):
+    def _get_run_problems(
+        self, src_run: Run, dst_run: Run, force_retry: bool = False
+    ) -> List[dict]:
         problems = []
 
         if force_retry:
@@ -657,17 +670,11 @@ class WandbImporter:
         if non_matching_summary := self._compare_run_summary(src_run, dst_run):
             problems.append("summary:" + str(non_matching_summary))
 
-        # Compare run metrics is not interesting because it just compares the artifacts.
-        # We can do this a lot faster in the artifact comparison stage
-        # if non_matching_metrics := self._compare_run_metrics(src_run, dst_run):
-        #     problems.append("metrics:" + str(non_matching_metrics))
-
-        if non_matching_files := self._compare_run_files(src_run, dst_run):
-            problems.append("files" + str(non_matching_files))
+        # TODO: Compare files?
 
         return problems
 
-    def _compare_run_metadata(self, src_run: Run, dst_run: Run):
+    def _compare_run_metadata(self, src_run: Run, dst_run: Run) -> dict:
         fname = "wandb-metadata.json"
         # problems = {}
 
@@ -702,7 +709,7 @@ class WandbImporter:
 
         return non_matching
 
-    def _compare_run_summary(self, src_run: Run, dst_run: Run):
+    def _compare_run_summary(self, src_run: Run, dst_run: Run) -> dict:
         non_matching = {}
         for k, src_v in src_run.summary.items():
             # These won't match between systems and that's ok
@@ -732,11 +739,7 @@ class WandbImporter:
 
         return non_matching
 
-    def _compare_run_files(self, src_run: Run, dst_run: Run):
-        # TODO
-        return None
-
-    def _collect_failed_artifact_sequences2(self):
+    def _collect_failed_artifact_sequences(self) -> Iterable[ArtifactSequence]:
         if (df := _read_ndjson(ARTIFACT_ERRORS_FNAME)) is None:
             logger.debug(f"{ARTIFACT_ERRORS_FNAME=} is empty, returning nothing")
             return
@@ -764,7 +767,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         api: Optional[Api] = None,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
-    ):
+    ) -> None:
         api = coalesce(api, self.dst_api)
         namespaces = coalesce(namespaces, self._all_namespaces())
 
@@ -853,7 +856,7 @@ class WandbImporter:
             for wandb_run in used_by:
                 run = WandbRun(wandb_run, **self.run_api_kwargs)
 
-                internal.send_run_with_send_manager(
+                internal.send_run(
                     run,
                     overrides=namespace.send_manager_overrides,
                     settings_override=settings_override,
@@ -864,6 +867,7 @@ class WandbImporter:
         self,
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
+        remapping: Optional[Dict[Namespace, Namespace]] = None,
         parallel: bool = True,
         incremental: bool = True,
         max_workers: Optional[int] = None,
@@ -875,9 +879,7 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
-        remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
-        os.environ["WANDB_IMPORTER_MODE_ENABLED"] = "true"
         logger.info("START: Import runs")
 
         logger.info("Setting up for import")
@@ -895,7 +897,6 @@ class WandbImporter:
         )
 
         logger.info("Collecting failed runs")
-        # runs = list(self._filter_for_failed_runs_only(runs))
         runs = list(self._collect_failed_runs())
 
         logger.info(f"Importing runs, {len(runs)=}")
@@ -921,8 +922,6 @@ class WandbImporter:
 
         for_each(_import_run_wrapped, runs, max_workers=max_workers, parallel=parallel)
         logger.info("END: Importing runs")
-
-        del os.environ["WANDB_IMPORTER_MODE_ENABLED"]
 
     def import_reports(
         self,
@@ -977,7 +976,7 @@ class WandbImporter:
         )
 
         logger.info("Collecting failed artifact sequences")
-        seqs = list(self._collect_failed_artifact_sequences2())
+        seqs = list(self._collect_failed_artifact_sequences())
 
         logger.info(f"Importing artifact sequences, {len(seqs)=}")
 
@@ -1176,7 +1175,7 @@ class WandbImporter:
         if download_files_and_compare:
             logger.debug(f"Downloading {src_art=}")
             try:
-                src_dir = _download_art(src_art, root=f"./artifacts/src/{src_art.name}")
+                src_dir = _download_art(src_art, root=f"{SRC_ART_PATH}/{src_art.name}")
             except requests.HTTPError as e:
                 problems.append(
                     f"Invalid download link for src {src_art.entity=}, {src_art.project=}, {src_art.name=}, {e}"
@@ -1184,7 +1183,7 @@ class WandbImporter:
 
             logger.debug(f"Downloading {dst_art=}")
             try:
-                dst_dir = _download_art(dst_art, root=f"./artifacts/dst/{dst_art.name}")
+                dst_dir = _download_art(dst_art, root=f"{DST_ART_PATH}/{dst_art.name}")
             except requests.HTTPError as e:
                 problems.append(
                     f"Invalid download link for dst {dst_art.entity=}, {dst_art.project=}, {dst_art.name=}, {e}"
@@ -1316,8 +1315,11 @@ class WandbImporter:
 
         def _validate_artifact_wrapped(args):
             art, entity, project = args
-            if (ns := Namespace(entity, project)) in remapping:
-                remapped_ns = remapping[ns]
+            if (
+                remapping is not None
+                and (namespace := Namespace(entity, project)) in remapping
+            ):
+                remapped_ns = remapping[namespace]
                 entity = remapped_ns.entity
                 project = remapped_ns.project
 
@@ -1508,27 +1510,27 @@ def _make_dummy_art(name: str, _type: str, ver: int):
 
     p = Path(ART_DUMMY_PLACEHOLDER_PATH)
     p.mkdir(parents=True, exist_ok=True)
+
+    # dummy file with different name to prevent dedupe
     fname = p / str(ver)
     with open(fname, "w"):
         pass
     art.add_file(fname)
+
     return art
 
 
-def _make_groups_of_artifacts(seq, start=0):
-    prev_ver, first = None, True
-
+def _make_groups_of_artifacts(seq: ArtifactSequence, start: int = 0):
+    prev_ver = start - 1
     for art in seq:
         name, ver = _get_art_name_ver(art)
-        if first:
-            if ver > start:
-                yield [_make_dummy_art(name, art.type, v) for v in range(start, ver)]
-            first = False
-        else:
-            if ver - prev_ver > 1:
-                yield [
-                    _make_dummy_art(name, art.type, v) for v in range(prev_ver + 1, ver)
-                ]
+
+        # If there's a gap between versions, fill with dummy artifacts
+        if ver - prev_ver > 1:
+            yield [_make_dummy_art(name, art.type, v) for v in range(prev_ver + 1, ver)]
+
+        # Then yield the actual artifact
+        # Must always be a list of one artifact to guarantee ordering
         yield [art]
         prev_ver = ver
 
@@ -1603,6 +1605,7 @@ def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
 
 def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = None
+
     try:
         run = art.logged_by()
     except ValueError as e:
@@ -1644,12 +1647,12 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
 
 
 def _clear_fname(fname: str) -> None:
-    src = "./" + fname
-    dst = "./prev_" + fname
+    old_fname = f"{internal.ROOT_DIR}/{fname}"
+    new_fname = f"{internal.ROOT_DIR}/prev_{fname}"
 
-    logger.debug(f"Moving {src=} to {dst=}")
+    logger.debug(f"Moving {old_fname=} to {new_fname=}")
     try:
-        shutil.copy2(src, dst)
+        shutil.copy2(old_fname, new_fname)
     except FileNotFoundError:
         # this is just to make a copy of the last iteration, so its ok if the src doesn't exist
         pass
@@ -1669,7 +1672,7 @@ def _download_art(art: Artifact, root: str) -> Optional[str]:
 def _clone_art(art: Artifact, root: Optional[str] = None):
     if root is None:
         # Currently, we would only ever clone a src artifact to move it to dst.
-        root = f"./artifacts/src/{art.name}"
+        root = f"{SRC_ART_PATH}/{art.name}"
 
     if (path := _download_art(art, root=root)) is None:
         raise ValueError(f"Problem downloading {art=}")
@@ -1690,7 +1693,7 @@ def _clone_art(art: Artifact, root: Optional[str] = None):
     return new_art
 
 
-def _create_files_if_not_exists():
+def _create_files_if_not_exists() -> None:
     fnames = [
         ARTIFACT_ERRORS_FNAME,
         ARTIFACT_SUCCESSES_FNAME,

@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import sys
@@ -21,6 +22,7 @@ from wandb.sdk.launch.loader import (
     environment_from_config,
     registry_from_config,
 )
+from wandb.util import get_module
 
 from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
@@ -333,27 +335,56 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
-        if launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.txt")
-        ):
+        deps_install_line = None
+        assert launch_project.project_dir is not None
+        base_path = pathlib.Path(launch_project.project_dir)
+        # If there is a requirements.txt at root of build context, use that.
+        if (base_path / "requirements.txt").exists():
             requirements_files += ["src/requirements.txt"]
-            pip_install_line = "pip install -r requirements.txt"
-        elif launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.frozen.txt")
-        ):
-            # if we have frozen requirements stored, copy those over and have them take precedence
-            requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
-            pip_install_line = (
+            deps_install_line = "pip install -r requirements.txt"
+        # Elif there is pyproject.toml at build context, convert the dependencies
+        # section to a requirements.txt and use that.
+        elif (base_path / "pyproject.toml").exists():
+            tomli = get_module("tomli")
+            if tomli is None:
+                wandb.termwarn(
+                    "pyproject.toml found but tomli could not be loaded. To "
+                    "install dependencies from pyproject.toml please run "
+                    "`pip install tomli` and try again."
+                )
+            else:
+                # First try to read deps from standard pyproject format.
+                with open(base_path / "pyproject.toml", "rb") as f:
+                    contents = tomli.load(f)
+                project_deps = [
+                    str(d) for d in contents.get("project", {}).get("dependencies", [])
+                ]
+                if project_deps:
+                    with open(base_path / "requirements.txt", "w") as f:
+                        f.write("\n".join(project_deps))
+                    requirements_files += ["src/requirements.txt"]
+                    deps_install_line = "pip install -r requirements.txt"
+        # Else use frozen requirements from wandb run.
+        if not deps_install_line and (base_path / "requirements.frozen.txt").exists():
+            requirements_files += [
+                "src/requirements.frozen.txt",
+                "_wandb_bootstrap.py",
+            ]
+            deps_install_line = (
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
             )
+
+        if not deps_install_line:
+            raise LaunchError(f"No dependency sources found for {launch_project}")
+
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
 
         requirements_line = PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
             requirements_files=" ".join(requirements_files),
-            pip_install=pip_install_line,
+            pip_install=deps_install_line,
         )
     elif launch_project.deps_type == "conda":
         if buildx_installed:
@@ -437,12 +468,6 @@ def generate_dockerfile(
         entrypoint_section=entrypoint_section,
     )
     return dockerfile_contents
-
-
-def construct_gcp_registry_uri(
-    gcp_repo: str, gcp_project: str, gcp_registry: str
-) -> str:
-    return "/".join([gcp_registry, gcp_project, gcp_repo])
 
 
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
