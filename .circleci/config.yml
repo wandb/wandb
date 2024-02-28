@@ -511,7 +511,7 @@ jobs:
                     tests/pytest_tests/system_tests/test_functional
 
        - when:
-          condition: { equal: [<<parameters.tests>>, sdk] }
+          condition: { equal: [<<parameters.tests>>, notebooks] }
           steps:
             - run:
                 name: Run tests for <<parameters.tests>>
