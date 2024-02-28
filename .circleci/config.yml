@@ -694,8 +694,8 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >> \
-              -- --wandb-second-server=false
+              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' --wandb-second-server=false \
+              << parameters.tox_args >>
       - when:
           condition:
             not:
