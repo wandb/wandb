@@ -148,8 +148,8 @@ def server_src(user):
         for _ in range(2):
             art = make_artifact("logged_art")
             run.log_artifact(art)
-            art.wait()
-            print(f"Logged artifact {run.name=}, {art.version=}")
+            # art.wait()
+            # print(f"Logged artifact {run.name=}, {art.version=}")
 
         art2 = make_artifact("used_art")
         run.use_artifact(art2)
@@ -300,7 +300,6 @@ def create_random_molecule():
 
 
 def make_artifact(name):
-    # temporarily enable randomness so the artifacts are not deduped
     with tempfile.TemporaryDirectory() as tmpdirname:
         filename = os.path.join(tmpdirname, "random_text.txt")
 

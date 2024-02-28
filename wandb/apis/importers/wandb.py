@@ -46,8 +46,7 @@ RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 ART_DUMMY_PLACEHOLDER_PATH = "__importer_temp__"
 ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 
-logger = logging.getLogger("importer_wandb")
-logger.setLevel(logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -169,13 +168,23 @@ class WandbRun:
 
     def artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._artifacts is None:
-            self._artifacts = list(self.run.logged_artifacts())
-        return self._artifacts
+            _artifacts = []
+            for art in self.run.logged_artifacts():
+                a = _clone_art(art)
+                _artifacts.append(a)
+            self._artifacts = _artifacts
+
+        yield from self._artifacts
 
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:
         if self._used_artifacts is None:
-            self._used_artifacts = list(self.run.used_artifacts())
-        return self._used_artifacts
+            _used_artifacts = []
+            for art in self.run.used_artifacts():
+                a = _clone_art(art)
+                _used_artifacts.append(a)
+            self._used_artifacts = _used_artifacts
+
+        yield from self._used_artifacts
 
     def os_version(self) -> Optional[str]:
         ...  # pragma: no cover
@@ -288,7 +297,8 @@ class WandbRun:
     def _get_parquet_history_paths(self) -> Iterable[str]:
         if self._parquet_history_paths is None:
             paths = []
-            for art in self.artifacts():
+            # self.artifacts() returns a copy of the artifacts; use this to get raw
+            for art in self.run.logged_artifacts():
                 if art.type != "wandb-history":
                     continue
                 if (
@@ -511,7 +521,8 @@ class WandbImporter:
                     wandb_run = art.logged_by()
                 except ValueError:
                     # The run used to exist but has since been deleted
-                    wandb_run = None
+                    # wandb_run = None
+                    pass
 
                 # Could be logged by None (rare) or ValueError
                 if wandb_run is None:

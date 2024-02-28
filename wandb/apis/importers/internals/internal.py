@@ -1,4 +1,3 @@
-import itertools
 import json
 import logging
 import math
@@ -7,11 +6,11 @@ import queue
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
-from unittest.mock import MagicMock
 
 import numpy as np
 from google.protobuf.json_format import ParseDict
 from rich.logging import RichHandler
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
 from wandb.proto import wandb_internal_pb2 as pb
@@ -22,7 +21,6 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.internal.writer import WriteManager
 from wandb.util import coalesce, recursive_cast_dictlike_to_dict
 
 from .protocols import ImporterRun
@@ -39,6 +37,19 @@ logging.basicConfig(
 )
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
+logger = logging.getLogger(__name__)
+
+
+exp_retry = retry(
+    wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
+)
+
+
+class AlternateSendManager(SendManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._send_artifact = exp_retry(self._send_artifact)
 
 
 @dataclass(frozen=True)
@@ -72,7 +83,9 @@ class RecordMaker:
         artifacts: Optional[Iterable[Artifact]] = None,
         used_artifacts: Optional[Iterable[Artifact]] = None,
     ) -> Iterable[pb.Record]:
-        """Escape hatch to add extra artifacts to a run (e.g. run history artifacts)."""
+        """Only make records required to upload artifacts."""
+        yield self._make_run_record()
+
         if used_artifacts:
             for art in used_artifacts:
                 yield self._make_artifact_record(art, use_artifact=True)
@@ -116,25 +129,7 @@ class RecordMaker:
                 for line in lines:
                     yield self._make_output_record(line)
 
-    def _make_fake_run_record(self):
-        """Make a fake run record.
-
-        Unfortunately, the vanilla Run object does a check for existence on the server,
-        so we use this as the simplest hack to skip that check.
-        """
-        # in this case run is a magicmock, so we need to convert the return types back to vanilla py types
-        run = pb.RunRecord()
-        run.entity = self.run.run.entity.return_value
-        run.project = self.run.run.project.return_value
-        run.run_id = self.run.run.run_id.return_value
-
-        return self.interface._make_record(run=run)
-
     def _make_run_record(self) -> pb.Record:
-        # unfortunate hack to get deleted wandb runs to work...
-        if hasattr(self.run, "run") and isinstance(self.run.run, MagicMock):
-            return self._make_fake_run_record()
-
         run = pb.RunRecord()
         run.run_id = self.run.run_id()
         run.entity = self.run.entity()
@@ -238,7 +233,9 @@ class RecordMaker:
 
         return self.interface._make_record(files=files_record)
 
-    def _make_artifact_record(self, artifact, use_artifact=False) -> pb.Record:
+    def _make_artifact_record(
+        self, artifact: Artifact, use_artifact=False
+    ) -> pb.Record:
         proto = self.interface._make_artifact(artifact)
         proto.run_id = str(self.run.run_id())
         proto.project = str(self.run.project())
@@ -355,29 +352,29 @@ def send_run(
 
     settings = _make_settings(root_dir, settings_override)
     sm_record_q = queue.Queue()
-    wm_record_q = queue.Queue()
+    # wm_record_q = queue.Queue()
     result_q = queue.Queue()
     interface = InterfaceQueue(record_q=sm_record_q)
     context_keeper = context.ContextKeeper()
-    sm = SendManager(settings, sm_record_q, result_q, interface, context_keeper)
-    wm = WriteManager(
-        settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
+    sm = AlternateSendManager(
+        settings, sm_record_q, result_q, interface, context_keeper
     )
+    # wm = WriteManager(
+    #     settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
+    # )
 
-    records = rm.make_records(config)
     if extra_arts or extra_used_arts:
-        extra_art_records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)
-        records = itertools.chain(records, extra_art_records)
+        records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)
+    else:
+        records = rm.make_records(config)
 
     for r in records:
-        # Write out to a transaction log
-        # In a future update, we might want to make the incremental upload use the transaction log
-        # and only send missing records.  For now, the transaction log just shows history of what
-        # was sent to the server.
-        wm.write(r)
+        logger.debug(f"Sending {r=}")
+        # In a future update, it might be good to write to a transaction log and have
+        # incremental uploads only send the missing records.
+        # wm.write(r)
 
-        # Send to server
         sm.send(r)
 
     sm.finish()
-    wm.finish()
+    # wm.finish()
