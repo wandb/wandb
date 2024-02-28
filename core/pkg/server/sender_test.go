@@ -242,3 +242,58 @@ func TestSendUseArtifact(t *testing.T) {
 	}
 	sender.SendRecord(useArtifact)
 }
+
+func TestSendArtifact(t *testing.T) {
+	// Verify that arguments are properly passed through to graphql
+	to := coretest.MakeTestObject(t)
+	defer to.TeardownTest()
+
+	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+
+	// 1. When both clientId and serverId are sent, serverId is used
+	artifact := &service.Record{
+		RecordType: &service.Record_Artifact{
+			Artifact: &service.ArtifactRecord{
+				RunId:   "test-run-id",
+				Project: "test-project",
+				Entity:  "test-entity",
+				Type:    "test-type",
+				Name:    "test-artifact",
+				Digest:  "test-digest",
+				Aliases: []string{"latest"},
+				Manifest: &service.ArtifactManifest{
+					Version:       1,
+					StoragePolicy: "wandb-storage-policy-v1",
+					Contents: []*service.ArtifactManifestEntry{{
+						Path:      "test1",
+						Digest:    "test1-digest",
+						Size:      1,
+						LocalPath: "/test/local/path",
+					},
+					},
+				},
+				Finalize:         true,
+				ClientId:         "client-id",
+				SequenceClientId: "sequence-client-id",
+			}},
+	}
+	createArtifactRespEncode := &graphql.Response{
+		Data: &gql.CreateArtifactResponse{
+			CreateArtifact: &gql.CreateArtifactCreateArtifactCreateArtifactPayload{
+				Artifact: gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{
+					Id: "artifact-id",
+				},
+			},
+		}}
+	to.MockClient.EXPECT().MakeRequest(
+		gomock.Any(), // context.Context
+		gomock.Any(), // *graphql.Request
+		gomock.Any(), // *graphql.Response
+	).Return(nil).Do(coretest.InjectResponse(
+		createArtifactRespEncode,
+		func(vars coretest.RequestVars) {
+			assert.Equal(t, "test-entity", vars["entityName"])
+		},
+	))
+	sender.SendRecord(artifact)
+}
