@@ -98,6 +98,21 @@ executors:
       - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
     resource_class: xlarge
 
+  local-testcontainer:
+    parameters:
+      python_version_major: { type: integer }
+      python_version_minor: { type: integer }
+    docker:
+      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: us-central1-docker.pkg.dev/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
+        auth:
+          username: _json_key
+          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
+        environment:
+          CI: 1
+          WANDB_ENABLE_TEST_CONTAINER: true
+    resource_class: xlarge
+
 commands:
   save-test-results:
     description: "Save test results"
@@ -1618,16 +1633,9 @@ workflows:
               tests: [sdk, other]
 
           executor:
-            docker:
-              - image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
-              - image: us-central1-docker.pkg.dev/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
-                auth:
-                  username: _json_key
-                  password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-                environment:
-                  CI: 1
-                  WANDB_ENABLE_TEST_CONTAINER: true
-            resource_class: xlarge
+            name: local-testcontainer
+            python_version_major: <<matrix.python_version_major>>
+            python_version_minor: <<matrix.python_version_minor>>
 
       - win:
           requires:
