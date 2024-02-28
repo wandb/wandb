@@ -607,6 +607,9 @@ jobs:
       tox_args:
         type: string
         default: ""
+      server_name2:
+        type: string
+        default: "localhost-wandb-2"
       server_url2:
         type: string
         default: "http://localhost-wandb-2"
@@ -625,11 +628,6 @@ jobs:
     docker:
       # the src server
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-        environment:
-          WANDB_TEST_SERVER_URL2: << parameters.server_url2 >>
-          WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
-          WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
-          WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
       - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
@@ -645,11 +643,7 @@ jobs:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
-          WANDB_TEST_SERVER_URL2: << parameters.server_url2 >>
-          WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
-          WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
-          WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
-        name: << parameters.server_url2 >>
+        name: << parameters.server_name2 >>
 
     resource_class: xlarge
     # working_directory: ~/project
@@ -709,11 +703,6 @@ jobs:
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' \
               << parameters.tox_args >>
-          environment:
-            WANDB_TEST_SERVER_URL2: << parameters.server_url2 >>
-            WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
-            WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
-            WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
 
       - when:
           condition:
