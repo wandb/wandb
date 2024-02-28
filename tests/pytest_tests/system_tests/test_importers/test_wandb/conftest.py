@@ -308,8 +308,6 @@ def make_artifact(name):
                 random_text = generate_random_text(50)
                 f.write(random_text + "\n")
 
-        print(f"Random text data has been written to {filename}")
-
         artifact = wandb.Artifact(name, name)
         artifact.add_file(filename)
 
