@@ -28,77 +28,77 @@ DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
 DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--wandb-second-server",
-        default=True,
-        help="Spin up a second server (for importer tests)",
-    )
+# def pytest_addoption(parser):
+#     parser.addoption(
+#         "--wandb-second-server",
+#         default=True,
+#         help="Spin up a second server (for importer tests)",
+#     )
 
 
-def pytest_configure(config):
-    # start or connect to wandb test server2 (for importer tests)
-    # this is here because and not in the `system_tests/test_importers/conftest.py`
-    # because when it was included there, the wandb-local-testcontainer (from this conf)
-    # did not spin up when testing the importers dir specifically
-    if config.getoption("--wandb-second-server"):
-        settings2 = WandbServerSettings(
-            name=DEFAULT_SERVER_CONTAINER_NAME2,
-            volume=DEFAULT_SERVER_VOLUME2,
-            url=DEFAULT_SERVER_URL2,
-            local_base_port=LOCAL_BASE_PORT2,
-            services_api_port=SERVICES_API_PORT2,
-            fixture_service_port=FIXTURE_SERVICE_PORT2,
-            wandb_server_pull=config.getoption("--wandb-server-pull"),
-            wandb_server_image_registry=config.getoption(
-                "--wandb-server-image-registry"
-            ),
-            wandb_server_image_repository=config.getoption(
-                "--wandb-server-image-repository"
-            ),
-            wandb_server_tag=config.getoption("--wandb-server-tag"),
-            wandb_server_use_existing=config.getoption(
-                "--wandb-server-use-existing",
-                default=True if os.getenv("CI") else False,
-            ),
-        )
-        config.wandb_server_settings2 = settings2
+# def pytest_configure(config):
+#     # start or connect to wandb test server2 (for importer tests)
+#     # this is here because and not in the `system_tests/test_importers/conftest.py`
+#     # because when it was included there, the wandb-local-testcontainer (from this conf)
+#     # did not spin up when testing the importers dir specifically
+#     if config.getoption("--wandb-second-server"):
+#         settings2 = WandbServerSettings(
+#             name=DEFAULT_SERVER_CONTAINER_NAME2,
+#             volume=DEFAULT_SERVER_VOLUME2,
+#             url=DEFAULT_SERVER_URL2,
+#             local_base_port=LOCAL_BASE_PORT2,
+#             services_api_port=SERVICES_API_PORT2,
+#             fixture_service_port=FIXTURE_SERVICE_PORT2,
+#             wandb_server_pull=config.getoption("--wandb-server-pull"),
+#             wandb_server_image_registry=config.getoption(
+#                 "--wandb-server-image-registry"
+#             ),
+#             wandb_server_image_repository=config.getoption(
+#                 "--wandb-server-image-repository"
+#             ),
+#             wandb_server_tag=config.getoption("--wandb-server-tag"),
+#             wandb_server_use_existing=config.getoption(
+#                 "--wandb-server-use-existing",
+#                 default=True if os.getenv("CI") else False,
+#             ),
+#         )
+#         config.wandb_server_settings2 = settings2
 
-        success2 = spin_wandb_server(settings2)
-        if not success2:
-            pytest.exit("Failed to connect to wandb server2")
+#         success2 = spin_wandb_server(settings2)
+#         if not success2:
+#             pytest.exit("Failed to connect to wandb server2")
 
 
-def pytest_unconfigure(config):
-    clean = config.getoption("--wandb-server-clean")
-    if clean != "none":
-        print("Cleaning up wandb server...")
-    if clean in ("container", "all"):
-        print(
-            f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
-        )
-        command = ["docker", "rm", "-f", config.wandb_server_settings.name]
-        subprocess.run(command, check=True)
+# def pytest_unconfigure(config):
+#     clean = config.getoption("--wandb-server-clean")
+#     if clean != "none":
+#         print("Cleaning up wandb server...")
+#     if clean in ("container", "all"):
+#         print(
+#             f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
+#         )
+#         command = ["docker", "rm", "-f", config.wandb_server_settings.name]
+#         subprocess.run(command, check=True)
 
-        if config.getoption("--wandb-second-server"):
-            print(
-                f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
-            )
-            command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
-            subprocess.run(command, check=True)
-    if clean in ("volume", "all"):
-        print(
-            f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
-        )
-        command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
-        subprocess.run(command, check=True)
+#         if config.getoption("--wandb-second-server"):
+#             print(
+#                 f"Cleaning up wandb server container2 ({config.wandb_server_settings2.name}) ..."
+#             )
+#             command = ["docker", "rm", "-f", config.wandb_server_settings2.name]
+#             subprocess.run(command, check=True)
+#     if clean in ("volume", "all"):
+#         print(
+#             f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
+#         )
+#         command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
+#         subprocess.run(command, check=True)
 
-        if config.getoption("--wandb-second-server"):
-            print(
-                f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
-            )
-            command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
-            subprocess.run(command, check=True)
+#         if config.getoption("--wandb-second-server"):
+#             print(
+#                 f"Cleaning up wandb server volume2 ({config.wandb_server_settings2.volume}) ..."
+#             )
+#             command = ["docker", "volume", "rm", config.wandb_server_settings2.volume]
+#             subprocess.run(command, check=True)
 
 
 def determine_scope(fixture_name, config):
