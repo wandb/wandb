@@ -10,15 +10,17 @@ on:
         default: false
 
 jobs:
-  build_wheels:
+  build-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-13]
-
+        os:
+          - ubuntu-20.04
+          - windows-2019
+          - macos-13
+          - macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -28,70 +30,63 @@ jobs:
         with:
           platforms: all
 
-      - name: Remove specific Go version
-        if: runner.os == 'Windows'
-        run: cmd /c "rmdir /s /q C:\hostedtoolcache\windows\go"
+      - name: Set up Go
+        if: runner.os != 'Linux'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
-      - name: Install Latest Go on Windows
-        if: runner.os == 'Windows'
-        run: |
-          choco upgrade golang
-          echo "C:\Program Files\Go\bin" >> $env:GITHUB_PATH
+      - name: Set up Python
+        if: runner.os != 'Linux'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      - name: Install Go on MacOS
-        if: runner.os == 'MacOS'
-        run: |
-          brew update && rm -f /usr/local/bin/go* && brew install go@1.21
-          brew unlink go
-          brew link --force --overwrite go@1.21
-          echo "/opt/homebrew/bin" >> $env:GITHUB_PATH
+      - name: Install requirements for wini
+        if: runner.os != 'Linux'
+        run: pip install -r requirements_tools.txt
 
-      - name: Verify Go Version
-        run: |
-          go version
-          gcc --version
+      - name: Build artifacts using wini
+        if: runner.os != 'Linux'
+        run: bash wini build wandb-core-artifacts
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
         with:
-           package-dir: "core"
-           output-dir: "core/wheelhouse"
+           package-dir: core
+           output-dir: core/wheelhouse
         env:
-          CIBW_ENVIRONMENT: PATH=$PATH:/usr/local/go/bin
-          CIBW_BEFORE_ALL: >
-            pip install -r requirements_tools.txt &&
-            bash wini build wandb-core-artifacts --skip-swift-build
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          # Linux is special because it's built in a container using qemu, so we must
+          # build the Go binary inside the cibuildwheel step.
+          #
+          # Some downsides:
+          #   - We have to download Go manually
+          #   - We hard-code the Go version instead of reading it from go.mod
+          #   - We don't get caching across builds
           CIBW_BEFORE_ALL_LINUX: >
-            python core/scripts/build/install_go.py &&
+            case $(uname -m) in
+              aarch64) export DOWNLOAD_GOARCH=arm64;;
+              x86_64) export DOWNLOAD_GOARCH=amd64;;
+            esac &&
+            curl -L https://golang.org/dl/go1.22.0.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            export PATH=$PATH:/usr/local/go/bin &&
+            which go &&
+            go version &&
             pip install -r requirements_tools.txt &&
             bash wini build wandb-core-artifacts
-          CIBW_BEFORE_BUILD_WINDOWS: refreshenv && set "GOROOT=C:\Program Files\Go" && set "PATH=%GOROOT%\bin;%PATH%"
-          CIBW_BUILD: "{*x86_64,*arm64,*aarch64,*amd64}"
-          CIBW_SKIP: cp36-* cp312-* pp* *musllinux*
-          CIBW_ARCHS_LINUX: "x86_64 aarch64"
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_BUILD_VERBOSITY: 3
-
-# TODO: build sdist
-#      - name: Build sdist
-#        if: runner.os == 'Linux'
-#        run: |
-#          python -m pip install --upgrade build
-#          python -m build --sdist core
-#
-#      - uses: actions/upload-artifact@v3
-#        if: runner.os == 'Linux'
-#        with:
-#          path: ./core/dist/*.tar.gz
 
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-core-distributions
           path: ./core/wheelhouse/*.whl
 
+
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: build_wheels
+    needs: build-wheels
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
