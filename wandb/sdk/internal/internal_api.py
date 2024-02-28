@@ -2117,7 +2117,7 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
-            $forkFromRunID: String,
+            $forkFromRunID: ID,
             $forkFromRunStep: Int,
         ) {
             upsertBucket(input: {
@@ -2212,6 +2212,10 @@ class Api:
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
+            "forkFromRunID": None if not fork_from_run_id else base64.standard_b64encode(
+                f"Run:v1:{fork_from_run_id}:{project or util.auto_project_name(program_path)}:{entity or self.settings('entity')}".encode()
+            ).decode("utf-8"),
+            "forkFromRunStep": fork_from_run_step,
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
