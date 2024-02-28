@@ -474,8 +474,6 @@ jobs:
 
     executor: <<parameters.executor>>
 
-    parallelism: 6
-
     steps:
       - checkout
       - run:
@@ -637,83 +635,6 @@ jobs:
     working_directory: /mnt/ramdisk
     steps:
       - checkout
-
-  pytest:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 8
-      shard:
-        type: string
-        default: "core"
-      toxenv:
-        type: string
-      codecov_flags:
-        type: string
-        default: ""
-      notify_on_failure:
-        type: boolean
-        default: false
-      xdist:
-        type: integer
-        default: 6
-      tox_args:
-        type: string
-        default: ""
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-        auth:
-          username: _json_key
-          password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
-        environment:
-          CI: 1
-          WANDB_ENABLE_TEST_CONTAINER: true
-    resource_class: xlarge
-    working_directory: /mnt/ramdisk
-    environment:
-      SHARD: << parameters.shard >>
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update && apt-get install -y libsndfile1 ffmpeg
-      - run:
-          name: Install Python dependencies
-          command: |
-            pip install -U tox nox pip
-            while ! curl http://localhost:8080/healthz; do sleep 1; done
-          no_output_timeout: 5m
-      - install_go
-      - run:
-          name: Run tests
-          no_output_timeout: 10m
-          command: |
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -v -e <<parameters.toxenv>>  \
-              -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' << parameters.tox_args >>
-      - when:
-          condition:
-            not:
-              equal: ["", << parameters.codecov_flags >>]
-          steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
-      - save-test-results
-      # conditionally post a notification to slack if the job failed
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
   unit-tests-go:
     docker:
