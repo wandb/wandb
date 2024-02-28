@@ -155,14 +155,14 @@ message GitRepoRecord {
 message ConfigFileParameterRecord {
   string relpath = 1;
   string abspath = 2;
-  string alias = 3;
-  repeated string ignore = 4;
-  repeated string include = 5;
+  string filename = 3;
+  repeated string include = 4;
+  repeated string exclude = 5;
 }
 
 message WandbConfigParametersRecord {
-  repeated string ignore = 1;
-  repeated string include = 2;
+  repeated string include = 1;
+  repeated string exclude = 2;
 }
 
 message RunUpdateResult {

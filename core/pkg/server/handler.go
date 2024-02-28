@@ -947,8 +947,9 @@ func (h *Handler) writeAndSendConfigFile(record *service.ConfigFileParameterReco
 		h.logger.CaptureError("error creating config directory", err)
 		return
 	}
-	configFile := filepath.Join(configDir, record.Alias)
-	source, err := os.Open(record.Abspath)
+	configFile := filepath.Join(configDir, record.Relpath, record.Filename)
+	sourceFile := filepath.Join(record.Abspath, record.Filename)
+	source, err := os.Open(sourceFile)
 	if err != nil {
 		h.logger.CaptureError("error opening config file", err)
 		return
@@ -969,7 +970,7 @@ func (h *Handler) writeAndSendConfigFile(record *service.ConfigFileParameterReco
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
 					{
-						Path: filepath.Join("configs", record.Alias),
+						Path: filepath.Join("configs", record.Relpath, record.Filename),
 						Type: service.FilesItem_WANDB,
 					},
 				},

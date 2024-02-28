@@ -770,15 +770,15 @@ class InterfaceBase:
         self,
         relpath: str,
         abspath: str,
-        alias: str,
-        ignore: List[str],
+        filename: str,
+        exclude: List[str],
         include: List[str],
     ):
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
         config_file_parameter.abspath = abspath
-        config_file_parameter.alias = alias
-        config_file_parameter.ignore.extend(ignore)
+        config_file_parameter.filename = filename
+        config_file_parameter.exclude.extend(exclude)
         config_file_parameter.include.extend(include)
         return self._publish_config_file_parameter(config_file_parameter)
 
@@ -788,9 +788,9 @@ class InterfaceBase:
     ) -> MailboxHandle:
         raise NotImplementedError
 
-    def publish_wandb_config_parameters(self, ignore: List[str], include: List[str]):
+    def publish_wandb_config_parameters(self, exclude: List[str], include: List[str]):
         config_parameters = pb.WandbConfigParametersRecord()
-        config_parameters.ignore.extend(ignore)
+        config_parameters.exclude.extend(exclude)
         config_parameters.include.extend(include)
         return self._publish_wandb_config_parameters(config_parameters)
 

@@ -544,8 +544,8 @@ func (j *JobBuilder) Build(
 	sourceInfo.Runtime = metadata.Python
 
 	if j.wandbConfigParameters != nil {
-		if j.wandbConfigParameters.Ignore != nil {
-			input = FilterDataStructure(input, j.wandbConfigParameters.Ignore, false)
+		if j.wandbConfigParameters.Exclude != nil {
+			input = FilterDataStructure(input, j.wandbConfigParameters.Exclude, false)
 		}
 		if j.wandbConfigParameters.Include != nil {
 			input = FilterDataStructure(input, j.wandbConfigParameters.Include, true)

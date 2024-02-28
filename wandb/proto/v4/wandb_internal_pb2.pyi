@@ -462,26 +462,26 @@ class ConfigFileParameterRecord(google.protobuf.message.Message):
 
     RELPATH_FIELD_NUMBER: builtins.int
     ABSPATH_FIELD_NUMBER: builtins.int
-    ALIAS_FIELD_NUMBER: builtins.int
-    IGNORE_FIELD_NUMBER: builtins.int
+    FILENAME_FIELD_NUMBER: builtins.int
     INCLUDE_FIELD_NUMBER: builtins.int
+    EXCLUDE_FIELD_NUMBER: builtins.int
     relpath: builtins.str
     abspath: builtins.str
-    alias: builtins.str
-    @property
-    def ignore(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    filename: builtins.str
     @property
     def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
         relpath: builtins.str = ...,
         abspath: builtins.str = ...,
-        alias: builtins.str = ...,
-        ignore: collections.abc.Iterable[builtins.str] | None = ...,
+        filename: builtins.str = ...,
         include: collections.abc.Iterable[builtins.str] | None = ...,
+        exclude: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["abspath", b"abspath", "alias", b"alias", "ignore", b"ignore", "include", b"include", "relpath", b"relpath"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["abspath", b"abspath", "exclude", b"exclude", "filename", b"filename", "include", b"include", "relpath", b"relpath"]) -> None: ...
 
 global___ConfigFileParameterRecord = ConfigFileParameterRecord
 
@@ -489,19 +489,19 @@ global___ConfigFileParameterRecord = ConfigFileParameterRecord
 class WandbConfigParametersRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    IGNORE_FIELD_NUMBER: builtins.int
     INCLUDE_FIELD_NUMBER: builtins.int
-    @property
-    def ignore(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    EXCLUDE_FIELD_NUMBER: builtins.int
     @property
     def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        ignore: collections.abc.Iterable[builtins.str] | None = ...,
         include: collections.abc.Iterable[builtins.str] | None = ...,
+        exclude: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["ignore", b"ignore", "include", b"include"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "include", b"include"]) -> None: ...
 
 global___WandbConfigParametersRecord = WandbConfigParametersRecord
 
