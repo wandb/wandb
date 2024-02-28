@@ -1327,7 +1327,7 @@ workflows:
                 - jax
                 - prefect
                 - prodigy
-                - torch"
+                - torch
                 - sacred
                 - sb3
                 - tf
