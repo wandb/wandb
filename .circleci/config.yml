@@ -1456,8 +1456,6 @@ workflows:
       - prep:
           name: "unit-tests-legacy"
       - prep:
-          name: "functional-tests"
-      - prep:
           name: "executor-tests"
           filters:
             branches:
@@ -1683,36 +1681,71 @@ workflows:
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       #
-      # Functional tests with yea on Linux (base only)
+      # Functional tests with yea on Linux
       #
       - tox-base:
-          requires:
-            - "functional-tests"
+          name: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-linux-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
+
+          parallelism: 4
+
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
               with_core: [true, false]
               shard: ["default", "artifacts", "launch"]
-          name: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          python_version_major: 3
+          python_version_minor: 9
+
+          toxenv: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>\
+            ,cover-func-linux-circle"
+
           tox_args: "tests/functional_tests"
-          parallelism: 4
-          coverage_dir: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+
+          coverage_dir: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
           codecov_flags: func
 
       - tox-base:
-          requires:
-            - "functional-tests"
+          name: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-linux-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
+
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-              with_core: [true]
               shard: [mitm, docs]
-          name: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          python_version_major: 3
+          python_version_minor: 9
+          with_core: true
+
+          toxenv: "\
+            func-\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<matrix.shard>>-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>\
+            ,cover-func-linux-circle"
+
+          coverage_dir: "\
+            func-<<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<matrix.shard>>-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
           codecov_flags: func
 
 
@@ -1720,8 +1753,6 @@ workflows:
       # Functional tests with yea on Windows
       #
       - win:
-          requires:
-            - "functional-tests"
           filters:
             branches:
               only:
