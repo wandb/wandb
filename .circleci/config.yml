@@ -1429,10 +1429,6 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/system_tests/test_core"
           codecov_flags: system
-      #
-      # core unit tests
-      #
-      - gotest
 
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1491,6 +1487,11 @@ workflows:
                 command: |
                   apt-get update
                   apt-get install -y libsndfile1 ffmpeg
+
+      #
+      # core unit tests
+      #
+      - unit-tests-go
 
       #
       # Unit tests with pytest on macOS
