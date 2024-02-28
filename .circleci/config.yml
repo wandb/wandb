@@ -1289,49 +1289,72 @@ workflows:
           with_core: true
           name: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
             base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>\
             ,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "\
+            func-\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            base-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
           codecov_flags: func
+          notify_on_failure: true
+
 
       - tox-base:
           context: sdk-third-party-api
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-              with_core: [true]
               shard:
                 # - "llm"  # TODO: needs review
-                - "noml"
-                - "ray112"
-                - "ray2"
-                - "sklearn"
-                - "metaflow"
-                - "fastai"
-                - "catboost"
-                - "jax"
-                - "prefect"
-                - "prodigy"
-                - "torch"
-                - "sacred"
-                - "sb3"
-                - "tf"
-                - "lightning"
-          name: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+                - noml
+                - ray112
+                - ray2
+                - sklearn
+                - metaflow
+                - fastai
+                - catboost
+                - jax
+                - prefect
+                - prodigy
+                - torch"
+                - sacred
+                - sb3
+                - tf
+                - lightning
+          python_version_major: 3
+          python_version_minor: 9
+          with_core: true
+          name: "\
+            func-\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            <<matrix.shard>>-linux-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
+          toxenv: "\
+            func-\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            base-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>\
+            ,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "\
+            func-\
+            <<#parameters.with_core>>core-<</parameters.with_core>>\
+            base-py\
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
           codecov_flags: func
           notify_on_failure: true
 
