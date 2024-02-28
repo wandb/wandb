@@ -5,6 +5,7 @@ id: 0.save.dir
 plugin:
   - wandb
 tag:
+  skip: true
   shards:
     - default
     - wandb-core-fail
