@@ -652,7 +652,7 @@ jobs:
       - run:
           name: Install system deps
           command: |
-            sudo apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
+            apt-get update && sudo apt-get install -y libsndfile1 ffmpeg
       # - gcloud/install
       # - setup_gcloud
       # - run:
