@@ -1679,7 +1679,7 @@ workflows:
           name: "func-<<#matrix.with_core>>core-<</matrix.with_core>><<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          coverage_dir: "func-<<#matrix.with_core>>core-<</matrix.with_core>>base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: func
 
       #
