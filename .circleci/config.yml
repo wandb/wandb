@@ -547,7 +547,7 @@ jobs:
             - install_go
             - run:
                 name: Run tests
-                no_output_timeout: 10m
+                no_output_timeout: 15m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
