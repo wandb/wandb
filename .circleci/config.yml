@@ -490,6 +490,7 @@ jobs:
           command: pip install -U tox nox pip
           no_output_timeout: 5m
 
+      # TODO: replace tests with pytest markers and remove the conditional
       - when:
           condition: { equal: [<<parameters.tests>>, sdk] }
           steps:
@@ -1648,7 +1649,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [7, 12]
+              python_version_minor: [8, 12]
               with_core: [true, false]
               tests: [sdk, notebooks, other]
 
