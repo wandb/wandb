@@ -17,7 +17,9 @@ from rdkit import Chem
 
 from ...utils import WandbServerSettings, spin_wandb_server
 
-# `local-testcontainer2` ports
+# `local-testcontainer2` url and ports
+# Normally these env vars are only set in CI
+DEFAULT_SERVER_URL2 = os.getenv("WANDB_TEST_SERVER_URL2", "http://localhost")
 LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_LOCAL_BASE_PORT2", "9180")
 SERVICES_API_PORT2 = os.getenv("WANDB_TEST_SERVICES_API_PORT2", "9183")
 FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
@@ -43,6 +45,7 @@ def pytest_configure(config):
         settings2 = WandbServerSettings(
             name=DEFAULT_SERVER_CONTAINER_NAME2,
             volume=DEFAULT_SERVER_VOLUME2,
+            url=DEFAULT_SERVER_URL2,
             local_base_port=LOCAL_BASE_PORT2,
             services_api_port=SERVICES_API_PORT2,
             fixture_service_port=FIXTURE_SERVICE_PORT2,

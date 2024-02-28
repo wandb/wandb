@@ -15,7 +15,8 @@ from typing import Optional
 
 import requests
 
-# `local-testcontainer` ports
+# `local-testcontainer` url and ports
+DEFAULT_SERVER_URL = "http://localhost"
 LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"

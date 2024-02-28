@@ -30,6 +30,7 @@ except ImportError:
 
 from .utils import (
     DEFAULT_SERVER_CONTAINER_NAME,
+    DEFAULT_SERVER_URL,
     DEFAULT_SERVER_VOLUME,
     FIXTURE_SERVICE_PORT,
     LOCAL_BASE_PORT,
@@ -482,6 +483,7 @@ def pytest_configure(config):
     settings = WandbServerSettings(
         name=DEFAULT_SERVER_CONTAINER_NAME,
         volume=DEFAULT_SERVER_VOLUME,
+        url=os.getenv("WANDB_TEST_SERVER_URL", DEFAULT_SERVER_URL),
         local_base_port=LOCAL_BASE_PORT,
         services_api_port=SERVICES_API_PORT,
         fixture_service_port=FIXTURE_SERVICE_PORT,
