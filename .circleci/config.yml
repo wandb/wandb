@@ -499,9 +499,6 @@ jobs:
                 no_output_timeout: 10m
                 command: |
                   CI_PYTEST_PARALLEL=6 \
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v \
                     -e <<#parameters.with_core>>core-<</parameters.with_core
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
@@ -518,7 +515,7 @@ jobs:
                 name: Run tests for <<parameters.tests>>
                 no_output_timeout: 10m
                 command: |
-                  CI_PYTEST_PARALLEL=5 \
+                  CI_PYTEST_PARALLEL=6 \
                   tox run -v \
                     -e <<#parameters.with_core>>core-<</parameters.with_core
                       >>notebooks-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
@@ -534,9 +531,6 @@ jobs:
                 no_output_timeout: 10m
                 command: |
                   CI_PYTEST_PARALLEL=6 \
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v \
                     -e <<#parameters.with_core>>core-<</parameters.with_core
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
