@@ -474,7 +474,7 @@ jobs:
 
     executor: <<parameters.executor>>
 
-    parallelism: 2
+    parallelism: 6
 
     steps:
       - checkout
@@ -497,6 +497,7 @@ jobs:
                 name: Run tests for <<parameters.tests>>
                 no_output_timeout: 10m
                 command: |
+                  CI_PYTEST_PARALLEL=6 \
                   CI_PYTEST_SPLIT_ARGS=" \
                     --splits $CIRCLE_NODE_TOTAL \
                     --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
@@ -516,6 +517,7 @@ jobs:
                 name: Run tests for <<parameters.tests>>
                 no_output_timeout: 10m
                 command: |
+                  CI_PYTEST_PARALLEL=6 \
                   CI_PYTEST_SPLIT_ARGS=" \
                     --splits $CIRCLE_NODE_TOTAL \
                     --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
@@ -1614,7 +1616,7 @@ workflows:
       #
       - system-tests:
           name: "\
-            system-tests-linux\
+            system-tests-linux-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.tests>>-\
             <<matrix.python_version_major>>-\
