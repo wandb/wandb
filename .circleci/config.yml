@@ -612,13 +612,13 @@ jobs:
         default: "localhost-wandb-2"
       local_base_port2:
         type: string
-        default: "9180"
+        default: "8080"
       services_api_port2:
         type: string
-        default: "9183"
+        default: "8083"
       fixture_service_port2:
         type: string
-        default: "9115"
+        default: "9015"
     # This job uses a machine executor because it spins up two separate test-containers and the second test-container
     # requires a port remapping (otherwise the two container ports will collide).  AFAIK, this is the only way to do
     # port remappings in CircleCI.  If there's a way to just use docker otherwise, that would be great!
