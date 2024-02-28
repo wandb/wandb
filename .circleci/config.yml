@@ -447,6 +447,82 @@ jobs:
           command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
       - save-test-results
 
+  system-tests:
+    parameters:
+      executor: { type: executor }
+      python_version_major: { type: integer }
+      python_version_minor: { type: integer }
+      with_core: { type: boolean }
+      tests:
+        type: enum
+        enum: [sdk, other]
+
+    executor: <<parameters.executor>>
+
+    filters:
+      branches:
+        # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+        ignore: /pull\/[0-9]+/
+
+    parallelism: 2
+
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            apt-get update
+            apt-get install -y libsndfile1 ffmpeg
+      - install_go
+
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+
+      - when:
+          condition: { equal: [<<parameters.tests>>, sdk] }
+          steps:
+            - run:
+                name: Run tests for <<parameters.tests>>
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS=" \
+                    --splits $CIRCLE_NODE_TOTAL \
+                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v \
+                    -e <<#parameters.with_core>>core-<</parameters.with_core
+                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                    -- \
+                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
+                    tests/pytest_tests/system_tests/test_core \
+                    tests/pytest_tests/system_tests/test_system_metrics \
+                    tests/pytest_tests/system_tests/test_functional
+
+      - when:
+          condition: { equal: [<<parameters.tests>>, other] }
+          steps:
+            - run:
+                name: Run tests for <<parameters.tests>>
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_SPLIT_ARGS=" \
+                    --splits $CIRCLE_NODE_TOTAL \
+                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v \
+                    -e <<#parameters.with_core>>core-<</parameters.with_core
+                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                    -- \
+                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
+                    tests/pytest_tests/system_tests/test_reports \
+                    tests/pytest_tests/system_tests/test_launch \
+                    tests/pytest_tests/system_tests/test_sweep \
+                    tests/pytest_tests/system_tests/test_artifacts
+
+      - codecov/upload: { flags: system, validate: false }
+
+      - save-test-results
+
   tox-base:
     parameters:
       python_version_major:
@@ -1414,12 +1490,6 @@ workflows:
       # TODO: pre-create toxenvs for all python versions,
       #       currently these are just placeholders
       - prep:
-          name: "system-tests"
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
-      - prep:
           name: "unit-tests-legacy"
       - prep:
           name: "functional-tests"
@@ -1429,52 +1499,6 @@ workflows:
             branches:
               # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
               ignore: /pull\/[0-9]+/
-
-      #
-      # System tests with pytest on Linux, using real wandb server
-      #
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7, 8, 9, 10, 11, 12]
-          name: "system-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
-          codecov_flags: system
-
-      #
-      # System tests with Service
-      #
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [10]
-          name: "system(service)-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_core"
-          codecov_flags: system
-      #
-      # Functional tests with pytest on Linux, using real wandb server
-      #
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [10]
-          name: "functional-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_functional"
-          codecov_flags: func
-
-
 
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1576,25 +1600,34 @@ workflows:
                     python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
 
       #
-      # Unit tests with pytest on Windows and MacOS
+      # System tests with pytest on Linux
       #
-      # - win:
-      #     requires:
-      #       - "unit-tests-legacy"
-      #     # filters:
-      #     #   branches:
-      #     #     only:
-      #     #       - main
-      #     #       - /^release-.*/
-      #     #       - /^.*-ci-win$/
-      #     matrix:
-      #       parameters:
-      #         python_version_major: [3]
-      #         python_version_minor: [9]
-      #     name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_flags: unit
-      #     tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+      - system-tests:
+          name: "\
+            system-tests-linux\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.tests>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [7, 12]
+              with_core: [true, false]
+              tests: [sdk, other]
+
+          executor:
+            docker:
+              - image: "python:<<matrix.python_version_major>>.<<matrix.python_version_minor>>"
+              - image: us-central1-docker.pkg.dev/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
+                auth:
+                  username: _json_key
+                  password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
+                environment:
+                  CI: 1
+                  WANDB_ENABLE_TEST_CONTAINER: true
+            resource_class: xlarge
 
       - win:
           requires:
@@ -1613,24 +1646,6 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-
-      # - win:
-      #     requires:
-      #       - "unit-tests"
-      #     # filters:
-      #     #   branches:
-      #     #     only:
-      #     #       - main
-      #     #       - /^release-.*/
-      #     #       - /^.*-ci-win$/
-      #     matrix:
-      #       parameters:
-      #         python_version_major: [3]
-      #         python_version_minor: [9]
-      #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_flags: unit
-      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       - win:
           filters:
@@ -1719,45 +1734,13 @@ workflows:
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [10]
-              shard:
-                - "launch"
-                - "artifacts"
-                - "system_metrics"
-                - "reports"
-          name: "system-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_<<matrix.shard>>"
-          codecov_flags: system
-
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [8]
-              shard:
-                - "launch"
-                - "sweep"
-                - "artifacts"
-          name: "system(service)-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_<<matrix.shard>>"
-          codecov_flags: system
 
       #
       # notebook tests
       #
       - pytest:
-          requires:
-            - "system-tests"
+          # requires:
+          #   - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
@@ -1768,8 +1751,8 @@ workflows:
           codecov_flags: system
 
       - pytest:
-          requires:
-            - "system-tests"
+          # requires:
+          #   - "system-tests"
           matrix:
             parameters:
               python_version_major: [3]
