@@ -1,6 +1,7 @@
 import itertools
 import json
 import logging
+import math
 import os
 import queue
 from dataclasses import dataclass
@@ -11,7 +12,6 @@ from unittest.mock import MagicMock
 import numpy as np
 from google.protobuf.json_format import ParseDict
 from rich.logging import RichHandler
-from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
 from wandb.proto import wandb_internal_pb2 as pb
@@ -19,37 +19,26 @@ from wandb.proto import wandb_settings_pb2
 from wandb.proto import wandb_telemetry_pb2 as telem_pb
 from wandb.sdk.interface.interface import file_policy_to_enum
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, sender
+from wandb.sdk.internal import context
 from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.util import cast_dictlike_to_dict, coalesce
+from wandb.sdk.internal.writer import WriteManager
+from wandb.util import coalesce, recursive_cast_dictlike_to_dict
 
 from .protocols import ImporterRun
 
+# silences the internal messages; set to INFO or DEBUG to see them
 logging.basicConfig(
+    level=logging.WARN,
     handlers=[
         RichHandler(
             rich_tracebacks=True,
             tracebacks_show_locals=True,
         )
-    ]
+    ],
 )
-
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
-
-logging.getLogger("import_logger").setLevel(logging.INFO)
-
-
-exp_retry = retry(
-    wait=wait_random_exponential(multiplier=1, max=10), stop=stop_after_attempt(3)
-)
-
-
-class AlternateSendManager(sender.SendManager):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._send_artifact = exp_retry(self._send_artifact)
 
 
 @dataclass(frozen=True)
@@ -83,8 +72,7 @@ class RecordMaker:
         artifacts: Optional[Iterable[Artifact]] = None,
         used_artifacts: Optional[Iterable[Artifact]] = None,
     ) -> Iterable[pb.Record]:
-        yield self._make_run_record()
-
+        """Escape hatch to add extra artifacts to a run (e.g. run history artifacts)."""
         if used_artifacts:
             for art in used_artifacts:
                 yield self._make_artifact_record(art, use_artifact=True)
@@ -97,6 +85,7 @@ class RecordMaker:
         self,
         config: SendManagerConfig,
     ) -> Iterable[pb.Record]:
+        """Make all the records that constitute a run."""
         yield self._make_run_record()
         yield self._make_telem_record()
 
@@ -194,13 +183,11 @@ class RecordMaker:
             "_runtime": self.run.runtime(),  # quirk of runtime -- it has to be here!
             # '_timestamp': self.run.start_time()/1000,
         }
-        d = cast_dictlike_to_dict(d)
+        d = recursive_cast_dictlike_to_dict(d)
         summary = self.interface._make_summary_from_dict(d)
         return self.interface._make_record(summary=summary)
 
     def _make_history_records(self) -> Iterable[pb.Record]:
-        import math
-
         for metrics in self.run.metrics():
             history = pb.HistoryRecord()
             for k, v in metrics.items():
@@ -323,6 +310,7 @@ def _make_settings(
     default_settings: Dict[str, Any] = {
         "files_dir": os.path.join(root_dir, "files"),
         "root_dir": root_dir,
+        "sync_file": os.path.join(root_dir, "txlog.wandb"),
         "resume": "false",
         "program": None,
         "ignore_globs": [],
@@ -364,17 +352,32 @@ def send_run(
 
     rm = RecordMaker(run)
     root_dir = rm.run_dir
+
     settings = _make_settings(root_dir, settings_override)
-    record_q = queue.Queue()
+    sm_record_q = queue.Queue()
+    wm_record_q = queue.Queue()
     result_q = queue.Queue()
-    interface = InterfaceQueue(record_q=record_q)
+    interface = InterfaceQueue(record_q=sm_record_q)
     context_keeper = context.ContextKeeper()
+    sm = SendManager(settings, sm_record_q, result_q, interface, context_keeper)
+    wm = WriteManager(
+        settings, wm_record_q, result_q, sm_record_q, interface, context_keeper
+    )
 
     records = rm.make_records(config)
     if extra_arts or extra_used_arts:
         extra_art_records = rm.make_artifacts_only_records(extra_arts, extra_used_arts)
         records = itertools.chain(records, extra_art_records)
 
-    with SendManager(settings, record_q, result_q, interface, context_keeper) as sm:
-        for rec in records:
-            sm.send(rec)
+    for r in records:
+        # Write out to a transaction log
+        # In a future update, we might want to make the incremental upload use the transaction log
+        # and only send missing records.  For now, the transaction log just shows history of what
+        # was sent to the server.
+        wm.write(r)
+
+        # Send to server
+        sm.send(r)
+
+    sm.finish()
+    wm.finish()

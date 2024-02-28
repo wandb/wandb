@@ -46,8 +46,8 @@ RUN_DUMMY_PLACEHOLDER = "__RUN_DUMMY_PLACEHOLDER__"
 ART_DUMMY_PLACEHOLDER_PATH = "__importer_temp__"
 ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 
-logger = logging.getLogger("import_logger")
-# target_size = 80 * 1024**3  # 80GB
+logger = logging.getLogger("importer_wandb")
+logger.setLevel(logging.DEBUG)
 
 
 @dataclass
@@ -55,7 +55,7 @@ class ArtifactSequence:
     artifacts: Iterable[wandb.Artifact]
     entity: str
     project: str
-    _type: str
+    type_: str
     name: str
 
     def __iter__(self) -> Iterator:
@@ -66,7 +66,7 @@ class ArtifactSequence:
 
     @property
     def identifier(self):
-        return "/".join([self.entity, self.project, self._type, self.name])
+        return "/".join([self.entity, self.project, self.type_, self.name])
 
     @classmethod
     def from_collection(cls, collection: ArtifactCollection):
@@ -443,7 +443,7 @@ class WandbImporter:
         """
         entity = coalesce(namespace.entity, seq.entity)
         project = coalesce(namespace.project, seq.project)
-        art_type = f"{entity}/{project}/{seq._type}"
+        art_type = f"{entity}/{project}/{seq.type_}"
         art_name = seq.name
 
         logger.info(
@@ -541,7 +541,7 @@ class WandbImporter:
 
     def _remove_placeholders(self, seq: ArtifactSequence) -> None:
         try:
-            dst_arts = list(self.dst_api.artifacts(seq._type, seq.name))
+            dst_arts = list(self.dst_api.artifacts(seq.type_, seq.name))
         except wandb.CommError:
             logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
             return
