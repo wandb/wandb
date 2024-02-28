@@ -4,6 +4,9 @@ plugin:
 tag:
   skips:
     - platform: win
+  shards:
+    - default
+    - wandb-core-fail
 parametrize:
   permute:
     - :yea:start_method:

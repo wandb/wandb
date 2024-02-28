@@ -1,7 +1,9 @@
 plugin:
   - wandb
 tag:
-  shard: mitm
+  shards:
+    - mitm
+    - wandb-core-fail
 option:
   - :wandb:mitm
 command:

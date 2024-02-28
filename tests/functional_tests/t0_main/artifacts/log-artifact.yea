@@ -2,7 +2,9 @@ id: 0.artifacts.log-artifact
 plugin:
   - wandb
 tag:
-  shard: artifacts
+  shards:
+    - artifacts
+    - wandb-core-fail
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
