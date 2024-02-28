@@ -9,6 +9,12 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"golang.org/x/time/rate"
+)
+
+const (
+	maxRequestsPerSecond = 20
+	maxBurst             = 10
 )
 
 // The W&B backend server.
@@ -27,6 +33,9 @@ type Backend struct {
 
 	// API key for backend requests.
 	apiKey string
+
+	// Rate limit for all outgoing requests.
+	rateLimiter *rate.Limiter
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -34,11 +43,19 @@ type Backend struct {
 // Multiple Clients can be created for one Backend when different retry
 // policies are needed.
 //
-// TODO: The client is responsible for setting auth headers, retrying
+// The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
 	Send(*Request) (*http.Response, error)
+
+	// Sends an arbitrary HTTP request.
+	//
+	// This is used for libraries that accept a custom HTTP client that they
+	// then use to make requests to the backend, like GraphQL. If the request
+	// URL matches the backend's base URL, there's special handling as in
+	// Send().
+	Do(*http.Request) (*http.Response, error)
 }
 
 // Implementation of the Client interface.
@@ -69,7 +86,7 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in the request.
+	// Additional HTTP headers to include in request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
@@ -94,9 +111,10 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		opts.BaseURL,
-		opts.Logger,
-		opts.APIKey,
+		baseURL:     opts.BaseURL,
+		logger:      opts.Logger,
+		apiKey:      opts.APIKey,
+		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
 	}
 }
 
@@ -123,7 +141,11 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional headers to pass in each request.
+	// Additional headers to pass in each request to the backend.
+	//
+	// Note that these are only passed when communicating with the W&B backend.
+	// In particular, they are not sent if using this client to send
+	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 }
 
@@ -154,6 +176,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 			slog.LevelDebug,
 		)
 	}
+
+	retryableHTTP.HTTPClient.Transport = backend.rateLimitedTransport(
+		retryableHTTP.HTTPClient.Transport,
+	)
 
 	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }
