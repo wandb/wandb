@@ -510,7 +510,7 @@ jobs:
                     tests/pytest_tests/system_tests/test_system_metrics \
                     tests/pytest_tests/system_tests/test_functional
 
-       - when:
+      - when:
           condition: { equal: [<<parameters.tests>>, notebooks] }
           steps:
             - run:
