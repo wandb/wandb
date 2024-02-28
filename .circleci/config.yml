@@ -1723,8 +1723,8 @@ workflows:
             func-\
             <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-linux-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
+            <<parameters.python_version_major>>\
+            <<parameters.python_version_minor>>"
 
           matrix:
             parameters:
