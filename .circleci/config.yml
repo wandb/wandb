@@ -470,7 +470,7 @@ jobs:
       with_core: { type: boolean }
       tests:
         type: enum
-        enum: [sdk, other]
+        enum: [sdk, notebooks, other]
 
     executor: <<parameters.executor>>
 
@@ -509,6 +509,24 @@ jobs:
                     tests/pytest_tests/system_tests/test_core \
                     tests/pytest_tests/system_tests/test_system_metrics \
                     tests/pytest_tests/system_tests/test_functional
+
+       - when:
+          condition: { equal: [<<parameters.tests>>, sdk] }
+          steps:
+            - run:
+                name: Run tests for <<parameters.tests>>
+                no_output_timeout: 10m
+                command: |
+                  CI_PYTEST_PARALLEL=6 \
+                  CI_PYTEST_SPLIT_ARGS=" \
+                    --splits $CIRCLE_NODE_TOTAL \
+                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
+                  tox run -v \
+                    -e <<#parameters.with_core>>core-<</parameters.with_core
+                      >>notebooks-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                    -- \
+                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
+                    tests/pytest_tests/system_tests/test_notebooks
 
       - when:
           condition: { equal: [<<parameters.tests>>, other] }
@@ -1632,7 +1650,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [7, 12]
               with_core: [true, false]
-              tests: [sdk, other]
+              tests: [sdk, notebooks, other]
 
           executor:
             name: local-testcontainer
@@ -1743,34 +1761,6 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
-
-
-      #
-      # notebook tests
-      #
-      - pytest:
-          # requires:
-          #   - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "system-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_notebooks"
-          codecov_flags: system
-
-      - pytest:
-          # requires:
-          #   - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "system(service)-notebooks-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "notebooks-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/pytest_tests/system_tests/test_notebooks"
-          codecov_flags: system
 
       #
       # functional tests with different executors
