@@ -949,11 +949,11 @@ func (h *Handler) writeAndSendConfigFile(record *service.ConfigFileParameterReco
 	}
 	configFile := filepath.Join(configDir, record.Alias)
 	source, err := os.Open(record.Abspath)
-	defer source.Close()
 	if err != nil {
 		h.logger.CaptureError("error opening config file", err)
 		return
 	}
+	defer source.Close()
 	destination, err := os.Create(configFile)
 	if err != nil {
 		h.logger.CaptureError("error creating config file", err)
