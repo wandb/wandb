@@ -362,6 +362,8 @@ class RunRecord(google.protobuf.message.Message):
     TELEMETRY_FIELD_NUMBER: builtins.int
     RUNTIME_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
+    FORK_FROM_RUN_ID_FIELD_NUMBER: builtins.int
+    FORK_FROM_RUN_STEP_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
     entity: builtins.str
@@ -390,6 +392,8 @@ class RunRecord(google.protobuf.message.Message):
     runtime: builtins.int
     @property
     def git(self) -> global___GitRepoRecord: ...
+    fork_from_run_id: builtins.str
+    fork_from_run_step: builtins.int
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -415,10 +419,12 @@ class RunRecord(google.protobuf.message.Message):
         telemetry: wandb.proto.wandb_telemetry_pb2.TelemetryRecord | None = ...,
         runtime: builtins.int = ...,
         git: global___GitRepoRecord | None = ...,
+        fork_from_run_id: builtins.str = ...,
+        fork_from_run_step: builtins.int = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "fork_from_run_id", b"fork_from_run_id", "fork_from_run_step", b"fork_from_run_step", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
 
 global___RunRecord = RunRecord
 
