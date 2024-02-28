@@ -1,5 +1,7 @@
 id: 0.torch.03-ddp-basic
 
+tag:
+  shard: torch
 plugin:
   - wandb
 depend:

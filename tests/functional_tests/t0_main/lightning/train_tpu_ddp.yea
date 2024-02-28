@@ -2,6 +2,7 @@ id: 0.lightning.ddp.tpu
 plugin:
   - wandb
 tag:
+  shard: lightning
   skip: true
 depend:
   requirements:

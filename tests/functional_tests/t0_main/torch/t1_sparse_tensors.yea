@@ -5,6 +5,7 @@ depend:
   requirements:
     - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
 tag:
+  shard: torch
   skips:
     - platform: win
 assert:
