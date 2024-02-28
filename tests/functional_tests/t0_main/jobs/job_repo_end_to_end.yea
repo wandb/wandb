@@ -6,7 +6,7 @@ tag:
     - linux
   shards:
     - launch
-    - wandb-core-fail
+    - wandb_core_failure
 depend:
   requirements:
     - pytest

@@ -8,7 +8,7 @@ plugin:
 tag:
   shards:
     - default
-    - wandb-core-fail
+    - wandb_core_failure
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

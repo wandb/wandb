@@ -4,7 +4,7 @@ plugin:
 tag:
   shards:
     - artifacts
-    - wandb-core-fail
+    - wandb_core_failure
 depend:
   requirements:
     - cloudpickle
