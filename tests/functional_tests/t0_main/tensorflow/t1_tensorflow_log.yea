@@ -5,6 +5,7 @@ depend:
   requirements:
     - tensorboard
 tag:
+  shard: tf
   skips:
     - platform: win
 assert:

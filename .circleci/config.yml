@@ -481,6 +481,9 @@ jobs:
       tox_args:
         type: string
         default: ""
+      with_core:
+        type: boolean
+        default: false
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
@@ -614,7 +617,7 @@ jobs:
                 # taken from slack-secrets context
                 channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
 
-  gotest:
+  unit-tests-go:
     docker:
       - image: cimg/go:1.21
     steps:
@@ -964,7 +967,6 @@ jobs:
       - checkout
       - go/install
       - gcloud/install
-      - gcloud/install
       - setup_gcloud
       - create_gke_cluster:
           cluster: << parameters.cluster >>
@@ -1278,6 +1280,93 @@ workflows:
           requires:
             - "slack-notify-on-start"
 
+      - tox-base:
+          name: "\
+            func-tests-linux-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
+          matrix:
+            parameters:
+              shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+              python_version_major: [3]
+              python_version_minor: [7]
+              with_core: [true]
+
+          toxenv: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
+            ,cover-func-linux-circle"
+          tox_args: "tests/functional_tests"
+
+          coverage_dir: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
+          codecov_flags: func
+
+          notify_on_failure: true
+
+
+      - tox-base:
+          name: "\
+            func-tests-linux-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
+          context: sdk-third-party-api
+
+          matrix:
+            parameters:
+              shard:
+                # - "llm"  # TODO: needs review
+                - noml
+                - ray112
+                - ray2
+                - sklearn
+                - metaflow
+                - fastai
+                - catboost
+                - jax
+                - prefect
+                - prodigy
+                - torch
+                - sacred
+                - sb3
+                - tf
+                - lightning
+              python_version_major: [3]
+              python_version_minor: [9]
+              with_core: [true]
+
+          toxenv: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
+            ,cover-func-linux-circle"
+          tox_args: "tests/functional_tests"
+
+          coverage_dir: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
+          codecov_flags: func
+
+          notify_on_failure: true
+
       # build docker images for yea shards
       - sdk_docker:
           name: "build-cpu-docker-image"
@@ -1376,8 +1465,6 @@ workflows:
       - prep:
           name: "unit-tests-legacy"
       - prep:
-          name: "functional-tests"
-      - prep:
           name: "executor-tests"
           filters:
             branches:
@@ -1398,20 +1485,6 @@ workflows:
           toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_core"
           codecov_flags: system
-      #
-      # Functional tests with pytest on Linux, using real wandb server
-      #
-      - pytest:
-          requires:
-            - "system-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [10]
-          name: "functional-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_functional"
-          codecov_flags: func
 
       #
       # System tests with Service
@@ -1428,9 +1501,21 @@ workflows:
           tox_args: "tests/pytest_tests/system_tests/test_core"
           codecov_flags: system
       #
-      # core unit tests
+      # Functional tests with pytest on Linux, using real wandb server
       #
-      - gotest
+      - pytest:
+          requires:
+            - "system-tests"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [10]
+          name: "functional-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/system_tests/test_functional"
+          codecov_flags: func
+
+
 
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1460,6 +1545,12 @@ workflows:
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_flags: unit
+
+      #
+      # core unit tests
+      #
+      - unit-tests-go
+
       #
       # Unit tests with pytest on Linux
       #
@@ -1599,87 +1690,78 @@ workflows:
           tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       #
-      # Functional tests with yea on Linux (base only)
+      # Functional tests with yea on Linux
       #
       - tox-base:
-          requires:
-            - "functional-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-              shard:
-                - "default"
-                - "artifacts"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
+          name: "\
+            func-tests-linux-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
           parallelism: 4
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: func
 
-      - tox-base:
-          requires:
-            - "functional-tests"
           matrix:
             parameters:
+              with_core: [true, false]
+              shard: ["default", "artifacts", "launch"]
               python_version_major: [3]
               python_version_minor: [9]
-              shard:
-                - "mitm"
-                - "docs"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          coverage_dir: "func-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: func
 
-      - tox-base:
-          requires:
-            - "functional-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - "tf115"
-                - "tf21"
-                - "tf24"
-                - "tf25"
-                - "tf26"
-                - "xgboost"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
+          toxenv: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
+            ,cover-func-linux-circle"
+
           tox_args: "tests/functional_tests"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+
+          coverage_dir: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            base-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
 
       - tox-base:
-          requires:
-            - "functional-tests"
-          context: sdk-third-party-api
+          name: "\
+            func-tests-linux-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
           matrix:
             parameters:
+              shard: [mitm, docs]
               python_version_major: [3]
               python_version_minor: [9]
-              shard:
-                # - "llm"  # TODO: needs review
-                - "noml"
-                - "ray112"
-                - "ray2"
-                - "sklearn"
-                - "metaflow"
-          name: "func-<<matrix.shard>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
-          coverage_dir: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+              with_core: [true]
+
+          toxenv: "\
+            func-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>\
+            ,cover-func-linux-circle"
+
+          coverage_dir: "\
+            func-<<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.shard>>-py\
+            <<matrix.python_version_major>>\
+            <<matrix.python_version_minor>>"
           codecov_flags: func
+
 
       #
       # Functional tests with yea on Windows
       #
       - win:
-          requires:
-            - "functional-tests"
           filters:
             branches:
               only:
@@ -1691,7 +1773,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9]
           name: "func-default-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
