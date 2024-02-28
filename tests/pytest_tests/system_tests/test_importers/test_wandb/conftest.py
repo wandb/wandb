@@ -64,12 +64,20 @@ def pytest_configure(config):
         )
         config.wandb_server_settings2 = settings2
 
+        # Container spins up separately in CI
+        if os.getenv("CI"):
+            return
+
         success2 = spin_wandb_server(settings2)
         if not success2:
             pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_unconfigure(config):
+    # Container spins up separately in CI
+    if os.getenv("CI"):
+        return
+
     clean = config.getoption("--wandb-server-clean")
     if clean != "none":
         print("Cleaning up wandb server...")
