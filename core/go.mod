@@ -3,6 +3,7 @@ module github.com/wandb/wandb/core
 go 1.22.0
 
 require (
+	github.com/BurntSushi/toml v1.3.2
 	github.com/Khan/genqlient v0.6.0
 	github.com/NVIDIA/go-nvml v0.12.0-2
 	github.com/getsentry/sentry-go v0.27.0
