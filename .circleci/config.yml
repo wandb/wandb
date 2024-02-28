@@ -622,12 +622,9 @@ jobs:
       fixture_service_port2:
         type: string
         default: "9015"
-    # This job uses a machine executor because it spins up two separate test-containers and the second test-container
-    # requires a port remapping (otherwise the two container ports will collide).  AFAIK, this is the only way to do
-    # port remappings in CircleCI.  If there's a way to just use docker otherwise, that would be great!
     docker:
-      # the src server
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      # the src server
       - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
         auth:
           username: _json_key
@@ -660,27 +657,6 @@ jobs:
           name: Install system deps
           command: |
             apt-get update && apt-get install -y libsndfile1 ffmpeg
-      # - gcloud/install
-      # - setup_gcloud
-      # - run:
-      #     name: Decode GCP Service Account JSON
-      #     command: echo $GCP_SERVICE_ACCOUNT_JSON_ENCODED | base64 --decode > ${HOME}/gcp-key.json
-      # - run:
-      #     name: Authenticate with GCP Artifact Registry
-      #     command: |
-      #       echo $GCP_SERVICE_ACCOUNT_JSON_DECODED | docker login -u _json_key --password-stdin https://<< pipeline.parameters.gcp_project >>-docker.pkg.dev
-      # The default testcontainer (used as the "source" system)
-      # - start_local_testcontainer
-
-      # The second test container (used as the "destination" system, where data is imported into)
-      # We use 2 containers to better simulate importing between two distinct instances and to avoid
-      # issues like artifact deduping (if importing to the same server) which might affect the import
-      # - start_local_testcontainer:
-      #     local_base_port: << parameters.local_base_port2 >>
-      #     services_api_port: << parameters.services_api_port2 >>
-      #     fixture_service_port: << parameters.fixture_service_port2 >>
-      #     container_name: "wandb-local-testcontainer2"
-      #     volume_name: "wandb-local-testcontainer-vol2"
       - run:
           name: Install Python dependencies
           command: |
@@ -694,7 +670,6 @@ jobs:
             while ! curl http://localhost:8080/healthz; do sleep 1; done
             while ! curl << parameters.server_url2>>:<< parameters.local_base_port2 >>/healthz; do sleep 1; done
           no_output_timeout: 1m
-
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -703,7 +678,6 @@ jobs:
             tox run -v -e <<parameters.toxenv>>  \
               -- --wandb-server-tag='<< pipeline.parameters.wandb_server_tag >>' \
               << parameters.tox_args >>
-
       - when:
           condition:
             not:
@@ -712,27 +686,6 @@ jobs:
             - codecov/upload:
                 { flags: <<parameters.codecov_flags>>, validate: false }
       - save-test-results
-
-      # - run:
-      #     name: Run tests
-      #     no_output_timeout: 10m
-      #     environment:
-      #       WANDB_TEST_SERVER_URL2: << parameters.server_url2 >>
-      #       WANDB_TEST_LOCAL_BASE_PORT2: << parameters.local_base_port2 >>
-      #       WANDB_TEST_SERVICES_API_PORT2: << parameters.services_api_port2 >>
-      #       WANDB_TEST_FIXTURE_SERVICE_PORT2: << parameters.fixture_service_port2 >>
-      #     command: |
-      #       CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-      #       tox run -v -e <<parameters.toxenv>> -- << parameters.tox_args >>
-      # - when:
-      #     condition:
-      #       not:
-      #         equal: ["", << parameters.codecov_flags >>]
-      #     steps:
-      #       - codecov/upload:
-      #           { flags: <<parameters.codecov_flags>>, validate: false }
-      # - save-test-results
-      # conditionally post a notification to slack if the job failed
       - when:
           condition: << parameters.notify_on_failure >>
           steps:
