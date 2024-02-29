@@ -654,7 +654,7 @@ jobs:
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - codecov/upload: { flags: unit, validate: false }
 
-  local-testcontainer:
+  store-local-testcontainer:
     parameters:
       python_version_major:
         type: integer
@@ -1249,7 +1249,7 @@ workflows:
       #
       # Keep local-testcontainer registry up to date
       #
-      - local-testcontainer:
+      - store-local-testcontainer:
           requires:
             - "slack-notify-on-start"
       #
