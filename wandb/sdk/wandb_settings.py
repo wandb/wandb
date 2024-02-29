@@ -803,8 +803,8 @@ class Settings(SettingsData):
             },
             force={"preprocessor": _str_as_bool},
             fork_from_run_id={
-                "value": None, 
-                "preprocessor": lambda x: x if x is None else str(x), 
+                "value": None,
+                "preprocessor": lambda x: x if x is None else str(x),
             },
             fork_from_run_step={
                 "value": None,
@@ -974,7 +974,14 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
+        choices: Set[str] = {
+            "dryrun",
+            "run",
+            "offline",
+            "online",
+            "disabled",
+            "shared",
+        }  # , "fork"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True
@@ -1207,7 +1214,6 @@ class Settings(SettingsData):
                 f"Settings field `job_source`: {value!r} not in {valid_sources}"
             )
         return True
-    
 
     # other helper methods
     @staticmethod

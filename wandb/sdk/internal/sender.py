@@ -366,10 +366,11 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
+        record_type = record.WhichOneof("record_type")
+
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
-        record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
@@ -890,6 +891,10 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
+    def _setup_fork(self, run: "RunRecord"):
+        self._resume_state.step = self._settings.fork_from_run_step
+        run.forked = True
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
@@ -916,7 +921,11 @@ class SendManager:
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
-            error = self._maybe_setup_resume(run)
+
+            if self._settings.fork_from_run_id and self._settings.fork_from_run_step:
+                error = self._setup_fork(run)
+            else:
+                error = self._maybe_setup_resume(run)
 
         if error is not None:
             if record.control.req_resp or record.control.mailbox_slot:
@@ -1023,6 +1032,7 @@ class SendManager:
             if not inserted:
                 # no need to flush this, it will get updated eventually
                 self._telemetry_obj.feature.maybe_run_overwrite = True
+
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -1107,6 +1117,7 @@ class SendManager:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
     def send_history(self, record: "Record") -> None:
+        # breakpoint()
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)

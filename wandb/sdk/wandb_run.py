@@ -677,6 +677,15 @@ class Run:
                 os.path.join("code", self._settings.program_relpath)
             )
 
+        if self._settings.fork_from_run_id and self._settings.fork_from_run_step:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.fork_from_run_id,
+                "step": self._settings.fork_from_run_step,
+            }
+
+            self._step = self._settings.fork_from_run_step
+            self._starting_step = self._settings.fork_from_run_step
+
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
@@ -804,10 +813,6 @@ class Run:
             self._tags = settings.run_tags
         if settings.sweep_id is not None:
             self._sweep_id = settings.sweep_id
-        if settings.fork_from_run_id is not None:
-            self._fork_from_run_id = settings.fork_from_run_id
-        if settings.fork_from_run_step is not None:
-            self._fork_from_run_step = settings.fork_from_run_step
 
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
@@ -836,10 +841,6 @@ class Run:
             run.git.commit = self._commit
         if self._sweep_id is not None:
             run.sweep_id = self._sweep_id
-        if self._fork_from_run_id is not None:
-            run.fork_from_run_id = self._fork_from_run_id
-        if self._fork_from_run_step is not None:
-            run.fork_from_run_step = self._fork_from_run_step
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -1476,6 +1477,8 @@ class Run:
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
+            # breakpoint()
 
             self._backend.interface.publish_partial_history(
                 row,
