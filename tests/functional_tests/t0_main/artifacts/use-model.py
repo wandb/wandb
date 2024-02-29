@@ -33,7 +33,7 @@ class Net(nn.Module):
 
 
 def main():
-    run = wandb.init(entity="mock_server_entity", project="test")
+    run = wandb.init()
 
     my_model = Net()
 

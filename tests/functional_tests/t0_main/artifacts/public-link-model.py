@@ -41,7 +41,7 @@ def main():
     art.add_file("my-dataset.txt")
     art = run.log_artifact(art)
     art.wait()
-    art.link("entity/project/test_portfolio", aliases="best")
+    art.link("project/test_portfolio", aliases="best")
     run.finish()
 
 
