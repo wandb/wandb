@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -143,47 +143,42 @@ func NewSender(
 		if err != nil {
 			logger.CaptureFatalAndPanic("sender: failed to parse base URL", err)
 		}
-		backend := api.New(baseURL)
+		backend := api.New(api.BackendOptions{
+			BaseURL: baseURL,
+			Logger:  logger.Logger,
+			APIKey:  settings.GetApiKey().GetValue(),
+		})
 
-		baseHeaders := map[string]string{
+		graphqlHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
 		}
-		graphqlRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientHttpAuthTransport(
-				settings.GetApiKey().GetValue(),
-				baseHeaders,
-				settings.GetXExtraHttpHeaders().GetValue(),
-			),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
-		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
+		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
 
-		headers := map[string]string{}
+		graphqlClient := backend.NewClient(api.ClientOptions{
+			RetryPolicy:     clients.CheckRetry,
+			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
+			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
+			ExtraHeaders:    graphqlHeaders,
+		})
+		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
+		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
+
+		fileStreamHeaders := map[string]string{}
 		if settings.GetXShared().GetValue() {
-			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+			fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		}
-		fileStreamRetryClient := backend.NewClient(clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
-				return resp.StatusCode >= 400
-			}),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue())),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), headers),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-			// TODO(core:beta): add custom retry function
-			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		))
+
+		fileStreamRetryClient := backend.NewClient(api.ClientOptions{
+			RetryMax:        int(settings.GetXFileStreamRetryMax().GetValue()),
+			RetryWaitMin:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()),
+			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
+			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
+			ExtraHeaders:    fileStreamHeaders,
+		})
+
 		sender.fileStream = fs.NewFileStream(
 			fs.WithSettings(settings),
 			fs.WithLogger(logger),
@@ -300,6 +295,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
+		s.sendArtifact(record, x.Artifact)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -1072,6 +1068,18 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 			},
 		)
 		s.fileTransferManager.AddTask(task)
+	}
+}
+
+func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
+	)
+	artifactID, err := saver.Save(s.fwdChan)
+	if err != nil {
+		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
+		s.logger.Error("sender: sendArtifact:", "error", err)
+		return
 	}
 }
 

@@ -2,6 +2,7 @@ id: 0.profiler
 plugin:
   - wandb
 tag:
+  shard: torch
   skips:
     - platform: win
       reason: profiler not supported by torch in windows

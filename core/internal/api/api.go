@@ -2,9 +2,19 @@
 package api
 
 import (
+	"log/slog"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/clients"
+	"golang.org/x/time/rate"
+)
+
+const (
+	maxRequestsPerSecond = 20
+	maxBurst             = 10
 )
 
 // The W&B backend server.
@@ -14,6 +24,18 @@ import (
 type Backend struct {
 	// The URL prefix for all requests to the W&B API.
 	baseURL *url.URL
+
+	// The logger to use for HTTP-related logs.
+	//
+	// Note that these are only useful for debugging, and not helpful to a
+	// user. There's no guarantee that all logs are made at the Debug level.
+	logger *slog.Logger
+
+	// API key for backend requests.
+	apiKey string
+
+	// Rate limit for all outgoing requests.
+	rateLimiter *rate.Limiter
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -21,14 +43,31 @@ type Backend struct {
 // Multiple Clients can be created for one Backend when different retry
 // policies are needed.
 //
-// TODO: The client is responsible for setting auth headers, retrying
+// The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
-type Client struct {
+type Client interface {
+	// Sends an HTTP request to the W&B backend.
+	Send(*Request) (*http.Response, error)
+
+	// Sends an arbitrary HTTP request.
+	//
+	// This is used for libraries that accept a custom HTTP client that they
+	// then use to make requests to the backend, like GraphQL. If the request
+	// URL matches the backend's base URL, there's special handling as in
+	// Send().
+	Do(*http.Request) (*http.Response, error)
+}
+
+// Implementation of the Client interface.
+type clientImpl struct {
 	// A reference to the backend.
 	backend *Backend
 
 	// The underlying retryable HTTP client.
 	retryableHTTP *retryablehttp.Client
+
+	// Headers to pass in every request.
+	extraHeaders map[string]string
 }
 
 // An HTTP request to the W&B backend.
@@ -47,29 +86,100 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in the request.
+	// Additional HTTP headers to include in request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
 	Headers map[string]string
 }
 
+type BackendOptions struct {
+	// The scheme and hostname for contacting the server, not including a final
+	// slash. For example, "http://localhost:8080".
+	BaseURL *url.URL
+
+	// Logger for HTTP operations.
+	Logger *slog.Logger
+
+	// W&B API key.
+	APIKey string
+}
+
 // Creates a [Backend].
 //
 // The `baseURL` is the scheme and hostname for contacting the server, not
 // including a final slash. Example "http://localhost:8080".
-func New(baseURL *url.URL) *Backend {
-	return &Backend{baseURL}
+func New(opts BackendOptions) *Backend {
+	return &Backend{
+		baseURL:     opts.BaseURL,
+		logger:      opts.Logger,
+		apiKey:      opts.APIKey,
+		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
+	}
+}
+
+type ClientOptions struct {
+	// Maximum number of retries to make for retryable requests.
+	RetryMax int
+
+	// Minimum time to wait between retries.
+	RetryWaitMin time.Duration
+
+	// Maximum time to wait between retries.
+	RetryWaitMax time.Duration
+
+	// Function that determines whether to retry based on the response.
+	//
+	// If nil, then retries are made on connection errors and server errors
+	// (HTTP status code >=500).
+	RetryPolicy retryablehttp.CheckRetry
+
+	// Timeout for HTTP requests.
+	//
+	// This is the time to wait for an individual HTTP request to complete
+	// before considering it as failed. It does not include retries: each retry
+	// starts a new timeout.
+	NonRetryTimeout time.Duration
+
+	// Additional headers to pass in each request to the backend.
+	//
+	// Note that these are only passed when communicating with the W&B backend.
+	// In particular, they are not sent if using this client to send
+	// arbitrary HTTP requests.
+	ExtraHeaders map[string]string
 }
 
 // Creates a new [Client] for making requests to the [Backend].
-//
-// TODO: For now this accepts a [retryablehttp.Client] directly, but it will
-// be rewritten to accept a list of specific options instead. Do not rely on
-// having a reference to the underlying client.
-func (backend *Backend) NewClient(retryableHTTP *retryablehttp.Client) *Client {
-	return &Client{
-		backend:       backend,
-		retryableHTTP: retryableHTTP,
+func (backend *Backend) NewClient(opts ClientOptions) Client {
+	retryableHTTP := clients.NewRetryClient(
+		clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
+		clients.WithRetryClientRetryMax(opts.RetryMax),
+		clients.WithRetryClientRetryWaitMin(opts.RetryWaitMin),
+		clients.WithRetryClientRetryWaitMax(opts.RetryWaitMax),
+		clients.WithRetryClientHttpTimeout(opts.NonRetryTimeout),
+	)
+
+	// Set the retry policy with debug logging if possible.
+	retryPolicy := opts.RetryPolicy
+	if retryPolicy == nil {
+		retryPolicy = retryablehttp.DefaultRetryPolicy
 	}
+	if backend.logger != nil {
+		retryPolicy = withRetryLogging(retryPolicy, backend.logger)
+	}
+	retryableHTTP.CheckRetry = retryPolicy
+
+	// Let the client log debug messages.
+	if backend.logger != nil {
+		retryableHTTP.Logger = slog.NewLogLogger(
+			backend.logger.Handler(),
+			slog.LevelDebug,
+		)
+	}
+
+	retryableHTTP.HTTPClient.Transport = backend.rateLimitedTransport(
+		retryableHTTP.HTTPClient.Transport,
+	)
+
+	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
 }

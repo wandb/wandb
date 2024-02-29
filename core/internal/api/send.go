@@ -1,14 +1,15 @@
 package api
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
 
-// Sends an HTTP request to the W&B backend.
-func (client *Client) Send(req *Request) (*http.Response, error) {
+func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	retryableReq, err := retryablehttp.NewRequest(
 		req.Method,
 		client.backend.baseURL.JoinPath(req.Path).String(),
@@ -19,13 +20,79 @@ func (client *Client) Send(req *Request) (*http.Response, error) {
 	}
 
 	for headerKey, headerValue := range req.Headers {
-		retryableReq.Header.Add(headerKey, headerValue)
+		retryableReq.Header.Set(headerKey, headerValue)
+	}
+	client.setClientHeaders(retryableReq)
+	client.setAuthHeaders(retryableReq)
+
+	return client.sendToWandbBackend(retryableReq)
+}
+
+func (client *clientImpl) Do(req *http.Request) (*http.Response, error) {
+	retryableReq, err := retryablehttp.FromRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("api: failed to parse request: %v", err)
 	}
 
-	resp, err := client.retryableHTTP.Do(retryableReq)
+	if !client.isToWandb(req) {
+		if client.backend.logger != nil {
+			client.backend.logger.Warn(
+				fmt.Sprintf(
+					"Unexpected request through HTTP client intended for W&B: %v",
+					req.URL,
+				),
+			)
+		}
+
+		return client.send(retryableReq)
+	}
+
+	return client.sendToWandbBackend(retryableReq)
+}
+
+// Returns whether the request would go to the W&B backend.
+func (client *clientImpl) isToWandb(req *http.Request) bool {
+	if req.URL.Host != client.backend.baseURL.Host {
+		return false
+	}
+
+	return strings.HasPrefix(req.URL.Path, client.backend.baseURL.Path)
+}
+
+// Sends a request intended for the W&B backend.
+func (client *clientImpl) sendToWandbBackend(
+	req *retryablehttp.Request,
+) (*http.Response, error) {
+	client.setClientHeaders(req)
+	client.setAuthHeaders(req)
+	return client.send(req)
+}
+
+// Sends any HTTP request.
+func (client *clientImpl) send(
+	req *retryablehttp.Request,
+) (*http.Response, error) {
+	resp, err := client.retryableHTTP.Do(req)
+
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
 
+	client.backend.logFinalResponseOnError(req, resp)
 	return resp, nil
+}
+
+func (client *clientImpl) setClientHeaders(req *retryablehttp.Request) {
+	for headerKey, headerValue := range client.extraHeaders {
+		req.Header.Set(headerKey, headerValue)
+	}
+}
+
+func (client *clientImpl) setAuthHeaders(req *retryablehttp.Request) {
+	req.Header.Set("User-Agent", "wandb-core")
+	req.Header.Set(
+		"Authorization",
+		"Basic "+base64.StdEncoding.EncodeToString(
+			[]byte("api:"+client.backend.apiKey)),
+	)
 }
