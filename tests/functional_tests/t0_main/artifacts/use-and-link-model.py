@@ -45,7 +45,7 @@ def main():
     art.wait()
 
     sm = use_model("my-model:latest")
-    link_model(sm, "entity/project/test_portfolio")
+    link_model(sm, "project/test_portfolio")
 
     run.finish()
 
