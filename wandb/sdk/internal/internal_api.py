@@ -2068,8 +2068,6 @@ class Api:
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
         num_retries: Optional[int] = None,
-        fork_from_run_id: Optional[str] = None,
-        fork_from_run_step: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
 
@@ -2093,8 +2091,6 @@ class Api:
             sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
             num_retries (int, optional): Number of retries
-            fork_from_run_id (str, optional): The ID of the run to fork this run from
-            fork_from_run_step (int, optional): The step to fork from
         """
         query_string = """
         mutation UpsertBucket(
@@ -2117,8 +2113,6 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
-            $forkFromRunID: ID,
-            $forkFromRunStep: Int,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -2140,8 +2134,6 @@ class Api:
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
-                forkFromRunID: $forkFromRunID,
-                forkFromRunStep: $forkFromRunStep,
             }) {
                 bucket {
                     id
@@ -2212,10 +2204,6 @@ class Api:
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
-            "forkFromRunID": None if not fork_from_run_id else base64.standard_b64encode(
-                f"Run:v1:{fork_from_run_id}:{project or util.auto_project_name(program_path)}:{entity or self.settings('entity')}".encode()
-            ).decode("utf-8"),
-            "forkFromRunStep": fork_from_run_step,
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
