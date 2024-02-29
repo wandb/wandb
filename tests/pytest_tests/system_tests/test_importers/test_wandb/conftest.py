@@ -31,7 +31,7 @@ DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
 def pytest_addoption(parser):
     parser.addoption(
         "--wandb-second-server",
-        default=False,
+        default=True,
         help="Spin up a second server (for importer tests)",
     )
 
@@ -133,7 +133,6 @@ def server_src(user):
 
     for _ in range(n_experiments):
         run = wandb.init(entity=user, project=project_name)
-        print(f"Inside run, {run.entity=}, {run.project=}")
 
         # log metrics
         data = generate_random_data(n_steps, n_metrics)
