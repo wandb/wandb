@@ -648,11 +648,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install python, pip, and nox
-          command: |
-            sudo apt-get update && sudo apt-get install -y python3-pip
-            pip install nox
-      - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
             cd core
