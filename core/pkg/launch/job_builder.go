@@ -544,12 +544,17 @@ func (j *JobBuilder) Build(
 	sourceInfo.Runtime = metadata.Python
 
 	if j.wandbConfigParameters != nil {
+		var filtered_input interface{}
 		if j.wandbConfigParameters.Exclude != nil {
-			input = filterDataStructure(input, j.wandbConfigParameters.Exclude, false)
+			filtered_input, err = filterOutEndpoints(input, j.wandbConfigParameters.Exclude)
 		}
 		if j.wandbConfigParameters.Include != nil {
-			input = filterDataStructure(input, j.wandbConfigParameters.Include, true)
+			filtered_input, err = filterInEndpoints(input, j.wandbConfigParameters.Include)
 		}
+		if err != nil {
+			return nil, err
+		}
+		input = filtered_input.(map[string]interface{})
 	}
 
 	if input != nil {
