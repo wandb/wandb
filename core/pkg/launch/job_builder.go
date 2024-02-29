@@ -564,12 +564,21 @@ func (j *JobBuilder) Build(
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
 	}
 
+	configSchema, err := j.GenerateConfigFileSchema()
+	if err != nil {
+		return nil, err
+	}
+	metadataBytes, err := json.Marshal(configSchema)
+	if err != nil {
+		return nil, err
+	}
+
 	baseArtifact := &service.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
 		Project:          j.settings.Project.Value,
 		RunId:            j.settings.RunId.Value,
 		Name:             *name,
-		Metadata:         "",
+		Metadata:         string(metadataBytes),
 		Type:             "job",
 		Aliases:          j.aliases,
 		Finalize:         true,
@@ -695,7 +704,28 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
 		JobSourceInfo: jobSourceMetadata,
 	}
+}
 
+func (j *JobBuilder) GenerateConfigFileSchema() (map[string]interface{}, error) {
+	configFileSchema := make(map[string]interface{})
+	for _, configFile := range j.configFiles {
+		file_unique_name := filepath.Join(configFile.Relpath, configFile.Filename)
+		path := filepath.Join(j.settings.FilesDir.Value, "configs", file_unique_name)
+		config, err := loadConfigFile(path)
+		if err != nil {
+			return nil, err
+		}
+		if configFile.Include != nil {
+			config, err = filterInEndpoints(config, configFile.Include)
+		} else if configFile.Exclude != nil {
+			config, err = filterOutEndpoints(config, configFile.Exclude)
+		}
+		if err != nil {
+			return nil, err
+		}
+		configFileSchema[file_unique_name] = data_types.ResolveTypes(config)
+	}
+	return configFileSchema, nil
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
