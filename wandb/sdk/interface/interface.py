@@ -785,7 +785,7 @@ class InterfaceBase:
     @abstractmethod
     def _publish_config_file_parameter(
         self, config_file_parameter: pb.ConfigFileParameterRecord
-    ) -> MailboxHandle:
+    ) -> None:
         raise NotImplementedError
 
     def publish_wandb_config_parameters(self, exclude: List[str], include: List[str]):
@@ -797,7 +797,7 @@ class InterfaceBase:
     @abstractmethod
     def _publish_wandb_config_parameters(
         self, config_parameters: pb.WandbConfigParametersRecord
-    ) -> MailboxHandle:
+    ) -> None:
         raise NotImplementedError
 
     @abstractmethod
