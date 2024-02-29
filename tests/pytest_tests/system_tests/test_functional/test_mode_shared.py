@@ -1,8 +1,15 @@
+import importlib.util
 import pathlib
 import runpy
 from unittest import mock
 
+import pytest
 
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("wandb-core") is None,
+    reason="shared mode only available in wandb-core",
+)
 def test_mode_shared(user, relay_server, copy_asset):
     # copy assets to test directory:
     pathlib.Path("scripts").mkdir()
