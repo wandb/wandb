@@ -1900,6 +1900,20 @@ workflows:
             python_version_minor: <<matrix.python_version_minor>>
 
       #
+      # W&B Importer tests on Linux, using 2 real wandb servers
+      #
+      - importers:
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+              shard: ["wandb"] # TODO: add back mlflow in the mlflow PR
+          name: "system-linux-importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "importer-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/ tests/pytest_tests/unit_tests/test_importers/test_<<matrix.shard>>_utils.py/"
+          codecov_flags: "system"
+
+      #
       # Functional tests with yea on Linux
       #
       - tox-base:
