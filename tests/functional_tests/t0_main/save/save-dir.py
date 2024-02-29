@@ -4,6 +4,11 @@
 id: 0.save.dir
 plugin:
   - wandb
+tag:
+  skip: true
+  shards:
+    - default
+    - wandb_core_failure
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {id: save_dir}

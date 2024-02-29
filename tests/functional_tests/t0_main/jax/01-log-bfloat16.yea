@@ -3,6 +3,7 @@ tag:
   platforms:
     - linux
     - mac
+  shard: jax
 plugin:
   - wandb
 depend:
