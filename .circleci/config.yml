@@ -1510,8 +1510,41 @@ workflows:
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_flags: unit
 
+      - win:
+          requires:
+            - "unit-tests-legacy"
+          filters:
+            branches:
+              only:
+                # - main
+                - /^release-.*/
+                - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_flags: unit
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+
       #
-      # core unit tests
+      # wandb launch tests
+      #
+      - launch:
+          requires:
+            - "unit-tests-legacy"
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_flags: unit
+          tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
+
+      #
+      # Unit tests with Go on Linux
       #
       - unit-tests-go
 
@@ -1580,8 +1613,24 @@ workflows:
                   brew install ffmpeg \
                     python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
 
+      - win:
+          filters:
+            branches:
+              only:
+                # - main
+                - /^release-.*/
+                - /^.*-ci-win$/
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [9]
+          name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          codecov_flags: unit
+          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
+
       #
-      # System tests with pytest on Linux
+      # System tests on Linux
       #
       - system-tests:
           name: "\
@@ -1607,79 +1656,6 @@ workflows:
             name: local-testcontainer
             python_version_major: <<matrix.python_version_major>>
             python_version_minor: <<matrix.python_version_minor>>
-
-      #
-      # Unit tests with pytest on Windows and MacOS
-      #
-      # - win:
-      #     requires:
-      #       - "unit-tests-legacy"
-      #     # filters:
-      #     #   branches:
-      #     #     only:
-      #     #       - main
-      #     #       - /^release-.*/
-      #     #       - /^.*-ci-win$/
-      #     matrix:
-      #       parameters:
-      #         python_version_major: [3]
-      #         python_version_minor: [9]
-      #     name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_flags: unit
-      #     tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-
-      - win:
-          requires:
-            - "unit-tests-legacy"
-          filters:
-            branches:
-              only:
-                # - main
-                - /^release-.*/
-                - /^.*-ci-win$/
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: unit
-          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-
-      # - win:
-      #     requires:
-      #       - "unit-tests"
-      #     # filters:
-      #     #   branches:
-      #     #     only:
-      #     #       - main
-      #     #       - /^release-.*/
-      #     #       - /^.*-ci-win$/
-      #     matrix:
-      #       parameters:
-      #         python_version_major: [3]
-      #         python_version_minor: [9]
-      #     name: "unit-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-      #     codecov_flags: unit
-      #     tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
-
-      - win:
-          filters:
-            branches:
-              only:
-                # - main
-                - /^release-.*/
-                - /^.*-ci-win$/
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: unit
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
 
       #
       # Functional tests with yea on Linux
@@ -1749,7 +1725,6 @@ workflows:
             <<matrix.python_version_minor>>"
           codecov_flags: func
 
-
       #
       # Functional tests with yea on Windows
       #
@@ -1769,22 +1744,6 @@ workflows:
           tox_args: "tests/functional_tests"
           parallelism: 6
           xdist: 1
-
-      #
-      # wandb launch tests
-      #
-      - launch:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: unit
-          tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
-
 
       #
       # functional tests with different executors
