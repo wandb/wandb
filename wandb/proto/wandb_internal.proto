@@ -142,8 +142,6 @@ message RunRecord {
   TelemetryRecord telemetry = 19;
   int32 runtime = 20;
   GitRepoRecord git = 21;
-  string fork_from_run_id = 22;
-  int32 fork_from_run_step = 23;
   _RecordInfo _info = 200;
 }
 
