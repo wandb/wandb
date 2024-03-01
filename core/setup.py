@@ -1,6 +1,7 @@
 import os
 import pathlib
 import platform
+import sys
 from distutils import log
 
 from setuptools import setup
@@ -39,11 +40,27 @@ class CustomBuildPy(build_py):
 
         # Figure out the normalized architecture name for our current arch.
         arch = platform.machine().lower()
-        print(f"setup.py: platform.machine() returned '{arch}'")
         if arch == "arm64":
             arch = "aarch64"
         elif arch == "amd64":
             arch = "x86_64"
+
+        # We use cibuildwheel to create platform-specific wheels.
+        #
+        # On the ARM64 macOS-14 GitHub runner, platform.machine() sometimes
+        # returns x86_64 instead of arm64. This seems to be caused by
+        # cibuildwheel downloading an x86_64 Python on older machines, causing
+        # it to run via Rosetta, which (probably) causes `uname -m` to return
+        # x86_64.
+        #
+        # In this case, we check the undocumented PLAT environment variable
+        # set by cibuildwheel to figure out the real target architecture which
+        # affects which binaries we look for.
+        cibuildwheel_plat = os.environ.get("PLAT", "")
+        if cibuildwheel_plat.endswith("arm64"):
+            arch = "aarch64"
+
+        print(f"setup.py: target architecture is '{arch}'")
 
         # Symlink the artifacts into bin/. The build system will copy the
         # actual files into the wheel.

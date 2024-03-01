@@ -101,7 +101,6 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* pp* *musllinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
-          CIBW_ARCHS_MACOS: native
           # Linux is special because it's built in a container using qemu, so we must
           # build our Go binary inside the cibuildwheel step.
           #
