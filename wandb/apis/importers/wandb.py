@@ -26,7 +26,6 @@ from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.artifacts import ArtifactType
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
-from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .internals import internal

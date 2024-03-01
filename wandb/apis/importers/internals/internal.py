@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 from google.protobuf.json_format import ParseDict
-from rich.logging import RichHandler
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
 from wandb import Artifact
@@ -28,18 +27,17 @@ from .protocols import ImporterRun
 ROOT_DIR = "./wandb-importer"
 
 # silences the internal messages; set to INFO or DEBUG to see them
-logging.basicConfig(
-    level=logging.WARN,
-    handlers=[
-        RichHandler(
-            rich_tracebacks=True,
-            tracebacks_show_locals=True,
-        )
-    ],
-)
+handlers = []
+if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
+    from rich.logging import RichHandler
+
+    handlers = [RichHandler(rich_tracebacks=True, tracebacks_show_locals=True)]
+    logging.basicConfig(level=logging.WARN, handlers=handlers)
+else:
+    logging.basicConfig(level=logging.WARN)
+
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
-
 logger = logging.getLogger(__name__)
 
 
