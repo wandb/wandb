@@ -1671,7 +1671,7 @@ def _download_art(art: Artifact, root: str) -> Optional[str]:
 
     try:
         with patch("click.echo"):
-            return art.download(root=root)
+            return art.download(root=root, skip_cache=True)
     except Exception as e:
         logger.error(f"Error downloading artifact {art=}, {e=}")
 
