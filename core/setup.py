@@ -1,12 +1,11 @@
 import os
 import pathlib
 import platform
-import sys
+import sysconfig
 from distutils import log
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
-from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # Package naming
 # --------------
@@ -19,17 +18,18 @@ CORE_VERSION = "0.17.0b9"
 PACKAGE = "wandb_core"
 
 
-class WrapBdistWheel(bdist_wheel):
-    def get_tag(self):
-        # Use the default implementation to get python and abi tags
-        python, abi = bdist_wheel.get_tag(self)[:2]
-        # Use the wheel package function to determine platform tag
-        plat_name = get_platform(self.bdist_dir)
-        # todo: add MACOSX_DEPLOYMENT_TARGET to support older macs
-        return python, abi, plat_name
+# TODO: Remove?
+# class WrapBdistWheel(bdist_wheel):
+#     def get_tag(self):
+#         # Use the default implementation to get python and abi tags
+#         python, abi = bdist_wheel.get_tag(self)[:2]
+#         # Use the wheel package function to determine platform tag
+#         plat_name = get_platform(self.bdist_dir)
+#         # todo: add MACOSX_DEPLOYMENT_TARGET to support older macs
+#         return python, abi, plat_name
 
-    def run(self):
-        super().run()
+#     def run(self):
+#         super().run()
 
 
 class CustomBuildPy(build_py):
@@ -53,14 +53,17 @@ class CustomBuildPy(build_py):
         # it to run via Rosetta, which (probably) causes `uname -m` to return
         # x86_64.
         #
-        # In this case, we check the undocumented PLAT environment variable
-        # set by cibuildwheel to figure out the real target architecture which
-        # affects which binaries we look for.
-        cibuildwheel_plat = os.environ.get("PLAT", "")
-        if cibuildwheel_plat.endswith("arm64"):
+        # In these cases, `sysconfig.get_platform()` seems to still have the
+        # correct information.
+        sysplat = sysconfig.get_platform()
+        if sysplat.endswith("arm64"):
             arch = "aarch64"
-
-        print(f"setup.py: target architecture is '{arch}'")
+            print(
+                f"setup.py: target architecture is '{arch}' "
+                f" (from sysconfig.get_platform() == '{sysplat}')"
+            )
+        else:
+            print(f"setup.py: target architecture is '{arch}'")
 
         # Symlink the artifacts into bin/. The build system will copy the
         # actual files into the wheel.
