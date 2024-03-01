@@ -73,7 +73,6 @@ class ConfigFile:
         """
         overrides = FileOverrides().overrides
         file_overrides = overrides.get(self.full_relpath())
-        print(file_overrides, overrides, self.full_relpath())
         if file_overrides is not None:
             self.patch(file_overrides)
 
@@ -83,9 +82,20 @@ class ConfigFile:
         Args:
             overrides (dict[str, Any]): The overrides to apply to the config file.
         """
-        # config = _read_config_file(os.path.join(self.abspath, self.filename))
-        # config.update(overrides)
-        _write_config_file(os.path.join(self.abspath, self.filename), overrides)
+        config = _read_config_file(os.path.join(self.abspath, self.filename))
+        resolved = _apply_overrides(config, overrides)
+        _write_config_file(os.path.join(self.abspath, self.filename), resolved)
+
+
+def _apply_overrides(config: Any, overrides: Any) -> Any:
+    """Apply overrides to a config object."""
+    if isinstance(config, dict) and isinstance(overrides, dict):
+        for key, value in overrides.items():
+            if isinstance(value, dict) and key in config:
+                config[key] = _apply_overrides(config[key], value)
+            else:
+                config[key] = value
+    return config
 
 
 def _write_config_file(path: str, config: Any) -> None:
