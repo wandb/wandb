@@ -526,6 +526,10 @@ def _create_docker_build_ctx(
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
             )
+            # TODO: remove this once we make things more explicit for users
+            if entrypoint_dir:
+                new_path = os.path.basename(entrypoint.name)
+                launch_project.get_single_entry_point().update_entrypoint_path(new_path)
             return directory
 
     dst_path = os.path.join(directory, "src")
