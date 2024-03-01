@@ -53,8 +53,7 @@ class ConfigFile:
         patched with the override.
         """
         self.abspath = os.path.dirname(os.path.abspath(path))
-        self.relpath = os.path.dirname(path)
-        self.relpath = os.path.relpath(self.abspath, os.getcwd())
+        self.relpath = os.path.normpath(os.path.relpath(self.abspath, os.getcwd()))
         self.filename = os.path.basename(path)
         self.include = include
         self.ignore = ignore
