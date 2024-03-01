@@ -93,8 +93,5 @@ if __name__ == "__main__":
         include_package_data=True,
         license="MIT license",
         python_requires=">=3.6",
-        cmdclass={
-            "bdist_wheel": WrapBdistWheel,
-            "build_py": CustomBuildPy,
-        },
+        cmdclass={"build_py": CustomBuildPy},
     )
