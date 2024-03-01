@@ -44,6 +44,10 @@ def main():
     art = run.log_artifact(art)
     art.wait()
 
+    # use_model() hits the download path where we try to download the file
+    # using entry._file_url, which fails in this test harness
+    # TODO: Remove the download() call once caching is implemented in nexus
+    art.download()
     sm = use_model("my-model:latest")
     link_model(sm, "project/test_portfolio")
 
