@@ -58,6 +58,7 @@ jobs:
            package-dir: core
            output-dir: core/wheelhouse
         env:
+          CIBW_SKIP: cp36-* pp* *musllinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
           # Linux is special because it's built in a container using qemu, so we must
           # build our Go binary inside the cibuildwheel step.
