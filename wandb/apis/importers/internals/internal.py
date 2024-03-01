@@ -34,7 +34,7 @@ if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
     handlers = [RichHandler(rich_tracebacks=True, tracebacks_show_locals=True)]
     logging.basicConfig(level=logging.WARN, handlers=handlers)
 else:
-    logging.basicConfig(level=logging.WARN)
+    logging.basicConfig(level=logging.DEBUG)
 
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
