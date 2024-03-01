@@ -2,8 +2,6 @@
 
 from typing import List, Optional
 
-from wandb.proto import wandb_internal_pb2 as pb
-
 
 class WandbConfigKeys:
     """A class for declaring wandb.config keys that should be used as template parameters."""
