@@ -70,6 +70,7 @@ jobs:
               aarch64) export DOWNLOAD_GOARCH=arm64;;
               x86_64) export DOWNLOAD_GOARCH=amd64;;
             esac &&
+            echo DOWNLOAD_GOARCH $DOWNLOAD_GOARCH
             curl -L https://golang.org/dl/go1.22.0.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             export PATH=$PATH:/usr/local/go/bin &&
