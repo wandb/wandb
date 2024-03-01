@@ -18,6 +18,7 @@ class FileOverrides:
         if cls._instance is None:
             cls._instance = object.__new__(cls)
             cls._instance.overrides = {}
+            cls._instance.load()
         return cls._instance
 
     def load(self) -> Any:
@@ -53,17 +54,14 @@ class ConfigFile:
         patched with the override.
         """
         self.abspath = os.path.dirname(os.path.abspath(path))
-        self.relpath = os.path.normpath(os.path.relpath(self.abspath, os.getcwd()))
+        self.relpath = os.path.relpath(self.abspath, os.getcwd())
         self.filename = os.path.basename(path)
-        print(f"filename: {self.filename}")
-        print(f"abspath: {self.abspath}")
-        print(f"relpath: {self.relpath}")
         self.include = include
         self.ignore = ignore
         self._ensure_override()  # Ensure that the config file is patched with any overrides.
 
     def full_relpath(self) -> str:
-        return os.path.join(self.relpath, self.filename)
+        return os.path.normpath(os.path.join(self.relpath, self.filename))
 
     def _ensure_override(self) -> None:
         """Check WANDB_LAUNCH_OVERRIDES for any overrides to the config file.
