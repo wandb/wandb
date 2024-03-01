@@ -13,8 +13,14 @@ import (
 )
 
 const (
+	// Don't go slower than 1 request per 10 seconds.
+	minRateLimit = 0.1
+
+	// Don't go faster than 20 requests per second.
 	maxRequestsPerSecond = 20
-	maxBurst             = 10
+
+	// Don't send more than 10 requests at a time.
+	maxBurst = 10
 )
 
 // The W&B backend server.
@@ -36,6 +42,9 @@ type Backend struct {
 
 	// Rate limit for all outgoing requests.
 	rateLimiter *rate.Limiter
+
+	// Dynamic adjustments to the rate-limit based on server backpressure.
+	rlTracker *RateLimitTracker
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -115,6 +124,14 @@ func New(opts BackendOptions) *Backend {
 		logger:      opts.Logger,
 		apiKey:      opts.APIKey,
 		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
+		rlTracker: NewRateLimitTracker(RateLimitTrackerParams{
+			MinPerSecond: minRateLimit,
+			MaxPerSecond: maxRequestsPerSecond,
+
+			// TODO: Allow changing these through settings.
+			Smoothing:              0.2,
+			MinRequestsForEstimate: 5,
+		}),
 	}
 }
 
