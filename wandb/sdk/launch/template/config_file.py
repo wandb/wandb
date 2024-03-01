@@ -55,6 +55,9 @@ class ConfigFile:
         self.abspath = os.path.dirname(os.path.abspath(path))
         self.relpath = os.path.normpath(os.path.relpath(self.abspath, os.getcwd()))
         self.filename = os.path.basename(path)
+        print(f"filename: {self.filename}")
+        print(f"abspath: {self.abspath}")
+        print(f"relpath: {self.relpath}")
         self.include = include
         self.ignore = ignore
         self._ensure_override()  # Ensure that the config file is patched with any overrides.
@@ -70,8 +73,9 @@ class ConfigFile:
         Returns:
             bool: True if an override was found, False otherwise.
         """
-        overrides = FileOverrides().overrides
+        overrides = FileOverrides().override
         file_overrides = overrides.get(self.full_relpath())
+        print(file_overrides, overrides, self.full_relpath())
         if file_overrides is not None:
             self.patch(file_overrides)
 
