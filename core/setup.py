@@ -47,6 +47,7 @@ class CustomBuildPy(build_py):
 
         # Figure out the normalized architecture name for our current arch.
         arch = platform.machine().lower()
+        print(f"setup.py: platform.machine() returned '{arch}'")
         if arch == "arm64":
             arch = "aarch64"
         elif arch == "amd64":
