@@ -1663,12 +1663,6 @@ def _clear_fname(fname: str) -> None:
 
 
 def _download_art(art: Artifact, root: str) -> Optional[str]:
-    # clear the cache
-    target_size = 0
-    cache = get_artifact_file_cache()
-    reclaimed_bytes = cache.cleanup(target_size, remove_temp=True)
-    logger.debug(f"Clearing cache, {reclaimed_bytes=}")
-
     try:
         with patch("click.echo"):
             return art.download(root=root, skip_cache=True)
