@@ -1,3 +1,5 @@
+from typing import Optional
+
 import click
 
 from wandb.cli.utils.errors import display_error
@@ -15,16 +17,16 @@ from wandb.cli.utils.errors import display_error
 @click.option("--port-filename", default=None, help="Save allocated port to file.")
 @click.option("--address", default=None, help="The address to bind service.")
 @click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", is_flag=True, help="log debug info")
-@click.option("--serve-sock", is_flag=True, help="use socket mode")
+@click.option("--debug", is_flag=True, default=False, help="log debug info")
+@click.option("--serve-sock", is_flag=True, default=False, help="use socket mode")
 @display_error
 def service(
-    sock_port=None,
-    port_filename=None,
-    address=None,
-    pid=None,
-    debug=False,
-    serve_sock=False,
+    sock_port: Optional[int],
+    port_filename: Optional[str],
+    address: Optional[str],
+    pid: Optional[int],
+    debug: bool,
+    serve_sock: bool,
 ):
     from wandb.sdk.service.server import WandbServer
 

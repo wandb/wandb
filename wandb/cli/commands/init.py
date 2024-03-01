@@ -1,6 +1,7 @@
 import os
 import sys
 import textwrap
+from typing import Literal
 
 import click
 from click import ClickException
@@ -29,11 +30,20 @@ from wandb.sdk.lib import filesystem
 @click.option(
     "--mode",
     "-m",
-    help='Can be "online", "offline" or "disabled". Defaults to online.',
+    type=click.Choice(["online", "offline", "disabled"], case_sensitive=False),
+    default="online",
+    show_default=True,
+    help="The mode to run in.",
 )
 @click.pass_context
 @display_error
-def init(ctx, project, entity, reset, mode):
+def init(
+    ctx: "click.Context",
+    project: str,
+    entity: str,
+    reset: bool,
+    mode: Literal["online", "offline", "disabled"],
+):
     from wandb.old.core import __stage_dir__, _set_stage_dir, wandb_dir
 
     if __stage_dir__ is None:

@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 import click
 
@@ -21,7 +22,14 @@ from wandb.cli.utils.errors import display_error
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login(
+    key: str,
+    host: Optional[str],
+    cloud: bool,
+    relogin: bool,
+    anonymously: bool,
+    verify: bool,
+):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
