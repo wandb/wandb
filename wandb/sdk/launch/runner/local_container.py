@@ -155,7 +155,7 @@ class LocalContainerRunner(AbstractRunner):
                 if not docker_image_exists(image_uri):
                     raise LaunchError(
                         f"Failed to pull docker image {image_uri} with error: {e}"
-                )
+                    )
 
             assert launch_project.docker_image == image_uri
 
