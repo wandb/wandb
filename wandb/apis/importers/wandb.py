@@ -26,6 +26,7 @@ from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.artifacts import ArtifactType
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from .internals import internal
@@ -1662,9 +1663,15 @@ def _clear_fname(fname: str) -> None:
 
 
 def _download_art(art: Artifact, root: str) -> Optional[str]:
+    # clear the cache
+    target_size = 0
+    cache = get_artifact_file_cache()
+    reclaimed_bytes = cache.cleanup(target_size, remove_temp=True)
+    logger.debug(f"Clearing cache, {reclaimed_bytes=}")
+
     try:
         with patch("click.echo"):
-            return art.download(root=root, skip_cache=True)
+            return art.download(root=root)
     except Exception as e:
         logger.error(f"Error downloading artifact {art=}, {e=}")
 
