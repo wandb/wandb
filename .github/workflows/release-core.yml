@@ -15,6 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-20.04
@@ -59,7 +60,7 @@ jobs:
         env:
           CIBW_ARCHS_LINUX: x86_64 aarch64
           # Linux is special because it's built in a container using qemu, so we must
-          # build the Go binary inside the cibuildwheel step.
+          # build our Go binary inside the cibuildwheel step.
           #
           # Some downsides:
           #   - We have to download Go manually
@@ -70,12 +71,9 @@ jobs:
               aarch64) export DOWNLOAD_GOARCH=arm64;;
               x86_64) export DOWNLOAD_GOARCH=amd64;;
             esac &&
-            echo DOWNLOAD_GOARCH $DOWNLOAD_GOARCH
             curl -L https://golang.org/dl/go1.22.0.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             export PATH=$PATH:/usr/local/go/bin &&
-            which go &&
-            go version &&
             pip install -r requirements_tools.txt &&
             bash wini build wandb-core-artifacts
 
