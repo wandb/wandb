@@ -37,14 +37,6 @@ class CustomBuildPy(build_py):
     def run(self):
         pkgdir = pathlib.Path(__file__).parent / PACKAGE
 
-        # Clean the "bin/" directory.
-        bindir = pkgdir / "bin"
-        if bindir.exists():
-            for file in bindir.iterdir():
-                file.unlink()
-        else:
-            bindir.mkdir()
-
         # Figure out the normalized architecture name for our current arch.
         arch = platform.machine().lower()
         print(f"setup.py: platform.machine() returned '{arch}'")
@@ -57,7 +49,12 @@ class CustomBuildPy(build_py):
         # actual files into the wheel.
         archdir = pkgdir.parent / "wandb_core_artifacts" / arch
         for file in archdir.iterdir():
-            os.symlink(file, bindir / file.name)
+            dest = pkgdir / file.name
+
+            if dest.exists():
+                dest.unlink()
+
+            os.symlink(file, dest)
 
         super().run()
 
