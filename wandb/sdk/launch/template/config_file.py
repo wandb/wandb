@@ -73,7 +73,7 @@ class ConfigFile:
         Returns:
             bool: True if an override was found, False otherwise.
         """
-        overrides = FileOverrides().override
+        overrides = FileOverrides().overrides
         file_overrides = overrides.get(self.full_relpath())
         print(file_overrides, overrides, self.full_relpath())
         if file_overrides is not None:
