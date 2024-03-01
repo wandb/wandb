@@ -20,7 +20,6 @@ jobs:
         os:
           - ubuntu-20.04
           - windows-2019
-          - macos-13
           - macos-14
     steps:
       - uses: actions/checkout@v4
@@ -57,8 +56,16 @@ jobs:
         run: pip install -r requirements_tools.txt
 
       - name: Build artifacts using wini
-        if: runner.os != 'Linux'
+        if: runner.os == 'Windows'
         run: bash wini build wandb-core-artifacts
+
+        # We run on macOS-14 with Apple Silicon but cross-compile to support
+        # x86_64. We can't use macOS-13 directly: cibuildwheel fails in the
+        # "repair" step when running "delocate" because "delocate" fails to
+        # find Swift standard libraries.
+      - name: Build artifacts using wini (w/ cross-compile)
+        if: runner.os == 'macOS'
+        run: bash wini build wandb-core-artifacts --arch arm64 --arch x86_64
 
       ##################################################
       # All platforms: create wheels
@@ -77,6 +84,7 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* pp* *musllinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_MACOS: x86_64 arm64
           # Linux is special because it's built in a container using qemu, so we must
           # build our Go binary inside the cibuildwheel step.
           #
