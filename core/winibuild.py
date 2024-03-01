@@ -4,16 +4,18 @@ import os
 import pathlib
 from typing import Mapping
 
-from tools.wini import subprocess, workspace
+from tools.wini import arch, subprocess, workspace
 
 
 def build_wandb_core(
+    architecture: arch.Arch,
     output_path: pathlib.PurePath,
     with_code_coverage: bool,
 ) -> None:
     """Builds the wandb-core Go module.
 
     Args:
+        architecture: The machine achitecture to target.
         output_path: The path where to output the binary, relative to the
             workspace root.
         with_code_coverage: Whether to build the binary with code coverage
@@ -35,7 +37,7 @@ def build_wandb_core(
             "cmd/wandb-core/main.go",
         ],
         cwd="./core",
-        env=_go_env(),
+        env=_go_env(architecture),
     )
 
 
@@ -66,8 +68,10 @@ def _go_linker_flags() -> str:
     return " ".join(flags)
 
 
-def _go_env() -> Mapping[str, str]:
+def _go_env(architecture: arch.Arch) -> Mapping[str, str]:
     env = os.environ.copy()
+
+    env["GOARCH"] = architecture.go_name
 
     if workspace.target_osarch() in [
         # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.

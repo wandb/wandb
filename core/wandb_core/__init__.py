@@ -11,7 +11,7 @@ __version__ = "0.17.0b9"
 
 
 def get_core_path() -> Path:
-    return (Path(__file__).parent / "wandb-core").resolve()
+    return (Path(__file__).parent / "bin" / "wandb-core").resolve()
 
 
 # for backwards compatibility

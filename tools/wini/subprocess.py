@@ -1,15 +1,16 @@
 """Wrappers around `subprocess` for wini that print debug info."""
 
+import pathlib
 import subprocess
-from typing import List, Mapping, Optional
+from typing import Mapping, Optional, Sequence, Union
 
 from . import print
 
 
 def check_call(
-    cmd: List[object],
+    cmd: Sequence[Union[str, pathlib.PurePath]],
     *,
-    cwd: Optional[str] = None,
+    cwd: Optional[Union[str, pathlib.PurePath]] = None,
     env: Optional[Mapping[str, str]] = None,
 ) -> None:
     """Invokes `subprocess.check_call`.
@@ -33,7 +34,7 @@ def check_call(
     )
 
 
-def run(cmd: List[object]) -> None:
+def run(cmd: Sequence[Union[str, pathlib.PurePath]]) -> None:
     """Invokes `subprocess.run`.
 
     Args:
