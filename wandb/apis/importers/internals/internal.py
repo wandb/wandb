@@ -127,6 +127,9 @@ class RecordMaker:
         if config.history:
             yield from self._make_history_records()
 
+        if config.summary:
+            yield self._make_summary_record()
+
         if config.terminal_output:
             if (lines := self.run.logs()) is not None:
                 for line in lines:
