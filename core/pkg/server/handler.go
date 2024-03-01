@@ -530,17 +530,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		}
 	}
 
-	cwd, err := os.Getwd()
-	var codePathLocal string
-	if err != nil {
-		h.logger.Error("error getting current working directory", "error", err)
-	} else {
-		localPath, err := filepath.Rel(cwd, h.settings.GetProgramAbspath().GetValue())
-		if err != nil {
-			h.logger.Error("error getting relative path", "error", err)
-		}
-		codePathLocal = localPath
-	}
 	metadata := &service.MetadataRequest{
 		Os:            h.settings.GetXOs().GetValue(),
 		Python:        h.settings.GetXPython().GetValue(),
@@ -548,7 +537,7 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		Cuda:          h.settings.GetXCuda().GetValue(),
 		Program:       h.settings.GetProgram().GetValue(),
 		CodePath:      h.settings.GetProgramRelpath().GetValue(),
-		CodePathLocal: codePathLocal,
+		CodePathLocal: h.settings.GetXCodePathLocal().GetValue(),
 		Email:         h.settings.GetEmail().GetValue(),
 		Root:          h.settings.GetRootDir().GetValue(),
 		Username:      h.settings.GetUsername().GetValue(),
