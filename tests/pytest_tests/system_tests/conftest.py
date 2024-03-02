@@ -617,7 +617,7 @@ def pytest_configure(config):
         # Locally, we use localhost and different port mappings
         print(">>>>> Inside second server")
         print(f"{os.getenv('CI')=}")
-        print(f"{os.getenv("WANDB_TEST_SERVER_URL2")=}")
+        print(f"{os.getenv('WANDB_TEST_SERVER_URL2')=}")
 
         default_server_url2 = (
             os.getenv("WANDB_TEST_SERVER_URL2")
