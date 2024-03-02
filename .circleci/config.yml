@@ -548,13 +548,6 @@ jobs:
                     -- \
                     <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
                     tests/pytest_tests/system_tests/test_notebooks
-      - when:
-          condition: { equal: [<<parameters.tests>>, importers] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
 
       - when:
           condition: { equal: [<<parameters.tests>>, other] }
