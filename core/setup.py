@@ -46,7 +46,7 @@ class CustomBuildPy(build_py):
             arch = "aarch64"
             print(
                 f"setup.py: target architecture is '{arch}' "
-                f" (from sysconfig.get_platform() == '{sysplat}')"
+                f"(from sysconfig.get_platform() == '{sysplat}')"
             )
         else:
             print(f"setup.py: target architecture is '{arch}'")
