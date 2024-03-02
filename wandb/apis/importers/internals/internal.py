@@ -41,7 +41,7 @@ else:
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
 
-logger.addHandler(console_handler)
+    logger.addHandler(console_handler)
 
 
 exp_retry = retry(
