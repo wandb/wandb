@@ -1,6 +1,7 @@
 """Public API: files."""
 import io
 import os
+from typing import Optional
 
 import requests
 from wandb_gql import gql
@@ -141,7 +142,7 @@ class File(Attrs):
         root: str = ".",
         replace: bool = False,
         exist_ok: bool = False,
-        api: Api = None,
+        api: Optional[Api] = None,
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 

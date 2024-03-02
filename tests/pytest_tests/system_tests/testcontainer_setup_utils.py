@@ -43,7 +43,7 @@ class WandbServerSettings:
     internal_local_base_port: str = LOCAL_BASE_PORT
     internal_local_services_api_port: str = SERVICES_API_PORT
     internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
-    url: str = "http://localhost"
+    url: str = DEFAULT_SERVER_URL
 
     base_url: Optional[str] = None
 
