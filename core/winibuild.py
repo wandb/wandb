@@ -37,7 +37,7 @@ def build_wandb_core(
             "cmd/wandb-core/main.go",
         ],
         cwd="./core",
-        env=_go_env(architecture),
+        extra_env=_go_env(architecture),
     )
 
 
@@ -69,9 +69,7 @@ def _go_linker_flags() -> str:
 
 
 def _go_env(architecture: arch.Arch) -> Mapping[str, str]:
-    env = os.environ.copy()
-
-    env["GOARCH"] = architecture.go_name
+    env = {"GOARCH": architecture.go_name}
 
     if workspace.target_osarch() in [
         # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
