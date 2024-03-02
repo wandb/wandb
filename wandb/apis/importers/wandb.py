@@ -53,10 +53,25 @@ DST_ART_PATH = "./artifacts/dst"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
+if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
+    from rich.logging import RichHandler
+
+    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
+else:
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
 
 logger.addHandler(console_handler)
+logger.addHandler(console_handler)
+
+if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
+    from rich.logging import RichHandler
+
+    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
+    logger.addHandler(console_handler)
 
 if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
     from rich.logging import RichHandler
