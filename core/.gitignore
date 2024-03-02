@@ -6,4 +6,3 @@ api/graphql/schema.graphql
 
 # Generated files used in the wandb-core wheel.
 wandb_core_artifacts/
-wandb_core/bin/
