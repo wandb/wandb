@@ -353,7 +353,7 @@ class WandbRun:
 
 
 class WandbImporter:
-    """Import runs, reports, and artifact sequences from a source instance at `src_base_url` to a destination instance at `dst_base_url`."""
+    """Transfers runs, reports and artifact sequences between W&B instances."""
 
     def __init__(
         self,
