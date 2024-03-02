@@ -15,14 +15,22 @@ import wandb.apis.reports as wr
 from PIL import Image
 from rdkit import Chem
 
-from ...testcontainer_setup_utils import WandbServerSettings, spin_wandb_server
+from ...testcontainer_setup_utils import (
+    FIXTURE_SERVICE_PORT,
+    LOCAL_BASE_PORT,
+    SERVICES_API_PORT,
+    WandbServerSettings,
+    spin_wandb_server,
+)
 
 # `local-testcontainer2` url and ports
 # Normally these env vars are only set in CI
-DEFAULT_SERVER_URL2 = os.getenv("WANDB_TEST_SERVER_URL2", "http://localhost")
-LOCAL_BASE_PORT2 = os.getenv("WANDB_TEST_LOCAL_BASE_PORT2", "9180")
-SERVICES_API_PORT2 = os.getenv("WANDB_TEST_SERVICES_API_PORT2", "9183")
-FIXTURE_SERVICE_PORT2 = os.getenv("WANDB_TEST_FIXTURE_SERVICE_PORT2", "9115")
+default_server_url2 = (
+    os.getenv("WANDB_TEST_SERVER_URL2") if os.getenv("CI") else "http://localhost"
+)
+local_base_port2 = LOCAL_BASE_PORT if os.getenv("CI") else "9180"
+service_api_port2 = SERVICES_API_PORT if os.getenv("CI") else "9183"
+fixture_service_port2 = FIXTURE_SERVICE_PORT if os.getenv("CI") else "9115"
 
 DEFAULT_SERVER_CONTAINER_NAME2 = "wandb-local-testcontainer2"
 DEFAULT_SERVER_VOLUME2 = "wandb-local-testcontainer-vol2"
@@ -45,10 +53,10 @@ def pytest_configure(config):
         settings2 = WandbServerSettings(
             name=DEFAULT_SERVER_CONTAINER_NAME2,
             volume=DEFAULT_SERVER_VOLUME2,
-            url=DEFAULT_SERVER_URL2,
-            local_base_port=LOCAL_BASE_PORT2,
-            services_api_port=SERVICES_API_PORT2,
-            fixture_service_port=FIXTURE_SERVICE_PORT2,
+            url=default_server_url2,
+            local_base_port=local_base_port2,
+            services_api_port=service_api_port2,
+            fixture_service_port=fixture_service_port2,
             wandb_server_pull=config.getoption("--wandb-server-pull"),
             wandb_server_image_registry=config.getoption(
                 "--wandb-server-image-registry"
