@@ -140,6 +140,9 @@ executors:
           WANDB_ENABLE_TEST_CONTAINER: true
           WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
         name: << parameters.dst_server_name >>
+    environment:
+      WANDB_TEST_SERVER_URL2: http://<< parameters.dst_server_name >>
+      CI: 1
     resource_class: xlarge
 
 commands:
