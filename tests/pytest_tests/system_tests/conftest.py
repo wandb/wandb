@@ -28,7 +28,7 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-from .utils import (
+from .testcontainer_setup_utils import (
     DEFAULT_SERVER_CONTAINER_NAME,
     DEFAULT_SERVER_URL,
     DEFAULT_SERVER_VOLUME,

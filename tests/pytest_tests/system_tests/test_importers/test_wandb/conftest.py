@@ -15,7 +15,7 @@ import wandb.apis.reports as wr
 from PIL import Image
 from rdkit import Chem
 
-from ...utils import WandbServerSettings, spin_wandb_server
+from ...testcontainer_setup_utils import WandbServerSettings, spin_wandb_server
 
 # `local-testcontainer2` url and ports
 # Normally these env vars are only set in CI
