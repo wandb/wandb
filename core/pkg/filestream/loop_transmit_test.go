@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/clienttest"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -62,7 +63,7 @@ func testSendAndReceive(t *testing.T, chunks []processedChunk, fsd FsTransmitDat
 
 	fs := NewFileStream(
 		WithLogger(fsTest.logger),
-		WithHttpClient(fsTest.client),
+		WithAPIClient(apitest.ForwardingClient(fsTest.client)),
 	)
 	for _, d := range chunks {
 		fs.transmitChan <- d
@@ -77,7 +78,7 @@ func TestSendChunks(t *testing.T) {
 	}
 	expect := FsTransmitData{
 		Files: map[string]fsTransmitFileData{
-			"wandb-history.jsonl": fsTransmitFileData{
+			"wandb-history.jsonl": {
 				Offset:  0,
 				Content: []string{"this is a line"},
 			},

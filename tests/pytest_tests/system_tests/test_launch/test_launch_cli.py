@@ -1,5 +1,5 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 import wandb
@@ -61,7 +61,7 @@ def test_launch_build_succeeds(
         lambda: None,
     )
 
-    async def patched_launch_add(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         if not kwargs.get("build"):
             raise Exception(kwargs)
 
@@ -111,13 +111,10 @@ def test_launch_build_fails(
         lambda: None,
     )
 
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        "LaunchProject",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
@@ -198,13 +195,9 @@ def test_launch_repository_arg(
         "wandb.sdk.launch._launch._launch",
         patched_launch,
     )
-
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.fetch_and_validate_project",
-        patched_fetch_and_val,
+        "wandb.sdk.launch._launch.LaunchAgent",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
@@ -267,13 +260,10 @@ def test_launch_build_with_local(
         lambda: None,
     )
 
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
     monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
+        wandb.sdk.launch._project_spec,
+        "LaunchProject",
+        lambda *args, **kwargs: MagicMock(),
     )
 
     monkeypatch.setattr(
@@ -400,26 +390,6 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
         print(result.output)
         assert "blah blah" in result.output
         assert "except caught, failed item" in result.output
-
-
-@pytest.mark.parametrize(
-    "path,job_type",
-    [
-        ("./test.py", "code"),
-        ("test.py", "code"),
-    ],
-)
-def test_create_job_no_reqs(path, job_type, runner, user):
-    with runner.isolated_filesystem():
-        with open("test.py", "w") as f:
-            f.write("print('hello world')\n")
-
-        result = runner.invoke(
-            cli.job,
-            ["create", job_type, path, "--entity", user, "--project", "proj"],
-        )
-        print(result.output)
-        assert "Could not find requirements.txt file" in result.output
 
 
 @pytest.mark.parametrize(
@@ -617,7 +587,7 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     ]
     expected_template_variables = {"test_str": "str1", "test_int": 2, "test_num": 2.5}
 
-    async def patched_launch_add(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         # Assert template variables are as expected
         if not isinstance(args[4], dict) or args[4] != expected_template_variables:
             raise Exception(args)

@@ -2,13 +2,13 @@ import hashlib
 import json
 import logging
 import os
+import pathlib
 import shlex
 import shutil
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-import pkg_resources
 import yaml
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
@@ -22,13 +22,9 @@ from wandb.sdk.launch.loader import (
     environment_from_config,
     registry_from_config,
 )
+from wandb.util import get_module
 
-from .._project_spec import (
-    EntryPoint,
-    EntrypointDefaults,
-    LaunchProject,
-    fetch_and_validate_project,
-)
+from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
@@ -178,11 +174,6 @@ FROM {accelerator_base_image} as base
 # make non-interactive so build doesn't block on questions
 ENV DEBIAN_FRONTEND=noninteractive
 
-# TODO: once NVIDIA their linux repository keys for all docker images
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$(cat /etc/os-release | grep ^ID= |  cut -d "=" -f2 )$(cat /etc/os-release | grep ^VERSION_ID= |  cut -d "=" -f2 | sed -e 's/[\".]//g' )/$(uname -i)/3bf863cc.pub
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/$(cat /etc/os-release | grep ^ID= |  cut -d "=" -f2 )$(cat /etc/os-release | grep ^VERSION_ID= |  cut -d "=" -f2 | sed -e 's/[\".]//g' )/$(uname -i)/7fa2af80.pub
-RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
-
 # install python
 RUN apt-get update -qq && apt-get install --no-install-recommends -y \
     {python_packages} \
@@ -320,7 +311,6 @@ def get_env_vars_dict(
     _inject_wandb_config_env_vars(
         launch_project.override_config, env_vars, max_env_length
     )
-    # env_vars["WANDB_CONFIG"] = json.dumps(launch_project.override_config)
     artifacts = {}
     # if we're spinning up a launch process from a job
     # we should tell the run to use that artifact
@@ -345,27 +335,56 @@ def get_requirements_section(launch_project: LaunchProject, builder_type: str) -
         buildx_installed = False
     if launch_project.deps_type == "pip":
         requirements_files = []
-        if launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.txt")
-        ):
+        deps_install_line = None
+        assert launch_project.project_dir is not None
+        base_path = pathlib.Path(launch_project.project_dir)
+        # If there is a requirements.txt at root of build context, use that.
+        if (base_path / "requirements.txt").exists():
             requirements_files += ["src/requirements.txt"]
-            pip_install_line = "pip install -r requirements.txt"
-        elif launch_project.project_dir is not None and os.path.exists(
-            os.path.join(launch_project.project_dir, "requirements.frozen.txt")
-        ):
-            # if we have frozen requirements stored, copy those over and have them take precedence
-            requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
-            pip_install_line = (
+            deps_install_line = "pip install -r requirements.txt"
+        # Elif there is pyproject.toml at build context, convert the dependencies
+        # section to a requirements.txt and use that.
+        elif (base_path / "pyproject.toml").exists():
+            tomli = get_module("tomli")
+            if tomli is None:
+                wandb.termwarn(
+                    "pyproject.toml found but tomli could not be loaded. To "
+                    "install dependencies from pyproject.toml please run "
+                    "`pip install tomli` and try again."
+                )
+            else:
+                # First try to read deps from standard pyproject format.
+                with open(base_path / "pyproject.toml", "rb") as f:
+                    contents = tomli.load(f)
+                project_deps = [
+                    str(d) for d in contents.get("project", {}).get("dependencies", [])
+                ]
+                if project_deps:
+                    with open(base_path / "requirements.txt", "w") as f:
+                        f.write("\n".join(project_deps))
+                    requirements_files += ["src/requirements.txt"]
+                    deps_install_line = "pip install -r requirements.txt"
+        # Else use frozen requirements from wandb run.
+        if not deps_install_line and (base_path / "requirements.frozen.txt").exists():
+            requirements_files += [
+                "src/requirements.frozen.txt",
+                "_wandb_bootstrap.py",
+            ]
+            deps_install_line = (
                 _parse_existing_requirements(launch_project)
                 + "python _wandb_bootstrap.py"
             )
+
+        if not deps_install_line:
+            raise LaunchError(f"No dependency sources found for {launch_project}")
+
         if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
 
         requirements_line = PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
             requirements_files=" ".join(requirements_files),
-            pip_install=pip_install_line,
+            pip_install=deps_install_line,
         )
     elif launch_project.deps_type == "conda":
         if buildx_installed:
@@ -451,13 +470,9 @@ def generate_dockerfile(
     return dockerfile_contents
 
 
-def construct_gcp_registry_uri(
-    gcp_repo: str, gcp_project: str, gcp_registry: str
-) -> str:
-    return "/".join([gcp_registry, gcp_project, gcp_repo])
-
-
 def _parse_existing_requirements(launch_project: LaunchProject) -> str:
+    import pkg_resources
+
     requirements_line = ""
     assert launch_project.project_dir is not None
     base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
@@ -511,6 +526,12 @@ def _create_docker_build_ctx(
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
             )
+            # TODO: remove this once we make things more explicit for users
+            if entrypoint_dir:
+                new_path = os.path.basename(entrypoint.name)
+                entrypoint = launch_project.get_single_entry_point()
+                if entrypoint is not None:
+                    entrypoint.update_entrypoint_path(new_path)
             return directory
 
     dst_path = os.path.join(directory, "src")
@@ -618,7 +639,7 @@ async def build_image_from_project(
     if not builder:
         raise LaunchError("Unable to build image. No builder found.")
 
-    launch_project = fetch_and_validate_project(launch_project, api)
+    launch_project.fetch_and_validate_project()
 
     entry_point: EntryPoint = launch_project.get_single_entry_point() or EntryPoint(
         name=EntrypointDefaults.PYTHON[-1],
