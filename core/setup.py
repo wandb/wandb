@@ -19,7 +19,7 @@ PACKAGE = "wandb_core"
 
 
 class CustomBuildPy(build_py):
-    """Custom step to copy pre-built binary artifacts into bin/."""
+    """Custom step to copy pre-built binary artifacts into the package."""
 
     def run(self):
         pkgdir = pathlib.Path(__file__).parent / PACKAGE
