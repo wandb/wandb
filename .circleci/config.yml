@@ -702,7 +702,6 @@ jobs:
         type: string
         default: "9015"
     executor: << parameters.executor >>
-    # working_directory: /mnt/ramdisk
     environment:
       SHARD: << parameters.tests >>
       WANDB_TEST_SERVER_URL2: << parameters.server_url2 >>
@@ -726,10 +725,10 @@ jobs:
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             tox run -v \
-              -e importer-<<parameters.shard>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
+              -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
               -- \
-              tests/pytest_tests/system_tests/test_importers/test_<<matrix.shard>>/ \
-              tests/pytest_tests/unit_tests/test_importers/test_<<matrix.shard>>_utils.py/
+              tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/ \
+              tests/pytest_tests/unit_tests/test_importers/test_<<parameters.tests>>_utils.py/
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
 
@@ -1769,8 +1768,8 @@ workflows:
 
           executor:
             name: local-testcontainer-importers
-            python_version_major: << parameters.python_version_major >>
-            python_version_minor: << parameters.python_version_minor >>
+            python_version_major: << matrix.python_version_major >>
+            python_version_minor: << matrix.python_version_minor >>
 
       #
       # Functional tests with yea on Linux
