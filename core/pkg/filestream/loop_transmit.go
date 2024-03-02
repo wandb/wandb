@@ -1,13 +1,11 @@
 package filestream
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 
 	"github.com/segmentio/encoding/json"
-
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/api"
 )
 
 // FsTransmitData is serialized and sent to a W&B server
@@ -51,17 +49,20 @@ func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
 func (fs *FileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json marshal error", err)
+		fs.logger.CaptureFatalAndPanic("filestream: json marshal error", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
-	buffer := bytes.NewBuffer(jsonData)
-	req, err := retryablehttp.NewRequest(http.MethodPost, fs.path, buffer)
-	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: error creating HTTP request", err)
+	req := &api.Request{
+		Method: http.MethodPost,
+		Path:   fs.path,
+		Body:   jsonData,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := fs.httpClient.Do(req)
+
+	resp, err := fs.apiClient.Send(req)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("filestream: error making HTTP request", err)
 	}

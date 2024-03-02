@@ -37,7 +37,6 @@ fe_name_map_reversed = {v: k for k, v in fe_name_map.items()}
 
 
 def expr_to_filters(expr: str) -> Filters:
-    print(f"expr: {expr=}")
     if not expr:
         filters = []
     else:
