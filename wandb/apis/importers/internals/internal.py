@@ -42,32 +42,6 @@ else:
     console_handler.setFormatter(formatter)
 
 logger.addHandler(console_handler)
-logger.addHandler(console_handler)
-logger.addHandler(console_handler)
-
-if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
-    from rich.logging import RichHandler
-
-    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
-    logger.addHandler(console_handler)
-
-if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
-    from rich.logging import RichHandler
-
-    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
-    logger.addHandler(console_handler)
-logger.addHandler(console_handler)
-
-if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
-    from rich.logging import RichHandler
-
-    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
-    logger.addHandler(console_handler)
-
-if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
-    from rich.logging import RichHandler
-
-    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
 
 
 exp_retry = retry(
