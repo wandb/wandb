@@ -23,7 +23,6 @@ from wandb_gql import gql
 import wandb
 import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
-from wandb.apis.public.artifacts import ArtifactType
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
@@ -142,7 +141,6 @@ class WandbRun:
 
     def summary(self) -> Dict[str, float]:
         s = self.run.summary
-        s = self._modify_table_artifact_paths(s)
         return s
 
     def metrics(self) -> Iterable[Dict[str, float]]:
@@ -159,7 +157,6 @@ class WandbRun:
 
         for row in rows:
             row = remove_keys_with_none_values(row)
-            row = self._modify_table_artifact_paths(row)
             yield row
 
     def run_group(self) -> Optional[str]:
@@ -305,11 +302,9 @@ class WandbRun:
         dfs = [
             pl.read_parquet(p) for path in paths for p in Path(path).glob("*.parquet")
         ]
-        df = _merge_dfs(dfs).sort("_step")
-        if "_step" in df:
+        if "_step" in (df := _merge_dfs(dfs)):
             df = df.with_columns(pl.col("_step").cast(pl.Int64))
-        rows = df.iter_rows(named=True)
-        yield from rows
+        yield from df.iter_rows(named=True)
 
     def _get_parquet_history_paths(self) -> Iterable[str]:
         if self._parquet_history_paths is None:
@@ -326,38 +321,6 @@ class WandbRun:
             self._parquet_history_paths = paths
 
         yield from self._parquet_history_paths
-
-    def _modify_table_artifact_paths(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        # Modify artifact paths because they are different between systems
-        table_keys = []
-        for k, v in row.items():
-            if isinstance(v, (dict)) and v.get("_type") == "table-file":
-                table_keys.append(k)
-
-        for table_key in table_keys:
-            obj = row[table_key]["artifact_path"]
-            obj_name = obj.split("/")[-1]
-
-            new_table_key = table_key.replace("/", "")
-            art_path = f"{self.entity()}/{self.project()}/run-{self.run_id()}-{new_table_key}:latest"
-
-            try:
-                art = self.dst_api.artifact(art_path, type="run_table")
-            except Exception as e:
-                # Not the end of the world if we can't get the run table, so continue
-                logger.error(f"Error getting run table artifact: {art_path=}, {e=}")
-                continue
-
-            url = art.get_entry(obj_name).ref_url()
-            base, name = url.rsplit("/", 1)
-            latest_art_path = f"{base}:latest/{name}"
-
-            # replace the old url which points to an artifact on the old system
-            # with a new url which points to an artifact on the new system.
-            row[table_key]["artifact_path"] = url
-            row[table_key]["_latest_artifact_path"] = latest_art_path
-
-        return row
 
     def _find_in_files(self, name: str) -> Optional[str]:
         if files := self.files():
@@ -663,13 +626,6 @@ class WandbImporter:
         name = src_art.name
 
         return self.dst_api.artifact(f"{entity}/{project}/{name}")
-
-    def _get_src_artifacts(self, entity: str, project: str) -> Iterable[Artifact]:
-        for t in self.src_api.artifact_types(f"{entity}/{project}"):
-            t: ArtifactType
-            for c in t.collections():
-                c: ArtifactCollection
-                yield from c.artifacts()
 
     def _get_run_problems(
         self, src_run: Run, dst_run: Run, force_retry: bool = False
