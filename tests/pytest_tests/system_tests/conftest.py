@@ -615,8 +615,14 @@ def pytest_configure(config):
     if config.getoption("--wandb-second-server"):
         # In CI, we use a docker name and the same ports
         # Locally, we use localhost and different port mappings
+        print(">>>>> Inside second server")
+        print(f"{os.getenv('CI')=}")
+        print(f"{os.getenv("WANDB_TEST_SERVER_URL2")=}")
+
         default_server_url2 = (
-            "http://localhost-wandb-2" if os.getenv("CI") else DEFAULT_SERVER_URL
+            os.getenv("WANDB_TEST_SERVER_URL2")
+            if os.getenv("CI")
+            else DEFAULT_SERVER_URL
         )
         local_base_port2 = LOCAL_BASE_PORT if os.getenv("CI") else "9180"
         service_api_port2 = SERVICES_API_PORT if os.getenv("CI") else "9183"
