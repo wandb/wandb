@@ -360,7 +360,7 @@ class WandbRun:
                 logger.error(f"Error getting run table artifact: {art_path=}, {e=}")
                 continue
 
-            url = art.get_path(obj_name).ref_url()
+            url = art.get_entry(obj_name).ref_url()
             base, name = url.rsplit("/", 1)
             latest_art_path = f"{base}:latest/{name}"
 
