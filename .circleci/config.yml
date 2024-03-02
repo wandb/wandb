@@ -494,7 +494,7 @@ jobs:
       with_core: { type: boolean }
       tests:
         type: enum
-        enum: [sdk, notebooks, importers, other]
+        enum: [sdk, notebooks, other]
 
     executor: <<parameters.executor>>
 
