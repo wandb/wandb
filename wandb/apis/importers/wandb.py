@@ -49,7 +49,19 @@ ART_DUMMY_PLACEHOLDER_TYPE = "__temp__"
 SRC_ART_PATH = "./artifacts/src"
 DST_ART_PATH = "./artifacts/dst"
 
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+logger.addHandler(console_handler)
+
+if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
+    from rich.logging import RichHandler
+
+    logger.addHandler(RichHandler(rich_tracebacks=True, tracebacks_show_locals=True))
 
 
 @dataclass
@@ -353,7 +365,7 @@ class WandbRun:
 
 
 class WandbImporter:
-    """Transfers runs, reports and artifact sequences between W&B instances."""
+    """Transfers runs, reports, and artifact sequences between W&B instances."""
 
     def __init__(
         self,

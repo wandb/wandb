@@ -296,50 +296,6 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
-  start_local_testcontainer:
-    parameters:
-      server_url:
-        description: "SERVER_URL"
-        type: string
-        default: "http://localhost"
-      local_base_port:
-        description: "LOCAL_BASE_PORT"
-        type: string
-        default: "8080"
-      services_api_port:
-        description: "SERVICES_API_PORT"
-        type: string
-        default: "8083"
-      fixture_service_port:
-        description: "FIXTURE_SERVICE_PORT"
-        type: string
-        default: "9015"
-      container_name:
-        description: DEFAULT_SERVER_CONTAINER_NAME
-        type: string
-        default: "wandb-local-testcontainer"
-      volume_name:
-        description: DEFAULT_SERVER_VOLUME
-        type: string
-        default: "wandb-local-testcontainer-vol"
-    steps:
-      - run:
-          name: Start << parameters.container_name >>
-          command: |
-            docker run -d --pull always --rm \
-              -v << parameters.volume_name >>:/vol \
-              -p << parameters.local_base_port >>:8080 \
-              -p << parameters.services_api_port >>:8083 \
-              -p << parameters.fixture_service_port >>:9015 \
-              -e CI=1 \
-              -e WANDB_ENABLE_TEST_CONTAINER=true \
-              --name << parameters.container_name >> \
-              --platform linux/amd64 \
-              << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
-            # Wait for local-testcontainer to be ready
-            while ! curl http://localhost:<< parameters.local_base_port >>/healthz; do sleep 1; done
-            echo "Started local test container with local_base_port:<< parameters.local_base_port >>, services_api_port:<< parameters.services_api_port >>, fixture_service_port:<< parameters.fixture_service_port >>"
-
 jobs:
   regression:
     parameters:
@@ -747,7 +703,6 @@ jobs:
         name: << parameters.server_name2 >>
 
     resource_class: xlarge
-    # working_directory: ~/project
     working_directory: /mnt/ramdisk
     environment:
       SHARD: << parameters.shard >>
@@ -764,8 +719,6 @@ jobs:
       - run:
           name: Install Python dependencies
           command: |
-            # pyenv install << parameters.python_version_major >>.<< parameters.python_version_minor >>
-            # pyenv local << parameters.python_version_major >>.<< parameters.python_version_minor >>
             pip install -U tox nox pip
           no_output_timeout: 5m
       - run:
