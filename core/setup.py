@@ -18,20 +18,6 @@ CORE_VERSION = "0.17.0b9"
 PACKAGE = "wandb_core"
 
 
-# TODO: Remove?
-# class WrapBdistWheel(bdist_wheel):
-#     def get_tag(self):
-#         # Use the default implementation to get python and abi tags
-#         python, abi = bdist_wheel.get_tag(self)[:2]
-#         # Use the wheel package function to determine platform tag
-#         plat_name = get_platform(self.bdist_dir)
-#         # todo: add MACOSX_DEPLOYMENT_TARGET to support older macs
-#         return python, abi, plat_name
-
-#     def run(self):
-#         super().run()
-
-
 class CustomBuildPy(build_py):
     """Custom step to copy pre-built binary artifacts into bin/."""
 
@@ -94,4 +80,13 @@ if __name__ == "__main__":
         license="MIT license",
         python_requires=">=3.6",
         cmdclass={"build_py": CustomBuildPy},
+        # setuptools tries to detect whether the wheel is pure Python or has
+        # native code based on whether there are "extension modules". We don't
+        # provide extension modules, but since we include native binaries, we
+        # must trick setuptools into producing a platform wheel.
+        #
+        # It's not clear what the proper way of doing this is.
+        #
+        # https://stackoverflow.com/a/64921892/2640146
+        has_ext_modules=lambda: True,
     )
