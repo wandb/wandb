@@ -2309,8 +2309,7 @@ class Report(Base):
     description: str = ""
     blocks: LList[BlockTypes] = Field(default_factory=list)
 
-    id: str = Field(default_factory=lambda: "", init=False, repr=False)
-
+    id: str = Field(default_factory=lambda: "", init=False, repr=False, kw_only=True)
     _discussion_threads: list = Field(default_factory=list, init=False, repr=False)
     _ref: dict = Field(default_factory=dict, init=False, repr=False)
     _panel_settings: dict = Field(default_factory=dict, init=False, repr=False)
@@ -2360,20 +2359,22 @@ class Report(Base):
         if blocks[-1] == internal.Paragraph():
             blocks = blocks[:-1]
 
-        return cls(
+        obj = cls(
             title=model.display_name,
             description=model.description,
             entity=model.project.entity_name,
             project=model.project.name,
-            # id=model.id,
             blocks=[_lookup(b) for b in blocks],
-            # _discussion_threads=model.spec.discussion_threads,
-            # _panel_settings=model.spec.panel_settings,
-            # _ref=model.spec.ref,
-            # _authors=model.spec.authors,
-            # _created_at=model.created_at,
-            # _updated_at=model.updated_at,
         )
+        obj.id = model.id
+        obj._discussion_threads = model.spec.discussion_threads
+        obj._panel_settings = model.spec.panel_settings
+        obj._ref = model.spec.ref
+        obj._authors = model.spec.authors
+        obj._created_at = model.created_at
+        obj._updated_at = model.updated_at
+
+        return obj
 
     @property
     def url(self):

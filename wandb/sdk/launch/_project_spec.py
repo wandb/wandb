@@ -173,7 +173,11 @@ class LaunchProject:
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-        self.aux_dir = tempfile.mkdtemp()
+    def __repr__(self) -> str:
+        """String representation of LaunchProject."""
+        if self.source == LaunchSource.JOB:
+            return f"{self.job}"
+        return f"{self.uri}"
 
     @classmethod
     def from_spec(cls, launch_spec: Dict[str, Any], api: Api) -> "LaunchProject":
@@ -563,6 +567,11 @@ class EntryPoint:
         if user_parameters:
             return ret + user_parameters
         return ret
+
+    def update_entrypoint_path(self, new_path: str) -> None:
+        """Updates the entrypoint path to a new path."""
+        if len(self.command) == 2 and self.command[0] in ["python", "bash"]:
+            self.command[1] = new_path
 
 
 def get_entry_point_command(
