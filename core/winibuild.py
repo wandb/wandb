@@ -1,6 +1,5 @@
 """Builds wandb-core."""
 
-import os
 import pathlib
 from typing import Mapping
 
