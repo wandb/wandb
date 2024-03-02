@@ -108,13 +108,9 @@ class RecordMaker:
         yield self._make_run_record()
         yield self._make_telem_record()
 
-        has_artifacts = config.log_artifacts or config.use_artifacts
+        include_artifacts = config.log_artifacts or config.use_artifacts
         yield self._make_files_record(
-            config.metadata,
-            has_artifacts,
-            config.files,
-            config.media,
-            config.code,
+            include_artifacts, config.files, config.media, config.code
         )
 
         if config.use_artifacts:
@@ -213,17 +209,17 @@ class RecordMaker:
             rec = self.interface._make_record(history=history)
             yield rec
 
-    def _make_files_record(self, metadata, artifacts, files, media, code) -> pb.Record:
-        files = self.run.files()
+    def _make_files_record(
+        self, artifacts: bool, files: bool, media: bool, code: bool
+    ) -> pb.Record:
+        run_files = self.run.files()
         metadata_fname = f"{self.run_dir}/files/wandb-metadata.json"
-        if files is None:
+        if not files or run_files is None:
+            # We'll always need a metadata file even if there are no other files to upload
             metadata_fname = self._make_metadata_file()
-            files = [(metadata_fname, "end")]
-
+            run_files = [(metadata_fname, "end")]
         files_record = pb.FilesRecord()
-        for path, policy in files:
-            if not metadata and path == metadata_fname:
-                continue
+        for path, policy in run_files:
             if not artifacts and path.startswith("artifact/"):
                 continue
             if not media and path.startswith("media/"):
@@ -235,7 +231,6 @@ class RecordMaker:
             if "media" in path:
                 p = Path(path)
                 path = str(p.relative_to(f"{self.run_dir}/files"))
-
             f = files_record.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)
@@ -279,6 +274,8 @@ class RecordMaker:
 
     def _make_metadata_file(self) -> str:
         missing_text = "This data was not captured"
+        files_dir = f"{self.run_dir}/files"
+        os.makedirs(files_dir, exist_ok=True)
 
         d = {}
         d["os"] = coalesce(self.run.os_version(), missing_text)
@@ -302,7 +299,7 @@ class RecordMaker:
         if mem_used is not None:
             d["memory"] = json.dumps({"total": self.run.memory_used()})
 
-        fname = f"{self.run_dir}/files/wandb-metadata.json"
+        fname = f"{files_dir}/wandb-metadata.json"
         with open(fname, "w") as f:
             f.write(json.dumps(d))
         return fname

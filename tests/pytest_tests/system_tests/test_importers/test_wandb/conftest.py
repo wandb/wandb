@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import string
@@ -172,6 +173,9 @@ def server_src(user):
         art2 = make_artifact("used_art")
         run.use_artifact(art2)
         run.finish()
+
+        # log to terminal
+        logging.info("Example log line")
 
         # TODO: We should be testing for gaps in artifact sequences (e.g. if an artifact was deleted).
         # In manual tests it does work, but it seems to misbehave in the testcontainer, so commenting
