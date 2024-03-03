@@ -616,6 +616,7 @@ def pytest_configure(config):
         # In CI, we use a docker name and the same ports
         # Locally, we use localhost and different port mappings
         print(">>>>> Inside second server")
+        print(f"{os.environ=}")
         print(f"{os.getenv('CI')=}")
         print(f"{os.getenv('WANDB_TEST_SERVER_URL2')=}")
 

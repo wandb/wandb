@@ -698,6 +698,9 @@ jobs:
           command: pip install -U tox nox pip
           no_output_timeout: 5m
       - run:
+          name: Print Environment Variables
+          command: env
+      - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
