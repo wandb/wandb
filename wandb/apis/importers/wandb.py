@@ -429,7 +429,6 @@ class WandbImporter:
             internal.send_run(
                 run,
                 extra_arts=history_arts,
-                extra_used_arts=history_arts,
                 overrides=namespace.send_manager_overrides,
                 settings_override=settings_override,
                 config=config,
