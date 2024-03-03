@@ -254,6 +254,23 @@ class LaunchAgent:
             self._wandb_run = None
 
     @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def entity(self) -> str:
+        return self._entity
+
+    @property
+    def project(self) -> str:
+        return self._project
+
+    @property
+    def job_ids(self) -> List[Union[int, str]]:
+        """Returns a list of keys running job ids for the agent."""
+        return list(self._jobs.keys())
+
+    @property
     def thread_ids(self) -> List[int]:
         """Returns a list of keys running thread ids for the agent."""
         with self._jobs_lock:

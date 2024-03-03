@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
 
@@ -38,6 +38,17 @@ class Api:
         if self._api is None:
             self._api = InternalApi(*self._api_args, **self._api_kwargs)
         return self._api
+
+    @property
+    def auth(self):
+        return self.api.auth
+
+    @property
+    def has_service_account(self):
+        return self.api.has_service_account
+
+    def fetch_token(self, subject: str, expires_in: Optional[int] = None):
+        return self.api.fetch_token(subject, expires_in=expires_in)
 
     @property
     def api_key(self):

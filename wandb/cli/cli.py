@@ -18,6 +18,7 @@ import time
 import traceback
 from functools import wraps
 from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlparse
 
 import click
 import yaml
@@ -217,12 +218,15 @@ def projects(entity, display=True):
 @click.option("--cloud", is_flag=True, help="Login to the cloud instead of local")
 @click.option("--host", default=None, help="Login to a specific instance of W&B")
 @click.option(
+    "--service", default=False, is_flag=True, help="Login as a service account"
+)
+@click.option(
     "--relogin", default=None, is_flag=True, help="Force relogin if already logged in."
 )
 @click.option("--anonymously", default=False, is_flag=True, help="Log in anonymously")
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login(key, host, cloud, service, relogin, anonymously, verify, no_offline=False):
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -234,6 +238,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
     login_settings = dict(
         _cli_only_mode=True,
+        _service_account_mode=service,
         _disable_viewer=relogin and not verify,
         anonymous=anon_mode,
     )
@@ -1677,7 +1682,6 @@ def launch(
     "--url",
     "-u",
     default=None,
-    hidden=True,
     help="a wandb client registration URL, this is generated in the UI",
 )
 @display_error
@@ -1695,9 +1699,17 @@ def launch_agent(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
     if url is not None:
-        raise LaunchError(
-            "--url is not supported in this version, upgrade with: pip install -u wandb"
-        )
+        login_settings = dict(_cli_only_mode=True, _service_account_mode=True)
+        parsed = urlparse(url)
+        host = f"{parsed.scheme}://{parsed.hostname}"
+        login_settings["base_url"] = host
+        qs = parse_qs(parsed.query)
+        # TODO: support other settings
+        queues = qs.get("q", [])
+        entity = parsed.username
+        token = parsed.password
+        wandb.setup(settings=login_settings)
+        wandb.login(key=token, host=host, force=True, relogin=True)
 
     import wandb.sdk.launch._launch as _launch
 

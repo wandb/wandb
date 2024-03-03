@@ -23,6 +23,7 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis import public
+from wandb.apis.auth import OIDCAuth
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -216,7 +217,17 @@ class Api:
             inserted
             }
         }
-    """
+        """
+    )
+
+    CREATE_CLIENT = gql(
+        """
+    mutation CreateClient($token: String!, $jwk: JSONString!) {
+        createClient(input: {token: $token, JWK: $jwk}) {
+            clientId
+        }
+    }
+        """
     )
 
     def __init__(
@@ -245,9 +256,8 @@ class Api:
         self._reports = {}
         self._default_entity = None
         self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
-        auth = None
         if not _thread_local_api_settings.cookies:
-            auth = ("api", self.api_key)
+            pass
         proxies = self.settings.get("_proxies") or json.loads(
             os.environ.get("WANDB__PROXIES", "{}")
         )
@@ -262,13 +272,25 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
-                auth=auth,
+                auth=self.auth,
                 url="%s/graphql" % self.settings["base_url"],
                 cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
         )
         self._client = RetryingClient(self._base_client)
+
+    @property
+    def auth(self):
+        if os.getenv(env.ACCESS_TOKEN):
+            return OIDCAuth(
+                "%s/oidc/token" % self.settings["base_url"],
+                os.environ[env.ACCESS_TOKEN],
+            )
+        else:
+            if _thread_local_api_settings.cookies:
+                return None
+            return ("api", self.api_key)
 
     def create_project(self, name: str, entity: str):
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
@@ -300,6 +322,7 @@ class Api:
         self,
         name: str,
         type: "public.RunQueueResourceType",
+        access: Optional["public.RunQueueAccessType"] = None,
         entity: Optional[str] = None,
         prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
@@ -310,6 +333,7 @@ class Api:
         Arguments:
             name: (str) Name of the queue to create
             type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
+            access: (str) Access level for the queue. Either "project" or "user".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
@@ -346,6 +370,10 @@ class Api:
             raise ValueError("name must be non-empty")
         if len(name) > 64:
             raise ValueError("name must be less than 64 characters")
+
+        access = (access or "project").upper()
+        if access not in ["PROJECT", "USER"]:
+            raise ValueError("access must be one of 'project' or 'user'")
 
         if type not in [
             "local-container",
@@ -403,7 +431,7 @@ class Api:
             name=name,
             entity=entity,
             prioritization_mode=prioritization_mode,
-            _access="PROJECT",
+            _access=access,
             _default_resource_config_id=config_id,
             _default_resource_config=config,
         )

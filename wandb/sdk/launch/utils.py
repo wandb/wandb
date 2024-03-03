@@ -711,7 +711,7 @@ def check_logged_in(api: Api) -> bool:
     if not res:
         raise LaunchError(
             "Could not connect with current API-key. "
-            "Please relogin using `wandb login --relogin`"
+            "Please relogin using `wandb login --service`"
             " and try again (see `wandb login --help` for more options)"
         )
 

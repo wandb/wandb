@@ -291,6 +291,7 @@ class SettingsData:
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _service_account_mode: bool  # We're logging in as a service account
     _colab: bool
     # _config_dict: Config
     _cuda: str

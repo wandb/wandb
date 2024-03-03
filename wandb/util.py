@@ -52,6 +52,7 @@ from typing import (
 
 import requests
 import yaml
+from requests.auth import AuthBase
 
 import wandb
 import wandb.env
@@ -877,8 +878,11 @@ def no_retry_4xx(e: Exception) -> bool:
     assert e.response is not None
     if not (400 <= e.response.status_code < 500) or e.response.status_code == 429:
         return True
-    body = json.loads(e.response.content)
-    raise UsageError(body["errors"][0]["message"])
+    try:
+        body = json.loads(e.response.content)
+    except ValueError:
+        body = {"error": e.response.content}
+    raise UsageError(body.get("errors", [{"message": body.get("error")}])[0]["message"])
 
 
 def no_retry_auth(e: Any) -> bool:
@@ -1305,19 +1309,9 @@ def guess_data_type(shape: Sequence[int], risky: bool = False) -> Optional[str]:
 
 
 def download_file_from_url(
-    dest_path: str, source_url: str, api_key: Optional[str] = None
+    dest_path: str, source_url: str, auth: Optional[AuthBase | Tuple[str, str]] = None
 ) -> None:
-    auth = None
-    if not _thread_local_api_settings.cookies:
-        auth = ("api", api_key or "")
-    response = requests.get(
-        source_url,
-        auth=auth,
-        headers=_thread_local_api_settings.headers,
-        cookies=_thread_local_api_settings.cookies,
-        stream=True,
-        timeout=5,
-    )
+    response = requests.get(source_url, auth=auth, stream=True, timeout=5)  # type: ignore
     response.raise_for_status()
 
     if os.sep in dest_path:
@@ -1328,6 +1322,7 @@ def download_file_from_url(
 
 
 def download_file_into_memory(source_url: str, api_key: Optional[str] = None) -> bytes:
+    # TODO: fix auth here
     auth = None
     if not _thread_local_api_settings.cookies:
         auth = ("api", api_key or "")

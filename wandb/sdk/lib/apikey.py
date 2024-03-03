@@ -20,6 +20,7 @@ import requests.utils
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
+from wandb.sdk.lib.jwks import JWKS
 from wandb.util import _is_databricks, isatty, prompt_choices
 
 from .wburls import wburls
@@ -119,6 +120,10 @@ def prompt_api_key(  # noqa: C901
         f"{log_string}: Paste an API key from your profile and hit enter, "
         "or press ctrl+c to quit"
     )
+    token_ask = (
+        f"{log_string}: Paste a token from your account and hit enter, "
+        "or press ctrl+c to quit"
+    )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
@@ -145,10 +150,16 @@ def prompt_api_key(  # noqa: C901
                 wandb.termlog(
                     f"Logging into {host}. (Learn how to deploy a W&B server locally: {wburls.get('wandb_server')})"
                 )
-            wandb.termlog(
-                f"You can find your API key in your browser here: {app_url}/authorize"
-            )
-            key = input_callback(api_ask).strip()
+            if settings._service_account_mode:
+                wandb.termlog(
+                    f"You can find your token in your browser here: {app_url}/token"
+                )
+                key = input_callback(token_ask).strip()
+            else:
+                wandb.termlog(
+                    f"You can find your API key in your browser here: {app_url}/authorize"
+                )
+                key = input_callback(api_ask).strip()
         write_key(settings, key, api=api)
         return key  # type: ignore
     elif result == LOGIN_CHOICE_NOTTY:
@@ -231,19 +242,26 @@ def write_key(
     # TODO(jhr): api shouldn't be optional or it shouldn't be passed, clean up callers
     api = api or InternalApi()
 
-    # Normal API keys are 40-character hex strings. On-prem API keys have a
-    # variable-length prefix, a dash, then the 40-char string.
-    _, suffix = key.split("-", 1) if "-" in key else ("", key)
-
-    if len(suffix) != 40:
-        raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
-
-    if anonymous:
-        api.set_setting("anonymous", "true", globally=True, persist=True)
+    if settings._service_account_mode:
+        jwks = JWKS(api.api_url + "/oidc/token")
+        # TODO: better error handling
+        jwks.link(key)
     else:
-        api.clear_setting("anonymous", globally=True, persist=True)
+        # Normal API keys are 40-character hex strings. On-prem API keys have a
+        # variable-length prefix, a dash, then the 40-char string.
+        prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
 
-    write_netrc(settings.base_url, "user", key)
+        if len(suffix) != 40:
+            raise ValueError(
+                "API key must be 40 characters long, yours was %s" % len(key)
+            )
+
+        if anonymous:
+            api.set_setting("anonymous", "true", globally=True, persist=True)
+        else:
+            api.clear_setting("anonymous", globally=True, persist=True)
+
+        write_netrc(settings.base_url, "user", key)
 
 
 def api_key(settings: Optional["Settings"] = None) -> Optional[str]:

@@ -32,11 +32,13 @@ from typing import (
 import click
 import requests
 import yaml
+from requests.auth import AuthBase
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
 import wandb
 from wandb import env, util
+from wandb.apis.auth import OIDCAuth
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
 from wandb.errors import CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -44,6 +46,7 @@ from wandb.old.settings import Settings
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.jwks import JWKS
 
 from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -263,9 +266,6 @@ class Api:
             self._environ.get("WANDB__PROXIES", "{}")
         )
 
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key or "")
         extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
@@ -279,7 +279,7 @@ class Api:
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
-                auth=auth,
+                auth=self.auth,
                 url=f"{self.settings('base_url')}/graphql",
                 cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
@@ -337,6 +337,26 @@ class Api:
         self.server_supports_template_variables: Optional[bool] = None
         self.server_push_to_run_queue_supports_priority: Optional[bool] = None
 
+    @property
+    def auth(self) -> AuthBase | Tuple[str, str]:
+        if _thread_local_api_settings.cookies is not None:
+            return None
+        if os.getenv(env.ACCESS_TOKEN):
+            return OIDCAuth(
+                f"{self.settings('base_url')}/oidc/token", os.environ[env.ACCESS_TOKEN]
+            )
+        else:
+            return ("api", self.api_key or "")
+
+    @property
+    def has_service_account(self) -> bool:
+        # TODO: also check if the current host supports v2 service accounts
+        return JWKS.configured
+
+    def fetch_token(self, subject: str, expires_in: Optional[int] = None) -> str:
+        jwks = JWKS(self.api_url + "/oidc/token")
+        return jwks.fetch_token(subject, expires_in)["access_token"]
+
     def gql(self, *args: Any, **kwargs: Any) -> Any:
         ret = self._retry_gql(
             *args,
@@ -357,7 +377,7 @@ class Api:
 
     def reauth(self) -> None:
         """Ensure the current api key is set in the transport."""
-        self.client.transport.session.auth = ("api", self.api_key or "")
+        self.client.transport.session.auth = self.auth
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
@@ -2592,12 +2612,9 @@ class Api:
             A tuple of the content length and the streaming response
         """
         check_httpclient_logger_handler()
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key or "")
         response = requests.get(
             url,
-            auth=auth,
+            auth=self.auth,
             cookies=_thread_local_api_settings.cookies or {},
             headers=_thread_local_api_settings.headers or {},
             stream=True,
