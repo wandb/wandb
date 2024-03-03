@@ -478,7 +478,7 @@ def pytest_addoption(parser):
     # Spin up a second server (for importer tests)
     parser.addoption(
         "--wandb-second-server",
-        default=True,
+        default=False,
         help="Spin up a second server (for importer tests)",
     )
 
@@ -615,11 +615,6 @@ def pytest_configure(config):
     if config.getoption("--wandb-second-server"):
         # In CI, we use a docker name and the same ports
         # Locally, we use localhost and different port mappings
-        print(">>>>> Inside second server")
-        print(f"{os.environ=}")
-        print(f"{os.getenv('CI')=}")
-        print(f"{os.getenv('WANDB_TEST_SERVER_URL2')=}")
-
         default_server_url2 = (
             os.getenv("WANDB_TEST_SERVER_URL2")
             if os.getenv("CI")
