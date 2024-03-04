@@ -2,6 +2,7 @@ id: 0.sacred.01-regression
 plugin:
   - wandb
 tag:
+  shard: sacred
   skips:
     - platform: win
 depend:
