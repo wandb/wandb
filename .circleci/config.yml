@@ -841,6 +841,14 @@ jobs:
           at: .
       - checkout
       - run:
+          name: Install python 3.9
+          command: |
+            apt-get update
+            apt install -y software-properties-common
+            add-apt-repository ppa:deadsnakes/ppa
+            apt update
+            apt install -y python3.9
+      - run:
           name: Install python dependencies, build r2d
           command: |
             pip3 install tox nox chardet iso8601
@@ -1539,7 +1547,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [12]
+              python_version_minor: [9]
           name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
