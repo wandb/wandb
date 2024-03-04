@@ -158,7 +158,8 @@ class KanikoBuilder(AbstractBuilder):
                     "You must specify a build context store for kaniko builds. "
                     "You can set builder.build-context-store in your agent config "
                     "to a valid s3, gcs, or azure blog storage URI. Or, configure "
-                    "a persistent volume claim through the agent helm chart."
+                    "a persistent volume claim through the agent helm chart: "
+                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent"
                 )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
