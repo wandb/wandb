@@ -106,14 +106,16 @@ jobs:
           #
           # Some downsides:
           #   - We have to download Go manually
-          #   - We hard-code the Go version instead of reading it from go.mod
+          #   - Ugly `uname -m` output remapping
+          #   - Ugly hack to read Go version from go.mod
           #   - We don't get caching
           CIBW_BEFORE_ALL_LINUX: >
             case $(uname -m) in
               aarch64) export DOWNLOAD_GOARCH=arm64;;
               x86_64) export DOWNLOAD_GOARCH=amd64;;
             esac &&
-            curl -L https://golang.org/dl/go1.22.0.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
             export PATH=$PATH:/usr/local/go/bin &&
             pip install -r requirements_tools.txt &&
