@@ -828,12 +828,12 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       codecov_flags:
         type: string
         default: ""
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2024.01.1
       docker_layer_caching: true
     resource_class: large
     steps:
@@ -841,13 +841,21 @@ jobs:
           at: .
       - checkout
       - run:
+          name: Install python 3.9
+          command: |
+            sudo apt-get update
+            sudo apt install -y software-properties-common
+            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo apt update
+            sudo apt install -y python3.9
+      - run:
           name: Install python dependencies, build r2d
           command: |
             pip3 install tox nox chardet iso8601
       - run:
           name: pull base docker images
           command: |
-            docker pull python:3.7-buster
+            docker pull python:3.9-buster
       - run:
           name: Run tests
           command: |
