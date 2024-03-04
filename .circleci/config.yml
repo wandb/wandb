@@ -1539,7 +1539,7 @@ workflows:
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [9]
+              python_version_minor: [12]
           name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
