@@ -833,7 +833,7 @@ jobs:
         type: string
         default: ""
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2024.01.1
       docker_layer_caching: true
     resource_class: large
     steps:
