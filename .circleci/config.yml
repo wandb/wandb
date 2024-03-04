@@ -833,7 +833,7 @@ jobs:
         type: string
         default: ""
     machine:
-      image: ubuntu-2004:2024.01.1
+      image: ubuntu-2004:2023.07.2
       docker_layer_caching: true
     resource_class: large
     steps:
@@ -847,7 +847,7 @@ jobs:
       - run:
           name: pull base docker images
           command: |
-            docker pull python:3.7-buster
+            docker pull python:3.9-buster
       - run:
           name: Run tests
           command: |
