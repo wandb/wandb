@@ -1,5 +1,8 @@
 from typing import Tuple
 
+from wandb.docker import is_docker_installed
+from wandb.sdk.launch.utils import docker_image_exists
+
 from .abstract import AbstractRegistry
 
 
@@ -16,9 +19,10 @@ class AnonynmousRegistry(AbstractRegistry):
         return self.uri
 
     async def check_image_exists(self, image_uri: str) -> bool:
-        raise NotImplementedError(
-            "Anonymous registry does not support checking image existence"
-        )
+        """Check if an image exists in the registry."""
+        if not is_docker_installed():
+            return False
+        return await docker_image_exists(image_uri)
 
     @classmethod
     def from_config(cls, config: dict) -> "AbstractRegistry":
