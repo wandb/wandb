@@ -22,7 +22,7 @@ class AnonynmousRegistry(AbstractRegistry):
         """Check if an image exists in the registry."""
         if not is_docker_installed():
             return False
-        return await docker_image_exists(image_uri)
+        return docker_image_exists(image_uri)
 
     @classmethod
     def from_config(cls, config: dict) -> "AbstractRegistry":
