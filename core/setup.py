@@ -33,8 +33,8 @@ class CustomWheel(bdist_wheel):
     The platform tag cannot be inferred, so we set it manually.
     """
 
-    def initialize_options(self):
-        super().initialize_options()
+    def get_tag(self):
+        python, abi = super().get_tag()[:2]
 
         # We always build wheels for the platform we're running on.
         #
@@ -55,7 +55,9 @@ class CustomWheel(bdist_wheel):
         #
         # The `wheel` package's implementation returns the macOS version with
         # a minor number in older Pythons.
-        self.plat_name = get_platform(self.bdist_dir)
+        plat_name = get_platform(self.bdist_dir)
+
+        return python, abi, plat_name
 
 
 class CustomBuildPy(build_py):
