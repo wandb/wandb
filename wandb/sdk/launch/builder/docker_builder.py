@@ -13,6 +13,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchDockerError, LaunchError
+from ..registry.anon import AnonynmousRegistry
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
@@ -100,6 +101,8 @@ class DockerBuilder(AbstractBuilder):
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
+        elif isinstance(self.registry, AnonynmousRegistry):
+            _logger.info(f"{LOG_PREFIX}Anonymous registry, skipping login.")
         else:
             username, password = await self.registry.get_username_password()
             login = event_loop_thread_exec(docker.login)
