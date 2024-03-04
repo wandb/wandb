@@ -52,7 +52,7 @@ parameters:
     default: "1.22.0"
   container_registry:
     type: string
-    default: "gcr.io"
+    default: "us-central1-docker.pkg.dev"
   gcp_cluster_name:
     type: string
     default: "sdk-nightly"
@@ -104,7 +104,7 @@ executors:
       python_version_minor: { type: integer }
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-      - image: us-central1-docker.pkg.dev/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
+      - image: <<pipeline.parameters.container_registry>>/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -465,7 +465,6 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
-
       - run:
           name: Install Python dependencies
           command: pip install -U tox nox pip
@@ -829,12 +828,12 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       codecov_flags:
         type: string
         default: ""
     machine:
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2004:2024.01.1
       docker_layer_caching: true
     resource_class: large
     steps:
@@ -842,13 +841,21 @@ jobs:
           at: .
       - checkout
       - run:
+          name: Install python 3.9
+          command: |
+            sudo apt-get update
+            sudo apt install -y software-properties-common
+            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo apt update
+            sudo apt install -y python3.9
+      - run:
           name: Install python dependencies, build r2d
           command: |
             pip3 install tox nox chardet iso8601
       - run:
           name: pull base docker images
           command: |
-            docker pull python:3.7-buster
+            docker pull python:3.9-buster
       - run:
           name: Run tests
           command: |
@@ -1333,7 +1340,6 @@ workflows:
           codecov_flags: func
 
           notify_on_failure: true
-
 
       - tox-base:
           name: "\
