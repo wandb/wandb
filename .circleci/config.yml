@@ -843,11 +843,11 @@ jobs:
       - run:
           name: Install python 3.9
           command: |
-            apt-get update
-            apt install -y software-properties-common
-            add-apt-repository ppa:deadsnakes/ppa
-            apt update
-            apt install -y python3.9
+            sudo apt-get update
+            sudo apt install -y software-properties-common
+            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo apt update
+            sudo apt install -y python3.9
       - run:
           name: Install python dependencies, build r2d
           command: |
