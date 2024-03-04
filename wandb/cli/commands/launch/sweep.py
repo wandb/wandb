@@ -50,7 +50,7 @@ from wandb.sdk.launch.sweeps.scheduler import Scheduler
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
-def launch_sweep(
+def launch_sweep(  # noqa: C901
     ctx,
     project,
     entity,

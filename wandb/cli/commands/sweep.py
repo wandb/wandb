@@ -102,7 +102,7 @@ def agent(ctx, project, entity, count, sweep_id):
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
 @display_error
-def sweep(
+def sweep(  # noqa: C901
     ctx,
     project,
     entity,

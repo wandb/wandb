@@ -168,7 +168,7 @@ logger = logging.getLogger(__name__)
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
 @display_error
-def launch(
+def launch(  # noqa: C901
     uri,
     job,
     entry_point,

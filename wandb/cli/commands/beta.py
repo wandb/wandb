@@ -68,7 +68,7 @@ def beta():
     "--dry-run", is_flag=True, help="Perform a dry run without uploading anything."
 )
 @display_error
-def sync_beta(
+def sync_beta(  # noqa: C901
     ctx,
     wandb_dir=None,
     run_id: Optional[str] = None,

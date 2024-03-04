@@ -80,7 +80,7 @@ from wandb.sync import SyncManager, get_run_from_path, get_runs
 @click.option("--append", is_flag=True, default=False, help="Append run")
 @click.option("--skip-console", is_flag=True, default=False, help="Skip console logs")
 @display_error
-def sync(
+def sync(  # noqa: C901
     ctx,
     path=None,
     view=None,

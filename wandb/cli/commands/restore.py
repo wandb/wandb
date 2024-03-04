@@ -33,7 +33,7 @@ from wandb.sdk.lib import filesystem
     "--entity", "-e", envvar=env.ENTITY, help="The entity to scope the listing to."
 )
 @display_error
-def restore(ctx, run, no_git, branch, project, entity):
+def restore(ctx, run, no_git, branch, project, entity):  # noqa: C901
     from wandb.old.core import wandb_dir
 
     api = _get_cling_api()
