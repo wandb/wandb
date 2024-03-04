@@ -468,7 +468,8 @@ jobs:
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/test_launch/ \
-                    tests/pytest_tests/unit_tests/test_reports/
+                    tests/pytest_tests/unit_tests/test_reports/ \
+                    tests/pytest_tests/unit_tests/test_importers/
 
       - codecov/upload: { flags: unit, validate: false }
 
@@ -703,8 +704,7 @@ jobs:
             tox run -v \
               -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
               -- \
-              tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/ \
-              tests/pytest_tests/unit_tests/test_importers/test_<<parameters.tests>>_utils.py/
+              tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
 
