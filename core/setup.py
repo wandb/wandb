@@ -6,6 +6,7 @@ from distutils import log
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
+from wheel.bdist_wheel import bdist_wheel
 
 # Package naming
 # --------------
@@ -16,6 +17,29 @@ from setuptools.command.build_py import build_py
 CORE_VERSION = "0.17.0b9"
 
 PACKAGE = "wandb_core"
+
+
+class CustomWheel(bdist_wheel):
+    """Overrides the wheel tag with the proper information.
+
+    wandb-core is an extremely simple wheel that doesn't depend on a particular
+    Python implementation or a Python ABI but includes platform-specific
+    binaries.
+
+    Python wheel names describe the environments they can run in using platform
+    compatibility tags:
+    https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/
+
+    The platform tag cannot be inferred, so we set it manually.
+    """
+
+    def initialize_options(self):
+        super().initialize_options()
+
+        # We always build wheels for the platform we're running on.
+        #
+        # See https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/#platform-tag
+        self.plat_name = sysconfig.get_platform().replace("-", "_")
 
 
 class CustomBuildPy(build_py):
@@ -79,14 +103,8 @@ if __name__ == "__main__":
         include_package_data=True,
         license="MIT license",
         python_requires=">=3.6",
-        cmdclass={"build_py": CustomBuildPy},
-        # setuptools tries to detect whether the wheel is pure Python or has
-        # native code based on whether there are "extension modules". We don't
-        # provide extension modules, but since we include native binaries, we
-        # must trick setuptools into producing a platform wheel.
-        #
-        # It's not clear what the proper way of doing this is.
-        #
-        # https://stackoverflow.com/a/64921892/2640146
-        has_ext_modules=lambda: True,
+        cmdclass={
+            "bdist_wheel": CustomWheel,
+            "build_py": CustomBuildPy,
+        },
     )
