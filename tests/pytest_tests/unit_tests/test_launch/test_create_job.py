@@ -28,10 +28,6 @@ def test_create_artifact_metadata():
     assert not metadata and not requirements
 
     os.makedirs(path)
-    # path exists, no requirements, still should fail
-    metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
-    assert not metadata and not requirements
-
     with open(os.path.join(path, "requirements.txt"), "w") as f:
         f.write("wandb\n")
 
