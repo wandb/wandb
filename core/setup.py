@@ -6,7 +6,7 @@ from distutils import log
 
 from setuptools import setup
 from setuptools.command.build_py import build_py
-from wheel.bdist_wheel import bdist_wheel
+from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # Package naming
 # --------------
@@ -33,17 +33,10 @@ class CustomWheel(bdist_wheel):
     The platform tag cannot be inferred, so we set it manually.
     """
 
-    # Due to historical changes in macOS versioning, sysconfig.get_platform()
-    # doesn't return a minor macOS version for new macOS-es until Python 3.11.
-    # This unfortunately confuses pip, resulting in errors such as
+    # Why override get_tag() instead of initialize_options()?
     #
-    #   ERROR: wandb_core-0.17.0b9-py3-none-macosx_14_arm64.whl is not a supported wheel on this platform.
-    #
-    # See https://github.com/python/cpython/issues/102362.
-    #
-    # For unknown and probably maddening reasons, overriding the platform tag
-    # in get_tag() works around this problem, but setting self.plat_name in
-    # initialize_options() (arguably the proper way) does not.
+    # Setting self.plat_name in initialize_options() would be the proper way to
+    # do this, but see the macOS issue described below.
     def get_tag(self):
         python, abi = super().get_tag()[:2]
 
@@ -54,7 +47,21 @@ class CustomWheel(bdist_wheel):
         # For manylinux: https://github.com/pypa/auditwheel upgrades "linux"
         # platform tags to "manylinux" for us. cibuildwheel runs auditwheel
         # in the "repair wheel" step.
-        plat_name = sysconfig.get_platform()
+        #
+        # Ideally we would use `sysconfig.get_platform()` here, but due to
+        # historical changes in macOS versioning, it did not return a minor
+        # version for new macOS-es until Python 3.12. This unfortunately
+        # confuses pip, resulting in errors like
+        #
+        #   ERROR: wandb_core-0.17.0b9-py3-none-macosx_14_arm64.whl is not a supported wheel on this platform.
+        #
+        # See https://github.com/python/cpython/issues/102362.
+        #
+        # For unknown reasons, discovered purely by experimentation, the issue
+        # is resolved by overriding `bdist_wheel.get_tag()` and using the
+        # `wheel` package's `get_platform()` function. Notably, neither sysconfig
+        # in `get_tag()` nor `get_platform()` in `initialize_options()` works.
+        plat_name = get_platform(self.bdist_dir)
 
         return python, abi, plat_name
 
