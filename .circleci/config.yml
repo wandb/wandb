@@ -828,12 +828,12 @@ jobs:
         default: 3
       python_version_minor:
         type: integer
-        default: 7
+        default: 9
       codecov_flags:
         type: string
         default: ""
     machine:
-      image: ubuntu-2004:2023.07.2
+      image: ubuntu-2004:2024.01.1
       docker_layer_caching: true
     resource_class: large
     steps:
