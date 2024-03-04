@@ -39,6 +39,10 @@ class CustomWheel(bdist_wheel):
         # We always build wheels for the platform we're running on.
         #
         # See https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/#platform-tag
+        #
+        # For manylinux: https://github.com/pypa/auditwheel upgrades "linux"
+        # platform tags to "manylinux" for us. cibuildwheel runs auditwheel
+        # in the "repair wheel" step.
         self.plat_name = sysconfig.get_platform().replace("-", "_")
 
 
