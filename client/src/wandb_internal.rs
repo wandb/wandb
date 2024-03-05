@@ -390,6 +390,8 @@ pub struct Settings {
     pub stats_buffer_size: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "162")]
     pub shared: ::core::option::Option<bool>,
+    #[prost(message, optional, tag = "163")]
+    pub code_path_local: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "200")]
     pub proxies: ::core::option::Option<MapStringKeyStringValue>,
 }
