@@ -2,9 +2,7 @@
 import atexit
 import concurrent.futures
 import contextlib
-from distutils.command import upload
 import json
-from multiprocessing import Value
 import multiprocessing.dummy
 import os
 import re
