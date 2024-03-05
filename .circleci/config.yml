@@ -412,7 +412,7 @@ jobs:
       with_core: { type: boolean }
       tests:
         type: enum
-        enum: [sdk, other, importer]
+        enum: [sdk, other]
 
     executor: <<parameters.executor>>
 
@@ -468,22 +468,7 @@ jobs:
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/test_launch/ \
-                    tests/pytest_tests/unit_tests/test_reports/
-
-      - when:
-          condition: { equal: [<<parameters.tests>>, importer] }
-          steps:
-            - run:
-                name: Run tests not owned by SDK
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>importer-wandb-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
+                    tests/pytest_tests/unit_tests/test_reports/ \
                     tests/pytest_tests/unit_tests/test_importers/
 
       - codecov/upload: { flags: unit, validate: false }
@@ -720,7 +705,7 @@ jobs:
                 command: |
                   CI_PYTEST_PARALLEL=<< parameters.xdist >> \
                   tox run -v \
-                    -e importer-system-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
+                    -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
                     -- \
                     tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - when:
@@ -735,7 +720,6 @@ jobs:
                     -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
                     -- \
                     tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
-
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
 
@@ -1672,7 +1656,7 @@ workflows:
               python_version_major: [3]
               python_version_minor: [8, 12]
               with_core: [true, false]
-              tests: [sdk, other, importer]
+              tests: [sdk, other]
 
           executor:
             name: linux-python
