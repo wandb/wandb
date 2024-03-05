@@ -13,7 +13,17 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -755,6 +765,18 @@ class InterfaceBase:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
+
+    def publish_wandb_config_parameters(self, exclude: List[str], include: List[str]):
+        config_parameters = pb.WandbConfigParametersRecord()
+        config_parameters.exclude.extend(exclude)
+        config_parameters.include.extend(include)
+        return self._publish_wandb_config_parameters(config_parameters)
+
+    @abstractmethod
+    def _publish_wandb_config_parameters(
+        self, config_parameters: pb.WandbConfigParametersRecord
+    ) -> None:
+        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

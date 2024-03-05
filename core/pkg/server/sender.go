@@ -258,9 +258,12 @@ func (s *Sender) SendRecord(record *service.Record) {
 }
 
 // sendRecord sends a record
+//
+//gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
+
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Footer:
@@ -296,6 +299,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
+	case *service.Record_WandbConfigParameters:
+		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -1278,4 +1283,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.WandbConfigParametersRecord) {
+	s.jobBuilder.HandleWandbConfigParametersRecord(wandbConfigParameters)
 }

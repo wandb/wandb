@@ -153,11 +153,12 @@ type JobBuilder struct {
 
 	PartialJobSource *PartialJobSource
 
-	Disable         bool
-	settings        *service.Settings
-	RunCodeArtifact *ArtifactInfoForJob
-	aliases         []string
-	isNotebookRun   bool
+	Disable               bool
+	settings              *service.Settings
+	RunCodeArtifact       *ArtifactInfoForJob
+	aliases               []string
+	isNotebookRun         bool
+	wandbConfigParameters *service.WandbConfigParametersRecord
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -463,6 +464,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 	return source, &name, nil
 }
 
+//gocyclo:ignore
 func (j *JobBuilder) Build(
 	input, output map[string]interface{},
 ) (artifact *service.ArtifactRecord, rerr error) {
@@ -541,6 +543,20 @@ func (j *JobBuilder) Build(
 
 	sourceInfo.Runtime = metadata.Python
 
+	if j.wandbConfigParameters != nil {
+		var filtered_input interface{}
+		if j.wandbConfigParameters.Exclude != nil {
+			filtered_input, err = filterOutEndpoints(input, j.wandbConfigParameters.Exclude)
+		}
+		if j.wandbConfigParameters.Include != nil {
+			filtered_input, err = filterInEndpoints(input, j.wandbConfigParameters.Include)
+		}
+		if err != nil {
+			return nil, err
+		}
+		input = filtered_input.(map[string]interface{})
+	}
+
 	if input != nil {
 		sourceInfo.InputTypes = data_types.ResolveTypes(input)
 	}
@@ -553,7 +569,7 @@ func (j *JobBuilder) Build(
 		Project:          j.settings.Project.Value,
 		RunId:            j.settings.RunId.Value,
 		Name:             *name,
-		Metadata:         "",
+		Metadata:         "{}",
 		Type:             "job",
 		Aliases:          j.aliases,
 		Finalize:         true,
@@ -679,7 +695,6 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
 		JobSourceInfo: jobSourceMetadata,
 	}
-
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
@@ -696,4 +711,11 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
+}
+
+func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {
+	if j.wandbConfigParameters != nil {
+		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
+	}
+	j.wandbConfigParameters = wandbConfigParameters
 }

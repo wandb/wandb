@@ -242,6 +242,7 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
+        wandb_config_parameters: Optional[pb.WandbConfigParametersRecord] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -286,6 +287,8 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
+        elif wandb_config_parameters:
+            record.wandb_config_parameters.CopyFrom(wandb_config_parameters)
         else:
             raise Exception("Invalid record")
         return record
@@ -413,6 +416,12 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_alert(self, proto_alert: pb.AlertRecord) -> None:
         rec = self._make_record(alert=proto_alert)
+        self._publish(rec)
+
+    def _publish_wandb_config_parameters(
+        self, wandb_config_parameters: pb.WandbConfigParametersRecord
+    ) -> None:
+        rec = self._make_record(wandb_config_parameters=wandb_config_parameters)
         self._publish(rec)
 
     def _communicate_status(
