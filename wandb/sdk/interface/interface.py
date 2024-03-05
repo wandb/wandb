@@ -778,6 +778,28 @@ class InterfaceBase:
     ) -> None:
         raise NotImplementedError
 
+    def publish_config_file_parameter(
+        self,
+        relpath: str,
+        abspath: str,
+        filename: str,
+        exclude: List[str],
+        include: List[str],
+    ):
+        config_file_parameter = pb.ConfigFileParameterRecord()
+        config_file_parameter.relpath = relpath
+        config_file_parameter.abspath = abspath
+        config_file_parameter.filename = filename
+        config_file_parameter.exclude.extend(exclude)
+        config_file_parameter.include.extend(include)
+        return self._publish_config_file_parameter(config_file_parameter)
+
+    @abstractmethod
+    def _publish_config_file_parameter(
+        self, config_file_parameter: pb.ConfigFileParameterRecord
+    ) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         raise NotImplementedError

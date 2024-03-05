@@ -55,6 +55,7 @@ class Record(google.protobuf.message.Message):
     LINK_ARTIFACT_FIELD_NUMBER: builtins.int
     USE_ARTIFACT_FIELD_NUMBER: builtins.int
     WANDB_CONFIG_PARAMETERS_FIELD_NUMBER: builtins.int
+    CONFIG_FILE_PARAMETER_FIELD_NUMBER: builtins.int
     REQUEST_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
@@ -105,6 +106,8 @@ class Record(google.protobuf.message.Message):
     @property
     def wandb_config_parameters(self) -> global___WandbConfigParametersRecord: ...
     @property
+    def config_file_parameter(self) -> global___ConfigFileParameterRecord: ...
+    @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
     @property
@@ -137,14 +140,15 @@ class Record(google.protobuf.message.Message):
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
         wandb_config_parameters: global___WandbConfigParametersRecord | None = ...,
+        config_file_parameter: global___ConfigFileParameterRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "wandb_config_parameters", b"wandb_config_parameters"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid", "wandb_config_parameters", b"wandb_config_parameters"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "use_artifact", "wandb_config_parameters", "request"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "config_file_parameter", b"config_file_parameter", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "wandb_config_parameters", b"wandb_config_parameters"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "config_file_parameter", b"config_file_parameter", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid", "wandb_config_parameters", b"wandb_config_parameters"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "use_artifact", "wandb_config_parameters", "config_file_parameter", "request"] | None: ...
 
 global___Record = Record
 
@@ -471,6 +475,35 @@ class WandbConfigParametersRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "include", b"include"]) -> None: ...
 
 global___WandbConfigParametersRecord = WandbConfigParametersRecord
+
+@typing_extensions.final
+class ConfigFileParameterRecord(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    RELPATH_FIELD_NUMBER: builtins.int
+    ABSPATH_FIELD_NUMBER: builtins.int
+    FILENAME_FIELD_NUMBER: builtins.int
+    INCLUDE_FIELD_NUMBER: builtins.int
+    EXCLUDE_FIELD_NUMBER: builtins.int
+    relpath: builtins.str
+    abspath: builtins.str
+    filename: builtins.str
+    @property
+    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def __init__(
+        self,
+        *,
+        relpath: builtins.str = ...,
+        abspath: builtins.str = ...,
+        filename: builtins.str = ...,
+        include: collections.abc.Iterable[builtins.str] | None = ...,
+        exclude: collections.abc.Iterable[builtins.str] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["abspath", b"abspath", "exclude", b"exclude", "filename", b"filename", "include", b"include", "relpath", b"relpath"]) -> None: ...
+
+global___ConfigFileParameterRecord = ConfigFileParameterRecord
 
 @typing_extensions.final
 class RunUpdateResult(google.protobuf.message.Message):

@@ -303,6 +303,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendArtifact(record, x.Artifact)
 	case *service.Record_WandbConfigParameters:
 		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
+	case *service.Record_ConfigFileParameter:
+		s.sendConfigFileParameter(record, x.ConfigFileParameter)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -1295,4 +1297,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 
 func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.WandbConfigParametersRecord) {
 	s.jobBuilder.HandleWandbConfigParametersRecord(wandbConfigParameters)
+}
+
+func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.ConfigFileParameterRecord) {
+	s.jobBuilder.HandleConfigFileParameterRecord(configFileParameter)
 }
