@@ -707,6 +707,7 @@ jobs:
                   tox run -v \
                     -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
                     -- \
+                    --wandb-second-server="true" \
                     tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - when:
           condition: { equal: [<<parameters.tests>>, mlflow] }
