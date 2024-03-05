@@ -23,6 +23,7 @@ const (
 	RepoSourceType     SourceType = "repo"
 	ArtifactSourceType SourceType = "artifact"
 	ImageSourceType    SourceType = "image"
+	WandbConfigKey     string     = "@wandb.config"
 )
 
 const REQUIREMENTS_FNAME = "requirements.txt"
@@ -703,23 +704,23 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
 	var err error
 	if j.wandbConfigParameters != nil {
-		typeDict := data_types.ResolveTypes(j.runConfig)
 		if j.wandbConfigParameters.Include != nil {
-			metadata["@wandb.config"], err = filterInPaths(typeDict, j.wandbConfigParameters.Include)
+			metadata[WandbConfigKey], err = filterInPaths(j.runConfig, j.wandbConfigParameters.Include)
 			if err != nil {
-				return "", err
+				return "{}", err
 			}
+			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
 		} else if j.wandbConfigParameters.Exclude != nil {
-			err = filterOutPaths(typeDict, j.wandbConfigParameters.Exclude)
+			metadata[WandbConfigKey], err = filterOutPaths(j.runConfig, j.wandbConfigParameters.Exclude)
 			if err != nil {
-				return "", err
+				return "{}", err
 			}
-			metadata["@wandb.config"] = typeDict
+			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
 		}
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
-		return "", err
+		return "{}", err
 	}
 	return string(metadataBytes), nil
 }

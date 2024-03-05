@@ -31,61 +31,25 @@ func parseNestedPath(path string) []string {
 	return components
 }
 
-func filterOutPaths(data interface{}, paths []string) error {
-	// Filter out the specified paths from the data structure. The paths are
-	// specified as a list of strings of the form key.key.index that specify
-	// paths within a nested data structure. '.' is used as the separator unless
-	// it is escaped with a backslash. The data structure is modified in place.
-	if len(paths) == 0 {
-		return nil
-	}
-	var err error
-	for _, path := range paths {
-		components := parseNestedPath(path)
-		err = filterOut(data, components)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func filterOut(data interface{}, components []string) error {
-	// Filter out the specified components from the data structure. The components
-	// are specified as a list of strings that specify paths within a nested data
-	// structure.
-	if len(components) == 0 {
-		return nil
-	}
-	var err error
-	switch data := data.(type) {
-	case map[string]interface{}:
-		if len(components) == 1 {
-			delete(data, components[0])
-		} else {
-			if _, ok := data[components[0]]; !ok {
-				return fmt.Errorf("missing key: %s", components[0])
-			}
-			err = filterOut(data[components[0]], components[1:])
-			if err != nil {
-				return err
-			}
-		}
-	default:
-		return nil
-	}
-	return nil
-}
-
-func filterInPaths(data interface{}, paths []string) (interface{}, error) {
-	// Return a new interface that only includes the specified paths from the data.
-	if len(paths) == 0 {
+func filterInPaths(data interface{}, endpoints []string) (interface{}, error) {
+	// Return a new interface that only includes the specified endpoints from the data.
+	// The endpoints are specified as a list of strings of the form key.key.index
+	// that specify paths within a nested data structure. '.' is used as the separator
+	// unless it is escaped with a backslash.
+	if len(endpoints) == 0 {
 		return data, nil
 	}
-	var new_data interface{}
 	var err error
-	for _, path := range paths {
-		components := parseNestedPath(path)
+	var new_data interface{}
+	switch data.(type) {
+	case map[string]interface{}:
+		new_data = make(map[string]interface{})
+	}
+	if new_data == nil {
+		return nil, fmt.Errorf("unsupported data type: %T", data)
+	}
+	for _, endpoint := range endpoints {
+		components := parseNestedPath(endpoint)
 		new_data, err = filterIn(data, new_data, components)
 		if err != nil {
 			return nil, err
@@ -96,6 +60,8 @@ func filterInPaths(data interface{}, paths []string) (interface{}, error) {
 
 func filterIn(data interface{}, new_data interface{}, components []string) (interface{}, error) {
 	// Return a new interface that only includes the specified components from the data.
+	// The components are specified as a list of strings that specify paths within
+	// a nested data structure.
 	if len(components) == 0 {
 		return data, nil
 	}
@@ -123,4 +89,54 @@ func filterIn(data interface{}, new_data interface{}, components []string) (inte
 	default:
 		return data, nil
 	}
+}
+
+func filterOutPaths(data interface{}, endpoints []string) (interface{}, error) {
+	// Filter out the specified endpoints from the data structure.
+	// The endpoints are specified as a list of strings of the form key.key.index
+	// that specify paths within a nested data structure. '.' is used as the separator
+	// unless it is escaped with a backslash.
+	// The data structure is modified in place.
+	if len(endpoints) == 0 {
+		return data, nil
+	}
+	var filtered_data = data
+	var err error
+	for _, endpoint := range endpoints {
+		components := parseNestedPath(endpoint)
+		filtered_data, err = filterOut(data, components)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return filtered_data, nil
+}
+
+func filterOut(data interface{}, components []string) (interface{}, error) {
+	// Filter out the specified components from the data structure.
+	// The components are specified as a list of strings that specify paths within
+	// a nested data structure.
+	if len(components) == 0 {
+		return data, nil
+	}
+	var filtered_data interface{}
+	var err error
+	switch data := data.(type) {
+	case map[string]interface{}:
+		if len(components) == 1 {
+			delete(data, components[0])
+		} else {
+			if _, ok := data[components[0]]; !ok {
+				return data, fmt.Errorf("missing key: %s", components[0])
+			}
+			filtered_data, err = filterOut(data[components[0]], components[1:])
+			if err != nil {
+				return data, err
+			}
+			data[components[0]] = filtered_data
+		}
+	default:
+		return data, nil
+	}
+	return data, nil
 }
