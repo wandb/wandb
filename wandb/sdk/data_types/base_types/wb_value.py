@@ -197,11 +197,6 @@ class WBValue:
     def _set_artifact_target(
         self, artifact: "Artifact", name: Optional[str] = None
     ) -> None:
-        assert (
-            self._artifact_target is None
-        ), "Cannot update artifact_target. Existing target: {}/{}".format(
-            self._artifact_target.artifact, self._artifact_target.name
-        )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
     def _get_artifact_entry_ref_url(self) -> Optional[str]:

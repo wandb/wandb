@@ -1454,8 +1454,7 @@ class Artifact:
         entry = self.add_file(file_path, name, is_tmp_name)
         # We store a reference to the obj so that its id doesn't get reused.
         self._added_objs[obj_id] = (obj, entry)
-        if obj._artifact_target is None:
-            obj._set_artifact_target(self, entry.path)
+        obj._set_artifact_target(self, entry.path)
 
         if is_tmp_name:
             if os.path.exists(file_path):
