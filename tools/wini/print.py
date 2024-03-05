@@ -1,6 +1,6 @@
 """Terminal output functions for wini."""
 
-from typing import List
+from typing import Dict, List, Optional
 
 import rich
 from rich.padding import Padding
@@ -15,9 +15,12 @@ def info(msg: str) -> None:
     rich.print(text)
 
 
-def command(parts: List[str]) -> None:
+def command(parts: List[str], env: Optional[Dict[str, str]] = None) -> None:
     """Prints out a terminal command."""
     rich.print(Padding(Pretty(parts), (0, 2)))
+    if env:
+        rich.print(Padding("with environment variables:", (0, 2)))
+        rich.print(Padding(Pretty(env), (0, 2)))
 
 
 def error(msg: str) -> None:
