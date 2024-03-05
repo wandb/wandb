@@ -1,6 +1,8 @@
 id: 2.lightning_fabric.trainer_logging
 plugin:
   - wandb
+tag:
+  shard: lightning
 depend:
   requirements:
     - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch

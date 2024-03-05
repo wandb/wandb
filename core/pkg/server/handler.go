@@ -2,11 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -219,6 +219,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
 	case *service.Record_Artifact:
+		h.handleArtifact(record)
 	case *service.Record_Config:
 		h.handleConfig(record)
 	case *service.Record_Exit:
@@ -375,6 +376,9 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		},
 	)
 }
+func (h *Handler) handleArtifact(record *service.Record) {
+	h.sendRecord(record)
+}
 
 func (h *Handler) handleLogArtifact(record *service.Record) {
 	h.sendRecord(record)
@@ -527,22 +531,22 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	}
 
 	metadata := &service.MetadataRequest{
-		Os:       h.settings.GetXOs().GetValue(),
-		Python:   h.settings.GetXPython().GetValue(),
-		Host:     h.settings.GetHost().GetValue(),
-		Cuda:     h.settings.GetXCuda().GetValue(),
-		Program:  h.settings.GetProgram().GetValue(),
-		CodePath: h.settings.GetProgramAbspath().GetValue(),
-		// CodePathLocal: h.settings.GetProgramAbspath().GetValue(),  // todo(launch): add this
-		Email:      h.settings.GetEmail().GetValue(),
-		Root:       h.settings.GetRootDir().GetValue(),
-		Username:   h.settings.GetUsername().GetValue(),
-		Docker:     h.settings.GetDocker().GetValue(),
-		Executable: h.settings.GetXExecutable().GetValue(),
-		Args:       h.settings.GetXArgs().GetValue(),
-		Colab:      h.settings.GetColabUrl().GetValue(),
-		StartedAt:  run.GetStartTime(),
-		Git:        git,
+		Os:            h.settings.GetXOs().GetValue(),
+		Python:        h.settings.GetXPython().GetValue(),
+		Host:          h.settings.GetHost().GetValue(),
+		Cuda:          h.settings.GetXCuda().GetValue(),
+		Program:       h.settings.GetProgram().GetValue(),
+		CodePath:      h.settings.GetProgramRelpath().GetValue(),
+		CodePathLocal: h.settings.GetXCodePathLocal().GetValue(),
+		Email:         h.settings.GetEmail().GetValue(),
+		Root:          h.settings.GetRootDir().GetValue(),
+		Username:      h.settings.GetUsername().GetValue(),
+		Docker:        h.settings.GetDocker().GetValue(),
+		Executable:    h.settings.GetXExecutable().GetValue(),
+		Args:          h.settings.GetXArgs().GetValue(),
+		Colab:         h.settings.GetColabUrl().GetValue(),
+		StartedAt:     run.GetStartTime(),
+		Git:           git,
 	}
 
 	if !h.settings.GetXDisableStats().GetValue() {

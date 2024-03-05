@@ -2,6 +2,7 @@ id: 0.fastai.01-v1
 plugin:
   - wandb
 tag:
+  shard: fastai
   skips:
     - platform: win
     - platform: mac

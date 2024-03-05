@@ -10,6 +10,7 @@ from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
+from wandb.sdk.launch.registry.anon import AnonynmousRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
@@ -320,6 +321,76 @@ async def test_create_kaniko_job_instance(
 
         assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == []
         assert job["spec"]["template"]["spec"]["volumes"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_kaniko_job_pvc_dockerconfig(
+    mock_kubernetes_clients, runner, mocker
+):
+    """Test that the kaniko builder mounts pvc and dockerconfig correctly."""
+    mocker.patch("wandb.sdk.launch.builder.kaniko_builder.PVC_NAME", "test-pvc")
+    mocker.patch(
+        "wandb.sdk.launch.builder.kaniko_builder.PVC_MOUNT_PATH", "/mnt/test-pvc"
+    )
+    mocker.patch(
+        "wandb.sdk.launch.builder.kaniko_builder.DOCKER_CONFIG_SECRET", "test-secret"
+    )
+
+    with runner.isolated_filesystem():
+        os.makedirs("./test/context/path/", exist_ok=True)
+        with open("./test/context/path/Dockerfile.wandb", "wb") as f:
+            f.write(b"docker file test contents")
+        job_name = "test_job_name"
+        repo_url = "myspace.com/test-repo"
+        image_tag = "12345678"
+        context_path = "./test/context/path/"
+        builder = KanikoBuilder(
+            MagicMock(),
+            AnonynmousRegistry(repo_url),
+        )
+        job = await builder._create_kaniko_job(
+            job_name, repo_url, image_tag, context_path, MagicMock()
+        )
+
+        assert job["metadata"]["name"] == "test_job_name"
+        assert job["metadata"]["namespace"] == "wandb"
+        assert job["metadata"]["labels"] == {"wandb": "launch"}
+        assert (
+            job["spec"]["template"]["spec"]["containers"][0]["image"]
+            == "gcr.io/kaniko-project/executor:v1.11.0"
+        )
+        assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
+            f"--context={context_path}",
+            "--dockerfile=Dockerfile.wandb",
+            f"--destination={image_tag}",
+            "--cache=true",
+            f"--cache-repo={repo_url}",
+            "--snapshotMode=redo",
+            "--compressed-caching=false",
+        ]
+
+    assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
+        {
+            "name": "kaniko-pvc",
+            "mount_path": "/context",
+        },
+        {
+            "name": "kaniko-docker-config",
+            "mount_path": "/kaniko/.docker",
+        },
+    ]
+
+    pvc_volume = job["spec"]["template"]["spec"]["volumes"][0]
+    dockerconfig_volume = job["spec"]["template"]["spec"]["volumes"][1]
+
+    assert pvc_volume["name"] == "kaniko-pvc"
+    assert pvc_volume["persistent_volume_claim"].claim_name == "test-pvc"
+    assert pvc_volume["persistent_volume_claim"].read_only is None
+
+    assert dockerconfig_volume["name"] == "kaniko-docker-config"
+    assert dockerconfig_volume["secret"]["secret_name"] == "test-secret"
+    assert dockerconfig_volume["secret"]["items"][0].key == ".dockerconfigjson"
+    assert dockerconfig_volume["secret"]["items"][0].path == "config.json"
 
 
 @pytest.mark.asyncio
