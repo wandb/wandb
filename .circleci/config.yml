@@ -695,7 +695,7 @@ jobs:
       python_version_minor: { type: integer }
       tests:
         type: enum
-        enum: [wandb]
+        enum: [wandb, mlflow]
       xdist:
         type: integer
         default: 3
@@ -1763,7 +1763,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-              tests: ["wandb"] # TODO: add back mlflow in the mlflow PR
+              tests: ["wandb", "mlflow"]
 
           executor:
             name: local-testcontainer-importers
