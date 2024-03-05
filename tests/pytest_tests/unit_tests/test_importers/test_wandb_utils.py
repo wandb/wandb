@@ -7,6 +7,7 @@ import pytest
 import wandb
 
 if sys.version_info >= (3, 8):
+    from wandb.apis.importers.internals.internal import ImporterRun, RecordMaker
     from wandb.apis.importers.internals.util import for_each, parallelize
     from wandb.apis.importers.wandb import WandbImporter
 
@@ -189,3 +190,19 @@ if sys.version_info >= (3, 8):
 
         for p in expected_problems:
             assert any(p in problem for problem in problems_set)
+
+    def test_make_metadata_file_even_if_not_importing_files():
+        class TestingRun(ImporterRun):
+            ...
+
+        run = TestingRun()
+        rm = RecordMaker(run)
+
+        rec = rm._make_files_record(
+            artifacts=False, files=False, media=False, code=False
+        )
+        files = rec.files.files
+
+        # Make sure the metadata file is created
+        assert len(files) == 1
+        assert "wandb-metadata.json" in files[0].path

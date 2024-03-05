@@ -76,21 +76,6 @@ def mock_agent(monkeypatch):
             },
             True,
         ),
-        # Builder type set to kaniko but build-context-store not set.
-        (
-            {
-                "entity": "test-entity",
-                "project": "test-project",
-                "queues": ["test-queue"],
-                "builder": {
-                    "type": "kaniko",
-                },
-                "registry": {
-                    "type": "ecr",
-                },
-            },
-            True,
-        ),
     ],
 )
 def test_create_and_run_agent(config, error, mock_agent):

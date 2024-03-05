@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
@@ -186,15 +187,15 @@ func NewSender(
 			fs.WithClientId(shared.ShortID(32)),
 		)
 
-		fileTransferRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
+		fileTransferRetryClient := retryablehttp.NewClient()
+		fileTransferRetryClient.Logger = logger
+		fileTransferRetryClient.CheckRetry = clients.CheckRetry
+		fileTransferRetryClient.RetryMax = int(settings.GetXFileTransferRetryMax().GetValue())
+		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())
+		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())
+		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())
+		fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
+
 		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
 			logger,
 			fileTransferRetryClient,

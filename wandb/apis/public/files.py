@@ -1,6 +1,7 @@
 """Public API: files."""
 import io
 import os
+from typing import Optional
 
 import requests
 from wandb_gql import gql
@@ -11,6 +12,7 @@ from wandb import util
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
+from wandb.apis.public.api import Api
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.lib import retry
 
@@ -136,7 +138,11 @@ class File(Attrs):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def download(
-        self, root: str = ".", replace: bool = False, exist_ok: bool = False, api=None
+        self,
+        root: str = ".",
+        replace: bool = False,
+        exist_ok: bool = False,
+        api: Optional[Api] = None,
     ) -> io.TextIOWrapper:
         """Downloads a file previously saved by a run from the wandb server.
 

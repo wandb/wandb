@@ -27,6 +27,7 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, EntrypointDefaults, LaunchProject
 from ..errors import ExecutionError, LaunchError
 from ..registry.abstract import AbstractRegistry
+from ..registry.anon import AnonynmousRegistry
 from ..utils import (
     AZURE_CONTAINER_REGISTRY_URI_REGEX,
     ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
@@ -101,8 +102,7 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
 
         return ElasticContainerRegistry(uri=uri)
 
-    else:
-        raise LaunchError(f"Unsupported registry URI: {uri}. Unable to load helper.")
+    return AnonynmousRegistry(uri=uri)
 
 
 async def validate_docker_installation() -> None:
@@ -526,6 +526,12 @@ def _create_docker_build_ctx(
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
             )
+            # TODO: remove this once we make things more explicit for users
+            if entrypoint_dir:
+                new_path = os.path.basename(entrypoint.name)
+                entrypoint = launch_project.get_single_entry_point()
+                if entrypoint is not None:
+                    entrypoint.update_entrypoint_path(new_path)
             return directory
 
     dst_path = os.path.join(directory, "src")
