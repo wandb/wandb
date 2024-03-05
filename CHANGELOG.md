@@ -1,3 +1,10 @@
+# Unreleased
+
+Starting with the next release, we would like to follow
+https://keepachangelog.com/en/1.1.0/. Please add to relevant
+subsections here on every PR where this is applicable.
+
+
 # 0.16.4 (Mar 5, 2024)
 
 ### :magic_wand: Enhancements
