@@ -75,12 +75,12 @@ func TestFilterOutEndpoints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := filterOutPaths(tt.data, tt.endpoints)
+			gotData, err := filterOutPaths(tt.data, tt.endpoints)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("filterOutEndpoints() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(tt.data, tt.wantResult) && !tt.wantErr {
+			if !reflect.DeepEqual(gotData, tt.wantResult) && !tt.wantErr {
 				t.Errorf("filterOutEndpoints() got = %v, want %v", tt.data, tt.wantResult)
 			}
 		})
