@@ -194,7 +194,7 @@ pathtools==0.1.2
 pbr==5.4.4
 pexpect==4.7.0
 pickleshare==0.7.5
-pillow==6.2.0
+pillow==10.2.0
 pip==20.0.2
 pkginfo==1.5.0.1
 plac==1.1.3
