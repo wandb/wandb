@@ -7,9 +7,9 @@ import pytest
 import wandb
 
 if sys.version_info >= (3, 8):
+    from wandb.apis.importers import validation
     from wandb.apis.importers.internals.internal import ImporterRun, RecordMaker
     from wandb.apis.importers.internals.util import for_each, parallelize
-    from wandb.apis.importers.wandb import WandbImporter
 
     @pytest.fixture
     def setup_dirs(request):
@@ -141,7 +141,7 @@ if sys.version_info >= (3, 8):
     )
     def test_compare_artifact_dirs(setup_dirs):
         src_dir, dst_dir, expected = setup_dirs
-        differences = WandbImporter._compare_artifact_dirs(src_dir, dst_dir)
+        differences = validation._compare_artifact_dirs(src_dir, dst_dir)
 
         assert set(differences["left_only"]) == set(expected["left_only"])
         assert set(differences["right_only"]) == set(expected["right_only"])
@@ -185,7 +185,7 @@ if sys.version_info >= (3, 8):
         dst_art.add_file(str(dst_path))
 
         # Compare artifacts and collect problems
-        problems = WandbImporter._compare_artifact_manifests(src_art, dst_art)
+        problems = validation._compare_artifact_manifests(src_art, dst_art)
         problems_set = set(problems)
 
         for p in expected_problems:
