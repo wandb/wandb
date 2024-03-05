@@ -696,31 +696,16 @@ jobs:
           name: Install Python dependencies
           command: pip install -U tox nox pip
           no_output_timeout: 5m
-      - when:
-          condition: { equal: [<<parameters.tests>>, wandb] }
-          steps:
-            - run:
-                name: Run tests
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-                  tox run -v \
-                    -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
-                    -- \
-                    --wandb-second-server="true" \
-                    tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
-      - when:
-          condition: { equal: [<<parameters.tests>>, mlflow] }
-          steps:
-            - run:
-                name: Run tests
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-                  tox run -v \
-                    -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
-                    -- \
-                    tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
+      - run:
+          name: Run tests
+          no_output_timeout: 10m
+          command: |
+            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
+            tox run -v \
+              -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
+              -- \
+              $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
+              tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
 
