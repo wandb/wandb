@@ -468,7 +468,7 @@ jobs:
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/test_launch/ \
-                    tests/pytest_tests/unit_tests/test_reports/ \
+                    tests/pytest_tests/unit_tests/test_reports/
 
       - when:
           condition: { equal: [<<parameters.tests>>, importer] }
