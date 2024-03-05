@@ -47,6 +47,8 @@ message Record {
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     WandbConfigParametersRecord wandb_config_parameters = 26;
+    ConfigFileParameterRecord config_file_parameter = 27;
+
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -154,6 +156,14 @@ message GitRepoRecord {
 message WandbConfigParametersRecord {
   repeated string include = 1;
   repeated string exclude = 2;
+}
+
+message ConfigFileParameterRecord {
+  string relpath = 1;
+  string abspath = 2;
+  string filename = 3;
+  repeated string include = 4;
+  repeated string exclude = 5;
 }
 
 message RunUpdateResult {

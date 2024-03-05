@@ -160,6 +160,7 @@ type JobBuilder struct {
 	isNotebookRun         bool
 	runConfig             map[string]interface{}
 	wandbConfigParameters *service.WandbConfigParametersRecord
+	configFiles           []*service.ConfigFileParameterRecord
 	saveInputToMetadata   bool
 }
 
@@ -737,6 +738,11 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
+}
+
+func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
+	j.logger.Debug("jobBuilder: handling config file parameter record")
+	j.configFiles = append(j.configFiles, configFileParameter)
 }
 
 func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {

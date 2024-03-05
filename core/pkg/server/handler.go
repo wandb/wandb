@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -259,6 +260,9 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleUseArtifact(record)
 	case *service.Record_WandbConfigParameters:
 		h.handleWandbConfigParameters(record)
+	case *service.Record_ConfigFileParameter:
+		h.writeAndSendConfigFile(x.ConfigFileParameter)
+		h.handleConfigFileParameter(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -942,6 +946,48 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 }
 
 func (h *Handler) handleWandbConfigParameters(record *service.Record) {
+	h.sendRecord(record)
+}
+
+func (h *Handler) writeAndSendConfigFile(record *service.ConfigFileParameterRecord) {
+	configDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "configs")
+	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
+		h.logger.CaptureError("error creating config directory", err)
+		return
+	}
+	configFile := filepath.Join(configDir, record.Relpath, record.Filename)
+	sourceFile := filepath.Join(record.Abspath, record.Filename)
+	source, err := os.Open(sourceFile)
+	if err != nil {
+		h.logger.CaptureError("error opening config file", err)
+		return
+	}
+	defer source.Close()
+	destination, err := os.Create(configFile)
+	if err != nil {
+		h.logger.CaptureError("error creating config file", err)
+		return
+	}
+	if _, err := io.Copy(destination, source); err != nil {
+		h.logger.CaptureError("error copying config file", err)
+		return
+	}
+	destination.Close()
+	h.filesHandler.Handle(&service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: filepath.Join("configs", record.Relpath, record.Filename),
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	})
+}
+
+func (h *Handler) handleConfigFileParameter(record *service.Record) {
 	h.sendRecord(record)
 }
 
