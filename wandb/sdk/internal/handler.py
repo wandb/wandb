@@ -50,6 +50,17 @@ SummaryDict = Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
+# Since ~2020/2021, when constructing the summary object, we had replaced the
+# artifact path for media types with the latest artifact path. The primary
+# purpose of this was to support live updating of media objects in the UI (since
+# the default artifact path was fully qualified and would not update). However,
+# in March of 2024, a bug was discovered with this approach which causes this
+# path to be incorrect in cases where the media object is logged to another
+# artifact before being logged to the run. Setting this to `False` disables this
+# copy behavior. The impact is that servers without Weave1 will need to refresh
+# the page to see the latest media if multiple logs to the same path occur.
+REPLACE_SUMMARY_ART_PATH_WITH_LATEST = False
+
 
 def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) -> None:
     # recurse down the dictionary structure:
@@ -371,26 +382,26 @@ class HandleManager:
                     updated = True
             return updated
         # If the dict is a media object, update the pointer to the latest alias
-        # elif isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
-        #     if "_latest_artifact_path" in v and "artifact_path" in v:
-        #         # TODO: Make non-destructive?
-        #         v["artifact_path"] = v["_latest_artifact_path"]
+        elif REPLACE_SUMMARY_ART_PATH_WITH_LATEST and isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
+            if "_latest_artifact_path" in v and "artifact_path" in v:
+                # TODO: Make non-destructive?
+                v["artifact_path"] = v["_latest_artifact_path"]
         updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
 
-    # def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
-    #     # For now, non-recursive - just top level
-    #     for nk, nv in v.items():
-    #         if (
-    #             isinstance(nv, dict)
-    #             and handler_util.metric_is_wandb_dict(nv)
-    #             and "_latest_artifact_path" in nv
-    #             and "artifact_path" in nv
-    #         ):
-    #             # TODO: Make non-destructive?
-    #             nv["artifact_path"] = nv["_latest_artifact_path"]
-    #             v[nk] = nv
-    #     return v
+    def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
+        # For now, non-recursive - just top level
+        for nk, nv in v.items():
+            if REPLACE_SUMMARY_ART_PATH_WITH_LATEST and (
+                isinstance(nv, dict)
+                and handler_util.metric_is_wandb_dict(nv)
+                and "_latest_artifact_path" in nv
+                and "artifact_path" in nv
+            ):
+                # TODO: Make non-destructive?
+                nv["artifact_path"] = nv["_latest_artifact_path"]
+                v[nk] = nv
+        return v
 
     def _update_summary(self, history_dict: Dict[str, Any]) -> List[str]:
         # keep old behavior fast path if no define metrics have been used
