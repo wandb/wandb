@@ -766,33 +766,15 @@ class InterfaceBase:
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
 
-    def publish_launch_wandb_config_parameters(
-        self, include_paths: List[List[str]], exclude_paths: List[List[str]]
-    ):
-        """Tells the internal process to treat wandb.config fields as job inputs.
-
-        The paths provided as arguments are sequences of dictionary keys that
-        specify a path within the wandb.config. If a path is included, the
-        corresponding field will be treated as a job input. If a path is
-        excluded, the corresponding field will not be treated as a job input.
-
-        Args:
-            include_paths: paths within config to include as job inputs.
-            exclude_paths: paths within config to exclude as job inputs.
-
-        Returns:
-            None
-        """
-        config_parameters = pb.LaunchWandbConfigParametersRecord()
-        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
-        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
-        config_parameters.include_paths.extend(include_records)
-        config_parameters.exclude_paths.extend(exclude_records)
-        return self._publish_launch_wandb_config_parameters(config_parameters)
+    def publish_wandb_config_parameters(self, exclude: List[str], include: List[str]):
+        config_parameters = pb.WandbConfigParametersRecord()
+        config_parameters.exclude.extend(exclude)
+        config_parameters.include.extend(include)
+        return self._publish_wandb_config_parameters(config_parameters)
 
     @abstractmethod
-    def _publish_launch_wandb_config_parameters(
-        self, config_parameters: pb.LaunchWandbConfigParametersRecord
+    def _publish_wandb_config_parameters(
+        self, config_parameters: pb.WandbConfigParametersRecord
     ) -> None:
         raise NotImplementedError
 

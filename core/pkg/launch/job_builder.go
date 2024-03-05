@@ -160,9 +160,7 @@ type JobBuilder struct {
 	RunCodeArtifact       *ArtifactInfoForJob
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             *runconfig.RunConfig
-	wandbConfigParameters *launchWandbConfigParameters
-	saveShapeToMetadata   bool
+	wandbConfigParameters *service.WandbConfigParametersRecord
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -474,6 +472,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 	return source, &name, nil
 }
 
+//gocyclo:ignore
 func (j *JobBuilder) Build(
 	output map[string]interface{},
 ) (artifact *service.ArtifactRecord, rerr error) {
@@ -551,6 +550,24 @@ func (j *JobBuilder) Build(
 	}
 
 	sourceInfo.Runtime = metadata.Python
+
+	if j.wandbConfigParameters != nil {
+		var filtered_input interface{}
+		if j.wandbConfigParameters.Exclude != nil {
+			filtered_input, err = filterOutEndpoints(input, j.wandbConfigParameters.Exclude)
+		}
+		if j.wandbConfigParameters.Include != nil {
+			filtered_input, err = filterInEndpoints(input, j.wandbConfigParameters.Include)
+		}
+		if err != nil {
+			return nil, err
+		}
+		input = filtered_input.(map[string]interface{})
+	}
+
+	if input != nil {
+		sourceInfo.InputTypes = data_types.ResolveTypes(input)
+	}
 	if output != nil {
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
 	}
@@ -572,7 +589,7 @@ func (j *JobBuilder) Build(
 		Project:          j.settings.Project.Value,
 		RunId:            j.settings.RunId.Value,
 		Name:             *name,
-		Metadata:         metadataString,
+		Metadata:         "{}",
 		Type:             "job",
 		Aliases:          j.aliases,
 		Finalize:         true,
@@ -700,23 +717,6 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	}
 }
 
-// Makes job input schema into a json string to be stored as artifact metdata.
-func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
-	metadata := make(map[string]interface{})
-	if j.runConfig != nil {
-		metadata[WandbConfigKey] = j.getWandbConfigInputs()
-	}
-	metadata = map[string]interface{}{"input_types": metadata}
-	if output != nil {
-		metadata["output_types"] = data_types.ResolveTypes(*output)
-	}
-	metadataBytes, err := json.Marshal(metadata)
-	if err != nil {
-		return "", err
-	}
-	return string(metadataBytes), nil
-}
-
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
 	if j == nil {
 		return
@@ -731,4 +731,11 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
+}
+
+func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {
+	if j.wandbConfigParameters != nil {
+		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
+	}
+	j.wandbConfigParameters = wandbConfigParameters
 }

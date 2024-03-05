@@ -1,4 +1,4 @@
-package launch_test
+package launch
 
 import (
 	"os"
@@ -8,9 +8,6 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/launch"
-	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"

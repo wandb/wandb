@@ -103,7 +103,7 @@ class Record(google.protobuf.message.Message):
     @property
     def use_artifact(self) -> global___UseArtifactRecord: ...
     @property
-    def wandb_config_parameters(self) -> global___LaunchWandbConfigParametersRecord: ...
+    def wandb_config_parameters(self) -> global___WandbConfigParametersRecord: ...
     @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
@@ -136,7 +136,7 @@ class Record(google.protobuf.message.Message):
         preempting: global___RunPreemptingRecord | None = ...,
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
-        wandb_config_parameters: global___LaunchWandbConfigParametersRecord | None = ...,
+        wandb_config_parameters: global___WandbConfigParametersRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
@@ -453,58 +453,24 @@ class GitRepoRecord(google.protobuf.message.Message):
 global___GitRepoRecord = GitRepoRecord
 
 @typing_extensions.final
-class ConfigFilterPath(google.protobuf.message.Message):
-    """Path within nested configuration object.
-
-    The path is a list of strings, each string is a key in the nested configuration
-    dict.
-    """
-
+class WandbConfigParametersRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    PATH_FIELD_NUMBER: builtins.int
+    INCLUDE_FIELD_NUMBER: builtins.int
+    EXCLUDE_FIELD_NUMBER: builtins.int
     @property
-    def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        path: collections.abc.Iterable[builtins.str] | None = ...,
+        include: collections.abc.Iterable[builtins.str] | None = ...,
+        exclude: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["path", b"path"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "include", b"include"]) -> None: ...
 
-global___ConfigFilterPath = ConfigFilterPath
-
-@typing_extensions.final
-class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
-    """Specifies include and exclude paths for filtering job inputs.
-
-    If this record is published to the core internal process then it will filter
-    the given paths into or out of the job inputs it builds.
-
-    If include_paths is not empty, then endpoints of the config not prefixed by
-    an include path will be ignored.
-
-    If exclude_paths is not empty, then endpoints of the config prefixed by an
-    exclude path will be ignored.
-    """
-
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    INCLUDE_PATHS_FIELD_NUMBER: builtins.int
-    EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
-    @property
-    def include_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
-    @property
-    def exclude_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
-    def __init__(
-        self,
-        *,
-        include_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
-        exclude_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths"]) -> None: ...
-
-global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
+global___WandbConfigParametersRecord = WandbConfigParametersRecord
 
 @typing_extensions.final
 class RunUpdateResult(google.protobuf.message.Message):
