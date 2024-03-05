@@ -85,7 +85,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -145,7 +145,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -196,7 +196,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -257,7 +257,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -303,7 +303,7 @@ func TestJobBuilderImage(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -339,7 +339,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
 	})
@@ -350,7 +350,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -366,7 +366,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		}
 
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "wandb-metadata.json: no such file or directory")
@@ -386,7 +386,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
@@ -439,7 +439,7 @@ func TestJobBuilderFromPartial(t *testing.T) {
 			},
 		}
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		artifact, err := jobBuilder.Build(nil, nil)
+		artifact, err := jobBuilder.Build(nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testJobName", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)

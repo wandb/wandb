@@ -557,7 +557,9 @@ func (j *JobBuilder) Build(
 		}
 	} else {
 		metadataString = "{}"
-		sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig)
+		if j.runConfig != nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig)
+		}
 	}
 	if output != nil {
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
