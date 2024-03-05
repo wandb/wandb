@@ -465,7 +465,7 @@ jobs:
                     --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v \
                     -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>importer-wandb-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
+                      >>importer-unit-wandb-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/test_launch/ \
                     tests/pytest_tests/unit_tests/test_reports/ \
