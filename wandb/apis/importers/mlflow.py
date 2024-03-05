@@ -233,7 +233,7 @@ class MlflowImporter:
         }
 
         mlflow.set_tracking_uri(self.mlflow_tracking_uri)
-        internal.send_run_with_send_manager(
+        internal.send_run(
             run,
             overrides=namespace.send_manager_overrides,
             settings_override=settings_override,
@@ -244,9 +244,9 @@ class MlflowImporter:
         if artifacts:
             arts = list(run.artifacts())
             logger.debug(f"Importing history artifacts, {run=}")
-            internal.send_artifacts_with_send_manager(
-                arts,
+            internal.send_run(
                 run,
+                extra_arts=arts,
                 overrides=namespace.send_manager_overrides,
                 settings_override=settings_override,
                 config=internal.SendManagerConfig(log_artifacts=True),
