@@ -26,7 +26,7 @@ subsections here on every PR where this is applicable.
 ### Changed
 
 * wandb-core rate-limits requests to the backend and respects RateLimit-* headers
-  * https://github.com/wandb/wandb/pull/7065
+  by @timoffex in https://github.com/wandb/wandb/pull/7065
 
 ### Fixed
 
