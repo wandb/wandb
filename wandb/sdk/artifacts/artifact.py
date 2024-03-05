@@ -1140,8 +1140,7 @@ class Artifact:
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
             policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Copy to staging synchronously and move from staging to cache
-                            after uploading
+                "mutable": Copy to staging and cache synchronously.
                 "immutable": Require file to not change. Link to cache synchronously.
 
         Returns:
@@ -1181,8 +1180,7 @@ class Artifact:
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
             policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Copy to staging synchronously and move from staging to cache
-                            after uploading
+                "mutable": Copy to staging and cache synchronously.
                 "immutable": Require file to not change. Link to cache synchronously.
 
         Raises:
