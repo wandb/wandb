@@ -1422,7 +1422,10 @@ class Artifact:
         # If the object is coming from another artifact, save it as a reference
         ref_path = obj._get_artifact_entry_ref_url()
         if ref_path is not None:
-            return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
+            ref_path_path = type(obj).with_suffix(name)
+            res = self.add_reference(ref_path, ref_path_path)[0]
+            obj._set_artifact_target(self, ref_path_path)
+            return res
 
         val = obj.to_json(self)
         name = obj.with_suffix(name)
