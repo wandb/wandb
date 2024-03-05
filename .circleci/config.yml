@@ -701,7 +701,7 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -v \
+            tox run -v --wandb-second-server="true" \
               -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
               -- \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
