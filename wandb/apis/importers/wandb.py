@@ -25,7 +25,8 @@ from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
-import .validation
+
+from . import validation
 from .internals import internal
 from .internals.protocols import PathStr, Policy
 from .internals.util import Namespace, for_each
