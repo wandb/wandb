@@ -106,7 +106,7 @@ jobs:
       - name: Install from PyPI and get version
         id: get_version
         run: |
-          sleep 5
+          sleep 60
           python -m pip install --upgrade pip
           if [ "${{ inputs.use_pre }}" == "true" ]; then
             python -m pip install --pre wandb

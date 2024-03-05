@@ -239,7 +239,7 @@ class SageMakerRunner(AbstractRunner):
             launch_project,
             self._api,
             role_arn,
-            launch_project.override_entrypoint,
+            entry_point,
             launch_project.override_args,
             MAX_ENV_LENGTHS[self.__class__.__name__],
             image_uri,
@@ -363,6 +363,11 @@ def build_sagemaker_args(
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 
+    # Add wandb tag
+    tags = sagemaker_args.get("Tags", [])
+    tags.append({"Key": "WandbRunId", "Value": launch_project.run_id})
+    sagemaker_args["Tags"] = tags
+
     # remove args that were passed in for launch but not passed to sagemaker
     sagemaker_args.pop("EcrRepoName", None)
     sagemaker_args.pop("region", None)
@@ -411,6 +416,6 @@ def get_role_arn(
             "field of resource_args"
         )
     if role_arn.startswith("arn:aws:iam::"):
-        return role_arn
+        return role_arn  # type: ignore
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"

@@ -7,7 +7,7 @@ from typing import Optional, Union
 import pytest
 import wandb
 import wandb.apis.reports as wr
-from wandb.apis.reports.util import (
+from wandb.apis.reports.v1.util import (
     Attr,
     Base,
     Block,
@@ -15,7 +15,7 @@ from wandb.apis.reports.util import (
     PanelMetricsHelper,
     collides,
 )
-from wandb.apis.reports.validators import (
+from wandb.apis.reports.v1.validators import (
     Between,
     LayoutDict,
     Length,

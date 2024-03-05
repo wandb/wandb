@@ -8,7 +8,7 @@ LOG_STRING = click.style("wandb", fg="blue", bold=True)
 LOG_STRING_NOCOLOR = "wandb"
 ERROR_STRING = click.style("ERROR", bg="red", fg="green")
 WARN_STRING = click.style("WARNING", fg="yellow")
-PRINTED_MESSAGES = set()
+PRINTED_MESSAGES = set()  # type: ignore
 
 _silent = False
 _show_info = True

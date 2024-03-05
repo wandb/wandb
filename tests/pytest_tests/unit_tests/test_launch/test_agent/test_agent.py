@@ -135,13 +135,13 @@ def _setup_requeue(mocker):
     mocker.launch_add = MagicMock()
 
     mocker.project = MagicMock()
-    mocker.patch(
-        "wandb.sdk.launch.agent.agent.create_project_from_spec", mocker.project
-    )
-    mocker.project.return_value.target_entity = "test-entity"
-    mocker.project.return_value.run_id = "test-run-id"
+    mocker.project.target_entity = "test-entity"
+    mocker.project.run_id = "test-run-id"
 
-    mocker.patch("wandb.sdk.launch.agent.agent.fetch_and_validate_project", MagicMock())
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.LaunchProject.from_spec",
+        return_value=mocker.project,
+    )
     mocker.patch(
         "wandb.sdk.launch.agent.agent.loader.builder_from_config",
         return_value=None,
@@ -171,8 +171,9 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     agent = LaunchAgent(api=mocker.api, config=mock_config)
 
     job_tracker = JobAndRunStatusTracker(
-        mock_job["runQueueItemId"], "test-queue", MagicMock()
+        mock_job["runQueueItemId"], "test-queue", MagicMock(), entity="test-entity"
     )
+    assert job_tracker.entity == "test-entity"
 
     await agent.task_run_job(
         launch_spec=mock_launch_spec,
@@ -270,7 +271,7 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
         "project": "test-project",
     }
 
-    mocker.api.get_run_info = MagicMock(return_value=lambda x: {"program": "blah"})
+    mocker.api.get_run_state = MagicMock(return_value=lambda x: True)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -284,20 +285,28 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_sweep_fail(mocker, clean_agent):
+    """Test thread finished with 0 exit status, but sweep didn't init."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
 
-    mocker.api.get_run_info = MagicMock(return_value=None)
+    mocker.api.get_run_state = MagicMock(return_value="pending")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
+    run = MagicMock()
+
+    async def mock_get_logs():
+        return "logs"
+
+    run.get_logs = mock_get_logs
+    job.run = run
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
@@ -306,7 +315,6 @@ async def test_thread_finish_sweep_fail(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_run_fail(mocker, clean_agent):
     _setup_thread_finish(mocker)
     mock_config = {
@@ -314,12 +322,19 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
         "project": "test-project",
     }
 
-    mocker.api.get_run_info = MagicMock(side_effect=[CommError("failed")])
+    mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
     job.project = MagicMock()
+    run = MagicMock()
+
+    async def mock_get_logs():
+        return "logs"
+
+    run.get_logs = mock_get_logs
+    job.run = run
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
@@ -328,18 +343,29 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason="`assert_called_once` vs `assert <...>.called_once`")
 async def test_thread_finish_run_fail_start(mocker, clean_agent):
+    """Tests that if a run does not exist, the run queue item is failed."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
+    mocker.api.get_run_state.side_effect = CommError("failed")
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
+    job.project = "test-project"
+    run = MagicMock()
+
+    async def mock_get_logs():
+        return "logs"
+
+    run.get_logs = mock_get_logs
+    job.run = run
+    job.run_queue_item_id = "asdasd"
+
     agent._jobs = {"thread_1": job}
     agent._jobs_lock = MagicMock()
     await agent.finish_thread_id("thread_1")
@@ -350,27 +376,38 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
 
 @pytest.mark.asyncio
 async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
+    """Tests that if a run does not exist, the run queue item is not failed for old servers."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
         "project": "test-project",
     }
+    mocker.api.get_run_state.side_effect = CommError("failed")
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
     job.run_id = "test_run_id"
+    job.run_queue_item_id = "asdasd"
+    job.project = "test-project"
+    run = MagicMock()
+
+    async def mock_get_logs():
+        return "logs"
+
+    run.get_logs = mock_get_logs
+    job.run = run
     agent._jobs_lock = MagicMock()
     agent._jobs = {"thread_1": job}
     await agent.finish_thread_id("thread_1")
     assert len(agent._jobs) == 0
-    assert not mocker.api.fail_run_queue_item.called
-    assert not mock_saver.save_contents.called
+    mocker.api.fail_run_queue_item.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_thread_finish_run_fail_different_entity(mocker, clean_agent):
+    """Tests that no check is made if the agent entity does not match."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
@@ -426,9 +463,6 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="TypeError: object MagicMock can't be used in 'await' expression on Windows"
-)
 async def test_thread_finish_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits 0 but there is no run."""
     _setup_thread_finish(mocker)
@@ -436,7 +470,7 @@ async def test_thread_finish_no_run(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    mocker.api.get_run_info.return_value = None
+    mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker(
@@ -457,9 +491,6 @@ async def test_thread_finish_no_run(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="TypeError: object MagicMock can't be used in 'await' expression on Windows"
-)
 async def test_thread_failed_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits non-zero but there is no run."""
     _setup_thread_finish(mocker)
@@ -467,7 +498,7 @@ async def test_thread_failed_no_run(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    mocker.api.get_run_info.return_value = None
+    mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker(
@@ -499,7 +530,7 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
-    mocker.api.get_run_info.side_effect = CommError("failed")
+    mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     submitted_run = MagicMock()
     submitted_run.get_logs = AsyncMock(return_value="test logs")
@@ -514,8 +545,8 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
     agent._jobs_lock = MagicMock()
     await agent.finish_thread_id("thread_1")
     assert mocker.api.fail_run_queue_item.called
-    # we should be able to call get_run_info  at 0, 1, 3, 7, 15, 31, 63 seconds
-    assert mocker.api.get_run_info.call_count == 7
+    # we should be able to call get_run_state  at 0, 1, 3, 7, 15, 31, 63 seconds
+    assert mocker.api.get_run_state.call_count == 7
 
 
 @pytest.mark.parametrize(

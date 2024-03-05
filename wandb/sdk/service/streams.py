@@ -248,7 +248,7 @@ class StreamMux:
     def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
-            result = handle.wait(timeout=0)
+            result = handle.wait(timeout=0, release=False)
             if not result:
                 return
             probe_handle.set_probe_result(result)
@@ -303,9 +303,10 @@ class StreamMux:
             handle.add_probe(functools.partial(self._on_probe_exit, stream=stream))
             exit_handles.append(handle)
 
-            Run._footer_exit_status_info(
-                exit_code, settings=stream._settings, printer=printer  # type: ignore
-            )
+            # this message is confusing, we should remove it
+            # Run._footer_exit_status_info(
+            #     exit_code, settings=stream._settings, printer=printer  # type: ignore
+            # )
 
         # todo: should we wait for the max timeout (?) of all exit handles or just wait forever?
         # timeout = max(stream._settings._exit_timeout for stream in streams.values())

@@ -105,7 +105,6 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
     mp.set_start_method("spawn")
 
-    wandb.require("service")
     run = wandb.init()
 
     processes = []

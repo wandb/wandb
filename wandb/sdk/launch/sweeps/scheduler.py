@@ -1,6 +1,7 @@
 """Abstract Scheduler class."""
 import asyncio
 import base64
+import copy
 import logging
 import os
 import socket
@@ -24,7 +25,10 @@ from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
 )
-from wandb.sdk.launch.utils import event_loop_thread_exec
+from wandb.sdk.launch.utils import (
+    event_loop_thread_exec,
+    strip_resource_args_and_template_vars,
+)
 from wandb.sdk.lib.runid import generate_id
 
 if TYPE_CHECKING:
@@ -252,7 +256,7 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
-        run: SdkRun = wandb.init(
+        run: SdkRun = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
@@ -658,7 +662,7 @@ class Scheduler(ABC):
             pidx = entry_point.index("${program}")
             entry_point[pidx] = self._sweep_config["program"]
 
-        launch_config = self._wandb_run.config.get("launch", {})
+        launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
@@ -694,7 +698,13 @@ class Scheduler(ABC):
             )
 
         # override resource and args of job
-        _job_launch_config = self._wandb_run.config.get("launch") or {}
+        _job_launch_config = copy.deepcopy(self._wandb_run.config.get("launch")) or {}
+
+        # default priority is "medium"
+        _priority = int(launch_config.get("priority", 2))  # type: ignore
+
+        # strip resource_args and template_variables from launch_config
+        strip_resource_args_and_template_vars(_job_launch_config)
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
@@ -709,8 +719,10 @@ class Scheduler(ABC):
             project_queue=self._project_queue,
             resource=_job_launch_config.get("resource"),
             resource_args=_job_launch_config.get("resource_args"),
+            template_variables=_job_launch_config.get("template_variables"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
+            priority=_priority,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state

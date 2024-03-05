@@ -1,0 +1,34 @@
+id: 0.lightning_fabric.logger_logging
+plugin:
+    - wandb
+command:
+    program: test_logger_logging.py
+tag:
+  shard: lightning
+depend:
+    requirements:
+        - wandb
+        - lightning
+        - pillow
+        - pandas
+        - torch
+        - packaging
+        - soundfile
+        - moviepy
+        - imageio
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][lr]: 0.001
+    - :wandb:runs[0][config][batch_size]: 16
+    - :wandb:runs[0][summary][accuracy]: 0.95
+    - :wandb:runs[0][summary][loss]: 0.05
+    - :wandb:runs[0][history][1][test_image][_type]: images/separated
+    - :wandb:runs[0][history][2][test_text][_type]: table-file
+    - :wandb:runs[0][history][3][test_table][_type]: table-file
+    - :wandb:runs[0][history][4][test_audio][_type]: audio
+    - :wandb:runs[0][history][5][test_video][_type]: videos
+    - :wandb:runs[0][history][6][test_html][_type]: html
+    - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 60  # lightning_fabric_logger

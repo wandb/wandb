@@ -442,7 +442,7 @@ def main():
 
             # Download the saved model file.
             model_artifact = run.use_artifact("trained_model:latest")
-            path = model_artifact.get_path("model.pkl").download()
+            path = model_artifact.get_entry("model.pkl").download()
 
             # Load the model from the file and score it
             model = ExampleSegmentationModel.load(path)

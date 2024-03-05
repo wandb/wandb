@@ -190,9 +190,12 @@ message Feature {
   bool langchain_tracer = 52;            // Langchain wandb tracer callback used
   bool cohere_autolog = 53;              // Cohere autolog used
   bool hf_pipeline_autolog = 54;         // HuggingFace Autologging
-  bool nexus = 55;                       // Using wandb nexus internal process
+  bool core = 55;                        // Using wandb core internal process
   bool lib_c = 56;                       // Using c wandb library
   bool lib_cpp = 57;                     // Using cpp wandb library
+  bool openai_finetuning = 58;           // Using openai finetuning WandbLogger
+  bool diffusers_autolog = 59;           // Using Diffusers autologger
+  bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
 }
 
 message Env {

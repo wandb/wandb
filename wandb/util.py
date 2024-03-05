@@ -1,5 +1,6 @@
 import colorsys
 import contextlib
+import dataclasses
 import functools
 import gzip
 import importlib
@@ -61,6 +62,8 @@ from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
+    import packaging.version  # type: ignore[import-not-found]
+
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -840,7 +843,7 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence]
+    v: Union[int, float, str, Mapping, Sequence],
 ) -> Union[int, float, str]:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
@@ -1711,7 +1714,7 @@ def _get_max_cli_version() -> Union[str, None]:
 def _is_offline() -> bool:
     return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline
+    ) or wandb.setup().settings._offline  # type: ignore
 
 
 def ensure_text(
@@ -1782,7 +1785,7 @@ def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def remove_keys_with_none_values(
-    d: Union[Dict[str, Any], Any]
+    d: Union[Dict[str, Any], Any],
 ) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
@@ -1837,3 +1840,63 @@ def sample_with_exponential_decay_weights(
     sampled_keys = keys_array[sampled_indices].tolist() if keys else None
 
     return sampled_xs, sampled_ys, sampled_keys
+
+
+def get_core_path() -> str:
+    core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
+    wandb_core = get_module("wandb_core")
+    if not core_path and wandb_core:
+        _check_wandb_core_version_compatibility(wandb_core.__version__)
+        core_path = wandb_core.get_core_path()
+    return core_path
+
+
+@dataclasses.dataclass(frozen=True)
+class InstalledDistribution:
+    """An installed distribution.
+
+    Attributes:
+        key: The distribution name as it would be imported.
+        version: The distribution's version string.
+    """
+
+    key: str
+    version: str
+
+
+def working_set() -> Iterable[InstalledDistribution]:
+    """Return the working set of installed distributions.
+
+    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
+    """
+    try:
+        from importlib.metadata import distributions
+    except ImportError:
+        from importlib_metadata import distributions  # type: ignore
+
+    for d in distributions():
+        yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+
+
+def parse_version(version: str) -> "packaging.version.Version":
+    """Parse a version string into a version object.
+
+    This function is a wrapper around the `packaging.version.parse` function, which
+    is used to parse version strings into version objects. If the `packaging` library
+    is not installed, it falls back to the `pkg_resources` library.
+    """
+    try:
+        from packaging.version import parse as parse_version  # type: ignore
+    except ImportError:
+        from pkg_resources import parse_version
+
+    return parse_version(version)
+
+
+def _check_wandb_core_version_compatibility(core_version: str) -> None:
+    """Checks if the installed wandb-core version is compatible with the wandb version."""
+    if parse_version(core_version) < parse_version(wandb._minimum_core_version):
+        raise ImportError(
+            f"Requires wandb-core version {wandb._minimum_core_version} or later, "
+            f"but you have {core_version}. Run `pip install --upgrade wandb-core` to upgrade."
+        )

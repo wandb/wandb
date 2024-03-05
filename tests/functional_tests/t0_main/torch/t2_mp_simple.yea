@@ -1,12 +1,13 @@
 id: 0.torch.02-mp-simple
-tag:
-  shard: service
+
 plugin:
   - wandb
+tag:
+  shard: torch
 depend:
   requirements:
-    - torch
-    - torchvision
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torchvision
     - pillow
 
 var:

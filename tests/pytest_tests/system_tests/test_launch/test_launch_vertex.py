@@ -14,6 +14,11 @@ def mock_vertex_environment():
     environment = MagicMock()
     environment.region.return_value = "europe-west-4"
 
+    async def _mock_verify():
+        return True
+
+    environment.verify = _mock_verify
+
 
 @pytest.mark.asyncio
 async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
@@ -114,9 +119,10 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
             == "NVIDIA_TESLA_T4"
         )
         env = req["worker_pool_specs"][0]["container_spec"]["env"]
-        env.pop(0)
+        # Pop api key and base url - these are hard to control because our
+        # sdk will autopopulate them from a million places.
+        env = env[2:]
         assert env == [
-            {"name": "WANDB_API_KEY", "value": None},
             {"name": "WANDB_PROJECT", "value": "test_project"},
             {"name": "WANDB_ENTITY", "value": "test_entity"},
             {"name": "WANDB_LAUNCH", "value": "True"},

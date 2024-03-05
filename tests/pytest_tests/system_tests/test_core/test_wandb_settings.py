@@ -2,8 +2,11 @@
 
 import os
 import platform
+from unittest import mock
 
+import git
 import pytest  # type: ignore
+from wandb import env
 from wandb.sdk import wandb_settings
 
 Source = wandb_settings.Source
@@ -106,3 +109,58 @@ def test_sync_symlink_latest(wandb_init):
         os.path.join(".", "wandb", f"offline-run-{time_tag}-{run.id}")
     )
     run.finish()
+
+
+def test_manual_git_run_metadata_from_settings(
+    relay_server,
+    wandb_init,
+):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    with relay_server() as relay:
+        run = wandb_init(
+            settings={
+                "git_remote_url": remote_url,
+                "git_commit": commit,
+            },
+        )
+        run.finish()
+
+        run_attrs = relay.context.get_run_attrs(run.id)
+        assert run_attrs.remote == remote_url
+        assert run_attrs.commit == commit
+
+
+def test_manual_git_run_metadata_from_environ(relay_server, wandb_init):
+    remote_url = "git@github.com:me/my-repo.git"
+    commit = "29c15e893e36efad84001f4484b4813fbacd55a0"
+    with relay_server() as relay:
+        with mock.patch.dict(
+            os.environ,
+            {
+                env.GIT_REMOTE_URL: remote_url,
+                env.GIT_COMMIT: commit,
+            },
+        ):
+            run = wandb_init()
+            run.finish()
+
+        run_attrs = relay.context.get_run_attrs(run.id)
+        assert run_attrs.remote == remote_url
+        assert run_attrs.commit == commit
+
+
+def test_git_root(runner, relay_server, wandb_init):
+    path = "./foo"
+    remote_url = "https://foo:@github.com/FooTest/Foo.git"
+    with runner.isolated_filesystem():
+        with git.Repo.init(path) as repo:
+            repo.create_remote("origin", remote_url)
+            repo.index.commit("initial commit")
+        with relay_server() as relay:
+            with mock.patch.dict(os.environ, {env.GIT_ROOT: path}):
+                run = wandb_init()
+                run.finish()
+            run_attrs = relay.context.get_run_attrs(run.id)
+            assert run_attrs.remote == repo.remote().url
+            assert run_attrs.commit == repo.head.commit.hexsha
