@@ -22,6 +22,7 @@ subsections here on every PR where this is applicable.
 * Added ability to change artifact collection types by @biaslucas in https://github.com/wandb/wandb/pull/6971
 * Add support for installing deps from pyproject.toml by @bcsherma in https://github.com/wandb/wandb/pull/6964
 * Support kaniko build with user-provided pvc and docker config by @bcsherma in https://github.com/wandb/wandb/pull/7059
+* Added ability to import runs between W&B instances by @andrewtruong in https://github.com/wandb/wandb/pull/6897
 
 ### Changed
 
