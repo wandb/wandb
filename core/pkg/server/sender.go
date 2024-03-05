@@ -391,7 +391,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.runConfig.Tree()
+	s.jobBuilder.SetRunConfig(s.runConfig.Tree())
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -405,7 +405,7 @@ func (s *Sender) sendJobFlush() {
 		output[k] = out
 	}
 
-	artifact, err := s.jobBuilder.Build(input, output)
+	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
 		return
