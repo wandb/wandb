@@ -153,13 +153,12 @@ type ClientOptions struct {
 
 // Creates a new [Client] for making requests to the [Backend].
 func (backend *Backend) NewClient(opts ClientOptions) Client {
-	retryableHTTP := clients.NewRetryClient(
-		clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		clients.WithRetryClientRetryMax(opts.RetryMax),
-		clients.WithRetryClientRetryWaitMin(opts.RetryWaitMin),
-		clients.WithRetryClientRetryWaitMax(opts.RetryWaitMax),
-		clients.WithRetryClientHttpTimeout(opts.NonRetryTimeout),
-	)
+	retryableHTTP := retryablehttp.NewClient()
+	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
+	retryableHTTP.RetryMax = opts.RetryMax
+	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
+	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
+	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
