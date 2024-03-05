@@ -680,7 +680,7 @@ jobs:
       python_version_minor: { type: integer }
       tests:
         type: enum
-        enum: [wandb]
+        enum: [wandb, mlflow]
       xdist:
         type: integer
         default: 3
@@ -701,11 +701,9 @@ jobs:
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-
             tox run -v \
               -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
-              -- \
-              --wandb-second-server="true" \
+              -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
@@ -1750,7 +1748,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-              tests: ["wandb"] # TODO: add back mlflow in the mlflow PR
+              tests: ["wandb", "mlflow"]
 
           executor:
             name: local-testcontainer-importers
