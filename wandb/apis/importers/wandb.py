@@ -1,5 +1,4 @@
 """Tooling for the W&B Importer."""
-import filecmp
 import itertools
 import json
 import logging
@@ -26,7 +25,7 @@ from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
-
+import .validation
 from .internals import internal
 from .internals.protocols import PathStr, Policy
 from .internals.util import Namespace, for_each
@@ -567,56 +566,6 @@ class WandbImporter:
                 else:
                     raise e
 
-    @staticmethod
-    def _compare_artifact_dirs(src_dir, dst_dir) -> list:
-        def compare(src_dir, dst_dir):
-            comparison = filecmp.dircmp(src_dir, dst_dir)
-            differences = {
-                "left_only": comparison.left_only,
-                "right_only": comparison.right_only,
-                "diff_files": comparison.diff_files,
-                "subdir_differences": {},
-            }
-
-            # Recursively find differences in subdirectories
-            for subdir in comparison.subdirs:
-                subdir_src = os.path.join(src_dir, subdir)
-                subdir_dst = os.path.join(dst_dir, subdir)
-                subdir_differences = compare(subdir_src, subdir_dst)
-                # If there are differences, add them to the result
-                if subdir_differences and any(subdir_differences.values()):
-                    differences["subdir_differences"][subdir] = subdir_differences
-
-            if all(not diff for diff in differences.values()):
-                return None
-
-            return differences
-
-        return compare(src_dir, dst_dir)
-
-    @staticmethod
-    def _compare_artifact_manifests(src_art: Artifact, dst_art: Artifact) -> list:
-        problems = []
-        if isinstance(dst_art, wandb.CommError):
-            return ["commError"]
-
-        if src_art.digest != dst_art.digest:
-            problems.append(f"digest mismatch {src_art.digest=}, {dst_art.digest=}")
-
-        for name, src_entry in src_art.manifest.entries.items():
-            dst_entry = dst_art.manifest.entries.get(name)
-            if dst_entry is None:
-                problems.append(f"missing manifest entry {name=}, {src_entry=}")
-                continue
-
-            for attr in ["path", "digest", "size"]:
-                if getattr(src_entry, attr) != getattr(dst_entry, attr):
-                    problems.append(
-                        f"manifest entry mismatch {attr=}, {getattr(src_entry, attr)=}, {getattr(dst_entry, attr)=}"
-                    )
-
-        return problems
-
     def _get_dst_art(
         self, src_art: Run, entity: Optional[str] = None, project: Optional[str] = None
     ) -> Artifact:
@@ -1136,11 +1085,11 @@ class WandbImporter:
                 f"Problem getting problems! problem with {src_art.entity=}, {src_art.project=}, {src_art.name=} {e=}"
             )
         else:
-            problems += self._compare_artifact_manifests(src_art, dst_art)
+            problems += validation._compare_artifact_manifests(src_art, dst_art)
 
         if check_entries_are_downloadable:
-            # _check_entries_are_downloadable(src_art)
-            _check_entries_are_downloadable(dst_art)
+            # validation._check_entries_are_downloadable(src_art)
+            validation._check_entries_are_downloadable(dst_art)
 
         if download_files_and_compare:
             logger.debug(f"Downloading {src_art=}")
@@ -1160,7 +1109,7 @@ class WandbImporter:
                 )
             else:
                 logger.debug(f"Comparing artifact dirs {src_dir=}, {dst_dir=}")
-                if problem := self._compare_artifact_dirs(src_dir, dst_dir):
+                if problem := validation._compare_artifact_dirs(src_dir, dst_dir):
                     problems.append(problem)
 
         return (src_art, dst_entity, dst_project, problems)
@@ -1420,52 +1369,6 @@ class WandbImporter:
         seqs = itertools.islice(artifact_sequences(), limit)
         unique_sequences = {seq.identifier: seq for seq in seqs}
         yield from unique_sequences.values()
-
-
-def _check_entries_are_downloadable(art):
-    entries = _collect_entries(art)
-    for entry in entries:
-        if not _check_entry_is_downloable(entry):
-            return False
-    return True
-
-
-def _collect_entries(art):
-    has_next_page = True
-    cursor = None
-    entries = []
-    while has_next_page:
-        attrs = art._fetch_file_urls(cursor)
-        has_next_page = attrs["pageInfo"]["hasNextPage"]
-        cursor = attrs["pageInfo"]["endCursor"]
-        for edge in attrs["edges"]:
-            name = edge["node"]["name"]
-            entry = art.get_entry(name)
-            entry._download_url = edge["node"]["directUrl"]
-            entries.append(entry)
-    return entries
-
-
-def _check_entry_is_downloable(entry):
-    url = entry._download_url
-    expected_size = entry.size
-
-    try:
-        resp = requests.head(url, allow_redirects=True)
-    except Exception as e:
-        logger.error(f"Problem validating {entry=}, {e=}")
-        return False
-
-    if resp.status_code != 200:
-        return False
-
-    actual_size = resp.headers.get("content-length", -1)
-    actual_size = int(actual_size)
-
-    if expected_size == actual_size:
-        return True
-
-    return False
 
 
 def _get_art_name_ver(art: Artifact) -> Tuple[str, int]:
