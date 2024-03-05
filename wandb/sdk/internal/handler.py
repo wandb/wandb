@@ -50,15 +50,16 @@ SummaryDict = Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
-# Since ~2020/2021, when constructing the summary object, we had replaced the
-# artifact path for media types with the latest artifact path. The primary
-# purpose of this was to support live updating of media objects in the UI (since
-# the default artifact path was fully qualified and would not update). However,
-# in March of 2024, a bug was discovered with this approach which causes this
-# path to be incorrect in cases where the media object is logged to another
-# artifact before being logged to the run. Setting this to `False` disables this
-# copy behavior. The impact is that servers without Weave1 will need to refresh
-# the page to see the latest media if multiple logs to the same path occur.
+# Update (March 5, 2024): Since ~2020/2021, when constructing the summary
+# object, we had replaced the artifact path for media types with the latest
+# artifact path. The primary purpose of this was to support live updating of
+# media objects in the UI (since the default artifact path was fully qualified
+# and would not update). However, in March of 2024, a bug was discovered with
+# this approach which causes this path to be incorrect in cases where the media
+# object is logged to another artifact before being logged to the run. Setting
+# this to `False` disables this copy behavior. The impact is that users will
+# need to refresh to see updates. Ironically, this updating behavior is not
+# currently supported in the UI, so the impact of this change is minimal.
 REPLACE_SUMMARY_ART_PATH_WITH_LATEST = False
 
 
