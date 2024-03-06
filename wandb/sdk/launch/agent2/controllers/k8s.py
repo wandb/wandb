@@ -17,7 +17,6 @@ async def k8s_controller(
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ) -> Any:
-    name = config["jobset_spec"].name
     iter = 0
     max_concurrency = config["jobset_metadata"]["@max_concurrency"]
     if max_concurrency is None or max_concurrency == "auto":

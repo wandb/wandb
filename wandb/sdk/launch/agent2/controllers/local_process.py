@@ -26,7 +26,6 @@ async def local_process_controller(
 
     logger.debug(f"received config: {config}")
 
-    name = config["jobset_spec"].name
     iter = 0
     max_concurrency = config["jobset_metadata"]["@max_concurrency"]
 
@@ -51,7 +50,7 @@ async def local_process_controller(
             5
         )  # TODO(np): Ideally waits for job set or target resource events
         iter += 1
-    logger.debug(f"Shutdown complete")
+    logger.debug("Shutdown complete")
     return None
 
 

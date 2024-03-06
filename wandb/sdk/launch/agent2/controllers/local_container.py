@@ -23,7 +23,6 @@ async def local_container_controller(
     # to drive the launch controller here
     jobset.stop_sync_loop()
 
-    name = config["jobset_spec"].name
     iter = 0
     max_concurrency = config["jobset_metadata"][MAX_CONCURRENCY]
 
