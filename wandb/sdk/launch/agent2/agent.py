@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 import traceback
-from typing import Any, Dict, Optional, Set, TypedDict
+from typing import Any, Dict, Optional, Set, TypedDict, List
 
 import wandb
 from wandb.apis.internal import Api
@@ -24,7 +24,7 @@ class AgentConfig(TypedDict):
     max_jobs: int  # Deprecated; specified by each JobSet (see @max_concurrency metadata field)
     max_schedulers: int
     secure_mode: bool
-    queues: list[str]
+    queues: List[str]
     poll_interval: Optional[int]
     environment: Optional[Dict[str, Any]]
 
