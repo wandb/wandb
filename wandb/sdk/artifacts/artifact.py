@@ -1087,7 +1087,12 @@ class Artifact:
 
     @contextlib.contextmanager
     def new_file(
-        self, name: str, mode: str = "w", encoding: Optional[str] = None
+        self,
+        name: str,
+        mode: str = "w",
+        encoding: Optional[str] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[str] = "mutable",
     ) -> Generator[IO, None, None]:
         """Open a new temporary file and add it to the artifact.
 
@@ -1095,6 +1100,14 @@ class Artifact:
             name: The name of the new file to add to the artifact.
             mode: The file access mode to use to open the new file.
             encoding: The encoding used to open the new file.
+            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Copy to staging
+                    - If `skip_cache` = True: Delete staged files after uploading
+                    - If `skip_cache` = False: Move to cache after uploading
+                "immutable": Require file to not change.
+                    - If `skip_cache` = True: Do nothing.
+                    - If `skip_cache` = False: Copy to cache synchronously.
 
         Returns:
             A new file object that can be written to. Upon closing, the file will be
@@ -1122,7 +1135,7 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name)
+        self.add_file(path, name=name, skip_cache=skip_cache, policy=policy)
 
     def add_file(
         self,
@@ -1445,7 +1458,7 @@ class Artifact:
             local_path=upload_path,
             skip_cache=skip_cache,
         )
-
+        wandb.termwarn(f"\n\ninside add local file: {entry}\n\n")
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry
