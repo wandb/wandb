@@ -9,6 +9,7 @@ changelog:
       - cc-test
       - cc-chore
       - cc-refactor
+      - cc-docs
     authors:
       - octocat
   categories:
@@ -20,9 +21,6 @@ changelog:
       labels:
         - cc-fix
         - cc-security
-    - title: ":books: Docs"
-      labels:
-        - cc-docs
     - title: ":nail_care: Cleanup"
       labels:
         - "*"

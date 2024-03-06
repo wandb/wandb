@@ -291,6 +291,7 @@ class SettingsData:
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _code_path_local: str
     _colab: bool
     # _config_dict: Config
     _cuda: str
@@ -617,6 +618,10 @@ class Settings(SettingsData):
             },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
+            _code_path_local={
+                "hook": lambda _: _get_program_relpath(self.program),
                 "auto_hook": True,
             },
             _colab={
