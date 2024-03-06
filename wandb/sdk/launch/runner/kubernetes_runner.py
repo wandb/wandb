@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import traceback
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import yaml
@@ -701,9 +702,13 @@ async def ensure_api_key_secret(
                 return existing_secret
             raise
     except Exception as e:
-        raise LaunchError(
+        # Use traceback.format_exc() to capture the full traceback
+        error_message = (
             f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
+            + "Full traceback:\n"
+            + traceback.format_exc()
         )
+        raise LaunchError(error_message)
 
 
 async def maybe_create_imagepull_secret(
