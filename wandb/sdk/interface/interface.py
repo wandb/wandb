@@ -14,7 +14,6 @@ import sys
 import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
-import wandb
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
