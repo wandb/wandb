@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 from ..lib import tracelog
 from ..lib.mailbox import Mailbox
-from .router import MessageRouter
+from .router import MessageRouter, MessageRouterClosedError
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -34,6 +34,8 @@ class MessageQueueRouter(MessageRouter):
     def _read_message(self) -> Optional["pb.Result"]:
         try:
             msg = self._response_queue.get(timeout=1)
+        except OSError:
+            raise MessageRouterClosedError
         except queue.Empty:
             return None
         tracelog.log_message_dequeue(msg, self._response_queue)
