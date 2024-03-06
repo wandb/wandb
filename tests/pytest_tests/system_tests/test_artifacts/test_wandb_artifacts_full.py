@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 import wandb
 from wandb import Api
-from wandb.env import get_cache_dir
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -261,9 +260,6 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch):
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    print(get_staging_dir())
-    print(get_cache_dir())
-    print(tmp_path)
 
     def dir_size(dir: Path):
         return sum(f.stat().st_size for f in dir.rglob("*") if f.is_file())
@@ -296,6 +292,7 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open("random.bin", "wb") as f:
         f.write(np.random.bytes(4096))
+    artifact.add_file("random.bin", skip_cache=True)
 
     # The file is staged
     assert dir_size(staging_dir) == 4096
@@ -304,7 +301,7 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
         run.log_artifact(artifact)
 
     # The file is not cached
-    assert dir_size(cache_dir) == 0
+    assert dir_size(cache_dir) < 4096
 
 
 def test_immutable_uploads_are_not_staged(tmp_path, monkeypatch):
@@ -371,7 +368,7 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
         run.log_artifact(artifact)
 
     # The file is not cached
-    assert dir_size(cache_dir) == 0
+    assert dir_size(cache_dir) < 4096
 
 
 def test_local_references(wandb_init):

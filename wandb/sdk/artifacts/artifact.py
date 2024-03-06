@@ -1224,7 +1224,12 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path, skip_cache, policy)
+            self._add_local_file(
+                name=logical_path,
+                path=physical_path,
+                skip_cache=skip_cache,
+                policy=policy,
+            )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1431,7 +1436,7 @@ class Artifact:
                 staging_path = f.name
                 shutil.copyfile(path, staging_path)
                 os.chmod(staging_path, 0o400)
-            upload_path = staging_path
+                upload_path = staging_path
 
         entry = ArtifactManifestEntry(
             path=name,

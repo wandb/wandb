@@ -14,6 +14,7 @@ import sys
 import time
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
+import wandb
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -340,7 +341,7 @@ class InterfaceBase:
                 proto_entry.ref = entry.ref
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
-            proto_entry.skip_cache = entry.skip_cache
+            proto_entry.skip_cache = entry.skip_cache or False
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
