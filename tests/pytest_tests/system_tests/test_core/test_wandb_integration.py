@@ -6,6 +6,7 @@ logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
+
 import importlib
 import os
 import shutil
@@ -174,7 +175,7 @@ def test_dir_on_init_dir(wandb_init):
         ("0.9.0", "ERROR wandb version 0.9.0 has been retired"),
     ],
 )  # TODO should we mock pypi?
-@pytest.mark.wandb_core_failure(feature="terminal_ui")
+@pytest.mark.wandb_core_failure(feature="version_check")
 def test_versions_messages(wandb_init, capsys, version, message):
     with mock.patch("wandb.__version__", version):
         run = wandb_init(settings=dict(console="off"))
@@ -183,7 +184,7 @@ def test_versions_messages(wandb_init, capsys, version, message):
 
 
 # todo(core): debug how the record is sent in the file stream
-@pytest.mark.wandb_core_failure(feature="mark_preempting")
+@pytest.mark.wandb_core_failure(feature="sweep")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
@@ -200,7 +201,7 @@ def test_end_to_end_preempting(relay_server, wandb_init):
         run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="mark_preempting")
+@pytest.mark.wandb_core_failure(feature="sweep")
 def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
