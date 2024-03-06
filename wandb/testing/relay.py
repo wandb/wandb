@@ -486,11 +486,12 @@ class QueryResolver:
         response_data: Dict[str, Any],
         **kwargs: Any,
     ) -> Optional[Dict[str, Any]]:
+        results = []
         for resolver in self.resolvers:
             result = resolver.get("resolver")(request_data, response_data, **kwargs)
             if result is not None:
-                return result
-        return None
+                results.append(result)
+        return results
 
 
 class TokenizedCircularPattern:
@@ -768,13 +769,12 @@ class RelayServer:
                 response_data,
                 **kwargs,
             )
+            for entry in snooped_context:
+                self.context.upsert(entry)
         except Exception as e:
             print("Failed to resolve context: ", e)
             traceback.print_exc()
             snooped_context = None
-
-        if snooped_context is not None:
-            self.context.upsert(snooped_context)
 
         return None
 
@@ -815,7 +815,6 @@ class RelayServer:
             print(relayed_response)
             print(relayed_response.status_code, relayed_response.json())
             print("*****************")
-
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
         return relayed_response.json()

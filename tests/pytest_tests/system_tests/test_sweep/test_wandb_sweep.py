@@ -1,4 +1,5 @@
 """Sweep tests."""
+
 from typing import Any, Dict, List
 
 import pytest
@@ -177,7 +178,6 @@ def test_minmax_validation():
         api.api._validate_config_and_fill_distribution(sweep_config)
 
 
-@pytest.mark.wandb_core_failure(feature="sweep")
 def test_add_run_to_existing_sweep(user, wandb_init, relay_server):
     # Test that updating settings with sweep_id includes it in upsertBucket mutation
 
