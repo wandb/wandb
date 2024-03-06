@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 import traceback
-from typing import Any, Dict, Optional, Set, TypedDict, List
+from typing import Any, Dict, List, Optional, Set, TypedDict
 
 import wandb
 from wandb.apis.internal import Api
