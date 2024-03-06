@@ -3733,15 +3733,16 @@ type ArtifactManifestEntry struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Path            string       `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	Digest          string       `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
-	Ref             string       `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
-	Size            int64        `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
-	Mimetype        string       `protobuf:"bytes,5,opt,name=mimetype,proto3" json:"mimetype,omitempty"`
-	LocalPath       string       `protobuf:"bytes,6,opt,name=local_path,json=localPath,proto3" json:"local_path,omitempty"`
-	BirthArtifactId string       `protobuf:"bytes,7,opt,name=birth_artifact_id,json=birthArtifactId,proto3" json:"birth_artifact_id,omitempty"`
-	SkipCache       bool         `protobuf:"varint,8,opt,name=skip_cache,json=skipCache,proto3" json:"skip_cache,omitempty"`
-	Extra           []*ExtraItem `protobuf:"bytes,16,rep,name=extra,proto3" json:"extra,omitempty"`
+	Path            string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Digest          string `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest,omitempty"`
+	Ref             string `protobuf:"bytes,3,opt,name=ref,proto3" json:"ref,omitempty"`
+	Size            int64  `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
+	Mimetype        string `protobuf:"bytes,5,opt,name=mimetype,proto3" json:"mimetype,omitempty"`
+	LocalPath       string `protobuf:"bytes,6,opt,name=local_path,json=localPath,proto3" json:"local_path,omitempty"`
+	BirthArtifactId string `protobuf:"bytes,7,opt,name=birth_artifact_id,json=birthArtifactId,proto3" json:"birth_artifact_id,omitempty"`
+	// Whether to avoid copying/moving files to the cache while uploading.
+	SkipCache bool         `protobuf:"varint,8,opt,name=skip_cache,json=skipCache,proto3" json:"skip_cache,omitempty"`
+	Extra     []*ExtraItem `protobuf:"bytes,16,rep,name=extra,proto3" json:"extra,omitempty"`
 }
 
 func (x *ArtifactManifestEntry) Reset() {

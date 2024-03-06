@@ -1350,6 +1350,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     local_path: builtins.str
     birth_artifact_id: builtins.str
     skip_cache: builtins.bool
+    """Whether to avoid copying/moving files to the cache while uploading."""
     @property
     def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
     def __init__(
