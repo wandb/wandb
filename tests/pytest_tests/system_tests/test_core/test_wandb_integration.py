@@ -183,8 +183,6 @@ def test_versions_messages(wandb_init, capsys, version, message):
         assert message in capsys.readouterr().err
 
 
-# todo(core): debug how the record is sent in the file stream
-@pytest.mark.wandb_core_failure(feature="sweep")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
@@ -196,12 +194,10 @@ def test_end_to_end_preempting(relay_server, wandb_init):
             if preempting:
                 break
             time.sleep(1)
-        print(relay.context.raw_data)
         assert any(preempting)
         run.finish()
 
 
-@pytest.mark.wandb_core_failure(feature="sweep")
 def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
