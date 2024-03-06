@@ -10,7 +10,7 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.artifacts.staging import remove_from_staging
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
@@ -277,11 +277,6 @@ class ArtifactSaver:
         We need to delete them once we've uploaded the file or confirmed we
         already have a committed copy.
         """
-        staging_dir = get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass
+            if entry.local_path:
+                remove_from_staging(entry.local_path)
