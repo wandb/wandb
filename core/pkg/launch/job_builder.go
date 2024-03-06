@@ -741,7 +741,7 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 		if len(configFile.Include) > 0 {
 			config, err = filterInPaths(config, configFile.Include)
 		} else if len(configFile.Exclude) > 0 {
-			config, err = filterOutPaths(config, configFile.Exclude)
+			err = filterOutPaths(config, configFile.Exclude)
 		}
 		if err != nil {
 			return "{}", err
