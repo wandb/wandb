@@ -11,10 +11,21 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 )
 
+const (
+	// Don't go slower than 1 request per 10 seconds.
+	minRateLimit = 0.1
+
+	// Don't go faster than 20 requests per second.
+	maxRequestsPerSecond = 20
+
+	// Don't send more than 10 requests at a time.
+	maxBurst = 10
+)
+
 // The W&B backend server.
 //
-// This models the server, in particular to handle rate limiting. There is
-// generally exactly one Backend and a small number of Clients in a process.
+// There is generally exactly one Backend and a small number of Clients in a
+// process.
 type Backend struct {
 	// The URL prefix for all requests to the W&B API.
 	baseURL *url.URL
@@ -31,14 +42,23 @@ type Backend struct {
 
 // An HTTP client for interacting with the W&B backend.
 //
-// Multiple Clients can be created for one Backend when different retry
-// policies are needed.
+// There is one Client per API provided by the backend, where "API" is a
+// collection of related HTTP endpoints. It's expected that different APIs
+// have different properties such as rate-limits and ideal retry behaviors.
 //
-// TODO: The client is responsible for setting auth headers, retrying
+// The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
 	Send(*Request) (*http.Response, error)
+
+	// Sends an arbitrary HTTP request.
+	//
+	// This is used for libraries that accept a custom HTTP client that they
+	// then use to make requests to the backend, like GraphQL. If the request
+	// URL matches the backend's base URL, there's special handling as in
+	// Send().
+	Do(*http.Request) (*http.Response, error)
 }
 
 // Implementation of the Client interface.
@@ -69,7 +89,7 @@ type Request struct {
 	// an [io.ReadCloser] as in Go's standard HTTP package.
 	Body []byte
 
-	// Additional HTTP headers to include in the request.
+	// Additional HTTP headers to include in request.
 	//
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
@@ -94,9 +114,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		opts.BaseURL,
-		opts.Logger,
-		opts.APIKey,
+		baseURL: opts.BaseURL,
+		logger:  opts.Logger,
+		apiKey:  opts.APIKey,
 	}
 }
 
@@ -123,19 +143,22 @@ type ClientOptions struct {
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
 
-	// Additional headers to pass in each request.
+	// Additional headers to pass in each request to the backend.
+	//
+	// Note that these are only passed when communicating with the W&B backend.
+	// In particular, they are not sent if using this client to send
+	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 }
 
 // Creates a new [Client] for making requests to the [Backend].
 func (backend *Backend) NewClient(opts ClientOptions) Client {
-	retryableHTTP := clients.NewRetryClient(
-		clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		clients.WithRetryClientRetryMax(opts.RetryMax),
-		clients.WithRetryClientRetryWaitMin(opts.RetryWaitMin),
-		clients.WithRetryClientRetryWaitMax(opts.RetryWaitMax),
-		clients.WithRetryClientHttpTimeout(opts.NonRetryTimeout),
-	)
+	retryableHTTP := retryablehttp.NewClient()
+	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
+	retryableHTTP.RetryMax = opts.RetryMax
+	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
+	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
+	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
@@ -155,5 +178,13 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
+	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
+		retryableHTTP.HTTPClient.Transport,
+	)
+
+	return &clientImpl{
+		backend:       backend,
+		retryableHTTP: retryableHTTP,
+		extraHeaders:  opts.ExtraHeaders,
+	}
 }
