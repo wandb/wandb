@@ -732,8 +732,8 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 		}
 	}
 	for _, configFile := range j.configFiles {
-		file_unique_name := filepath.Join(configFile.Relpath, configFile.Filename)
-		path := filepath.Join(j.settings.FilesDir.Value, "configs", file_unique_name)
+		uniqueFilename := filepath.Join(configFile.Relpath, configFile.Filename)
+		path := filepath.Join(j.settings.FilesDir.Value, "configs", uniqueFilename)
 		config, err := loadConfigFile(path)
 		if err != nil {
 			return "{}", err
@@ -746,8 +746,7 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 		if err != nil {
 			return "{}", err
 		}
-		fmt.Println("config", config)
-		metadata[file_unique_name] = data_types.ResolveTypes(config)
+		metadata[uniqueFilename] = data_types.ResolveTypes(config)
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
