@@ -1,9 +1,9 @@
 package watcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	fw "github.com/radovskyb/watcher"
@@ -14,35 +14,84 @@ const pollingInterval = time.Millisecond * 100
 
 type Watcher struct {
 	watcher  *fw.Watcher
-	wg       *sync.WaitGroup
 	logger   *observability.CoreLogger
 	registry *registry
+	filesDir string
 }
 
-type WatcherOption func(*Watcher)
+type Params struct {
+	Logger *observability.CoreLogger
 
-func WithLogger(logger *observability.CoreLogger) WatcherOption {
-	return func(w *Watcher) {
-		w.logger = logger
-	}
+	// The directory where files are stored.
+	//
+	// Used as the base for relative file paths.
+	FilesDir string
 }
 
-func New(opts ...WatcherOption) *Watcher {
-	w := &Watcher{
+func New(params Params) *Watcher {
+	return &Watcher{
 		watcher:  fw.New(),
-		wg:       &sync.WaitGroup{},
+		logger:   params.Logger,
 		registry: &registry{},
+		filesDir: params.FilesDir,
 	}
-	for _, opt := range opts {
-		opt(w)
-	}
-	return w
 }
 
-// handleEvent handles an event from the watcher and calls the appropriate
-// handler function.
+// Begin polling files and emitting events.
+func (w *Watcher) Start() {
+	// Begin polling.
+	go func() {
+		if err := w.watcher.Start(pollingInterval); err != nil {
+			w.logger.CaptureError("watcher: error starting", err)
+		}
+	}()
+
+	// Begin processing events.
+	go func() {
+		w.logger.Debug("watcher: starting")
+		if err := w.watchLoop(); err != nil {
+			w.logger.CaptureError("watcher: error watching", err)
+		}
+	}()
+}
+
+// Stops polling and cleans up.
+func (w *Watcher) Close() {
+	w.watcher.Close()
+	w.logger.Debug("watcher: closed")
+}
+
+// Begin watching a path and invoking the given callback on each event.
+//
+// The given path must exist.
+//
+// Relative paths are relative to the configured FilesDir, which may itself
+// be relative to the working directory.
+//
+// A Create event is emitted immediately for regular files. When given a
+// directory, the callback is used for any direct children of the directory
+// that don't have a handler otherwise; a Create event is emitted for all
+// existing children of the directory.
+func (w *Watcher) Add(path string, fn func(Event) error) error {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(w.filesDir, path)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("watcher: failed to add path: %v", err)
+	}
+
+	if info.IsDir() {
+		return w.addFile(path, info, fn)
+	} else {
+		return w.addDirectory(path, fn)
+	}
+}
+
+// Runs the registered handler for a file event.
 func (w *Watcher) handleEvent(event Event) error {
-	w.logger.Debug("got event", "event", event)
+	w.logger.Debug("watcher: got event", "event", event)
 	if fn, ok := w.registry.get(event.Path); ok {
 		return fn(event)
 	}
@@ -53,10 +102,10 @@ func (w *Watcher) handleEvent(event Event) error {
 	return nil
 }
 
-// watch watches for events from the watcher and calls the appropriate
-// handler function. It returns when the watcher is closed or an error occurs.
-// It returns an error if an error occurs.
-func (w *Watcher) watch() error {
+// Loop and handle file events from the watcher.
+//
+// Returns when the watcher is closed or an error occurs.
+func (w *Watcher) watchLoop() error {
 	w.logger.Debug("starting watcher")
 	for {
 		select {
@@ -75,89 +124,52 @@ func (w *Watcher) watch() error {
 	}
 }
 
-// Add adds a path to the watcher and registers a handler function for it.
-func (w *Watcher) Add(path string, fn func(Event) error) error {
+func (w *Watcher) addFile(path string, info os.FileInfo, fn func(Event) error) error {
 	if err := w.watcher.Add(path); err != nil {
-		return err
+		return fmt.Errorf("watcher: failed to watch file: %v", err)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
+	w.registry.register(path, fn)
 
-	// register with the absolute path
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	w.registry.register(absPath, fn)
-
-	if !info.IsDir() {
-		// w.watcher.Add() doesn't trigger an event for an existing file, so we do it manually
-		e := &EventFileInfo{FileInfo: info, name: path}
-		w.watcher.TriggerEvent(fw.Create, e)
-	}
-
-	return nil
-}
-
-// handleManualTriggerEventFn handler function for manual trigger events.
-// This is used when a file is added to the watcher manually, and we need
-// to register a handler function for it.
-func (w *Watcher) handleManualTriggerEventFn(event Event) error {
-	path := event.Name()
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-
-	if fn, ok := w.registry.get(absPath); ok {
-		return fn(event)
-	}
-
-	if fn, ok := w.registry.get(path); ok {
-		fnAbs := func(event Event) error {
-			event.Path = path
-			return fn(event)
-		}
-		w.registry.register(absPath, fnAbs)
-		return fnAbs(event)
-	}
-	return nil
-}
-
-func (w *Watcher) Start() {
-	// Start the watching process - it'll check for changes every pollingInterval ms.
-	go func() {
-		if err := w.watcher.Start(pollingInterval); err != nil {
-			w.logger.CaptureError("error starting watcher", err)
-		}
-	}()
 	w.watcher.Wait()
+	w.watcher.TriggerEvent(fw.Create, &EventFileInfo{
+		FileInfo: info,
+		name:     path,
+	})
 
-	// The first time we see a file, it comes from a manual trigger
-	// where event.Path is not defined (it's "-"). So we register a
-	// handler function for it here.
-	w.registry.register("-", w.handleManualTriggerEventFn)
+	return nil
+}
 
-	w.wg.Add(1)
-	go func() {
-		w.logger.Debug("starting watcher")
-		defer w.wg.Done()
-		if err := w.watch(); err != nil {
-			w.logger.CaptureError("error watching", err)
+func (w *Watcher) addDirectory(path string, fn func(Event) error) error {
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("watcher: failed to read directory: %v", err)
+	}
+
+	if err := w.watcher.Add(path); err != nil {
+		return fmt.Errorf("watcher: failed to watch directory: %v", err)
+	}
+
+	w.registry.register(path, fn)
+
+	w.watcher.Wait()
+	for _, file := range files {
+		info, err := file.Info()
+		if err != nil {
+			w.logger.CaptureError(
+				"watcher: failed to emit Create event for file in directory",
+				err,
+			)
+
+			// Skip errors -- we already started watching!
+			continue
 		}
-	}()
-}
 
-func (w *Watcher) Close() {
-	w.watcher.Close()
-	w.wg.Wait()
-	w.registry.clear()
-	w.logger.Debug("watcher closed")
-}
+		w.watcher.TriggerEvent(fw.Create, &EventFileInfo{
+			FileInfo: info,
+			name:     filepath.Join(path, file.Name()),
+		})
+	}
 
-func (w *Watcher) TriggerEvent(eventType fw.Op, info os.FileInfo) {
-	w.watcher.TriggerEvent(eventType, info)
+	return nil
 }

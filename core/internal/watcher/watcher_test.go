@@ -36,10 +36,9 @@ func TestNew(t *testing.T) {
 
 	logger := observability.NewNoOpLogger()
 
-	options := []watcher.WatcherOption{
-		watcher.WithLogger(logger),
-	}
-	w := watcher.New(options...)
+	w := watcher.New(watcher.Params{
+		Logger: logger,
+	})
 
 	require.NotNil(t, w, "Watcher should not be nil")
 }
