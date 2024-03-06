@@ -61,7 +61,7 @@ class WandbModelCheckpoint(ignite_handlers.ModelCheckpoint):
         filename_prefix: str = "",
         score_function: Optional[Callable] = None,
         score_name: Optional[str] = None,
-        n_saved: Union[int, None] = 1,
+        n_saved: Optional[int] = 1,
         atomic: bool = True,
         require_empty: bool = True,
         create_dir: bool = True,
