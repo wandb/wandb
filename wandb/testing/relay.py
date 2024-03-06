@@ -486,12 +486,12 @@ class QueryResolver:
         response_data: Dict[str, Any],
         **kwargs: Any,
     ) -> Optional[Dict[str, Any]]:
-        resutls = []
+        results = []
         for resolver in self.resolvers:
             result = resolver.get("resolver")(request_data, response_data, **kwargs)
             if result is not None:
-                resutls.append(result)
-        return resutls
+                results.append(result)
+        return results
 
 
 class TokenizedCircularPattern:
