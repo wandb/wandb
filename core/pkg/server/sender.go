@@ -699,9 +699,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
-		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
-		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
-		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+		bucket := data.GetUpsertBucket().GetBucket()
+		project := bucket.GetProject()
+		entity := project.GetEntity()
+		s.RunRecord.StorageId = bucket.GetId()
+		// s.RunRecord.RunId = bucket.GetName()
+		s.RunRecord.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
+		s.RunRecord.Project = project.GetName()
+		s.RunRecord.Entity = entity.GetName()
+		s.RunRecord.SweepId = utils.ZeroIfNil(bucket.GetSweepName())
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {

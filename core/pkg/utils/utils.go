@@ -14,6 +14,15 @@ func NilIfZero[T comparable](x T) *T {
 	return &x
 }
 
+func ZeroIfNil[T comparable](x *T) T {
+	if x == nil {
+		// zero value of T
+		var zero T
+		return zero
+	}
+	return *x
+}
+
 func GenerateAlphanumericSequence(length int) string {
 	var result string
 	for i := 0; i < length; i++ {
