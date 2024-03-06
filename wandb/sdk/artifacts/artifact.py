@@ -7,6 +7,7 @@ import multiprocessing.dummy
 import os
 import re
 import shutil
+import stat
 import tempfile
 import time
 from copy import copy
@@ -1448,7 +1449,8 @@ class Artifact:
             with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
                 staging_path = f.name
                 shutil.copyfile(path, staging_path)
-                os.chmod(staging_path, 0o400)
+                # Set as read-only to prevent changes to the file during upload process
+                os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
         entry = ArtifactManifestEntry(
@@ -1458,7 +1460,6 @@ class Artifact:
             local_path=upload_path,
             skip_cache=skip_cache,
         )
-        wandb.termwarn(f"\n\ninside add local file: {entry}\n\n")
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry

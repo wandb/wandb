@@ -14,6 +14,9 @@ Starting with the next release, we would like to follow
 https://keepachangelog.com/en/1.1.0/. Please add to relevant
 subsections here on every PR where this is applicable.
 
+### Added
+
+* Add support to skip staging and/or caching files to the local filesystem while uploading files in artifacts
 
 ## [0.16.4] - 2024-03-05
 

@@ -25,7 +25,7 @@ class ArtifactManifestEntry:
 
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
-    skip_cache: Optional[bool] = False
+    skip_cache: bool
     ref: Optional[Union[FilePathStr, URIStr]]
     birth_artifact_id: Optional[str]
     size: Optional[int]
@@ -39,12 +39,12 @@ class ArtifactManifestEntry:
         self,
         path: StrPath,
         digest: Union[B64MD5, URIStr, FilePathStr, ETag],
+        skip_cache: Optional[bool] = False,
         ref: Optional[Union[FilePathStr, URIStr]] = None,
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
         extra: Optional[Dict] = None,
         local_path: Optional[StrPath] = None,
-        skip_cache: Optional[bool] = False,
     ) -> None:
         self.path = LogicalPath(path)
         self.digest = digest
@@ -55,7 +55,7 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
-        self.skip_cache = skip_cache or False
+        self.skip_cache = skip_cache if skip_cache is not None else False
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__

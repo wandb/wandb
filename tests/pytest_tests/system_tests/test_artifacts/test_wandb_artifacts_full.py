@@ -243,17 +243,17 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, a
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+    data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open("random.bin", "wb") as f:
-        f.write(np.random.bytes(4096))
-    manifest_entry = artifact.add_file("random.bin")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path)
 
     # The file is staged
-    assert dir_size() == 4096
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
 
     with wandb_init() as run:
         run.log_artifact(artifact)
@@ -271,17 +271,17 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+    data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open("random.bin", "wb") as f:
-        f.write(np.random.bytes(4096))
-    manifest_entry = artifact.add_file("random.bin", skip_cache=True)
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True)
 
     # The file is staged
-    assert dir_size() == 4096
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
 
     with wandb_init() as run:
         run.log_artifact(artifact)
@@ -300,17 +300,16 @@ def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch)
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
+    data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open("random.bin", "wb") as f:
-        f.write(np.random.bytes(4096))
-    manifest_entry = artifact.add_file("random.bin", policy="immutable")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, policy="immutable")
 
-    # The file is not staged
-    assert dir_size() == 0
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
 
     with wandb_init() as run:
         run.log_artifact(artifact)
@@ -328,17 +327,16 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-
-    def dir_size(dir: Path):
-        return sum(f.stat().st_size for f in dir.rglob("*") if f.is_file())
+    data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
-    with open("random.bin", "wb") as f:
-        f.write(np.random.bytes(4096))
-    manifest_entry = artifact.add_file("random.bin")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True, policy="immutable")
 
-    # The file is not staged
-    assert dir_size(staging_dir) == 0
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
 
     with wandb_init() as run:
         run.log_artifact(artifact)

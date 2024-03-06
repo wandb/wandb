@@ -2,7 +2,6 @@ import os
 import platform
 from pathlib import Path
 
-import numpy as np
 import pytest
 from wandb.cli import cli
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -42,23 +41,22 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    data_path = Path(tmp_path / "random.txt")
 
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
-
-    with open("artifact.txt", "wb") as f:
-        f.write(np.random.bytes(4096))
-    result = runner.invoke(cli.artifact, ["put", "artifact.txt", "-n", "test/simple"])
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    result = runner.invoke(cli.artifact, ["put", str(data_path), "-n", "test/simple"])
     assert result.exit_code == 0
-    assert "Uploading file artifact.txt to:" in result.output
+    assert f"Uploading file {data_path} to:" in result.output
     assert "test/simple:v0" in result.output
 
     # The staged file is deleted after logging
-    assert dir_size() == 0
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
 
     # The file is cached
     artifact = api.artifact("test/simple:latest")
-    manifest_entry = artifact.manifest.entries["artifact.txt"]
+    manifest_entry = artifact.manifest.entries["random.txt"]
     _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
         manifest_entry.digest, manifest_entry.size
     )
@@ -71,25 +69,24 @@ def test_artifact_put_with_cache_disabled(runner, user, monkeypatch, tmp_path, a
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    data_path = Path(tmp_path / "random.txt")
 
-    def dir_size():
-        return sum(f.stat().st_size for f in staging_dir.rglob("*") if f.is_file())
-
-    with open("artifact.txt", "wb") as f:
-        f.write(np.random.bytes(4096))
+    with open(data_path, "w") as f:
+        f.write("test 123")
     result = runner.invoke(
-        cli.artifact, ["put", "artifact.txt", "-n", "test/simple", "--skip_cache"]
+        cli.artifact, ["put", str(data_path), "-n", "test/simple", "--skip_cache"]
     )
     assert result.exit_code == 0
-    assert "Uploading file artifact.txt to:" in result.output
+    assert f"Uploading file {data_path} to:" in result.output
     assert "test/simple:v0" in result.output
 
     # The staged file is deleted after logging
-    assert dir_size() == 0
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
 
     # The file is not cached
     artifact = api.artifact("test/simple:latest")
-    manifest_entry = artifact.manifest.entries["artifact.txt"]
+    manifest_entry = artifact.manifest.entries["random.txt"]
     _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
         manifest_entry.digest, manifest_entry.size
     )
