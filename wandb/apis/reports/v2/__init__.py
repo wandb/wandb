@@ -5,6 +5,8 @@ from .... import termlog
 from . import blocks, panels
 from .blocks import *  # noqa
 from .interface import (
+    GalleryReport,
+    GalleryURL,
     GradientPoint,
     InlineCode,
     InlineLatex,
