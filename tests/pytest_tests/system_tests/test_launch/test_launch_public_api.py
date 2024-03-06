@@ -14,8 +14,8 @@ def test_create_run_queue_template_variables_not_supported(runner, user, monkeyp
     }
 
     def patched_push_to_run_queue_introspection(*args, **kwargs):
-        args[0].server_supports_template_variables = False
-        return False
+        args[0].server_supports_template_variables = False, False
+        return False, False
 
     monkeypatch.setattr(
         wandb.sdk.internal.internal_api.Api,
