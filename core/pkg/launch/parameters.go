@@ -118,35 +118,33 @@ func filterIn(data interface{}, new_data interface{}, components []string) (inte
 	}
 }
 
-func filterOutPaths(data interface{}, endpoints []string) (interface{}, error) {
+func filterOutPaths(data interface{}, endpoints []string) error {
 	// Filter out the specified endpoints from the data structure.
 	// The endpoints are specified as a list of strings of the form key.key.index
 	// that specify paths within a nested data structure. '.' is used as the separator
 	// unless it is escaped with a backslash.
 	// The data structure is modified in place.
 	if len(endpoints) == 0 {
-		return data, nil
+		return nil
 	}
-	var filtered_data = data
 	var err error
 	for _, endpoint := range endpoints {
 		components := parseNestedPath(endpoint)
-		filtered_data, err = filterOut(data, components)
+		err = filterOut(data, components)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return filtered_data, nil
+	return nil
 }
 
-func filterOut(data interface{}, components []string) (interface{}, error) {
+func filterOut(data interface{}, components []string) error {
 	// Filter out the specified components from the data structure.
 	// The components are specified as a list of strings that specify paths within
 	// a nested data structure.
 	if len(components) == 0 {
-		return data, nil
+		return nil
 	}
-	var filtered_data interface{}
 	var err error
 	switch data := data.(type) {
 	case map[string]interface{}:
@@ -154,16 +152,15 @@ func filterOut(data interface{}, components []string) (interface{}, error) {
 			delete(data, components[0])
 		} else {
 			if _, ok := data[components[0]]; !ok {
-				return data, fmt.Errorf("missing key: %s", components[0])
+				return fmt.Errorf("missing key: %s", components[0])
 			}
-			filtered_data, err = filterOut(data[components[0]], components[1:])
+			err = filterOut(data[components[0]], components[1:])
 			if err != nil {
-				return data, err
+				return err
 			}
-			data[components[0]] = filtered_data
 		}
 	default:
-		return data, nil
+		return nil
 	}
-	return data, nil
+	return nil
 }
