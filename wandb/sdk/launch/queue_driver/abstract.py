@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional, Union
 
 from wandb.apis.internal import Api
 
@@ -10,7 +10,7 @@ class AbstractQueueDriver(ABC):
     api: Api
 
     @abstractmethod
-    async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]] | None:
+    async def pop_from_run_queue(self) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
         """Determine which item should run next and pop it.
 
         Returns:
