@@ -1,5 +1,4 @@
 """footer tests."""
-
 import re
 
 import numpy as np
@@ -69,6 +68,8 @@ def test_footer_private(wandb_init, check_output_fn):
     check_output_fn(exp_summary=[], exp_history=[])
 
 
+# todo(core): implement sparklines / run history
+@pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_normal(wandb_init, check_output_fn):
     run = wandb_init()
     run.log(dict(d=2))
@@ -111,7 +112,7 @@ def test_footer_summary_image(wandb_init, check_output_fn):
 
 
 # todo(core): implement sparklines / run history
-@pytest.mark.wandb_core_failure(feature="define_metric")
+@pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_history(wandb_init, check_output_fn):
     run = wandb_init()
     run.define_metric("*", summary="none")
@@ -124,7 +125,7 @@ def test_footer_history(wandb_init, check_output_fn):
 
 
 # todo(core): implement job info
-@pytest.mark.wandb_core_failure(feature="launch")
+@pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_job_output(wandb_init, capsys, monkeypatch):
     """Test that footer includes job info when a job is created."""
     monkeypatch.setenv("WANDB_DOCKER", "hello-world")  # Needed to trigger job creation.
