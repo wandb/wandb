@@ -324,7 +324,7 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_upgraded(
@@ -362,7 +362,7 @@ def test_upgrade_upgraded(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked(
@@ -403,7 +403,7 @@ def test_upgrade_yanked(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked_message(
@@ -444,7 +444,7 @@ def test_upgrade_yanked_message(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_removed(
