@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Sequence, Type, Union
 from wandb.sdk.lib import filesystem, runid
 
 from . import _dtypes
-from ._private import MEDIA_TMP
+from ._private import _get_media_tmp_dir
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -48,7 +48,9 @@ class Html(BatchableMedia):
             self.inject_head()
 
         if inject or not data_is_path:
-            tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".html")
+            tmp_path = os.path.join(
+                _get_media_tmp_dir().name, runid.generate_id() + ".html"
+            )
             with open(tmp_path, "w", encoding="utf-8") as out:
                 out.write(self.html)
 
