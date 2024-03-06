@@ -1,0 +1,14 @@
+id: 0.perf.01-log-scalers
+plugin:
+  - wandb
+command:
+  program: measure_logging.py
+  args:
+    - --test_prefix
+    - perf_log_commit_true
+assert:
+  - :wandb:runs_len: 1
+  - :op:<:
+    - :wandb:runs[0][summary][perf_log_commit_true]
+    - 0.030
+    # should be less than 1ms on a fast machine
