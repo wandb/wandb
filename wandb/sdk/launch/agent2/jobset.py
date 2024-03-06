@@ -114,7 +114,7 @@ class JobSet:
     async def _sync(self):
         next_state = await self._refresh_jobset()
         self._logger.debug(f"State: {next_state}")
-        
+
         # just grabbed a diff from the server, now to add to our local state
         self._last_state = next_state
 
