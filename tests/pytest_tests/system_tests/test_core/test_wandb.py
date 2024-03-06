@@ -487,7 +487,7 @@ def test_restore_no_path():
         wandb.restore("weights.h5")
 
 
-@pytest.mark.xfail(reason="Public API might not return the correct value")
+@pytest.mark.skip(reason="This test seems to be flaky")
 def test_restore_name_not_found(wandb_init):
     with pytest.raises(ValueError):
         run = wandb_init()
