@@ -674,6 +674,60 @@ async def ensure_api_key_secret(
         type="kubernetes.io/basic-auth",
     )
 
+    max_retries = 3  # Maximum number of retries
+    retry_delay = 5  # Seconds to wait before retrying
+
+    for attempt in range(max_retries):
+        try:
+            return await core_api.create_namespaced_secret(namespace, secret)
+        except ApiException as e:
+            if e.status == 409:  # Conflict = secret already exists
+                existing_secret = await core_api.read_namespaced_secret(
+                    name=secret_name, namespace=namespace
+                )
+                if existing_secret.data != secret_data:
+                    if (
+                        existing_secret.metadata.labels.get("wandb.ai/created-by")
+                        == "launch-agent"
+                    ):
+                        await core_api.delete_namespaced_secret(
+                            name=secret_name, namespace=namespace
+                        )
+                        return await core_api.create_namespaced_secret(
+                            namespace, secret
+                        )
+                    else:
+                        raise LaunchError(
+                            f"Kubernetes secret already exists in namespace {namespace} with incorrect data: {secret_name}"
+                        )
+                return existing_secret
+            elif (
+                "Server Disconnected" in str(e) or attempt < max_retries - 1
+            ):  # Check for server disconnection or other retryable errors
+                print(
+                    f"Attempt {attempt + 1} failed, retrying in {retry_delay} seconds..."
+                )
+                await asyncio.sleep(retry_delay)  # Wait before retrying
+                continue
+            else:
+                error_message = (
+                    f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
+                    + "Full traceback:\n"
+                    + traceback.format_exc()
+                )
+                raise LaunchError(error_message)
+        except Exception as e:
+            error_message = (
+                f"Non-retryable exception when ensuring Kubernetes API key secret: {str(e)}\n"
+                + "Full traceback:\n"
+                + traceback.format_exc()
+            )
+            raise LaunchError(error_message)
+
+    raise LaunchError(
+        "Failed to ensure Kubernetes API key secret after multiple retries."
+    )
+
     try:
         try:
             return await core_api.create_namespaced_secret(namespace, secret)
