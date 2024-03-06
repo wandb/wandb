@@ -3,6 +3,7 @@ import platform
 from pathlib import Path
 
 import pytest
+import wandb
 from wandb.cli import cli
 from wandb.sdk.artifacts.staging import get_staging_dir
 
@@ -57,6 +58,8 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     # The file is cached
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
+    wandb.termwarn(f"\n\ncache dirs: {artifact.manifest.storage_policy._cache._cache_dir}\n\n")
+    wandb.termwarn(f"\n\manifest entry: {artifact.manifest.entries}\n\n")
     _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
         manifest_entry.digest, manifest_entry.size
     )
