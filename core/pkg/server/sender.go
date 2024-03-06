@@ -670,7 +670,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			utils.NilIfZero(repo),            // repo
 			utils.NilIfZero(run.JobType),     // jobType
 			nil,                              // state
-			nil,                              // sweep
+			utils.NilIfZero(run.SweepId),     // sweep
 			tags,                             // tags []string,
 			nil,                              // summaryMetrics
 		)
