@@ -724,11 +724,11 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 			}
 			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
 		} else if j.wandbConfigParameters.Exclude != nil {
-			metadata[WandbConfigKey], err = filterOutPaths(j.runConfig, j.wandbConfigParameters.Exclude)
+			err = filterOutPaths(j.runConfig, j.wandbConfigParameters.Exclude)
 			if err != nil {
 				return "{}", err
 			}
-			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
+			metadata[WandbConfigKey] = data_types.ResolveTypes(j.runConfig)
 		}
 	}
 	for _, configFile := range j.configFiles {
