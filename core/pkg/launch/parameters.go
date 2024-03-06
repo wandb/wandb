@@ -68,21 +68,18 @@ func filterInPaths(data interface{}, endpoints []string) (interface{}, error) {
 	}
 	var err error
 	var new_data interface{}
-	switch data.(type) {
-	case map[string]interface{}:
+	if data_map, ok := data.(map[string]interface{}); ok {
 		new_data = make(map[string]interface{})
-	}
-	if new_data == nil {
-		return nil, fmt.Errorf("unsupported data type: %T", data)
-	}
-	for _, endpoint := range endpoints {
-		components := parseNestedPath(endpoint)
-		new_data, err = filterIn(data, new_data, components)
-		if err != nil {
-			return nil, err
+		for _, endpoint := range endpoints {
+			components := parseNestedPath(endpoint)
+			new_data, err = filterIn(data_map, new_data, components)
+			if err != nil {
+				return nil, err
+			}
 		}
+		return new_data, nil
 	}
-	return new_data, nil
+	return data, nil
 }
 
 func filterIn(data interface{}, new_data interface{}, components []string) (interface{}, error) {
