@@ -10,7 +10,9 @@ class AbstractQueueDriver(ABC):
     api: Api
 
     @abstractmethod
-    async def pop_from_run_queue(self) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
+    async def pop_from_run_queue(
+        self,
+    ) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
         """Determine which item should run next and pop it.
 
         Returns:
