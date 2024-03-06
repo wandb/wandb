@@ -651,7 +651,7 @@ async def ensure_api_key_secret(
     secret_name: str,
     namespace: str,
     api_key: str,
-    retries: Optional[int] = 0,
+    retries: int = 0,
 ) -> "V1Secret":
     """Create a secret containing a user's wandb API key.
 
@@ -708,9 +708,13 @@ async def ensure_api_key_secret(
                 f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
             )
         else:
-            wandb.termwarn(f"Exception when ensuring Kubernetes API key secret, retrying ({retries}/{API_KEY_SECRET_MAX_RETRIES})")
-            await asyncio.sleep(2 ** retries)
-            return await ensure_api_key_secret(core_api, secret_name, namespace, api_key, retries+1)
+            wandb.termwarn(
+                f"Exception when ensuring Kubernetes API key secret, retrying ({retries}/{API_KEY_SECRET_MAX_RETRIES})"
+            )
+            await asyncio.sleep(2**retries)
+            return await ensure_api_key_secret(
+                core_api, secret_name, namespace, api_key, retries + 1
+            )
 
 
 async def maybe_create_imagepull_secret(

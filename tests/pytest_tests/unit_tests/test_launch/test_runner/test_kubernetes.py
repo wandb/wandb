@@ -755,11 +755,21 @@ async def test_create_api_key_secret_unhandled(monkeypatch):
 
     def mock_create_namespaced_secret(*args, **kwargs):
         raise Exception("Test exception")
+
     api.create_namespaced_secret = mock_create_namespaced_secret
-    with pytest.raises(LaunchError, match="Exception when ensuring Kubernetes API key secret: Test exception"):
-        await ensure_api_key_secret(api, "wandb-api-key-testagent", "wandb", "testsecret")
+    with pytest.raises(
+        LaunchError,
+        match="Exception when ensuring Kubernetes API key secret: Test exception",
+    ):
+        await ensure_api_key_secret(
+            api, "wandb-api-key-testagent", "wandb", "testsecret"
+        )
     assert wandb.termwarn.call_count == 5
-    assert wandb.termwarn.call_args_list[0][0][0] == "Exception when ensuring Kubernetes API key secret, retrying (0/5)"
+    assert (
+        wandb.termwarn.call_args_list[0][0][0]
+        == "Exception when ensuring Kubernetes API key secret, retrying (0/5)"
+    )
+
 
 # Test monitor class.
 
