@@ -1,4 +1,6 @@
-package data_types
+package datatypes
+
+import "sort"
 
 type TypeName string
 
@@ -72,7 +74,8 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 			// for example: [[1, 2, 3], [1, 2, "3"]] should be union but it will be list
 			result[resolved.Name] = resolved
 		}
-		if len(result) == 0 {
+		switch len(result) {
+		case 0:
 			return TypeRepresentation{
 				Name: ListTypeName,
 				Params: &ListType{
@@ -82,8 +85,7 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 					Length: len(v),
 				},
 			}
-		}
-		if len(result) == 1 {
+		case 1:
 			for _, elem := range result {
 				return TypeRepresentation{
 					Name: ListTypeName,
@@ -93,23 +95,27 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 					},
 				}
 			}
-		}
+		default:
+			allowed := make([]TypeRepresentation, 0, len(result))
+			for _, elem := range result {
+				allowed = append(allowed, elem)
+			}
+			sort.Slice(allowed, func(i, j int) bool {
+				return allowed[i].Name < allowed[j].Name
+			})
 
-		allowed := make([]TypeRepresentation, 0, len(result))
-		for _, elem := range result {
-			allowed = append(allowed, elem)
-		}
-		return TypeRepresentation{
-			Name: ListTypeName,
-			Params: &ListType{
-				ElementType: TypeRepresentation{
-					Name: UnionTypeName,
-					Params: &UnionType{
-						AllowedTypes: allowed,
+			return TypeRepresentation{
+				Name: ListTypeName,
+				Params: &ListType{
+					ElementType: TypeRepresentation{
+						Name: UnionTypeName,
+						Params: &UnionType{
+							AllowedTypes: allowed,
+						},
 					},
+					Length: len(v),
 				},
-				Length: len(v),
-			},
+			}
 		}
 	case int, float64:
 		return TypeRepresentation{

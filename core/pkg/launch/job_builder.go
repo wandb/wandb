@@ -10,7 +10,7 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/internal/data_types"
+	"github.com/wandb/wandb/core/internal/datatypes"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -131,11 +131,11 @@ type JobSourceMetadata struct {
 	// this field is used by launch to determine the flow for launching the job
 	// see public.py.Job for more info
 
-	SourceType  SourceType                    `json:"source_type"`
-	InputTypes  data_types.TypeRepresentation `json:"input_types"`
-	OutputTypes data_types.TypeRepresentation `json:"output_types"`
-	Runtime     *string                       `json:"runtime,omitempty"`
-	Partial     *string                       `json:"_partial,omitempty"`
+	SourceType  SourceType                   `json:"source_type"`
+	InputTypes  datatypes.TypeRepresentation `json:"input_types"`
+	OutputTypes datatypes.TypeRepresentation `json:"output_types"`
+	Runtime     *string                      `json:"runtime,omitempty"`
+	Partial     *string                      `json:"_partial,omitempty"`
 }
 
 type ArtifactInfoForJob struct {
@@ -542,10 +542,10 @@ func (j *JobBuilder) Build(
 	sourceInfo.Runtime = metadata.Python
 
 	if input != nil {
-		sourceInfo.InputTypes = data_types.ResolveTypes(input)
+		sourceInfo.InputTypes = datatypes.ResolveTypes(input)
 	}
 	if output != nil {
-		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
+		sourceInfo.OutputTypes = datatypes.ResolveTypes(output)
 	}
 
 	baseArtifact := &service.ArtifactRecord{
