@@ -718,6 +718,24 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
 		}
 	}
+	for _, configFile := range j.configFiles {
+		file_unique_name := filepath.Join(configFile.Relpath, configFile.Filename)
+		path := filepath.Join(j.settings.FilesDir.Value, "configs", file_unique_name)
+		config, err := loadConfigFile(path)
+		if err != nil {
+			return "{}", err
+		}
+		if len(configFile.Include) > 0 {
+			config, err = filterInPaths(config, configFile.Include)
+		} else if len(configFile.Exclude) > 0 {
+			config, err = filterOutPaths(config, configFile.Exclude)
+		}
+		if err != nil {
+			return "{}", err
+		}
+		fmt.Println("config", config)
+		metadata[file_unique_name] = data_types.ResolveTypes(config)
+	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return "{}", err
@@ -744,6 +762,7 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
 	j.logger.Debug("jobBuilder: handling config file parameter record")
 	j.configFiles = append(j.configFiles, configFileParameter)
+	j.saveInputToMetadata = true
 }
 
 func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {

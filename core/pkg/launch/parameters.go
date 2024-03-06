@@ -2,8 +2,35 @@ package launch
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/segmentio/encoding/json"
+	"gopkg.in/yaml.v3"
 )
+
+func loadConfigFile(configFile string) (interface{}, error) {
+	// Load a yaml, json, or toml config file and return the parsed data structure.
+	extension := strings.ToLower(filepath.Ext(configFile))
+	var data interface{}
+	data_bytes, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+	switch extension {
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(data_bytes, &data)
+	case ".json":
+		err = json.Unmarshal(data_bytes, &data)
+	default:
+		return nil, fmt.Errorf("unsupported file extension: %s", extension)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
 
 func parseNestedPath(path string) []string {
 	// Split a path in a nested data structure into its components. The path is
