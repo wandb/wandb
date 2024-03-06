@@ -25,6 +25,7 @@ class ArtifactManifestEntry:
 
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    skip_cache: Optional[bool] = False
     ref: Optional[Union[FilePathStr, URIStr]]
     birth_artifact_id: Optional[str]
     size: Optional[int]
@@ -43,6 +44,7 @@ class ArtifactManifestEntry:
         size: Optional[int] = None,
         extra: Optional[Dict] = None,
         local_path: Optional[StrPath] = None,
+        skip_cache: Optional[bool] = False,
     ) -> None:
         self.path = LogicalPath(path)
         self.digest = digest
@@ -53,6 +55,7 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
+        self.skip_cache = skip_cache
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -65,6 +68,7 @@ class ArtifactManifestEntry:
         size = f", size={self.size}" if self.size is not None else ""
         extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
         local_path = f", local_path={self.local_path!r}" if self.local_path else ""
+        skip_cache = f", skip_cache={self.skip_cache!r}" if self.skip_cache else ""
         others = ref + birth_artifact_id + size + extra + local_path
         return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
 
@@ -84,6 +88,7 @@ class ArtifactManifestEntry:
             and self.size == other.size
             and self.extra == other.extra
             and self.local_path == other.local_path
+            and self.skip_cache == other.skip_cache
         )
 
     @property

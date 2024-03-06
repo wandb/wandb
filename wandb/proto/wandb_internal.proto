@@ -422,6 +422,7 @@ message ArtifactManifestEntry {
   string mimetype = 5;
   string local_path = 6;
   string birth_artifact_id = 7;
+  bool skip_cache = 8;
   repeated ExtraItem extra = 16;
 }
 

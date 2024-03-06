@@ -5,6 +5,9 @@ import os
 import sys
 import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
+from tests.pytest_tests.unit_tests.test_launch.test_runner.test_kubernetes import (
+    manifest,
+)
 
 import wandb
 import wandb.filesync.step_prepare
