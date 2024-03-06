@@ -200,7 +200,6 @@ def create_and_run_agent(
             asyncio.run(agent.loop())
         except asyncio.CancelledError:
             pass
-            
 
 
 async def _launch(
