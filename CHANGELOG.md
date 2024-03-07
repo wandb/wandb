@@ -18,6 +18,10 @@ subsections here on every PR where this is applicable.
 
 * Add support to skip staging and/or caching files to the local filesystem while uploading files in artifacts
 
+### Fixed
+
+* In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
+
 ## [0.16.4] - 2024-03-05
 
 ### Added
