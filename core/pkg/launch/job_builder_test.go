@@ -8,6 +8,8 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/pkg/launch"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -924,23 +926,19 @@ func TestWandbConfigParameters(t *testing.T) {
 			"key1": "value1",
 			"key2": "value2",
 			"key3": map[string]interface{}{
-				"key4": map[string]interface{}{
-					"key6": "value6",
-					"key7": "value7",
-				},
+				"key4": "value4",
 				"key5": "value5",
 			},
 		},
 	))
-	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
-		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
-		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4", "key6"}}},
+	jobBuilder.HandleWandbConfigParametersRecord(&service.WandbConfigParametersRecord{
+		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		Exclude: false,
 	})
 	artifact, err := jobBuilder.Build(nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
-	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		launch.WandbConfigKey: map[string]interface{}{
@@ -953,14 +951,7 @@ func TestWandbConfigParameters(t *testing.T) {
 						"params": map[string]interface{}{
 							"type_map": map[string]interface{}{
 								"key4": map[string]interface{}{
-									"wb_type": "typedDict",
-									"params": map[string]interface{}{
-										"type_map": map[string]interface{}{
-											"key7": map[string]interface{}{
-												"wb_type": "string",
-											},
-										},
-									},
+									"wb_type": "string",
 								},
 							},
 						},
@@ -970,5 +961,5 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 			"wb_type": "typedDict",
 		},
-	}, inputs)
+	}, artifactMetadata)
 }
