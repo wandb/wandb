@@ -8,8 +8,8 @@ from urllib.parse import quote
 
 import requests
 import urllib3
-import wandb
 
+import wandb
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
