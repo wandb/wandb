@@ -105,7 +105,12 @@ class CustomBuildPy(build_py):
         for file in archdir.iterdir():
             dest = pkgdir / file.name
 
-            dest.unlink(missing_ok=True)
+            try:
+                # missing_ok=True doesn't exist in Python 3.8
+                dest.unlink()
+            except FileNotFoundError:
+                pass
+
             os.symlink(file, dest)
 
         super().run()
