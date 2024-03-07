@@ -85,7 +85,10 @@ func TestJobBuilderRepo(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
@@ -145,7 +148,10 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
@@ -191,7 +197,10 @@ func TestJobBuilderArtifact(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifactRecord := &service.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
@@ -252,7 +261,10 @@ func TestJobBuilderArtifact(t *testing.T) {
 			XJupyter:     toWrapperPb(true).(*wrapperspb.BoolValue),
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifactRecord := &service.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
@@ -303,7 +315,10 @@ func TestJobBuilderImage(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
@@ -339,7 +354,10 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 				Value: true,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
@@ -350,7 +368,10 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		settings := &service.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
@@ -366,7 +387,10 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
@@ -386,7 +410,10 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		settings := &service.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifact, err := jobBuilder.Build(nil, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
@@ -412,7 +439,10 @@ func TestJobBuilderFromPartial(t *testing.T) {
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		artifactRecord := &service.Record{
 			RecordType: &service.Record_UseArtifact{
 				UseArtifact: &service.UseArtifactRecord{
@@ -498,7 +528,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 			},
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
 		assert.Equal(t, RepoSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
@@ -539,7 +572,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 			},
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.Equal(t, "job-testJobNameArtifact", jobBuilder.PartialJobSource.JobName)
 		assert.Equal(t, ArtifactSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
@@ -578,7 +614,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 			},
 		}
 
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
 		assert.Equal(t, ImageSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
@@ -601,7 +640,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 
@@ -630,7 +672,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 	})
@@ -654,7 +699,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 	})
@@ -678,7 +726,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 	})
@@ -702,7 +753,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 				},
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
 		assert.True(t, jobBuilder.Disable)
 	})
@@ -740,7 +794,10 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 				expectedError:      &noRepoIngrediantsError,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		for _, testCase := range testCases {
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
 			if testCase.expectedSourceType != nil {
@@ -784,7 +841,10 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		}
 
 		for index, testCase := range testCases {
-			jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+			jobBuilder := NewJobBuilder(JobBuilderOption{
+				Settings: settings,
+				Logger:   observability.NewNoOpLogger(),
+			})
 			if index == 0 {
 				jobBuilder.RunCodeArtifact = &ArtifactInfoForJob{
 					ID:   "testID",
@@ -834,7 +894,10 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 				expectedError:      &noImageIngrediantsError,
 			},
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		for _, testCase := range testCases {
 
 			res, err := jobBuilder.GetSourceType(testCase.metadata)
@@ -864,7 +927,10 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &service.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/jupyterRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		path, err := jobBuilder.HandlePathsAboveRoot("gitRoot/a/notebook.ipynb", "/path/to/jupyterRoot/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)
@@ -873,7 +939,10 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &service.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot/jupyterRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		path, err := jobBuilder.HandlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "jupyterRoot/a/notebook.ipynb", path)
@@ -883,7 +952,10 @@ func TestUtilFunctions(t *testing.T) {
 		settings := &service.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot").(*wrapperspb.StringValue),
 		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+		jobBuilder := NewJobBuilder(JobBuilderOption{
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+		})
 		path, err := jobBuilder.HandlePathsAboveRoot("a/notebook.ipynb", "/path/to/gitRoot")
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)

@@ -135,6 +135,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 	}
 
 	watcher := watcher.New(watcher.WithLogger(s.logger))
+	printer := observability.NewPrinterService()
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
@@ -146,6 +147,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
 		WithHandlerWatcher(watcher),
+		WithHandlerPrinterService(printer),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
@@ -156,6 +158,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings.Proto,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+		WithSenderPrinterService(printer),
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
