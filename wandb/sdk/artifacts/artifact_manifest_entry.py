@@ -55,7 +55,7 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
-        self.skip_cache = skip_cache if skip_cache is not None else False
+        self.skip_cache = skip_cache or False
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
