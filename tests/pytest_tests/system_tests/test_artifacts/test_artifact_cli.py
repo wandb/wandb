@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import wandb
 from wandb.cli import cli
+from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.staging import get_staging_dir
 
 
@@ -42,6 +43,9 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    wandb.termwarn(f"\n\ncache orig:{cache._cache_dir}\n\n")
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     with open(data_path, "w") as f:
@@ -59,12 +63,10 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
     wandb.termwarn(
-        f"\n\ncache dirs: {artifact.manifest.storage_policy._cache._cache_dir}\n\n"
+        f"\n\ncache dirs: {artifact.manifest.storage_policy._cache._cache_dir}, cache: {cache._cache_dir}\n\n"
     )
-    wandb.termwarn(f"\n\\manifest entry: {artifact.manifest.entries}\n\n")
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    wandb.termwarn(f"\n\nmanifest entry: {artifact.manifest.entries}\n\n")
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert found
 
 
@@ -74,6 +76,8 @@ def test_artifact_put_with_cache_disabled(runner, user, monkeypatch, tmp_path, a
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     with open(data_path, "w") as f:
@@ -92,7 +96,5 @@ def test_artifact_put_with_cache_disabled(runner, user, monkeypatch, tmp_path, a
     # The file is not cached
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert not found

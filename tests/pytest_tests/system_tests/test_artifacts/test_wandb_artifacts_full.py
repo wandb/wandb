@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import Api
+from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -243,6 +244,8 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, a
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -259,9 +262,7 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, a
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert found
 
 
@@ -271,6 +272,8 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -287,9 +290,7 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
         run.log_artifact(artifact)
 
     # The file is not cached
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert not found
 
 
@@ -300,6 +301,8 @@ def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch)
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -315,9 +318,7 @@ def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch)
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert found
 
 
@@ -327,6 +328,8 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
     staging_dir = Path(get_staging_dir())
     cache_dir = Path(tmp_path / "cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+    cache.cleanup(0)
     data_path = Path(tmp_path / "random.txt")
 
     artifact = wandb.Artifact(name="stage-test", type="dataset")
@@ -342,9 +345,7 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = artifact.manifest.storage_policy._cache.check_md5_obj_path(
-        manifest_entry.digest, manifest_entry.size
-    )
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert not found
 
 
