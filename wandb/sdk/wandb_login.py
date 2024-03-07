@@ -22,7 +22,7 @@ from wandb.old.settings import Settings as OldSettings
 from ..apis import InternalApi
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings, Source
+from .wandb_settings import Settings
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
