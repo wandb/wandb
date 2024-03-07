@@ -1,17 +1,17 @@
-package server_test
+package runconfig_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/pkg/server"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestConfigUpdate(t *testing.T) {
-	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
-		"b": server.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+		"b": runconfig.RunConfigDict{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -33,9 +33,9 @@ func TestConfigUpdate(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		server.RunConfigDict{
+		runconfig.RunConfigDict{
 			"a": 1.0,
-			"b": server.RunConfigDict{
+			"b": runconfig.RunConfigDict{
 				"c": "text",
 				"d": 123.0,
 			},
@@ -45,9 +45,9 @@ func TestConfigUpdate(t *testing.T) {
 }
 
 func TestConfigRemove(t *testing.T) {
-	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
 		"a": 9,
-		"b": server.RunConfigDict{
+		"b": runconfig.RunConfigDict{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -63,21 +63,21 @@ func TestConfigRemove(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		server.RunConfigDict{"b": server.RunConfigDict{"d": 123.0}},
+		runconfig.RunConfigDict{"b": runconfig.RunConfigDict{"d": 123.0}},
 		runConfig.Tree(),
 	)
 }
 
 func TestConfigSerialize(t *testing.T) {
-	runConfig := server.NewRunConfigFrom(server.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
 		"number": 9,
-		"nested": server.RunConfigDict{
+		"nested": runconfig.RunConfigDict{
 			"list": []string{"a", "b", "c"},
 			"text": "xyz",
 		},
 	})
 
-	yaml, _ := runConfig.Serialize(server.FormatYaml)
+	yaml, _ := runConfig.Serialize(runconfig.FormatYaml)
 
 	assert.Equal(t,
 		""+
@@ -95,7 +95,7 @@ func TestConfigSerialize(t *testing.T) {
 }
 
 func TestAddTelemetryAndMetrics(t *testing.T) {
-	runConfig := server.NewRunConfig()
+	runConfig := runconfig.New()
 	telemetry := &service.TelemetryRecord{}
 
 	runConfig.AddTelemetryAndMetrics(
@@ -104,8 +104,8 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		server.RunConfigDict{
-			"_wandb": server.RunConfigDict{
+		runconfig.RunConfigDict{
+			"_wandb": runconfig.RunConfigDict{
 				"t": corelib.ProtoEncodeToDict(telemetry),
 				"m": []map[int]interface{}{},
 			},

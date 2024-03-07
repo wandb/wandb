@@ -1,4 +1,4 @@
-package server
+package runconfig
 
 import (
 	"fmt"
@@ -41,11 +41,11 @@ const (
 	FormatJson
 )
 
-func NewRunConfig() *RunConfig {
+func New() *RunConfig {
 	return &RunConfig{make(RunConfigDict)}
 }
 
-func NewRunConfigFrom(tree RunConfigDict) *RunConfig {
+func NewFrom(tree RunConfigDict) *RunConfig {
 	return &RunConfig{tree}
 }
 
