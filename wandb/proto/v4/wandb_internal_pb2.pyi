@@ -458,6 +458,12 @@ global___GitRepoRecord = GitRepoRecord
 
 @typing_extensions.final
 class ConfigFilterPath(google.protobuf.message.Message):
+    """Path within nested configuration dictionary.
+
+    Used to specify which paths within various config objects should be filtered
+    in or out of job inputs.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATH_FIELD_NUMBER: builtins.int
@@ -474,6 +480,14 @@ global___ConfigFilterPath = ConfigFilterPath
 
 @typing_extensions.final
 class WandbConfigParametersRecord(google.protobuf.message.Message):
+    """Specifies filter mode and paths for setting job inputs from wandb.config.
+
+    If this record is published to the core internal process then it will filter
+    the given paths into or out of the job inputs it builds. If the exclude field
+    is true then the paths will be excluded from the job inputs, otherwise they
+    will be included.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     PATHS_FIELD_NUMBER: builtins.int
