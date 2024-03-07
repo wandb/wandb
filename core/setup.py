@@ -106,7 +106,7 @@ class CustomBuildPy(build_py):
             dest = pkgdir / file.name
 
             try:
-                # missing_ok=True doesn't exist in Python 3.8
+                # missing_ok=True doesn't exist in Python 3.7
                 dest.unlink()
             except FileNotFoundError:
                 pass
