@@ -242,7 +242,7 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, a
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "cache")
+    cache_dir = Path(tmp_path / "test_mutable_uploads_with_cache_enabled/cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
     cache = artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
@@ -270,7 +270,7 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "cache")
+    cache_dir = Path(tmp_path / "test_mutable_uploads_with_cache_disabled/cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
     cache = artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
@@ -299,7 +299,7 @@ def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch)
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "cache")
+    cache_dir = Path(tmp_path / "test_immutable_uploads_with_cache_enabled/cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
     cache = artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
@@ -326,7 +326,7 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "cache")
+    cache_dir = Path(tmp_path / "test_immutable_uploads_with_cache_disabled/cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
     cache = artifact_file_cache.get_artifact_file_cache()
     cache.cleanup(0)
