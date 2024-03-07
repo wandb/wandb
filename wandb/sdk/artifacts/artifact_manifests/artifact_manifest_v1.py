@@ -73,8 +73,6 @@ class ArtifactManifestV1(ArtifactManifest):
                 json_entry["extra"] = entry.extra
             if entry.size is not None:
                 json_entry["size"] = entry.size
-            if entry.skip_cache:
-                json_entry["skip_cache"] = entry.skip_cache
             contents[entry.path] = json_entry
         return {
             "version": self.__class__.version(),
