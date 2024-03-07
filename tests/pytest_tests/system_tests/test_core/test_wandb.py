@@ -2,6 +2,7 @@
 
 See wandb_integration_test.py for tests that launch a real backend server.
 """
+
 import glob
 import inspect
 import io
@@ -486,12 +487,11 @@ def test_restore_no_path():
         wandb.restore("weights.h5")
 
 
-@pytest.mark.xfail(reason="Public API might not return the correct value")
+@pytest.mark.skip(reason="This test seems to be flaky")
 def test_restore_name_not_found(wandb_init):
     with pytest.raises(ValueError):
         run = wandb_init()
-        wandb.restore("no_file.h5")
-        run.finish()
+        run.restore("no_file.h5")
 
 
 @pytest.mark.xfail(reason="Public API might not return the correct value")

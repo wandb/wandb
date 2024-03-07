@@ -63,9 +63,40 @@ pub mod open_metrics_filters {
         Mapping(super::MapStringKeyMapStringKeyStringValue),
     }
 }
+/// Settings for the SDK.
+///
+/// There is a hierarchy of settings, with at least the following levels:
+///
+/// 1. User process settings
+/// 2. Run settings
+///
+/// Some fields such as `run_id` only make sense at the run level.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Settings {
+    /// The W&B API key.
+    ///
+    /// This can be empty if we're in offline mode.
+    #[prost(message, optional, tag = "55")]
+    pub api_key: ::core::option::Option<::prost::alloc::string::String>,
+    /// The ID of the run.
+    #[prost(message, optional, tag = "107")]
+    pub run_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// The W&B URL where the run can be viewed.
+    #[prost(message, optional, tag = "113")]
+    pub run_url: ::core::option::Option<::prost::alloc::string::String>,
+    /// The W&B project ID.
+    #[prost(message, optional, tag = "97")]
+    pub project: ::core::option::Option<::prost::alloc::string::String>,
+    /// The W&B entity, like a user or a team.
+    #[prost(message, optional, tag = "69")]
+    pub entity: ::core::option::Option<::prost::alloc::string::String>,
+    /// The directory for storing log files.
+    #[prost(message, optional, tag = "85")]
+    pub log_dir: ::core::option::Option<::prost::alloc::string::String>,
+    /// Filename to use for internal logs.
+    #[prost(message, optional, tag = "86")]
+    pub log_internal: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "1")]
     pub args: ::core::option::Option<ListStringValue>,
     #[prost(message, optional, tag = "2")]
@@ -176,8 +207,6 @@ pub struct Settings {
     pub allow_val_change: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "54")]
     pub anonymous: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "55")]
-    pub api_key: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "56")]
     pub azure_account_url_to_access_key: ::core::option::Option<MapStringKeyStringValue>,
     #[prost(message, optional, tag = "57")]
@@ -204,8 +233,6 @@ pub struct Settings {
     pub docker: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "68")]
     pub email: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "69")]
-    pub entity: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "70")]
     pub files_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "71")]
@@ -236,10 +263,6 @@ pub struct Settings {
     pub launch: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "84")]
     pub launch_config_path: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "85")]
-    pub log_dir: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "86")]
-    pub log_internal: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "87")]
     pub log_symlink_internal: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "88")]
@@ -258,8 +281,6 @@ pub struct Settings {
     pub program: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "96")]
     pub program_relpath: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "97")]
-    pub project: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "98")]
     pub project_url: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "99")]
@@ -278,8 +299,6 @@ pub struct Settings {
     pub root_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "106")]
     pub run_group: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "107")]
-    pub run_id: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "108")]
     pub run_job_type: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "109")]
@@ -290,8 +309,6 @@ pub struct Settings {
     pub run_notes: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "112")]
     pub run_tags: ::core::option::Option<ListStringValue>,
-    #[prost(message, optional, tag = "113")]
-    pub run_url: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "114")]
     pub sagemaker_disable: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "115")]
