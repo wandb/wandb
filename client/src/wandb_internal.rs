@@ -969,7 +969,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -1020,6 +1020,8 @@ pub mod record {
         LinkArtifact(super::LinkArtifactRecord),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        WandbConfigParameters(super::WandbConfigParametersRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1184,6 +1186,28 @@ pub struct GitRepoRecord {
     pub remote_url: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub commit: ::prost::alloc::string::String,
+}
+/// Used to specify which paths within various config objects should be filtered
+/// in or out of job inputs.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigFilterPath {
+    #[prost(string, repeated, tag = "1")]
+    pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Specifies filter mode and paths for setting job inputs from wandb.config.
+///
+/// If this record is published to the core internal process then it will filter
+/// the given paths into or out of the job inputs it builds. If the exclude field
+/// is true then the paths will be excluded from the job inputs, otherwise they
+/// will be included.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WandbConfigParametersRecord {
+    #[prost(message, repeated, tag = "1")]
+    pub paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(bool, tag = "2")]
+    pub exclude: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
