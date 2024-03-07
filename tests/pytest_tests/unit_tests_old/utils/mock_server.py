@@ -89,6 +89,7 @@ def default_ctx():
         "alerts": [],
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
+        "gorilla_supports_job_sets": True,
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
         "stop_launch_agent": False,
@@ -2001,6 +2002,11 @@ def create_app(user_ctx=None):
                         }
                     }
                 )
+            else:
+                return json.dumps({"data": {}})
+        if "query JobSetIntrospection" in body["query"]:
+            if ctx["gorilla_supports_job_sets"]:
+                return json.dumps({"data": {"JobSetDiffType": {"name": "JobSetDiff"}}})
             else:
                 return json.dumps({"data": {}})
 
