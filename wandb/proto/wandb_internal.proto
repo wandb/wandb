@@ -153,17 +153,35 @@ message GitRepoRecord {
   string commit = 2;
 }
 
-message WandbConfigParametersRecord {
-  repeated string include = 1;
-  repeated string exclude = 2;
+// Path within nested configuration dictionary.
+
+// Used to specify which paths within various config objects should be filtered
+// in or out of job inputs.
+message ConfigFilterPath {
+  repeated string path = 1;
 }
 
+// Specifies filter mode and paths for setting job inputs from wandb.config.
+//
+// If this record is published to the core internal process then it will filter
+// the given paths into or out of the job inputs it builds. If the exclude field
+// is true then the paths will be excluded from the job inputs, otherwise they
+// will be included.
+message WandbConfigParametersRecord {
+  repeated ConfigFilterPath paths = 1;
+  bool exclude = 2;
+}
+
+// Specifies a user config file to be used as a job input.
+//
+// If this record is published to the core internal process then it will be saved
+// to the run files under configs/ and the paths within the file will be filtered
+// into or out of the job inputs it builds. If the exclude field is true then the
+// paths will be excluded from the job inputs, otherwise they will be included.
 message ConfigFileParameterRecord {
   string relpath = 1;
-  string abspath = 2;
-  string filename = 3;
-  repeated string include = 4;
-  repeated string exclude = 5;
+  repeated ConfigFilterPath paths = 2;
+  bool exclude = 3;
 }
 
 message RunUpdateResult {

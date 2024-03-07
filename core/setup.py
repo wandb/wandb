@@ -14,7 +14,7 @@ from wheel.bdist_wheel import bdist_wheel, get_platform
 
 # wandb-core versioning
 # ---------------------
-CORE_VERSION = "0.17.0b9"
+CORE_VERSION = "0.17.0b10"
 
 PACKAGE = "wandb_core"
 
@@ -105,8 +105,11 @@ class CustomBuildPy(build_py):
         for file in archdir.iterdir():
             dest = pkgdir / file.name
 
-            if dest.exists():
+            try:
+                # missing_ok=True doesn't exist in Python 3.7
                 dest.unlink()
+            except FileNotFoundError:
+                pass
 
             os.symlink(file, dest)
 

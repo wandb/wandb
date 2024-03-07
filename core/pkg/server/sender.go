@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -103,7 +104,7 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	runConfig *RunConfig
+	runConfig *runconfig.RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -135,7 +136,7 @@ func NewSender(
 		settings:       settings,
 		logger:         logger,
 		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      NewRunConfig(),
+		runConfig:      runconfig.New(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
@@ -393,7 +394,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	s.jobBuilder.SetRunConfig(s.runConfig.Tree())
+	s.jobBuilder.SetRunConfig(*s.runConfig)
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -554,7 +555,7 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format ConfigFormat) string {
+func (s *Sender) serializeConfig(format runconfig.ConfigFormat) string {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
@@ -642,7 +643,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
-		config := s.serializeConfig(FormatJson)
+		config := s.serializeConfig(runconfig.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -677,7 +678,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			utils.NilIfZero(repo),            // repo
 			utils.NilIfZero(run.JobType),     // jobType
 			nil,                              // state
-			nil,                              // sweep
+			utils.NilIfZero(run.SweepId),     // sweep
 			tags,                             // tags []string,
 			nil,                              // summaryMetrics
 		)
@@ -772,7 +773,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig(FormatJson)
+	config := s.serializeConfig(runconfig.FormatJson)
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
@@ -809,7 +810,7 @@ func (s *Sender) writeAndSendConfigFile() {
 		return
 	}
 
-	config := s.serializeConfig(FormatYaml)
+	config := s.serializeConfig(runconfig.FormatYaml)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)

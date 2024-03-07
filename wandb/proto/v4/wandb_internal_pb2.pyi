@@ -457,51 +457,81 @@ class GitRepoRecord(google.protobuf.message.Message):
 global___GitRepoRecord = GitRepoRecord
 
 @typing_extensions.final
-class WandbConfigParametersRecord(google.protobuf.message.Message):
+class ConfigFilterPath(google.protobuf.message.Message):
+    """Path within nested configuration dictionary.
+
+    Used to specify which paths within various config objects should be filtered
+    in or out of job inputs.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    INCLUDE_FIELD_NUMBER: builtins.int
-    EXCLUDE_FIELD_NUMBER: builtins.int
+    PATH_FIELD_NUMBER: builtins.int
     @property
-    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        include: collections.abc.Iterable[builtins.str] | None = ...,
-        exclude: collections.abc.Iterable[builtins.str] | None = ...,
+        path: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "include", b"include"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["path", b"path"]) -> None: ...
+
+global___ConfigFilterPath = ConfigFilterPath
+
+@typing_extensions.final
+class WandbConfigParametersRecord(google.protobuf.message.Message):
+    """Specifies filter mode and paths for setting job inputs from wandb.config.
+
+    If this record is published to the core internal process then it will filter
+    the given paths into or out of the job inputs it builds. If the exclude field
+    is true then the paths will be excluded from the job inputs, otherwise they
+    will be included.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    PATHS_FIELD_NUMBER: builtins.int
+    EXCLUDE_FIELD_NUMBER: builtins.int
+    @property
+    def paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    exclude: builtins.bool
+    def __init__(
+        self,
+        *,
+        paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+        exclude: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "paths", b"paths"]) -> None: ...
 
 global___WandbConfigParametersRecord = WandbConfigParametersRecord
 
 @typing_extensions.final
 class ConfigFileParameterRecord(google.protobuf.message.Message):
+    """Specifies a user config file to be used as a job input.
+
+    If this record is published to the core internal process then it will be saved
+    to the run files under configs/ and the paths within the file will be filtered
+    into or out of the job inputs it builds. If the exclude field is true then the
+    paths will be excluded from the job inputs, otherwise they will be included.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     RELPATH_FIELD_NUMBER: builtins.int
-    ABSPATH_FIELD_NUMBER: builtins.int
-    FILENAME_FIELD_NUMBER: builtins.int
-    INCLUDE_FIELD_NUMBER: builtins.int
+    PATHS_FIELD_NUMBER: builtins.int
     EXCLUDE_FIELD_NUMBER: builtins.int
     relpath: builtins.str
-    abspath: builtins.str
-    filename: builtins.str
     @property
-    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    exclude: builtins.bool
     def __init__(
         self,
         *,
         relpath: builtins.str = ...,
-        abspath: builtins.str = ...,
-        filename: builtins.str = ...,
-        include: collections.abc.Iterable[builtins.str] | None = ...,
-        exclude: collections.abc.Iterable[builtins.str] | None = ...,
+        paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+        exclude: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["abspath", b"abspath", "exclude", b"exclude", "filename", b"filename", "include", b"include", "relpath", b"relpath"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "paths", b"paths", "relpath", b"relpath"]) -> None: ...
 
 global___ConfigFileParameterRecord = ConfigFileParameterRecord
 

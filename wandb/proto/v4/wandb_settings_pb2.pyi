@@ -123,8 +123,25 @@ global___OpenMetricsFilters = OpenMetricsFilters
 
 @typing_extensions.final
 class Settings(google.protobuf.message.Message):
+    """Settings for the SDK.
+
+    There is a hierarchy of settings, with at least the following levels:
+
+    1. User process settings
+    2. Run settings
+
+    Some fields such as `run_id` only make sense at the run level.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    API_KEY_FIELD_NUMBER: builtins.int
+    RUN_ID_FIELD_NUMBER: builtins.int
+    RUN_URL_FIELD_NUMBER: builtins.int
+    PROJECT_FIELD_NUMBER: builtins.int
+    ENTITY_FIELD_NUMBER: builtins.int
+    LOG_DIR_FIELD_NUMBER: builtins.int
+    LOG_INTERNAL_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _ASYNC_UPLOAD_CONCURRENCY_LIMIT_FIELD_NUMBER: builtins.int
@@ -179,7 +196,6 @@ class Settings(google.protobuf.message.Message):
     _WINDOWS_FIELD_NUMBER: builtins.int
     ALLOW_VAL_CHANGE_FIELD_NUMBER: builtins.int
     ANONYMOUS_FIELD_NUMBER: builtins.int
-    API_KEY_FIELD_NUMBER: builtins.int
     AZURE_ACCOUNT_URL_TO_ACCESS_KEY_FIELD_NUMBER: builtins.int
     BASE_URL_FIELD_NUMBER: builtins.int
     CODE_DIR_FIELD_NUMBER: builtins.int
@@ -193,7 +209,6 @@ class Settings(google.protobuf.message.Message):
     DISABLED_FIELD_NUMBER: builtins.int
     DOCKER_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
-    ENTITY_FIELD_NUMBER: builtins.int
     FILES_DIR_FIELD_NUMBER: builtins.int
     FORCE_FIELD_NUMBER: builtins.int
     GIT_COMMIT_FIELD_NUMBER: builtins.int
@@ -209,8 +224,6 @@ class Settings(google.protobuf.message.Message):
     LABEL_DISABLE_FIELD_NUMBER: builtins.int
     LAUNCH_FIELD_NUMBER: builtins.int
     LAUNCH_CONFIG_PATH_FIELD_NUMBER: builtins.int
-    LOG_DIR_FIELD_NUMBER: builtins.int
-    LOG_INTERNAL_FIELD_NUMBER: builtins.int
     LOG_SYMLINK_INTERNAL_FIELD_NUMBER: builtins.int
     LOG_SYMLINK_USER_FIELD_NUMBER: builtins.int
     LOG_USER_FIELD_NUMBER: builtins.int
@@ -220,7 +233,6 @@ class Settings(google.protobuf.message.Message):
     PROBLEM_FIELD_NUMBER: builtins.int
     PROGRAM_FIELD_NUMBER: builtins.int
     PROGRAM_RELPATH_FIELD_NUMBER: builtins.int
-    PROJECT_FIELD_NUMBER: builtins.int
     PROJECT_URL_FIELD_NUMBER: builtins.int
     QUIET_FIELD_NUMBER: builtins.int
     REINIT_FIELD_NUMBER: builtins.int
@@ -230,13 +242,11 @@ class Settings(google.protobuf.message.Message):
     RESUMED_FIELD_NUMBER: builtins.int
     ROOT_DIR_FIELD_NUMBER: builtins.int
     RUN_GROUP_FIELD_NUMBER: builtins.int
-    RUN_ID_FIELD_NUMBER: builtins.int
     RUN_JOB_TYPE_FIELD_NUMBER: builtins.int
     RUN_MODE_FIELD_NUMBER: builtins.int
     RUN_NAME_FIELD_NUMBER: builtins.int
     RUN_NOTES_FIELD_NUMBER: builtins.int
     RUN_TAGS_FIELD_NUMBER: builtins.int
-    RUN_URL_FIELD_NUMBER: builtins.int
     SAGEMAKER_DISABLE_FIELD_NUMBER: builtins.int
     SAVE_CODE_FIELD_NUMBER: builtins.int
     SETTINGS_SYSTEM_FIELD_NUMBER: builtins.int
@@ -288,6 +298,30 @@ class Settings(google.protobuf.message.Message):
     _SHARED_FIELD_NUMBER: builtins.int
     _CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     _PROXIES_FIELD_NUMBER: builtins.int
+    @property
+    def api_key(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The W&B API key.
+
+        This can be empty if we're in offline mode.
+        """
+    @property
+    def run_id(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The ID of the run."""
+    @property
+    def run_url(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The W&B URL where the run can be viewed."""
+    @property
+    def project(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The W&B project ID."""
+    @property
+    def entity(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The W&B entity, like a user or a team."""
+    @property
+    def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The directory for storing log files."""
+    @property
+    def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Filename to use for internal logs."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property
@@ -397,8 +431,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def anonymous(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def api_key(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
     def azure_account_url_to_access_key(self) -> global___MapStringKeyStringValue: ...
     @property
     def base_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
@@ -424,8 +456,6 @@ class Settings(google.protobuf.message.Message):
     def docker(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def email(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def entity(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -457,10 +487,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def launch_config_path(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
     def log_symlink_internal(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def log_symlink_user(self) -> google.protobuf.wrappers_pb2.StringValue: ...
@@ -478,8 +504,6 @@ class Settings(google.protobuf.message.Message):
     def program(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def program_relpath(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def project(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def project_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -499,8 +523,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def run_group(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
-    def run_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
     def run_job_type(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def run_mode(self) -> google.protobuf.wrappers_pb2.StringValue: ...
@@ -510,8 +532,6 @@ class Settings(google.protobuf.message.Message):
     def run_notes(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def run_tags(self) -> global___ListStringValue: ...
-    @property
-    def run_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def sagemaker_disable(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -617,6 +637,13 @@ class Settings(google.protobuf.message.Message):
     def __init__(
         self,
         *,
+        api_key: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        project: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -671,7 +698,6 @@ class Settings(google.protobuf.message.Message):
         _windows: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         allow_val_change: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         anonymous: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        api_key: google.protobuf.wrappers_pb2.StringValue | None = ...,
         azure_account_url_to_access_key: global___MapStringKeyStringValue | None = ...,
         base_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         code_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -685,7 +711,6 @@ class Settings(google.protobuf.message.Message):
         disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
         email: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         force: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         git_commit: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -701,8 +726,6 @@ class Settings(google.protobuf.message.Message):
         label_disable: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         launch: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         launch_config_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_symlink_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_symlink_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_user: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -712,7 +735,6 @@ class Settings(google.protobuf.message.Message):
         problem: google.protobuf.wrappers_pb2.StringValue | None = ...,
         program: google.protobuf.wrappers_pb2.StringValue | None = ...,
         program_relpath: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        project: google.protobuf.wrappers_pb2.StringValue | None = ...,
         project_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         quiet: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         reinit: google.protobuf.wrappers_pb2.BoolValue | None = ...,
@@ -722,13 +744,11 @@ class Settings(google.protobuf.message.Message):
         resumed: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         root_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_group: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        run_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_job_type: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_mode: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_notes: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_tags: global___ListStringValue | None = ...,
-        run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         sagemaker_disable: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         save_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         settings_system: google.protobuf.wrappers_pb2.StringValue | None = ...,

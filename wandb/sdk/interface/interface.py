@@ -766,10 +766,29 @@ class InterfaceBase:
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
 
-    def publish_wandb_config_parameters(self, exclude: List[str], include: List[str]):
+    def publish_wandb_config_parameters(
+        self, paths: List[List[str]], exclude: bool = False
+    ):
+        """Tells the internal process to treat wandb.config fields as job inputs.
+
+        Args:
+            paths: List of paths. Each paths is a list of keys that can be used to
+                traverse the wandb.config dictionary.
+            exclude: If True, the given paths are filtered out the job input. If False,
+                only the given paths are included in the job input.
+
+        Raises:
+            ValueError: If both exclude and include are provided.
+
+        Returns:
+            None
+        """
         config_parameters = pb.WandbConfigParametersRecord()
-        config_parameters.exclude.extend(exclude)
-        config_parameters.include.extend(include)
+        path_records = []
+        for path in paths:
+            path_records.append(pb.ConfigFilterPath(path=path))
+        config_parameters.paths.extend(path_records)
+        config_parameters.exclude = exclude
         return self._publish_wandb_config_parameters(config_parameters)
 
     @abstractmethod
@@ -781,17 +800,22 @@ class InterfaceBase:
     def publish_config_file_parameter(
         self,
         relpath: str,
-        abspath: str,
-        filename: str,
-        exclude: List[str],
-        include: List[str],
+        paths: List[List[str]],
+        exclude: bool,
     ):
+        """Tells the internal process to treat a config file as a job input.
+
+        Args:
+            relpath: The relative path to the file from the working directory.
+            paths: List of paths. Each paths is a list of keys that can be used to
+                traverse the wandb.config dictionary.
+            exclude: If True, the given paths are filtered out the job input. If False,
+                only the given paths are included in the job input.
+        """
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
-        config_file_parameter.abspath = abspath
-        config_file_parameter.filename = filename
-        config_file_parameter.exclude.extend(exclude)
-        config_file_parameter.include.extend(include)
+        config_file_parameter.paths.extend(paths)
+        config_file_parameter.exclude = exclude
         return self._publish_config_file_parameter(config_file_parameter)
 
     @abstractmethod

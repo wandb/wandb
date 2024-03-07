@@ -1,4 +1,4 @@
-package launch
+package launch_test
 
 import (
 	"os"
@@ -8,6 +8,9 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/pkg/launch"
+	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -887,4 +890,76 @@ func TestUtilFunctions(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, "a/notebook.ipynb", path)
 	})
+}
+
+func TestWandbConfigParameters(t *testing.T) {
+	// Test that if WandbConfigParametersRecord is set on the job builder
+	// then inputs will be filtered to only include the parameters specified
+	// in the WandbConfigParametersRecord.
+
+	metadata := map[string]interface{}{
+		"python": "3.11.2",
+		"git": map[string]interface{}{
+			"commit": "1234567890",
+			"remote": "example.com",
+		},
+		"codePath": "/path/to/train.py",
+	}
+
+	fdir := filepath.Join(os.TempDir(), "test")
+	err := os.MkdirAll(fdir, 0777)
+	assert.Nil(t, err)
+	writeRequirements(t, fdir)
+	writeDiffFile(t, fdir)
+	writeWandbMetadata(t, fdir, metadata)
+
+	defer os.RemoveAll(fdir)
+	settings := &service.Settings{
+		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+	}
+	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+	jobBuilder.SetRunConfig(*runconfig.NewFrom(
+		runconfig.RunConfigDict{
+			"key1": "value1",
+			"key2": "value2",
+			"key3": map[string]interface{}{
+				"key4": "value4",
+				"key5": "value5",
+			},
+		},
+	))
+	jobBuilder.HandleWandbConfigParametersRecord(&service.WandbConfigParametersRecord{
+		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		Exclude: false,
+	})
+	artifact, err := jobBuilder.Build(nil)
+	assert.Nil(t, err)
+	var artifactMetadata map[string]interface{}
+	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		launch.WandbConfigKey: map[string]interface{}{
+			"params": map[string]interface{}{
+				"type_map": map[string]interface{}{
+					"key1": map[string]interface{}{
+						"wb_type": "string",
+					},
+					"key3": map[string]interface{}{
+						"params": map[string]interface{}{
+							"type_map": map[string]interface{}{
+								"key4": map[string]interface{}{
+									"wb_type": "string",
+								},
+							},
+						},
+						"wb_type": "typedDict",
+					},
+				},
+			},
+			"wb_type": "typedDict",
+		},
+	}, artifactMetadata)
 }
