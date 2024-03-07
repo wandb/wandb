@@ -64,7 +64,6 @@ class ArtifactManifestV1(ArtifactManifest):
         for entry in sorted(self.entries.values(), key=lambda k: k.path):
             json_entry: Dict[str, Any] = {
                 "digest": entry.digest,
-                "skip_cache": entry.skip_cache,
             }
             if entry.birth_artifact_id:
                 json_entry["birthArtifactID"] = entry.birth_artifact_id
@@ -74,6 +73,8 @@ class ArtifactManifestV1(ArtifactManifest):
                 json_entry["extra"] = entry.extra
             if entry.size is not None:
                 json_entry["size"] = entry.size
+            if entry.skip_cache:
+                json_entry["skip_cache"] = entry.skip_cache
             contents[entry.path] = json_entry
         return {
             "version": self.__class__.version(),
