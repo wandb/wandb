@@ -7,7 +7,7 @@ __all__ = (
 
 from pathlib import Path
 
-__version__ = "0.17.0b9"
+__version__ = "0.17.0b10"
 
 
 def get_core_path() -> Path:
