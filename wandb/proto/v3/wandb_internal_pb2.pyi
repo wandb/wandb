@@ -447,22 +447,36 @@ class GitRepoRecord(google.protobuf.message.Message):
 
 global___GitRepoRecord = GitRepoRecord
 
-class WandbConfigParametersRecord(google.protobuf.message.Message):
+class ConfigFilterPath(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    INCLUDE_FIELD_NUMBER: builtins.int
-    EXCLUDE_FIELD_NUMBER: builtins.int
+    PATH_FIELD_NUMBER: builtins.int
     @property
-    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        include: collections.abc.Iterable[builtins.str] | None = ...,
-        exclude: collections.abc.Iterable[builtins.str] | None = ...,
+        path: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "include", b"include"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["path", b"path"]) -> None: ...
+
+global___ConfigFilterPath = ConfigFilterPath
+
+class WandbConfigParametersRecord(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    PATHS_FIELD_NUMBER: builtins.int
+    EXCLUDE_FIELD_NUMBER: builtins.int
+    @property
+    def paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    exclude: builtins.bool
+    def __init__(
+        self,
+        *,
+        paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+        exclude: builtins.bool = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "paths", b"paths"]) -> None: ...
 
 global___WandbConfigParametersRecord = WandbConfigParametersRecord
 

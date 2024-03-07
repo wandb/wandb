@@ -174,6 +174,33 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
+// Filters the configuration tree based on the given paths.
+//
+// If `exclude` is true, the paths are excluded from the tree. Otherwise, only
+// the paths are included in the tree.
+func (runConfig *RunConfig) FilterTree(
+	paths []RunConfigPath,
+	exclude bool,
+) (RunConfigDict, error) {
+	if exclude {
+		copy := *runConfig
+		for _, path := range paths {
+			copy.removeAtPath(path)
+		}
+		return copy.tree, nil
+	} else {
+		newConfig := New()
+		for _, path := range paths {
+			subtree := getSubtreeOrLeaf(runConfig.tree, path)
+			err := newConfig.updateAtPath(path, subtree)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return newConfig.tree, nil
+	}
+}
+
 // Uses the given subtree for keys that aren't already set.
 func (runConfig *RunConfig) addUnsetKeysFromSubtree(
 	tree RunConfigDict,
@@ -265,6 +292,28 @@ func getSubtree(
 		subtree, ok := node.(RunConfigDict)
 		if !ok {
 			return nil
+		}
+
+		tree = subtree
+	}
+
+	return tree
+}
+
+// Returns the subtree or leaf at the path, or nil if it does not exist.
+func getSubtreeOrLeaf(
+	tree RunConfigDict,
+	path RunConfigPath,
+) interface{} {
+	for _, key := range path {
+		node, ok := tree[key]
+		if !ok {
+			return nil
+		}
+
+		subtree, ok := node.(RunConfigDict)
+		if !ok {
+			return node
 		}
 
 		tree = subtree

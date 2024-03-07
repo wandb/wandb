@@ -153,9 +153,13 @@ message GitRepoRecord {
   string commit = 2;
 }
 
+message ConfigFilterPath {
+  repeated string path = 1;
+}
+
 message WandbConfigParametersRecord {
-  repeated string include = 1;
-  repeated string exclude = 2;
+  repeated ConfigFilterPath paths = 1;
+  bool exclude = 2;
 }
 
 message ConfigFileParameterRecord {

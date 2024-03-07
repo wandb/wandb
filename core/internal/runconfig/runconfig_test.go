@@ -116,7 +116,7 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 
 func ignoreError(_err error) {}
 
-func TestCloneTree(t *testing.T) {
+func TestFilterTree(t *testing.T) {
 	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
 		"number": 9,
 		"nested": runconfig.RunConfigDict{
@@ -124,29 +124,40 @@ func TestCloneTree(t *testing.T) {
 			"text": "xyz",
 		},
 	})
-	cloned := runConfig.CloneTree()
-	assert.Equal(t,
-		runconfig.RunConfigDict{
-			"number": 9,
-			"nested": runconfig.RunConfigDict{
-				"list": []string{"a", "b", "c"},
-				"text": "xyz",
+	paths := []runconfig.RunConfigPath{
+		{"number"},
+		{"nested", "list"},
+	}
+
+	t.Run("Include Tree", func(t *testing.T) {
+		include_tree, err := runConfig.FilterTree(paths, false)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t,
+			runconfig.RunConfigDict{
+				"number": 9,
+				"nested": runconfig.RunConfigDict{
+					"list": []string{"a", "b", "c"},
+				},
 			},
-		},
-		cloned,
-	)
-	assert.NotEqual(t, runConfig, cloned)
-	// Delete elements from the cloned tree and check that the original is unchanged.
-	delete(cloned, "number")
-	delete(cloned["nested"].(runconfig.RunConfigDict), "list")
-	assert.Equal(t,
-		runconfig.RunConfigDict{
-			"number": 9,
-			"nested": runconfig.RunConfigDict{
-				"list": []string{"a", "b", "c"},
-				"text": "xyz",
+			include_tree,
+		)
+	})
+
+	t.Run("Exclude Tree", func(t *testing.T) {
+		exclude_tree, err := runConfig.FilterTree(paths, true)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t,
+			runconfig.RunConfigDict{
+				"nested": runconfig.RunConfigDict{
+					"text": "xyz",
+				},
 			},
-		},
-		runConfig.Tree(),
-	)
+			exclude_tree,
+		)
+	})
+
 }
