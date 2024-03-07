@@ -24,7 +24,6 @@ from typing import (
     FrozenSet,
     ItemsView,
     Iterable,
-    Literal,
     Mapping,
     Optional,
     Sequence,
