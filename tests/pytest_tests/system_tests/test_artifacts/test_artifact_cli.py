@@ -6,6 +6,7 @@ import pytest
 from wandb.cli import cli
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.lib.filesystem import mkdir_exists_ok
 
 
 def test_artifact(runner, user):
@@ -49,7 +50,12 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
     cache.cleanup(0)
 
-    data_path = Path(tmp_path / "random.txt")
+    data_dir_path = Path(tmp_path / "data")
+    data_path = Path(data_dir_path / "random.txt")
+    try:
+        mkdir_exists_ok(data_dir_path)
+    except OSError:
+        pass
     with open(data_path, "w") as f:
         f.write("test 123")
     result = runner.invoke(cli.artifact, ["put", str(data_path), "-n", "test/simple"])
@@ -81,14 +87,19 @@ def test_artifact_put_with_cache_disabled(runner, user, monkeypatch, tmp_path, a
     assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
     cache.cleanup(0)
 
-    data_path = Path(tmp_path / "random.txt")
+    data_dir_path = Path(tmp_path / "data")
+    data_path = Path(data_dir_path / "random.txt")
+    try:
+        mkdir_exists_ok(data_dir_path)
+    except OSError:
+        pass
     with open(data_path, "w") as f:
         f.write("test 123")
     result = runner.invoke(
-        cli.artifact, ["put", str(data_path), "-n", "test/simple", "--skip_cache"]
+        cli.artifact, ["put", str(data_dir_path), "-n", "test/simple", "--skip_cache"]
     )
     assert result.exit_code == 0
-    assert f"Uploading file {data_path} to:" in result.output
+    assert f"Uploading directory {data_dir_path} to:" in result.output
     assert "test/simple:v0" in result.output
 
     # The staged file is deleted after logging
