@@ -68,7 +68,7 @@ type Stream struct {
 
 func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.LogDir, "debug-core.log")
+	targetPath := filepath.Join(settings.LogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
 		path := path.(string)
 		// check path exists
@@ -81,7 +81,7 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	}
 
 	var writers []io.Writer
-	name := settings.InternalLogFile
+	name := settings.InternalLogFile()
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		slog.Error(fmt.Sprintf("error opening log file: %s", err))
@@ -110,10 +110,10 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 	tags := observability.Tags{
-		"run_id":  settings.RunID,
-		"run_url": settings.RunURL,
-		"project": settings.Project,
-		"entity":  settings.Entity,
+		"run_id":  settings.RunID(),
+		"run_url": settings.RunURL(),
+		"project": settings.Project(),
+		"entity":  settings.Entity(),
 	}
 	logger.SetTags(tags)
 
@@ -160,7 +160,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.Proto.RunId)
+	s.logger.Info("created new stream", "id", s.settings.RunID)
 	return s
 }
 
@@ -231,7 +231,7 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.Proto.RunId)
+	s.logger.Debug("starting stream", "id", s.settings.RunID)
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
@@ -280,7 +280,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.Proto.RunId)
+	s.logger.Info("closed stream", "id", s.settings.RunID)
 }
 
 func (s *Stream) PrintFooter() {

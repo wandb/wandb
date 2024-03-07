@@ -14,28 +14,6 @@ import (
 //
 // This is derived from the Settings proto and adapted for use in Go.
 type Settings struct {
-	// The W&B API key.
-	//
-	// This can be empty if we're in offline mode.
-	APIKey string
-
-	// The ID of the run.
-	RunID string
-
-	// The W&B URL where the run can be viewed.
-	RunURL string
-
-	// The W&B project ID.
-	Project string
-
-	// The W&B entity, like a user or a team.
-	Entity string
-
-	// The directory for storing log files.
-	LogDir string
-
-	// Filename to use for internal logs.
-	InternalLogFile string
 
 	// The source proto.
 	//
@@ -45,16 +23,7 @@ type Settings struct {
 
 // Parses the Settings proto into a Settings object.
 func Parse(proto *service.Settings) *Settings {
-	return &Settings{
-		APIKey:          proto.GetApiKey().GetValue(),
-		RunID:           proto.GetRunId().GetValue(),
-		RunURL:          proto.GetRunUrl().GetValue(),
-		Project:         proto.GetProject().GetValue(),
-		Entity:          proto.GetEntity().GetValue(),
-		LogDir:          proto.GetLogDir().GetValue(),
-		InternalLogFile: proto.GetLogInternal().GetValue(),
-		Proto:           proto,
-	}
+	return &Settings{Proto: proto}
 }
 
 // Ensures the APIKey is set if it needs to be.
@@ -80,4 +49,41 @@ func (s *Settings) EnsureAPIKey() error {
 	s.Proto.ApiKey = &wrapperspb.StringValue{Value: password}
 
 	return nil
+}
+
+// The W&B API key.
+//
+// This can be empty if we're in offline mode.
+func (s *Settings) APIKey() string {
+	return s.Proto.ApiKey.Value
+}
+
+// The ID of the run.
+func (s *Settings) RunID() string {
+	return s.Proto.RunId.Value
+}
+
+// The W&B URL where the run can be viewed.
+func (s *Settings) RunURL() string {
+	return s.Proto.RunUrl.Value
+}
+
+// The W&B project ID.
+func (s *Settings) Project() string {
+	return s.Proto.Project.Value
+}
+
+// The W&B entity, like a user or a team.
+func (s *Settings) Entity() string {
+	return s.Proto.Entity.Value
+}
+
+// The directory for storing log files.
+func (s *Settings) LogDir() string {
+	return s.Proto.LogDir.Value
+}
+
+// Filename to use for internal logs.
+func (s *Settings) InternalLogFile() string {
+	return s.Proto.LogInternal.Value
 }
