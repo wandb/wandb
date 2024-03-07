@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -159,7 +160,7 @@ type JobBuilder struct {
 	RunCodeArtifact       *ArtifactInfoForJob
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             map[string]interface{}
+	runConfig             runconfig.RunConfig
 	wandbConfigParameters *service.WandbConfigParametersRecord
 	saveInputToMetadata   bool
 }
@@ -230,7 +231,7 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 
 }
 
-func (j *JobBuilder) SetRunConfig(config map[string]interface{}) {
+func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
 	j.runConfig = config
 }
 
@@ -557,10 +558,8 @@ func (j *JobBuilder) Build(
 			return nil, err
 		}
 	} else {
-		metadataString = "{}"
-		if j.runConfig != nil {
-			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig)
-		}
+		metadataString = ""
+		sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
 	}
 	if output != nil {
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
@@ -699,23 +698,19 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	}
 }
 
+// Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
-	var err error
 	if j.wandbConfigParameters != nil {
-		if j.wandbConfigParameters.Include != nil {
-			metadata[WandbConfigKey], err = filterInPaths(j.runConfig, j.wandbConfigParameters.Include)
-			if err != nil {
-				return "{}", err
-			}
-			metadata[WandbConfigKey] = data_types.ResolveTypes(metadata[WandbConfigKey])
-		} else if j.wandbConfigParameters.Exclude != nil {
-			err = filterOutPaths(j.runConfig, j.wandbConfigParameters.Exclude)
-			if err != nil {
-				return "{}", err
-			}
-			metadata[WandbConfigKey] = data_types.ResolveTypes(j.runConfig)
+		paths := make([]runconfig.RunConfigPath, len(j.wandbConfigParameters.Paths))
+		for i, path := range j.wandbConfigParameters.Paths {
+			paths[i] = path.Path
 		}
+		config, err := j.runConfig.FilterTree(paths, j.wandbConfigParameters.Exclude)
+		if err != nil {
+			return "{}", err
+		}
+		metadata[WandbConfigKey] = data_types.ResolveTypes(config)
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {

@@ -115,3 +115,49 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 }
 
 func ignoreError(_err error) {}
+
+func TestFilterTree(t *testing.T) {
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+		"number": 9,
+		"nested": runconfig.RunConfigDict{
+			"list": []string{"a", "b", "c"},
+			"text": "xyz",
+		},
+	})
+	paths := []runconfig.RunConfigPath{
+		{"number"},
+		{"nested", "list"},
+	}
+
+	t.Run("Include Tree", func(t *testing.T) {
+		include_tree, err := runConfig.FilterTree(paths, false)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t,
+			runconfig.RunConfigDict{
+				"number": 9,
+				"nested": runconfig.RunConfigDict{
+					"list": []string{"a", "b", "c"},
+				},
+			},
+			include_tree,
+		)
+	})
+
+	t.Run("Exclude Tree", func(t *testing.T) {
+		exclude_tree, err := runConfig.FilterTree(paths, true)
+		if err != nil {
+			t.Error(err)
+		}
+		assert.Equal(t,
+			runconfig.RunConfigDict{
+				"nested": runconfig.RunConfigDict{
+					"text": "xyz",
+				},
+			},
+			exclude_tree,
+		)
+	})
+
+}
