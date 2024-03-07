@@ -1650,6 +1650,8 @@ func (x *GitRepoRecord) GetCommit() string {
 	return ""
 }
 
+// Used to specify which paths within various config objects should be filtered
+// in or out of job inputs.
 type ConfigFilterPath struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1697,6 +1699,12 @@ func (x *ConfigFilterPath) GetPath() []string {
 	return nil
 }
 
+// Specifies filter mode and paths for setting job inputs from wandb.config.
+//
+// If this record is published to the core internal process then it will filter
+// the given paths into or out of the job inputs it builds. If the exclude field
+// is true then the paths will be excluded from the job inputs, otherwise they
+// will be included.
 type WandbConfigParametersRecord struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
