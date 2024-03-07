@@ -1,6 +1,7 @@
 """Implementation of KubernetesRunner class for wandb launch."""
 import asyncio
 import base64
+import datetime
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
+from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -422,8 +424,23 @@ class KubernetesRunner(AbstractRunner):
                     else:
                         secret_name += f"-{launch_project.run_id}"
 
-                    api_key_secret = await ensure_api_key_secret(
-                        core_api, secret_name, namespace, value
+                    def handle_exception(e):
+                        wandb.termwarn(
+                            f"Exception when ensuring Kubernetes API key secret: {e}. Retrying..."
+                        )
+
+                    api_key_secret = await retry_async(
+                        backoff=ExponentialBackoff(
+                            initial_sleep=datetime.timedelta(seconds=1),
+                            max_sleep=datetime.timedelta(minutes=1),
+                            max_retries=API_KEY_SECRET_MAX_RETRIES,
+                        ),
+                        fn=ensure_api_key_secret,
+                        on_exc=handle_exception,
+                        core_api=core_api,
+                        secret_name=secret_name,
+                        namespace=namespace,
+                        api_key=value,
                     )
                     env.append(
                         {
@@ -651,7 +668,6 @@ async def ensure_api_key_secret(
     secret_name: str,
     namespace: str,
     api_key: str,
-    retries: int = 0,
 ) -> "V1Secret":
     """Create a secret containing a user's wandb API key.
 
@@ -703,18 +719,9 @@ async def ensure_api_key_secret(
                 return existing_secret
             raise
     except Exception as e:
-        if retries >= API_KEY_SECRET_MAX_RETRIES:
-            raise LaunchError(
-                f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
-            )
-        else:
-            wandb.termwarn(
-                f"Exception when ensuring Kubernetes API key secret, retrying ({retries}/{API_KEY_SECRET_MAX_RETRIES})"
-            )
-            await asyncio.sleep(2**retries)
-            return await ensure_api_key_secret(
-                core_api, secret_name, namespace, api_key, retries + 1
-            )
+        raise LaunchError(
+            f"Exception when ensuring Kubernetes API key secret: {str(e)}\n"
+        )
 
 
 async def maybe_create_imagepull_secret(
