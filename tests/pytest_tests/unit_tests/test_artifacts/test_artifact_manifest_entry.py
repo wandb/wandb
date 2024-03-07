@@ -65,4 +65,4 @@ def test_manifest_download(monkeypatch):
 
     short_entry.path = default_cache
     fpath = PurePath(short_entry.download(root=abspath_to_cur_dir, skip_cache=True))
-    assert fpath.parts[-3:] == ["unit_tests", "test_artifacts", "default_cache"]
+    assert fpath.parts[-3:] == ("unit_tests", "test_artifacts", "default_cache")
