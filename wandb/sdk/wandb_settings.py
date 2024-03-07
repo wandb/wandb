@@ -1915,7 +1915,7 @@ class Settings(SettingsData):
         if force is not None:
             login_settings["force"] = force
         if timeout is not None:
-            login_settings["timeout"] = timeout
+            login_settings["login_timeout"] = timeout
 
         if logger:
             logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
