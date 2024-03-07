@@ -51,6 +51,7 @@ class ArtifactFileCache:
         else:
             hex_md5 = b64_to_hex_id(b64_md5)
             path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
+            wandb.termwarn(f"\n\nchecking md5 obj path: {path}\n\n")
         return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.

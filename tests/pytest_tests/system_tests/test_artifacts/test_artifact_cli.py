@@ -38,16 +38,20 @@ def test_artifact(runner, user):
 
 @pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, api):
+    wandb.termwarn(f"\n\ntmp path:{tmp_path}\n\n")
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
+
+    # Setup cache dir
     cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    cache = artifact_file_cache.get_artifact_file_cache()
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
     wandb.termwarn(f"\n\ncache orig:{cache._cache_dir}\n\n")
-    cache.cleanup(0)
-    data_path = Path(tmp_path / "random.txt")
 
+    data_path = Path(tmp_path / "random.txt")
     with open(data_path, "w") as f:
         f.write("test 123")
     result = runner.invoke(cli.artifact, ["put", str(data_path), "-n", "test/simple"])
