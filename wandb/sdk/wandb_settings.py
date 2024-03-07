@@ -1897,28 +1897,27 @@ class Settings(SettingsData):
 
     def _apply_login(
         self,
-        *,
-        anonymous: Optional[Literal["must", "allow", "never"]] = None,
-        key: Optional[str] = None,
-        host: Optional[str] = None,
-        force: Optional[bool] = None,
-        timeout: Optional[int] = None,
-        logger: Optional[_EarlyLogger] = None,
+        login_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
-        login_settings: Dict[str, Any] = {}
-        if anonymous is not None:
-            login_settings["anonymous"] = anonymous
-        if key is not None:
-            login_settings["api_key"] = key
-        if host is not None:
-            login_settings["base_url"] = host
-        if force is not None:
-            login_settings["force"] = force
-        if timeout is not None:
-            login_settings["login_timeout"] = timeout
+        key_map = {
+            "key": "api_key",
+            "host": "base_url",
+            "timeout": "login_timeout",
+        }
 
-        if logger:
-            logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
+        # Rename keys and keep only the non-None values.
+        #
+        # The input keys are parameters to wandb.login(), but we use different
+        # names for some of them in Settings.
+        login_settings = {
+            key_map.get(key, key): value
+            for key, value in login_settings.items()
+            if value is not None
+        }
+
+        if _logger:
+            _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
 
         self.update(
             login_settings,

@@ -138,12 +138,14 @@ class _WandbLogin:
         logger = wandb.setup()._get_logger()
 
         login_settings._apply_login(
-            anonymous=anonymous,
-            key=key,
-            host=host,
-            force=force,
-            timeout=timeout,
-            logger=logger,
+            {
+                "anonymous": anonymous,
+                "key": key,
+                "host": host,
+                "force": force,
+                "timeout": timeout,
+            },
+            _logger=logger,
         )
 
         # make sure they are applied globally
