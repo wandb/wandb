@@ -93,7 +93,7 @@ class LaunchAgent2:
         create_agent_result = self._api.create_launch_agent(
             self._config["entity"],
             self._config["project"],
-            self._config["queues"],
+            self._config.get("queues", []),
             self._config,
             self._wandb_version,
             True,  # gorilla_agent_support
@@ -275,11 +275,3 @@ class LaunchAgent2:
         else:
             raise RuntimeError("Tried to stop Agent but not started")
         self._logger.info("Poll loop stopped")
-
-
-def create_and_run_agent2(api: Api, config: AgentConfig) -> None:
-    agent = LaunchAgent2(api, config)
-    try:
-        asyncio.run(agent.loop())
-    except asyncio.CancelledError:
-        raise

@@ -23,11 +23,7 @@ class JobSetDiff:
     remove_jobs: List[str]
 
 
-JobSetId = str
-
-
 def create_jobset(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Logger):
-    # Retrieve the job set via Api.get_jobset_diff_by_spec
     jobset_response = api.get_jobset_by_spec(
         jobset_name=spec.name,
         entity_name=spec.entity_name,

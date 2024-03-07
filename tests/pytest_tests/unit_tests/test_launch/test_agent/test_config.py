@@ -19,10 +19,14 @@ def mock_agent(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch._launch.LaunchAgent", lambda *args, **kwargs: MockAgent
     )
+    monkeypatch.setattr(
+        "wandb.sdk.launch._launch.LaunchAgent2", lambda *args, **kwargs: MockAgent
+    )
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "config, error",
+    "config, use_agent2, error",
     [
         # Valid configs
         (
@@ -31,6 +35,7 @@ def mock_agent(monkeypatch):
                 "project": "test-project",
             },
             False,
+            False,
         ),
         (
             {
@@ -38,6 +43,7 @@ def mock_agent(monkeypatch):
                 "project": "test-project",
                 "queues": ["test-queue"],
             },
+            False,
             False,
         ),
         (
@@ -53,12 +59,14 @@ def mock_agent(monkeypatch):
                 },
             },
             False,
+            False,
         ),
         (
             {
                 "entity": "test-entity",
                 "project": "test-project",
             },
+            False,
             False,
         ),
         # Registry type invalid.
@@ -74,13 +82,24 @@ def mock_agent(monkeypatch):
                     "type": "ecrr",
                 },
             },
+            False,
             True,
+        ),
+        # Launch Agent 2
+        (
+            {
+                "entity": "test-entity",
+                "project": "test-project",
+                "queues": ["test-queue"],
+            },
+            True,
+            False,
         ),
     ],
 )
-def test_create_and_run_agent(config, error, mock_agent):
+def test_create_and_run_agent(config, use_agent2, error, mock_agent):
     if error:
         with pytest.raises(LaunchError):
-            create_and_run_agent(MagicMock(), config)
+            create_and_run_agent(MagicMock(), config, use_launch_agent2=use_agent2)
     else:
-        create_and_run_agent(MagicMock(), config)
+        create_and_run_agent(MagicMock(), config, use_launch_agent2=use_agent2)
