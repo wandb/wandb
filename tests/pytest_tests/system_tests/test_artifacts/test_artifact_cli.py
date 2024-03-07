@@ -3,7 +3,6 @@ import platform
 from pathlib import Path
 
 import pytest
-import wandb
 from wandb.cli import cli
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -38,7 +37,6 @@ def test_artifact(runner, user):
 
 @pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, api):
-    wandb.termwarn(f"\n\ntmp path:{tmp_path}\n\n")
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
@@ -50,7 +48,6 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
     assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
     cache.cleanup(0)
-    wandb.termwarn(f"\n\ncache orig:{cache._cache_dir}\n\n")
 
     data_path = Path(tmp_path / "random.txt")
     with open(data_path, "w") as f:
@@ -67,10 +64,6 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
     # The file is cached
     artifact = api.artifact("test/simple:latest")
     manifest_entry = artifact.manifest.entries["random.txt"]
-    wandb.termwarn(
-        f"\n\ncache dirs: {artifact.manifest.storage_policy._cache._cache_dir}, cache: {cache._cache_dir}\n\n"
-    )
-    wandb.termwarn(f"\n\nmanifest entry: {artifact.manifest.entries}\n\n")
     _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert found
 
