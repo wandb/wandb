@@ -22,7 +22,7 @@ type Settings struct {
 }
 
 // Parses the Settings proto into a Settings object.
-func Parse(proto *service.Settings) *Settings {
+func From(proto *service.Settings) *Settings {
 	return &Settings{Proto: proto}
 }
 
