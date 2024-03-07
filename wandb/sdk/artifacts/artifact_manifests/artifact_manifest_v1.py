@@ -64,6 +64,7 @@ class ArtifactManifestV1(ArtifactManifest):
         for entry in sorted(self.entries.values(), key=lambda k: k.path):
             json_entry: Dict[str, Any] = {
                 "digest": entry.digest,
+                "skip_cache": entry.skip_cache,
             }
             if entry.birth_artifact_id:
                 json_entry["birthArtifactID"] = entry.birth_artifact_id
