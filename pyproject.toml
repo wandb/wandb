@@ -180,6 +180,7 @@ ignore = [
     "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
     "UP022",
+    "UP032", # Allow using format instead of f-string.
     "UP036",
 ]
 target-version = "py37"
