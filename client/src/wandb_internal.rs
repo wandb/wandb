@@ -1021,7 +1021,7 @@ pub mod record {
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
-        WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
+        WandbConfigParameters(super::WandbConfigParametersRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1187,33 +1187,27 @@ pub struct GitRepoRecord {
     #[prost(string, tag = "2")]
     pub commit: ::prost::alloc::string::String,
 }
-/// Path within nested configuration object.
-///
-/// The path is a list of strings, each string is a key in the nested configuration
-/// dict.
+/// Used to specify which paths within various config objects should be filtered
+/// in or out of job inputs.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfigFilterPath {
     #[prost(string, repeated, tag = "1")]
     pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Specifies include and exclude paths for filtering job inputs.
+/// Specifies filter mode and paths for setting job inputs from wandb.config.
 ///
 /// If this record is published to the core internal process then it will filter
-/// the given paths into or out of the job inputs it builds.
-///
-/// If include_paths is not empty, then endpoints of the config not prefixed by
-/// an include path will be ignored.
-///
-/// If exclude_paths is not empty, then endpoints of the config prefixed by an
-/// exclude path will be ignored.
+/// the given paths into or out of the job inputs it builds. If the exclude field
+/// is true then the paths will be excluded from the job inputs, otherwise they
+/// will be included.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LaunchWandbConfigParametersRecord {
+pub struct WandbConfigParametersRecord {
     #[prost(message, repeated, tag = "1")]
-    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
-    #[prost(message, repeated, tag = "2")]
-    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    pub paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(bool, tag = "2")]
+    pub exclude: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
