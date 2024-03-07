@@ -160,7 +160,7 @@ type JobBuilder struct {
 	RunCodeArtifact       *ArtifactInfoForJob
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             runconfig.RunConfig
+	runConfig             *runconfig.RunConfig
 	wandbConfigParameters *service.WandbConfigParametersRecord
 	saveInputToMetadata   bool
 }
@@ -232,7 +232,7 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 }
 
 func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
-	j.runConfig = config
+	j.runConfig = &config
 }
 
 func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
@@ -559,7 +559,9 @@ func (j *JobBuilder) Build(
 		}
 	} else {
 		metadataString = ""
-		sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
+		if j.runConfig != nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
+		}
 	}
 	if output != nil {
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)

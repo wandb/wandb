@@ -1,6 +1,7 @@
 """Implementation of KubernetesRunner class for wandb launch."""
 import asyncio
 import base64
+import datetime
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
+from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
@@ -59,6 +61,7 @@ from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa:
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
+API_KEY_SECRET_MAX_RETRIES = 5
 
 _logger = logging.getLogger(__name__)
 
@@ -421,8 +424,23 @@ class KubernetesRunner(AbstractRunner):
                     else:
                         secret_name += f"-{launch_project.run_id}"
 
-                    api_key_secret = await ensure_api_key_secret(
-                        core_api, secret_name, namespace, value
+                    def handle_exception(e):
+                        wandb.termwarn(
+                            f"Exception when ensuring Kubernetes API key secret: {e}. Retrying..."
+                        )
+
+                    api_key_secret = await retry_async(
+                        backoff=ExponentialBackoff(
+                            initial_sleep=datetime.timedelta(seconds=1),
+                            max_sleep=datetime.timedelta(minutes=1),
+                            max_retries=API_KEY_SECRET_MAX_RETRIES,
+                        ),
+                        fn=ensure_api_key_secret,
+                        on_exc=handle_exception,
+                        core_api=core_api,
+                        secret_name=secret_name,
+                        namespace=namespace,
+                        api_key=value,
                     )
                     env.append(
                         {
