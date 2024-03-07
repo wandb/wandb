@@ -17,7 +17,7 @@ the package in your environment. The `wandb` library will automatically detect a
 pip install -U wandb wandb-core
 ```
 
-Note: ensure you have `wandb>=0.16.1`.
+Note: ensure you have `wandb>=0.16.4`.
 
 ### Platform Compatibility
 
