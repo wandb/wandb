@@ -143,7 +143,7 @@ class _WandbLogin:
             host=host,
             force=force,
             timeout=timeout,
-            _logger=logger,
+            logger=logger,
         )
 
         # make sure they are applied globally
