@@ -32,7 +32,10 @@ def test_repr():
     assert entry != repr(entry)
 
     short_entry = ArtifactManifestEntry(path="foo", digest="barr")
-    assert repr(short_entry) == "ArtifactManifestEntry(path='foo', digest='barr')"
+    assert (
+        repr(short_entry)
+        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
+    )
     assert entry != short_entry
 
 
