@@ -105,9 +105,7 @@ class CustomBuildPy(build_py):
         for file in archdir.iterdir():
             dest = pkgdir / file.name
 
-            if dest.exists():
-                dest.unlink()
-
+            dest.unlink(missing_ok=True)
             os.symlink(file, dest)
 
         super().run()
