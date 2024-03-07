@@ -242,12 +242,16 @@ def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, a
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "test_mutable_uploads_with_cache_enabled/cache")
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    cache = artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
-    data_path = Path(tmp_path / "random.txt")
 
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open(data_path, "w") as f:
         f.write("test 123")
@@ -270,12 +274,16 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "test_mutable_uploads_with_cache_disabled/cache")
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    cache = artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
-    data_path = Path(tmp_path / "random.txt")
 
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open(data_path, "w") as f:
         f.write("test 123")
@@ -299,12 +307,16 @@ def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch)
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "test_immutable_uploads_with_cache_enabled/cache")
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    cache = artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
-    data_path = Path(tmp_path / "random.txt")
 
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open(data_path, "w") as f:
         f.write("test 123")
@@ -326,12 +338,16 @@ def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
     staging_dir = Path(get_staging_dir())
-    cache_dir = Path(tmp_path / "test_immutable_uploads_with_cache_disabled/cache")
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
-    cache = artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
-    data_path = Path(tmp_path / "random.txt")
 
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
     artifact = wandb.Artifact(name="stage-test", type="dataset")
     with open(data_path, "w") as f:
         f.write("test 123")
