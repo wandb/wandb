@@ -267,8 +267,8 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// update sentry tags
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.RunURL(),
-		"entity":  nc.stream.settings.Entity(),
+		"run_url": nc.stream.settings.GetRunURL(),
+		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)
