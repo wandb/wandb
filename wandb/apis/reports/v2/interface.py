@@ -13,7 +13,7 @@ except ImportError:
 
 from urllib.parse import urlparse, urlunparse
 
-from pydantic import ConfigDict, Field, StringConstraints, validator
+from pydantic import ConfigDict, Field, validator
 from pydantic.dataclasses import dataclass
 
 import wandb
@@ -757,21 +757,10 @@ block_mapping = {
     internal.UnknownBlock: UnknownBlock,
 }
 
-hex_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
-rgb_pattern = r"^rgb\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*\)$"
-rgba_pattern = r"^rgba\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(1|0|0?\.\d+)\s*\)$"
-
 
 @dataclass(config=dataclass_config)
 class GradientPoint(Base):
-    color: Annotated[
-        str,
-        # hex, rgb, or rgba
-        StringConstraints(
-            pattern=f"{hex_pattern}|{rgb_pattern}|{rgba_pattern}",
-            max_length=18,
-        ),
-    ]
+    color: Annotated[str, internal.ColorStrConstraints]
     offset: Annotated[float, Ge(0), Le(100)] = 0
 
     def to_model(self):
