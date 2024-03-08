@@ -165,6 +165,34 @@ async def test_agent_loop(
 
 
 @pytest.mark.asyncio
+async def test_agent_loop_sigint_clean_exit(
+    mocker, common_setup, setup_for_agent_loop, event_loop, fresh_agent
+):
+    mock_controller = AsyncMock(return_value=None)
+    LaunchAgent2.register_controller_impl("test-resource", mock_controller)
+
+    config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queues": ["test-queue"],
+    }
+
+    agent = LaunchAgent2(api=mocker.api, config=config)
+    loop_task = event_loop.create_task(agent.loop())
+
+    asyncio_sleep = asyncio.sleep
+
+    async def sleep_then_raise(seconds):
+        await asyncio_sleep(seconds)
+        raise asyncio.CancelledError
+
+    mocker.patch("asyncio.sleep", sleep_then_raise)
+
+    with suppress(asyncio.CancelledError, KeyboardInterrupt):
+        await loop_task
+
+
+@pytest.mark.asyncio
 async def test_agent_main_loop_tolerates_controller_error(
     mocker, common_setup, setup_for_agent_loop, event_loop, fresh_agent
 ):
