@@ -252,9 +252,9 @@ func pathMapToDict(pathMap PathMap) RunConfigDict {
 	dict := make(RunConfigDict)
 	for path, value := range pathMap {
 		err := updateAtPath(dict, *path, value)
-		// This can only happen if update one path and then another, invalid path
-		// that goes through a leaf prefixed by the first path. This should
-		// never happen.
+		// This error only happens if we try to add a path that goes through
+		// a leaf of the existing tree, which should never happen since this is
+		// only ever called with paths that end in leaves of the tree.
 		if err != nil {
 			panic(err)
 		}
