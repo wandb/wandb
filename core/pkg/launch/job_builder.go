@@ -161,7 +161,7 @@ type JobBuilder struct {
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
-	wandbConfigParameters *service.WandbConfigParametersRecord
+	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
 	configFiles           []*service.ConfigFileParameterRecord
 	saveInputToMetadata   bool
 }
@@ -704,28 +704,10 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
-	if j.wandbConfigParameters != nil {
-		config, err := j.runConfig.FilterTree(filterPathToConfigPath(j.wandbConfigParameters.Paths), j.wandbConfigParameters.Exclude)
-		if err != nil {
-			return "", err
-		}
-		metadata[WandbConfigKey] = data_types.ResolveTypes(config)
-	}
-	if len(j.configFiles) > 0 {
-		for _, configFile := range j.configFiles {
-			filepath := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
-			config, err := runconfig.NewFromConfigFile(filepath)
-			if err != nil {
-				return "", err
-			}
-			filteredConfig, err := config.FilterTree(filterPathToConfigPath(configFile.Paths), configFile.Exclude)
-			if err != nil {
-				return "", err
-			}
-			metadata[configFile.Relpath] = data_types.ResolveTypes(filteredConfig)
-		}
-	}
-	metadata = map[string]interface{}{"inputs": metadata}
+	include, exclude := j.getConfigIncludeExcludePaths()
+	runConfig := j.runConfig.FilterTree(include, exclude)
+	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	metadata = map[string]interface{}{"input_types": metadata}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return "", err
@@ -733,13 +715,24 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 	return string(metadataBytes), nil
 }
 
-// Converts a list of filter paths from service.ConfigFilterPath to runconfig.RunConfigPath.
-func filterPathToConfigPath(protoPath []*service.ConfigFilterPath) []runconfig.RunConfigPath {
-	paths := make([]runconfig.RunConfigPath, len(protoPath))
-	for i, path := range protoPath {
-		paths[i] = path.Path
+// Converts LaunchWandbConfigParametersRecords into include and exclude paths.
+func (j *JobBuilder) getConfigIncludeExcludePaths() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
+	include := make([]runconfig.RunConfigPath, 0)
+	exclude := make([]runconfig.RunConfigPath, 0)
+	if len(j.wandbConfigParameters) > 0 {
+		var appendee *[]runconfig.RunConfigPath
+		for _, wandbConfigParameters := range j.wandbConfigParameters {
+			if wandbConfigParameters.Exclude {
+				appendee = &exclude
+			} else {
+				appendee = &include
+			}
+			for _, path := range wandbConfigParameters.Paths {
+				*appendee = append(*appendee, runconfig.RunConfigPath(path.Path))
+			}
+		}
 	}
-	return paths
+	return include, exclude
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
@@ -758,16 +751,12 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 	}
 }
 
-func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
-	j.logger.Debug("jobBuilder: handling config file parameter record")
-	j.configFiles = append(j.configFiles, configFileParameter)
+func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
 	j.saveInputToMetadata = true
+	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
 }
 
-func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {
-	if j.wandbConfigParameters != nil {
-		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
-	}
+func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
 	j.saveInputToMetadata = true
-	j.wandbConfigParameters = wandbConfigParameters
+	j.configFiles = append(j.configFiles, configFileParameter)
 }

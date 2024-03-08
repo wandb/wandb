@@ -766,7 +766,7 @@ class InterfaceBase:
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
 
-    def publish_wandb_config_parameters(
+    def publish_launch_wandb_config_parameters(
         self, paths: List[List[str]], exclude: bool = False
     ):
         """Tells the internal process to treat wandb.config fields as job inputs.
@@ -783,17 +783,17 @@ class InterfaceBase:
         Returns:
             None
         """
-        config_parameters = pb.WandbConfigParametersRecord()
+        config_parameters = pb.LaunchWandbConfigParametersRecord()
         path_records = []
         for path in paths:
             path_records.append(pb.ConfigFilterPath(path=path))
         config_parameters.paths.extend(path_records)
         config_parameters.exclude = exclude
-        return self._publish_wandb_config_parameters(config_parameters)
+        return self._publish_launch_wandb_config_parameters(config_parameters)
 
     @abstractmethod
-    def _publish_wandb_config_parameters(
-        self, config_parameters: pb.WandbConfigParametersRecord
+    def _publish_launch_wandb_config_parameters(
+        self, config_parameters: pb.LaunchWandbConfigParametersRecord
     ) -> None:
         raise NotImplementedError
 

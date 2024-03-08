@@ -931,7 +931,7 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 		},
 	))
-	jobBuilder.HandleWandbConfigParametersRecord(&service.WandbConfigParametersRecord{
+	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
 		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		Exclude: false,
 	})
@@ -939,29 +939,28 @@ func TestWandbConfigParameters(t *testing.T) {
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"inputs": map[string]interface{}{
-			launch.WandbConfigKey: map[string]interface{}{
-				"params": map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"key1": map[string]interface{}{
-							"wb_type": "string",
-						},
-						"key3": map[string]interface{}{
-							"params": map[string]interface{}{
-								"type_map": map[string]interface{}{
-									"key4": map[string]interface{}{
-										"wb_type": "string",
-									},
+		launch.WandbConfigKey: map[string]interface{}{
+			"params": map[string]interface{}{
+				"type_map": map[string]interface{}{
+					"key1": map[string]interface{}{
+						"wb_type": "string",
+					},
+					"key3": map[string]interface{}{
+						"params": map[string]interface{}{
+							"type_map": map[string]interface{}{
+								"key4": map[string]interface{}{
+									"wb_type": "string",
 								},
 							},
-							"wb_type": "typedDict",
 						},
+						"wb_type": "typedDict",
 					},
 				},
-				"wb_type": "typedDict",
 			},
+			"wb_type": "typedDict",
 		},
-	}, artifactMetadata)
+	}, inputs)
 }
