@@ -160,7 +160,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.RunID)
+	s.logger.Info("created new stream", "id", s.settings.RunID())
 	return s
 }
 
@@ -231,7 +231,7 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.RunID)
+	s.logger.Debug("starting stream", "id", s.settings.RunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
@@ -280,7 +280,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.RunID)
+	s.logger.Info("closed stream", "id", s.settings.RunID())
 }
 
 func (s *Stream) PrintFooter() {
