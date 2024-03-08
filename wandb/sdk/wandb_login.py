@@ -22,7 +22,7 @@ from wandb.old.settings import Settings as OldSettings
 from ..apis import InternalApi
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings, Source
+from .wandb_settings import Settings
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
@@ -80,11 +80,17 @@ def login(
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True
-    kwargs = dict(locals())
-    _verify = kwargs.pop("verify", False)
-    configured = _login(**kwargs)
 
-    if _verify:
+    configured = _login(
+        anonymous=anonymous,
+        key=key,
+        relogin=relogin,
+        host=host,
+        force=force,
+        timeout=timeout,
+    )
+
+    if verify:
         from . import wandb_setup
 
         singleton = wandb_setup._WandbSetup._instance
@@ -115,22 +121,32 @@ class _WandbLogin:
         self._key = None
         self._relogin = None
 
-    def setup(self, kwargs):
-        self.kwargs = kwargs
+    def setup(
+        self,
+        *,
+        anonymous: Optional[Literal["must", "allow", "never"]] = None,
+        key: Optional[str] = None,
+        relogin: Optional[bool] = None,
+        host: Optional[str] = None,
+        force: Optional[bool] = None,
+        timeout: Optional[int] = None,
+    ):
+        self._relogin = relogin
 
         # built up login settings
         login_settings: Settings = wandb.Settings()
-        settings_param = kwargs.pop("_settings", None)
-        # note that this case does not come up anywhere except for the tests
-        if settings_param is not None:
-            if isinstance(settings_param, Settings):
-                login_settings._apply_settings(settings_param)
-            elif isinstance(settings_param, dict):
-                login_settings.update(settings_param, source=Source.LOGIN)
-        _logger = wandb.setup()._get_logger()
-        # Do not save relogin into settings as we just want to relogin once
-        self._relogin = kwargs.pop("relogin", None)
-        login_settings._apply_login(kwargs, _logger=_logger)
+        logger = wandb.setup()._get_logger()
+
+        login_settings._apply_login(
+            {
+                "anonymous": anonymous,
+                "key": key,
+                "host": host,
+                "force": force,
+                "timeout": timeout,
+            },
+            _logger=logger,
+        )
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
@@ -259,6 +275,7 @@ class _WandbLogin:
 
 
 def _login(
+    *,
     anonymous: Optional[Literal["must", "allow", "never"]] = None,
     key: Optional[str] = None,
     relogin: Optional[bool] = None,
@@ -270,9 +287,6 @@ def _login(
     _disable_warning: Optional[bool] = None,
     _entity: Optional[str] = None,
 ):
-    kwargs = dict(locals())
-    _disable_warning = kwargs.pop("_disable_warning", None)
-
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
@@ -280,20 +294,24 @@ def _login(
 
     wlogin = _WandbLogin()
 
-    _backend = kwargs.pop("_backend", None)
     if _backend:
         wlogin.set_backend(_backend)
 
-    _silent = kwargs.pop("_silent", None)
     if _silent:
         wlogin.set_silent(_silent)
 
-    _entity = kwargs.pop("_entity", None)
     if _entity:
         wlogin.set_entity(_entity)
 
     # configure login object
-    wlogin.setup(kwargs)
+    wlogin.setup(
+        anonymous=anonymous,
+        key=key,
+        relogin=relogin,
+        host=host,
+        force=force,
+        timeout=timeout,
+    )
 
     if wlogin._settings._offline:
         return False
@@ -306,7 +324,6 @@ def _login(
     # perform a login
     logged_in = wlogin.login()
 
-    key = kwargs.get("key")
     if key:
         wlogin.configure_api_key(key)
 
