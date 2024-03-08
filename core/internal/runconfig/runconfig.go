@@ -251,7 +251,7 @@ func pathHasPrefix(path RunConfigPath, prefix RunConfigPath) bool {
 func pathMapToDict(pathMap PathMap) RunConfigDict {
 	dict := make(RunConfigDict)
 	for path, value := range pathMap {
-		err := updateAtPath(dict, *path, deepCopyValue(value))
+		err := updateAtPath(dict, *path, value)
 		// This can only happen if update one path and then another, invalid path
 		// that goes through a leaf prefixed by the first path. This should
 		// never happen.
@@ -260,28 +260,6 @@ func pathMapToDict(pathMap PathMap) RunConfigDict {
 		}
 	}
 	return dict
-}
-
-// Makes a deep copy of the given value.
-//
-// The value can be a map, list, or a primitive.
-func deepCopyValue(value interface{}) interface{} {
-	var valueCopy interface{}
-	switch value := value.(type) {
-	case RunConfigDict:
-		valueCopy := make(RunConfigDict)
-		for k, v := range value {
-			valueCopy[k] = deepCopyValue(v)
-		}
-	case []interface{}:
-		copy := make([]interface{}, len(value))
-		for i, v := range value {
-			copy[i] = deepCopyValue(v)
-		}
-	default:
-		return value
-	}
-	return valueCopy
 }
 
 // Converts a nested dict to a flat map of paths to values.
