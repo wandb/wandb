@@ -1,3 +1,4 @@
+import sys
 from unittest import mock
 
 import pytest
@@ -7,10 +8,10 @@ from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
 
-def test_api_auto_login_no_tty(monkeypatch):
-    monkeypatch.setattr("sys.stdin", None)
-    with pytest.raises(wandb.UsageError):
-        Api()
+def test_api_auto_login_no_tty():
+    with mock.patch.object(sys, "stdin", None):
+        with pytest.raises(wandb.UsageError):
+            Api()
 
 
 def test_thread_local_cookies():
