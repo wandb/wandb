@@ -1681,14 +1681,7 @@ def launch(
     help="a wandb client registration URL, this is generated in the UI",
 )
 @click.option(
-    "--verbose", "-v", is_flag=True, default=False, help="Display verbose output"
-)
-@click.option(
-    "--very-verbose",
-    "-vv",
-    is_flag=True,
-    default=False,
-    help="Display verbose output, including logging output",
+    "--verbose", "-v", count=True, default=False, help="Display verbose output"
 )
 @display_error
 def launch_agent(
@@ -1700,17 +1693,11 @@ def launch_agent(
     config=None,
     url=None,
     log_file=None,
-    verbose=False,
-    very_verbose=False,
+    verbose=0,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
-    verbosity = 0
-    if very_verbose:
-        verbosity = 2
-    elif verbose:
-        verbosity = 1
     if url is not None:
         raise LaunchError(
             "--url is not supported in this version, upgrade with: pip install -u wandb"
@@ -1724,7 +1711,7 @@ def launch_agent(
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
-        entity, project, max_jobs, queues, config, verbosity
+        entity, project, max_jobs, queues, config, verbose
     )
 
     if len(agent_config.get("queues")) == 0:

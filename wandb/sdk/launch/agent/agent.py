@@ -212,7 +212,7 @@ class LaunchAgent:
         self._init_agent_run()
 
     def _log(self, level: str, message: str):
-        if self._verbosity == 2:
+        if self._verbosity >= 2:
             # In very verbose mode, print logs to terminal
             if level == ERROR:
                 wandb.termerror(f"{LOG_PREFIX}{message}")
