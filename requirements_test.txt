@@ -14,3 +14,5 @@ pandas
 responses
 
 coverage[toml]
+numpy>=1.22.2 # not directly required, pinned by Snyk to avoid a vulnerability
+werkzeug>=2.3.8 # not directly required, pinned by Snyk to avoid a vulnerability
