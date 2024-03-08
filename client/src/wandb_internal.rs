@@ -1022,8 +1022,6 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
-        #[prost(message, tag = "27")]
-        ConfigFileParameter(super::ConfigFileParameterRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
