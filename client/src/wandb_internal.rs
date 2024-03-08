@@ -1209,6 +1209,22 @@ pub struct LaunchWandbConfigParametersRecord {
     #[prost(bool, tag = "2")]
     pub exclude: bool,
 }
+/// Specifies a user config file to be used as a job input.
+///
+/// If this record is published to the core internal process then the config file
+/// located at relpath will be used as a job input. The include_paths and
+/// exclude_paths fields specify which paths within the config file should be
+/// included or excluded from the job inputs.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigFileParameterRecord {
+    #[prost(string, tag = "1")]
+    pub relpath: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(message, repeated, tag = "3")]
+    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunUpdateResult {
