@@ -925,7 +925,10 @@ func TestWandbConfigParameters(t *testing.T) {
 			"key1": "value1",
 			"key2": "value2",
 			"key3": map[string]interface{}{
-				"key4": "value4",
+				"key4": map[string]interface{}{
+					"key6": "value6",
+					"key7": "value7",
+				},
 				"key5": "value5",
 			},
 		},
@@ -933,6 +936,10 @@ func TestWandbConfigParameters(t *testing.T) {
 	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
 		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		Exclude: false,
+	})
+	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
+		Paths:   []*service.ConfigFilterPath{{Path: []string{"key3", "key4", "key6"}}},
+		Exclude: true,
 	})
 	artifact, err := jobBuilder.Build(nil)
 	assert.Nil(t, err)
@@ -951,7 +958,14 @@ func TestWandbConfigParameters(t *testing.T) {
 						"params": map[string]interface{}{
 							"type_map": map[string]interface{}{
 								"key4": map[string]interface{}{
-									"wb_type": "string",
+									"wb_type": "typedDict",
+									"params": map[string]interface{}{
+										"type_map": map[string]interface{}{
+											"key7": map[string]interface{}{
+												"wb_type": "string",
+											},
+										},
+									},
 								},
 							},
 						},
