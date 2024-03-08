@@ -47,8 +47,6 @@ message Record {
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     LaunchWandbConfigParametersRecord wandb_config_parameters = 26;
-    ConfigFileParameterRecord config_file_parameter = 27;
-
     // request field does not belong here longterm
     Request request = 100;
   }

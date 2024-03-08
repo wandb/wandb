@@ -160,9 +160,8 @@ type JobBuilder struct {
 	RunCodeArtifact       *ArtifactInfoForJob
 	aliases               []string
 	isNotebookRun         bool
-	runConfig             runconfig.RunConfig
-	wandbConfigParameters *service.WandbConfigParametersRecord
-	configFiles           []*service.ConfigFileParameterRecord
+	runConfig             *runconfig.RunConfig
+	wandbConfigParameters *service.LaunchWandbConfigParametersRecord
 	saveInputToMetadata   bool
 }
 
@@ -768,13 +767,7 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 	}
 }
 
-func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.ConfigFileParameterRecord) {
-	j.logger.Debug("jobBuilder: handling config file parameter record")
-	j.configFiles = append(j.configFiles, configFileParameter)
-	j.saveInputToMetadata = true
-}
-
-func (j *JobBuilder) HandleWandbConfigParametersRecord(wandbConfigParameters *service.WandbConfigParametersRecord) {
+func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
 	if j.wandbConfigParameters != nil {
 		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
 	}

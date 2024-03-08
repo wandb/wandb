@@ -265,7 +265,6 @@ func (s *Sender) SendRecord(record *service.Record) {
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
-
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Footer:
@@ -1295,8 +1294,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	s.outChan <- result
 }
 
-func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.WandbConfigParametersRecord) {
-	s.jobBuilder.HandleWandbConfigParametersRecord(wandbConfigParameters)
+func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
+	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
 }
 
 func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.ConfigFileParameterRecord) {

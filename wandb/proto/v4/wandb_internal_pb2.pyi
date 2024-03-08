@@ -106,8 +106,6 @@ class Record(google.protobuf.message.Message):
     @property
     def wandb_config_parameters(self) -> global___LaunchWandbConfigParametersRecord: ...
     @property
-    def config_file_parameter(self) -> global___ConfigFileParameterRecord: ...
-    @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
     @property
@@ -140,7 +138,6 @@ class Record(google.protobuf.message.Message):
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
         wandb_config_parameters: global___LaunchWandbConfigParametersRecord | None = ...,
-        config_file_parameter: global___ConfigFileParameterRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
@@ -504,35 +501,6 @@ class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "paths", b"paths"]) -> None: ...
 
 global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
-
-@typing_extensions.final
-class ConfigFileParameterRecord(google.protobuf.message.Message):
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    RELPATH_FIELD_NUMBER: builtins.int
-    ABSPATH_FIELD_NUMBER: builtins.int
-    FILENAME_FIELD_NUMBER: builtins.int
-    INCLUDE_FIELD_NUMBER: builtins.int
-    EXCLUDE_FIELD_NUMBER: builtins.int
-    relpath: builtins.str
-    abspath: builtins.str
-    filename: builtins.str
-    @property
-    def include(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def exclude(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    def __init__(
-        self,
-        *,
-        relpath: builtins.str = ...,
-        abspath: builtins.str = ...,
-        filename: builtins.str = ...,
-        include: collections.abc.Iterable[builtins.str] | None = ...,
-        exclude: collections.abc.Iterable[builtins.str] | None = ...,
-    ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["abspath", b"abspath", "exclude", b"exclude", "filename", b"filename", "include", b"include", "relpath", b"relpath"]) -> None: ...
-
-global___ConfigFileParameterRecord = ConfigFileParameterRecord
 
 @typing_extensions.final
 class RunUpdateResult(google.protobuf.message.Message):
