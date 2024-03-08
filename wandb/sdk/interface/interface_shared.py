@@ -418,8 +418,8 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def _publish_wandb_config_parameters(
-        self, wandb_config_parameters: pb.WandbConfigParametersRecord
+    def _publish_launch_wandb_config_parameters(
+        self, wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
     ) -> None:
         rec = self._make_record(wandb_config_parameters=wandb_config_parameters)
         self._publish(rec)

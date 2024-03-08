@@ -931,7 +931,7 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 		},
 	))
-	jobBuilder.HandleWandbConfigParametersRecord(&service.WandbConfigParametersRecord{
+	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
 		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		Exclude: false,
 	})

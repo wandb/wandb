@@ -46,7 +46,7 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
-    WandbConfigParametersRecord wandb_config_parameters = 26;
+    LaunchWandbConfigParametersRecord wandb_config_parameters = 26;
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -165,7 +165,7 @@ message ConfigFilterPath {
 // the given paths into or out of the job inputs it builds. If the exclude field
 // is true then the paths will be excluded from the job inputs, otherwise they
 // will be included.
-message WandbConfigParametersRecord {
+message LaunchWandbConfigParametersRecord {
   repeated ConfigFilterPath paths = 1;
   bool exclude = 2;
 }

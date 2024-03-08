@@ -103,7 +103,7 @@ class Record(google.protobuf.message.Message):
     @property
     def use_artifact(self) -> global___UseArtifactRecord: ...
     @property
-    def wandb_config_parameters(self) -> global___WandbConfigParametersRecord: ...
+    def wandb_config_parameters(self) -> global___LaunchWandbConfigParametersRecord: ...
     @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
@@ -136,7 +136,7 @@ class Record(google.protobuf.message.Message):
         preempting: global___RunPreemptingRecord | None = ...,
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
-        wandb_config_parameters: global___WandbConfigParametersRecord | None = ...,
+        wandb_config_parameters: global___LaunchWandbConfigParametersRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
@@ -475,7 +475,7 @@ class ConfigFilterPath(google.protobuf.message.Message):
 global___ConfigFilterPath = ConfigFilterPath
 
 @typing_extensions.final
-class WandbConfigParametersRecord(google.protobuf.message.Message):
+class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
     """Specifies filter mode and paths for setting job inputs from wandb.config.
 
     If this record is published to the core internal process then it will filter
@@ -499,7 +499,7 @@ class WandbConfigParametersRecord(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["exclude", b"exclude", "paths", b"paths"]) -> None: ...
 
-global___WandbConfigParametersRecord = WandbConfigParametersRecord
+global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
 
 @typing_extensions.final
 class RunUpdateResult(google.protobuf.message.Message):
