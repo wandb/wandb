@@ -161,7 +161,7 @@ type JobBuilder struct {
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
-	wandbConfigParameters *service.LaunchWandbConfigParametersRecord
+	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
 	saveInputToMetadata   bool
 }
 
@@ -703,16 +703,22 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
-	if j.wandbConfigParameters != nil {
-		paths := make([]runconfig.RunConfigPath, len(j.wandbConfigParameters.Paths))
-		for i, path := range j.wandbConfigParameters.Paths {
-			paths[i] = path.Path
+	if len(j.wandbConfigParameters) > 0 {
+		include := make([]runconfig.RunConfigPath, 0)
+		exclude := make([]runconfig.RunConfigPath, 0)
+		var appendee *[]runconfig.RunConfigPath
+		for _, wandbConfigParameters := range j.wandbConfigParameters {
+			if wandbConfigParameters.Exclude {
+				appendee = &exclude
+			} else {
+				appendee = &include
+			}
+			for _, path := range wandbConfigParameters.Paths {
+				*appendee = append(*appendee, runconfig.RunConfigPath(path.Path))
+			}
 		}
-		config, err := j.runConfig.FilterTree(paths, j.wandbConfigParameters.Exclude)
-		if err != nil {
-			return "{}", err
-		}
-		metadata[WandbConfigKey] = data_types.ResolveTypes(config)
+		runConfig := j.runConfig.FilterTree(include, exclude)
+		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
 	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
@@ -738,9 +744,6 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 }
 
 func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	if j.wandbConfigParameters != nil {
-		j.logger.Warn("jobBuilder: wandbConfigParameters already set, overwriting")
-	}
 	j.saveInputToMetadata = true
-	j.wandbConfigParameters = wandbConfigParameters
+	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
 }

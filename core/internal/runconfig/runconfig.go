@@ -169,28 +169,47 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 
 // Filters the configuration tree based on the given paths.
 //
-// If `exclude` is true, the paths are excluded from the tree. Otherwise, only
-// the paths are included in the tree.
+// include and exclude are lists of paths. If include is non-empty, only
+// paths that have a prefix in include are kept. If exclude is non-empty,
+// paths that have a prefix in exclude are removed. If both are empty, the
+// entire tree is returned. If both are non-empty, exlcude is applied first.
 func (runConfig *RunConfig) FilterTree(
-	paths []RunConfigPath,
-	exclude bool,
-) (RunConfigDict, error) {
-	if exclude {
-		pathMap := dictToPathMap(runConfig.tree)
-		for _, path := range paths {
-			prunePath(pathMap, path)
-		}
-		return pathMapToDict(pathMap), nil
-	} else {
-		pathMap := make(PathMap)
-		for _, path := range paths {
-			value := getSubtreeOrLeaf(runConfig.tree, path)
-			if value != nil {
-				pathMap[&path] = value
+	include []RunConfigPath,
+	exclude []RunConfigPath,
+) RunConfigDict {
+	pathMap := dictToPathMap(runConfig.tree)
+	for _, path := range exclude {
+		prunePath(pathMap, path)
+	}
+	if len(include) > 0 {
+		var keep bool
+		for k := range pathMap {
+			keep = false
+			for _, path := range include {
+				if pathHasPrefix(*k, path) {
+					keep = true
+					break
+				}
+			}
+			if !keep {
+				delete(pathMap, k)
 			}
 		}
-		return pathMapToDict(pathMap), nil
 	}
+	return pathMapToDict(pathMap)
+}
+
+// Checks if a given RunConfigPath has a given prefix.
+func pathHasPrefix(path RunConfigPath, prefix RunConfigPath) bool {
+	if len(path) < len(prefix) {
+		return false
+	}
+	for i, prefixPart := range prefix {
+		if path[i] != prefixPart {
+			return false
+		}
+	}
+	return true
 }
 
 // Converts of paths to values to a nested dict.
@@ -253,17 +272,8 @@ func flattenMap(input RunConfigDict, path RunConfigPath, output PathMap) {
 // Prunes all paths starting with a given prefix from a PathMap.
 func prunePath(input PathMap, prefix RunConfigPath) {
 	for k := range input {
-		if len(*k) < len(prefix) {
-			continue
-		}
-		for i := 0; i < len(prefix); i++ {
-			if (*k)[i] == prefix[i] {
-				if i == len(prefix)-1 {
-					delete(input, k)
-				}
-			} else {
-				break
-			}
+		if pathHasPrefix(*k, prefix) {
+			delete(input, k)
 		}
 	}
 }
@@ -359,28 +369,6 @@ func getSubtree(
 		subtree, ok := node.(RunConfigDict)
 		if !ok {
 			return nil
-		}
-
-		tree = subtree
-	}
-
-	return tree
-}
-
-// Returns the subtree or leaf at the path, or nil if it does not exist.
-func getSubtreeOrLeaf(
-	tree RunConfigDict,
-	path RunConfigPath,
-) interface{} {
-	for _, key := range path {
-		node, ok := tree[key]
-		if !ok {
-			return nil
-		}
-
-		subtree, ok := node.(RunConfigDict)
-		if !ok {
-			return node
 		}
 
 		tree = subtree
