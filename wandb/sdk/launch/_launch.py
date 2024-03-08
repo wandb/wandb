@@ -62,6 +62,7 @@ def resolve_agent_config(  # noqa: C901
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
     config: Optional[str],
+    verbosity: Optional[int],
 ) -> Tuple[Dict[str, Any], Api]:
     """Resolve the agent config.
 
@@ -72,6 +73,7 @@ def resolve_agent_config(  # noqa: C901
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.
         config (str): The config.
+        verbosity (int): How verbose to print, 0 = default, 1 = verbose, 2 = very verbose
 
     Returns:
         Tuple[Dict[str, Any], Api]: The resolved config and api.
@@ -83,6 +85,7 @@ def resolve_agent_config(  # noqa: C901
         "queues": [],
         "registry": {},
         "builder": {},
+        "verbosity": 0,
     }
     user_set_project = False
     resolved_config: Dict[str, Any] = defaults
@@ -123,6 +126,8 @@ def resolve_agent_config(  # noqa: C901
         resolved_config.update({"max_jobs": int(max_jobs)})
     if queues:
         resolved_config.update({"queues": list(queues)})
+    if verbosity:
+        resolved_config.update({"verbosity": int(verbosity)})
     # queue -> queues
     if resolved_config.get("queue"):
         if isinstance(resolved_config.get("queue"), str):
