@@ -34,6 +34,8 @@ type RunConfig struct {
 	tree RunConfigDict
 }
 
+type PathMap map[*RunConfigPath]interface{}
+
 type ConfigFormat int
 
 const (
@@ -83,7 +85,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 			continue
 		}
 
-		if err := runConfig.updateAtPath(path, value); err != nil {
+		if err := updateAtPath(runConfig.tree, path, value); err != nil {
 			onError(err)
 			continue
 		}
@@ -174,21 +176,70 @@ func (runConfig *RunConfig) FilterTree(
 	exclude bool,
 ) (RunConfigDict, error) {
 	if exclude {
-		copy := *runConfig
+		pathMap := dictToPathMap(runConfig.tree)
 		for _, path := range paths {
-			copy.removeAtPath(path)
+			prunePath(pathMap, path)
 		}
-		return copy.tree, nil
+		return pathMapToDict(pathMap), nil
 	} else {
-		newConfig := New()
+		pathMap := make(PathMap)
 		for _, path := range paths {
-			subtree := getSubtreeOrLeaf(runConfig.tree, path)
-			err := newConfig.updateAtPath(path, subtree)
-			if err != nil {
-				return nil, err
+			value := getSubtreeOrLeaf(runConfig.tree, path)
+			if value != nil {
+				pathMap[&path] = value
 			}
 		}
-		return newConfig.tree, nil
+		return pathMapToDict(pathMap), nil
+	}
+}
+
+// Converts of paths to values to a nested dict.
+func pathMapToDict(pathMap PathMap) RunConfigDict {
+	dict := make(RunConfigDict)
+	for path, value := range pathMap {
+		err := updateAtPath(dict, *path, value)
+		// This can only happen if update one path and then another, invalid path
+		// that goes through a leaf prefixed by the first path. This should
+		// never happen.
+		if err != nil {
+			panic(err)
+		}
+	}
+	return dict
+}
+
+// Converts a nested dict to a flat map of paths to values.
+func dictToPathMap(dict RunConfigDict) PathMap {
+	pathMap := make(PathMap)
+	flattenMap(dict, RunConfigPath{}, pathMap)
+	return pathMap
+}
+
+// Recursively constructs a flattened map of paths to values from a nested dict.
+func flattenMap(input map[string]interface{}, path RunConfigPath, output PathMap) {
+	for k, v := range input {
+		path := append(path, k)
+		switch v := v.(type) {
+		case map[string]interface{}:
+			flattenMap(v, path, output)
+		default:
+			output[&path] = v
+		}
+	}
+}
+
+// Prunes all paths starting with a given prefix from a PathMap.
+func prunePath(input PathMap, prefix RunConfigPath) {
+	for k := range input {
+		for i := 0; i < len(*k); i++ {
+			if (*k)[i] == prefix[i] {
+				if i == len(prefix)-1 {
+					delete(input, k)
+				}
+			} else {
+				break
+			}
+		}
 	}
 }
 
@@ -231,14 +282,15 @@ func (runConfig *RunConfig) internalSubtree() RunConfigDict {
 }
 
 // Sets the value at the path in the config tree.
-func (runConfig *RunConfig) updateAtPath(
+func updateAtPath(
+	tree RunConfigDict,
 	path []string,
 	value interface{},
 ) error {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree, err := getOrMakeSubtree(runConfig.tree, pathPrefix)
+	subtree, err := getOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
 		return err
