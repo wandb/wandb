@@ -20,7 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ...wandb_run import Run as LocalRun
 
-
 SYS_PLATFORM = platform.system()
 
 
@@ -122,7 +121,9 @@ class Media(WBValue):
         if id_ is None:
             id_ = self._sha256[:20]
 
-        file_path = _wb_filename(key, step, id_, extension)
+        file_path = _wb_filename(
+            util.make_artifact_name_safe(key), step, id_, extension
+        )
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(self._run.dir, media_path)
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
@@ -142,15 +143,13 @@ class Media(WBValue):
             _datatypes_callback(media_path)
 
     def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
-        """Serialize the object into a JSON blob.
+        """Serializes the object into a JSON blob, using a run or artifact to store additional data.
 
-        Uses run or artifact to store additional data. If `run_or_artifact` is a
-        wandb.Run then `self.bind_to_run()` must have been previously been called.
+        If `run` is a wandb.Run then `self.bind_to_run()` must have been previously been called.
 
         Args:
-            run_or_artifact (wandb.Run | wandb.Artifact): the Run or Artifact for which
-                this object should be generating JSON for - this is useful to store
-                additional data if needed.
+            run (wandb.Run | wandb.Artifact): the Run or Artifact for which this object should be generating
+            JSON for - this is useful to store additional data if needed.
 
         Returns:
             dict: JSON representation
@@ -226,7 +225,8 @@ class Media(WBValue):
                         # and self._artifact_source.artifact != artifact
                     ):
                         default_root = self._artifact_source.artifact._default_root()
-                        # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
+                        # if there is, get the name of the entry (this might make sense to move to a helper off
+                        # artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
@@ -294,7 +294,7 @@ class BatchableMedia(Media):
 def _numpy_arrays_to_lists(
     payload: Union[dict, Sequence, "np.ndarray"]
 ) -> Union[Sequence, dict, str, int, float, bool]:
-    # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
+    # Casts all numpy arrays to lists, so we don't convert them to histograms, primarily for Plotly
 
     if isinstance(payload, dict):
         res = {}
@@ -310,7 +310,7 @@ def _numpy_arrays_to_lists(
             _numpy_arrays_to_lists(v)
             for v in (payload.tolist() if payload.ndim > 0 else [payload.tolist()])
         ]
-    # Protects against logging non serializable objects
+    # Protects against logging non-serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
     return payload  # type: ignore

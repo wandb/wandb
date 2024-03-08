@@ -13,7 +13,7 @@ from .plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
-    import pandas as pd
+    import pandas as pd  # type: ignore
     import plotly  # type: ignore
 
     from ..wandb_run import Run as LocalRun
@@ -35,7 +35,7 @@ def history_dict_to_json(
     step: Optional[int] = None,
     ignore_copy_err: Optional[bool] = None,
 ) -> dict:
-    # Converts a History row dict's elements so they're friendly for JSON serialization.
+    # Converts a History row dictionary's elements, so they're friendly for JSON serialization.
 
     if step is None:
         # We should be at the top level of the History row; assume this key is set.
@@ -118,7 +118,8 @@ def val_to_json(
                     )
                 if run._attach_id and run._init_pid != os.getpid():
                     wandb.termwarn(
-                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple processes might result in data loss. Please upgrade your wandb server",
+                        f"Attempting to log a sequence of {items[0].__class__.__name__} objects from multiple "
+                        f"processes might result in data loss. Please upgrade your wandb server",
                         repeat=False,
                     )
 
