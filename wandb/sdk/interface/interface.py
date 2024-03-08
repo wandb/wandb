@@ -807,10 +807,11 @@ class InterfaceBase:
     ):
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
-        config_file_parameter.abspath = abspath
-        config_file_parameter.filename = filename
-        config_file_parameter.exclude.extend(exclude)
-        config_file_parameter.include.extend(include)
+        path_records = []
+        for path in paths:
+            path_records.append(pb.ConfigFilterPath(path=path))
+        config_file_parameter.paths.extend(path_records)
+        config_file_parameter.exclude = exclude
         return self._publish_config_file_parameter(config_file_parameter)
 
     @abstractmethod
