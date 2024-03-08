@@ -2,6 +2,8 @@ package runconfig
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -47,6 +49,30 @@ func New() *RunConfig {
 
 func NewFrom(tree RunConfigDict) *RunConfig {
 	return &RunConfig{tree}
+}
+
+func NewFromConfigFile(path string) (*RunConfig, error) {
+	ext := filepath.Ext(path)
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	switch ext {
+	case ".json":
+		var tree RunConfigDict
+		if err := json.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return NewFrom(tree), nil
+	case ".yaml", ".yml":
+		var tree RunConfigDict
+		if err := yaml.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return NewFrom(tree), nil
+	default:
+		return nil, fmt.Errorf("config: unknown file extension: %v", ext)
+	}
 }
 
 // Returns the underlying config tree.

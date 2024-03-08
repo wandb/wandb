@@ -705,21 +705,41 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
 	if j.wandbConfigParameters != nil {
-		paths := make([]runconfig.RunConfigPath, len(j.wandbConfigParameters.Paths))
-		for i, path := range j.wandbConfigParameters.Paths {
-			paths[i] = path.Path
-		}
-		config, err := j.runConfig.FilterTree(paths, j.wandbConfigParameters.Exclude)
+		config, err := j.runConfig.FilterTree(filterPathToConfigPath(j.wandbConfigParameters.Paths), j.wandbConfigParameters.Exclude)
 		if err != nil {
-			return "{}", err
+			return "", err
 		}
 		metadata[WandbConfigKey] = data_types.ResolveTypes(config)
 	}
+	if len(j.configFiles) > 0 {
+		for _, configFile := range j.configFiles {
+			filepath := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
+			config, err := runconfig.NewFromConfigFile(filepath)
+			if err != nil {
+				return "", err
+			}
+			filteredConfig, err := config.FilterTree(filterPathToConfigPath(configFile.Paths), configFile.Exclude)
+			if err != nil {
+				return "", err
+			}
+			metadata[configFile.Relpath] = data_types.ResolveTypes(filteredConfig)
+		}
+	}
+	metadata = map[string]interface{}{"inputs": metadata}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
-		return "{}", err
+		return "", err
 	}
 	return string(metadataBytes), nil
+}
+
+// Converts a list of filter paths from service.ConfigFilterPath to runconfig.RunConfigPath.
+func filterPathToConfigPath(protoPath []*service.ConfigFilterPath) []runconfig.RunConfigPath {
+	paths := make([]runconfig.RunConfigPath, len(protoPath))
+	for i, path := range protoPath {
+		paths[i] = path.Path
+	}
+	return paths
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
