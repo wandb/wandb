@@ -716,6 +716,10 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 	include, exclude := j.getWandbConfigFilters()
 	runConfig := j.runConfig.FilterTree(include, exclude)
 	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	for _, configFile := range j.configFiles {
+		configFileSchema := generateConfigFileSchema(configFile)
+		metadata[configFile.Relpath] = configFileSchema
+	}
 	metadata = map[string]interface{}{"input_types": metadata}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
@@ -744,13 +748,21 @@ func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runco
 	return include, exclude
 }
 
-// Converts a list of filter paths from service.ConfigFilterPath to runconfig.RunConfigPath.
-func filterPathToConfigPath(protoPath []*service.ConfigFilterPath) []runconfig.RunConfigPath {
-	paths := make([]runconfig.RunConfigPath, len(protoPath))
-	for i, path := range protoPath {
-		paths[i] = path.Path
+// Generates config file schema from ConfigFileParameterRecord.
+func generateConfigFileSchema(configFile *service.ConfigFileParameterRecord) data_types.TypeRepresentation {
+	config, err := runconfig.NewFromConfigFile(configFile.Relpath)
+	if err != nil {
+		return data_types.TypeRepresentation{}
 	}
-	return paths
+	include := make([]runconfig.RunConfigPath, len(configFile.IncludePaths))
+	exclude := make([]runconfig.RunConfigPath, len(configFile.ExcludePaths))
+	for i, path := range configFile.IncludePaths {
+		include[i] = runconfig.RunConfigPath(path.Path)
+	}
+	for i, path := range configFile.ExcludePaths {
+		exclude[i] = runconfig.RunConfigPath(path.Path)
+	}
+	return data_types.ResolveTypes((config.FilterTree(include, exclude)))
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
