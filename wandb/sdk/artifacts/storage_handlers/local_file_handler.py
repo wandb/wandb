@@ -12,7 +12,7 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
-from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -37,11 +37,10 @@ class LocalFileHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
-        if manifest_entry.ref is None:
-            raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
+        assert manifest_entry.ref is not None
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
-            raise ValueError(
+            raise FileNotFoundError(
                 "Local file reference: Failed to find file at path %s" % local_path
             )
 
@@ -86,7 +85,6 @@ class LocalFileHandler(StorageHandler):
             )
 
         if os.path.isdir(local_path):
-            i = 0
             start_time = time.time()
             if checksum:
                 termlog(
@@ -96,8 +94,7 @@ class LocalFileHandler(StorageHandler):
                 )
             for root, _, files in os.walk(local_path):
                 for sub_path in files:
-                    i += 1
-                    if i > max_objects:
+                    if len(entries) == max_objects:
                         raise ValueError(
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
@@ -111,8 +108,8 @@ class LocalFileHandler(StorageHandler):
                         logical_path = os.path.join(name, logical_path)
 
                     entry = ArtifactManifestEntry(
-                        path=logical_path,
-                        ref=FilePathStr(os.path.join(path, logical_path)),
+                        path=LogicalPath(logical_path),
+                        ref=FilePathStr(f"{path}/{logical_path}"),
                         size=os.path.getsize(physical_path),
                         digest=md5(physical_path),
                     )

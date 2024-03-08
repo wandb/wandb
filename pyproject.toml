@@ -61,6 +61,7 @@ wb = "wandb.cli.cli:cli"
 kubeflow = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 gcp = ["google-cloud-storage"]
 aws = ["boto3"]
+fsspec = ["fsspec"]
 azure = ["azure-identity", "azure-storage-blob"]
 media = [
     "numpy",
@@ -80,6 +81,7 @@ launch = [
     "boto3",
     "botocore",
     "chardet",
+    "fsspec",
     "google-auth",
     "google-cloud-aiplatform",
     "google-cloud-artifact-registry",
