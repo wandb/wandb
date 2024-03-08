@@ -14,14 +14,6 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
 
-class AsyncMock2(MagicMock):
-    async def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs)
-
-    def __hash__(self):
-        return id(self)
-
-
 @pytest.fixture
 def fresh_agent():
     def reset():
@@ -79,6 +71,11 @@ def test_agent_controller_registry(fresh_agent):
     with pytest.raises(ValueError):
         LaunchAgent2.get_controller_for_jobset("test-nothing")
 
+    # Attempting to re-add a controller does nothing
+    test_controller2 = MagicMock()
+    LaunchAgent2.register_controller_impl("test-exists", test_controller2)
+    assert LaunchAgent2.get_controller_for_jobset("test-exists") is test_controller
+
 
 def test_agent_is_singleton(mocker, common_setup, fresh_agent):
     config = {
@@ -95,10 +92,21 @@ def test_agent_is_singleton(mocker, common_setup, fresh_agent):
 
 
 @pytest.mark.asyncio
-async def test_agent_loop(mocker, common_setup, fresh_agent):
-    mock_controller = AsyncMock(return_value=None)
-    LaunchAgent2.register_controller_impl("test-resource", mock_controller)
+async def test_agent_jobset_introspection_fails(mocker, common_setup, fresh_agent):
+    config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queues": [],
+    }
 
+    mocker.api.jobset_introspection = MagicMock(return_value=None)
+
+    with pytest.raises(NotImplementedError):
+        LaunchAgent2(api=mocker.api, config=config)
+
+
+@pytest.fixture
+def setup_for_agent_loop(mocker, event_loop):
     loader = MagicMock()
     loader.environment_from_config = MagicMock(
         return_value=MagicMock(spec=AbstractEnvironment)
@@ -119,11 +127,9 @@ async def test_agent_loop(mocker, common_setup, fresh_agent):
     legacy_resources = MagicMock(spec=LegacyResources)
     mocker.patch("wandb.sdk.launch.agent2.agent.LegacyResources", legacy_resources)
 
-    loop = asyncio.get_event_loop()
-
     jobset = MagicMock(spec=JobSet)
     jobset.start_sync_loop = MagicMock()
-    jobset.wait_for_done = loop.create_future()
+    jobset.wait_for_done = event_loop.create_future()
     jobset.wait_for_done.set_result(True)
     jobset.ready = AsyncMock(return_value=None)
 
@@ -135,6 +141,14 @@ async def test_agent_loop(mocker, common_setup, fresh_agent):
     create_jobset = MagicMock(return_value=jobset)
     mocker.patch("wandb.sdk.launch.agent2.agent.create_jobset", create_jobset)
 
+
+@pytest.mark.asyncio
+async def test_agent_loop(
+    mocker, common_setup, setup_for_agent_loop, event_loop, fresh_agent
+):
+    mock_controller = AsyncMock(return_value=None)
+    LaunchAgent2.register_controller_impl("test-resource", mock_controller)
+
     config = {
         "entity": "test-entity",
         "project": "test-project",
@@ -142,9 +156,50 @@ async def test_agent_loop(mocker, common_setup, fresh_agent):
     }
 
     agent = LaunchAgent2(api=mocker.api, config=config)
-    loop_task = loop.create_task(agent.loop())
+    loop_task = event_loop.create_task(agent.loop())
     await asyncio.sleep(2)
     loop_task.cancel()
 
     with suppress(asyncio.CancelledError):
+        await loop_task
+
+
+@pytest.mark.asyncio
+async def test_agent_main_loop_tolerates_controller_error(
+    mocker, common_setup, setup_for_agent_loop, event_loop, fresh_agent
+):
+    mock_controller = AsyncMock(side_effect=Exception)
+    LaunchAgent2.register_controller_impl("test-resource", mock_controller)
+
+    config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queues": ["test-queue"],
+    }
+
+    agent = LaunchAgent2(api=mocker.api, config=config)
+    loop_task = event_loop.create_task(agent.loop())
+    await asyncio.sleep(2)
+    loop_task.cancel()
+
+    with suppress(asyncio.CancelledError):
+        await loop_task
+
+
+@pytest.mark.asyncio
+async def test_agent_main_loop_fails_cleanly(mocker, common_setup, fresh_agent):
+    loop = asyncio.get_event_loop()
+    config = {
+        "entity": "test-entity",
+        "project": "test-project",
+        "queues": ["test-queue"],
+    }
+
+    mocker.patch.object(
+        LaunchAgent2, "get_controller_for_jobset", side_effect=ValueError
+    )
+    agent = LaunchAgent2(api=mocker.api, config=config)
+    loop_task = loop.create_task(agent.loop())
+
+    with pytest.raises(ValueError):
         await loop_task
