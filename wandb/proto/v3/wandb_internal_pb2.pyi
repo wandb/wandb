@@ -491,6 +491,36 @@ class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
 
 global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
 
+class ConfigFileParameterRecord(google.protobuf.message.Message):
+    """Specifies a user config file to be used as a job input.
+
+    If this record is published to the core internal process then the config file
+    located at relpath will be used as a job input. The include_paths and
+    exclude_paths fields specify which paths within the config file should be
+    included or excluded from the job inputs.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    RELPATH_FIELD_NUMBER: builtins.int
+    INCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    relpath: builtins.str
+    @property
+    def include_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    @property
+    def exclude_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    def __init__(
+        self,
+        *,
+        relpath: builtins.str = ...,
+        include_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+        exclude_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "relpath", b"relpath"]) -> None: ...
+
+global___ConfigFileParameterRecord = ConfigFileParameterRecord
+
 class RunUpdateResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 

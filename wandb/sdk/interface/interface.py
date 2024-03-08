@@ -800,18 +800,19 @@ class InterfaceBase:
     def publish_config_file_parameter(
         self,
         relpath: str,
-        abspath: str,
-        filename: str,
-        exclude: List[str],
-        include: List[str],
+        include: List[List[str]],
+        exclude: List[List[str]],
     ):
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
-        path_records = []
-        for path in paths:
-            path_records.append(pb.ConfigFilterPath(path=path))
-        config_file_parameter.paths.extend(path_records)
-        config_file_parameter.exclude = exclude
+        include_records = []
+        for path in include:
+            include_records.append(pb.ConfigFilterPath(path=path))
+        config_file_parameter.include_paths.extend(include_records)
+        exclude_records = []
+        for path in exclude:
+            exclude_records.append(pb.ConfigFilterPath(path=path))
+        config_file_parameter.exclude_paths.extend(exclude_records)
         return self._publish_config_file_parameter(config_file_parameter)
 
     @abstractmethod

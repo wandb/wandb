@@ -170,12 +170,16 @@ message LaunchWandbConfigParametersRecord {
   bool exclude = 2;
 }
 
+// Specifies a user config file to be used as a job input.
+//
+// If this record is published to the core internal process then the config file
+// located at relpath will be used as a job input. The include_paths and
+// exclude_paths fields specify which paths within the config file should be
+// included or excluded from the job inputs.
 message ConfigFileParameterRecord {
   string relpath = 1;
-  string abspath = 2;
-  string filename = 3;
-  repeated string include = 4;
-  repeated string exclude = 5;
+  repeated ConfigFilterPath include_paths = 2;
+  repeated ConfigFilterPath exclude_paths = 3;
 }
 
 message RunUpdateResult {
