@@ -117,23 +117,20 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 func ignoreError(_err error) {}
 
 func TestFilterTree(t *testing.T) {
-	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
-		"number": 9,
-		"nested": runconfig.RunConfigDict{
-			"list": []string{"a", "b", "c"},
-			"text": "xyz",
-		},
-	})
-	paths := []runconfig.RunConfigPath{
-		{"number"},
-		{"nested", "list"},
-	}
 
 	t.Run("Include Tree", func(t *testing.T) {
-		include_tree, err := runConfig.FilterTree(paths, false)
-		if err != nil {
-			t.Error(err)
+		runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		})
+		paths := []runconfig.RunConfigPath{
+			{"number"},
+			{"nested", "list"},
 		}
+		include_tree := runConfig.FilterTree(paths, nil)
 		assert.Equal(t,
 			runconfig.RunConfigDict{
 				"number": 9,
@@ -146,10 +143,18 @@ func TestFilterTree(t *testing.T) {
 	})
 
 	t.Run("Exclude Tree", func(t *testing.T) {
-		exclude_tree, err := runConfig.FilterTree(paths, true)
-		if err != nil {
-			t.Error(err)
+		runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		})
+		paths := []runconfig.RunConfigPath{
+			{"number"},
+			{"nested", "list"},
 		}
+		exclude_tree := runConfig.FilterTree(nil, paths)
 		assert.Equal(t,
 			runconfig.RunConfigDict{
 				"nested": runconfig.RunConfigDict{
@@ -157,6 +162,32 @@ func TestFilterTree(t *testing.T) {
 				},
 			},
 			exclude_tree,
+		)
+	})
+
+	t.Run("Include and Exclude Tree", func(t *testing.T) {
+		runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		})
+		include_paths := []runconfig.RunConfigPath{
+			{"number"},
+			{"nested", "list"},
+		}
+		exclude_paths := []runconfig.RunConfigPath{
+			{"number"},
+		}
+		include_exclude_tree := runConfig.FilterTree(include_paths, exclude_paths)
+		assert.Equal(t,
+			runconfig.RunConfigDict{
+				"nested": runconfig.RunConfigDict{
+					"list": []string{"a", "b", "c"},
+				},
+			},
+			include_exclude_tree,
 		)
 	})
 }
