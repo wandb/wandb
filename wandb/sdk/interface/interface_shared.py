@@ -239,8 +239,9 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
-        wandb_config_parameters: Optional[pb.WandbConfigParametersRecord] = None,
-        config_file_parameter: Optional[pb.ConfigFileParameterRecord] = None,
+        launch_wandb_config_parameters: Optional[
+            pb.LaunchWandbConfigParametersRecord
+        ] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -285,10 +286,8 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
-        elif config_file_parameter:
-            record.config_file_parameter.CopyFrom(config_file_parameter)
-        elif wandb_config_parameters:
-            record.wandb_config_parameters.CopyFrom(wandb_config_parameters)
+        elif launch_wandb_config_parameters:
+            record.wandb_config_parameters.CopyFrom(launch_wandb_config_parameters)
         else:
             raise Exception("Invalid record")
         return record
@@ -419,9 +418,11 @@ class InterfaceShared(InterfaceBase):
         self._publish(rec)
 
     def _publish_launch_wandb_config_parameters(
-        self, wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
+        self, launch_wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
     ) -> None:
-        rec = self._make_record(wandb_config_parameters=wandb_config_parameters)
+        rec = self._make_record(
+            launch_wandb_config_parameters=launch_wandb_config_parameters
+        )
         self._publish(rec)
 
     def _publish_config_file_parameter(
