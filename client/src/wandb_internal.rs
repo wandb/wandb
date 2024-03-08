@@ -1213,19 +1213,19 @@ pub struct LaunchWandbConfigParametersRecord {
 }
 /// Specifies a user config file to be used as a job input.
 ///
-/// If this record is published to the core internal process then it will be saved
-/// to the run files under configs/ and the paths within the file will be filtered
-/// into or out of the job inputs it builds. If the exclude field is true then the
-/// paths will be excluded from the job inputs, otherwise they will be included.
+/// If this record is published to the core internal process then the config file
+/// located at relpath will be used as a job input. The include_paths and
+/// exclude_paths fields specify which paths within the config file should be
+/// included or excluded from the job inputs.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfigFileParameterRecord {
     #[prost(string, tag = "1")]
     pub relpath: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
-    pub paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
-    #[prost(bool, tag = "3")]
-    pub exclude: bool,
+    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(message, repeated, tag = "3")]
+    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
