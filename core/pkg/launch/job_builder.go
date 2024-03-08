@@ -551,6 +551,9 @@ func (j *JobBuilder) Build(
 	}
 
 	sourceInfo.Runtime = metadata.Python
+	if output != nil {
+		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
+	}
 	var metadataString string
 	if j.saveShapeToMetadata {
 		metadataString, err = j.makeJobMetadata(&sourceInfo.OutputTypes)
@@ -561,9 +564,6 @@ func (j *JobBuilder) Build(
 		metadataString = ""
 		if j.runConfig != nil {
 			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
-		}
-		if output != nil {
-			sourceInfo.OutputTypes = data_types.ResolveTypes(output)
 		}
 	}
 
