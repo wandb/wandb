@@ -1021,7 +1021,7 @@ pub mod record {
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
-        WandbConfigParameters(super::WandbConfigParametersRecord),
+        WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1203,7 +1203,7 @@ pub struct ConfigFilterPath {
 /// will be included.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct WandbConfigParametersRecord {
+pub struct LaunchWandbConfigParametersRecord {
     #[prost(message, repeated, tag = "1")]
     pub paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
     #[prost(bool, tag = "2")]
