@@ -941,25 +941,27 @@ func TestWandbConfigParameters(t *testing.T) {
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		launch.WandbConfigKey: map[string]interface{}{
-			"params": map[string]interface{}{
-				"type_map": map[string]interface{}{
-					"key1": map[string]interface{}{
-						"wb_type": "string",
-					},
-					"key3": map[string]interface{}{
-						"params": map[string]interface{}{
-							"type_map": map[string]interface{}{
-								"key4": map[string]interface{}{
-									"wb_type": "string",
+		"inputs": map[string]interface{}{
+			launch.WandbConfigKey: map[string]interface{}{
+				"params": map[string]interface{}{
+					"type_map": map[string]interface{}{
+						"key1": map[string]interface{}{
+							"wb_type": "string",
+						},
+						"key3": map[string]interface{}{
+							"params": map[string]interface{}{
+								"type_map": map[string]interface{}{
+									"key4": map[string]interface{}{
+										"wb_type": "string",
+									},
 								},
 							},
+							"wb_type": "typedDict",
 						},
-						"wb_type": "typedDict",
 					},
 				},
+				"wb_type": "typedDict",
 			},
-			"wb_type": "typedDict",
 		},
 	}, artifactMetadata)
 }
