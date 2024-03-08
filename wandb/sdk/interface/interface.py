@@ -814,7 +814,10 @@ class InterfaceBase:
         """
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
-        config_file_parameter.paths.extend(paths)
+        path_records = []
+        for path in paths:
+            path_records.append(pb.ConfigFilterPath(path=path))
+        config_file_parameter.paths.extend(path_records)
         config_file_parameter.exclude = exclude
         return self._publish_config_file_parameter(config_file_parameter)
 
