@@ -1,8 +1,10 @@
 """Public interfaces for the Report API."""
 import os
 from datetime import datetime
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Annotated, Dict, Iterable, Optional, Tuple, Union
 from typing import List as LList
+
+from annotated_types import Ge, Le
 
 try:
     from typing import Literal
@@ -11,7 +13,7 @@ except ImportError:
 
 from urllib.parse import urlparse, urlunparse
 
-from pydantic import ConfigDict, Field, validator
+from pydantic import ConfigDict, Field, StringConstraints, validator
 from pydantic.dataclasses import dataclass
 
 import wandb
@@ -755,17 +757,22 @@ block_mapping = {
     internal.UnknownBlock: UnknownBlock,
 }
 
+hex_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+rgb_pattern = r"^rgb\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*\)$"
+rgba_pattern = r"^rgba\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(1|0|0?\.\d+)\s*\)$"
+
 
 @dataclass(config=dataclass_config)
 class GradientPoint(Base):
-    color: str
-    offset: float = Field(0, ge=0, le=100)
-
-    @validator("color")
-    def validate_color(cls, v):  # noqa: N805
-        if not internal.is_valid_color(v):
-            raise ValueError("invalid color, value should be hex, rgb, or rgba")
-        return v
+    color: Annotated[
+        str,
+        # hex, rgb, or rgba
+        StringConstraints(
+            pattern=f"{hex_pattern}|{rgb_pattern}|{rgba_pattern}",
+            max_length=18,
+        ),
+    ]
+    offset: Annotated[float, Ge(0), Le(100)] = 0
 
     def to_model(self):
         return internal.GradientPoint(color=self.color, offset=self.offset)
