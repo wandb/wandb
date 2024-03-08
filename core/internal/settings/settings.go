@@ -55,35 +55,35 @@ func (s *Settings) EnsureAPIKey() error {
 //
 // This can be empty if we're in offline mode.
 func (s *Settings) GetAPIKey() string {
-	return s.Proto.ApiKey.Value
+	return s.Proto.GetApiKey().GetValue()
 }
 
 // The ID of the run.
 func (s *Settings) GetRunID() string {
-	return s.Proto.RunId.Value
+	return s.Proto.GetRunId().GetValue()
 }
 
 // The W&B URL where the run can be viewed.
 func (s *Settings) GetRunURL() string {
-	return s.Proto.RunUrl.Value
+	return s.Proto.GetRunUrl().GetValue()
 }
 
 // The W&B project ID.
 func (s *Settings) GetProject() string {
-	return s.Proto.Project.Value
+	return s.Proto.GetProject().GetValue()
 }
 
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
-	return s.Proto.Entity.Value
+	return s.Proto.GetEntity().GetValue()
 }
 
 // The directory for storing log files.
 func (s *Settings) GetLogDir() string {
-	return s.Proto.LogDir.Value
+	return s.Proto.GetLogDir().GetValue()
 }
 
 // Filename to use for internal logs.
 func (s *Settings) GetInternalLogFile() string {
-	return s.Proto.LogInternal.Value
+	return s.Proto.GetLogInternal().GetValue()
 }
