@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/launch"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -942,19 +941,17 @@ func TestWandbConfigParameters(t *testing.T) {
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		"inputs": map[string]interface{}{
-			launch.WandbConfigKey: map[string]interface{}{
-				"params": map[string]interface{}{
-					"type_map": map[string]interface{}{
-						"key1": map[string]interface{}{
-							"wb_type": "string",
-						},
-						"key3": map[string]interface{}{
-							"params": map[string]interface{}{
-								"type_map": map[string]interface{}{
-									"key4": map[string]interface{}{
-										"wb_type": "string",
-									},
+		WandbConfigKey: map[string]interface{}{
+			"params": map[string]interface{}{
+				"type_map": map[string]interface{}{
+					"key1": map[string]interface{}{
+						"wb_type": "string",
+					},
+					"key3": map[string]interface{}{
+						"params": map[string]interface{}{
+							"type_map": map[string]interface{}{
+								"key4": map[string]interface{}{
+									"wb_type": "string",
 								},
 							},
 							"wb_type": "typedDict",
