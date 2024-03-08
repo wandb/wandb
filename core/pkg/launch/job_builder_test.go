@@ -939,6 +939,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		launch.WandbConfigKey: map[string]interface{}{
@@ -961,5 +962,5 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 			"wb_type": "typedDict",
 		},
-	}, artifactMetadata)
+	}, inputs)
 }
