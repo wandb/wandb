@@ -789,7 +789,7 @@ class InterfaceBase:
             path_records.append(pb.ConfigFilterPath(path=path))
         config_parameters.paths.extend(path_records)
         config_parameters.exclude = exclude
-        return self._publish_wandb_config_parameters(config_parameters)
+        return self._publish_launch_wandb_config_parameters(config_parameters)
 
     @abstractmethod
     def _publish_launch_wandb_config_parameters(

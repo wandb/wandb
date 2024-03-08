@@ -231,7 +231,10 @@ func flattenMap(input map[string]interface{}, path RunConfigPath, output PathMap
 // Prunes all paths starting with a given prefix from a PathMap.
 func prunePath(input PathMap, prefix RunConfigPath) {
 	for k := range input {
-		for i := 0; i < len(*k); i++ {
+		if len(*k) < len(prefix) {
+			continue
+		}
+		for i := 0; i < len(prefix); i++ {
 			if (*k)[i] == prefix[i] {
 				if i == len(prefix)-1 {
 					delete(input, k)
