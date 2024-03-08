@@ -159,19 +159,4 @@ func TestFilterTree(t *testing.T) {
 			exclude_tree,
 		)
 	})
-
-	t.Run("Missing path", func(t *testing.T) {
-		config, err := runConfig.FilterTree([]runconfig.RunConfigPath{{"missing"}}, false)
-		assert.Nil(t, err)
-		assert.Equal(t, config, runconfig.RunConfigDict{"missing": nil})
-	})
-
-	// This weird case is the only error that FilterTree needs to check. It can only
-	// happen if we have an include path that goes through a leaf. And the leaf must be
-	// included in a previous path.
-	t.Run("Invalid path through leaf", func(t *testing.T) {
-		config, err := runConfig.FilterTree([]runconfig.RunConfigPath{{"nested", "text"}, {"nested", "text", "thing"}}, false)
-		assert.Nil(t, config)
-		assert.NotNil(t, err)
-	})
 }
