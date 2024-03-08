@@ -713,7 +713,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
-	include, exclude := j.getConfigIncludeExcludePaths()
+	include, exclude := j.getWandbConfigFilters()
 	runConfig := j.runConfig.FilterTree(include, exclude)
 	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
 	metadata = map[string]interface{}{"input_types": metadata}
@@ -724,8 +724,8 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 	return string(metadataBytes), nil
 }
 
-// Converts LaunchWandbConfigParametersRecords into include and exclude paths.
-func (j *JobBuilder) getConfigIncludeExcludePaths() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
+// Converts received LaunchWandbConfigParametersRecords into include and exclude paths.
+func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
 	include := make([]runconfig.RunConfigPath, 0)
 	exclude := make([]runconfig.RunConfigPath, 0)
 	if len(j.wandbConfigParameters) > 0 {
