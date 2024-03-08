@@ -188,11 +188,11 @@ def create_and_run_agent(
         agent_task.add_done_callback(done_callback)
 
         try:
-            loop.run_until_complete(agent_task)
+            loop.run_forever()
         except KeyboardInterrupt:
             agent_task.cancel()
         finally:
-            loop.run_forever()
+            loop.run_until_complete(agent_task)
             print("Shutdown complete. Goodbye!")
     else:
         agent = LaunchAgent(api, config)  # type: ignore
