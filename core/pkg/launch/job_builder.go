@@ -713,9 +713,22 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata() (string, error) {
 	metadata := make(map[string]interface{})
+	include, exclude := j.getConfigIncludeExcludePaths()
+	runConfig := j.runConfig.FilterTree(include, exclude)
+	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	metadata = map[string]interface{}{"input_types": metadata}
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return "", err
+	}
+	return string(metadataBytes), nil
+}
+
+// Converts LaunchWandbConfigParametersRecords into include and exclude paths.
+func (j *JobBuilder) getConfigIncludeExcludePaths() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
+	include := make([]runconfig.RunConfigPath, 0)
+	exclude := make([]runconfig.RunConfigPath, 0)
 	if len(j.wandbConfigParameters) > 0 {
-		include := make([]runconfig.RunConfigPath, 0)
-		exclude := make([]runconfig.RunConfigPath, 0)
 		var appendee *[]runconfig.RunConfigPath
 		for _, wandbConfigParameters := range j.wandbConfigParameters {
 			if wandbConfigParameters.Exclude {
@@ -727,29 +740,8 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 				*appendee = append(*appendee, runconfig.RunConfigPath(path.Path))
 			}
 		}
-		runConfig := j.runConfig.FilterTree(include, exclude)
-		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
 	}
-	if len(j.configFiles) > 0 {
-		for _, configFile := range j.configFiles {
-			filepath := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
-			config, err := runconfig.NewFromConfigFile(filepath)
-			if err != nil {
-				return "", err
-			}
-			filteredConfig, err := config.FilterTree(filterPathToConfigPath(configFile.Paths), configFile.Exclude)
-			if err != nil {
-				return "", err
-			}
-			metadata[configFile.Relpath] = data_types.ResolveTypes(filteredConfig)
-		}
-	}
-	metadata = map[string]interface{}{"inputs": metadata}
-	metadataBytes, err := json.Marshal(metadata)
-	if err != nil {
-		return "", err
-	}
-	return string(metadataBytes), nil
+	return include, exclude
 }
 
 // Converts a list of filter paths from service.ConfigFilterPath to runconfig.RunConfigPath.
