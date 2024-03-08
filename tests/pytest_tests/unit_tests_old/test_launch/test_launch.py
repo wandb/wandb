@@ -940,7 +940,7 @@ def test_resolve_agent_config(monkeypatch, runner):
                 f,
             )
         config, returned_api = _launch.resolve_agent_config(
-            None, None, -1, ["diff-queue"], None
+            None, None, -1, ["diff-queue"], None, None
         )
 
         assert config["registry"] == {"url": "test"}

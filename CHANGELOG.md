@@ -14,6 +14,10 @@ Starting with the next release, we would like to follow
 https://keepachangelog.com/en/1.1.0/. Please add to relevant
 subsections here on every PR where this is applicable.
 
+### Added
+
+* Added verbose and very-verbose mode to launch agent by @TimH98 in https://github.com/wandb/wandb/pull/7126
+
 ### Fixed
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
