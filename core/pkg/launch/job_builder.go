@@ -162,7 +162,7 @@ type JobBuilder struct {
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
 	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
-	saveInputToMetadata   bool
+	saveShapeToMetadata   bool
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -187,7 +187,7 @@ func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger)
 		isNotebookRun:       settings.GetXJupyter().GetValue(),
 		logger:              logger,
 		Disable:             settings.GetDisableJobCreation().GetValue(),
-		saveInputToMetadata: false,
+		saveShapeToMetadata: false,
 	}
 	return &jobBuilder
 }
@@ -552,17 +552,19 @@ func (j *JobBuilder) Build(
 
 	sourceInfo.Runtime = metadata.Python
 	var metadataString string
-	if j.saveInputToMetadata {
-		metadataString, err = j.makeJobMetadata()
+	if j.saveShapeToMetadata {
+		metadataString, err = j.makeJobMetadata(&sourceInfo.OutputTypes)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		metadataString = ""
-		sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
-	}
-	if output != nil {
-		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
+		if j.runConfig != nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
+		}
+		if output != nil {
+			sourceInfo.OutputTypes = data_types.ResolveTypes(output)
+		}
 	}
 	var metadataString string
 	if j.saveShapeToMetadata {
@@ -711,7 +713,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 }
 
 // Makes job input schema into a json string to be stored as artifact metdata.
-func (j *JobBuilder) makeJobMetadata() (string, error) {
+func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	include, exclude := j.getWandbConfigFilters()
 	runConfig := j.runConfig.FilterTree(include, exclude)
@@ -721,6 +723,9 @@ func (j *JobBuilder) makeJobMetadata() (string, error) {
 		metadata[configFile.Relpath] = configFileSchema
 	}
 	metadata = map[string]interface{}{"input_types": metadata}
+	if output != nil {
+		metadata["output_types"] = data_types.ResolveTypes(*output)
+	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return "", err
@@ -782,6 +787,6 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 }
 
 func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	j.saveInputToMetadata = true
+	j.saveShapeToMetadata = true
 	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
 }
