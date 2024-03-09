@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	fw "github.com/radovskyb/watcher"
@@ -17,6 +18,7 @@ type Watcher struct {
 	logger   *observability.CoreLogger
 	registry *registry
 	filesDir string
+	started  *atomic.Bool
 }
 
 type Params struct {
@@ -29,16 +31,27 @@ type Params struct {
 }
 
 func New(params Params) *Watcher {
+	logger := params.Logger
+	if logger == nil {
+		logger = observability.NewNoOpLogger()
+	}
+
 	return &Watcher{
 		watcher:  fw.New(),
-		logger:   params.Logger,
+		logger:   logger,
 		registry: &registry{},
 		filesDir: params.FilesDir,
+		started:  &atomic.Bool{},
 	}
 }
 
 // Begin polling files and emitting events.
 func (w *Watcher) Start() {
+	// Skip if already started.
+	if w.started.Swap(true) {
+		return
+	}
+
 	// Begin polling.
 	go func() {
 		if err := w.watcher.Start(pollingInterval); err != nil {
@@ -63,6 +76,8 @@ func (w *Watcher) Close() {
 
 // Begin watching a path and invoking the given callback on each event.
 //
+// Blocks until Start() is invoked.
+//
 // The given path must exist.
 //
 // Relative paths are relative to the configured FilesDir, which may itself
@@ -73,6 +88,8 @@ func (w *Watcher) Close() {
 // that don't have a handler otherwise; a Create event is emitted for all
 // existing children of the directory.
 func (w *Watcher) Add(path string, fn func(Event) error) error {
+	w.watcher.Wait()
+
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(w.filesDir, path)
 	}
@@ -83,9 +100,9 @@ func (w *Watcher) Add(path string, fn func(Event) error) error {
 	}
 
 	if info.IsDir() {
-		return w.addFile(path, info, fn)
-	} else {
 		return w.addDirectory(path, fn)
+	} else {
+		return w.addFile(path, info, fn)
 	}
 }
 
@@ -130,12 +147,7 @@ func (w *Watcher) addFile(path string, info os.FileInfo, fn func(Event) error) e
 	}
 
 	w.registry.register(path, fn)
-
-	w.watcher.Wait()
-	w.watcher.TriggerEvent(fw.Create, &EventFileInfo{
-		FileInfo: info,
-		name:     path,
-	})
+	w.triggerEvent(fw.Create, path, info)
 
 	return nil
 }
@@ -152,7 +164,6 @@ func (w *Watcher) addDirectory(path string, fn func(Event) error) error {
 
 	w.registry.register(path, fn)
 
-	w.watcher.Wait()
 	for _, file := range files {
 		info, err := file.Info()
 		if err != nil {
@@ -165,11 +176,17 @@ func (w *Watcher) addDirectory(path string, fn func(Event) error) error {
 			continue
 		}
 
-		w.watcher.TriggerEvent(fw.Create, &EventFileInfo{
-			FileInfo: info,
-			name:     filepath.Join(path, file.Name()),
-		})
+		w.triggerEvent(fw.Create, filepath.Join(path, file.Name()), info)
 	}
 
 	return nil
+}
+
+// Manually sends a file event.
+func (w *Watcher) triggerEvent(op fw.Op, path string, info os.FileInfo) {
+	w.watcher.Event <- fw.Event{
+		Op:       op,
+		Path:     path,
+		FileInfo: info,
+	}
 }
