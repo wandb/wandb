@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -41,7 +42,7 @@ type Stream struct {
 	wg sync.WaitGroup
 
 	// settings is the settings for the stream
-	settings *service.Settings
+	settings *settings.Settings
 
 	// handler is the handler for the stream
 	handler *Handler
@@ -65,9 +66,9 @@ type Stream struct {
 	dispatcher *Dispatcher
 }
 
-func streamLogger(settings *service.Settings) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.GetLogDir().GetValue(), "debug-core.log")
+	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
 		path := path.(string)
 		// check path exists
@@ -80,7 +81,7 @@ func streamLogger(settings *service.Settings) *observability.CoreLogger {
 	}
 
 	var writers []io.Writer
-	name := settings.GetLogInternal().GetValue()
+	name := settings.GetInternalLogFile()
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		slog.Error(fmt.Sprintf("error opening log file: %s", err))
@@ -109,10 +110,10 @@ func streamLogger(settings *service.Settings) *observability.CoreLogger {
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 	tags := observability.Tags{
-		"run_id":  settings.GetRunId().GetValue(),
-		"run_url": settings.GetRunUrl().GetValue(),
-		"project": settings.GetProject().GetValue(),
-		"entity":  settings.GetEntity().GetValue(),
+		"run_id":  settings.GetRunID(),
+		"run_url": settings.GetRunURL(),
+		"project": settings.GetProject(),
+		"entity":  settings.GetEntity(),
 	}
 	logger.SetTags(tags)
 
@@ -120,7 +121,7 @@ func streamLogger(settings *service.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *service.Settings, streamId string) *Stream {
+func NewStream(ctx context.Context, settings *settings.Settings, streamId string) *Stream {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
@@ -135,12 +136,12 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 
 	watcher := watcher.New(watcher.WithLogger(s.logger))
 	s.handler = NewHandler(s.ctx, s.logger,
-		WithHandlerSettings(s.settings),
+		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
-		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings, s.loopBackChan)),
-		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings)),
-		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings, s.loopBackChan)),
+		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
+		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings.Proto)),
+		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFilesInfoHandler(NewFilesInfoHandler()),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
@@ -148,18 +149,18 @@ func NewStream(ctx context.Context, settings *service.Settings, streamId string)
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
-		WithWriterSettings(s.settings),
+		WithWriterSettings(s.settings.Proto),
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings,
+	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings.Proto,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.RunId)
+	s.logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
@@ -230,7 +231,7 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.RunId)
+	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
@@ -261,7 +262,7 @@ func (s *Stream) Respond(resp *service.ServerResponse) {
 func (s *Stream) FinishAndClose(exitCode int32) {
 	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
-	if !s.settings.GetXSync().GetValue() {
+	if !s.settings.Proto.GetXSync().GetValue() {
 		// send exit record to handler
 		record := &service.Record{
 			RecordType: &service.Record_Exit{
@@ -279,10 +280,10 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.RunId)
+	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }
 
 func (s *Stream) PrintFooter() {
 	run := s.GetRun()
-	shared.PrintHeadFoot(run, s.settings, true)
+	shared.PrintHeadFoot(run, s.settings.Proto, true)
 }

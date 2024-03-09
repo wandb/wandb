@@ -1,15 +1,22 @@
 """Builds the AppleStats Swift binary for monitoring system metrics."""
 
 import pathlib
-import platform
 
-from tools.wini import subprocess
+from tools.wini import arch, subprocess
 
 
-def build_applestats(output_path: pathlib.PurePath) -> None:
+def build_applestats(
+    architecture: arch.Arch,
+    output_path: pathlib.PurePath,
+) -> None:
     """Builds the AppleStats Swift binary.
 
+    NOTE: Swift creates a cache in a directory called ".build/" which speeds
+    up subsequent builds but can cause issues when changing the commands here.
+    If you're running into problems, try deleting ".build/".
+
     Args:
+        architecture: The machine architecture to target.
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
@@ -20,6 +27,8 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
         "release",
         "-Xswiftc",
         "-cross-module-optimization",
+        "--arch",
+        architecture.swift_name,
     ]
 
     source_path = pathlib.PurePath("./core/pkg/monitor/apple")
@@ -29,7 +38,7 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
     swift_output = (
         source_path
         / ".build"
-        / f"{platform.machine().lower()}-apple-macosx"
+        / f"{architecture.swift_name}-apple-macosx"
         / "release"
         / "AppleStats"
     )
