@@ -3,12 +3,14 @@ import functools
 import inspect
 import logging
 import sys
-from typing import Any, Dict, Optional, Sequence, TypeVar
+from typing import Any, Dict, Iterable, Optional, Sequence, TypeVar
 
 import wandb.sdk
 import wandb.util
+from wandb.integration.openai.wandb_openai import WandbOpenAIBase
 from wandb.sdk.lib import telemetry as wb_telemetry
 from wandb.sdk.lib.timer import Timer
+from wandb.util import check_openai_version_is_major_version
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
@@ -34,6 +36,12 @@ class Response(Protocol[K, V]):
         ...  # pragma: no cover
 
 
+class OpenAIResponse(Response):
+    @property
+    def choices(self) -> Iterable[Any]:
+        return self.choices
+
+
 class ArgumentResponseResolver(Protocol):
     def __call__(
         self,
@@ -44,6 +52,26 @@ class ArgumentResponseResolver(Protocol):
         time_elapsed: float,
     ) -> Optional[Dict[str, Any]]:
         ...  # pragma: no cover
+
+
+def get_wandb_openai_client(
+    run: "wandb.sdk.wandb_run.Run", resolver: ArgumentResponseResolver
+) -> Any:
+    """Construct a WandbOpenAIBase object with the openai module.
+
+    Only support synchronous version of openai module.
+    """
+    try:
+        import openai as openai_module  # type: ignore
+
+        openai = WandbOpenAIBase(
+            openai_module, "openai", wandb_run=run, wandb_openai_resolver=resolver
+        )
+        return openai.OpenAI
+    except Exception:
+        raise ImportError(
+            "You must install the `openai` package to use `wandb.openai` integration."
+        )
 
 
 class PatchAPI:
@@ -70,17 +98,29 @@ class PatchAPI:
         """Returns the API module."""
         lib_name = self.name.lower()
         if self._api is None:
-            self._api = wandb.util.get_module(
-                name=lib_name,
-                required=f"To use the W&B {self.name} Autolog, "
-                f"you need to have the `{lib_name}` python "
-                f"package installed. Please install it with `pip install {lib_name}`.",
-                lazy=False,
-            )
+            if lib_name == "openai" and check_openai_version_is_major_version():
+                # The major version of openai client should be used with constructor, not only import the module.
+                self._api = wandb.util.openai_client_factory()
+            else:
+                self._api = wandb.util.get_module(
+                    name=lib_name,
+                    required=f"To use the W&B {self.name} Autolog, "
+                    f"you need to have the `{lib_name}` python "
+                    f"package installed. Please install it with `pip install {lib_name}`.",
+                    lazy=False,
+                )
         return self._api
 
     def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:
         """Patches the API to log media or metrics to W&B."""
+        # If openai module is major version, override the openai module with wandb_openai module
+        if self.name.lower() == "openai" and check_openai_version_is_major_version():
+            wandb_openai_module = get_wandb_openai_client(run, self.resolver)
+            import openai  # type: ignore
+
+            openai.OpenAI = wandb_openai_module  # noqa: F811, F841
+            return
+
         for symbol in self.symbols:
             # split on dots, e.g. "Client.generate" -> ["Client", "generate"]
             symbol_parts = symbol.split(".")

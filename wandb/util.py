@@ -245,6 +245,48 @@ def import_module_lazy(name: str) -> types.ModuleType:
         return module
 
 
+def check_openai_version_is_major_version() -> bool:
+    """Check the OpenAI version is major version(>=1.0.0)."""
+    # If openai module isn't install, raise wandb terminate error.
+    try:
+        import openai  # type: ignore
+    except Exception:
+        logger.warning(
+            "If you want to check the version of openai module, you need to install the openai package.\n"
+            + "Please install it with `pip install --upgrade openai`."
+        )
+        import traceback
+
+        print(traceback.format_exc())
+        return False
+
+    openai_version = parse_version(openai.__version__)
+    logger.info(f"The openai version of this environment is {openai_version}")
+    if openai_version >= parse_version("1.0.0"):
+        return True
+    else:
+        return False
+
+
+def openai_client_factory() -> Any:
+    """Return the constructed object for openai client.
+
+    This wandb version can only support synchronous client.
+    TODO: Asynchronous openai client will be supported.
+
+    :return: (module|None) If import succeeds, the module will be returned.
+    """
+    module_name = "openai"
+
+    if module_name not in _not_importable:
+        try:
+            return import_module(module_name).OpenAI()
+        except Exception:
+            _not_importable.add(module_name)
+    if module_name in _not_importable:
+        raise wandb.Error(f"Error importing optional module {module_name}")
+
+
 def get_module(
     name: str,
     required: Optional[Union[str, bool]] = None,
