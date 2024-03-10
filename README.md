@@ -577,6 +577,7 @@ run.finish()
 <summary>🧠 OpenAI python sdk</summary>
 
 Just use autolog for logging and tracing openai python sdk.
+**autolog supports openai major version(>=1.0.0)**
 
 ```python
 import openai
@@ -595,11 +596,6 @@ chat_completion = client.chat.completions.create(
     ],
 )
 ```
-
-- Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
-- Read the [Developer Guide](https://docs.wandb.com/guides/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
-- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
-
 </details>
 &nbsp;
 
