@@ -75,7 +75,6 @@ class WandbOpenAIBase:
                 request_start_time,
                 request_end_time - request_start_time,
             )
-            print(f"LOGGABLE DICT: {loggable_dict}")
             if loggable_dict is not None:
                 WandbOpenAIBase.wandb_run.log(loggable_dict)
         except Exception as e:

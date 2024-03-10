@@ -573,6 +573,34 @@ run.finish()
 - Read the [Developer Guide](https://docs.wandb.ai/guides/integrations/scikit?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate Scikit-Learn with W&B.
 </details>
 
+<details>
+<summary>🧠 OpenAI python sdk</summary>
+
+Just use autolog for logging and tracing openai python sdk.
+
+```python
+import openai
+from wandb.integration.openai import autolog
+
+# 1. Start autolog. This method automatically calls wandb.init().
+autolog({"project": "test-project"})
+
+# 2. Just use openai sdk!
+client = openai.OpenAI()
+chat_completion = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What's your name?'"},
+    ],
+)
+```
+
+- Run an example [Google Colab Notebook](http://wandb.me/pytorch-colab).
+- Read the [Developer Guide](https://docs.wandb.com/guides/integrations/pytorch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations) for technical details on how to integrate PyTorch with W&B.
+- Explore [W&B Reports](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=integrations).
+
+</details>
 &nbsp;
 
 # W&B Hosting Options
