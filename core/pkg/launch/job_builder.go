@@ -716,10 +716,12 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	include, exclude := j.getWandbConfigFilters()
-	runConfig := j.runConfig.FilterTree(include, exclude)
-	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	if j.runConfig != nil {
+		runConfig := j.runConfig.FilterTree(include, exclude)
+		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	}
 	for _, configFile := range j.configFiles {
-		configFileSchema := generateConfigFileSchema(configFile)
+		configFileSchema := j.generateConfigFileSchema(configFile)
 		metadata[configFile.Relpath] = configFileSchema
 	}
 	metadata = map[string]interface{}{"input_types": metadata}
@@ -754,9 +756,11 @@ func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runco
 }
 
 // Generates config file schema from ConfigFileParameterRecord.
-func generateConfigFileSchema(configFile *service.ConfigFileParameterRecord) data_types.TypeRepresentation {
-	config, err := runconfig.NewFromConfigFile(configFile.Relpath)
+func (j *JobBuilder) generateConfigFileSchema(configFile *service.ConfigFileParameterRecord) data_types.TypeRepresentation {
+	path := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
+	config, err := runconfig.NewFromConfigFile(path)
 	if err != nil {
+		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
 		return data_types.TypeRepresentation{}
 	}
 	include := make([]runconfig.RunConfigPath, len(configFile.IncludePaths))

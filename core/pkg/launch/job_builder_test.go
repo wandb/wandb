@@ -47,6 +47,16 @@ func writeDiffFile(t *testing.T, fdir string) {
 	f.Close()
 }
 
+func writeFile(t *testing.T, fdir string, fname string, content string) {
+	f, err := os.OpenFile(filepath.Join(fdir, fname), os.O_CREATE|os.O_WRONLY, 0777)
+	assert.Nil(t, err)
+	_, err = f.WriteString(content)
+	assert.Nil(t, err)
+	err = f.Sync()
+	assert.Nil(t, err)
+	f.Close()
+}
+
 func toWrapperPb(val interface{}) interface{} {
 	switch v := val.(type) {
 	case string:
@@ -974,6 +984,76 @@ func TestWandbConfigParameters(t *testing.T) {
 				},
 				"wb_type": "typedDict",
 			},
+		},
+	}, inputs)
+}
+
+func TestConfigFileParameters(t *testing.T) {
+	// Test that if ConfigFileParametersRecord is set on the job builder
+	// then inputs will be filtered to only include the parameters specified
+	// in the ConfigFileParametersRecord.
+
+	metadata := map[string]interface{}{
+		"python": "3.11.2",
+		"git": map[string]interface{}{
+			"commit": "1234567890",
+			"remote": "example.com",
+		},
+		"codePath": "/path/to/train.py",
+	}
+
+	fdir := filepath.Join(os.TempDir(), "test")
+	err := os.MkdirAll(fdir, 0777)
+	assert.Nil(t, err)
+	writeRequirements(t, fdir)
+	writeDiffFile(t, fdir)
+	writeWandbMetadata(t, fdir, metadata)
+	configDir := filepath.Join(fdir, "configs")
+	err = os.Mkdir(configDir, 0777)
+	assert.Nil(t, err)
+	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
+	writeFile(t, configDir, "config.yaml", yamlContents)
+
+	defer os.RemoveAll(fdir)
+	settings := &service.Settings{
+		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+	}
+	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+	jobBuilder.HandleConfigFileParameterRecord(&service.ConfigFileParameterRecord{
+		Relpath:      "config.yaml",
+		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
+		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4"}}},
+	})
+
+	artifact, err := jobBuilder.Build(nil)
+	assert.Nil(t, err)
+	var artifactMetadata map[string]interface{}
+	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	inputs := artifactMetadata["input_types"].(map[string]interface{})
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"config.yaml": map[string]interface{}{
+			"params": map[string]interface{}{
+				"type_map": map[string]interface{}{
+					"key1": map[string]interface{}{
+						"wb_type": "string",
+					},
+					"key3": map[string]interface{}{
+						"params": map[string]interface{}{
+							"type_map": map[string]interface{}{
+								"key5": map[string]interface{}{
+									"wb_type": "string",
+								},
+							},
+						},
+						"wb_type": "typedDict",
+					},
+				},
+			},
+			"wb_type": "typedDict",
 		},
 	}, inputs)
 }
