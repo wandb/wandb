@@ -134,7 +134,10 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
-	watcher := watcher.New(watcher.WithLogger(s.logger))
+	watcher := watcher.New(watcher.Params{
+		Logger:   s.logger,
+		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
+	})
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
