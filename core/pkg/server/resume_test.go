@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/observability"
 	server "github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -229,7 +230,7 @@ func TestUpdate(t *testing.T) {
 				},
 			}
 
-			configCopy := server.NewRunConfig()
+			configCopy := runconfig.New()
 			_, err := rs.Update(fakeResp, tc.run, configCopy)
 
 			if tc.expectError {
