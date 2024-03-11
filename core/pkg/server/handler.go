@@ -143,6 +143,9 @@ type Handler struct {
 
 	// filesInfoHandler is the file transfer info for the stream
 	filesInfoHandler *FilesInfoHandler
+
+	// internalPrinter is the internal messages handler for the stream
+	internalPrinter *observability.ForwardingService
 }
 
 // NewHandler creates a new handler
@@ -152,8 +155,9 @@ func NewHandler(
 	opts ...HandlerOption,
 ) *Handler {
 	h := &Handler{
-		ctx:    ctx,
-		logger: logger,
+		ctx:             ctx,
+		logger:          logger,
+		internalPrinter: observability.NewForwardingService(),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -319,6 +323,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
+		h.handleIntternalMessages(record, response)
 	case *service.Request_Sync:
 		h.handleSync(record)
 		response = nil
@@ -489,6 +494,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	// start the tensorboard handler
 	h.watcher.Start()
+
+	// TODO: move this to a better place
+	h.internalPrinter.Start()
 
 	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(h.sendRecord),
@@ -844,6 +852,20 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 
 func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	h.filesInfoHandler.Handle(record)
+}
+
+func (h *Handler) handleIntternalMessages(_ *service.Record, response *service.Response) {
+	messages := h.internalPrinter.Poll()
+	if len(messages) == 0 {
+		return
+	}
+	response.ResponseType = &service.Response_InternalMessagesResponse{
+		InternalMessagesResponse: &service.InternalMessagesResponse{
+			Messages: &service.InternalMessages{
+				Warning: messages,
+			},
+		},
+	}
 }
 
 func (h *Handler) handleSync(record *service.Record) {
