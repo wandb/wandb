@@ -445,8 +445,8 @@ class WandbImporter:
         """
         entity = coalesce(namespace.entity, seq.entity)
         project = coalesce(namespace.project, seq.project)
-        art_type = f"{entity}/{project}/{seq.type_}"
-        art_name = seq.name
+        art_type = seq.type_
+        art_name = os.path.join(entity, project, seq.name)
 
         logger.info(
             f"Deleting collection {entity=}, {project=}, {art_type=}, {art_name=}"
