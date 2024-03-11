@@ -304,8 +304,8 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            major, minor = get_current_python_version()
-            python_version = f"{major}.{minor}"
+            wandb.termerror("Python runtime must be provided for git-based jobs")
+            return None
 
     python_version = _clean_python_version(python_version)
 
