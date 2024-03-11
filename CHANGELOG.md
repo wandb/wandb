@@ -16,7 +16,7 @@ subsections here on every PR where this is applicable.
 
 ### Added
 
-* Add support to skip staging and/or caching files to the local filesystem while uploading files in artifacts
+* Add support to skip staging and/or caching files to the local filesystem while uploading files in artifacts by @ibindlish in https://github.com/wandb/wandb/pull/7098
 
 ### Fixed
 
