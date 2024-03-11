@@ -1093,7 +1093,6 @@ class Artifact:
         mode: str = "w",
         encoding: Optional[str] = None,
         skip_cache: Optional[bool] = False,
-        policy: Optional[str] = "mutable",
     ) -> Generator[IO, None, None]:
         """Open a new temporary file and add it to the artifact.
 
