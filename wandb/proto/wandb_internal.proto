@@ -151,23 +151,26 @@ message GitRepoRecord {
   string commit = 2;
 }
 
-// Path within nested configuration dictionary.
-
-// Used to specify which paths within various config objects should be filtered
-// in or out of job inputs.
+// Path within nested configuration object.
+//
+// The path is a list of strings, each string is a key in the nested configuration
+// dict.
 message ConfigFilterPath {
   repeated string path = 1;
 }
 
-// Specifies filter mode and paths for setting job inputs from wandb.config.
+// Specifies include and exclude paths for filtering job inputs.
 //
 // If this record is published to the core internal process then it will filter
 // the given paths into or out of the job inputs it builds. If the exclude field
 // is true then the paths will be excluded from the job inputs, otherwise they
 // will be included.
+//
+// Note that the paths are not necessarily terminal; they may resolve to a
+// dictionary.
 message LaunchWandbConfigParametersRecord {
-  repeated ConfigFilterPath paths = 1;
-  bool exclude = 2;
+  repeated ConfigFilterPath include_paths = 1;
+  repeated ConfigFilterPath exclude_paths = 2;
 }
 
 message RunUpdateResult {
