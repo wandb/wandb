@@ -1102,13 +1102,6 @@ class Artifact:
             mode: The file access mode to use to open the new file.
             encoding: The encoding used to open the new file.
             skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
-            policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Copy to staging
-                    - If `skip_cache` = True: Delete staged files after uploading
-                    - If `skip_cache` = False: Move to cache after uploading
-                "immutable": Require file to not change.
-                    - If `skip_cache` = True: Do nothing.
-                    - If `skip_cache` = False: Copy to cache synchronously.
 
         Returns:
             A new file object that can be written to. Upon closing, the file will be
@@ -1136,7 +1129,7 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name, skip_cache=skip_cache, policy=policy)
+        self.add_file(path, name=name, skip_cache=skip_cache, policy="immutable")
 
     def add_file(
         self,
@@ -1156,12 +1149,8 @@ class Artifact:
                 collisions.
             skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
             policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Copy to staging
-                    - If `skip_cache` = True: Delete staged files after uploading
-                    - If `skip_cache` = False: Move to cache after uploading
-                "immutable": Require file to not change.
-                    - If `skip_cache` = True: Do nothing.
-                    - If `skip_cache` = False: Copy to cache synchronously.
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Returns:
             The added manifest entry
@@ -1204,12 +1193,8 @@ class Artifact:
                 Defaults to the root of the artifact.
             skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
             policy: "mutable" | "immutable". By default, "mutable"
-                "mutable": Copy to staging
-                    - If `skip_cache` = True: Delete staged files after uploading
-                    - If `skip_cache` = False: Move to cache after uploading
-                "immutable": Require file to not change.
-                    - If `skip_cache` = True: Do nothing.
-                    - If `skip_cache` = False: Copy to cache synchronously.
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
