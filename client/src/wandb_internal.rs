@@ -1836,6 +1836,9 @@ pub struct ArtifactManifestEntry {
     pub local_path: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub birth_artifact_id: ::prost::alloc::string::String,
+    /// Whether to avoid copying/moving files to the cache while uploading.
+    #[prost(bool, tag = "8")]
+    pub skip_cache: bool,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
 }
