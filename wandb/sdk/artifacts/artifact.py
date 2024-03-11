@@ -32,7 +32,6 @@ from typing import (
 from urllib.parse import urlparse
 
 import requests
-from distutils.command import upload
 
 import wandb
 from wandb import data_types, env, util
@@ -1167,7 +1166,12 @@ class Artifact:
 
         return self._add_local_file(name, local_path, digest=digest, policy=policy)
 
-    def add_dir(self, local_path: str, name: Optional[str] = None, policy: Optional[str] = "mutable") -> None:
+    def add_dir(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        policy: Optional[str] = "mutable",
+    ) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -1395,11 +1399,16 @@ class Artifact:
         return entry
 
     def _add_local_file(
-        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None, policy: Optional[str] = "mutable"
+        self,
+        name: StrPath,
+        path: StrPath,
+        digest: Optional[B64MD5] = None,
+        policy: Optional[str] = "mutable",
     ) -> ArtifactManifestEntry:
         if policy not in ["mutable", "immutable"]:
             raise ValueError(
-            f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`.")
+                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+            )
         upload_path = path
         if policy == "mutable":
             with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
@@ -1408,7 +1417,7 @@ class Artifact:
                 # Set as read-only to prevent changes to the file during upload process
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
-        
+
         entry = ArtifactManifestEntry(
             path=name,
             digest=digest or md5_file_b64(upload_path),

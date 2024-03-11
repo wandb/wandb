@@ -523,6 +523,7 @@ def test_unwritable_staging_dir(monkeypatch):
     with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
         _ = get_staging_dir()
 
+
 def test_invalid_upload_policy():
     path = "foo/bar"
     artifact = wandb.Artifact("test", type="dataset")
