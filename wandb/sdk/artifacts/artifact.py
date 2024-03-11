@@ -1154,7 +1154,7 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
-            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
             policy: "mutable" | "immutable". By default, "mutable"
                 "mutable": Copy to staging
                     - If `skip_cache` = True: Delete staged files after uploading
