@@ -1147,7 +1147,7 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
-            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
             policy: "mutable" | "immutable". By default, "mutable"
                 "mutable": Create a temporary copy of the file to prevent corruption during upload.
                 "immutable": Disable protection, rely on the user not to delete or change the file.
