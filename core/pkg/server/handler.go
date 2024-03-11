@@ -497,9 +497,6 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 	// start the tensorboard handler
 	h.watcher.Start()
 
-	// TODO: move this to a better place
-	h.internalPrinter.Start()
-
 	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(h.sendRecord),
 	)
