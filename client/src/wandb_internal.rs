@@ -1187,27 +1187,32 @@ pub struct GitRepoRecord {
     #[prost(string, tag = "2")]
     pub commit: ::prost::alloc::string::String,
 }
-/// Used to specify which paths within various config objects should be filtered
-/// in or out of job inputs.
+/// Path within nested configuration object.
+///
+/// The path is a list of strings, each string is a key in the nested configuration
+/// dict.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ConfigFilterPath {
     #[prost(string, repeated, tag = "1")]
     pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Specifies filter mode and paths for setting job inputs from wandb.config.
+/// Specifies include and exclude paths for filtering job inputs.
 ///
 /// If this record is published to the core internal process then it will filter
 /// the given paths into or out of the job inputs it builds. If the exclude field
 /// is true then the paths will be excluded from the job inputs, otherwise they
 /// will be included.
+///
+/// Note that the paths are not necessarily terminal; they may resolve to a
+/// dictionary.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LaunchWandbConfigParametersRecord {
     #[prost(message, repeated, tag = "1")]
-    pub paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
-    #[prost(bool, tag = "2")]
-    pub exclude: bool,
+    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(message, repeated, tag = "2")]
+    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
