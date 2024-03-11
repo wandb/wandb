@@ -961,9 +961,9 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 	}
 }
 
-// handleHistory handles a history record. This is the main entry point for history records.
-// It is responsible for handling the history record internally, processing it,
-// and forwarding it to the Writer.
+// The main entry point for history records.
+//
+// This processes a history record and forwards it to the writer.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO replace history encoding with a map, this will make it easier to handle history
 	h.activeHistory = NewActiveHistory(
