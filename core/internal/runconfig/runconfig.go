@@ -36,6 +36,12 @@ type RunConfig struct {
 	tree RunConfigDict
 }
 
+// This is a flat representation of the configuration tree, where each path is
+// a list of keys and the value is the value at that path in the tree.
+//
+// Note that this is a map of pointers to paths, not paths themselves. If you
+// want to check if a path is in the map, you need to use the address of the
+// path or iterate over the map and compare the paths.
 type PathMap map[*RunConfigPath]interface{}
 
 type ConfigFormat int
@@ -204,10 +210,10 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 
 // Filters the configuration tree based on the given paths.
 //
-// include and exclude are lists of paths. If include is non-empty, only
-// paths that have a prefix in include are kept. If exclude is non-empty,
-// paths that have a prefix in exclude are removed. If both are empty, the
-// entire tree is returned. If both are non-empty, exlcude is applied first.
+// include and exclude are lists of paths within the configuration tree. The
+// resulting tree will contain only the paths that are included and not
+// excluded. If include is empty, all paths are included. If exclude is empty,
+// no paths are excluded.
 func (runConfig *RunConfig) FilterTree(
 	include []RunConfigPath,
 	exclude []RunConfigPath,
@@ -217,9 +223,8 @@ func (runConfig *RunConfig) FilterTree(
 		prunePath(pathMap, path)
 	}
 	if len(include) > 0 {
-		var keep bool
 		for k := range pathMap {
-			keep = false
+			keep := false
 			for _, path := range include {
 				if pathHasPrefix(*k, path) {
 					keep = true
