@@ -852,7 +852,7 @@ func (h *Handler) handleFileTransferInfo(record *service.Record) {
 	h.filesInfoHandler.Handle(record)
 }
 
-func (h *Handler) handleIntternalMessages(_ *service.Record, response *service.Response) {
+func (h *Handler) handleInternalMessages(_ *service.Record, response *service.Response) {
 	messages := h.internalPrinter.Read()
 	if len(messages) == 0 {
 		return
