@@ -767,7 +767,7 @@ class InterfaceBase:
         return self._deliver_run_start(run_start)
 
     def publish_launch_wandb_config_parameters(
-        self, paths: List[List[str]], exclude: bool = False
+        self, include_paths: List[List[str]], exclude_paths: List[List[str]]
     ):
         """Tells the internal process to treat wandb.config fields as job inputs.
 
@@ -784,11 +784,10 @@ class InterfaceBase:
             None
         """
         config_parameters = pb.LaunchWandbConfigParametersRecord()
-        path_records = []
-        for path in paths:
-            path_records.append(pb.ConfigFilterPath(path=path))
-        config_parameters.paths.extend(path_records)
-        config_parameters.exclude = exclude
+        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
+        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
+        config_parameters.include_paths.extend(include_records)
+        config_parameters.exclude_paths.extend(exclude_records)
         return self._publish_launch_wandb_config_parameters(config_parameters)
 
     @abstractmethod

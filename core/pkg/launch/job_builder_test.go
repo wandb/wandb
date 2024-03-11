@@ -944,12 +944,8 @@ func TestWandbConfigParameters(t *testing.T) {
 		},
 	))
 	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
-		Paths:   []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
-		Exclude: false,
-	})
-	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
-		Paths:   []*service.ConfigFilterPath{{Path: []string{"key3", "key4", "key6"}}},
-		Exclude: true,
+		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
 	artifact, err := jobBuilder.Build(nil)
 	assert.Nil(t, err)

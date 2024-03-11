@@ -740,15 +740,16 @@ func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runco
 	include := make([]runconfig.RunConfigPath, 0)
 	exclude := make([]runconfig.RunConfigPath, 0)
 	if len(j.wandbConfigParameters) > 0 {
-		var appendee *[]runconfig.RunConfigPath
 		for _, wandbConfigParameters := range j.wandbConfigParameters {
-			if wandbConfigParameters.Exclude {
-				appendee = &exclude
-			} else {
-				appendee = &include
+			if wandbConfigParameters.IncludePaths != nil {
+				for _, includePath := range wandbConfigParameters.IncludePaths {
+					include = append(include, includePath.Path)
+				}
 			}
-			for _, path := range wandbConfigParameters.Paths {
-				*appendee = append(*appendee, runconfig.RunConfigPath(path.Path))
+			if wandbConfigParameters.ExcludePaths != nil {
+				for _, excludePath := range wandbConfigParameters.ExcludePaths {
+					exclude = append(exclude, excludePath.Path)
+				}
 			}
 		}
 	}
