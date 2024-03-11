@@ -42,7 +42,6 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -531,7 +530,6 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -642,7 +640,6 @@ class Run:
         self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
-        # self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2485,7 +2482,6 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        # job_info_handle = self._backend.interface.deliver_request_job_info()
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -2498,10 +2494,6 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
-
-        # result = job_info_handle.wait(timeout=-1)
-        # assert result
-        # self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2525,7 +2517,6 @@ class Run:
             server_info_response=self._server_info_response,
             check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
-            # job_info=self._job_info,
             reporter=self._reporter,
             quiet=self._quiet,
             settings=self._settings,
@@ -3577,7 +3568,6 @@ class Run:
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
-        # job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3594,7 +3584,6 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            # job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3779,7 +3768,6 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        # job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3803,11 +3791,6 @@ class Run:
                 info = [
                     f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
                 ]
-            # if job_info and job_info.version and job_info.sequenceId:
-            #     link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
-            #     info.append(
-            #         f"{printer.emoji('lightning')} View job at {printer.link(link)}",
-            #     )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
