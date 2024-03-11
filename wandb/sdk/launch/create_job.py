@@ -347,7 +347,8 @@ def _create_artifact_metadata(
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
-        python_version = ".".join(get_current_python_version())
+        wandb.termerror("Python runtime must be provided for code-based jobs")
+        return {}, []
 
     metadata = {"python": python_version, "codePath": entrypoint}
     return metadata, requirements
