@@ -3500,7 +3500,6 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        # run_url = settings.run_url
         workspace_url = f"{settings.run_url}/workspace"
         project_url = settings.project_url
         sweep_url = settings.sweep_url
