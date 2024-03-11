@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/segmentio/encoding/json"
@@ -495,6 +496,9 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 
 	// start the tensorboard handler
 	h.watcher.Start()
+
+	// TODO: move this to a better place
+	h.internalPrinter.Start()
 
 	h.filesHandler = h.filesHandler.With(
 		WithFilesHandlerHandleFn(h.sendRecord),
@@ -1172,6 +1176,67 @@ func (h *Handler) handleSampledHistory(record *service.Record, response *service
 			Item: items,
 		},
 	}
+}
+
+// flushHistory flushes a history record. It is responsible for handling the history record internally,
+// processing it, and forwarding it to the Writer.
+func (h *Handler) flushHistory(history *service.HistoryRecord) {
+	if history.GetItem() == nil {
+		return
+	}
+
+	// adds internal history items to the history record
+	// these items are used for internal bookkeeping and are not sent by the user
+	// TODO: add a timestamp field to the history record
+	var runTime float64 = 0
+	if item, ok := h.activeHistory.GetItem("_timestamp"); ok {
+		value := item.GetValueJson()
+		val, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			h.logger.CaptureError("error parsing timestamp", err)
+		} else {
+			runTime = val - h.timer.GetStartTimeMicro()
+		}
+	}
+	history.Item = append(history.Item,
+		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
+	)
+	if !h.settings.GetXShared().GetValue() {
+		history.Item = append(history.Item,
+			&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
+		)
+	}
+
+	// handles all history items. It is responsible for matching current history
+	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+	// it needs to be synced, but not part of the history record.
+	// This means that there are metrics defined for this run
+	if h.metricHandler != nil {
+		for _, item := range history.GetItem() {
+			step := h.imputeStepMetric(item)
+			// TODO: fix this, we update history while we are iterating over it
+			// TODO: handle nested step metrics (e.g. step defined by another step)
+			if step != nil {
+				history.Item = append(history.Item, step)
+			}
+		}
+	}
+
+	h.sampleHistory(history)
+
+	record := &service.Record{
+		RecordType: &service.Record_History{History: history},
+	}
+	h.sendRecord(record)
+
+	// TODO unify with handleSummary
+	// TODO add an option to disable summary (this could be quite expensive)
+	if h.summaryHandler == nil {
+		return
+	}
+	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
+	h.summaryHandler.updateSummaryDelta(summary)
+}
 
 func (h *Handler) handleWandbConfigParameters(record *service.Record) {
 	h.sendRecord(record)
