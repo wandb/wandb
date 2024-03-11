@@ -95,6 +95,7 @@ func (cl *CoreLogger) SetTags(tags Tags) {
 
 // CaptureError logs an error and sends it to sentry.
 func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
+	args = append(args, "error", err)
 	cl.Logger.Error(msg, args...)
 	if err != nil {
 		// send error to sentry:

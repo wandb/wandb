@@ -18,6 +18,13 @@ subsections here on every PR where this is applicable.
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
 
+### Changed
+
+* When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
+
+### Removed
+
+* When printing run's information in the terminal remove links to jobs by @kptkin in https://github.com/wandb/wandb/pull/7132
 
 ## [0.16.4] - 2024-03-05
 

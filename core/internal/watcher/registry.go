@@ -22,9 +22,3 @@ func (r *registry) get(name string) (func(Event) error, bool) {
 	fn, ok := r.events[name]
 	return fn, ok
 }
-
-func (r *registry) clear() {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-	clear(r.events)
-}
