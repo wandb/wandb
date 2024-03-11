@@ -229,7 +229,7 @@ func (nc *Connection) handleServerRequest() {
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
-	settings := settings.Parse(msg.GetSettings())
+	settings := settings.From(msg.GetSettings())
 
 	err := settings.EnsureAPIKey()
 	if err != nil {
@@ -262,13 +262,13 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = settings.Parse(msg.GetSettings())
+	nc.stream.settings = settings.From(msg.GetSettings())
 
 	// update sentry tags
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.RunURL,
-		"entity":  nc.stream.settings.Entity,
+		"run_url": nc.stream.settings.GetRunURL(),
+		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)
