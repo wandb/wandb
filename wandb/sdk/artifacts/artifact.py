@@ -1126,7 +1126,7 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name, policy="immutable")
+        self.add_file(path, name=name, policy="immutable", skip_cache=True)
 
     def add_file(
         self,
