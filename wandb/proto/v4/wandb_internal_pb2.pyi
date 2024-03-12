@@ -479,12 +479,13 @@ class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
     """Specifies include and exclude paths for filtering job inputs.
 
     If this record is published to the core internal process then it will filter
-    the given paths into or out of the job inputs it builds. If the exclude field
-    is true then the paths will be excluded from the job inputs, otherwise they
-    will be included.
+    the given paths into or out of the job inputs it builds. 
 
-    Note that the paths are not necessarily terminal; they may resolve to a
-    dictionary.
+    If include_paths is not empty, then endpoints of the config not prefixed by 
+    an include path will be ignored.
+
+    If exclude_paths is not empty, then endpoints of the config prefixed by an 
+    exclude path will ignored.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
