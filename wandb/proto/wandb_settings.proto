@@ -55,6 +55,9 @@ message Settings {
   // Filename to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
+  // Absolute path to the local directory where this run's files are stored.
+  google.protobuf.StringValue files_dir = 70;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
@@ -122,7 +125,6 @@ message Settings {
   google.protobuf.BoolValue disabled = 66;
   google.protobuf.StringValue docker = 67;
   google.protobuf.StringValue email = 68;
-  google.protobuf.StringValue files_dir = 70;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
