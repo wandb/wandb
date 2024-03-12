@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/segmentio/encoding/json"
+	"gopkg.in/yaml.v3"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/runconfig"
@@ -752,10 +753,15 @@ func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runco
 	return include, exclude
 }
 
-// Generates config file schema from LaunchConfigFileParameterRecord.
-func (j *JobBuilder) generateConfigFileSchema(configFile *service.LaunchConfigFileParameterRecord) data_types.TypeRepresentation {
-	path := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
-	config, err := runconfig.NewFromConfigFile(path)
+// Infers the structure of a config file.
+//
+// This returns the tree structure and data types of the given config file after filtering
+// its subtrees according to the 'include' and 'exclude' paths in the record.
+func (j *JobBuilder) generateConfigFileSchema(
+	configFile *service.LaunchConfigFileParameterRecord,
+) data_types.TypeRepresentation {
+	path := filepath.Join(j.settings.FilesDir.GetValue(), "configs", configFile.Relpath)
+	config, err := runConfigFromFilePath(path)
 	if err != nil {
 		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
 		return data_types.TypeRepresentation{}
@@ -769,6 +775,34 @@ func (j *JobBuilder) generateConfigFileSchema(configFile *service.LaunchConfigFi
 		exclude[i] = runconfig.RunConfigPath(path.Path)
 	}
 	return data_types.ResolveTypes((config.FilterTree(include, exclude)))
+}
+
+// Constructs a RunConfig from a path to a configuration file.
+//
+// YAML and JSON formats are supported and specified by the file extension of
+// path.
+func runConfigFromFilePath(path string) (*runconfig.RunConfig, error) {
+	ext := filepath.Ext(path)
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	switch ext {
+	case ".json":
+		var tree runconfig.RunConfigDict
+		if err := json.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return runconfig.NewFrom(tree), nil
+	case ".yaml", ".yml":
+		var tree runconfig.RunConfigDict
+		if err := yaml.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return runconfig.NewFrom(tree), nil
+	default:
+		return nil, fmt.Errorf("config: unknown file extension: %v", ext)
+	}
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
