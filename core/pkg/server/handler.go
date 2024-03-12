@@ -324,7 +324,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_FileTransferInfo:
 		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
-		h.handleIntternalMessages(record, response)
+		h.handleInternalMessages(record, response)
 	case *service.Request_Sync:
 		h.handleSync(record)
 		response = nil
