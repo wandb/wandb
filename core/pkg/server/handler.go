@@ -1239,10 +1239,6 @@ func (h *Handler) handleWandbConfigParameters(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	h.sendRecord(record)
-}
-
 func (h *Handler) GetRun() *service.RunRecord {
 	return h.runRecord
 }
