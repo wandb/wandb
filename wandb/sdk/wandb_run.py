@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -326,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -731,7 +731,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1828,8 +1828,8 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str | os.PathLike]] = None,
+        base_path: Optional[Union[str | os.PathLike]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
         """Sync one or more files to W&B.
@@ -1887,98 +1887,100 @@ class Run:
             )
             return True
 
-        return self._save(glob_str, base_path, policy)
-
-    def _save(
-        self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
-        policy: "PolicyName" = "live",
-    ) -> Union[bool, List[str]]:
-        if policy not in ("live", "end", "now"):
-            raise ValueError(
-                'Only "live", "end" and "now" policies are currently supported.'
-            )
-
-        # Preserved for compatibility.
         if isinstance(glob_str, bytes):
+            # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
-
-        # Provide a better error message to confused souls.
-        if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
+        elif isinstance(glob_str, str) and (
+            glob_str.startswith("gs://") or glob_str.startswith("s3://")
+        ):
+            # Provide a better error message for a common misuse.
             wandb.termlog(
-                "%s is a cloud storage url, can't save file to wandb." % glob_str
+                f"{glob_str} is a cloud storage url, can't save file to wandb."
             )
             return []
+        glob_path = pathlib.Path(glob_str)
 
-        if ".." + os.sep in glob_str:
-            raise ValueError("glob may not walk up directories using '..'")
-
-        # Define how to map source file paths to their saved path. See examples
-        # in the docs for expected behavior.
-        if base_path:
-            # Use a base_path when provided.
-            def to_saved_path(path: str) -> str:
-                return os.path.relpath(path, base_path)
-
-        elif not os.path.isabs(glob_str):
-            # For relative globs, get the path relative to the current
-            # working directory.
-            def to_saved_path(path: str) -> str:
-                return os.path.relpath(path, os.getcwd())
-
+        if base_path is not None:
+            base_path = pathlib.Path(base_path)
+        elif not glob_path.is_absolute():
+            base_path = pathlib.Path(".")
         else:
-            # For absolute globs, save files directly into the run's
-            # root directory.
-
+            # Absolute glob paths with no base path get special handling.
             wandb.termwarn(
                 "Saving files without folders. If you want to preserve "
                 "subdirectories pass base_path to wandb.save, i.e. "
                 'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
                 repeat=False,
             )
+            base_path = glob_path.resolve().parent.parent
 
-            def to_saved_path(path: str) -> str:
-                return os.path.basename(path)
+        if policy not in ("live", "end", "now"):
+            raise ValueError(
+                'Only "live", "end" and "now" policies are currently supported.'
+            )
+
+        resolved_glob_path = glob_path.resolve()
+        resolved_base_path = base_path.resolve()
+
+        return self._save(
+            resolved_glob_path,
+            resolved_base_path,
+            policy,
+        )
+
+    def _save(
+        self,
+        glob_path: pathlib.Path,
+        base_path: pathlib.Path,
+        policy: "PolicyName",
+    ) -> List[str]:
+        if not glob_path.is_relative_to(base_path):
+            raise ValueError("Glob may not walk above the base path")
+
+        if glob_path == base_path:
+            raise ValueError("Glob cannot be the same as the base path")
+
+        relative_glob = glob_path.relative_to(base_path)
+        if relative_glob.parts[0] == "*":
+            raise ValueError("Glob may not start with '*' relative to the base path")
+        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        # Glob string relative to the run's files directory.
-        relative_glob_str = GlobStr(to_saved_path(glob_str))
-
         # Paths to the symlinks created for the globbed files.
-        wandb_files = glob.glob(
-            os.path.join(
+        wandb_files = [
+            str(path)
+            for path in pathlib.Path(
                 self._settings.files_dir,
-                relative_glob_str,
-            )
-        )
+            ).glob(relative_glob_str)
+        ]
 
         had_symlinked_files = len(wandb_files) > 0
-        is_star_glob = "*" in glob_str
+        is_star_glob = "*" in relative_glob_str
 
-        for path in glob.glob(glob_str):
-            saved_path = to_saved_path(path)
-            abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self._settings.files_dir, saved_path)
+        # The base_path may itself be a glob, so we can't do
+        #     base_path.glob(relative_glob_str)
+        for path_str in glob.glob(str(base_path / relative_glob_str)):
+            path = pathlib.Path(path_str).absolute()
 
-            wandb_files.append(wandb_path)
+            # We can't use relative_to() because base_path may be a glob.
+            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
 
-            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
+            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
+
+            wandb_files.append(str(wandb_path))
+            wandb_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
             try:
-                os.unlink(wandb_path)
+                wandb_path.unlink()
             except FileNotFoundError:
-                # In Python 3.8, we would use pathlib.Path.unlink() with
-                # missing_ok=True, but as of now we support older Python
-                # versions.
+                # In Python 3.8, we would pass missing_ok=True, but as of now
+                # we support down to Python 3.7.
                 pass
 
-            os.symlink(abs_path, wandb_path)
+            wandb_path.symlink_to(path)
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
@@ -1993,6 +1995,7 @@ class Run:
         files_dict: FilesDict = {"files": [(relative_glob_str, policy)]}
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
+
         return wandb_files
 
     @_run_decorator._attach
@@ -3275,8 +3278,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3368,8 +3371,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
