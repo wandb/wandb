@@ -502,6 +502,9 @@ class ConfigFileParameterRecord(google.protobuf.message.Message):
     located at relpath will be used as a job input. The include_paths and
     exclude_paths fields specify which paths within the config file should be
     included or excluded from the job inputs.
+
+    The relpath is treated as a unique id for the config file in the context of
+    a run or job. Backwards path traversal, ex "../config.yaml", is forbidden.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
