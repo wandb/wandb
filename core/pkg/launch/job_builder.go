@@ -162,6 +162,7 @@ type JobBuilder struct {
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
 	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
+	configFiles           []*service.LaunchConfigFileParameterRecord
 	saveShapeToMetadata   bool
 }
 
@@ -751,8 +752,8 @@ func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runco
 	return include, exclude
 }
 
-// Generates config file schema from ConfigFileParameterRecord.
-func (j *JobBuilder) generateConfigFileSchema(configFile *service.ConfigFileParameterRecord) data_types.TypeRepresentation {
+// Generates config file schema from LaunchConfigFileParameterRecord.
+func (j *JobBuilder) generateConfigFileSchema(configFile *service.LaunchConfigFileParameterRecord) data_types.TypeRepresentation {
 	path := filepath.Join(j.settings.FilesDir.Value, "configs", configFile.Relpath)
 	config, err := runconfig.NewFromConfigFile(path)
 	if err != nil {
@@ -789,4 +790,9 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
 	j.saveShapeToMetadata = true
 	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
+}
+
+func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.LaunchConfigFileParameterRecord) {
+	j.saveShapeToMetadata = true
+	j.configFiles = append(j.configFiles, configFileParameter)
 }

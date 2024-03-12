@@ -1298,6 +1298,6 @@ func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParamet
 	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
 }
 
-func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.ConfigFileParameterRecord) {
+func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.LaunchConfigFileParameterRecord) {
 	s.jobBuilder.HandleConfigFileParameterRecord(configFileParameter)
 }

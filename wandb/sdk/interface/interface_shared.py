@@ -239,6 +239,7 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
+        config_file_parameter: Optional[pb.LaunchConfigFileParameterRecord] = None,
         launch_wandb_config_parameters: Optional[
             pb.LaunchWandbConfigParametersRecord
         ] = None,
@@ -425,8 +426,8 @@ class InterfaceShared(InterfaceBase):
         )
         self._publish(rec)
 
-    def _publish_config_file_parameter(
-        self, config_file_parameter: pb.ConfigFileParameterRecord
+    def _publish_launch_config_file_parameter(
+        self, config_file_parameter: pb.LaunchConfigFileParameterRecord
     ) -> None:
         rec = self._make_record(config_file_parameter=config_file_parameter)
         self._publish(rec)

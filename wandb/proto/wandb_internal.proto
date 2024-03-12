@@ -47,6 +47,8 @@ message Record {
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
     LaunchWandbConfigParametersRecord wandb_config_parameters = 26;
+    LaunchConfigFileParameterRecord config_file_parameter = 27;
+
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -182,7 +184,7 @@ message LaunchWandbConfigParametersRecord {
 //
 // The relpath is treated as a unique id for the config file in the context of
 // a run or job. Backwards path traversal, ex "../config.yaml", is forbidden.
-message ConfigFileParameterRecord {
+message LaunchConfigFileParameterRecord {
   string relpath = 1;
   repeated ConfigFilterPath include_paths = 2;
   repeated ConfigFilterPath exclude_paths = 3;

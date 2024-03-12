@@ -1018,7 +1018,7 @@ func TestConfigFileParameters(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
-	jobBuilder.HandleConfigFileParameterRecord(&service.ConfigFileParameterRecord{
+	jobBuilder.HandleConfigFileParameterRecord(&service.LaunchConfigFileParameterRecord{
 		Relpath:      "config.yaml",
 		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4"}}},

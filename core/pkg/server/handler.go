@@ -967,7 +967,7 @@ func (h *Handler) handleWandbConfigParameters(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) writeAndSendConfigFile(record *service.ConfigFileParameterRecord) {
+func (h *Handler) writeAndSendConfigFile(record *service.LaunchConfigFileParameterRecord) {
 	configDir := filepath.Join(h.settings.GetFilesDir().GetValue(), "configs")
 	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
 		h.logger.CaptureError("error creating config directory", err)

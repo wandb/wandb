@@ -1022,6 +1022,8 @@ pub mod record {
         UseArtifact(super::UseArtifactRecord),
         #[prost(message, tag = "26")]
         WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
+        #[prost(message, tag = "27")]
+        ConfigFileParameter(super::LaunchConfigFileParameterRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1225,7 +1227,7 @@ pub struct LaunchWandbConfigParametersRecord {
 /// a run or job. Backwards path traversal, ex "../config.yaml", is forbidden.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConfigFileParameterRecord {
+pub struct LaunchConfigFileParameterRecord {
     #[prost(string, tag = "1")]
     pub relpath: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]

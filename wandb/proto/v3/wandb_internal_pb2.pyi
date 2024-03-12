@@ -105,6 +105,8 @@ class Record(google.protobuf.message.Message):
     @property
     def wandb_config_parameters(self) -> global___LaunchWandbConfigParametersRecord: ...
     @property
+    def config_file_parameter(self) -> global___LaunchConfigFileParameterRecord: ...
+    @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
     @property
@@ -137,6 +139,7 @@ class Record(google.protobuf.message.Message):
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
         wandb_config_parameters: global___LaunchWandbConfigParametersRecord | None = ...,
+        config_file_parameter: global___LaunchConfigFileParameterRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
@@ -495,7 +498,7 @@ class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
 
 global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
 
-class ConfigFileParameterRecord(google.protobuf.message.Message):
+class LaunchConfigFileParameterRecord(google.protobuf.message.Message):
     """Specifies a user config file to be used as a job input.
 
     If this record is published to the core internal process then the config file
@@ -526,7 +529,7 @@ class ConfigFileParameterRecord(google.protobuf.message.Message):
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "relpath", b"relpath"]) -> None: ...
 
-global___ConfigFileParameterRecord = ConfigFileParameterRecord
+global___LaunchConfigFileParameterRecord = LaunchConfigFileParameterRecord
 
 class RunUpdateResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

@@ -796,7 +796,7 @@ class InterfaceBase:
     ) -> None:
         raise NotImplementedError
 
-    def publish_config_file_parameter(
+    def publish_launch_config_file_parameter(
         self,
         relpath: str,
         include_paths: List[List[str]],
@@ -811,7 +811,7 @@ class InterfaceBase:
         Returns:
             None
         """
-        config_file_parameter = pb.ConfigFileParameterRecord()
+        config_file_parameter = pb.LaunchConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
         include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
         exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
@@ -820,7 +820,7 @@ class InterfaceBase:
         return self._publish_config_file_parameter(config_file_parameter)
 
     @abstractmethod
-    def _publish_config_file_parameter(
+    def _publish_launch_config_file_parameter(
         self, config_file_parameter: pb.ConfigFileParameterRecord
     ) -> None:
         raise NotImplementedError
