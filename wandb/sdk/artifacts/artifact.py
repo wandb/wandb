@@ -1088,10 +1088,7 @@ class Artifact:
 
     @contextlib.contextmanager
     def new_file(
-        self,
-        name: str,
-        mode: str = "w",
-        encoding: Optional[str] = None,
+        self, name: str, mode: str = "w", encoding: Optional[str] = None
     ) -> Generator[IO, None, None]:
         """Open a new temporary file and add it to the artifact.
 
