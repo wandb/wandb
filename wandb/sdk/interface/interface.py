@@ -817,7 +817,7 @@ class InterfaceBase:
         exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
         config_file_parameter.include_paths.extend(include_records)
         config_file_parameter.exclude_paths.extend(exclude_records)
-        return self._publish_config_file_parameter(config_file_parameter)
+        return self._publish_launch_config_file_parameter(config_file_parameter)
 
     @abstractmethod
     def _publish_launch_config_file_parameter(
