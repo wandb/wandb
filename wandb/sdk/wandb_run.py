@@ -1935,7 +1935,9 @@ class Run:
         base_path: pathlib.Path,
         policy: "PolicyName",
     ) -> List[str]:
-        if not glob_path.is_relative_to(base_path):
+        # Can't use is_relative_to() because that's added in Python 3.9,
+        # but we support down to Python 3.7.
+        if not str(glob_path).startswith(str(base_path)):
             raise ValueError("Glob may not walk above the base path")
 
         if glob_path == base_path:
