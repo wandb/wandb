@@ -26,7 +26,7 @@ if parse_version(openai.__version__) < parse_version("1.0.1"):
 
 from openai import OpenAI  # noqa: E402
 from openai.types.fine_tuning import FineTuningJob  # noqa: E402
-from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E402
+from openai.types.fine_tuning.fine_tuning_job import Hyperparameters, Error  # noqa: E402
 
 np = util.get_module(
     name="numpy",
@@ -287,14 +287,16 @@ class WandbLogger:
             ).strftime("%Y-%m-%d %H:%M:%S")
         if config.get("hyperparameters"):
             hyperparameters = config.pop("hyperparameters")
-            hyperparams = cls._unpack_hyperparameters(hyperparameters)
-            if hyperparams is None:
-                # If unpacking fails, log the object which will render as string
-                config["hyperparameters"] = hyperparameters
+            if isinstance(hyperparameters, Hyperparameters):
+                config["hyperparameters"] = dict(hyperparameters)
             else:
-                # nested rendering on hyperparameters
-                config["hyperparameters"] = hyperparams
-
+                config["hyperparameters"] = cls.sanitize(hyperparameters)
+        if config.get("error"):
+            error = config.pop("error")
+            if isinstance(error, Error):
+                config["error"] = dict(Error)
+            else:
+                config["error"] = cls.sanitize(error)
         return config
 
     @classmethod
@@ -313,6 +315,16 @@ class WandbLogger:
             return None
 
         return hyperparams
+    
+    @staticmethod
+    def sanitize(input: Any) -> dict | list | str:
+        valid_types = [bool, int, float, str]
+        if isinstance(input, dict):
+            return {k: v if type(v) in valid_types else str(v) for k, v in input.items()}
+        elif isinstance(input, list):
+            return [v if type(v) in valid_types else str(v) for v in input]
+        else:
+            return str(input)
 
     @classmethod
     def _log_artifacts(
@@ -337,9 +349,12 @@ class WandbLogger:
             type="model",
             metadata=dict(fine_tune),
         )
+
         with artifact.new_file("model_metadata.json", mode="w", encoding="utf-8") as f:
             dict_fine_tune = dict(fine_tune)
             dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
+            dict_fine_tune["error"] = dict(dict_fine_tune["error"])
+            dict_fine_tune = cls.sanitize(dict_fine_tune)
             json.dump(dict_fine_tune, f, indent=2)
         cls._run.log_artifact(
             artifact,
