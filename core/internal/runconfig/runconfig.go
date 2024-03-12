@@ -34,6 +34,14 @@ type RunConfig struct {
 	tree RunConfigDict
 }
 
+// This is a flat representation of the configuration tree, where each path is
+// a list of keys and the value is the value at that path in the tree.
+//
+// Note that this is a map of pointers to paths, not paths themselves. If you
+// want to check if a path is in the map, you need to use the address of the
+// path or iterate over the map and compare the paths.
+type PathMap map[*RunConfigPath]interface{}
+
 type ConfigFormat int
 
 const (
@@ -83,7 +91,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 			continue
 		}
 
-		if err := runConfig.updateAtPath(path, value); err != nil {
+		if err := updateAtPath(runConfig.tree, path, value); err != nil {
 			onError(err)
 			continue
 		}
@@ -165,6 +173,94 @@ func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
 	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
+// Filters the configuration tree based on the given paths.
+//
+// include and exclude are lists of paths within the configuration tree. The
+// resulting tree will contain only the paths that are included and not
+// excluded. If include is empty, all paths are included. If exclude is empty,
+// no paths are excluded.
+func (runConfig *RunConfig) FilterTree(
+	include []RunConfigPath,
+	exclude []RunConfigPath,
+) RunConfigDict {
+	pathMap := dictToPathMap(runConfig.tree)
+	for _, path := range exclude {
+		prunePath(pathMap, path)
+	}
+	if len(include) > 0 {
+		for k := range pathMap {
+			keep := false
+			for _, path := range include {
+				if pathHasPrefix(*k, path) {
+					keep = true
+					break
+				}
+			}
+			if !keep {
+				delete(pathMap, k)
+			}
+		}
+	}
+	return pathMapToDict(pathMap)
+}
+
+// Checks if a given RunConfigPath has a given prefix.
+func pathHasPrefix(path RunConfigPath, prefix RunConfigPath) bool {
+	if len(path) < len(prefix) {
+		return false
+	}
+	for i, prefixPart := range prefix {
+		if path[i] != prefixPart {
+			return false
+		}
+	}
+	return true
+}
+
+// Converts of paths to values to a nested dict.
+func pathMapToDict(pathMap PathMap) RunConfigDict {
+	dict := make(RunConfigDict)
+	for path, value := range pathMap {
+		err := updateAtPath(dict, *path, value)
+		// This error only happens if we try to add a path that goes through
+		// a leaf of the existing tree, which should never happen since this is
+		// only ever called with paths that end in leaves of the tree.
+		if err != nil {
+			panic(err)
+		}
+	}
+	return dict
+}
+
+// Converts a nested dict to a flat map of paths to values.
+func dictToPathMap(dict RunConfigDict) PathMap {
+	pathMap := make(PathMap)
+	flattenMap(dict, RunConfigPath{}, pathMap)
+	return pathMap
+}
+
+// Recursively constructs a flattened map of paths to values from a nested dict.
+func flattenMap(input RunConfigDict, path RunConfigPath, output PathMap) {
+	for k, v := range input {
+		path := append(path, k)
+		switch v := v.(type) {
+		case RunConfigDict:
+			flattenMap(v, path, output)
+		default:
+			output[&path] = v
+		}
+	}
+}
+
+// Prunes all paths starting with a given prefix from a PathMap.
+func prunePath(input PathMap, prefix RunConfigPath) {
+	for k := range input {
+		if pathHasPrefix(*k, prefix) {
+			delete(input, k)
+		}
+	}
+}
+
 // Uses the given subtree for keys that aren't already set.
 func (runConfig *RunConfig) addUnsetKeysFromSubtree(
 	tree RunConfigDict,
@@ -204,14 +300,15 @@ func (runConfig *RunConfig) internalSubtree() RunConfigDict {
 }
 
 // Sets the value at the path in the config tree.
-func (runConfig *RunConfig) updateAtPath(
+func updateAtPath(
+	tree RunConfigDict,
 	path []string,
 	value interface{},
 ) error {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree, err := getOrMakeSubtree(runConfig.tree, pathPrefix)
+	subtree, err := getOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
 		return err

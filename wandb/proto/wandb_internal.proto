@@ -46,6 +46,7 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+    LaunchWandbConfigParametersRecord wandb_config_parameters = 26;
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -148,6 +149,28 @@ message RunRecord {
 message GitRepoRecord {
   string remote_url = 1 [json_name = "remote"];
   string commit = 2;
+}
+
+// Path within nested configuration object.
+//
+// The path is a list of strings, each string is a key in the nested configuration
+// dict.
+message ConfigFilterPath {
+  repeated string path = 1;
+}
+
+// Specifies include and exclude paths for filtering job inputs.
+//
+// If this record is published to the core internal process then it will filter
+// the given paths into or out of the job inputs it builds. If the exclude field
+// is true then the paths will be excluded from the job inputs, otherwise they
+// will be included.
+//
+// Note that the paths are not necessarily terminal; they may resolve to a
+// dictionary.
+message LaunchWandbConfigParametersRecord {
+  repeated ConfigFilterPath include_paths = 1;
+  repeated ConfigFilterPath exclude_paths = 2;
 }
 
 message RunUpdateResult {
