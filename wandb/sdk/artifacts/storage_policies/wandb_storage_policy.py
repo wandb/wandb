@@ -14,7 +14,6 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
 )
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
@@ -392,7 +391,6 @@ class WandbStoragePolicy(StoragePolicy):
         if entry.local_path is None:
             return
 
-        staging_dir = get_staging_dir()
         # Cache upon successful upload.
         _, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(entry.digest),
@@ -402,7 +400,7 @@ class WandbStoragePolicy(StoragePolicy):
             try:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-                if entry.local_path.startswith(staging_dir):
+                if entry.policy == "mutable":
                     # Delete staged files as soon as they're copied to the cache
                     # instead of waiting till all the files are uploaded
                     os.remove(entry.local_path)

@@ -1839,6 +1839,8 @@ pub struct ArtifactManifestEntry {
     /// Whether to avoid copying/moving files to the cache while uploading.
     #[prost(bool, tag = "8")]
     pub skip_cache: bool,
+    #[prost(string, tag = "9")]
+    pub policy: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
 }

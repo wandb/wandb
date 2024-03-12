@@ -1297,6 +1297,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     LOCAL_PATH_FIELD_NUMBER: builtins.int
     BIRTH_ARTIFACT_ID_FIELD_NUMBER: builtins.int
     SKIP_CACHE_FIELD_NUMBER: builtins.int
+    POLICY_FIELD_NUMBER: builtins.int
     EXTRA_FIELD_NUMBER: builtins.int
     path: builtins.str
     digest: builtins.str
@@ -1307,6 +1308,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     birth_artifact_id: builtins.str
     skip_cache: builtins.bool
     """Whether to avoid copying/moving files to the cache while uploading."""
+    policy: builtins.str
     @property
     def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
     def __init__(
@@ -1320,9 +1322,10 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
         local_path: builtins.str = ...,
         birth_artifact_id: builtins.str = ...,
         skip_cache: builtins.bool = ...,
+        policy: builtins.str = ...,
         extra: collections.abc.Iterable[global___ExtraItem] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "policy", b"policy", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...
 
 global___ArtifactManifestEntry = ArtifactManifestEntry
 

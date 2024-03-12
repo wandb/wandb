@@ -341,6 +341,7 @@ class InterfaceBase:
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
             proto_entry.skip_cache = entry.skip_cache
+            proto_entry.policy = entry.policy
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
