@@ -1,5 +1,7 @@
 import pathlib
 
+import pytest
+
 # ----------------------------------
 # wandb.save
 # ----------------------------------
@@ -103,3 +105,8 @@ def test_save_relative_path(
     parsed = parse_records(record_q)
     file_record = parsed.files[0].files[0]
     assert file_record.path == "subdir/test.txt"
+
+
+def test_glob_dotdot(mock_run):
+    with pytest.raises(ValueError):
+        mock_run().save("subdir/../nvm.txt")

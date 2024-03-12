@@ -1912,6 +1912,9 @@ class Run:
             )
             return []
 
+        if ".." + os.sep in glob_str:
+            raise ValueError("glob may not walk up directories using '..'")
+
         # Define how to map source file paths to their saved path. See examples
         # in the docs for expected behavior.
         if base_path:
