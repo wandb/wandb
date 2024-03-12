@@ -1172,6 +1172,9 @@ func (h *Handler) handleSampledHistory(record *service.Record, response *service
 			Item: items,
 		},
 	}
+
+func (h *Handler) handleWandbConfigParameters(record *service.Record) {
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleWandbConfigParameters(record *service.Record) {
