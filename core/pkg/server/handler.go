@@ -977,67 +977,13 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	h.activeHistory.Flush()
 }
 
-// imputeStepMetric imputes a step metric if it needs to be synced, but not part of the history record.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
-
-	// check if history item matches a defined metric or a glob metric
-	metric := h.matchHistoryItemMetric(item)
-
-	key := metric.GetStepMetric()
-	// check if step metric is defined and if it needs to be synced
-	if !(metric.GetOptions().GetStepSync() && key != "") {
-		return nil
-	}
-
-	// check if step metric is already in history
-	if _, ok := h.activeHistory.GetItem(key); ok {
-		return nil
-	}
-
-	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.summaryHandler.consolidatedSummary[key]; ok {
-		// TODO: add nested key support
-		hi := &service.HistoryItem{
-			Key:       key,
-			ValueJson: value,
-		}
-		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
-		return hi
-	}
-	return nil
-}
-
-// matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
-func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.MetricRecord {
-
-	// ignore internal history items
-	if strings.HasPrefix(item.Key, "_") {
-		return nil
-	}
-
-	// check if history item matches a defined metric exactly, if it does return the metric
-	if metric, ok := h.metricHandler.definedMetrics[item.Key]; ok {
-		return metric
-	}
-
-	// if a new metric was created, we need to handle it
-	metric := h.metricHandler.createMatchingGlobMetric(item.Key)
-	if metric != nil {
-		record := &service.Record{
-			RecordType: &service.Record_Metric{
-				Metric: metric,
-			},
-			Control: &service.Control{
-				Local: true,
-			},
-		}
-		h.handleMetric(record, metric)
-	}
-	return metric
-}
-
-// handlePartialHistory handles a partial history request. Collects the history items until a full
-// history record is received.
+// The main entry point for partial history records.
+//
+// This collects partial history records until a full history record is
+// received. A full history record is recieved when the condition for flushing
+// the history record is met. The condition for flushing the history record is
+// determined by the action in the partial history request and the step number.
+// Once a full history record is received, it is forwarded to the writer.
 func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
 	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
@@ -1046,8 +992,11 @@ func (h *Handler) handlePartialHistory(_ *service.Record, request *service.Parti
 	}
 }
 
-// handlePartialHistoryAsync handles a partial history request asynchronously. It is responsible for
-// collecting the history items until a full history record is received. This is the asynchronous version of handlePartialHistory.
+// The main entry point for partial history records in the shared mode.
+//
+// This collects partial history records until a full history record is
+// received. This is the asynchronous version of handlePartialHistory.
+// In this mode, the server will assign a step number to the history record.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
 	if h.activeHistory == nil {
@@ -1071,8 +1020,13 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	}
 }
 
-// handlePartialHistorySync handles a partial history request. Collects the history items until a full
-// history record is received. This is the synchronous version of handlePartialHistory.
+// The main entry point for partial history records in the non-shared mode.
+//
+// This collects partial history records until a full history record is
+// received. This is the synchronous version of handlePartialHistory.
+// In this mode, the client will assign a step number to the history record.
+// The client is responsible for ensuring that the step number is monotonically
+// increasing.
 func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
 
 	// This is the first partial history record we receive
@@ -1082,7 +1036,8 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	if h.activeHistory == nil {
 
 		h.activeHistory = NewActiveHistory(
-			// Although technically the backend allows negative steps, in practice it is all set up to work with non-negative steps
+			// Although technically the backend allows negative steps,
+			// in practice it is all set up to work with non-negative steps
 			// so if we receive a negative step, it will be discarded
 			WithStep(h.runRecord.GetStartingStep()),
 			WithFlush(
@@ -1119,12 +1074,12 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// -  If the step number in the request matches the current step number, the
 	//		history items are appended to the current history record.
 	//
-	// - If the request has a flush flag, another flush might occur after for the
-	// current history record after processing the request.
+	// - If the request has a flush flag, another flush might occur after for
+	// the current history record after processing the request.
 	//
-	// - If the request doesn't have a step, and doesn't have a flush flag, this is
-	//	equivalent to step being equal to the current step number and a flush flag
-	//	being set to true.
+	// - If the request doesn't have a step, and doesn't have a flush flag, this
+	// is equivalent to step being equal to the current step number and a flush
+	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
 		current := h.activeHistory.GetStep().Num
@@ -1153,7 +1108,75 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 }
 
-func (h *Handler) handleSampledHistory(record *service.Record, response *service.Response) {
+// matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
+func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.MetricRecord {
+
+	// ignore internal history items
+	if strings.HasPrefix(item.Key, "_") {
+		return nil
+	}
+
+	// check if history item matches a defined metric exactly, if it does return the metric
+	if metric, ok := h.metricHandler.definedMetrics[item.Key]; ok {
+		return metric
+	}
+
+	// if a new metric was created, we need to handle it
+	metric := h.metricHandler.createMatchingGlobMetric(item.Key)
+	if metric != nil {
+		record := &service.Record{
+			RecordType: &service.Record_Metric{
+				Metric: metric,
+			},
+			Control: &service.Control{
+				Local: true,
+			},
+		}
+		h.handleMetric(record, metric)
+	}
+	return metric
+}
+
+// sync history item with step metric if needed
+//
+// This function checks if a history item matches a defined metric or a glob
+// metric. If the step metric is not part of the history record, and it needs to
+// be synced, the function imputes the step metric and returns it.
+func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
+
+	// check if history item matches a defined metric or a glob metric
+	metric := h.matchHistoryItemMetric(item)
+
+	key := metric.GetStepMetric()
+	// check if step metric is defined and if it needs to be synced
+	if !(metric.GetOptions().GetStepSync() && key != "") {
+		return nil
+	}
+
+	// check if step metric is already in history
+	if _, ok := h.activeHistory.GetItem(key); ok {
+		return nil
+	}
+
+	// we use the summary value of the metric as the algorithm for imputing the step metric
+	if value, ok := h.summaryHandler.consolidatedSummary[key]; ok {
+		// TODO: add nested key support
+		hi := &service.HistoryItem{
+			Key:       key,
+			ValueJson: value,
+		}
+		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
+		return hi
+	}
+	return nil
+}
+
+// samples history items and updates the history record with the sampled values
+//
+// This function samples history items and updates the history record with the
+// sampled values. It is used to diplay a subset of the history items in the
+// terminal. The sampling is done using a reservoir sampling algorithm.
+func (h *Handler) handleSampledHistory(_ *service.Record, response *service.Response) {
 	if h.sampledHistory == nil {
 		return
 	}
@@ -1175,8 +1198,14 @@ func (h *Handler) handleSampledHistory(record *service.Record, response *service
 	}
 }
 
-// flushHistory flushes a history record. It is responsible for handling the history record internally,
-// processing it, and forwarding it to the Writer.
+// flush history record to the writer and update the summary
+//
+// This function flushes the history record to the writer and updates the
+// summary. It is responsible for adding internal history items to the history
+// record, matching current history items with defined metrics, and creating
+// new metrics if needed. It also handles step metric in case it needs to be
+// synced, but not part of the history record. This function is also responsible
+// for sampling history items.
 func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	if history.GetItem() == nil {
 		return
