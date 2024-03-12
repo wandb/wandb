@@ -1083,7 +1083,7 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 }
 
-func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
 	)
@@ -1206,7 +1206,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 	s.fwdChan <- rec
 }
 
-func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
+func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
