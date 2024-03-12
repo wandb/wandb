@@ -168,7 +168,7 @@ message ConfigFilterPath {
 // an include path will be ignored.
 //
 // If exclude_paths is not empty, then endpoints of the config prefixed by an
-// exclude path will ignored.
+// exclude path will be ignored.
 message LaunchWandbConfigParametersRecord {
   repeated ConfigFilterPath include_paths = 1;
   repeated ConfigFilterPath exclude_paths = 2;

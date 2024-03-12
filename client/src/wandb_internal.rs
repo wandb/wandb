@@ -1206,7 +1206,7 @@ pub struct ConfigFilterPath {
 /// an include path will be ignored.
 ///
 /// If exclude_paths is not empty, then endpoints of the config prefixed by an
-/// exclude path will ignored.
+/// exclude path will be ignored.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct LaunchWandbConfigParametersRecord {

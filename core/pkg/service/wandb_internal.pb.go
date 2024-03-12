@@ -1710,7 +1710,7 @@ func (x *ConfigFilterPath) GetPath() []string {
 // an include path will be ignored.
 //
 // If exclude_paths is not empty, then endpoints of the config prefixed by an
-// exclude path will ignored.
+// exclude path will be ignored.
 type LaunchWandbConfigParametersRecord struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
