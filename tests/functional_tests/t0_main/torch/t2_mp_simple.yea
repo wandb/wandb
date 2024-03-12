@@ -2,6 +2,8 @@ id: 0.torch.02-mp-simple
 
 plugin:
   - wandb
+tag:
+  shard: torch
 depend:
   requirements:
     - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch

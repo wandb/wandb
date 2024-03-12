@@ -145,7 +145,6 @@ class InterfaceShared(InterfaceBase):
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
-        job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
     ) -> pb.Record:
@@ -202,8 +201,6 @@ class InterfaceShared(InterfaceBase):
             request.summary_record.CopyFrom(summary_record)
         elif telemetry_record:
             request.telemetry_record.CopyFrom(telemetry_record)
-        elif job_info:
-            request.job_info.CopyFrom(job_info)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif sync:
@@ -242,6 +239,9 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
+        launch_wandb_config_parameters: Optional[
+            pb.LaunchWandbConfigParametersRecord
+        ] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -286,6 +286,8 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
+        elif launch_wandb_config_parameters:
+            record.wandb_config_parameters.CopyFrom(launch_wandb_config_parameters)
         else:
             raise Exception("Invalid record")
         return record
@@ -389,17 +391,17 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> Any:
         rec = self._make_record(link_artifact=link_artifact)
         self._publish(rec)
 
-    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._deliver_record(rec)
+        return self._communicate_async(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
@@ -413,6 +415,14 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_alert(self, proto_alert: pb.AlertRecord) -> None:
         rec = self._make_record(alert=proto_alert)
+        self._publish(rec)
+
+    def _publish_launch_wandb_config_parameters(
+        self, launch_wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
+    ) -> None:
+        rec = self._make_record(
+            launch_wandb_config_parameters=launch_wandb_config_parameters
+        )
         self._publish(rec)
 
     def _communicate_status(
@@ -521,10 +531,6 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
-        return self._deliver_record(record)
-
-    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
-        record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

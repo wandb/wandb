@@ -42,7 +42,6 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -531,7 +530,6 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -642,7 +640,6 @@ class Run:
         self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
-        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -2424,8 +2421,6 @@ class Run:
         else:
             return artifact
 
-    # Add a recurring callback (probe) to poll the backend process
-    # for its status using the "poll_exit" message.
     def _on_probe_exit(self, probe_handle: MailboxProbe) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
@@ -2437,8 +2432,6 @@ class Run:
         handle = self._backend.interface.deliver_poll_exit()
         probe_handle.set_mailbox_handle(handle)
 
-    # Handles the progress message from the backend process and prints
-    # the current status to the terminal footer
     def _on_progress_exit(self, progress_handle: MailboxProgress) -> None:
         probe_handles = progress_handle.get_probe_handles()
         assert probe_handles and len(probe_handles) == 1
@@ -2489,7 +2482,6 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        job_info_handle = self._backend.interface.deliver_request_job_info()
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -2502,10 +2494,6 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
-
-        result = job_info_handle.wait(timeout=-1)
-        assert result
-        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2529,7 +2517,6 @@ class Run:
             server_info_response=self._server_info_response,
             check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
-            job_info=self._job_info,
             reporter=self._reporter,
             quiet=self._quiet,
             settings=self._settings,
@@ -2726,9 +2713,6 @@ class Run:
         if self._backend and self._backend.interface:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
-            # artifact logging is async, wait until the artifact is committed
-            # before trying to link it
-            artifact.wait()
             if not self._settings._offline:
                 self._backend.interface.publish_link_artifact(
                     self,
@@ -3029,7 +3013,7 @@ class Run:
         self._assert_can_log_artifact(artifact)
         if self._backend and self._backend.interface:
             if not self._settings._offline:
-                handle = self._backend.interface.deliver_artifact(
+                future = self._backend.interface.communicate_artifact(
                     self,
                     artifact,
                     aliases,
@@ -3038,9 +3022,7 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                handle.add_probe(self._on_probe_exit)
-                handle.add_progress(self._on_progress_exit)
-                artifact._set_save_handle(handle, self._public_api().client)
+                artifact._set_save_future(future, self._public_api().client)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -3518,7 +3500,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        run_url = settings.run_url
+        workspace_url = f"{settings.run_url}/workspace"
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3529,7 +3511,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3561,7 +3543,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3585,7 +3567,6 @@ class Run:
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3602,7 +3583,6 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3787,7 +3767,6 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3807,14 +3786,10 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
+                run_workspace = f"{settings.run_url}/workspace"
                 info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
                 ]
-            if job_info and job_info.version and job_info.sequenceId:
-                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
-                info.append(
-                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
-                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

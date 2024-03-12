@@ -2,6 +2,7 @@ id: 0.sb3.01-stable-baselines3
 plugin:
   - wandb
 tag:
+  shard: sb3
   skips:
     - platform: win
 depend:

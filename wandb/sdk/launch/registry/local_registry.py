@@ -2,6 +2,7 @@
 import logging
 from typing import Tuple
 
+from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import docker_image_exists
 
@@ -60,4 +61,6 @@ class LocalRegistry(AbstractRegistry):
         Returns:
             bool: True.
         """
-        return docker_image_exists(image_uri)
+        if is_docker_installed():
+            return docker_image_exists(image_uri)
+        return False
