@@ -286,17 +286,9 @@ class WandbLogger:
                 config["finished_at"]
             ).strftime("%Y-%m-%d %H:%M:%S")
         if config.get("hyperparameters"):
-            hyperparameters = config.pop("hyperparameters")
-            if isinstance(hyperparameters, Hyperparameters):
-                config["hyperparameters"] = dict(hyperparameters)
-            else:
-                config["hyperparameters"] = cls.sanitize(hyperparameters)
+            config["hyperparameters"] = cls.sanitize(config["hyperparameters"])
         if config.get("error"):
-            error = config.pop("error")
-            if isinstance(error, Error):
-                config["error"] = dict(Error)
-            else:
-                config["error"] = cls.sanitize(error)
+            config["error"] = cls.sanitize(config["error"])
         return config
 
     @classmethod
@@ -319,6 +311,8 @@ class WandbLogger:
     @staticmethod
     def sanitize(input: Any) -> dict | list | str:
         valid_types = [bool, int, float, str]
+        if isinstance(input, Hyperparameters) or isinstance(input, Error):
+            return dict(input)
         if isinstance(input, dict):
             return {k: v if type(v) in valid_types else str(v) for k, v in input.items()}
         elif isinstance(input, list):
@@ -352,8 +346,8 @@ class WandbLogger:
 
         with artifact.new_file("model_metadata.json", mode="w", encoding="utf-8") as f:
             dict_fine_tune = dict(fine_tune)
-            dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
-            dict_fine_tune["error"] = dict(dict_fine_tune["error"])
+            dict_fine_tune["hyperparameters"] =  cls.sanitize(dict_fine_tune["hyperparameters"])
+            dict_fine_tune["error"] =  cls.sanitize(dict_fine_tune["error"])
             dict_fine_tune = cls.sanitize(dict_fine_tune)
             json.dump(dict_fine_tune, f, indent=2)
         cls._run.log_artifact(
