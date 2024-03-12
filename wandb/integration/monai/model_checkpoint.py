@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Union
 
-from ignite.engine import Engine
-
 import wandb
 from wandb.util import get_module
 
@@ -97,7 +95,7 @@ class WandbModelCheckpoint(ignite_handlers.ModelCheckpoint):
             **kwargs,
         )
 
-    def __call__(self, engine: Engine, to_save: Mapping):
+    def __call__(self, engine: ignite_engine.Engine, to_save: Mapping):
         super().__call__(engine, to_save)
         artifact = wandb.Artifact(name=f"run-{wandb.run.id}-checkpoint", type="model")
         artifact.add_file(local_path=self.last_checkpoint)
