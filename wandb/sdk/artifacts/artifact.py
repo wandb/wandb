@@ -21,6 +21,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
@@ -1130,7 +1131,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
-        policy: Optional[str] = "mutable",
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1170,7 +1171,7 @@ class Artifact:
         self,
         local_path: str,
         name: Optional[str] = None,
-        policy: Optional[str] = "mutable",
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> None:
         """Add a local directory to the artifact.
 
@@ -1403,7 +1404,7 @@ class Artifact:
         name: StrPath,
         path: StrPath,
         digest: Optional[B64MD5] = None,
-        policy: Optional[str] = "mutable",
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         if policy not in ["mutable", "immutable"]:
             raise ValueError(
