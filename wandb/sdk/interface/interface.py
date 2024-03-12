@@ -821,7 +821,7 @@ class InterfaceBase:
 
     @abstractmethod
     def _publish_launch_config_file_parameter(
-        self, config_file_parameter: pb.ConfigFileParameterRecord
+        self, config_file_parameter: pb.LaunchConfigFileParameterRecord
     ) -> None:
         raise NotImplementedError
 
