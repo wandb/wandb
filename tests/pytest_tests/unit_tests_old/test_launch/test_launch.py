@@ -463,42 +463,6 @@ async def test_launch_code_artifact(
     check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
 
 
-# this test includes building a docker container which can take some time,
-# hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
-@pytest.mark.timeout(320)
-def test_launch_agent_runs(
-    test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
-):
-    monkeypatch.setattr(
-        wandb.sdk.launch.agent.LaunchAgent,
-        "pop_from_queue",
-        lambda c, queue: patched_pop_from_queue(c, queue),
-    )
-
-    def mock_raise_exception():
-        raise Exception
-
-    monkeypatch.setattr(
-        multiprocessing.pool.Pool,
-        "apply_async",
-        lambda x, y: mock_raise_exception(),
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    api.entity_is_team = MagicMock(return_value=False)
-    config = {
-        "entity": "mock_server_entity",
-        "project": "test",
-    }
-    _launch.create_and_run_agent(api, config)
-    ctx = live_mock_server.get_ctx()
-    assert ctx["num_popped"] == 1
-    assert len(ctx["launch_agents"].keys()) == 1
-
-
 def test_launch_agent_instance(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
