@@ -59,6 +59,10 @@ func NewFrom(tree RunConfigDict) *RunConfig {
 	return &RunConfig{tree}
 }
 
+// Constructs a RunConfig from a path to a configuration file.
+//
+// YAML and JSON formats are supported and specified by the file extension of
+// path.
 func NewFromConfigFile(path string) (*RunConfig, error) {
 	ext := filepath.Ext(path)
 	contents, err := os.ReadFile(path)

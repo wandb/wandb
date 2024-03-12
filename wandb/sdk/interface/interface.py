@@ -799,18 +799,23 @@ class InterfaceBase:
     def publish_config_file_parameter(
         self,
         relpath: str,
-        include: List[List[str]],
-        exclude: List[List[str]],
+        include_paths: List[List[str]],
+        exclude_paths: List[List[str]],
     ):
+        """Tells the internal process to treat a config file as a job input.
+
+        Args:
+            include_paths: paths within config to include as job inputs.
+            exclude_paths: paths within config to exclude as job inputs.
+
+        Returns:
+            None
+        """
         config_file_parameter = pb.ConfigFileParameterRecord()
         config_file_parameter.relpath = relpath
-        include_records = []
-        for path in include:
-            include_records.append(pb.ConfigFilterPath(path=path))
+        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
+        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
         config_file_parameter.include_paths.extend(include_records)
-        exclude_records = []
-        for path in exclude:
-            exclude_records.append(pb.ConfigFilterPath(path=path))
         config_file_parameter.exclude_paths.extend(exclude_records)
         return self._publish_config_file_parameter(config_file_parameter)
 
