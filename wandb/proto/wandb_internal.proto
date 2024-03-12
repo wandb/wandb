@@ -358,30 +358,42 @@ message SummaryItem {
 
 message SummaryResult {}
 
-/*
- * FilesRecord: files added to run
- */
+// Files added to a run, such as through run.save().
 message FilesRecord {
   repeated FilesItem files = 1;
   _RecordInfo _info = 200;
 }
 
+// One or more files being saved with a run.
 message FilesItem {
+  reserved 16;
+
   enum PolicyType {
+    // Upload the file immediately.
     NOW = 0;
+
+    // Upload the file during run.finish().
     END = 1;
+
+    // Re-upload the file continuously as it changes.
     LIVE = 2;
   }
+
   enum FileType {
     OTHER = 0;
     WANDB = 1;
     MEDIA = 2;
     ARTIFACT = 3;
   }
+
+  // A path or Unix glob relative to the W&B files directory.
   string path = 1;
+
+  // When to upload the file.
   PolicyType policy = 2;
+
+  // What kind of file it is.
   FileType type = 3;
-  string external_path = 16;
 }
 
 message FilesResult {}
