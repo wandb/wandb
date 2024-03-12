@@ -473,7 +473,6 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 	return source, &name, nil
 }
 
-//gocyclo:ignore
 func (j *JobBuilder) Build(
 	output map[string]interface{},
 ) (artifact *service.ArtifactRecord, rerr error) {
