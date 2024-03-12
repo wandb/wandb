@@ -402,9 +402,5 @@ class WandbStoragePolicy(StoragePolicy):
             try:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-                if entry.local_path.startswith(staging_dir):
-                    # Delete staged files as soon as they're copied to the cache
-                    # instead of waiting till all the files are uploaded
-                    os.remove(entry.local_path)
             except OSError as e:
                 termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")

@@ -1092,7 +1092,6 @@ class Artifact:
         name: str,
         mode: str = "w",
         encoding: Optional[str] = None,
-        skip_cache: Optional[bool] = False,
     ) -> Generator[IO, None, None]:
         """Open a new temporary file and add it to the artifact.
 
@@ -1100,7 +1099,6 @@ class Artifact:
             name: The name of the new file to add to the artifact.
             mode: The file access mode to use to open the new file.
             encoding: The encoding used to open the new file.
-            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
 
         Returns:
             A new file object that can be written to. Upon closing, the file will be
@@ -1128,7 +1126,7 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name, skip_cache=skip_cache, policy="immutable")
+        self.add_file(path, name=name, policy="immutable")
 
     def add_file(
         self,
