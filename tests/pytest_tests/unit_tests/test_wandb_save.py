@@ -108,5 +108,5 @@ def test_save_relative_path(
 
 
 def test_glob_dotdot(mock_run):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="may not walk up directories"):
         mock_run().save("subdir/../nvm.txt")
