@@ -702,9 +702,11 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
-	include, exclude := j.getWandbConfigFilters()
-	runConfig := j.runConfig.FilterTree(include, exclude)
-	metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	if j.runConfig != nil {
+		include, exclude := j.getWandbConfigFilters()
+		runConfig := j.runConfig.FilterTree(include, exclude)
+		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	}
 	metadata = map[string]interface{}{"input_types": metadata}
 	if output != nil {
 		metadata["output_types"] = data_types.ResolveTypes(*output)
