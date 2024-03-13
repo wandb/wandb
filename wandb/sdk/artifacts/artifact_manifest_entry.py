@@ -71,7 +71,7 @@ class ArtifactManifestEntry:
         extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
         local_path = f", local_path={self.local_path!r}" if self.local_path else ""
         skip_cache = f", skip_cache={self.skip_cache}"
-        policy = f", policy={self.policy}"
+        policy = f", policy={self.policy!r}"
         others = (
             ref + birth_artifact_id + size + extra + local_path + skip_cache + policy
         )
