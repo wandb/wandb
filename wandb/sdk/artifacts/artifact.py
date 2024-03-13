@@ -1406,6 +1406,7 @@ class Artifact:
         digest: Optional[B64MD5] = None,
         policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
+        policy = policy or "mutable"
         if policy not in ["mutable", "immutable"]:
             raise ValueError(
                 f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
