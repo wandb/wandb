@@ -59,7 +59,7 @@ func (runConfig *RunConfig) Tree() RunConfigDict {
 
 // Makes and returns a deep copy of the underlying tree.
 func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
-	clone, err := deepCopyMap(runConfig.tree)
+	clone, err := deepCopy(runConfig.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -304,72 +304,19 @@ func getOrMakeSubtree(
 
 // Returns a deep copy of the given tree.
 //
-// Note that this works on the assumption that any slices in the tree are
-// []string, []int, []float64, []bool, or []interface{}. This holds because the
-// config values come from JSON umarshalled into an interface{}.
-func deepCopyMap(tree RunConfigDict) (RunConfigDict, error) {
+// Slice values are copied by reference, which is fine for our use case.
+func deepCopy(tree RunConfigDict) (RunConfigDict, error) {
 	clone := make(RunConfigDict)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case RunConfigDict:
-			innerClone, err := deepCopyMap(value)
+			innerClone, err := deepCopy(value)
 			if err != nil {
 				return nil, err
 			}
 			clone[key] = innerClone
-		case []interface{}:
-			innerClone, err := deepCopyList(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[key] = innerClone
-		case []string:
-			clone[key] = append([]string(nil), value...)
-		case []int:
-			clone[key] = append([]int(nil), value...)
-		case []float64:
-			clone[key] = append([]float64(nil), value...)
-		case []bool:
-			clone[key] = append([]bool(nil), value...)
 		default:
-			// This is a primitive type.
 			clone[key] = value
-		}
-	}
-	return clone, nil
-}
-
-// Returns a deep copy of the given list.
-//
-// Similar to deepCopyMap above, this works on the assumption that any slices in
-// the list are of a limited set of types.
-func deepCopyList(list []interface{}) ([]interface{}, error) {
-	clone := make([]interface{}, len(list))
-	for i, value := range list {
-		switch value := value.(type) {
-		case RunConfigDict:
-			innerClone, err := deepCopyMap(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[i] = innerClone
-		case []interface{}:
-			innerClone, err := deepCopyList(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[i] = innerClone
-		case []string:
-			clone[i] = append([]string(nil), value...)
-		case []int:
-			clone[i] = append([]int(nil), value...)
-		case []float64:
-			clone[i] = append([]float64(nil), value...)
-		case []bool:
-			clone[i] = append([]bool(nil), value...)
-		default:
-			// This is a primitive type.
-			clone[i] = value
 		}
 	}
 	return clone, nil
