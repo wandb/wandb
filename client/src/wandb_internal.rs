@@ -1624,8 +1624,7 @@ pub struct SummaryItem {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SummaryResult {}
-///
-/// FilesRecord: files added to run
+/// Files added to a run, such as through run.save().
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesRecord {
@@ -1634,17 +1633,19 @@ pub struct FilesRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// One or more files being saved with a run.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
+    /// A path or Unix glob relative to the W&B files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
+    /// When to upload the file.
     #[prost(enumeration = "files_item::PolicyType", tag = "2")]
     pub policy: i32,
+    /// What kind of file it is.
     #[prost(enumeration = "files_item::FileType", tag = "3")]
     pub r#type: i32,
-    #[prost(string, tag = "16")]
-    pub external_path: ::prost::alloc::string::String,
 }
 /// Nested message and enum types in `FilesItem`.
 pub mod files_item {
@@ -1661,8 +1662,11 @@ pub mod files_item {
     )]
     #[repr(i32)]
     pub enum PolicyType {
+        /// Upload the file immediately.
         Now = 0,
+        /// Upload the file during run.finish().
         End = 1,
+        /// Re-upload the file continuously as it changes.
         Live = 2,
     }
     impl PolicyType {
