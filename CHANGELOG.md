@@ -20,6 +20,7 @@ subsections here on every PR where this is applicable.
 
 * Added `timeout` for the command that retrives the conda requirements by @kptkin in https://github.com/wandb/wandb/pull/7155
 
+
 ### Changed
 
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
