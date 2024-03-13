@@ -314,6 +314,7 @@ class Api:
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
             template_variables (dict): TIMH TEST A dictionary of template variable schemas to be used with the config. Expected format of:
+                ```
                 {
                     "var-name": {
                         "schema": {
@@ -325,6 +326,7 @@ class Api:
                         }
                     }
                 }
+                ```
 
         Returns:
             The newly created `RunQueue`
