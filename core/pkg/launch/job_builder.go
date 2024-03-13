@@ -11,6 +11,7 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -23,6 +24,7 @@ const (
 	RepoSourceType     SourceType = "repo"
 	ArtifactSourceType SourceType = "artifact"
 	ImageSourceType    SourceType = "image"
+	WandbConfigKey     string     = "@wandb.config"
 )
 
 const REQUIREMENTS_FNAME = "requirements.txt"
@@ -153,11 +155,14 @@ type JobBuilder struct {
 
 	PartialJobSource *PartialJobSource
 
-	Disable         bool
-	settings        *service.Settings
-	RunCodeArtifact *ArtifactInfoForJob
-	aliases         []string
-	isNotebookRun   bool
+	Disable               bool
+	settings              *service.Settings
+	RunCodeArtifact       *ArtifactInfoForJob
+	aliases               []string
+	isNotebookRun         bool
+	runConfig             *runconfig.RunConfig
+	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
+	saveShapeToMetadata   bool
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -178,10 +183,11 @@ func MakeArtifactNameSafe(name string) string {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:      settings,
-		isNotebookRun: settings.GetXJupyter().GetValue(),
-		logger:        logger,
-		Disable:       settings.GetDisableJobCreation().GetValue(),
+		settings:            settings,
+		isNotebookRun:       settings.GetXJupyter().GetValue(),
+		logger:              logger,
+		Disable:             settings.GetDisableJobCreation().GetValue(),
+		saveShapeToMetadata: false,
 	}
 	return &jobBuilder
 }
@@ -223,6 +229,10 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 	}
 	return metadata.CodePath
 
+}
+
+func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
+	j.runConfig = &config
 }
 
 func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
@@ -464,7 +474,7 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 }
 
 func (j *JobBuilder) Build(
-	input, output map[string]interface{},
+	output map[string]interface{},
 ) (artifact *service.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
 	if j.Disable {
@@ -540,12 +550,20 @@ func (j *JobBuilder) Build(
 	}
 
 	sourceInfo.Runtime = metadata.Python
-
-	if input != nil {
-		sourceInfo.InputTypes = data_types.ResolveTypes(input)
-	}
 	if output != nil {
 		sourceInfo.OutputTypes = data_types.ResolveTypes(output)
+	}
+	var metadataString string
+	if j.saveShapeToMetadata {
+		metadataString, err = j.makeJobMetadata(&sourceInfo.OutputTypes)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		metadataString = ""
+		if j.runConfig != nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
+		}
 	}
 
 	baseArtifact := &service.ArtifactRecord{
@@ -553,7 +571,7 @@ func (j *JobBuilder) Build(
 		Project:          j.settings.Project.Value,
 		RunId:            j.settings.RunId.Value,
 		Name:             *name,
-		Metadata:         "",
+		Metadata:         metadataString,
 		Type:             "job",
 		Aliases:          j.aliases,
 		Finalize:         true,
@@ -679,7 +697,46 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
 		JobSourceInfo: jobSourceMetadata,
 	}
+}
 
+// Makes job input schema into a json string to be stored as artifact metdata.
+func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
+	metadata := make(map[string]interface{})
+	if j.runConfig != nil {
+		include, exclude := j.getWandbConfigFilters()
+		runConfig := j.runConfig.FilterTree(include, exclude)
+		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+	}
+	metadata = map[string]interface{}{"input_types": metadata}
+	if output != nil {
+		metadata["output_types"] = data_types.ResolveTypes(*output)
+	}
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return "", err
+	}
+	return string(metadataBytes), nil
+}
+
+// Converts received LaunchWandbConfigParametersRecords into include and exclude paths.
+func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
+	include := make([]runconfig.RunConfigPath, 0)
+	exclude := make([]runconfig.RunConfigPath, 0)
+	if len(j.wandbConfigParameters) > 0 {
+		for _, wandbConfigParameters := range j.wandbConfigParameters {
+			if wandbConfigParameters.IncludePaths != nil {
+				for _, includePath := range wandbConfigParameters.IncludePaths {
+					include = append(include, includePath.Path)
+				}
+			}
+			if wandbConfigParameters.ExcludePaths != nil {
+				for _, excludePath := range wandbConfigParameters.ExcludePaths {
+					exclude = append(exclude, excludePath.Path)
+				}
+			}
+		}
+	}
+	return include, exclude
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
@@ -696,4 +753,9 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
+}
+
+func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
+	j.saveShapeToMetadata = true
+	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
 }
