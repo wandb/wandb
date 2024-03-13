@@ -1901,6 +1901,11 @@ class Run:
         for path in glob.glob(glob_str):
             file_name = os.path.relpath(path, base_path)
             abs_path = os.path.abspath(path)
+            if os.path.getsize(abs_path) == 0:
+                wandb.termwarn(
+                    "%s is an empty file, it won't be uploaded to wandb." % abs_path
+                )
+                continue
             wandb_path = os.path.join(self._settings.files_dir, file_name)
             filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
             # We overwrite symlinks because namespaces can change in Tensorboard
