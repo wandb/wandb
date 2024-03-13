@@ -5,7 +5,10 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// Represents the wandb config filters received by the internal process.
+// Selector for job inputs from the wandb.config.
+//
+// The includePaths and excludePaths are used to filter down the run config
+// before it is converted to a schema and saved as job inputs.
 type launchWandbConfigParameters struct {
 	includePaths []ConfigPath
 	excludePaths []ConfigPath
@@ -15,13 +18,17 @@ func newWandbConfigParameters() *launchWandbConfigParameters {
 	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}}
 }
 
-func (p *launchWandbConfigParameters) appendIncludePaths(includePaths []*service.ConfigFilterPath) {
+func (p *launchWandbConfigParameters) appendIncludePaths(
+	includePaths []*service.ConfigFilterPath,
+) {
 	for _, path := range includePaths {
 		p.includePaths = append(p.includePaths, path.Path)
 	}
 }
 
-func (p *launchWandbConfigParameters) appendExcludePaths(excludePaths []*service.ConfigFilterPath) {
+func (p *launchWandbConfigParameters) appendExcludePaths(
+	excludePaths []*service.ConfigFilterPath,
+) {
 	for _, path := range excludePaths {
 		p.excludePaths = append(p.excludePaths, path.Path)
 	}
@@ -49,11 +56,16 @@ func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
 		))
 }
 
-// Saves the received LaunchWandbConfigParametersRecords for later use.
+// Handle a LaunchWandbConfigParametersRecord published to the internal process.
 //
-// Also sets a flag to save the shape of the run config to the metadata rather
-// than `wandb-job.json`.
-func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
+// If a record is received, the job builder captures the includePaths and
+// excludePaths from the record and sets a flag to save the shape of the job
+// inputs to the job metadata. The includePaths and excludePaths are used to
+// filter down the run config before it is converted to a schema and saved as
+// part of the job inputs.
+func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(
+	wandbConfigParameters *service.LaunchWandbConfigParametersRecord,
+) {
 	j.saveShapeToMetadata = true
 	j.wandbConfigParameters.appendIncludePaths(wandbConfigParameters.IncludePaths)
 	j.wandbConfigParameters.appendExcludePaths(wandbConfigParameters.ExcludePaths)
