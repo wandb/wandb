@@ -18,9 +18,6 @@ subsections here on every PR where this is applicable.
 
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 
-* Added `timeout` for the command that retrives the conda requirements by @kptkin in https://github.com/wandb/wandb/pull/7155
-
-
 ### Changed
 
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
