@@ -161,3 +161,26 @@ def test_save_cannot_escape_base_path(tmp_path: pathlib.Path, mock_run):
             str(tmp_path / ".." / "file.txt"),
             base_path=str(tmp_path),
         )
+
+
+def test_save_bytes_glob(monkeypatch, tmp_path: pathlib.Path, mock_run):
+    # Use a fake working directory for the test.
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("my_file.txt").touch()
+
+    run = mock_run()
+    run.save(b"my_file.txt")
+
+    assert pathlib.Path(run.dir, "my_file.txt").exists()
+
+
+def test_save_g3_path_warns(mock_run, capsys):
+    mock_run().save("gs://file.txt")
+
+    assert "cloud storage url, can't save" in capsys.readouterr().err
+
+
+def test_save_s3_path_warns(mock_run, capsys):
+    mock_run().save("s3://file.txt")
+
+    assert "cloud storage url, can't save" in capsys.readouterr().err

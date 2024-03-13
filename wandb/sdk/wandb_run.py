@@ -1891,13 +1891,11 @@ class Run:
         if isinstance(glob_str, bytes):
             # Preserved for backward compatibility: allow bytes inputs.
             glob_str = glob_str.decode("utf-8")
-        elif isinstance(glob_str, str) and (
+        if isinstance(glob_str, str) and (
             glob_str.startswith("gs://") or glob_str.startswith("s3://")
         ):
             # Provide a better error message for a common misuse.
-            wandb.termlog(
-                f"{glob_str} is a cloud storage url, can't save file to wandb."
-            )
+            wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
         glob_path = pathlib.Path(glob_str)
 
