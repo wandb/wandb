@@ -314,7 +314,7 @@ class WandbLogger:
     @staticmethod
     def sanitize(input: Any) -> Union[Dict, List, str]:
         valid_types = [bool, int, float, str]
-        if isinstance(input, Hyperparameters) or isinstance(input, Error):
+        if isinstance(input, (Hyperparameters, Error)):
             return dict(input)
         if isinstance(input, dict):
             return {
