@@ -306,7 +306,7 @@ func getOrMakeSubtree(
 //
 // Note that this works on the assumption that any slices in the tree are
 // []string, []int, []float64, []bool, or []interface{}. This holds because the
-// config values are always unmarshalled from JSON without any custom type wrangling.
+// config values come from JSON umarshalled into an interface{}.
 func deepCopyMap(tree RunConfigDict) (RunConfigDict, error) {
 	clone := make(RunConfigDict)
 	for key, value := range tree {
