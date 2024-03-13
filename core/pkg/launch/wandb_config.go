@@ -58,7 +58,7 @@ func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
 	}
 	config := NewConfigFrom(tree)
 	return data_types.ResolveTypes(
-		config.FilterTree(
+		config.filterTree(
 			j.wandbConfigParameters.include(),
 			j.wandbConfigParameters.exclude(),
 		))

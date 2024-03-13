@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/launch"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -955,7 +954,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		launch.WandbConfigKey: map[string]interface{}{
+		WandbConfigKey: map[string]interface{}{
 			"params": map[string]interface{}{
 				"type_map": map[string]interface{}{
 					"key1": map[string]interface{}{
@@ -998,7 +997,6 @@ func TestConfigFileParameters(t *testing.T) {
 		},
 		"codePath": "/path/to/train.py",
 	}
-
 	fdir := filepath.Join(os.TempDir(), "test")
 	err := os.MkdirAll(fdir, 0777)
 	assert.Nil(t, err)
@@ -1010,7 +1008,6 @@ func TestConfigFileParameters(t *testing.T) {
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
-
 	defer os.RemoveAll(fdir)
 	settings := &service.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
@@ -1019,13 +1016,14 @@ func TestConfigFileParameters(t *testing.T) {
 		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
+
 	jobBuilder.HandleConfigFileParameterRecord(&service.LaunchConfigFileParameterRecord{
 		Relpath:      "config.yaml",
 		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4"}}},
 	})
-
 	artifact, err := jobBuilder.Build(nil)
+
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)

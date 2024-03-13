@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/segmentio/encoding/json"
-	"gopkg.in/yaml.v3"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/runconfig"
@@ -163,7 +162,7 @@ type JobBuilder struct {
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
 	wandbConfigParameters *launchWandbConfigParameters
-	configFiles           []*service.LaunchConfigFileParameterRecord
+	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
 }
 
@@ -709,7 +708,7 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		metadata[WandbConfigKey] = j.getWandbConfigInputs()
 	}
 	for _, configFile := range j.configFiles {
-		metadata[configFile.Relpath] = j.generateConfigFileSchema(configFile)
+		metadata[configFile.relpath] = j.generateConfigFileSchema(configFile)
 	}
 	metadata = map[string]interface{}{"input_types": metadata}
 	if output != nil {
@@ -720,58 +719,6 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		return "", err
 	}
 	return string(metadataBytes), nil
-}
-
-// Infers the structure of a config file.
-//
-// This returns the tree structure and data types of the given config file after filtering
-// its subtrees according to the 'include' and 'exclude' paths in the record.
-func (j *JobBuilder) generateConfigFileSchema(
-	configFile *service.LaunchConfigFileParameterRecord,
-) data_types.TypeRepresentation {
-	path := filepath.Join(j.settings.FilesDir.GetValue(), "configs", configFile.Relpath)
-	config, err := runConfigFromFilePath(path)
-	if err != nil {
-		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
-		return data_types.TypeRepresentation{}
-	}
-	include := make([]ConfigPath, len(configFile.IncludePaths))
-	exclude := make([]ConfigPath, len(configFile.ExcludePaths))
-	for i, path := range configFile.IncludePaths {
-		include[i] = ConfigPath(path.Path)
-	}
-	for i, path := range configFile.ExcludePaths {
-		exclude[i] = ConfigPath(path.Path)
-	}
-	return data_types.ResolveTypes((config.FilterTree(include, exclude)))
-}
-
-// Constructs a RunConfig from a path to a configuration file.
-//
-// YAML and JSON formats are supported and specified by the file extension of
-// path.
-func runConfigFromFilePath(path string) (*Config, error) {
-	ext := filepath.Ext(path)
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	switch ext {
-	case ".json":
-		var tree runconfig.RunConfigDict
-		if err := json.Unmarshal(contents, &tree); err != nil {
-			return nil, err
-		}
-		return NewConfigFrom(tree), nil
-	case ".yaml", ".yml":
-		var tree runconfig.RunConfigDict
-		if err := yaml.Unmarshal(contents, &tree); err != nil {
-			return nil, err
-		}
-		return NewConfigFrom(tree), nil
-	default:
-		return nil, fmt.Errorf("config: unknown file extension: %v", ext)
-	}
 }
 
 func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
@@ -788,9 +735,4 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
-}
-
-func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.LaunchConfigFileParameterRecord) {
-	j.saveShapeToMetadata = true
-	j.configFiles = append(j.configFiles, configFileParameter)
 }
