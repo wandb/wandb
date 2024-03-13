@@ -51,7 +51,11 @@ func (p *launchWandbConfigParameters) exclude() []ConfigPath {
 // If there are any errors in the process, the function logs them and returns
 // an unknown type representation. The errors should never happen in practice.
 func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
-	tree := j.runConfig.CloneTree()
+	tree, err := j.runConfig.CloneTree()
+	if err != nil {
+		j.logger.Error("Failed to clone run config tree", err)
+		return data_types.TypeRepresentation{Name: data_types.UnknownTypeName}
+	}
 	config := NewConfigFrom(tree)
 	return data_types.ResolveTypes(
 		config.FilterTree(

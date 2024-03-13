@@ -124,7 +124,7 @@ func TestCloneTree(t *testing.T) {
 			"text": "xyz",
 		},
 	})
-	cloned := runConfig.CloneTree()
+	cloned, _ := runConfig.CloneTree()
 	assert.Equal(t,
 		runconfig.RunConfigDict{
 			"number": 9,
