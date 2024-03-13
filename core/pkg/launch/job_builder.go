@@ -161,7 +161,7 @@ type JobBuilder struct {
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
-	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
+	wandbConfigParameters *launchWandbConfigParameters
 	saveShapeToMetadata   bool
 }
 
@@ -183,11 +183,12 @@ func MakeArtifactNameSafe(name string) string {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:            settings,
-		isNotebookRun:       settings.GetXJupyter().GetValue(),
-		logger:              logger,
-		Disable:             settings.GetDisableJobCreation().GetValue(),
-		saveShapeToMetadata: false,
+		settings:              settings,
+		isNotebookRun:         settings.GetXJupyter().GetValue(),
+		logger:                logger,
+		Disable:               settings.GetDisableJobCreation().GetValue(),
+		wandbConfigParameters: newWandbConfigParameters(),
+		saveShapeToMetadata:   false,
 	}
 	return &jobBuilder
 }

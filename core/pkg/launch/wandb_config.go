@@ -5,36 +5,48 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+// Represents the wandb config filters received by the internal process.
+type launchWandbConfigParameters struct {
+	includePaths []ConfigPath
+	excludePaths []ConfigPath
+}
+
+func newWandbConfigParameters() *launchWandbConfigParameters {
+	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}}
+}
+
+func (p *launchWandbConfigParameters) appendIncludePaths(includePaths []*service.ConfigFilterPath) {
+	for _, path := range includePaths {
+		p.includePaths = append(p.includePaths, path.Path)
+	}
+}
+
+func (p *launchWandbConfigParameters) appendExcludePaths(excludePaths []*service.ConfigFilterPath) {
+	for _, path := range excludePaths {
+		p.excludePaths = append(p.excludePaths, path.Path)
+	}
+}
+
+func (p *launchWandbConfigParameters) include() []ConfigPath {
+	return p.includePaths
+}
+
+func (p *launchWandbConfigParameters) exclude() []ConfigPath {
+	return p.excludePaths
+}
+
 // Create a typed representation of the wandb config inputs.
 //
 // Loads config filters received by the internal process, uses them to filter
 // down a copy of the run config, and then produces a TypedRepresentation for
 // the filtered config.
 func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
-	include, exclude := j.getWandbConfigFilters()
 	config := NewConfigFrom(j.runConfig.CloneTree())
-	return data_types.ResolveTypes(config.FilterTree(include, exclude))
-}
-
-// Converts received LaunchWandbConfigParametersRecords into include and exclude paths.
-func (j *JobBuilder) getWandbConfigFilters() ([]ConfigPath, []ConfigPath) {
-	include := make([]ConfigPath, 0)
-	exclude := make([]ConfigPath, 0)
-	if len(j.wandbConfigParameters) > 0 {
-		for _, wandbConfigParameters := range j.wandbConfigParameters {
-			if wandbConfigParameters.IncludePaths != nil {
-				for _, includePath := range wandbConfigParameters.IncludePaths {
-					include = append(include, includePath.Path)
-				}
-			}
-			if wandbConfigParameters.ExcludePaths != nil {
-				for _, excludePath := range wandbConfigParameters.ExcludePaths {
-					exclude = append(exclude, excludePath.Path)
-				}
-			}
-		}
-	}
-	return include, exclude
+	return data_types.ResolveTypes(
+		config.FilterTree(
+			j.wandbConfigParameters.include(),
+			j.wandbConfigParameters.exclude(),
+		))
 }
 
 // Saves the received LaunchWandbConfigParametersRecords for later use.
@@ -43,5 +55,6 @@ func (j *JobBuilder) getWandbConfigFilters() ([]ConfigPath, []ConfigPath) {
 // than `wandb-job.json`.
 func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
 	j.saveShapeToMetadata = true
-	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
+	j.wandbConfigParameters.appendIncludePaths(wandbConfigParameters.IncludePaths)
+	j.wandbConfigParameters.appendExcludePaths(wandbConfigParameters.ExcludePaths)
 }
