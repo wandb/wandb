@@ -50,18 +50,20 @@ func (p *launchWandbConfigParameters) exclude() []ConfigPath {
 //
 // If there are any errors in the process, the function logs them and returns
 // an unknown type representation. The errors should never happen in practice.
-func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
+func (j *JobBuilder) inferRunConfigTypes() (*data_types.TypeRepresentation, error) {
 	tree, err := j.runConfig.CloneTree()
 	if err != nil {
-		j.logger.Error("Failed to clone run config tree", err)
-		return data_types.TypeRepresentation{Name: data_types.UnknownTypeName}
+		return nil, err
 	}
+
 	config := NewConfigFrom(tree)
-	return data_types.ResolveTypes(
+	typeInfo := data_types.ResolveTypes(
 		config.FilterTree(
 			j.wandbConfigParameters.include(),
 			j.wandbConfigParameters.exclude(),
-		))
+		),
+	)
+	return &typeInfo, nil
 }
 
 // Handle a LaunchWandbConfigParametersRecord published to the internal process.
