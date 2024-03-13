@@ -4,28 +4,19 @@ import (
 	"fmt"
 )
 
-// A Config representation.
-//
-// This is a type alias for refactoring purposes; it should be new type
-// otherwise.
+// Type representing a configuration tree.
 type ConfigDict = map[string]interface{}
 
 // A key path determining a node in the run config tree.
 type ConfigPath []string
 
-// The configuration of a run.
+// Wrapper around a configuration tree that provides helpful methods.
 //
-// This is usually used for hyperparameters and some run metadata like the
-// start time and the ML framework used. In a somewhat hacky way, it is also
-// used to store programmatic custom charts for the run and various other
-// things.
-//
-// The server process builds this up incrementally throughout a run's lifetime.
+// In launch we use this to filter various configuration trees based on
+// include and exclude paths. This allows users to specify which parts of the
+// configuration tree they want to include in job inputs.
 type Config struct {
 	// The underlying configuration tree.
-	//
-	// Nodes are strings and leaves are types supported by JSON,
-	// such as primitives and lists.
 	tree ConfigDict
 }
 
@@ -36,13 +27,6 @@ type Config struct {
 // want to check if a path is in the map, you need to use the address of the
 // path or iterate over the map and compare the paths.
 type PathMap map[*ConfigPath]interface{}
-
-type ConfigFormat int
-
-const (
-	FormatYaml ConfigFormat = iota
-	FormatJson
-)
 
 func NewConfig() *Config {
 	return &Config{make(ConfigDict)}
