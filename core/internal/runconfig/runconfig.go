@@ -319,6 +319,14 @@ func deepCopy(tree RunConfigDict) (*RunConfigDict, error) {
 				return nil, err
 			}
 			clone[key] = innerClone
+		case []string:
+			clone[key] = append([]string(nil), value...)
+		case []int:
+			clone[key] = append([]int(nil), value...)
+		case []float64:
+			clone[key] = append([]float64(nil), value...)
+		case []bool:
+			clone[key] = append([]bool(nil), value...)
 		default:
 			clone[key] = value
 		}

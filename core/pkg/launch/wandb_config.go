@@ -47,8 +47,12 @@ func (p *launchWandbConfigParameters) exclude() []ConfigPath {
 // Loads config filters received by the internal process, uses them to filter
 // down a copy of the run config, and then produces a TypedRepresentation for
 // the filtered config.
+//
+// If there are any errors in the process, the function logs them and returns
+// an unknown type representation. The errors should never happen in practice.
 func (j *JobBuilder) getWandbConfigInputs() data_types.TypeRepresentation {
-	config := NewConfigFrom(j.runConfig.CloneTree())
+	tree := j.runConfig.CloneTree()
+	config := NewConfigFrom(tree)
 	return data_types.ResolveTypes(
 		config.FilterTree(
 			j.wandbConfigParameters.include(),
