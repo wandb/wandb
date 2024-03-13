@@ -289,6 +289,8 @@ class InterfaceShared(InterfaceBase):
             record.output_raw.CopyFrom(output_raw)
         elif launch_wandb_config_parameters:
             record.wandb_config_parameters.CopyFrom(launch_wandb_config_parameters)
+        elif config_file_parameter:
+            record.config_file_parameter.CopyFrom(config_file_parameter)
         else:
             raise Exception("Invalid record")
         return record

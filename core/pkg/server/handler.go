@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/segmentio/encoding/json"
+	"github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -266,7 +267,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_WandbConfigParameters:
 		h.handleWandbConfigParameters(record)
 	case *service.Record_ConfigFileParameter:
-		h.handleConfigFileParameter(record)
+		h.handleConfigFileParameter(record, x.ConfigFileParameter)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -1267,8 +1268,17 @@ func (h *Handler) handleWandbConfigParameters(record *service.Record) {
 	h.sendRecord(record)
 }
 
-func (h *Handler) handleConfigFileParameter(record *service.Record) {
+func (h *Handler) handleConfigFileParameter(
+	record *service.Record,
+	configFileParameter *service.LaunchConfigFileParameterRecord,
+) {
 	h.sendRecord(record)
+	fileRecord, err := launch.WriteAndSaveConfigFile(configFileParameter.GetRelpath(), h.settings.GetFilesDir().GetValue())
+	if err != nil {
+		h.logger.CaptureError("error writing config file", err)
+		return
+	}
+	h.handleFiles(fileRecord)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
