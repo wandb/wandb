@@ -705,7 +705,12 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	if j.runConfig != nil {
-		metadata[WandbConfigKey] = j.getWandbConfigInputs()
+		runConfigTypes, err := j.inferRunConfigTypes()
+		if err == nil {
+			metadata[WandbConfigKey] = runConfigTypes
+		} else {
+			j.logger.Debug("jobBuilder: error inferring run config types", err)
+		}
 	}
 	for _, configFile := range j.configFiles {
 		metadata[configFile.relpath] = j.generateConfigFileSchema(configFile)
