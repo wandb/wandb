@@ -1839,10 +1839,49 @@ pub struct ArtifactManifestEntry {
     /// Whether to avoid copying/moving files to the cache while uploading.
     #[prost(bool, tag = "8")]
     pub skip_cache: bool,
-    #[prost(string, tag = "9")]
-    pub policy: ::prost::alloc::string::String,
+    #[prost(enumeration = "artifact_manifest_entry::Policy", tag = "9")]
+    pub policy: i32,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
+}
+/// Nested message and enum types in `ArtifactManifestEntry`.
+pub mod artifact_manifest_entry {
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum Policy {
+        Mutable = 0,
+        Immutable = 1,
+    }
+    impl Policy {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Policy::Mutable => "MUTABLE",
+                Policy::Immutable => "IMMUTABLE",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "MUTABLE" => Some(Self::Mutable),
+                "IMMUTABLE" => Some(Self::Immutable),
+                _ => None,
+            }
+        }
+    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

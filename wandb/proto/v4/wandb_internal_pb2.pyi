@@ -1333,6 +1333,19 @@ global___ArtifactManifest = ArtifactManifest
 class ArtifactManifestEntry(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+    class _Policy:
+        ValueType = typing.NewType("ValueType", builtins.int)
+        V: typing_extensions.TypeAlias = ValueType
+
+    class _PolicyEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ArtifactManifestEntry._Policy.ValueType], builtins.type):
+        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+        MUTABLE: ArtifactManifestEntry._Policy.ValueType  # 0
+        IMMUTABLE: ArtifactManifestEntry._Policy.ValueType  # 1
+
+    class Policy(_Policy, metaclass=_PolicyEnumTypeWrapper): ...
+    MUTABLE: ArtifactManifestEntry.Policy.ValueType  # 0
+    IMMUTABLE: ArtifactManifestEntry.Policy.ValueType  # 1
+
     PATH_FIELD_NUMBER: builtins.int
     DIGEST_FIELD_NUMBER: builtins.int
     REF_FIELD_NUMBER: builtins.int
@@ -1352,7 +1365,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     birth_artifact_id: builtins.str
     skip_cache: builtins.bool
     """Whether to avoid copying/moving files to the cache while uploading."""
-    policy: builtins.str
+    policy: global___ArtifactManifestEntry.Policy.ValueType
     @property
     def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
     def __init__(
@@ -1366,7 +1379,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
         local_path: builtins.str = ...,
         birth_artifact_id: builtins.str = ...,
         skip_cache: builtins.bool = ...,
-        policy: builtins.str = ...,
+        policy: global___ArtifactManifestEntry.Policy.ValueType = ...,
         extra: collections.abc.Iterable[global___ExtraItem] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "policy", b"policy", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...

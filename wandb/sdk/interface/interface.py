@@ -47,6 +47,7 @@ if TYPE_CHECKING:
         from typing_extensions import Literal, TypedDict
 
     PolicyName = Literal["now", "live", "end"]
+    ArtifactPolicy = Literal["mutable", "immutable"]
 
     class FilesDict(TypedDict):
         files: Iterable[Tuple[GlobStr, PolicyName]]
@@ -72,6 +73,26 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
         policy = "end"
     elif enum == pb.FilesItem.PolicyType.LIVE:
         policy = "live"
+    return policy
+
+
+def artifact_policy_to_enum(
+    policy: "ArtifactPolicy",
+) -> "pb.ArtifactManifestEntry.Policy.V":
+    if policy == "mutable":
+        enum = pb.ArtifactManifestEntry.Policy.MUTABLE
+    elif policy == "immutable":
+        enum = pb.ArtifactManifestEntry.Policy.IMMUTABLE
+    return enum
+
+
+def artifact_enum_to_policy(
+    enum: "pb.ArtifactManifestEntry.Policy.V",
+) -> "ArtifactPolicy":
+    if enum == pb.ArtifactManifestEntry.Policy.MUTABLE:
+        policy: ArtifactPolicy = "mutable"
+    elif enum == pb.ArtifactManifestEntry.Policy.IMMUTABLE:
+        policy: ArtifactPolicy = "immutable"
     return policy
 
 
@@ -341,7 +362,7 @@ class InterfaceBase:
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
             proto_entry.skip_cache = entry.skip_cache
-            proto_entry.policy = entry.policy
+            proto_entry.policy = artifact_policy_to_enum(entry.policy)
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k

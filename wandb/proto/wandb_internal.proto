@@ -424,7 +424,11 @@ message ArtifactManifestEntry {
   string birth_artifact_id = 7;
   // Whether to avoid copying/moving files to the cache while uploading.
   bool skip_cache = 8;
-  string policy = 9;
+  enum Policy {
+    MUTABLE = 0;
+    IMMUTABLE = 1;
+  }
+  Policy policy = 9;
   repeated ExtraItem extra = 16;
 }
 
