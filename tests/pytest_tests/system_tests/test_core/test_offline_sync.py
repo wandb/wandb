@@ -45,10 +45,6 @@ def test_beta_sync(wandb_init, runner, mark_synced):
         assert not os.path.exists(f"{run.settings.sync_file}.synced")
 
 
-# @pytest.mark.skip(
-#     reason="this test trips over the local-testcontainer with what looks like a race."
-#     "manifestation: upsertBucket returns 200 with an error message."
-# )
 def test_beta_sync_two_runs(user, test_settings, runner):
     _ = pytest.importorskip("wandb_core")
     os.makedirs(".wandb", exist_ok=True)

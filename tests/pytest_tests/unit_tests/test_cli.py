@@ -57,33 +57,6 @@ def empty_netrc(monkeypatch):
     monkeypatch.setattr(netrc, "netrc", lambda *args: FakeNet())
 
 
-@pytest.mark.skip(reason="Currently dont have on in cling")
-def test_enable_on(runner, git_repo):
-    with runner.isolated_filesystem():
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject=rad")
-        result = runner.invoke(cli.on)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert "W&B enabled" in str(result.output)
-        assert result.exit_code == 0
-
-
-@pytest.mark.skip(reason="Currently dont have off in cling")
-def test_enable_off(runner, git_repo):
-    with runner.isolated_filesystem():
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject=rad")
-        result = runner.invoke(cli.off)
-        print(result.output)
-        print(result.exception)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert "W&B disabled" in str(result.output)
-        assert "disabled" in open("wandb/settings").read()
-        assert result.exit_code == 0
-
-
 def test_no_project_bad_command(runner):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.cli, ["fsd"])
