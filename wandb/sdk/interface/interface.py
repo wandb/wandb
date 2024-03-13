@@ -92,7 +92,7 @@ def artifact_enum_to_policy(
     if enum == pb.ArtifactManifestEntry.Policy.MUTABLE:
         policy: ArtifactPolicy = "mutable"
     elif enum == pb.ArtifactManifestEntry.Policy.IMMUTABLE:
-        policy: ArtifactPolicy = "immutable"
+        policy = "immutable"
     return policy
 
 
