@@ -187,3 +187,30 @@ func TestFilterTree_IncludeAndExclude(t *testing.T) {
 		include_exclude_tree,
 	)
 }
+
+func TestFilterDoesntMutateConfig(t *testing.T) {
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+		"number": 9,
+		"nested": runconfig.RunConfigDict{
+			"list": []string{"a", "b", "c"},
+			"text": "xyz",
+		},
+	})
+	include_paths := []runconfig.RunConfigPath{
+		{"nested"},
+	}
+	exclude_paths := []runconfig.RunConfigPath{
+		{"nested", "text"},
+	}
+	runConfig.FilterTree(include_paths, exclude_paths)
+	assert.Equal(t,
+		runconfig.NewFrom(runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		}),
+		runConfig,
+	)
+}

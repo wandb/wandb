@@ -771,14 +771,14 @@ class InterfaceBase:
     ):
         """Tells the internal process to treat wandb.config fields as job inputs.
 
-        Args:
-            paths: List of paths. Each paths is a list of keys that can be used to
-                traverse the wandb.config dictionary.
-            exclude: If True, the given paths are filtered out the job input. If False,
-                only the given paths are included in the job input.
+        The paths provided as arguments are sequences of dictionary keys that
+        specify a path within the wandb.config. If a path is included, the
+        corresponding field will be treated as a job input. If a path is
+        excluded, the corresponding field will not be treated as a job input.
 
-        Raises:
-            ValueError: If both exclude and include are provided.
+        Args:
+            include_paths: paths within config to include as job inputs.
+            exclude_paths: paths within config to exclude as job inputs.
 
         Returns:
             None
