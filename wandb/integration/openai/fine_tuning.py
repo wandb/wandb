@@ -3,7 +3,7 @@ import io
 import json
 import re
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union, List
 
 import wandb
 from wandb import util
@@ -309,7 +309,7 @@ class WandbLogger:
         return hyperparams
     
     @staticmethod
-    def sanitize(input: Any) -> dict | list | str:
+    def sanitize(input: Any) -> Union[Dict, List, str]:
         valid_types = [bool, int, float, str]
         if isinstance(input, Hyperparameters) or isinstance(input, Error):
             return dict(input)
