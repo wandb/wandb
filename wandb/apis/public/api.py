@@ -307,26 +307,29 @@ class Api:
     ) -> "public.RunQueue":
         """Create a new run queue (launch).
 
+        Expected format for `template_variables`:
+            ```
+            {
+                "var-name": {
+                    "schema": {
+                        "type": "<string/number/integer>",
+                        "default": <optional value>,
+                        "minimum": <optional minimum>,
+                        "maximum": <optional maximum>,
+                        "enum": [..."<options>"]
+                    }
+                }
+            }
+            ```
+
+
         Arguments:
             name: (str) Name of the queue to create
             type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
-            template_variables (dict): TIMH TEST2 A dictionary of template variable schemas to be used with the config. Expected format of:
-                ```
-                {
-                    "var-name": {
-                        "schema": {
-                            "type": "<string \\| number \\| integer>",
-                            "default": <optional value>,
-                            "minimum": <optional minimum>,
-                            "maximum": <optional maximum>,
-                            "enum": [..."<options>"]
-                        }
-                    }
-                }
-                ```
+            template_variables (dict): A dictionary of template variable schemas to be used with the config.
 
         Returns:
             The newly created `RunQueue`
