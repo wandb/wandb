@@ -115,3 +115,38 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 }
 
 func ignoreError(_err error) {}
+
+func TestCloneTree(t *testing.T) {
+	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+		"number": 9,
+		"nested": runconfig.RunConfigDict{
+			"list": []string{"a", "b", "c"},
+			"text": "xyz",
+		},
+	})
+	cloned, _ := runConfig.CloneTree()
+	assert.Equal(t,
+		runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		},
+		cloned,
+	)
+	assert.NotEqual(t, runConfig, cloned)
+	// Delete elements from the cloned tree and check that the original is unchanged.
+	delete(cloned, "number")
+	delete(cloned["nested"].(runconfig.RunConfigDict), "list")
+	assert.Equal(t,
+		runconfig.RunConfigDict{
+			"number": 9,
+			"nested": runconfig.RunConfigDict{
+				"list": []string{"a", "b", "c"},
+				"text": "xyz",
+			},
+		},
+		runConfig.Tree(),
+	)
+}

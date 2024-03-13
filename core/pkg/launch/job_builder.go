@@ -735,13 +735,13 @@ func (j *JobBuilder) generateConfigFileSchema(
 		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
 		return data_types.TypeRepresentation{}
 	}
-	include := make([]runconfig.RunConfigPath, len(configFile.IncludePaths))
-	exclude := make([]runconfig.RunConfigPath, len(configFile.ExcludePaths))
+	include := make([]ConfigPath, len(configFile.IncludePaths))
+	exclude := make([]ConfigPath, len(configFile.ExcludePaths))
 	for i, path := range configFile.IncludePaths {
-		include[i] = runconfig.RunConfigPath(path.Path)
+		include[i] = ConfigPath(path.Path)
 	}
 	for i, path := range configFile.ExcludePaths {
-		exclude[i] = runconfig.RunConfigPath(path.Path)
+		exclude[i] = ConfigPath(path.Path)
 	}
 	return data_types.ResolveTypes((config.FilterTree(include, exclude)))
 }
@@ -750,7 +750,7 @@ func (j *JobBuilder) generateConfigFileSchema(
 //
 // YAML and JSON formats are supported and specified by the file extension of
 // path.
-func runConfigFromFilePath(path string) (*runconfig.RunConfig, error) {
+func runConfigFromFilePath(path string) (*Config, error) {
 	ext := filepath.Ext(path)
 	contents, err := os.ReadFile(path)
 	if err != nil {
@@ -762,13 +762,13 @@ func runConfigFromFilePath(path string) (*runconfig.RunConfig, error) {
 		if err := json.Unmarshal(contents, &tree); err != nil {
 			return nil, err
 		}
-		return runconfig.NewFrom(tree), nil
+		return NewConfigFrom(tree), nil
 	case ".yaml", ".yml":
 		var tree runconfig.RunConfigDict
 		if err := yaml.Unmarshal(contents, &tree); err != nil {
 			return nil, err
 		}
-		return runconfig.NewFrom(tree), nil
+		return NewConfigFrom(tree), nil
 	default:
 		return nil, fmt.Errorf("config: unknown file extension: %v", ext)
 	}
