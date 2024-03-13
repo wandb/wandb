@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/pkg/launch"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -47,16 +48,6 @@ func writeDiffFile(t *testing.T, fdir string) {
 	f.Close()
 }
 
-func writeFile(t *testing.T, fdir string, fname string, content string) {
-	f, err := os.OpenFile(filepath.Join(fdir, fname), os.O_CREATE|os.O_WRONLY, 0777)
-	assert.Nil(t, err)
-	_, err = f.WriteString(content)
-	assert.Nil(t, err)
-	err = f.Sync()
-	assert.Nil(t, err)
-	f.Close()
-}
-
 func toWrapperPb(val interface{}) interface{} {
 	switch v := val.(type) {
 	case string:
@@ -69,6 +60,16 @@ func toWrapperPb(val interface{}) interface{} {
 		}
 	}
 	return nil
+}
+
+func writeFile(t *testing.T, fdir string, fname string, content string) {
+	f, err := os.OpenFile(filepath.Join(fdir, fname), os.O_CREATE|os.O_WRONLY, 0777)
+	assert.Nil(t, err)
+	_, err = f.WriteString(content)
+	assert.Nil(t, err)
+	err = f.Sync()
+	assert.Nil(t, err)
+	f.Close()
 }
 
 func TestJobBuilderRepo(t *testing.T) {
@@ -954,7 +955,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
-		WandbConfigKey: map[string]interface{}{
+		launch.WandbConfigKey: map[string]interface{}{
 			"params": map[string]interface{}{
 				"type_map": map[string]interface{}{
 					"key1": map[string]interface{}{
@@ -974,12 +975,12 @@ func TestWandbConfigParameters(t *testing.T) {
 									},
 								},
 							},
-							"wb_type": "typedDict",
 						},
+						"wb_type": "typedDict",
 					},
 				},
-				"wb_type": "typedDict",
 			},
+			"wb_type": "typedDict",
 		},
 	}, inputs)
 }

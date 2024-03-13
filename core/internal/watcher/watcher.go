@@ -146,8 +146,20 @@ func (w *Watcher) addFile(path string, info os.FileInfo, fn func(Event) error) e
 		return fmt.Errorf("watcher: failed to watch file: %v", err)
 	}
 
+	createEvent := Event{
+		fw.Event{
+			Op:       fw.Create,
+			Path:     path,
+			FileInfo: info,
+		},
+	}
+	if err := fn(createEvent); err != nil {
+		w.logger.CaptureError("error handling event", err, "event", createEvent)
+	}
+
+	// Add to registry after to guarantee that Create events are emitted before
+	// any other events.
 	w.registry.register(path, fn)
-	w.triggerEvent(fw.Create, path, info)
 
 	return nil
 }
@@ -162,8 +174,6 @@ func (w *Watcher) addDirectory(path string, fn func(Event) error) error {
 		return fmt.Errorf("watcher: failed to watch directory: %v", err)
 	}
 
-	w.registry.register(path, fn)
-
 	for _, file := range files {
 		info, err := file.Info()
 		if err != nil {
@@ -176,17 +186,21 @@ func (w *Watcher) addDirectory(path string, fn func(Event) error) error {
 			continue
 		}
 
-		w.triggerEvent(fw.Create, filepath.Join(path, file.Name()), info)
+		createEvent := Event{
+			fw.Event{
+				Op:       fw.Create,
+				Path:     filepath.Join(path, file.Name()),
+				FileInfo: info,
+			},
+		}
+		if err := fn(createEvent); err != nil {
+			w.logger.CaptureError("error handling event", err, "event", createEvent)
+		}
 	}
+
+	// Add to registry after to guarantee that Create events are emitted before
+	// any other events.
+	w.registry.register(path, fn)
 
 	return nil
-}
-
-// Manually sends a file event.
-func (w *Watcher) triggerEvent(op fw.Op, path string, info os.FileInfo) {
-	w.watcher.Event <- fw.Event{
-		Op:       op,
-		Path:     path,
-		FileInfo: info,
-	}
 }

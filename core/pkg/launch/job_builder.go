@@ -162,7 +162,7 @@ type JobBuilder struct {
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
-	wandbConfigParameters []*service.LaunchWandbConfigParametersRecord
+	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*service.LaunchConfigFileParameterRecord
 	saveShapeToMetadata   bool
 }
@@ -185,11 +185,12 @@ func MakeArtifactNameSafe(name string) string {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:            settings,
-		isNotebookRun:       settings.GetXJupyter().GetValue(),
-		logger:              logger,
-		Disable:             settings.GetDisableJobCreation().GetValue(),
-		saveShapeToMetadata: false,
+		settings:              settings,
+		isNotebookRun:         settings.GetXJupyter().GetValue(),
+		logger:                logger,
+		Disable:               settings.GetDisableJobCreation().GetValue(),
+		saveShapeToMetadata:   false,
+		wandbConfigParameters: newWandbConfigParameters(),
 	}
 	return &jobBuilder
 }
@@ -234,7 +235,7 @@ func (j *JobBuilder) getProgramRelpath(metadata RunMetadata, sourceType SourceTy
 }
 
 func (j *JobBuilder) SetRunConfig(config runconfig.RunConfig) {
-	j.runConfig = config
+	j.runConfig = &config
 }
 
 func (j *JobBuilder) GetSourceType(metadata RunMetadata) (*SourceType, error) {
@@ -567,18 +568,6 @@ func (j *JobBuilder) Build(
 			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
 		}
 	}
-	var metadataString string
-	if j.saveShapeToMetadata {
-		metadataString, err = j.makeJobMetadata(&sourceInfo.OutputTypes)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		metadataString = ""
-		if j.runConfig != nil {
-			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
-		}
-	}
 
 	baseArtifact := &service.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
@@ -717,9 +706,10 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	if j.runConfig != nil {
-		include, exclude := j.getWandbConfigFilters()
-		runConfig := j.runConfig.FilterTree(include, exclude)
-		metadata[WandbConfigKey] = data_types.ResolveTypes(runConfig)
+		metadata[WandbConfigKey] = j.getWandbConfigInputs()
+	}
+	for _, configFile := range j.configFiles {
+		metadata[configFile.Relpath] = j.generateConfigFileSchema(configFile)
 	}
 	metadata = map[string]interface{}{"input_types": metadata}
 	if output != nil {
@@ -730,27 +720,6 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		return "", err
 	}
 	return string(metadataBytes), nil
-}
-
-// Converts received LaunchWandbConfigParametersRecords into include and exclude paths.
-func (j *JobBuilder) getWandbConfigFilters() ([]runconfig.RunConfigPath, []runconfig.RunConfigPath) {
-	include := make([]runconfig.RunConfigPath, 0)
-	exclude := make([]runconfig.RunConfigPath, 0)
-	if len(j.wandbConfigParameters) > 0 {
-		for _, wandbConfigParameters := range j.wandbConfigParameters {
-			if wandbConfigParameters.IncludePaths != nil {
-				for _, includePath := range wandbConfigParameters.IncludePaths {
-					include = append(include, includePath.Path)
-				}
-			}
-			if wandbConfigParameters.ExcludePaths != nil {
-				for _, excludePath := range wandbConfigParameters.ExcludePaths {
-					exclude = append(exclude, excludePath.Path)
-				}
-			}
-		}
-	}
-	return include, exclude
 }
 
 // Infers the structure of a config file.
@@ -819,11 +788,6 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			Name: record.Name,
 		}
 	}
-}
-
-func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	j.saveShapeToMetadata = true
-	j.wandbConfigParameters = append(j.wandbConfigParameters, wandbConfigParameters)
 }
 
 func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.LaunchConfigFileParameterRecord) {
