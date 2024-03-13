@@ -313,7 +313,7 @@ class Api:
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
-            template_variables (dict): A dictionary of template variable schemas to be used with the config. Expected format of:
+            template_variables (dict): TIMH TEST A dictionary of template variable schemas to be used with the config. Expected format of:
                 {
                     "var-name": {
                         "schema": {
