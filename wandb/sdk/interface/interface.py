@@ -805,6 +805,7 @@ class InterfaceBase:
         """Tells the internal process to treat a config file as a job input.
 
         Args:
+            relpath: relative path to the config file from working directory.
             include_paths: paths within config to include as job inputs.
             exclude_paths: paths within config to exclude as job inputs.
 

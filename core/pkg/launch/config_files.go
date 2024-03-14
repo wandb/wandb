@@ -2,8 +2,6 @@ package launch
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/internal/data_types"
@@ -51,51 +49,6 @@ func (j *JobBuilder) generateConfigFileSchema(
 	return data_types.ResolveTypes((config.filterTree(
 		configFile.includePaths, configFile.excludePaths,
 	)))
-}
-
-// Write config to files directory and return a record for the file handler.
-//
-// sourcePath is a relative path to the config file from the current working directory.
-// filesDir is the directory where the config file will be saved, assumed to be
-// a run files directory. sourcePath can not have any backwards path traversal.
-//
-// We save this file to the run so that we know what values this run used
-// for the corresponding job inputs.
-func WriteAndSaveConfigFile(
-	sourcePath, filesDir string,
-) (*service.Record, error) {
-	configDir := filepath.Join(filesDir, "configs")
-	if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-		return nil, err
-	}
-	source, err := os.Open(sourcePath)
-	if err != nil {
-		defer source.Close()
-		return nil, err
-	}
-	defer source.Close()
-	configFile := filepath.Join(configDir, sourcePath)
-	destination, err := os.Create(configFile)
-	if err != nil {
-		defer destination.Close()
-		return nil, err
-	}
-	if _, err := io.Copy(destination, source); err != nil {
-		return nil, err
-	}
-	defer destination.Close()
-	return &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: filepath.Join("configs", sourcePath),
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}, nil
 }
 
 func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.LaunchConfigFileParameterRecord) {
