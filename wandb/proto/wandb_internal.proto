@@ -1170,8 +1170,6 @@ message JobInputSource {
 
 // Specifies a new source for job inputs.
 //
-//
-//
 // If include_paths is not empty, then endpoints of the config not prefixed by
 // an include path will be ignored.
 //
