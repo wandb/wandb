@@ -383,7 +383,11 @@ class HandleManager:
                     updated = True
             return updated
         # If the dict is a media object, update the pointer to the latest alias
-        elif REPLACE_SUMMARY_ART_PATH_WITH_LATEST and isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
+        elif (
+            REPLACE_SUMMARY_ART_PATH_WITH_LATEST
+            and isinstance(v, dict)
+            and handler_util.metric_is_wandb_dict(v)
+        ):
             if "_latest_artifact_path" in v and "artifact_path" in v:
                 # TODO: Make non-destructive?
                 v["artifact_path"] = v["_latest_artifact_path"]
