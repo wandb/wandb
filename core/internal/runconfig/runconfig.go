@@ -57,6 +57,15 @@ func (runConfig *RunConfig) Tree() RunConfigDict {
 	return runConfig.tree
 }
 
+// Makes and returns a deep copy of the underlying tree.
+func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
+	clone, err := deepCopy(runConfig.tree)
+	if err != nil {
+		return nil, err
+	}
+	return clone, nil
+}
+
 // Updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
@@ -83,7 +92,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 			continue
 		}
 
-		if err := runConfig.updateAtPath(path, value); err != nil {
+		if err := updateAtPath(runConfig.tree, path, value); err != nil {
 			onError(err)
 			continue
 		}
@@ -204,14 +213,15 @@ func (runConfig *RunConfig) internalSubtree() RunConfigDict {
 }
 
 // Sets the value at the path in the config tree.
-func (runConfig *RunConfig) updateAtPath(
+func updateAtPath(
+	tree RunConfigDict,
 	path []string,
 	value interface{},
 ) error {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree, err := getOrMakeSubtree(runConfig.tree, pathPrefix)
+	subtree, err := getOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
 		return err
@@ -290,4 +300,24 @@ func getOrMakeSubtree(
 	}
 
 	return tree, nil
+}
+
+// Returns a deep copy of the given tree.
+//
+// Slice values are copied by reference, which is fine for our use case.
+func deepCopy(tree RunConfigDict) (RunConfigDict, error) {
+	clone := make(RunConfigDict)
+	for key, value := range tree {
+		switch value := value.(type) {
+		case RunConfigDict:
+			innerClone, err := deepCopy(value)
+			if err != nil {
+				return nil, err
+			}
+			clone[key] = innerClone
+		default:
+			clone[key] = value
+		}
+	}
+	return clone, nil
 }
