@@ -327,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1813,7 +1812,7 @@ class Run:
         """
         if step is not None:
             with telemetry.context(run=self) as tel:
-                tel.log.step = step
+                tel.log_step = True
 
         if sync is not None:
             deprecate.deprecate(
@@ -3285,8 +3284,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3378,8 +3377,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
