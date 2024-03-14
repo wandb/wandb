@@ -317,11 +317,11 @@ class Api:
                 {
                     "var-name": {
                         "schema": {
-                            "type": <"string", "number", or "integer">,
-                            "default": <optional value>,
-                            "minimum": <optional minimum>,
-                            "maximum": <optional maximum>,
-                            "enum": [..."<options>"]
+                            "type": ("string", "number", or "integer"),
+                            "default": (optional value),
+                            "minimum": (optional minimum),
+                            "maximum": (optional maximum),
+                            "enum": [..."(options)"]
                         }
                     }
                 }
