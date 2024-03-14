@@ -1296,11 +1296,19 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     class _PolicyEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ArtifactManifestEntry._Policy.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         MUTABLE: ArtifactManifestEntry._Policy.ValueType  # 0
+        """Files can be changed since they'll be copied to staging."""
         IMMUTABLE: ArtifactManifestEntry._Policy.ValueType  # 1
+        """Files cannot be changed since they won't be copied to staging."""
 
-    class Policy(_Policy, metaclass=_PolicyEnumTypeWrapper): ...
+    class Policy(_Policy, metaclass=_PolicyEnumTypeWrapper):
+        """Whether to copy files to staging or not
+        TODO: Add a DELETE policy to denote moving files to staging.
+        """
+
     MUTABLE: ArtifactManifestEntry.Policy.ValueType  # 0
+    """Files can be changed since they'll be copied to staging."""
     IMMUTABLE: ArtifactManifestEntry.Policy.ValueType  # 1
+    """Files cannot be changed since they won't be copied to staging."""
 
     PATH_FIELD_NUMBER: builtins.int
     DIGEST_FIELD_NUMBER: builtins.int

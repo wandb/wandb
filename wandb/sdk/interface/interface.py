@@ -79,21 +79,19 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 def artifact_policy_to_enum(
     policy: "ArtifactPolicy",
 ) -> "pb.ArtifactManifestEntry.Policy.V":
-    if policy == "mutable":
-        enum = pb.ArtifactManifestEntry.Policy.MUTABLE
-    elif policy == "immutable":
-        enum = pb.ArtifactManifestEntry.Policy.IMMUTABLE
-    return enum
+    return {
+        "mutable": pb.ArtifactManifestEntry.Policy.MUTABLE,
+        "immutable": pb.ArtifactManifestEntry.Policy.IMMUTABLE,
+    }[policy]
 
 
 def artifact_enum_to_policy(
     enum: "pb.ArtifactManifestEntry.Policy.V",
 ) -> "ArtifactPolicy":
-    if enum == pb.ArtifactManifestEntry.Policy.MUTABLE:
-        policy: ArtifactPolicy = "mutable"
-    elif enum == pb.ArtifactManifestEntry.Policy.IMMUTABLE:
-        policy = "immutable"
-    return policy
+    return {
+        pb.ArtifactManifestEntry.Policy.MUTABLE: "mutable",
+        pb.ArtifactManifestEntry.Policy.IMMUTABLE: "immutable",
+    }[enum]
 
 
 class InterfaceBase:

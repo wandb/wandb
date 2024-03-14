@@ -361,10 +361,14 @@ func (StatsRecord_StatsType) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_internal_proto_rawDescGZIP(), []int{39, 0}
 }
 
+// Whether to copy files to staging or not
+// TODO: Add a DELETE policy to denote moving files to staging.
 type ArtifactManifestEntry_Policy int32
 
 const (
-	ArtifactManifestEntry_MUTABLE   ArtifactManifestEntry_Policy = 0
+	// Files can be changed since they'll be copied to staging.
+	ArtifactManifestEntry_MUTABLE ArtifactManifestEntry_Policy = 0
+	// Files cannot be changed since they won't be copied to staging.
 	ArtifactManifestEntry_IMMUTABLE ArtifactManifestEntry_Policy = 1
 )
 
