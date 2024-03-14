@@ -89,7 +89,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
 def artifact_policy_to_enum(
     policy: "ArtifactPolicy",
 ) -> "pb.ArtifactManifestEntry.Policy.V":
-    policy_mapping: dict[ArtifactPolicy, ValueType] = {
+    policy_mapping: dict[ArtifactPolicy, pb.ArtifactManifestEntry.Policy.V] = {
         "mutable": pb.ArtifactManifestEntry.Policy.MUTABLE,
         "immutable": pb.ArtifactManifestEntry.Policy.IMMUTABLE,
     }
@@ -99,7 +99,7 @@ def artifact_policy_to_enum(
 def artifact_enum_to_policy(
     enum: "pb.ArtifactManifestEntry.Policy.V",
 ) -> "ArtifactPolicy":
-    policy_mapping: dict[ValueType, ArtifactPolicy] = {
+    policy_mapping: dict[pb.ArtifactManifestEntry.Policy.V, ArtifactPolicy] = {
         pb.ArtifactManifestEntry.Policy.MUTABLE: "mutable",
         pb.ArtifactManifestEntry.Policy.IMMUTABLE: "immutable",
     }
