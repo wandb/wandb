@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -731,7 +732,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1828,20 +1829,53 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str, os.PathLike]] = None,
+        base_path: Optional[Union[str, os.PathLike]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
-        """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
+        """Sync one or more files to W&B.
+
+        Relative paths are relative to the current working directory.
+
+        A Unix glob, such as "myfiles/*", is expanded at the time `save` is
+        called regardless of the `policy`. In particular, new files are not
+        picked up automatically.
+
+        A `base_path` may be provided to control the directory structure of
+        uploaded files. It should be a prefix of `glob_str`, and the direcotry
+        structure beneath it is preserved. It's best understood through
+        examples:
+
+        ```
+        wandb.save("these/are/myfiles/*")
+        # => Saves files in a "these/are/myfiles/" folder in the run.
+
+        wandb.save("these/are/myfiles/*", base_path="these")
+        # => Saves files in an "are/myfiles/" folder in the run.
+
+        wandb.save("/User/username/Documents/run123/*.txt")
+        # => Saves files in a "run123/" folder in the run.
+
+        wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        # => Saves files in a "username/Documents/run123/" folder in the run.
+
+        wandb.save("files/*/saveme.txt")
+        # => Saves each "saveme.txt" file in an appropriate subdirectory
+        # of "files/".
+        ```
 
         Arguments:
-            glob_str: (string) a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
-            base_path: (string) the base path to run the glob relative to
-            policy: (string) one of `live`, `now`, or `end`
-                - live: upload the file as it changes, overwriting the previous version
-                - now: upload the file once now
-                - end: only upload file when the run ends
+            glob_str: A relative or absolute path or Unix glob.
+            base_path: A path to use to infer a directory structure; see examples.
+            policy: One of `live`, `now`, or `end`.
+                * live: upload the file as it changes, overwriting the previous version
+                * now: upload the file once now
+                * end: upload file when the run ends
+
+        Returns:
+            Paths to the symlinks created for the matched files.
+
+            For historical reasons, this may return a boolean in legacy code.
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
@@ -1854,77 +1888,116 @@ class Run:
             )
             return True
 
-        return self._save(glob_str, base_path, policy)
+        if isinstance(glob_str, bytes):
+            # Preserved for backward compatibility: allow bytes inputs.
+            glob_str = glob_str.decode("utf-8")
+        if isinstance(glob_str, str) and (
+            glob_str.startswith("gs://") or glob_str.startswith("s3://")
+        ):
+            # Provide a better error message for a common misuse.
+            wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
+            return []
+        glob_path = pathlib.Path(glob_str)
+
+        if base_path is not None:
+            base_path = pathlib.Path(base_path)
+        elif not glob_path.is_absolute():
+            base_path = pathlib.Path(".")
+        else:
+            # Absolute glob paths with no base path get special handling.
+            wandb.termwarn(
+                "Saving files without folders. If you want to preserve "
+                "subdirectories pass base_path to wandb.save, i.e. "
+                'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                repeat=False,
+            )
+            base_path = glob_path.resolve().parent.parent
+
+        if policy not in ("live", "end", "now"):
+            raise ValueError(
+                'Only "live", "end" and "now" policies are currently supported.'
+            )
+
+        resolved_glob_path = glob_path.resolve()
+        resolved_base_path = base_path.resolve()
+
+        return self._save(
+            resolved_glob_path,
+            resolved_base_path,
+            policy,
+        )
 
     def _save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
-        policy: "PolicyName" = "live",
-    ) -> Union[bool, List[str]]:
-        if policy not in ("live", "end", "now"):
-            raise ValueError(
-                'Only "live" "end" and "now" policies are currently supported.'
-            )
-        if isinstance(glob_str, bytes):
-            glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+        glob_path: pathlib.Path,
+        base_path: pathlib.Path,
+        policy: "PolicyName",
+    ) -> List[str]:
+        # Can't use is_relative_to() because that's added in Python 3.9,
+        # but we support down to Python 3.7.
+        if not str(glob_path).startswith(str(base_path)):
+            raise ValueError("Glob may not walk above the base path")
 
-        if base_path is None:
-            if os.path.isabs(glob_str):
-                base_path = os.path.dirname(glob_str)
-                wandb.termwarn(
-                    "Saving files without folders. If you want to preserve "
-                    "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
-                    repeat=False,
-                )
-            else:
-                base_path = "."
-        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
-        if ".." + os.sep in wandb_glob_str:
-            raise ValueError("globs can't walk above base_path")
+        if glob_path == base_path:
+            raise ValueError("Glob cannot be the same as the base path")
+
+        relative_glob = glob_path.relative_to(base_path)
+        if relative_glob.parts[0] == "*":
+            raise ValueError("Glob may not start with '*' relative to the base path")
+        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
-            wandb.termlog(
-                "%s is a cloud storage url, can't save file to wandb." % glob_str
-            )
-            return []
-        files = glob.glob(os.path.join(self._settings.files_dir, wandb_glob_str))
-        warn = False
-        if len(files) == 0 and "*" in wandb_glob_str:
-            warn = True
-        for path in glob.glob(glob_str):
-            file_name = os.path.relpath(path, base_path)
-            abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self._settings.files_dir, file_name)
-            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
-            # We overwrite symlinks because namespaces can change in Tensorboard
-            if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
-                os.remove(wandb_path)
-                os.symlink(abs_path, wandb_path)
-            elif not os.path.exists(wandb_path):
-                os.symlink(abs_path, wandb_path)
-            files.append(wandb_path)
-        if warn:
-            file_str = "%i file" % len(files)
-            if len(files) > 1:
+        # Paths to the symlinks created for the globbed files.
+        wandb_files = [
+            str(path)
+            for path in pathlib.Path(
+                self._settings.files_dir,
+            ).glob(relative_glob_str)
+        ]
+
+        had_symlinked_files = len(wandb_files) > 0
+        is_star_glob = "*" in relative_glob_str
+
+        # The base_path may itself be a glob, so we can't do
+        #     base_path.glob(relative_glob_str)
+        for path_str in glob.glob(str(base_path / relative_glob_str)):
+            path = pathlib.Path(path_str).absolute()
+
+            # We can't use relative_to() because base_path may be a glob.
+            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+
+            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
+
+            wandb_files.append(str(wandb_path))
+            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Delete the symlink if it exists.
+            try:
+                wandb_path.unlink()
+            except FileNotFoundError:
+                # In Python 3.8, we would pass missing_ok=True, but as of now
+                # we support down to Python 3.7.
+                pass
+
+            wandb_path.symlink_to(path)
+
+        # Inform users that new files aren't detected automatically.
+        if not had_symlinked_files and is_star_glob:
+            file_str = f"{len(wandb_files)} file"
+            if len(wandb_files) > 1:
                 file_str += "s"
             wandb.termwarn(
-                (
-                    "Symlinked %s into the W&B run directory, "
-                    "call wandb.save again to sync new files."
-                )
-                % file_str
+                f"Symlinked {file_str} into the W&B run directory, "
+                "call wandb.save again to sync new files."
             )
-        files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
+
+        files_dict: FilesDict = {"files": [(relative_glob_str, policy)]}
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
-        return files
+
+        return wandb_files
 
     @_run_decorator._attach
     def restore(
