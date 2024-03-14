@@ -88,10 +88,11 @@ def artifact_policy_to_enum(
 def artifact_enum_to_policy(
     enum: "pb.ArtifactManifestEntry.Policy.V",
 ) -> "ArtifactPolicy":
-    return {
+    policy_mapping = {
         pb.ArtifactManifestEntry.Policy.MUTABLE: "mutable",
         pb.ArtifactManifestEntry.Policy.IMMUTABLE: "immutable",
-    }[enum]
+    }
+    return policy_mapping.get(enum, None)
 
 
 class InterfaceBase:
