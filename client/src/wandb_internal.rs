@@ -1846,6 +1846,8 @@ pub struct ArtifactManifestEntry {
 }
 /// Nested message and enum types in `ArtifactManifestEntry`.
 pub mod artifact_manifest_entry {
+    /// Whether to copy files to staging or not
+    /// TODO: Add a DELETE policy to denote moving files to staging.
     #[derive(
         Clone,
         Copy,
@@ -1859,7 +1861,9 @@ pub mod artifact_manifest_entry {
     )]
     #[repr(i32)]
     pub enum Policy {
+        /// Files can be changed since they'll be copied to staging.
         Mutable = 0,
+        /// Files cannot be changed since they won't be copied to staging.
         Immutable = 1,
     }
     impl Policy {
