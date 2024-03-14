@@ -94,7 +94,7 @@ class ArtifactSaver:
                 base_id,
             )
         finally:
-            self._cleanup_staged_entries()
+            pass
 
     def _save_internal(
         self,
@@ -269,23 +269,3 @@ class ArtifactSaver:
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
-
-    def _cleanup_staged_entries(self) -> None:
-        """Remove all staging copies of local files.
-
-        We made a staging copy of each local file to freeze it at "add" time.
-        If we chose to skip caching, we need to delete them once we've uploaded
-        the file or confirmed we already have a committed copy.
-        """
-        staging_dir = get_staging_dir()
-        for entry in self._manifest.entries.values():
-            if (
-                entry.local_path
-                and entry.skip_cache
-                and entry.local_path.startswith(staging_dir)
-            ):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass

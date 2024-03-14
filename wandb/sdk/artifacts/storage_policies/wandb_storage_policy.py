@@ -387,8 +387,6 @@ class WandbStoragePolicy(StoragePolicy):
         return False
 
     def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
-        if entry.skip_cache:
-            return
         if entry.local_path is None:
             return
 
@@ -400,11 +398,12 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit:
             staging_dir = get_staging_dir()
             try:
-                with cache_open("wb") as f, open(entry.local_path, "rb") as src:
-                    shutil.copyfileobj(src, f)
+                if not entry.skip_cache:
+                    with cache_open("wb") as f, open(entry.local_path, "rb") as src:
+                        shutil.copyfileobj(src, f)
                 if entry.local_path.startswith(staging_dir):
-                    # Delete staged files as soon as they're copied to the cache
-                    # instead of waiting till all the files are uploaded
+                    # Delete staged files here instead of waiting till
+                    # all the files are uploaded
                     os.chmod(entry.local_path, 0o600)
                     os.remove(entry.local_path)
             except OSError as e:
