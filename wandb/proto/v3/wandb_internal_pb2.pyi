@@ -3695,8 +3695,10 @@ global___PythonPackagesRequest = PythonPackagesRequest
 class JobInputPath(google.protobuf.message.Message):
     """Path within nested configuration object.
 
-    The path is a list of strings, each string is a key in the nested configuration
-    dict.
+    The path is a list of strings, each string is a key in a nested configuration
+    dict. These paths are used to filter subtrees in and out of the config 
+    before we capture a schema. This gives users the ability to limit which
+    parts of the config are exposed as inputs to a job.
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -3717,7 +3719,7 @@ class JobInputSource(google.protobuf.message.Message):
     """Specifies a new source for job inputs.
 
     The source is either the run config (wandb.config) or a config file.
-    If a config file is specified, the file path is relative to 
+    If a config file is specified, the file path is relative to
     <run-files-dir>/configs.
     """
 
@@ -3752,8 +3754,6 @@ global___JobInputSource = JobInputSource
 
 class JobInputRequest(google.protobuf.message.Message):
     """Specifies a new source for job inputs.
-
-
 
     If include_paths is not empty, then endpoints of the config not prefixed by
     an include path will be ignored.

@@ -10393,8 +10393,10 @@ func (x *PythonPackagesRequest) GetPackage() []*PythonPackagesRequest_PythonPack
 
 // Path within nested configuration object.
 //
-// The path is a list of strings, each string is a key in the nested configuration
-// dict.
+// The path is a list of strings, each string is a key in a nested configuration
+// dict. These paths are used to filter subtrees in and out of the config
+// before we capture a schema. This gives users the ability to limit which
+// parts of the config are exposed as inputs to a job.
 type JobInputPath struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
