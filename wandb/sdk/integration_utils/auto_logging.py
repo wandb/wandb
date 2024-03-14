@@ -5,10 +5,13 @@ import logging
 import sys
 from typing import Any, Dict, Optional, Sequence, TypeVar
 
+import wandb.errors
 import wandb.sdk
 import wandb.util
 from wandb.sdk.lib import telemetry as wb_telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.timer import Timer
+from wandb.util import parse_version
 
 if sys.version_info >= (3, 8):
     from typing import Protocol
@@ -77,6 +80,24 @@ class PatchAPI:
                 f"package installed. Please install it with `pip install {lib_name}`.",
                 lazy=False,
             )
+
+            if self._api.__name__ == "openai":
+                openai_version = self._api.__version__
+                if parse_version(openai_version) <= parse_version("0.28.1"):
+                    deprecate(
+                        field_name=Deprecated.openai_autolog,
+                        warning_message=(
+                            "The OpenAI autolog feature will not be supported for openai version >= 1.0."
+                        ),
+                    )
+                else:
+                    wandb.termerror(
+                        "The W&B autolog integration works with openai <= 0.28.1. "
+                        f"Your current openai version is {openai_version}. "
+                        "Install the correct version of openai with `pip install openai==0.28.1`."
+                    )
+                    sys.exit(0)
+
         return self._api
 
     def patch(self, run: "wandb.sdk.wandb_run.Run") -> None:
