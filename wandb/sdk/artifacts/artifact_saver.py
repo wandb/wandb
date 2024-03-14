@@ -94,7 +94,7 @@ class ArtifactSaver:
                 base_id,
             )
         finally:
-            self._cleanup_staged_entries()
+            pass
 
     def _save_internal(
         self,

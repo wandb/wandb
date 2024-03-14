@@ -3,7 +3,6 @@ import hashlib
 import math
 import os
 import shutil
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 from urllib.parse import quote
 
@@ -403,9 +402,10 @@ class WandbStoragePolicy(StoragePolicy):
             try:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-                if Path(staging_dir) in Path(entry.local_path):
+                if entry.local_path.startswith(staging_dir):
                     # Delete staged files as soon as they're copied to the cache
                     # instead of waiting till all the files are uploaded
+                    os.chmod(entry.local_path, 0o600)
                     os.remove(entry.local_path)
             except OSError as e:
                 termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
