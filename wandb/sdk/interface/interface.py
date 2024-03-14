@@ -716,6 +716,51 @@ class InterfaceBase:
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         raise NotImplementedError
 
+    def publish_job_input(
+        self,
+        include_paths: List[List[str]],
+        exclude_paths: List[List[str]],
+        run_config: bool = False,
+        file_path: str = "",
+    ):
+        """Publishes a request to add inputs to the job.
+
+        If wandb_config is True, the wandb.config will be added as a job input.
+        If file_path is provided, the file at file_path will be added as a job
+        input.
+
+        The paths provided as arguments are sequences of dictionary keys that
+        specify a path within the wandb.config. If a path is included, the
+        corresponding field will be treated as a job input. If a path is
+        excluded, the corresponding field will not be treated as a job input.
+
+        Args:
+            include_paths: paths within config to include as job inputs.
+            exclude_paths: paths within config to exclude as job inputs.
+            run_config: bool indicating whether wandb.config is the input source.
+            file_path: path to file to include as a job input.
+        """
+        if run_config and file_path:
+            raise ValueError(
+                "run_config and file_path are mutually exclusive arguments."
+            )
+        request = pb.JobInputRequest()
+        include_records = [pb.JobInputPath(path=path) for path in include_paths]
+        exclude_records = [pb.JobInputPath(path=path) for path in exclude_paths]
+        request.include_paths.extend(include_records)
+        request.exclude_paths.extend(exclude_records)
+        source = pb.JobInputSource()
+        if run_config:
+            source.type = pb.JobInputSource.SourceType.RUN
+        else:
+            source.type = pb.JobInputSource.SourceType.FILE
+            source.file_path = file_path
+        return self._publish_job_input(request)
+
+    @abstractmethod
+    def _publish_job_input(self, request: pb.JobInputRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -765,50 +810,6 @@ class InterfaceBase:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
-
-    def deliver_job_input(
-        self,
-        include_paths: List[List[str]],
-        exclude_paths: List[List[str]],
-        run_config: bool = False,
-        file_path: str = "",
-    ):
-        """Delivers a request to add inputs to the job.
-
-        If wandb_config is True, the wandb.config will be added as a job input.
-        If file_path is provided, the file at file_path will be added as a job input.
-
-        The paths provided as arguments are sequences of dictionary keys that
-        specify a path within the wandb.config. If a path is included, the
-        corresponding field will be treated as a job input. If a path is
-        excluded, the corresponding field will not be treated as a job input.
-
-        Args:
-            include_paths: paths within config to include as job inputs.
-            exclude_paths: paths within config to exclude as job inputs.
-            run_config: bool indicating whether wandb.config is the input source.
-            file_path: path to file to include as a job input.
-        """
-        if run_config and file_path:
-            raise ValueError(
-                "run_config and file_path are mutually exclusive arguments."
-            )
-        request = pb.JobInputRequest()
-        include_records = [pb.JobInputPath(path=path) for path in include_paths]
-        exclude_records = [pb.JobInputPath(path=path) for path in exclude_paths]
-        request.include_paths.extend(include_records)
-        request.exclude_paths.extend(exclude_records)
-        source = pb.JobInputSource()
-        if run_config:
-            source.type = pb.JobInputSource.SourceType.RUN
-        else:
-            source.type = pb.JobInputSource.SourceType.FILE
-            source.file_path = file_path
-        return self._deliver_job_input(request)
-
-    @abstractmethod
-    def _deliver_job_input(self, request: pb.JobInputRequest) -> MailboxHandle:
-        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

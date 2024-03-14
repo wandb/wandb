@@ -100,6 +100,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
+    def _publish_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+        record = self._make_request(job_input=job_input)
+        return self._deliver_record(record)
+
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -521,10 +525,6 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
-        return self._deliver_record(record)
-
-    def _deliver_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
-        record = self._make_request(job_input=job_input)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:
