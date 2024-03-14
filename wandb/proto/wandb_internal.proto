@@ -162,12 +162,13 @@ message ConfigFilterPath {
 // Specifies include and exclude paths for filtering job inputs.
 //
 // If this record is published to the core internal process then it will filter
-// the given paths into or out of the job inputs it builds. If the exclude field
-// is true then the paths will be excluded from the job inputs, otherwise they
-// will be included.
+// the given paths into or out of the job inputs it builds.
 //
-// Note that the paths are not necessarily terminal; they may resolve to a
-// dictionary.
+// If include_paths is not empty, then endpoints of the config not prefixed by
+// an include path will be ignored.
+//
+// If exclude_paths is not empty, then endpoints of the config prefixed by an
+// exclude path will be ignored.
 message LaunchWandbConfigParametersRecord {
   repeated ConfigFilterPath include_paths = 1;
   repeated ConfigFilterPath exclude_paths = 2;
@@ -358,30 +359,42 @@ message SummaryItem {
 
 message SummaryResult {}
 
-/*
- * FilesRecord: files added to run
- */
+// Files added to a run, such as through run.save().
 message FilesRecord {
   repeated FilesItem files = 1;
   _RecordInfo _info = 200;
 }
 
+// One or more files being saved with a run.
 message FilesItem {
+  reserved 16;
+
   enum PolicyType {
+    // Upload the file immediately.
     NOW = 0;
+
+    // Upload the file during run.finish().
     END = 1;
+
+    // Re-upload the file continuously as it changes.
     LIVE = 2;
   }
+
   enum FileType {
     OTHER = 0;
     WANDB = 1;
     MEDIA = 2;
     ARTIFACT = 3;
   }
+
+  // A path or Unix glob relative to the W&B files directory.
   string path = 1;
+
+  // When to upload the file.
   PolicyType policy = 2;
+
+  // What kind of file it is.
   FileType type = 3;
-  string external_path = 16;
 }
 
 message FilesResult {}
