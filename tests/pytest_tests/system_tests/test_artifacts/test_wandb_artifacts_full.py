@@ -305,6 +305,10 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
     assert not found
 
+    # The staged files are deleted even if caching is disabled
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
 
 @pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch):
