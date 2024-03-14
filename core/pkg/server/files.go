@@ -10,6 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Creates a files Record with the given set of files.
+//
+// Sets the policy for each file to "now" (maybe it shouldn't!)
+//
+// Returns nil if there are no files.
 func makeRecord(fileSet map[string]*service.FilesItem) *service.Record {
 	if len(fileSet) == 0 {
 		return nil
@@ -38,9 +43,20 @@ func WithFilesHandlerHandleFn(fn func(*service.Record)) FilesHandlerOption {
 }
 
 type FilesHandler struct {
-	watcher  *watcher.Watcher
+	// Function to forward records down the chain.
+	//
+	// Passing a file record here causes it to be persisted if necessary and
+	// causes the file to get uploaded.
 	handleFn func(*service.Record)
-	endSet   map[string]*service.FilesItem
+
+	// File watcher for "live"-mode files.
+	watcher *watcher.Watcher
+
+	// Files to upload at the end of the run.
+	//
+	// Map from the file path to the file.
+	endSet map[string]*service.FilesItem
+
 	settings *service.Settings
 	logger   *observability.CoreLogger
 }

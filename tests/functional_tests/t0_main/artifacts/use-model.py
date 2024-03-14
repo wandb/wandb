@@ -33,7 +33,7 @@ class Net(nn.Module):
 
 
 def main():
-    run = wandb.init(entity="mock_server_entity", project="test")
+    run = wandb.init()
 
     my_model = Net()
 
@@ -44,6 +44,10 @@ def main():
     art = run.log_artifact(art)
     art.wait()
 
+    # use_model() hits the download path where we try to download the file
+    # using entry._file_url, which fails in this test harness
+    # TODO: Remove the download() call once caching is implemented in nexus
+    art.download()
     _ = use_model("my-model:latest")
 
     run.finish()

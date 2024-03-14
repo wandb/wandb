@@ -97,6 +97,8 @@ Status legend:
 |             | `sync`            | ✅[^E.1][^CLI.1] |
 |             | `<other commands>`| 🚧[^CLI.2]      |
 | Artifacts   |                   | ✅               |
+|             | caching           | ❌               |
+|             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 |             | Sweeps on Launch  | 🚧[^L.1]         |
