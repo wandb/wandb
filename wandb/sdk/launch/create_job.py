@@ -11,7 +11,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
-from wandb.sdk.launch.utils import _is_git_uri
+from wandb.sdk.launch.utils import _is_git_uri, get_entrypoint_file
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
 
@@ -304,15 +304,19 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            wandb.termerror("Python runtime must be provided for git-based jobs")
-            return None
+            _, python_version = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
 
     # check if entrypoint is valid
     assert entrypoint is not None
-    if not os.path.exists(os.path.join(local_dir, entrypoint)):
-        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+
+    if not os.path.exists(os.path.join(local_dir, entrypoint_file)):
+        wandb.termerror(f"Entrypoint file {entrypoint_file} not found in git repo")
         return None
 
     metadata = {
@@ -320,9 +324,9 @@ def _create_repo_metadata(
             "commit": commit,
             "remote": ref.url,
         },
-        "codePathLocal": entrypoint,  # not in git context, optionally also set local
-        "codePath": entrypoint,
-        "entrypoint": [f"python{python_version}", entrypoint],
+        "codePathLocal": entrypoint_file,  # not in git context, optionally also set local
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
         "python": python_version,  # used to build container
         "notebook": False,  # partial jobs from notebooks not supported
     }
@@ -347,8 +351,7 @@ def _create_artifact_metadata(
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
-        wandb.termerror("Python runtime must be provided for code-based jobs")
-        return {}, []
+        _, python_version = get_current_python_version()
 
     metadata = {"python": python_version, "codePath": entrypoint}
     return metadata, requirements

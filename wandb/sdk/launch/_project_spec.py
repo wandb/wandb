@@ -14,6 +14,7 @@ import wandb.docker as docker
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch import utils
+from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
 
 from .errors import LaunchError
@@ -135,7 +136,7 @@ class LaunchProject:
         if override_entrypoint:
             _logger.info("Adding override entry point")
             self.override_entrypoint = EntryPoint(
-                name=_get_entrypoint_file(override_entrypoint),
+                name=get_entrypoint_file(override_entrypoint),
                 command=override_entrypoint,
             )
 
@@ -536,24 +537,6 @@ class LaunchProject:
                 self.git_version = branch_name
 
 
-def _get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
-    """Get the entrypoint file from the given command.
-
-    Args:
-        entrypoint (List[str]): List of command and arguments.
-
-    Returns:
-        Optional[str]: The entrypoint file if found, otherwise None.
-    """
-    if not entrypoint:
-        return None
-    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
-        return entrypoint[0]
-    if len(entrypoint) < 2:
-        return None
-    return entrypoint[1]
-
-
 class EntryPoint:
     """An entry point into a wandb launch specification."""
 
@@ -570,7 +553,7 @@ class EntryPoint:
 
     def update_entrypoint_path(self, new_path: str) -> None:
         """Updates the entrypoint path to a new path."""
-        if len(self.command) == 2 and self.command[0] in ["python", "bash"]:
+        if len(self.command) == 2 and (self.command[0].startswith("python") or self.command[0] == "bash"):
             self.command[1] = new_path
 
 
