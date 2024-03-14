@@ -313,18 +313,18 @@ class Api:
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
-            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:<br/>
-            &nbsp;&nbsp;{<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;"var-name": {<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"schema": {<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"type": ("string", "number", or "integer"),<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"default": (optional value),<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"minimum": (optional minimum),<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"maximum": (optional maximum),<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"enum": [..."(options)"]<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}<br/>
-            &nbsp;&nbsp;&nbsp;&nbsp;}<br/>
-            &nbsp;&nbsp;}
+            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:
+                {
+                    "var-name": {
+                        "schema": {
+                            "type": <"string", "number", or "integer">,
+                            "default": <optional value>,
+                            "minimum": <optional minimum>,
+                            "maximum": <optional maximum>,
+                            "enum": [..."<options>"]
+                        }
+                    }
+                }
 
         Returns:
             The newly created `RunQueue`
