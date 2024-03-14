@@ -460,15 +460,6 @@ message ArtifactManifestEntry {
   string birth_artifact_id = 7;
   // Whether to avoid copying/moving files to the cache while uploading.
   bool skip_cache = 8;
-  // Whether to copy files to staging or not
-  // TODO: Add a DELETE policy to denote moving files to staging.
-  enum Policy {
-    // Files can be changed since they'll be copied to staging.
-    MUTABLE = 0;
-    // Files cannot be changed since they won't be copied to staging.
-    IMMUTABLE = 1;
-  }
-  Policy policy = 9;
   repeated ExtraItem extra = 16;
 }
 

@@ -86,26 +86,6 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> "PolicyName":
     return policy
 
 
-def artifact_policy_to_enum(
-    policy: "ArtifactPolicy",
-) -> "pb.ArtifactManifestEntry.Policy.V":
-    policy_mapping: dict[ArtifactPolicy, pb.ArtifactManifestEntry.Policy.V] = {
-        "mutable": pb.ArtifactManifestEntry.Policy.MUTABLE,
-        "immutable": pb.ArtifactManifestEntry.Policy.IMMUTABLE,
-    }
-    return policy_mapping[policy]
-
-
-def artifact_enum_to_policy(
-    enum: "pb.ArtifactManifestEntry.Policy.V",
-) -> "ArtifactPolicy":
-    policy_mapping: dict[pb.ArtifactManifestEntry.Policy.V, ArtifactPolicy] = {
-        pb.ArtifactManifestEntry.Policy.MUTABLE: "mutable",
-        pb.ArtifactManifestEntry.Policy.IMMUTABLE: "immutable",
-    }
-    return policy_mapping[enum]
-
-
 class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
@@ -372,7 +352,6 @@ class InterfaceBase:
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
             proto_entry.skip_cache = entry.skip_cache
-            proto_entry.policy = artifact_policy_to_enum(entry.policy)
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k

@@ -26,7 +26,7 @@ def test_repr():
     )
     assert (
         repr(blank_entry) == "ArtifactManifestEntry"
-        "(path='foo', digest='bar', ref='', birth_artifact_id='', size=0, skip_cache=False, policy='mutable')"
+        "(path='foo', digest='bar', ref='', birth_artifact_id='', size=0, skip_cache=False)"
     )
     assert entry != blank_entry
     assert entry != repr(entry)
@@ -34,7 +34,7 @@ def test_repr():
     short_entry = ArtifactManifestEntry(path="foo", digest="barr")
     assert (
         repr(short_entry)
-        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False, policy='mutable')"
+        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
     )
     assert entry != short_entry
 
@@ -51,7 +51,7 @@ def test_manifest_download(monkeypatch):
     short_entry = ArtifactManifestEntry(path="foo", digest="barr")
     assert (
         repr(short_entry)
-        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False, policy='mutable')"
+        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
     )
     short_entry._parent_artifact = artifact
 

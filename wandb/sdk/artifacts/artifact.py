@@ -1440,7 +1440,6 @@ class Artifact:
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
-            policy=policy,
         )
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry

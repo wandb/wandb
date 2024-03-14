@@ -116,7 +116,6 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
                 "size": content.size if content.size is not None else None,
                 "local_path": content.local_path if content.local_path else None,
                 "skip_cache": content.skip_cache,
-                "policy": interface.artifact_enum_to_policy(content.policy),
                 "extra": {
                     extra.key: json.loads(extra.value_json) for extra in content.extra
                 },

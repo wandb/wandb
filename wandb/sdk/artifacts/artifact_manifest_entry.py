@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Literal, Optional, Union
+from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
 from wandb.errors.term import termwarn
@@ -40,7 +40,6 @@ class ArtifactManifestEntry:
         path: StrPath,
         digest: Union[B64MD5, URIStr, FilePathStr, ETag],
         skip_cache: Optional[bool] = False,
-        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
         ref: Optional[Union[FilePathStr, URIStr]] = None,
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
@@ -57,7 +56,6 @@ class ArtifactManifestEntry:
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
         self.skip_cache = skip_cache or False
-        self.policy = policy or "mutable"
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -71,10 +69,7 @@ class ArtifactManifestEntry:
         extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
         local_path = f", local_path={self.local_path!r}" if self.local_path else ""
         skip_cache = f", skip_cache={self.skip_cache}"
-        policy = f", policy={self.policy!r}"
-        others = (
-            ref + birth_artifact_id + size + extra + local_path + skip_cache + policy
-        )
+        others = ref + birth_artifact_id + size + extra + local_path + skip_cache
         return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
 
     def __eq__(self, other: object) -> bool:
@@ -94,7 +89,6 @@ class ArtifactManifestEntry:
             and self.extra == other.extra
             and self.local_path == other.local_path
             and self.skip_cache == other.skip_cache
-            and self.policy == other.policy
         )
 
     @property

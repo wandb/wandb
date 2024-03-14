@@ -1397,27 +1397,6 @@ global___ArtifactManifest = ArtifactManifest
 class ArtifactManifestEntry(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    class _Policy:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
-
-    class _PolicyEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ArtifactManifestEntry._Policy.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        MUTABLE: ArtifactManifestEntry._Policy.ValueType  # 0
-        """Files can be changed since they'll be copied to staging."""
-        IMMUTABLE: ArtifactManifestEntry._Policy.ValueType  # 1
-        """Files cannot be changed since they won't be copied to staging."""
-
-    class Policy(_Policy, metaclass=_PolicyEnumTypeWrapper):
-        """Whether to copy files to staging or not
-        TODO: Add a DELETE policy to denote moving files to staging.
-        """
-
-    MUTABLE: ArtifactManifestEntry.Policy.ValueType  # 0
-    """Files can be changed since they'll be copied to staging."""
-    IMMUTABLE: ArtifactManifestEntry.Policy.ValueType  # 1
-    """Files cannot be changed since they won't be copied to staging."""
-
     PATH_FIELD_NUMBER: builtins.int
     DIGEST_FIELD_NUMBER: builtins.int
     REF_FIELD_NUMBER: builtins.int
@@ -1426,7 +1405,6 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     LOCAL_PATH_FIELD_NUMBER: builtins.int
     BIRTH_ARTIFACT_ID_FIELD_NUMBER: builtins.int
     SKIP_CACHE_FIELD_NUMBER: builtins.int
-    POLICY_FIELD_NUMBER: builtins.int
     EXTRA_FIELD_NUMBER: builtins.int
     path: builtins.str
     digest: builtins.str
@@ -1437,7 +1415,6 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     birth_artifact_id: builtins.str
     skip_cache: builtins.bool
     """Whether to avoid copying/moving files to the cache while uploading."""
-    policy: global___ArtifactManifestEntry.Policy.ValueType
     @property
     def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
     def __init__(
@@ -1451,10 +1428,9 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
         local_path: builtins.str = ...,
         birth_artifact_id: builtins.str = ...,
         skip_cache: builtins.bool = ...,
-        policy: global___ArtifactManifestEntry.Policy.ValueType = ...,
         extra: collections.abc.Iterable[global___ExtraItem] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "policy", b"policy", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...
 
 global___ArtifactManifestEntry = ArtifactManifestEntry
 
