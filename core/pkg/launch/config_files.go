@@ -19,9 +19,6 @@ type configFileParameter struct {
 	excludePaths []ConfigPath
 }
 
-// Create a new config file parameter from a job input request.
-//
-// This function assumes that request.source.file_path is not nil or empty.
 func newFileInputFromRequest(
 	request *service.JobInputRequest,
 ) (*configFileParameter, error) {
