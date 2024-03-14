@@ -274,12 +274,16 @@ class ArtifactSaver:
         """Remove all staging copies of local files.
 
         We made a staging copy of each local file to freeze it at "add" time.
-        We need to delete them once we've uploaded the file or confirmed we
-        already have a committed copy.
+        If we chose to skip caching, we need to delete them once we've uploaded
+        the file or confirmed we already have a committed copy.
         """
         staging_dir = get_staging_dir()
         for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
+            if (
+                entry.local_path
+                and entry.skip_cache
+                and entry.local_path.startswith(staging_dir)
+            ):
                 try:
                     os.chmod(entry.local_path, 0o600)
                     os.remove(entry.local_path)
