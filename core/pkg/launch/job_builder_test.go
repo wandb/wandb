@@ -1,6 +1,7 @@
 package launch_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1037,6 +1038,8 @@ func TestConfigFileParameters(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
+	fmt.Println(inputs)
+	files := inputs["files"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
 		"config.yaml": map[string]interface{}{
@@ -1059,5 +1062,5 @@ func TestConfigFileParameters(t *testing.T) {
 			},
 			"wb_type": "typedDict",
 		},
-	}, inputs)
+	}, files)
 }
