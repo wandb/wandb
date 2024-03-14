@@ -1873,53 +1873,8 @@ pub struct ArtifactManifestEntry {
     /// Whether to avoid copying/moving files to the cache while uploading.
     #[prost(bool, tag = "8")]
     pub skip_cache: bool,
-    #[prost(enumeration = "artifact_manifest_entry::Policy", tag = "9")]
-    pub policy: i32,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
-}
-/// Nested message and enum types in `ArtifactManifestEntry`.
-pub mod artifact_manifest_entry {
-    /// Whether to copy files to staging or not
-    /// TODO: Add a DELETE policy to denote moving files to staging.
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
-    #[repr(i32)]
-    pub enum Policy {
-        /// Files can be changed since they'll be copied to staging.
-        Mutable = 0,
-        /// Files cannot be changed since they won't be copied to staging.
-        Immutable = 1,
-    }
-    impl Policy {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                Policy::Mutable => "MUTABLE",
-                Policy::Immutable => "IMMUTABLE",
-            }
-        }
-        /// Creates an enum from field names used in the ProtoBuf definition.
-        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-            match value {
-                "MUTABLE" => Some(Self::Mutable),
-                "IMMUTABLE" => Some(Self::Immutable),
-                _ => None,
-            }
-        }
-    }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
