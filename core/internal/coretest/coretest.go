@@ -40,7 +40,7 @@ func (to *TestObject) TeardownTest() {
 func (to *TestObject) MakeConfig() *service.ConfigRecord {
 	config := &service.ConfigRecord{
 		Update: []*service.ConfigItem{
-			&service.ConfigItem{
+			{
 				Key:       "_wandb",
 				ValueJson: "{}",
 			},
