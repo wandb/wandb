@@ -188,8 +188,8 @@ func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger)
 		isNotebookRun:         settings.GetXJupyter().GetValue(),
 		logger:                logger,
 		Disable:               settings.GetDisableJobCreation().GetValue(),
-		saveShapeToMetadata:   false,
 		wandbConfigParameters: newWandbConfigParameters(),
+		saveShapeToMetadata:   false,
 	}
 	return &jobBuilder
 }
