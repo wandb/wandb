@@ -846,7 +846,7 @@ pub struct Feature {
     pub lightning_fabric_logger: bool,
     /// step was set in wandb.log
     #[prost(bool, tag = "61")]
-    pub log_step: bool,
+    pub set_step_log: bool,
     /// summary was set by the user
     #[prost(bool, tag = "62")]
     pub set_summary: bool,
