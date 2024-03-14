@@ -766,10 +766,17 @@ class InterfaceBase:
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
 
-    def publish_launch_wandb_config_parameters(
-        self, include_paths: List[List[str]], exclude_paths: List[List[str]]
+    def deliver_job_input(
+        self,
+        include_paths: List[List[str]],
+        exclude_paths: List[List[str]],
+        run_config: bool = False,
+        file_path: str = "",
     ):
-        """Tells the internal process to treat wandb.config fields as job inputs.
+        """Delivers a request to add inputs to the job.
+
+        If wandb_config is True, the wandb.config will be added as a job input.
+        If file_path is provided, the file at file_path will be added as a job input.
 
         The paths provided as arguments are sequences of dictionary keys that
         specify a path within the wandb.config. If a path is included, the
@@ -779,51 +786,28 @@ class InterfaceBase:
         Args:
             include_paths: paths within config to include as job inputs.
             exclude_paths: paths within config to exclude as job inputs.
-
-        Returns:
-            None
+            run_config: bool indicating whether wandb.config is the input source.
+            file_path: path to file to include as a job input.
         """
-        config_parameters = pb.LaunchWandbConfigParametersRecord()
-        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
-        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
-        config_parameters.include_paths.extend(include_records)
-        config_parameters.exclude_paths.extend(exclude_records)
-        return self._publish_launch_wandb_config_parameters(config_parameters)
+        if run_config and file_path:
+            raise ValueError(
+                "run_config and file_path are mutually exclusive arguments."
+            )
+        request = pb.JobInputRequest()
+        include_records = [pb.JobInputPath(path=path) for path in include_paths]
+        exclude_records = [pb.JobInputPath(path=path) for path in exclude_paths]
+        request.include_paths.extend(include_records)
+        request.exclude_paths.extend(exclude_records)
+        source = pb.JobInputSource()
+        if run_config:
+            source.type = pb.JobInputSource.SourceType.RUN
+        else:
+            source.type = pb.JobInputSource.SourceType.FILE
+            source.file_path = file_path
+        return self._deliver_job_input(request)
 
     @abstractmethod
-    def _publish_launch_wandb_config_parameters(
-        self, config_parameters: pb.LaunchWandbConfigParametersRecord
-    ) -> None:
-        raise NotImplementedError
-
-    def publish_launch_config_file_parameter(
-        self,
-        relpath: str,
-        include_paths: List[List[str]],
-        exclude_paths: List[List[str]],
-    ):
-        """Tells the internal process to treat a config file as a job input.
-
-        Args:
-            relpath: relative path to the config file from working directory.
-            include_paths: paths within config to include as job inputs.
-            exclude_paths: paths within config to exclude as job inputs.
-
-        Returns:
-            None
-        """
-        config_file_parameter = pb.LaunchConfigFileParameterRecord()
-        config_file_parameter.relpath = relpath
-        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
-        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
-        config_file_parameter.include_paths.extend(include_records)
-        config_file_parameter.exclude_paths.extend(exclude_records)
-        return self._publish_launch_config_file_parameter(config_file_parameter)
-
-    @abstractmethod
-    def _publish_launch_config_file_parameter(
-        self, config_file_parameter: pb.LaunchConfigFileParameterRecord
-    ) -> None:
+    def _deliver_job_input(self, request: pb.JobInputRequest) -> MailboxHandle:
         raise NotImplementedError
 
     @abstractmethod

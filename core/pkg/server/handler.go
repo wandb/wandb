@@ -263,10 +263,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
-	case *service.Record_WandbConfigParameters:
-		h.handleWandbConfigParameters(record)
-	case *service.Record_ConfigFileParameter:
-		h.handleConfigFileParameter(record)
 	case nil:
 		err := fmt.Errorf("handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -334,6 +330,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_SenderRead:
 		h.handleSenderRead(record)
 		response = nil
+	case *service.Request_JobInput:
+		h.handleJobInput(record)
 	default:
 		err := fmt.Errorf("handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -1263,11 +1261,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	h.summaryHandler.updateSummaryDelta(summary)
 }
 
-func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	h.sendRecord(record)
-}
-
-func (h *Handler) handleConfigFileParameter(record *service.Record) {
+func (h *Handler) handleJobInput(record *service.Record) {
 	h.sendRecord(record)
 }
 

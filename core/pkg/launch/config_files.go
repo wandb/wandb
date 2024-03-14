@@ -19,16 +19,21 @@ type configFileParameter struct {
 	excludePaths []ConfigPath
 }
 
-func newConfigParameterFromRecord(record *service.LaunchConfigFileParameterRecord) *configFileParameter {
-	includePaths := make([]ConfigPath, len(record.GetIncludePaths()))
-	excludePaths := make([]ConfigPath, len(record.GetExcludePaths()))
-	for i, path := range record.GetIncludePaths() {
+// Create a new config file parameter from a job input request.
+//
+// This function assumes that request.source.file_path is not nil or empty.
+func newFileInputFromRequest(request *service.JobInputRequest) *configFileParameter {
+	includePaths := make([]ConfigPath, len(request.GetIncludePaths()))
+	excludePaths := make([]ConfigPath, len(request.GetExcludePaths()))
+	for i, path := range request.GetIncludePaths() {
 		includePaths[i] = ConfigPath(path.Path)
 	}
-	for i, path := range record.GetExcludePaths() {
+	for i, path := range request.GetExcludePaths() {
 		excludePaths[i] = ConfigPath(path.Path)
 	}
-	return &configFileParameter{record.GetRelpath(), includePaths, excludePaths}
+	source := request.GetSource()
+	file_path := source.GetFilePath()
+	return &configFileParameter{file_path, includePaths, excludePaths}
 }
 
 // Infers the structure of a config file.
@@ -49,11 +54,4 @@ func (j *JobBuilder) generateConfigFileSchema(
 	return data_types.ResolveTypes((config.filterTree(
 		configFile.includePaths, configFile.excludePaths,
 	)))
-}
-
-func (j *JobBuilder) HandleConfigFileParameterRecord(configFileParameter *service.LaunchConfigFileParameterRecord) {
-	j.saveShapeToMetadata = true
-	j.configFiles = append(
-		j.configFiles, newConfigParameterFromRecord(configFileParameter),
-	)
 }

@@ -741,3 +741,23 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 		}
 	}
 }
+
+func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
+	// If job builder is disabled. This happens if run is created from a job.
+	if j == nil {
+		return
+	}
+	j.saveShapeToMetadata = true
+	j.logger.Debug("jobBuilder: handling job input request")
+	if request == nil {
+		j.logger.Error("jobBuilder: job input request is nil")
+		return
+	}
+	switch request.GetSource().GetType() {
+	case service.JobInputSource_RUN:
+		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
+		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
+	case service.JobInputSource_FILE:
+		j.configFiles = append(j.configFiles, newFileInputFromRequest(request))
+	}
+}

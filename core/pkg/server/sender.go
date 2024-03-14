@@ -300,10 +300,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
-	case *service.Record_WandbConfigParameters:
-		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
-	case *service.Record_ConfigFileParameter:
-		s.sendConfigFileParameter(record, x.ConfigFileParameter)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -336,6 +332,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSenderRead(record, x.SenderRead)
 	case *service.Request_Cancel:
 		// TODO: audit this
+	case *service.Request_JobInput:
+		s.sendJobInput(x.JobInput)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -1294,10 +1292,10 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 	s.outChan <- result
 }
 
-func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
-}
-
-func (s *Sender) sendConfigFileParameter(record *service.Record, configFileParameter *service.LaunchConfigFileParameterRecord) {
-	s.jobBuilder.HandleConfigFileParameterRecord(configFileParameter)
+func (s *Sender) sendJobInput(request *service.JobInputRequest) {
+	if s.jobBuilder == nil {
+		s.logger.Warn("sender: sendJobInput: job builder disabled, skipping")
+		return
+	}
+	s.jobBuilder.HandleJobInputRequest(request)
 }

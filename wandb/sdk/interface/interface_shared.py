@@ -147,6 +147,7 @@ class InterfaceShared(InterfaceBase):
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
+        job_input: Optional[pb.JobInputRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -207,6 +208,8 @@ class InterfaceShared(InterfaceBase):
             request.sync.CopyFrom(sync)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
+        elif job_input:
+            request.job_input.CopyFrom(job_input)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -239,10 +242,6 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
-        config_file_parameter: Optional[pb.LaunchConfigFileParameterRecord] = None,
-        launch_wandb_config_parameters: Optional[
-            pb.LaunchWandbConfigParametersRecord
-        ] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -287,10 +286,6 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
-        elif launch_wandb_config_parameters:
-            record.wandb_config_parameters.CopyFrom(launch_wandb_config_parameters)
-        elif config_file_parameter:
-            record.config_file_parameter.CopyFrom(config_file_parameter)
         else:
             raise Exception("Invalid record")
         return record
@@ -420,20 +415,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def _publish_launch_wandb_config_parameters(
-        self, launch_wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
-    ) -> None:
-        rec = self._make_record(
-            launch_wandb_config_parameters=launch_wandb_config_parameters
-        )
-        self._publish(rec)
-
-    def _publish_launch_config_file_parameter(
-        self, config_file_parameter: pb.LaunchConfigFileParameterRecord
-    ) -> None:
-        rec = self._make_record(config_file_parameter=config_file_parameter)
-        self._publish(rec)
-
     def _communicate_status(
         self, status: pb.StatusRequest
     ) -> Optional[pb.StatusResponse]:
@@ -540,6 +521,10 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
+        return self._deliver_record(record)
+
+    def _deliver_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+        record = self._make_request(job_input=job_input)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

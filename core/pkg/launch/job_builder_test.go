@@ -943,9 +943,9 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 		},
 	))
-	jobBuilder.HandleLaunchWandbConfigParametersRecord(&service.LaunchWandbConfigParametersRecord{
-		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
-		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4", "key6"}}},
+	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
+		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
 	artifact, err := jobBuilder.Build(nil)
 	assert.Nil(t, err)
@@ -1017,10 +1017,10 @@ func TestConfigFileParameters(t *testing.T) {
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 
-	jobBuilder.HandleConfigFileParameterRecord(&service.LaunchConfigFileParameterRecord{
-		Relpath:      "config.yaml",
-		IncludePaths: []*service.ConfigFilterPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
-		ExcludePaths: []*service.ConfigFilterPath{{Path: []string{"key3", "key4"}}},
+	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
+		Source:       &service.JobInputSource{Type: service.JobInputSource_FILE, FilePath: "config.yaml"},
+		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
+		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})
 	artifact, err := jobBuilder.Build(nil)
 

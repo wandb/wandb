@@ -46,8 +46,6 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
-    LaunchWandbConfigParametersRecord wandb_config_parameters = 26;
-    LaunchConfigFileParameterRecord config_file_parameter = 27;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -151,44 +149,6 @@ message RunRecord {
 message GitRepoRecord {
   string remote_url = 1 [json_name = "remote"];
   string commit = 2;
-}
-
-// Path within nested configuration object.
-//
-// The path is a list of strings, each string is a key in the nested configuration
-// dict.
-message ConfigFilterPath {
-  repeated string path = 1;
-}
-
-// Specifies include and exclude paths for filtering job inputs.
-//
-// If this record is published to the core internal process then it will filter
-// the given paths into or out of the job inputs it builds.
-//
-// If include_paths is not empty, then endpoints of the config not prefixed by
-// an include path will be ignored.
-//
-// If exclude_paths is not empty, then endpoints of the config prefixed by an
-// exclude path will be ignored.
-message LaunchWandbConfigParametersRecord {
-  repeated ConfigFilterPath include_paths = 1;
-  repeated ConfigFilterPath exclude_paths = 2;
-}
-
-// Specifies a user config file to be used as a job input.
-//
-// If this record is published to the core internal process then the config file
-// located at relpath will be used as a job input. The include_paths and
-// exclude_paths fields specify which paths within the config file should be
-// included or excluded from the job inputs.
-//
-// The relpath is treated as a unique id for the config file in the context of
-// a run or job. Backwards path traversal, ex "../config.yaml", is forbidden.
-message LaunchConfigFileParameterRecord {
-  string relpath = 1;
-  repeated ConfigFilterPath include_paths = 2;
-  repeated ConfigFilterPath exclude_paths = 3;
 }
 
 message RunUpdateResult {
@@ -572,6 +532,7 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     FileTransferInfoRequest file_transfer_info = 75;
     SyncRequest sync = 76;
+    JobInputRequest job_input = 77;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -1183,4 +1144,41 @@ message PythonPackagesRequest {
     string version = 2;
   }
   repeated PythonPackage package = 1;
+}
+
+// Path within nested configuration object.
+//
+// The path is a list of strings, each string is a key in the nested configuration
+// dict.
+message JobInputPath {
+  repeated string path = 1;
+}
+
+// Specifies a new source for job inputs.
+//
+// The source is either the run config (wandb.config) or a config file.
+// If a config file is specified, the file path is relative to
+// <run-files-dir>/configs.
+message JobInputSource {
+  enum SourceType {
+    RUN = 0;
+    FILE = 1;
+  }
+  SourceType type = 1;
+  string file_path = 2;
+}
+
+// Specifies a new source for job inputs.
+//
+//
+//
+// If include_paths is not empty, then endpoints of the config not prefixed by
+// an include path will be ignored.
+//
+// If exclude_paths is not empty, then endpoints of the config prefixed by an
+// exclude path will be ignored.
+message JobInputRequest {
+  JobInputSource source = 1;
+  repeated JobInputPath include_paths = 2;
+  repeated JobInputPath exclude_paths = 3;
 }
