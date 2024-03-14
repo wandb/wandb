@@ -1383,6 +1383,8 @@ class Run:
 
     @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_summary = True
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
@@ -1809,6 +1811,10 @@ class Run:
             ValueError: if invalid data is passed
 
         """
+        if step is not None:
+            with telemetry.context(run=self) as tel:
+                tel.feature.set_step_log = True
+
         if sync is not None:
             deprecate.deprecate(
                 field_name=deprecate.Deprecated.run__log_sync,
