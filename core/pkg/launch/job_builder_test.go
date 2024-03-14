@@ -944,6 +944,9 @@ func TestWandbConfigParameters(t *testing.T) {
 		},
 	))
 	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
+		Source: &service.JobInputSource{
+			Source: &service.JobInputSource_RunConfig{},
+		},
 		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
@@ -1018,7 +1021,13 @@ func TestConfigFileParameters(t *testing.T) {
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger())
 
 	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
-		Source:       &service.JobInputSource{Type: service.JobInputSource_FILE, FilePath: "config.yaml"},
+		Source: &service.JobInputSource{
+			Source: &service.JobInputSource_File{
+				File: &service.JobInputSource_ConfigFileSource{
+					Path: "config.yaml",
+				},
+			},
+		},
 		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})

@@ -3844,7 +3844,7 @@ class JobInputPath(google.protobuf.message.Message):
     """Path within nested configuration object.
 
     The path is a list of strings, each string is a key in a nested configuration
-    dict. These paths are used to filter subtrees in and out of the config 
+    dict. These paths are used to filter subtrees in and out of the config
     before we capture a schema. This gives users the ability to limit which
     parts of the config are exposed as inputs to a job.
     """
@@ -3865,7 +3865,7 @@ global___JobInputPath = JobInputPath
 
 @typing_extensions.final
 class JobInputSource(google.protobuf.message.Message):
-    """Specifies a new source for job inputs.
+    """Specifies a source for job inputs.
 
     The source is either the run config (wandb.config) or a config file.
     If a config file is specified, the file path is relative to
@@ -3874,36 +3874,51 @@ class JobInputSource(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    class _SourceType:
-        ValueType = typing.NewType("ValueType", builtins.int)
-        V: typing_extensions.TypeAlias = ValueType
+    @typing_extensions.final
+    class RunConfigSource(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    class _SourceTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[JobInputSource._SourceType.ValueType], builtins.type):
-        DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
-        RUN: JobInputSource._SourceType.ValueType  # 0
-        FILE: JobInputSource._SourceType.ValueType  # 1
+        def __init__(
+            self,
+        ) -> None: ...
 
-    class SourceType(_SourceType, metaclass=_SourceTypeEnumTypeWrapper): ...
-    RUN: JobInputSource.SourceType.ValueType  # 0
-    FILE: JobInputSource.SourceType.ValueType  # 1
+    @typing_extensions.final
+    class ConfigFileSource(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    TYPE_FIELD_NUMBER: builtins.int
-    FILE_PATH_FIELD_NUMBER: builtins.int
-    type: global___JobInputSource.SourceType.ValueType
-    file_path: builtins.str
+        PATH_FIELD_NUMBER: builtins.int
+        path: builtins.str
+        def __init__(
+            self,
+            *,
+            path: builtins.str = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["path", b"path"]) -> None: ...
+
+    RUN_CONFIG_FIELD_NUMBER: builtins.int
+    FILE_FIELD_NUMBER: builtins.int
+    @property
+    def run_config(self) -> global___JobInputSource.RunConfigSource: ...
+    @property
+    def file(self) -> global___JobInputSource.ConfigFileSource: ...
     def __init__(
         self,
         *,
-        type: global___JobInputSource.SourceType.ValueType = ...,
-        file_path: builtins.str = ...,
+        run_config: global___JobInputSource.RunConfigSource | None = ...,
+        file: global___JobInputSource.ConfigFileSource | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["file_path", b"file_path", "type", b"type"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["file", b"file", "run_config", b"run_config", "source", b"source"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["file", b"file", "run_config", b"run_config", "source", b"source"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["source", b"source"]) -> typing_extensions.Literal["run_config", "file"] | None: ...
 
 global___JobInputSource = JobInputSource
 
 @typing_extensions.final
 class JobInputRequest(google.protobuf.message.Message):
     """Specifies a new source for job inputs.
+
+    source tells us where this config is coming from and therefore how it can
+    be patched in future runs.
 
     If include_paths is not empty, then endpoints of the config not prefixed by
     an include path will be ignored.

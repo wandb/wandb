@@ -3042,7 +3042,7 @@ pub struct JobInputPath {
     #[prost(string, repeated, tag = "1")]
     pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
-/// Specifies a new source for job inputs.
+/// Specifies a source for job inputs.
 ///
 /// The source is either the run config (wandb.config) or a config file.
 /// If a config file is specified, the file path is relative to
@@ -3050,51 +3050,33 @@ pub struct JobInputPath {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct JobInputSource {
-    #[prost(enumeration = "job_input_source::SourceType", tag = "1")]
-    pub r#type: i32,
-    #[prost(string, tag = "2")]
-    pub file_path: ::prost::alloc::string::String,
+    #[prost(oneof = "job_input_source::Source", tags = "1, 2")]
+    pub source: ::core::option::Option<job_input_source::Source>,
 }
 /// Nested message and enum types in `JobInputSource`.
 pub mod job_input_source {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        ::prost::Enumeration
-    )]
-    #[repr(i32)]
-    pub enum SourceType {
-        Run = 0,
-        File = 1,
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct RunConfigSource {}
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct ConfigFileSource {
+        #[prost(string, tag = "1")]
+        pub path: ::prost::alloc::string::String,
     }
-    impl SourceType {
-        /// String value of the enum field names used in the ProtoBuf definition.
-        ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-        pub fn as_str_name(&self) -> &'static str {
-            match self {
-                SourceType::Run => "RUN",
-                SourceType::File => "FILE",
-            }
-        }
-        /// Creates an enum from field names used in the ProtoBuf definition.
-        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-            match value {
-                "RUN" => Some(Self::Run),
-                "FILE" => Some(Self::File),
-                _ => None,
-            }
-        }
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Source {
+        #[prost(message, tag = "1")]
+        RunConfig(RunConfigSource),
+        #[prost(message, tag = "2")]
+        File(ConfigFileSource),
     }
 }
 /// Specifies a new source for job inputs.
+///
+/// source tells us where this config is coming from and therefore how it can
+/// be patched in future runs.
 ///
 /// If include_paths is not empty, then endpoints of the config not prefixed by
 /// an include path will be ignored.

@@ -753,11 +753,17 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		j.logger.Error("jobBuilder: job input request is nil")
 		return
 	}
-	switch request.GetSource().GetType() {
-	case service.JobInputSource_RUN:
+	source := request.GetSource()
+	switch source.GetSource().(type) {
+	case *service.JobInputSource_File:
+		newInput, err := newFileInputFromRequest(request)
+		if err != nil {
+			j.logger.Error("jobBuilder: error creating file input from request", err)
+			return
+		}
+		j.configFiles = append(j.configFiles, newInput)
+	case *service.JobInputSource_RunConfig:
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
-	case service.JobInputSource_FILE:
-		j.configFiles = append(j.configFiles, newFileInputFromRequest(request))
 	}
 }

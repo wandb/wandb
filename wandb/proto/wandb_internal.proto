@@ -1156,21 +1156,26 @@ message JobInputPath {
   repeated string path = 1;
 }
 
-// Specifies a new source for job inputs.
+// Specifies a source for job inputs.
 //
 // The source is either the run config (wandb.config) or a config file.
 // If a config file is specified, the file path is relative to
 // <run-files-dir>/configs.
 message JobInputSource {
-  enum SourceType {
-    RUN = 0;
-    FILE = 1;
+  message RunConfigSource {}
+  message ConfigFileSource {
+    string path = 1;
   }
-  SourceType type = 1;
-  string file_path = 2;
+  oneof source {
+    RunConfigSource run_config = 1;
+    ConfigFileSource file = 2;
+  }
 }
 
 // Specifies a new source for job inputs.
+//
+// source tells us where this config is coming from and therefore how it can
+// be patched in future runs.
 //
 // If include_paths is not empty, then endpoints of the config not prefixed by
 // an include path will be ignored.

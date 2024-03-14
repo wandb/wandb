@@ -749,12 +749,16 @@ class InterfaceBase:
         exclude_records = [pb.JobInputPath(path=path) for path in exclude_paths]
         request.include_paths.extend(include_records)
         request.exclude_paths.extend(exclude_records)
-        source = pb.JobInputSource()
+        source = pb.JobInputSource(
+            run_config=pb.JobInputSource.RunConfigSource(),
+        )
         if run_config:
-            source.type = pb.JobInputSource.SourceType.RUN
+            source.run_config.CopyFrom(pb.JobInputSource.RunConfigSource())
         else:
-            source.type = pb.JobInputSource.SourceType.FILE
-            source.file_path = file_path
+            source.file.CopyFrom(
+                pb.JobInputSource.ConfigFileSource(path=file_path),
+            )
+
         return self._publish_job_input(request)
 
     @abstractmethod

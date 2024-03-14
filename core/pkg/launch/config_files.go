@@ -22,7 +22,9 @@ type configFileParameter struct {
 // Create a new config file parameter from a job input request.
 //
 // This function assumes that request.source.file_path is not nil or empty.
-func newFileInputFromRequest(request *service.JobInputRequest) *configFileParameter {
+func newFileInputFromRequest(
+	request *service.JobInputRequest,
+) (*configFileParameter, error) {
 	includePaths := make([]ConfigPath, len(request.GetIncludePaths()))
 	excludePaths := make([]ConfigPath, len(request.GetExcludePaths()))
 	for i, path := range request.GetIncludePaths() {
@@ -31,9 +33,13 @@ func newFileInputFromRequest(request *service.JobInputRequest) *configFileParame
 	for i, path := range request.GetExcludePaths() {
 		excludePaths[i] = ConfigPath(path.Path)
 	}
-	source := request.GetSource()
-	file_path := source.GetFilePath()
-	return &configFileParameter{file_path, includePaths, excludePaths}
+	switch source := request.GetSource().GetSource().(type) {
+	case *service.JobInputSource_File:
+		return &configFileParameter{
+			source.File.GetPath(), includePaths, excludePaths}, nil
+	default:
+		return nil, fmt.Errorf("jobBuilder: invalid source type for file input")
+	}
 }
 
 // Infers the structure of a config file.
