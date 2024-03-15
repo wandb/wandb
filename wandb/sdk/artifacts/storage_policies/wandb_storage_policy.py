@@ -395,16 +395,16 @@ class WandbStoragePolicy(StoragePolicy):
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
-        if not hit:
-            staging_dir = get_staging_dir()
-            try:
-                if not entry.skip_cache:
-                    with cache_open("wb") as f, open(entry.local_path, "rb") as src:
-                        shutil.copyfileobj(src, f)
-                if entry.local_path.startswith(staging_dir):
-                    # Delete staged files here instead of waiting till
-                    # all the files are uploaded
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-            except OSError as e:
-                termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
+
+        staging_dir = get_staging_dir()
+        try:
+            if not entry.skip_cache and not hit:
+                with cache_open("wb") as f, open(entry.local_path, "rb") as src:
+                    shutil.copyfileobj(src, f)
+            if entry.local_path.startswith(staging_dir):
+                # Delete staged files here instead of waiting till
+                # all the files are uploaded
+                os.chmod(entry.local_path, 0o600)
+                os.remove(entry.local_path)
+        except OSError as e:
+            termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
