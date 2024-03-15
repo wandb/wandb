@@ -352,7 +352,8 @@ def _create_artifact_metadata(
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
-        _, python_version = get_current_python_version()
+        python_version, _ = get_current_python_version()
+        python_version = _clean_python_version(python_version)
 
     metadata = {"python": python_version, "codePath": entrypoint_file, "entrypoint": entrypoint_list}
     return metadata, requirements
