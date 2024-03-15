@@ -315,7 +315,6 @@ class WandbStoragePolicy(StoragePolicy):
             return True
         if entry.local_path is None:
             return False
-
         extra_headers = {
             header.split(":", 1)[0]: header.split(":", 1)[1]
             for header in (resp.upload_headers or {})
@@ -386,6 +385,8 @@ class WandbStoragePolicy(StoragePolicy):
         return False
 
     def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
+        if entry.skip_cache:
+            return
         if entry.local_path is None:
             return
 
