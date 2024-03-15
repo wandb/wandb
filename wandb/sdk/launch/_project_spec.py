@@ -553,7 +553,9 @@ class EntryPoint:
 
     def update_entrypoint_path(self, new_path: str) -> None:
         """Updates the entrypoint path to a new path."""
-        if len(self.command) == 2 and (self.command[0].startswith("python") or self.command[0] == "bash"):
+        if len(self.command) == 2 and (
+            self.command[0].startswith("python") or self.command[0] == "bash"
+        ):
             self.command[1] = new_path
 
 

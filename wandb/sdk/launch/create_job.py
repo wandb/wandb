@@ -145,6 +145,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
+        assert entrypoint is not None
         job_name = _make_code_artifact(
             api=api,
             job_builder=job_builder,
@@ -313,6 +314,7 @@ def _create_repo_metadata(
     entrypoint_file = get_entrypoint_file(entrypoint_list)
     if not entrypoint_file:
         wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        return None
 
     if not os.path.exists(os.path.join(local_dir, entrypoint_file)):
         wandb.termerror(f"Entrypoint file {entrypoint_file} not found in git repo")
@@ -335,12 +337,15 @@ def _create_repo_metadata(
 
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
-) -> Tuple[Dict[str, Any], List[str]]:
+) -> Tuple[Dict[str, Any] | None, List[str] | None]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        return None, None
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
@@ -355,40 +360,12 @@ def _create_artifact_metadata(
         python_version, _ = get_current_python_version()
         python_version = _clean_python_version(python_version)
 
-    metadata = {"python": python_version, "codePath": entrypoint_file, "entrypoint": entrypoint_list}
+    metadata = {
+        "python": python_version,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
     return metadata, requirements
-
-
-def _handle_artifact_entrypoint(
-    path: str, entrypoint: Optional[str] = None
-) -> Tuple[str, Optional[str]]:
-    entrypoint_list = entrypoint.split(" ")
-    entrypoint_file = get_entrypoint_file(entrypoint_list)
-    if os.path.isfile(path):
-        if entrypoint and path.endswith(entrypoint_file):
-            path = path.replace(entrypoint_file, "")
-            wandb.termwarn(
-                f"Both entrypoint provided and path contains file. Using provided entrypoint file: {entrypoint_file}, path is now: {path}"
-            )
-        elif entrypoint:
-            wandb.termwarn(
-                f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
-            )
-        entrypoint = path.split("/")[-1]
-
-        path = "/".join(path.split("/")[:-1])
-    elif not entrypoint:
-        wandb.termerror("Entrypoint not valid")
-        return "", None
-    path = path or "."  # when path is just an entrypoint, use cdw
-
-    if not os.path.exists(os.path.join(path, entrypoint_file)):
-        wandb.termerror(
-            f"Could not find execution point: {os.path.join(path, entrypoint_file)}"
-        )
-        return "", None
-
-    return path, entrypoint
 
 
 def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuilder:
@@ -431,6 +408,9 @@ def _make_code_artifact(
     assert entrypoint is not None
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        return None
 
     artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
     code_artifact = wandb.Artifact(
