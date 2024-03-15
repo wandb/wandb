@@ -337,7 +337,7 @@ def _create_repo_metadata(
 
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
-) -> Tuple[Dict[str, Any] | None, List[str] | None]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
