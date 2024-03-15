@@ -2,6 +2,11 @@ package launch
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/segmentio/encoding/json"
+	"gopkg.in/yaml.v3"
 )
 
 // Type representing a configuration tree.
@@ -42,7 +47,7 @@ func NewConfigFrom(tree ConfigDict) *Config {
 // resulting tree will contain only the paths that are included and not
 // excluded. If include is empty, all paths are included. If exclude is empty,
 // no paths are excluded.
-func (runConfig *Config) FilterTree(
+func (runConfig *Config) filterTree(
 	include []ConfigPath,
 	exclude []ConfigPath,
 ) ConfigDict {
@@ -65,6 +70,33 @@ func (runConfig *Config) FilterTree(
 		}
 	}
 	return pathMapToDict(pathMap)
+}
+
+// Deserializes a run config file into a Config object.
+//
+// The file format is inferred from the file extension.
+func deserializeConfig(path string) (*Config, error) {
+	ext := filepath.Ext(path)
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	switch ext {
+	case ".json":
+		var tree ConfigDict
+		if err := json.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return NewConfigFrom(tree), nil
+	case ".yaml", ".yml":
+		var tree ConfigDict
+		if err := yaml.Unmarshal(contents, &tree); err != nil {
+			return nil, err
+		}
+		return NewConfigFrom(tree), nil
+	default:
+		return nil, fmt.Errorf("config: unknown file extension: %v", ext)
+	}
 }
 
 // Checks if a given ConfigPath has a given prefix.

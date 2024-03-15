@@ -975,7 +975,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -1026,8 +1026,6 @@ pub mod record {
         LinkArtifact(super::LinkArtifactRecord),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
-        #[prost(message, tag = "26")]
-        WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1192,34 +1190,6 @@ pub struct GitRepoRecord {
     pub remote_url: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub commit: ::prost::alloc::string::String,
-}
-/// Path within nested configuration object.
-///
-/// The path is a list of strings, each string is a key in the nested configuration
-/// dict.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ConfigFilterPath {
-    #[prost(string, repeated, tag = "1")]
-    pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-}
-/// Specifies include and exclude paths for filtering job inputs.
-///
-/// If this record is published to the core internal process then it will filter
-/// the given paths into or out of the job inputs it builds.
-///
-/// If include_paths is not empty, then endpoints of the config not prefixed by
-/// an include path will be ignored.
-///
-/// If exclude_paths is not empty, then endpoints of the config prefixed by an
-/// exclude path will be ignored.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct LaunchWandbConfigParametersRecord {
-    #[prost(message, repeated, tag = "1")]
-    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
-    #[prost(message, repeated, tag = "2")]
-    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1964,7 +1934,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 22, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -2039,6 +2009,8 @@ pub mod request {
         FileTransferInfo(super::FileTransferInfoRequest),
         #[prost(message, tag = "76")]
         Sync(super::SyncRequest),
+        #[prost(message, tag = "77")]
+        JobInput(super::JobInputRequest),
         #[prost(message, tag = "1000")]
         TestInject(super::TestInjectRequest),
     }
@@ -3057,6 +3029,69 @@ pub mod python_packages_request {
         #[prost(string, tag = "2")]
         pub version: ::prost::alloc::string::String,
     }
+}
+/// Path within nested configuration object.
+///
+/// The path is a list of strings, each string is a key in a nested configuration
+/// dict. These paths are used to filter subtrees in and out of the config
+/// before we capture a schema. This gives users the ability to limit which
+/// parts of the config are exposed as inputs to a job.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JobInputPath {
+    #[prost(string, repeated, tag = "1")]
+    pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Specifies a source for job inputs.
+///
+/// The source is either the run config (wandb.config) or a config file.
+/// If a config file is specified, the file path is relative to
+/// <run-files-dir>/configs.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JobInputSource {
+    #[prost(oneof = "job_input_source::Source", tags = "1, 2")]
+    pub source: ::core::option::Option<job_input_source::Source>,
+}
+/// Nested message and enum types in `JobInputSource`.
+pub mod job_input_source {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct RunConfigSource {}
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct ConfigFileSource {
+        #[prost(string, tag = "1")]
+        pub path: ::prost::alloc::string::String,
+    }
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Source {
+        #[prost(message, tag = "1")]
+        RunConfig(RunConfigSource),
+        #[prost(message, tag = "2")]
+        File(ConfigFileSource),
+    }
+}
+/// Specifies a new source for job inputs.
+///
+/// source tells us where this config is coming from and therefore how it can
+/// be patched in future runs.
+///
+/// If include_paths is not empty, then endpoints of the config not prefixed by
+/// an include path will be ignored.
+///
+/// If exclude_paths is not empty, then endpoints of the config prefixed by an
+/// exclude path will be ignored.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct JobInputRequest {
+    #[prost(message, optional, tag = "1")]
+    pub source: ::core::option::Option<JobInputSource>,
+    #[prost(message, repeated, tag = "2")]
+    pub include_paths: ::prost::alloc::vec::Vec<JobInputPath>,
+    #[prost(message, repeated, tag = "3")]
+    pub exclude_paths: ::prost::alloc::vec::Vec<JobInputPath>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
