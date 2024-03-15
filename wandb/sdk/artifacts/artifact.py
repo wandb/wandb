@@ -1131,6 +1131,7 @@ class Artifact:
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
+        skip_cache: Optional[bool] = False,
         policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
@@ -1141,6 +1142,7 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
             policy: "mutable" | "immutable". By default, "mutable"
                 "mutable": Create a temporary copy of the file to prevent corruption during upload.
                 "immutable": Disable protection, rely on the user not to delete or change the file.
@@ -1151,6 +1153,7 @@ class Artifact:
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
@@ -1165,12 +1168,15 @@ class Artifact:
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest, policy=policy)
+        return self._add_local_file(
+            name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
+        )
 
     def add_dir(
         self,
         local_path: str,
         name: Optional[str] = None,
+        skip_cache: Optional[bool] = False,
         policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> None:
         """Add a local directory to the artifact.
@@ -1180,6 +1186,7 @@ class Artifact:
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
+            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
             policy: "mutable" | "immutable". By default, "mutable"
                 "mutable": Create a temporary copy of the file to prevent corruption during upload.
                 "immutable": Disable protection, rely on the user not to delete or change the file.
@@ -1187,6 +1194,7 @@ class Artifact:
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
@@ -1210,7 +1218,12 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path, policy=policy)
+            self._add_local_file(
+                name=logical_path,
+                path=physical_path,
+                skip_cache=skip_cache,
+                policy=policy,
+            )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1404,6 +1417,7 @@ class Artifact:
         name: StrPath,
         path: StrPath,
         digest: Optional[B64MD5] = None,
+        skip_cache: Optional[bool] = False,
         policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         policy = policy or "mutable"
@@ -1425,8 +1439,8 @@ class Artifact:
             digest=digest or md5_file_b64(upload_path),
             size=os.path.getsize(upload_path),
             local_path=upload_path,
+            skip_cache=skip_cache,
         )
-
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry
