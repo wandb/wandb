@@ -1,8 +1,14 @@
 """Functions for declaring overridable configuration for launch jobs."""
 
+import os
+import shutil
+import tempfile
 from typing import List, Optional
 
 import wandb
+
+from ..errors import LaunchError
+from .files import config_path_is_valid, override_file
 
 
 def manage_config_file(
@@ -46,9 +52,28 @@ def manage_config_file(
             relative and must not contain backwards traversal, i.e. `..`.
         include (List[str]): A list of keys to include in the configuration file.
         exclude (List[str]): A list of keys to exclude from the configuration file.
+
+    Raises:
+        LaunchError: If the path is not valid, or if there is no active run.
     """
-    if not wandb_running():
-        raise ValueError("This function must be called from a W&B run.")
+    if wandb.run is None:
+        raise LaunchError("This function must be called from a W&B run.")
+    config_path_is_valid(path)
+    override_file(path)
+    with tempfile.TemporaryDirectory() as tmp:
+        config_dir = os.path.join(tmp, "configs")
+        dest = os.path.join(config_dir, path)
+        os.mkdir(config_dir)
+        shutil.copy(path, dest)
+        wandb.save(dest, base_path=tmp)
+    assert wandb.run._backend is not None
+    interface = wandb.run._backend.interface
+    assert interface is not None
+    interface.publish_job_input(
+        [_split_on_unesc_dot(tree) for tree in include] if include else [],
+        [_split_on_unesc_dot(tree) for tree in exclude] if exclude else [],
+        file_path=path,
+    )
 
 
 def manage_wandb_config(
@@ -88,18 +113,20 @@ def manage_wandb_config(
     Args:
         include (List[str]): A list of subtrees to include in the configuration.
         exclude (List[str]): A list of subtrees to exclude from the configuration.
+
+    Raises:
+        LaunchError: If there is no active run.
     """
-    if not wandb_running():
-        raise ValueError("This function must be called from a W&B run.")
-
-
-def wandb_running() -> bool:
-    r"""Check if the function is being called from a W&B run.
-
-    Returns:
-        bool: True if the function is being called from a W&B run, False otherwise.
-    """
-    return wandb.run is not None
+    if wandb.run is None:
+        raise LaunchError("This function must be called from a W&B run.")
+    assert wandb.run._backend is not None
+    interface = wandb.run._backend.interface
+    assert interface is not None
+    interface.publish_job_input(
+        [_split_on_unesc_dot(tree) for tree in include] if include else [],
+        [_split_on_unesc_dot(tree) for tree in exclude] if exclude else [],
+        run_config=True,
+    )
 
 
 def _split_on_unesc_dot(path: str) -> List[str]:

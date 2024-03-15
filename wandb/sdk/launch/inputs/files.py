@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 import yaml
 
+from ..errors import LaunchError
+
 FILE_OVERRIDE_ENV_VAR = "WANDB_LAUNCH_FILE_OVERRIDES"
 
 
@@ -19,7 +21,7 @@ class FileOverrides:
             cls._instance.load()
         return cls._instance
 
-    def load(self) -> Dict:
+    def load(self) -> None:
         """Load overrides from an environment variable."""
         overrides = os.environ.get(FILE_OVERRIDE_ENV_VAR)
         if overrides is None:
@@ -33,10 +35,10 @@ class FileOverrides:
             try:
                 contents = json.loads(overrides)
                 if not isinstance(contents, dict):
-                    raise ValueError(f"Invalid JSON in {FILE_OVERRIDE_ENV_VAR}")
+                    raise LaunchError(f"Invalid JSON in {FILE_OVERRIDE_ENV_VAR}")
                 self.overrides = contents
             except json.JSONDecodeError:
-                raise ValueError(f"Invalid JSON in {FILE_OVERRIDE_ENV_VAR}")
+                raise LaunchError(f"Invalid JSON in {FILE_OVERRIDE_ENV_VAR}")
 
 
 def config_path_is_valid(path: str) -> None:
@@ -49,27 +51,27 @@ def config_path_is_valid(path: str) -> None:
         path (str): The path to validate.
 
     Raises:
-        ValueError: If the path is not valid.
+        LaunchError: If the path is not valid.
     """
     if os.path.isabs(path):
-        raise ValueError(
+        raise LaunchError(
             f"Invalid config path: {path}.  Please provide a relative path."
         )
     if ".." in path:
-        raise ValueError(
+        raise LaunchError(
             f"Invalid config path: {path}.  Please provide a relative path "
             "without backtracking."
         )
     path = os.path.normpath(path)
     if not os.path.exists(path):
-        raise ValueError(f"Invalid config path: {path}.  File does not exist.")
+        raise LaunchError(f"Invalid config path: {path}.  File does not exist.")
     if not any(path.endswith(ext) for ext in [".json", ".yaml", ".yml"]):
-        raise ValueError(
+        raise LaunchError(
             f"Invalid config path: {path}.  Only JSON and YAML files are supported."
         )
 
 
-def override_file(path: str) -> bool:
+def override_file(path: str) -> None:
     """Check for file overrides in the environment and apply them if found."""
     file_overrides = FileOverrides()
     if path in file_overrides.overrides:
@@ -78,8 +80,6 @@ def override_file(path: str) -> bool:
             config = _read_config_file(path)
             _upsert_dict(config, overrides)
             _write_config_file(path, config)
-            return True
-    return False
 
 
 def _write_config_file(path: str, config: Any) -> None:
@@ -90,7 +90,7 @@ def _write_config_file(path: str, config: Any) -> None:
         config (Any): The contents of the config file as a Python object.
 
     Raises:
-        ValueError: If the file extension is not supported.
+        LaunchError: If the file extension is not supported.
     """
     _, ext = os.path.splitext(path)
     if ext == ".json":
@@ -100,7 +100,7 @@ def _write_config_file(path: str, config: Any) -> None:
         with open(path, "w") as f:
             yaml.safe_dump(config, f)
     else:
-        raise ValueError(f"Unsupported file extension: {ext}")
+        raise LaunchError(f"Unsupported file extension: {ext}")
 
 
 def _read_config_file(path: str) -> Any:
@@ -124,7 +124,7 @@ def _read_config_file(path: str) -> Any:
         ) as f:
             return yaml.safe_load(f)
     else:
-        raise ValueError(f"Unsupported file extension: {ext}")
+        raise LaunchError(f"Unsupported file extension: {ext}")
 
 
 def _upsert_dict(target: Dict, source: Dict) -> None:
