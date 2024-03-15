@@ -569,6 +569,11 @@ class EntryPoint:
             return ret + user_parameters
         return ret
 
+    def update_entrypoint_path(self, new_path: str) -> None:
+        """Updates the entrypoint path to a new path."""
+        if len(self.command) == 2 and self.command[0] in ["python", "bash"]:
+            self.command[1] = new_path
+
 
 def get_entry_point_command(
     entry_point: Optional["EntryPoint"], parameters: List[str]
