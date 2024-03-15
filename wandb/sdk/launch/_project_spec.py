@@ -119,6 +119,7 @@ class LaunchProject:
         self.override_args: List[str] = overrides.get("args", [])
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.override_artifacts: Dict[str, Any] = overrides.get("artifacts", {})
+        self.override_files: Dict[str, Any] = overrides.get("files", {})
         self.override_entrypoint: Optional[EntryPoint] = None
         self.override_dockerfile: Optional[str] = overrides.get("dockerfile")
         self.deps_type: Optional[str] = None
@@ -567,11 +568,6 @@ class EntryPoint:
         if user_parameters:
             return ret + user_parameters
         return ret
-
-    def update_entrypoint_path(self, new_path: str) -> None:
-        """Updates the entrypoint path to a new path."""
-        if len(self.command) == 2 and self.command[0] in ["python", "bash"]:
-            self.command[1] = new_path
 
 
 def get_entry_point_command(
