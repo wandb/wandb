@@ -1,6 +1,7 @@
 """WandB storage policy."""
 import hashlib
 import math
+import os
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 from urllib.parse import quote
@@ -13,6 +14,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
@@ -385,8 +387,6 @@ class WandbStoragePolicy(StoragePolicy):
         return False
 
     def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
-        if entry.skip_cache:
-            return
         if entry.local_path is None:
             return
 
@@ -395,9 +395,16 @@ class WandbStoragePolicy(StoragePolicy):
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
-        if not hit:
-            try:
+
+        staging_dir = get_staging_dir()
+        try:
+            if not entry.skip_cache and not hit:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-            except OSError as e:
-                termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
+            if entry.local_path.startswith(staging_dir):
+                # Delete staged files here instead of waiting till
+                # all the files are uploaded
+                os.chmod(entry.local_path, 0o600)
+                os.remove(entry.local_path)
+        except OSError as e:
+            termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
