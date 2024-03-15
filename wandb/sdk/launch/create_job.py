@@ -233,7 +233,6 @@ def _make_metadata_for_partial_job(
         return metadata, None
 
     if job_type == "code":
-        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         if not entrypoint:
             wandb.termerror(
                 "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
@@ -340,6 +339,8 @@ def _create_artifact_metadata(
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
@@ -353,33 +354,36 @@ def _create_artifact_metadata(
     else:
         _, python_version = get_current_python_version()
 
-    metadata = {"python": python_version, "codePath": entrypoint}
+    metadata = {"python": python_version, "codePath": entrypoint_file, "entrypoint": entrypoint_list}
     return metadata, requirements
 
 
 def _handle_artifact_entrypoint(
     path: str, entrypoint: Optional[str] = None
 ) -> Tuple[str, Optional[str]]:
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
     if os.path.isfile(path):
-        if entrypoint and path.endswith(entrypoint):
-            path = path.replace(entrypoint, "")
+        if entrypoint and path.endswith(entrypoint_file):
+            path = path.replace(entrypoint_file, "")
             wandb.termwarn(
-                f"Both entrypoint provided and path contains file. Using provided entrypoint: {entrypoint}, path is now: {path}"
+                f"Both entrypoint provided and path contains file. Using provided entrypoint file: {entrypoint_file}, path is now: {path}"
             )
         elif entrypoint:
             wandb.termwarn(
                 f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
             )
         entrypoint = path.split("/")[-1]
+
         path = "/".join(path.split("/")[:-1])
     elif not entrypoint:
         wandb.termerror("Entrypoint not valid")
         return "", None
     path = path or "."  # when path is just an entrypoint, use cdw
 
-    if not os.path.exists(os.path.join(path, entrypoint)):
+    if not os.path.exists(os.path.join(path, entrypoint_file)):
         wandb.termerror(
-            f"Could not find execution point: {os.path.join(path, entrypoint)}"
+            f"Could not find execution point: {os.path.join(path, entrypoint_file)}"
         )
         return "", None
 
@@ -414,7 +418,7 @@ def _make_code_artifact(
     job_builder: JobBuilder,
     run: "wandb.sdk.wandb_run.Run",
     path: str,
-    entrypoint: Optional[str],
+    entrypoint: str,
     entity: Optional[str],
     project: Optional[str],
     name: Optional[str],
@@ -423,16 +427,16 @@ def _make_code_artifact(
 
     Returns the name of the eventual job.
     """
-    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint or ""), name)
+    assert entrypoint is not None
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+
+    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
     code_artifact = wandb.Artifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
     )
-
-    # Update path and entrypoint vars to match metadata
-    # TODO(gst): consolidate into one place
-    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
 
     try:
         code_artifact.add_dir(path)
@@ -454,7 +458,7 @@ def _make_code_artifact(
         project_name=project,
         run_name=run.id,  # run will be deleted after creation
         description="Code artifact for job",
-        metadata={"codePath": path, "entrypoint": entrypoint},
+        metadata={"codePath": path, "entrypoint": entrypoint_file},
         is_user_created=True,
         aliases=[
             {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
