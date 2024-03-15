@@ -7,6 +7,7 @@ import multiprocessing.dummy
 import os
 import re
 import shutil
+import stat
 import tempfile
 import time
 from copy import copy
@@ -20,6 +21,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
@@ -1122,13 +1124,14 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name)
+        self.add_file(path, name=name, policy="immutable")
 
     def add_file(
         self,
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1138,6 +1141,9 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Returns:
             The added manifest entry
@@ -1159,9 +1165,14 @@ class Artifact:
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        return self._add_local_file(name, local_path, digest=digest, policy=policy)
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+    ) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -1169,6 +1180,9 @@ class Artifact:
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
@@ -1196,7 +1210,7 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(logical_path, physical_path, policy=policy)
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1386,18 +1400,31 @@ class Artifact:
         return entry
 
     def _add_local_file(
-        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
+        self,
+        name: StrPath,
+        path: StrPath,
+        digest: Optional[B64MD5] = None,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
-        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
-            shutil.copyfile(path, staging_path)
-            os.chmod(staging_path, 0o400)
+        policy = policy or "mutable"
+        if policy not in ["mutable", "immutable"]:
+            raise ValueError(
+                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+            )
+        upload_path = path
+        if policy == "mutable":
+            with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+                staging_path = f.name
+                shutil.copyfile(path, staging_path)
+                # Set as read-only to prevent changes to the file during upload process
+                os.chmod(staging_path, stat.S_IRUSR)
+                upload_path = staging_path
 
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(staging_path),
-            size=os.path.getsize(staging_path),
-            local_path=staging_path,
+            digest=digest or md5_file_b64(upload_path),
+            size=os.path.getsize(upload_path),
+            local_path=upload_path,
         )
 
         self.manifest.add_entry(entry)

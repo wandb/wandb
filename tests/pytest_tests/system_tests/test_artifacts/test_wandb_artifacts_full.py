@@ -236,6 +236,39 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
+def test_mutable_uploads(tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    artifact.add_file(data_path)
+
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
+
+
+def test_immutable_uploads(tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    artifact.add_file(data_path, policy="immutable")
+
+    # The file is not staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+
 def test_local_references(wandb_init):
     run = wandb_init()
 
