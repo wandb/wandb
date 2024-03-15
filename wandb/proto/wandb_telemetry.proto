@@ -196,6 +196,8 @@ message Feature {
   bool openai_finetuning = 58;           // Using openai finetuning WandbLogger
   bool diffusers_autolog = 59;           // Using Diffusers autologger
   bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
+  bool set_step_log = 61;                // step was set in wandb.log
+  bool set_summary = 62;                 // summary was set by the user
 }
 
 message Env {

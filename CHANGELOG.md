@@ -16,9 +16,9 @@ subsections here on every PR where this is applicable.
 
 ### Added
 
+* Added feature to move staging files to cache (instead of copying) for mutable artifact file uploads when caching is enabled by @ibindlish in https://github.com/wandb/wandb/pull/7143
 * Added support to skip caching files to the local filesystem while uploading files to artifacts by @ibindlish in https://github.com/wandb/wandb/pull/7098
 * Added support to skip staging artifact files during upload by selecting a storage policy by @ibindlish in https://github.com/wandb/wandb/pull/7142
-* Added feature to move staging files to cache (instead of copying) for mutable artifact file uploads when caching is enabled by @ibindlish in https://github.com/wandb/wandb/pull/7143
 
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 

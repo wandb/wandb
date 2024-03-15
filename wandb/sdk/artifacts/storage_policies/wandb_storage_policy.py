@@ -387,6 +387,8 @@ class WandbStoragePolicy(StoragePolicy):
         return False
 
     def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
+        if entry.skip_cache:
+            return
         if entry.local_path is None:
             return
 
