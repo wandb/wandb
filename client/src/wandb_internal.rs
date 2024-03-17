@@ -844,6 +844,12 @@ pub struct Feature {
     /// Using Lightning Fabric logger
     #[prost(bool, tag = "60")]
     pub lightning_fabric_logger: bool,
+    /// step was set in wandb.log
+    #[prost(bool, tag = "61")]
+    pub set_step_log: bool,
+    /// summary was set by the user
+    #[prost(bool, tag = "62")]
+    pub set_summary: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1870,6 +1876,9 @@ pub struct ArtifactManifestEntry {
     pub local_path: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub birth_artifact_id: ::prost::alloc::string::String,
+    /// Whether to avoid copying/moving files to the cache while uploading.
+    #[prost(bool, tag = "8")]
+    pub skip_cache: bool,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
 }
