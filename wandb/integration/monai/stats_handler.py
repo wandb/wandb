@@ -1,11 +1,11 @@
 from typing import Any, Callable, Sequence, Union
 
 import torch
-from monai.utils import is_scalar
 
 import wandb
 from wandb.util import get_module
 
+monai_utils = get_module("monai.utils")
 ignite_engine = get_module("ignite.engine")
 
 
@@ -146,7 +146,7 @@ class WandbStatsHandler:
 
         summary_dict = engine.state.metrics
         for name, value in summary_dict.items():
-            if is_scalar(value):
+            if monai_utils.is_scalar(value):
                 wandb_loggable_dict[f"epoch/{name}"] = value
 
         if self.state_attributes is not None:
@@ -172,7 +172,7 @@ class WandbStatsHandler:
         wandb_loggable_dict = {"iteration/iteration": current_iteration}
         if isinstance(loss, dict):
             for key, value in loss.items():
-                if not is_scalar(value):
+                if not monai_utils.is_scalar(value):
                     wandb.termwarn(
                         "ignoring non-scalar output in WandbStatsHandler,"
                         " make sure `output_transform(engine.state.output)` returns"
@@ -184,7 +184,7 @@ class WandbStatsHandler:
                 wandb_loggable_dict["iteration/Loss"] = (
                     value.item() if isinstance(value, torch.Tensor) else value
                 )
-        elif is_scalar(loss):
+        elif monai_utils.is_scalar(loss):
             wandb_loggable_dict["iteration/Loss"] = (
                 loss.item() if isinstance(loss, torch.Tensor) else loss
             )
