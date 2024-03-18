@@ -2,6 +2,7 @@ package corelib
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/segmentio/encoding/json"
 
@@ -12,6 +13,40 @@ import (
 type genericItem interface {
 	GetKey() string
 	GetValueJson() string
+}
+type Number float64
+
+func (n Number) MarshalJSON() ([]byte, error) {
+	if math.IsInf(float64(n), 1) {
+		return []byte(`Infinity`), nil
+	} else if math.IsInf(float64(n), -1) {
+		return []byte(`-Infinity`), nil
+	} else if math.IsNaN(float64(n)) {
+		return []byte(`NaN`), nil
+	}
+	return json.Marshal(float64(n))
+}
+
+func (n *Number) UnmarshalJSON(b []byte) error {
+	var x interface{}
+	switch v := x.(type) {
+	case float64:
+		*n = Number(v)
+	case string:
+		switch v {
+		case `Infinity`:
+			*n = Number(math.Inf(1))
+		case `-Infinity`:
+			*n = Number(math.Inf(-1))
+		case `NaN`:
+			*n = Number(math.NaN())
+		default:
+			return fmt.Errorf("invalid number: %q", v)
+		}
+	default:
+		return fmt.Errorf("invalid number: %v", v)
+	}
+	return nil
 }
 
 // Custom unmarshal function to handle Infinity, -Infinity, and NaN
@@ -29,8 +64,12 @@ func Unmarshal(b []byte) (any, error) {
 
 	jsonString := string(b)
 	switch jsonString {
-	case "Infinity", "-Infinity", "NaN":
-		x = jsonString
+	case "Infinity":
+		x = `Infinity`
+	case "-Infinity":
+		x = `-Infinity`
+	case "NaN":
+		x = `NaN`
 	default:
 		err := json.Unmarshal(b, &x)
 		if err != nil {
