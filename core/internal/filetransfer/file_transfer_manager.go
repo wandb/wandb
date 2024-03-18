@@ -158,9 +158,6 @@ func (fm *fileTransferManager) FileStreamCallback(task *Task) {
 }
 
 func (fm *fileTransferManager) Close() {
-	if fm == nil {
-		return
-	}
 	if !fm.active {
 		return
 	}
