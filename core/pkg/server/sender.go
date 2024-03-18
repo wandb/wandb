@@ -84,7 +84,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// filetransfer is the file uploader/downloader
-	fileTransferManager *filetransfer.FileTransferManager
+	fileTransferManager filetransfer.FileTransferManager
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
