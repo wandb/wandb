@@ -8,6 +8,7 @@ import multiprocessing.dummy
 import os
 import re
 import shutil
+import stat
 import tempfile
 import time
 from copy import copy
@@ -21,6 +22,7 @@ from typing import (
     Dict,
     Generator,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
@@ -75,7 +77,7 @@ from wandb_gql import gql  # noqa: E402
 reset_path()
 
 if TYPE_CHECKING:
-    from wandb.sdk.lib.mailbox import MailboxHandle
+    from wandb.sdk.interface.message_future import MessageFuture
 
 
 class Artifact:
@@ -146,7 +148,7 @@ class Artifact:
             int, Tuple[data_types.WBValue, ArtifactManifestEntry]
         ] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_handle: Optional["MailboxHandle"] = None
+        self._save_future: Optional[MessageFuture] = None
         self._download_roots: Set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
         self._base_id: Optional[str] = None
@@ -726,7 +728,7 @@ class Artifact:
         return self._state == ArtifactState.PENDING
 
     def _is_draft_save_started(self) -> bool:
-        return self._save_handle is not None
+        return self._save_future is not None
 
     def save(
         self,
@@ -769,10 +771,10 @@ class Artifact:
         else:
             wandb.run.log_artifact(self)
 
-    def _set_save_handle(
-        self, save_handle: "MailboxHandle", client: RetryingClient
+    def _set_save_future(
+        self, save_future: "MessageFuture", client: RetryingClient
     ) -> None:
-        self._save_handle = save_handle
+        self._save_future = save_future
         self._client = client
 
     def wait(self, timeout: Optional[int] = None) -> "Artifact":
@@ -785,13 +787,9 @@ class Artifact:
             An `Artifact` object.
         """
         if self.is_draft():
-            if self._save_handle is None:
+            if self._save_future is None:
                 raise ArtifactNotLoggedError(self, "wait")
-
-            if timeout is None:
-                timeout = -1
-            termlog(f"Waiting for artifact {self.name} to be committed...")
-            result = self._save_handle.wait(timeout=timeout)
+            result = self._save_future.get(timeout)
             if not result:
                 raise WaitTimeoutError(
                     "Artifact upload wait timed out, failed to fetch Artifact response"
@@ -800,8 +798,6 @@ class Artifact:
             if response.error_message:
                 raise ValueError(response.error_message)
             self._populate_after_save(response.artifact_id)
-            termlog(prefix=False, newline=True)
-            termlog(f"Committed artifact {self.qualified_name}")
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
@@ -1129,13 +1125,15 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name)
+        self.add_file(path, name=name, policy="immutable", skip_cache=True)
 
     def add_file(
         self,
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1145,6 +1143,10 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Returns:
             The added manifest entry
@@ -1152,6 +1154,7 @@ class Artifact:
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
@@ -1166,9 +1169,17 @@ class Artifact:
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        return self._add_local_file(
+            name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
+        )
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+    ) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -1176,10 +1187,15 @@ class Artifact:
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
+            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
@@ -1203,7 +1219,12 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(
+                name=logical_path,
+                path=physical_path,
+                skip_cache=skip_cache,
+                policy=policy,
+            )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1395,20 +1416,34 @@ class Artifact:
         return entry
 
     def _add_local_file(
-        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
+        self,
+        name: StrPath,
+        path: StrPath,
+        digest: Optional[B64MD5] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
-        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
-            shutil.copyfile(path, staging_path)
-            os.chmod(staging_path, 0o400)
+        policy = policy or "mutable"
+        if policy not in ["mutable", "immutable"]:
+            raise ValueError(
+                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+            )
+        upload_path = path
+        if policy == "mutable":
+            with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+                staging_path = f.name
+                shutil.copyfile(path, staging_path)
+                # Set as read-only to prevent changes to the file during upload process
+                os.chmod(staging_path, stat.S_IRUSR)
+                upload_path = staging_path
 
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(staging_path),
-            size=os.path.getsize(staging_path),
-            local_path=staging_path,
+            digest=digest or md5_file_b64(upload_path),
+            size=os.path.getsize(upload_path),
+            local_path=upload_path,
+            skip_cache=skip_cache,
         )
-
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry

@@ -13,7 +13,17 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Iterable, NewType, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    NewType,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -34,6 +44,7 @@ from wandb.util import (
 from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
+from .message_future import MessageFuture
 
 GlobStr = NewType("GlobStr", str)
 
@@ -339,6 +350,7 @@ class InterfaceBase:
                 proto_entry.ref = entry.ref
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
+            proto_entry.skip_cache = entry.skip_cache
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
@@ -452,7 +464,7 @@ class InterfaceBase:
     def _publish_use_artifact(self, proto_artifact: pb.UseArtifactRecord) -> None:
         raise NotImplementedError
 
-    def deliver_artifact(
+    def communicate_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -461,7 +473,7 @@ class InterfaceBase:
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> MailboxHandle:
+    ) -> MessageFuture:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -478,11 +490,13 @@ class InterfaceBase:
         if history_step is not None:
             log_artifact.history_step = history_step
         log_artifact.staging_dir = get_staging_dir()
-        resp = self._deliver_artifact(log_artifact)
+        resp = self._communicate_artifact(log_artifact)
         return resp
 
     @abstractmethod
-    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+    def _communicate_artifact(
+        self, log_artifact: pb.LogArtifactRequest
+    ) -> MessageFuture:
         raise NotImplementedError
 
     def deliver_download_artifact(
@@ -753,6 +767,36 @@ class InterfaceBase:
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
 
+    def publish_launch_wandb_config_parameters(
+        self, include_paths: List[List[str]], exclude_paths: List[List[str]]
+    ):
+        """Tells the internal process to treat wandb.config fields as job inputs.
+
+        The paths provided as arguments are sequences of dictionary keys that
+        specify a path within the wandb.config. If a path is included, the
+        corresponding field will be treated as a job input. If a path is
+        excluded, the corresponding field will not be treated as a job input.
+
+        Args:
+            include_paths: paths within config to include as job inputs.
+            exclude_paths: paths within config to exclude as job inputs.
+
+        Returns:
+            None
+        """
+        config_parameters = pb.LaunchWandbConfigParametersRecord()
+        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
+        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
+        config_parameters.include_paths.extend(include_records)
+        config_parameters.exclude_paths.extend(exclude_records)
+        return self._publish_launch_wandb_config_parameters(config_parameters)
+
+    @abstractmethod
+    def _publish_launch_wandb_config_parameters(
+        self, config_parameters: pb.LaunchWandbConfigParametersRecord
+    ) -> None:
+        raise NotImplementedError
+
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:
         raise NotImplementedError
@@ -867,12 +911,4 @@ class InterfaceBase:
     def _deliver_request_run_status(
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
-        raise NotImplementedError
-
-    def deliver_request_job_info(self) -> MailboxHandle:
-        job_info = pb.JobInfoRequest()
-        return self._deliver_request_job_info(job_info)
-
-    @abstractmethod
-    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
         raise NotImplementedError

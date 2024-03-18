@@ -4,7 +4,7 @@ from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b9"
+CORE_VERSION = "0.17.0b10"
 
 
 @nox.session(python=False, name="build-rust")

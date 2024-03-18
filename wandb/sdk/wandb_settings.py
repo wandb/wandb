@@ -291,13 +291,14 @@ class SettingsData:
     _aws_lambda: bool
     _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _code_path_local: str
     _colab: bool
     # _config_dict: Config
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
     _disable_service: (
-        bool
-    )  # Disable wandb-service, spin up internal process the old way
+        bool  # Disable wandb-service, spin up internal process the old way
+    )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
@@ -354,20 +355,18 @@ class SettingsData:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: (
-        bool
-    )  # join metrics from different assets before sending to backend
+        bool  # join metrics from different assets before sending to backend
+    )
     _stats_neuron_monitor_config_path: (
-        str
-    )  # path to place config file for neuron-monitor (AWS Trainium)
+        str  # path to place config file for neuron-monitor (AWS Trainium)
+    )
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
-    _stats_buffer_size: (
-        int
-    )  # number of consolidated samples to buffer before flushing, available in run obj
+    _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -617,6 +616,10 @@ class Settings(SettingsData):
             },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
+            _code_path_local={
+                "hook": lambda _: _get_program_relpath(self.program),
                 "auto_hook": True,
             },
             _colab={
@@ -1892,16 +1895,33 @@ class Settings(SettingsData):
                 f.write(json.dumps({"run_id": self.run_id}))
 
     def _apply_login(
-        self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
+        self,
+        login_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
-        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
-        login_settings = {
-            param_map.get(k, k): v for k, v in login_settings.items() if v is not None
+        key_map = {
+            "key": "api_key",
+            "host": "base_url",
+            "timeout": "login_timeout",
         }
-        if login_settings:
-            if _logger:
-                _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
-            self.update(login_settings, source=Source.LOGIN)
+
+        # Rename keys and keep only the non-None values.
+        #
+        # The input keys are parameters to wandb.login(), but we use different
+        # names for some of them in Settings.
+        login_settings = {
+            key_map.get(key, key): value
+            for key, value in login_settings.items()
+            if value is not None
+        }
+
+        if _logger:
+            _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
+
+        self.update(
+            login_settings,
+            source=Source.LOGIN,
+        )
 
     def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
         # This dictionary maps from the "run message dict" to relevant fields in settings

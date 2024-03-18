@@ -4,13 +4,12 @@ import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
@@ -52,7 +51,10 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        self._manifest = ArtifactManifest.from_manifest_json(
+            manifest_json,
+            api=self._api,
+        )
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -72,11 +74,9 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
-        server_artifact = None
-        commit_fut = None
+    ) -> Optional[Dict]:
         try:
-            server_artifact, commit_fut = self._save_internal(
+            return self._save_internal(
                 type,
                 name,
                 client_id,
@@ -92,12 +92,8 @@ class ArtifactSaver:
                 history_step,
                 base_id,
             )
-            return server_artifact, commit_fut
         finally:
-            if commit_fut is not None:
-                commit_fut.add_done_callback(lambda _: self._cleanup_staged_entries())
-            else:
-                self._cleanup_staged_entries()
+            pass
 
     def _save_internal(
         self,
@@ -115,7 +111,7 @@ class ArtifactSaver:
         incremental: bool = False,
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
-    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
+    ) -> Optional[Dict]:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})
@@ -143,7 +139,7 @@ class ArtifactSaver:
         if self._server_artifact["state"] == "COMMITTED":
             if use_after_commit:
                 self._api.use_artifact(artifact_id)
-            return self._server_artifact, None
+            return self._server_artifact
         if (
             self._server_artifact["state"] != "PENDING"
             # For old servers, see https://github.com/wandb/wandb/pull/6190
@@ -245,25 +241,17 @@ class ArtifactSaver:
             result_future=commit_result,
         )
 
-        saver_future: concurrent.futures.Future[None] = concurrent.futures.Future()
+        # Block until all artifact files are uploaded and the
+        # artifact is committed.
+        try:
+            commit_result.result()
+        finally:
+            step_prepare.shutdown()
 
-        # do not wait for the commit to finish. Instead, once the commit is finished, set the result in the
-        # a future returned by this function. This allows the caller to decide if they should
-        # synchronously wait for the result of the saver or let it run async in the background
-        def on_commit_result(fut: concurrent.futures.Future) -> None:
-            try:
-                res = fut.result()
-                if finalize and use_after_commit:
-                    self._api.use_artifact(artifact_id)
-                saver_future.set_result(res)
-            except Exception as e:
-                saver_future.set_exception(e)
-            finally:
-                step_prepare.shutdown()
+        if finalize and use_after_commit:
+            self._api.use_artifact(artifact_id)
 
-        commit_result.add_done_callback(on_commit_result)
-
-        return self._server_artifact, saver_future
+        return self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
         for entry_path in self._manifest.entries:
@@ -280,19 +268,3 @@ class ArtifactSaver:
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
-
-    def _cleanup_staged_entries(self) -> None:
-        """Remove all staging copies of local files.
-
-        We made a staging copy of each local file to freeze it at "add" time.
-        We need to delete them once we've uploaded the file or confirmed we
-        already have a committed copy.
-        """
-        staging_dir = get_staging_dir()
-        for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass

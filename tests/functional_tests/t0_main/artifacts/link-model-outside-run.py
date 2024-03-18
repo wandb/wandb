@@ -38,7 +38,7 @@ def main():
     art = wandb.Artifact("my-model", "model")
     art.add(sm, "index")
 
-    link_model(sm, "entity/project/test_portfolio")
+    link_model(sm, "project/test_portfolio")
 
 
 if __name__ == "__main__":
