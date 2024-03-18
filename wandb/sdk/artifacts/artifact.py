@@ -1,4 +1,5 @@
 """Artifact class."""
+
 import atexit
 import concurrent.futures
 import contextlib
@@ -1257,7 +1258,7 @@ class Artifact:
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3,
-                GCS, Azure, and local files is 10,000. Other URI schemas do not have a maximum.
+                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
 
         Returns:
             The added manifest entries.
