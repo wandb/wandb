@@ -9,13 +9,15 @@ import (
 )
 
 type FakeFileTransferManager struct {
-	tasks   []*filetransfer.Task
-	tasksMu *sync.Mutex
+	tasks           []*filetransfer.Task
+	unfinishedTasks map[*filetransfer.Task]struct{}
+	tasksMu         *sync.Mutex
 }
 
 func NewFakeFileTransferManager() *FakeFileTransferManager {
 	return &FakeFileTransferManager{
-		tasksMu: &sync.Mutex{},
+		tasksMu:         &sync.Mutex{},
+		unfinishedTasks: make(map[*filetransfer.Task]struct{}),
 	}
 }
 
@@ -26,19 +28,33 @@ func (m *FakeFileTransferManager) Tasks() []*filetransfer.Task {
 	return slices.Clone(m.tasks)
 }
 
+// Runs the completion callback for all incomplete tasks.
+func (m *FakeFileTransferManager) CompleteTasks() {
+	m.tasksMu.Lock()
+	defer m.tasksMu.Unlock()
+
+	for task := range m.unfinishedTasks {
+		task.CompletionCallback(task)
+		delete(m.unfinishedTasks, task)
+	}
+}
+
 //
 // FileTransferManager interface implementation
 //
 
 func (m *FakeFileTransferManager) Start() {}
 
-func (m *FakeFileTransferManager) Close() {}
+func (m *FakeFileTransferManager) Close() {
+	m.CompleteTasks()
+}
 
 func (m *FakeFileTransferManager) AddTask(t *filetransfer.Task) {
 	m.tasksMu.Lock()
 	defer m.tasksMu.Unlock()
 
 	m.tasks = append(m.tasks, t)
+	m.unfinishedTasks[t] = struct{}{}
 }
 
 func (m *FakeFileTransferManager) FileStreamCallback(t *filetransfer.Task) {}
