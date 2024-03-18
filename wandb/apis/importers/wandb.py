@@ -24,7 +24,7 @@ import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
-from wandb.util import coalesce, remove_keys_with_none_values
+from wandb.util import coalesce, random_string, remove_keys_with_none_values
 
 from . import validation
 from .internals import internal
@@ -369,7 +369,9 @@ class WandbImporter:
         }
 
     def __repr__(self):
-        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
+        return (
+            f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
+        )  # pragma: no cover
 
     def _import_run(
         self,
@@ -1445,8 +1447,8 @@ class _DummyUser:
 class _DummyRun:
     entity: str = ""
     project: str = ""
-    run_id: str = RUN_DUMMY_PLACEHOLDER
-    id: str = RUN_DUMMY_PLACEHOLDER
+    run_id: str = RUN_DUMMY_PLACEHOLDER + random_string()
+    id: str = RUN_DUMMY_PLACEHOLDER + random_string()
     display_name: str = RUN_DUMMY_PLACEHOLDER
     notes: str = ""
     url: str = ""
@@ -1514,8 +1516,8 @@ def _get_run_or_dummy_from_art(art: Artifact, api=None):
     run = _DummyRun(
         entity=art.entity,
         project=art.project,
-        run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
-        id=creator.get("name", RUN_DUMMY_PLACEHOLDER),
+        run_id=creator.get("name", RUN_DUMMY_PLACEHOLDER + random_string()),
+        id=creator.get("name", RUN_DUMMY_PLACEHOLDER + random_string()),
     )
     return run
 
