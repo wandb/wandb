@@ -152,7 +152,9 @@ type ClientOptions struct {
 
 	// Log hook for response logging.
 	//
-	// This is used to log the response body and headers for
+	// This is used to log the response body and headers for debugging purposes.
+	// We currently abuse this method to communicate back with the client.
+	// Ideally, we should just use it for logging.
 	ResponseLogHook retryablehttp.ResponseLogHook
 }
 

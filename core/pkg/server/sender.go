@@ -96,10 +96,13 @@ type Sender struct {
 	// resumeState is the resume state
 	resumeState *ResumeState
 
+	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
+	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
+	// debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
@@ -162,18 +165,28 @@ func NewSender(
 		}
 		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
 
-		repsonseHookFunc := func(_ retryablehttp.Logger, resp *http.Response) {
+		// Hook to capture response body for internal printer (for now)
+		// This is going to be removed once we refactor our loggers.
+		// We should just use the logger to capture this information.
+		repsonseHook := func(_ retryablehttp.Logger, resp *http.Response) {
 
-			if resp != nil && resp.StatusCode != http.StatusOK {
+			if resp != nil && resp.Body != nil && resp.StatusCode != http.StatusOK {
 				// Read the response body
 				bodyContent, err := io.ReadAll(resp.Body)
 				if err != nil {
-					panic(err) // Handle error properly in real code
+					logger.Error("sender: failed to read response body", "error", err)
+					return
 				}
 				// Close the original body
 				resp.Body.Close()
 
-				// Use the body content in your callback function
+				// Use the body content in the internal printer
+				//
+				// Note that message is an empty string, since we need to
+				// comply with the interface of the Logger
+				// This will allow us to capture the response body.
+				// Note: this is going to be removed once we refactor our
+				// loggers. We should capture this information in the logger
 				sender.internalPrinter.Printf("", &service.HttpResponse{
 					HttpResponseText: string(bodyContent),
 					HttpStatusCode:   int32(resp.StatusCode),
@@ -192,7 +205,7 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
 			ExtraHeaders:    graphqlHeaders,
-			ResponseLogHook: repsonseHookFunc,
+			ResponseLogHook: repsonseHook,
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
@@ -208,7 +221,7 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
 			ExtraHeaders:    fileStreamHeaders,
-			ResponseLogHook: repsonseHookFunc,
+			ResponseLogHook: repsonseHook,
 		})
 
 		sender.fileStream = fs.NewFileStream(
