@@ -43,11 +43,15 @@ func TestProcessRecord(t *testing.T) {
 		configure func(),
 		test func(t *testing.T),
 	) {
+		// Set a default and allow tests to override it.
 		filesDir = "default/files/dir"
 		configure()
 
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
+		fakeFileTransfer.ShouldCompleteImmediately = true
+
 		mockGQLClient = gqlmock.NewMockClient()
+
 		handler = New(runfilestest.WithTestDefaults(FilesRecordHandlerParams{
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
