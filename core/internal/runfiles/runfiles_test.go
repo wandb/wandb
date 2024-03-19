@@ -37,6 +37,9 @@ func TestProcessRecord(t *testing.T) {
 	// The files_dir to set on Settings.
 	var filesDir string
 
+	// The _offline mode to set on Settings.
+	var isOffline bool
+
 	// Resets test objects and runs a given test.
 	runTest := func(
 		name string,
@@ -45,6 +48,7 @@ func TestProcessRecord(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		filesDir = "default/files/dir"
+		isOffline = false
 		configure()
 
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
@@ -57,6 +61,7 @@ func TestProcessRecord(t *testing.T) {
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
 				FilesDir: &wrapperspb.StringValue{Value: filesDir},
+				XOffline: &wrapperspb.BoolValue{Value: isOffline},
 			}),
 		}))
 
@@ -126,6 +131,23 @@ func TestProcessRecord(t *testing.T) {
 			// testable.
 			handler.Finish()
 			assert.Len(t, fakeFileTransfer.Tasks(), 2)
+		})
+
+	runTest("does not upload in offline mode",
+		func() { isOffline = true },
+		func(t *testing.T) {
+			t.Skip("Not implemented")
+			stubCreateRunFilesOneFile(mockGQLClient)
+
+			handler.ProcessRecord(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "file.txt", Policy: service.FilesItem_NOW},
+				},
+			})
+			handler.Flush()
+			handler.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
 	runTest("uploads using GraphQL response",
