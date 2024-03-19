@@ -2,11 +2,11 @@ package artifacts
 
 import (
 	"fmt"
-	"io"
-	"net/http"
+	"os"
 
 	"github.com/segmentio/encoding/json"
 
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
@@ -76,24 +76,41 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 	return manifestEntry, nil
 }
 
-func loadManifestFromURL(url string) (Manifest, error) {
-	// TODO: this should use a retryable HTTP client from internal/clients
-	resp, err := http.Get(url)
+func loadManifestFromURL(url string, ftm filetransfer.FileTransferManager) (Manifest, error) {
+	tempFile, err := os.CreateTemp("", "wandb-manifest-*.json")
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, fmt.Errorf("error creating temporary file: %v", err)
 	}
-	defer resp.Body.Close()
-	manifest := Manifest{}
-	if resp.StatusCode != http.StatusOK {
-		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.Task{
+		Type: filetransfer.DownloadTask,
+		Url:  url,
+		Path: tempFile.Name(),
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
+
+	var manifest Manifest
+	task.SetCompletionCallback(func(t *filetransfer.Task) {
+		if t.Err != nil {
+			return
+		}
+		body, err := os.ReadFile(t.Path)
+		if err != nil {
+			t.Err = fmt.Errorf("error reading downloaded manifest file: %v", err)
+			return
+		}
+		err = json.Unmarshal(body, &manifest)
+		if err != nil {
+			t.Err = fmt.Errorf("error unmarshaling manifest: %v", err)
+		}
+	})
+
+	ftm.AddTask(task)
+	ftm.Close()
+
+	if task.Err != nil {
+		return Manifest{}, task.Err
 	}
-	err = json.Unmarshal(body, &manifest)
-	if err != nil {
-		return Manifest{}, nil
-	}
+
 	return manifest, nil
 }

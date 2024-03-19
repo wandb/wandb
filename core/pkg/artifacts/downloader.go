@@ -64,7 +64,7 @@ func (ad *ArtifactDownloader) getArtifactManifest(artifactID string) (manifest M
 		return Manifest{}, fmt.Errorf("could not access manifest for artifact")
 	}
 	directURL := artifactManifest.GetFile().DirectUrl
-	manifest, err = loadManifestFromURL(directURL)
+	manifest, err = loadManifestFromURL(directURL, ad.DownloadManager)
 	if err != nil {
 		return Manifest{}, err
 	}
