@@ -29,7 +29,7 @@ func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
 	)
 }
 
-func TestProcess(t *testing.T) {
+func TestProcessRecord(t *testing.T) {
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
 	var handler FilesRecordHandler
