@@ -29,9 +29,6 @@ type FilesRecordHandler interface {
 }
 
 type FilesRecordHandlerParams struct {
-	// Function for persisting a record to the transaction log.
-	PersistFn func(*service.Record)
-
 	Logger       *observability.CoreLogger
 	Settings     *settings.Settings
 	FileTransfer filetransfer.FileTransferManager

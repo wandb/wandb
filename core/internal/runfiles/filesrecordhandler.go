@@ -13,7 +13,6 @@ import (
 
 // Internal implementation of the FilesRecordHandler interface.
 type handler struct {
-	persistFn    func(*service.Record)
 	logger       *observability.CoreLogger
 	settings     *settings.Settings
 	fileTransfer filetransfer.FileTransferManager
@@ -34,7 +33,6 @@ type handler struct {
 
 func newFilesRecordHandler(params FilesRecordHandlerParams) FilesRecordHandler {
 	return &handler{
-		persistFn:    params.PersistFn,
 		logger:       params.Logger,
 		settings:     params.Settings,
 		fileTransfer: params.FileTransfer,
