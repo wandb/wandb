@@ -891,9 +891,18 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
-    def _setup_fork(self, run: "RunRecord"):
+    def _setup_fork(self):
         self._resume_state.step = self._settings.fork_from_run_step
-        run.forked = True
+
+        fork_state = self._api.run_resume_status(
+            entity=self._run.entity,  # type: ignore
+            project_name=self._run.project,
+            name=self._run.run_id,
+        )
+
+        self._resume_state.history = fork_state["historyLineCount"]
+        self._run.forked = True
+        self._run.starting_step = self._resume_state.step
 
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
@@ -916,15 +925,15 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
+        do_fork = self._settings.fork_from_run_id and self._settings.fork_from_run_step
+
         if is_wandb_init:
             # Ensure we have a project to query for status
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
 
-            if self._settings.fork_from_run_id and self._settings.fork_from_run_step:
-                error = self._setup_fork(run)
-            else:
+            if not do_fork:
                 error = self._maybe_setup_resume(run)
 
         if error is not None:
@@ -966,6 +975,19 @@ class SendManager:
             return
 
         assert self._run  # self._run is configured in _init_run()
+
+        if do_fork:
+            error = self._setup_fork()
+
+        if error is not None:
+            if record.control.req_resp or record.control.mailbox_slot:
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            else:
+                logger.error("Got error in async mode: %s", error.message)
+            return
 
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
