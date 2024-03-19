@@ -32,7 +32,7 @@ func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
 func TestProcess(t *testing.T) {
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
-	var manager Manager
+	var handler FilesRecordHandler
 
 	// The files_dir to set on Settings.
 	var filesDir string
@@ -48,7 +48,7 @@ func TestProcess(t *testing.T) {
 
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
 		mockGQLClient = gqlmock.NewMockClient()
-		manager = NewManager(runfilestest.WithTestDefaults(ManagerParams{
+		handler = New(runfilestest.WithTestDefaults(FilesRecordHandlerParams{
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
@@ -63,12 +63,12 @@ func TestProcess(t *testing.T) {
 		t.Skip("Not implemented")
 		stubCreateRunFilesOneFile(mockGQLClient)
 
-		manager.ProcessRecord(&service.FilesRecord{
+		handler.ProcessRecord(&service.FilesRecord{
 			Files: []*service.FilesItem{
 				{Path: "file.txt", Policy: service.FilesItem_NOW},
 			},
 		})
-		manager.Finish() // No flush!
+		handler.Finish() // No flush!
 
 		assert.Len(t, fakeFileTransfer.Tasks(), 1)
 	})
@@ -77,12 +77,12 @@ func TestProcess(t *testing.T) {
 		t.Skip("Not implemented")
 		stubCreateRunFilesOneFile(mockGQLClient)
 
-		manager.ProcessRecord(&service.FilesRecord{
+		handler.ProcessRecord(&service.FilesRecord{
 			Files: []*service.FilesItem{
 				{Path: "file.txt", Policy: service.FilesItem_END},
 			},
 		})
-		manager.Finish() // No flush!
+		handler.Finish() // No flush!
 
 		assert.Len(t, fakeFileTransfer.Tasks(), 0)
 	})
@@ -91,13 +91,13 @@ func TestProcess(t *testing.T) {
 		t.Skip("Not implemented")
 		stubCreateRunFilesOneFile(mockGQLClient)
 
-		manager.ProcessRecord(&service.FilesRecord{
+		handler.ProcessRecord(&service.FilesRecord{
 			Files: []*service.FilesItem{
 				{Path: "file.txt", Policy: service.FilesItem_END},
 			},
 		})
-		manager.Flush()
-		manager.Finish()
+		handler.Flush()
+		handler.Finish()
 
 		assert.Len(t, fakeFileTransfer.Tasks(), 1)
 	})
@@ -109,18 +109,18 @@ func TestProcess(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient)
 
 			// First upload (immediate):
-			manager.ProcessRecord(&service.FilesRecord{
+			handler.ProcessRecord(&service.FilesRecord{
 				Files: []*service.FilesItem{
 					{Path: "file.txt", Policy: service.FilesItem_LIVE},
 				},
 			})
 
 			// Second upload (on flush):
-			manager.Flush()
+			handler.Flush()
 
 			// Note: we don't test uploads due to changes as they're not very
 			// testable.
-			manager.Finish()
+			handler.Finish()
 			assert.Len(t, fakeFileTransfer.Tasks(), 2)
 		})
 
@@ -143,12 +143,12 @@ func TestProcess(t *testing.T) {
 				}`,
 			)
 
-			manager.ProcessRecord(&service.FilesRecord{
+			handler.ProcessRecord(&service.FilesRecord{
 				Files: []*service.FilesItem{
 					{Path: "file.txt", Policy: service.FilesItem_NOW},
 				},
 			})
-			manager.Finish()
+			handler.Finish()
 
 			uploadTasks := fakeFileTransfer.Tasks()
 			assert.Len(t, uploadTasks, 1)

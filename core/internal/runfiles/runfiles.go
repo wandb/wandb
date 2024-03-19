@@ -1,4 +1,4 @@
-// Deals with the saved files of a W&B run.
+// Package runfiles deals with the saved files of a W&B run.
 //
 // This includes files saved via `wandb.save(...)` and internally created
 // files. It's separate from "artifacts", which is a newer model and exists
@@ -13,8 +13,8 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// Manages the files of a run.
-type Manager interface {
+// FilesRecordHandler processes FilesRecords from the client.
+type FilesRecordHandler interface {
 	// Asynchronously handles a file save record from a client.
 	ProcessRecord(record *service.FilesRecord)
 
@@ -28,7 +28,7 @@ type Manager interface {
 	Finish()
 }
 
-type ManagerParams struct {
+type FilesRecordHandlerParams struct {
 	// Function for persisting a record to the transaction log.
 	PersistFn func(*service.Record)
 
@@ -38,6 +38,6 @@ type ManagerParams struct {
 	GraphQL      graphql.Client
 }
 
-func NewManager(params ManagerParams) Manager {
-	return newManager(params)
+func New(params FilesRecordHandlerParams) FilesRecordHandler {
+	return newFilesRecordHandler(params)
 }

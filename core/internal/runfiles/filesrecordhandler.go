@@ -11,8 +11,8 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// Internal implementation of the Manager interface.
-type manager struct {
+// Internal implementation of the FilesRecordHandler interface.
+type handler struct {
 	persistFn    func(*service.Record)
 	logger       *observability.CoreLogger
 	settings     *settings.Settings
@@ -32,8 +32,8 @@ type manager struct {
 	stateMu *sync.Mutex
 }
 
-func newManager(params ManagerParams) Manager {
-	return &manager{
+func newFilesRecordHandler(params FilesRecordHandlerParams) FilesRecordHandler {
+	return &handler{
 		persistFn:    params.PersistFn,
 		logger:       params.Logger,
 		settings:     params.Settings,
@@ -50,51 +50,51 @@ func newManager(params ManagerParams) Manager {
 	}
 }
 
-func (m *manager) ProcessRecord(record *service.FilesRecord) {
-	if m.isFinished.Load() {
-		m.logger.CaptureError("runfiles: called ProcessRecord() after Finish()", nil)
+func (h *handler) ProcessRecord(record *service.FilesRecord) {
+	if h.isFinished.Load() {
+		h.logger.CaptureError("runfiles: called ProcessRecord() after Finish()", nil)
 		return
 	}
 
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+	h.stateMu.Lock()
+	defer h.stateMu.Unlock()
 	// TODO
 }
 
-func (m *manager) Flush() {
-	if m.isFinished.Load() {
-		m.logger.CaptureError("runfiles: called Flush() after Finish()", nil)
+func (h *handler) Flush() {
+	if h.isFinished.Load() {
+		h.logger.CaptureError("runfiles: called Flush() after Finish()", nil)
 		return
 	}
 
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+	h.stateMu.Lock()
+	defer h.stateMu.Unlock()
 
-	for path, info := range m.flushSet {
+	for path, info := range h.flushSet {
 		// Avoid capturing the loop variables.
 		path := path
 		info := info
 
-		m.uploadWg.Add(1)
+		h.uploadWg.Add(1)
 		go func() {
-			m.uploadFile(path, info)
-			m.uploadWg.Done()
+			h.uploadFile(path, info)
+			h.uploadWg.Done()
 		}()
 	}
 }
 
-func (m *manager) Finish() {
+func (h *handler) Finish() {
 	// Mark as finished. Do nothing if already finished.
-	if m.isFinished.Swap(true) {
+	if h.isFinished.Swap(true) {
 		return
 	}
 
-	m.stateMu.Lock()
-	defer m.stateMu.Unlock()
+	h.stateMu.Lock()
+	defer h.stateMu.Unlock()
 
-	m.uploadWg.Wait()
+	h.uploadWg.Wait()
 }
 
-func (m *manager) uploadFile(path string, info FileInfo) {
+func (h *handler) uploadFile(path string, info FileInfo) {
 	// TODO
 }

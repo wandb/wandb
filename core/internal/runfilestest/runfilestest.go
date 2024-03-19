@@ -8,7 +8,7 @@ import (
 )
 
 // Sets nice default parameters for testing purposes.
-func WithTestDefaults(params runfiles.ManagerParams) runfiles.ManagerParams {
+func WithTestDefaults(params runfiles.FilesRecordHandlerParams) runfiles.FilesRecordHandlerParams {
 	if params.PersistFn == nil {
 		params.PersistFn = func(*service.Record) {}
 	}
