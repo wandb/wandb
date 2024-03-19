@@ -382,10 +382,14 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
+<<<<<<< HEAD
 func (s *Sender) sendNetworkStatusRequest(
 	record *service.Record,
 	_ *service.NetworkStatusRequest,
 ) {
+=======
+func (s *Sender) sendNetworkStatusRequest(record *service.Record, _ *service.NetworkStatusRequest) {
+>>>>>>> 212298206 (fix(core): add network status message)
 
 	response := s.internalPrinter.Read()
 

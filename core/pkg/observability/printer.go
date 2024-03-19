@@ -26,3 +26,15 @@ func (p *Printer[T]) Read() []T {
 	p.messages = make([]T, 0)
 	return polledMessages
 }
+
+// Add this method to satisfy the interface defined by retryablehttp.Logger
+// This gives the ability to use the Printer as a logger for retryablehttp.Client
+// and capture responses from the retry logic
+func (p *Printer[T]) Printf(_ string, args ...interface{}) {
+	if len(args) > 0 {
+		msg, ok := args[0].(T)
+		if ok {
+			p.Write(msg)
+		}
+	}
+}
