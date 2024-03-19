@@ -149,6 +149,11 @@ type ClientOptions struct {
 	// In particular, they are not sent if using this client to send
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
+
+	// Log hook for response logging.
+	//
+	// This is used to log the response body and headers for
+	ResponseLogHook retryablehttp.ResponseLogHook
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -181,6 +186,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
 		retryableHTTP.HTTPClient.Transport,
 	)
+
+	if opts.ResponseLogHook != nil {
+		retryableHTTP.ResponseLogHook = opts.ResponseLogHook
+	}
 
 	return &clientImpl{
 		backend:       backend,

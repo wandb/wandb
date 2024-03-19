@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"maps"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -119,6 +121,8 @@ type Sender struct {
 	jobBuilder *launch.JobBuilder
 
 	wgFileTransfer sync.WaitGroup
+
+	internalPrinter *observability.Printer[*service.HttpResponse]
 }
 
 // NewSender creates a new Sender with the given settings
@@ -131,14 +135,15 @@ func NewSender(
 ) *Sender {
 
 	sender := &Sender{
-		ctx:            ctx,
-		cancel:         cancel,
-		settings:       settings,
-		logger:         logger,
-		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      runconfig.New(),
-		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer: sync.WaitGroup{},
+		ctx:             ctx,
+		cancel:          cancel,
+		settings:        settings,
+		logger:          logger,
+		summaryMap:      make(map[string]*service.SummaryItem),
+		runConfig:       runconfig.New(),
+		telemetry:       &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer:  sync.WaitGroup{},
+		internalPrinter: observability.NewPrinter[*service.HttpResponse](),
 	}
 	if !settings.GetXOffline().GetValue() {
 		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
@@ -157,6 +162,29 @@ func NewSender(
 		}
 		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
 
+		repsonseHookFunc := func(_ retryablehttp.Logger, resp *http.Response) {
+
+			if resp != nil && resp.StatusCode != http.StatusOK {
+				// Read the response body
+				bodyContent, err := io.ReadAll(resp.Body)
+				if err != nil {
+					panic(err) // Handle error properly in real code
+				}
+				// Close the original body
+				resp.Body.Close()
+
+				// Use the body content in your callback function
+				sender.internalPrinter.Printf("", &service.HttpResponse{
+					HttpResponseText: string(bodyContent),
+					HttpStatusCode:   int32(resp.StatusCode),
+				},
+				)
+
+				// Restore the response body so it can be used again
+				resp.Body = io.NopCloser(bytes.NewReader(bodyContent))
+			}
+		}
+
 		graphqlClient := backend.NewClient(api.ClientOptions{
 			RetryPolicy:     clients.CheckRetry,
 			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
@@ -164,6 +192,7 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
 			ExtraHeaders:    graphqlHeaders,
+			ResponseLogHook: repsonseHookFunc,
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
@@ -179,6 +208,7 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
 			ExtraHeaders:    fileStreamHeaders,
+			ResponseLogHook: repsonseHookFunc,
 		})
 
 		sender.fileStream = fs.NewFileStream(
@@ -318,7 +348,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
-		s.sendNetworkStatusRequest(x.NetworkStatus)
+		s.sendNetworkStatusRequest(record, x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
@@ -384,7 +414,27 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+func (s *Sender) sendNetworkStatusRequest(record *service.Record, _ *service.NetworkStatusRequest) {
+
+	response := s.internalPrinter.Read()
+
+	if len(response) > 0 {
+		result := &service.Result{
+			ResultType: &service.Result_Response{
+				Response: &service.Response{
+					ResponseType: &service.Response_NetworkStatusResponse{
+						NetworkStatusResponse: &service.NetworkStatusResponse{
+							NetworkResponses: response,
+						},
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.outChan <- result
+	}
+
 }
 
 func (s *Sender) sendJobFlush() {

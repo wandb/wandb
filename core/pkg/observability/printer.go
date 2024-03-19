@@ -4,25 +4,37 @@ import (
 	"sync"
 )
 
-type Printer struct {
-	messages []string
+type Printer[T any] struct {
+	messages []T
 	mutex    sync.Mutex
 }
 
-func NewPrinter() *Printer {
-	return &Printer{}
+func NewPrinter[T any]() *Printer[T] {
+	return &Printer[T]{}
 }
 
-func (s *Printer) Write(message string) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.messages = append(s.messages, message)
+func (p *Printer[T]) Write(message T) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	p.messages = append(p.messages, message)
 }
 
-func (s *Printer) Read() []string {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	polledMessages := s.messages
-	s.messages = make([]string, 0)
+func (p *Printer[T]) Read() []T {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	polledMessages := p.messages
+	p.messages = make([]T, 0)
 	return polledMessages
+}
+
+// Add this method to satisfy the interface defined by retryablehttp.Logger
+// This gives the ability to use the Printer as a logger for retryablehttp.Client
+// and capture responses from the retry logic
+func (p *Printer[T]) Printf(_ string, args ...interface{}) {
+	if len(args) > 0 {
+		msg, ok := args[0].(T)
+		if ok {
+			p.Write(msg)
+		}
+	}
 }
