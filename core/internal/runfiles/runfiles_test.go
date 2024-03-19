@@ -1,14 +1,11 @@
 package runfiles_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
-	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
@@ -17,22 +14,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func stubCreateRunFiles(mockGQLClient *gqlmock.MockClient) {
-	// TODO: This should stub using a custom matcher.
-	mockGQLClient.StubOnce(
-		func(client graphql.Client) {
-			_, _ = gql.CreateRunFiles(
-				context.Background(),
-				client,
-				"test-entity",
-				"test-project",
-				"test-run",
-				[]string{"the/files/directory/file.txt"},
-			)
-		},
+func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
+	mockGQLClient.StubMatchOnce(
+		gqlmock.WithOpName("CreateRunFiles"),
 		`"createRunFiles": {
 			"runID": "test-run",
-			"uploadHeaders": ["Header1:Value1", "Header2:Value2"],
 			"files": [
 				{
 					"name": "test-file",
@@ -43,102 +29,115 @@ func stubCreateRunFiles(mockGQLClient *gqlmock.MockClient) {
 	)
 }
 
-func TestProcess_Now_UploadsImmediately(t *testing.T) {
-	t.Skip("Not implemented yet")
+func TestProcess(t *testing.T) {
+	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
+	var mockGQLClient *gqlmock.MockClient
+	var manager Manager
 
-	fakeFileTransfer := filetransfertest.NewFakeFileTransferManager()
-	mockGQLClient := gqlmock.NewMockClient()
-	stubCreateRunFiles(mockGQLClient)
-	manager := NewManager(runfilestest.WithTestDefaults(ManagerParams{
-		GraphQL:      mockGQLClient,
-		FileTransfer: fakeFileTransfer,
-	}))
+	// The files_dir to set on Settings.
+	var filesDir string
 
-	manager.ProcessRecord(&service.FilesRecord{
-		Files: []*service.FilesItem{
-			{Path: "file.txt", Policy: service.FilesItem_NOW},
-		},
-	})
-	manager.Finish() // No flush!
+	// Resets test objects and runs a given test.
+	runTest := func(
+		name string,
+		configure func(),
+		test func(t *testing.T),
+	) {
+		filesDir = "default/files/dir"
+		configure()
 
-	assert.Len(t, fakeFileTransfer.Tasks(), 1)
-}
+		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
+		mockGQLClient = gqlmock.NewMockClient()
+		manager = NewManager(runfilestest.WithTestDefaults(ManagerParams{
+			GraphQL:      mockGQLClient,
+			FileTransfer: fakeFileTransfer,
+			Settings: settings.From(&service.Settings{
+				FilesDir: &wrapperspb.StringValue{Value: filesDir},
+			}),
+		}))
 
-func TestProcess_End_UploadsAtEnd(t *testing.T) {
-	t.Skip("Not implemented yet")
+		t.Run(name, test)
+	}
 
-	fakeFileTransfer := filetransfertest.NewFakeFileTransferManager()
-	mockGQLClient := gqlmock.NewMockClient()
-	stubCreateRunFiles(mockGQLClient)
-	manager := NewManager(runfilestest.WithTestDefaults(ManagerParams{
-		GraphQL:      mockGQLClient,
-		FileTransfer: fakeFileTransfer,
-	}))
+	runTest("'now' uploads immediately", func() {}, func(t *testing.T) {
+		t.Skip("Not implemented")
+		stubCreateRunFilesOneFile(mockGQLClient)
 
-	manager.ProcessRecord(&service.FilesRecord{
-		Files: []*service.FilesItem{
-			{Path: "file.txt", Policy: service.FilesItem_END},
-		},
-	})
-	manager.Flush()
-	manager.Finish()
-
-	assert.Len(t, fakeFileTransfer.Tasks(), 1)
-}
-
-func TestProcess_UploadsUsingGraphQLResponse(t *testing.T) {
-	t.Skip("Not implemented yet")
-
-	fakeFileTransfer := filetransfertest.NewFakeFileTransferManager()
-	mockGQLClient := gqlmock.NewMockClient()
-	mockGQLClient.StubOnce(
-		func(client graphql.Client) {
-			_, _ = gql.CreateRunFiles(
-				context.Background(),
-				client,
-				"test-entity",
-				"test-project",
-				"test-run",
-				[]string{"the/files/directory/file.txt"},
-			)
-		},
-		`"createRunFiles": {
-			"runID": "test-run",
-			"uploadHeaders": ["Header1:Value1", "Header2:Value2"],
-			"files": [
-				{
-					"name": "test-file",
-					"uploadUrl": "https://example.com/test-file",
-				}
-			]
-		}`,
-	)
-	manager := NewManager(runfilestest.WithTestDefaults(ManagerParams{
-		GraphQL:      mockGQLClient,
-		FileTransfer: fakeFileTransfer,
-		Settings: settings.From(&service.Settings{
-			FilesDir: &wrapperspb.StringValue{
-				Value: "the/files/directory",
+		manager.ProcessRecord(&service.FilesRecord{
+			Files: []*service.FilesItem{
+				{Path: "file.txt", Policy: service.FilesItem_NOW},
 			},
-		}),
-	}))
+		})
+		manager.Finish() // No flush!
 
-	manager.ProcessRecord(&service.FilesRecord{
-		Files: []*service.FilesItem{
-			{Path: "file.txt", Policy: service.FilesItem_NOW},
-		},
+		assert.Len(t, fakeFileTransfer.Tasks(), 1)
 	})
-	manager.Finish()
 
-	uploadTasks := fakeFileTransfer.Tasks()
-	assert.Len(t, uploadTasks, 1)
-	assert.Equal(t,
-		&filetransfer.Task{
-			Type:    filetransfer.UploadTask,
-			Path:    "the/files/directory/file.txt",
-			Name:    "test-file",
-			Url:     "https://example.com/test-file",
-			Headers: []string{"Header1:Value1", "Header2:Value2"},
-		},
-		uploadTasks[0].Path)
+	runTest("'end' does not upload immediately", func() {}, func(t *testing.T) {
+		t.Skip("Not implemented")
+		stubCreateRunFilesOneFile(mockGQLClient)
+
+		manager.ProcessRecord(&service.FilesRecord{
+			Files: []*service.FilesItem{
+				{Path: "file.txt", Policy: service.FilesItem_END},
+			},
+		})
+		manager.Finish() // No flush!
+
+		assert.Len(t, fakeFileTransfer.Tasks(), 0)
+	})
+
+	runTest("'end' uploads after flush", func() {}, func(t *testing.T) {
+		t.Skip("Not implemented")
+		stubCreateRunFilesOneFile(mockGQLClient)
+
+		manager.ProcessRecord(&service.FilesRecord{
+			Files: []*service.FilesItem{
+				{Path: "file.txt", Policy: service.FilesItem_END},
+			},
+		})
+		manager.Flush()
+		manager.Finish()
+
+		assert.Len(t, fakeFileTransfer.Tasks(), 1)
+	})
+
+	runTest("uploads using GraphQL response",
+		func() { filesDir = "the/files/directory" },
+		func(t *testing.T) {
+			t.Skip("Not implemented")
+
+			mockGQLClient.StubMatchOnce(
+				gqlmock.WithOpName("CreateRunFiles"),
+				`"createRunFiles": {
+					"runID": "test-run",
+					"uploadHeaders": ["Header1:Value1", "Header2:Value2"],
+					"files": [
+						{
+							"name": "test-file",
+							"uploadUrl": "https://example.com/test-file",
+						}
+					]
+				}`,
+			)
+
+			manager.ProcessRecord(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "file.txt", Policy: service.FilesItem_NOW},
+				},
+			})
+			manager.Finish()
+
+			uploadTasks := fakeFileTransfer.Tasks()
+			assert.Len(t, uploadTasks, 1)
+			assert.Equal(t,
+				&filetransfer.Task{
+					Type:    filetransfer.UploadTask,
+					Path:    "the/files/directory/file.txt",
+					Name:    "test-file",
+					Url:     "https://example.com/test-file",
+					Headers: []string{"Header1:Value1", "Header2:Value2"},
+				},
+				uploadTasks[0].Path)
+		})
 }
