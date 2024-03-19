@@ -30,7 +30,7 @@ func NewMockClient() *MockClient {
 	}
 }
 
-// StubOnce registers a response function for a particular type of request.
+// StubOnce registers a response for a specific request.
 //
 // The `query` argument is a function that uses the given client to make the
 // expected GraphQL request. The next time such a request is made, the
@@ -48,12 +48,41 @@ func (c *MockClient) StubOnce(
 		c.stubs,
 		&stubbedRequest{
 			gomock.Eq(recorder.Request),
-			func(_ *graphql.Request, resp *graphql.Response) error {
-				// Return the JSON error to make it easier to tell if a test's
-				// JSON is incorrect.
-				return json.Unmarshal([]byte(responseJSON), resp.Data)
-			},
+			handlerReturningJSON(responseJSON),
 		})
+}
+
+// StubMatchOnce registers a response for a matching request.
+//
+// The next time a request matching `requestMatcher` is made, the
+// `responseJSON` is used to fill in the response.
+func (c *MockClient) StubMatchOnce(
+	requestMatcher gomock.Matcher,
+	responseJSON string,
+) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.stubs = append(c.stubs,
+		&stubbedRequest{
+			requestMatcher,
+			handlerReturningJSON(responseJSON),
+		})
+}
+
+// StubAnyOnce registers a response for the next request.
+func (c *MockClient) StubAnyOnce(responseJSON string) {
+	c.StubMatchOnce(gomock.Any(), responseJSON)
+}
+
+func handlerReturningJSON(
+	responseJSON string,
+) func(*graphql.Request, *graphql.Response) error {
+	return func(_ *graphql.Request, resp *graphql.Response) error {
+		// Return the JSON error to make it easier to tell if a test's
+		// JSON is incorrect.
+		return json.Unmarshal([]byte(responseJSON), resp.Data)
+	}
 }
 
 // AllStubsUsed reports whether every stubbed response was matched.
