@@ -102,6 +102,28 @@ func TestProcess(t *testing.T) {
 		assert.Len(t, fakeFileTransfer.Tasks(), 1)
 	})
 
+	runTest("'live' uploads immediately and on flush",
+		func() { filesDir = t.TempDir() },
+		func(t *testing.T) {
+			t.Skip("Not implemented")
+			stubCreateRunFilesOneFile(mockGQLClient)
+
+			// First upload (immediate):
+			manager.ProcessRecord(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "file.txt", Policy: service.FilesItem_LIVE},
+				},
+			})
+
+			// Second upload (on flush):
+			manager.Flush()
+
+			// Note: we don't test uploads due to changes as they're not very
+			// testable.
+			manager.Finish()
+			assert.Len(t, fakeFileTransfer.Tasks(), 2)
+		})
+
 	runTest("uploads using GraphQL response",
 		func() { filesDir = "the/files/directory" },
 		func(t *testing.T) {
