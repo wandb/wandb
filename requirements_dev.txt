@@ -45,8 +45,39 @@ prometheus_client
 google-cloud-aiplatform
 aiohttp==3.9.0b0; python_version >= '3.12'
 
-.[async]
-.[perf]
-.[launch]
-.[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-.[azure]
+# .[async]
+httpx>=0.23.0
+
+# .[perf]
+orjson
+
+# .[launch]
+awscli
+azure-identity
+azure-containerregistry
+azure-storage-blob
+boto3
+botocore
+chardet
+google-auth
+google-cloud-aiplatform
+google-cloud-artifact-registry
+google-cloud-compute
+google-cloud-storage
+iso8601
+kubernetes
+kubernetes_asyncio
+optuna
+nbconvert
+nbformat
+pydantic
+typing_extensions
+tomli
+PyYAML>=6.0.0
+
+# .[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
+sweeps>=0.2.0; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
+
+# .[azure]
+azure-identity
+azure-storage-blob
