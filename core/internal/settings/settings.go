@@ -87,3 +87,8 @@ func (s *Settings) GetLogDir() string {
 func (s *Settings) GetInternalLogFile() string {
 	return s.Proto.LogInternal.GetValue()
 }
+
+// The local directory where the run's files are stored.
+func (s *Settings) GetFilesDir() string {
+	return s.Proto.FilesDir.GetValue()
+}

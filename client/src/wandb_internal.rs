@@ -97,6 +97,9 @@ pub struct Settings {
     /// Filename to use for internal logs.
     #[prost(message, optional, tag = "86")]
     pub log_internal: ::core::option::Option<::prost::alloc::string::String>,
+    /// Absolute path to the local directory where this run's files are stored.
+    #[prost(message, optional, tag = "70")]
+    pub files_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "1")]
     pub args: ::core::option::Option<ListStringValue>,
     #[prost(message, optional, tag = "2")]
@@ -233,8 +236,6 @@ pub struct Settings {
     pub docker: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "68")]
     pub email: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "70")]
-    pub files_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "71")]
     pub force: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "72")]

@@ -142,6 +142,7 @@ class Settings(google.protobuf.message.Message):
     ENTITY_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
+    FILES_DIR_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _ASYNC_UPLOAD_CONCURRENCY_LIMIT_FIELD_NUMBER: builtins.int
@@ -209,7 +210,6 @@ class Settings(google.protobuf.message.Message):
     DISABLED_FIELD_NUMBER: builtins.int
     DOCKER_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
-    FILES_DIR_FIELD_NUMBER: builtins.int
     FORCE_FIELD_NUMBER: builtins.int
     GIT_COMMIT_FIELD_NUMBER: builtins.int
     GIT_REMOTE_FIELD_NUMBER: builtins.int
@@ -322,6 +322,9 @@ class Settings(google.protobuf.message.Message):
     @property
     def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Filename to use for internal logs."""
+    @property
+    def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Absolute path to the local directory where this run's files are stored."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property
@@ -456,8 +459,6 @@ class Settings(google.protobuf.message.Message):
     def docker(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def email(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def force(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -644,6 +645,7 @@ class Settings(google.protobuf.message.Message):
         entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -711,7 +713,6 @@ class Settings(google.protobuf.message.Message):
         disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
         email: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         force: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         git_commit: google.protobuf.wrappers_pb2.StringValue | None = ...,
         git_remote: google.protobuf.wrappers_pb2.StringValue | None = ...,
