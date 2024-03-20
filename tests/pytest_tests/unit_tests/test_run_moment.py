@@ -32,3 +32,21 @@ def test_run_moment_from_uri_invalid_path():
     uri = "ans3bsax/metric?_step=123"
     with pytest.raises(ValueError):
         RunMoment.from_uri(uri)
+
+
+def test_run_moment_from_uri_invalid_params():
+    uri = "ans3bsax?_step=123&metric=123"
+    with pytest.raises(ValueError):
+        RunMoment.from_uri(uri)
+
+
+def test_run_moment_from_uri_invalid_fragment():
+    uri = "ans3bsax?_step=123#metric=123"
+    with pytest.raises(ValueError):
+        RunMoment.from_uri(uri)
+
+
+def test_run_moment_from_uri_invalid_scheme():
+    uri = "http://ans3bsax?_step=123"
+    with pytest.raises(ValueError):
+        RunMoment.from_uri(uri)
