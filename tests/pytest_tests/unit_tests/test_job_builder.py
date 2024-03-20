@@ -201,7 +201,7 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd):
                 }
             )
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, True)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -232,7 +232,7 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd):
                 }
             )
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, True)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -266,7 +266,7 @@ def test_build_artifact_notebook_job_no_program_metadata(runner, tmp_path, capfd
                 }
             )
         )
-        job_builder = JobBuilder(settings)
+        job_builder = JobBuilder(settings, True)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
