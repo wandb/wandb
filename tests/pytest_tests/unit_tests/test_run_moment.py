@@ -50,3 +50,8 @@ def test_run_moment_from_uri_invalid_scheme():
     uri = "http://ans3bsax?_step=123"
     with pytest.raises(ValueError):
         RunMoment.from_uri(uri)
+
+
+def test_run_moment_invalid_direct_construction():
+    with pytest.raises(ValueError):
+        RunMoment(run=123, metric="loss", value="abcd")
