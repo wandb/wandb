@@ -1168,6 +1168,12 @@ def init(
     error_seen = None
     except_exit = None
     run: Optional[Union[Run, RunDisabled]] = None
+
+    # convert start_from into a settings object
+    if kwargs.pop("start_from", None):
+        kwargs['fork_from_run_id'] = start_from.run
+        kwargs['fork_from_run_value'] = start_from.value
+
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
