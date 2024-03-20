@@ -13,28 +13,33 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// FilesRecordHandler processes FilesRecords from the client.
-type FilesRecordHandler interface {
-	// Asynchronously handles a file save record from a client.
-	ProcessRecord(record *service.FilesRecord)
+// Uploader uploads the files in a run's files directory.
+type Uploader interface {
+	// Process handles a file save record from a client.
+	Process(record *service.FilesRecord)
 
-	// Asynchronously uploads all remaining files.
-	Flush()
-
-	// Waits for all async operations to finish.
+	// UploadNow asynchronously uploads a run file.
 	//
-	// This must be called after all other method invocations return.
-	// Afteward, no more methods may be called.
+	// The path is relative to the run's file directory.
+	UploadNow(path string)
+
+	// UploadRemaining asynchronously uploads all files
+	// in the run's file directory.
+	UploadRemaining()
+
+	// Finish waits for all asynchronous operations to finish.
+	//
+	// After this, no other methods may be called.
 	Finish()
 }
 
-type FilesRecordHandlerParams struct {
+func NewUploader(params UploaderParams) Uploader {
+	return newUploader(params)
+}
+
+type UploaderParams struct {
 	Logger       *observability.CoreLogger
 	Settings     *settings.Settings
 	FileTransfer filetransfer.FileTransferManager
 	GraphQL      graphql.Client
-}
-
-func New(params FilesRecordHandlerParams) FilesRecordHandler {
-	return newFilesRecordHandler(params)
 }

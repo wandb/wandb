@@ -1,9 +1,13 @@
 package runfiles_test
 
 import (
+	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -29,10 +33,23 @@ func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
 	)
 }
 
-func TestProcessRecord(t *testing.T) {
+func writeEmptyFile(t *testing.T, path string) {
+	require.NoError(t,
+		os.MkdirAll(
+			filepath.Dir(path),
+			syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR,
+		),
+	)
+
+	require.NoError(t,
+		os.WriteFile(path, []byte(""), os.FileMode(0)),
+	)
+}
+
+func TestUploader(t *testing.T) {
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
-	var handler FilesRecordHandler
+	var uploader Uploader
 
 	// The files_dir to set on Settings.
 	var filesDir string
@@ -47,7 +64,7 @@ func TestProcessRecord(t *testing.T) {
 		test func(t *testing.T),
 	) {
 		// Set a default and allow tests to override it.
-		filesDir = "default/files/dir"
+		filesDir = t.TempDir()
 		isOffline = false
 		configure()
 
@@ -56,7 +73,7 @@ func TestProcessRecord(t *testing.T) {
 
 		mockGQLClient = gqlmock.NewMockClient()
 
-		handler = New(runfilestest.WithTestDefaults(FilesRecordHandlerParams{
+		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
@@ -68,86 +85,57 @@ func TestProcessRecord(t *testing.T) {
 		t.Run(name, test)
 	}
 
-	runTest("'now' uploads immediately", func() {}, func(t *testing.T) {
-		t.Skip("Not implemented")
-		stubCreateRunFilesOneFile(mockGQLClient)
+	runTest("'now' policy uploads immediately",
+		func() {},
+		func(t *testing.T) {
+			t.Skip("Not implemented")
+			stubCreateRunFilesOneFile(mockGQLClient)
 
-		handler.ProcessRecord(&service.FilesRecord{
-			Files: []*service.FilesItem{
-				{Path: "file.txt", Policy: service.FilesItem_NOW},
-			},
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "test.txt", Policy: service.FilesItem_NOW},
+				},
+			})
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
 		})
-		handler.Finish() // No flush!
 
-		assert.Len(t, fakeFileTransfer.Tasks(), 1)
-	})
+	runTest("UploadNow uploads given file",
+		func() {},
+		func(t *testing.T) {
+			t.Skip("Not implemented")
+			stubCreateRunFilesOneFile(mockGQLClient)
 
-	runTest("'end' does not upload immediately", func() {}, func(t *testing.T) {
-		t.Skip("Not implemented")
-		stubCreateRunFilesOneFile(mockGQLClient)
+			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
 
-		handler.ProcessRecord(&service.FilesRecord{
-			Files: []*service.FilesItem{
-				{Path: "file.txt", Policy: service.FilesItem_END},
-			},
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
 		})
-		handler.Finish() // No flush!
 
-		assert.Len(t, fakeFileTransfer.Tasks(), 0)
-	})
+	runTest("UploadNow does nothing if offline",
+		func() { isOffline = true },
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
 
-	runTest("'end' uploads after flush", func() {}, func(t *testing.T) {
-		t.Skip("Not implemented")
-		stubCreateRunFilesOneFile(mockGQLClient)
+			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
 
-		handler.ProcessRecord(&service.FilesRecord{
-			Files: []*service.FilesItem{
-				{Path: "file.txt", Policy: service.FilesItem_END},
-			},
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
-		handler.Flush()
-		handler.Finish()
 
-		assert.Len(t, fakeFileTransfer.Tasks(), 1)
-	})
-
-	runTest("'live' uploads immediately and on flush",
+	runTest("UploadRemaining uploads all files",
 		func() { filesDir = t.TempDir() },
 		func(t *testing.T) {
 			t.Skip("Not implemented")
 			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "file1.txt"))
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "file2.txt"))
 
-			// First upload (immediate):
-			handler.ProcessRecord(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "file.txt", Policy: service.FilesItem_LIVE},
-				},
-			})
+			uploader.UploadRemaining()
+			uploader.Finish()
 
-			// Second upload (on flush):
-			handler.Flush()
-
-			// Note: we don't test uploads due to changes as they're not very
-			// testable.
-			handler.Finish()
 			assert.Len(t, fakeFileTransfer.Tasks(), 2)
-		})
-
-	runTest("does not upload in offline mode",
-		func() { isOffline = true },
-		func(t *testing.T) {
-			t.Skip("Not implemented")
-			stubCreateRunFilesOneFile(mockGQLClient)
-
-			handler.ProcessRecord(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "file.txt", Policy: service.FilesItem_NOW},
-				},
-			})
-			handler.Flush()
-			handler.Finish()
-
-			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
 	runTest("uploads using GraphQL response",
@@ -169,12 +157,8 @@ func TestProcessRecord(t *testing.T) {
 				}`,
 			)
 
-			handler.ProcessRecord(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "file.txt", Policy: service.FilesItem_NOW},
-				},
-			})
-			handler.Finish()
+			uploader.UploadNow("file.txt")
+			uploader.Finish()
 
 			uploadTasks := fakeFileTransfer.Tasks()
 			assert.Len(t, uploadTasks, 1)

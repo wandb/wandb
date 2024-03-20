@@ -8,7 +8,7 @@ import (
 )
 
 // Sets nice default parameters for testing purposes.
-func WithTestDefaults(params runfiles.FilesRecordHandlerParams) runfiles.FilesRecordHandlerParams {
+func WithTestDefaults(params runfiles.UploaderParams) runfiles.UploaderParams {
 	if params.Logger == nil {
 		params.Logger = observability.NewNoOpLogger()
 	}
