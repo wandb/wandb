@@ -5,7 +5,7 @@ from urllib import parse
 
 
 class RunMoment(pydantic.BaseModel):
-    """A moment in time in a run."""
+    """A moment in a run."""
 
     run: str  # run name
 
