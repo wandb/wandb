@@ -914,7 +914,7 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from_run_id and self._settings.fork_from_run_value
+        do_fork = self._settings.fork_from is not None
 
         if is_wandb_init:
             # Ensure we have a project to query for status
