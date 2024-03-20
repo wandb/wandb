@@ -115,6 +115,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
                 "ref": content.ref if content.ref else None,
                 "size": content.size if content.size is not None else None,
                 "local_path": content.local_path if content.local_path else None,
+                "skip_cache": content.skip_cache,
                 "extra": {
                     extra.key: json.loads(extra.value_json) for extra in content.extra
                 },
@@ -731,17 +732,6 @@ class SendManager:
                     level=message_level_sanitized,
                 )
             )
-        self._respond_result(result)
-
-    def send_request_job_info(self, record: "Record") -> None:
-        """Respond to a request for a job link."""
-        result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = (
-            self._job_builder._job_seq_id or ""
-        )
-        result.response.job_info_response.version = (
-            self._job_builder._job_version_alias or ""
-        )
         self._respond_result(result)
 
     def _maybe_setup_resume(

@@ -71,6 +71,8 @@ pub mod open_metrics_filters {
 /// 2. Run settings
 ///
 /// Some fields such as `run_id` only make sense at the run level.
+///
+/// Next ID: 164
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Settings {
@@ -79,6 +81,9 @@ pub struct Settings {
     /// This can be empty if we're in offline mode.
     #[prost(message, optional, tag = "55")]
     pub api_key: ::core::option::Option<::prost::alloc::string::String>,
+    /// Whether we are in offline mode.
+    #[prost(message, optional, tag = "30")]
+    pub offline: ::core::option::Option<bool>,
     /// The ID of the run.
     #[prost(message, optional, tag = "107")]
     pub run_id: ::core::option::Option<::prost::alloc::string::String>,
@@ -97,6 +102,9 @@ pub struct Settings {
     /// Filename to use for internal logs.
     #[prost(message, optional, tag = "86")]
     pub log_internal: ::core::option::Option<::prost::alloc::string::String>,
+    /// Absolute path to the local directory where this run's files are stored.
+    #[prost(message, optional, tag = "70")]
+    pub files_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "1")]
     pub args: ::core::option::Option<ListStringValue>,
     #[prost(message, optional, tag = "2")]
@@ -155,8 +163,6 @@ pub struct Settings {
     pub noop: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "29")]
     pub notebook: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "30")]
-    pub offline: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "31")]
     pub sync: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "32")]
@@ -233,8 +239,6 @@ pub struct Settings {
     pub docker: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "68")]
     pub email: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "70")]
-    pub files_dir: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "71")]
     pub force: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "72")]
@@ -844,6 +848,12 @@ pub struct Feature {
     /// Using Lightning Fabric logger
     #[prost(bool, tag = "60")]
     pub lightning_fabric_logger: bool,
+    /// step was set in wandb.log
+    #[prost(bool, tag = "61")]
+    pub set_step_log: bool,
+    /// summary was set by the user
+    #[prost(bool, tag = "62")]
+    pub set_summary: bool,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -969,7 +979,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -1020,6 +1030,8 @@ pub mod record {
         LinkArtifact(super::LinkArtifactRecord),
         #[prost(message, tag = "25")]
         UseArtifact(super::UseArtifactRecord),
+        #[prost(message, tag = "26")]
+        WandbConfigParameters(super::LaunchWandbConfigParametersRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1184,6 +1196,34 @@ pub struct GitRepoRecord {
     pub remote_url: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub commit: ::prost::alloc::string::String,
+}
+/// Path within nested configuration object.
+///
+/// The path is a list of strings, each string is a key in the nested configuration
+/// dict.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConfigFilterPath {
+    #[prost(string, repeated, tag = "1")]
+    pub path: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Specifies include and exclude paths for filtering job inputs.
+///
+/// If this record is published to the core internal process then it will filter
+/// the given paths into or out of the job inputs it builds.
+///
+/// If include_paths is not empty, then endpoints of the config not prefixed by
+/// an include path will be ignored.
+///
+/// If exclude_paths is not empty, then endpoints of the config prefixed by an
+/// exclude path will be ignored.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LaunchWandbConfigParametersRecord {
+    #[prost(message, repeated, tag = "1")]
+    pub include_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
+    #[prost(message, repeated, tag = "2")]
+    pub exclude_paths: ::prost::alloc::vec::Vec<ConfigFilterPath>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1594,8 +1634,7 @@ pub struct SummaryItem {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SummaryResult {}
-///
-/// FilesRecord: files added to run
+/// Files added to a run, such as through run.save().
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesRecord {
@@ -1604,17 +1643,19 @@ pub struct FilesRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// One or more files being saved with a run.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FilesItem {
+    /// A path or Unix glob relative to the W&B files directory.
     #[prost(string, tag = "1")]
     pub path: ::prost::alloc::string::String,
+    /// When to upload the file.
     #[prost(enumeration = "files_item::PolicyType", tag = "2")]
     pub policy: i32,
+    /// What kind of file it is.
     #[prost(enumeration = "files_item::FileType", tag = "3")]
     pub r#type: i32,
-    #[prost(string, tag = "16")]
-    pub external_path: ::prost::alloc::string::String,
 }
 /// Nested message and enum types in `FilesItem`.
 pub mod files_item {
@@ -1631,8 +1672,11 @@ pub mod files_item {
     )]
     #[repr(i32)]
     pub enum PolicyType {
+        /// Upload the file immediately.
         Now = 0,
+        /// Upload the file during run.finish().
         End = 1,
+        /// Re-upload the file continuously as it changes.
         Live = 2,
     }
     impl PolicyType {
@@ -1836,6 +1880,9 @@ pub struct ArtifactManifestEntry {
     pub local_path: ::prost::alloc::string::String,
     #[prost(string, tag = "7")]
     pub birth_artifact_id: ::prost::alloc::string::String,
+    /// Whether to avoid copying/moving files to the cache while uploading.
+    #[prost(bool, tag = "8")]
+    pub skip_cache: bool,
     #[prost(message, repeated, tag = "16")]
     pub extra: ::prost::alloc::vec::Vec<ExtraItem>,
 }
