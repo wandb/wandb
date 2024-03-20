@@ -59,7 +59,6 @@ from wandb.sdk.lib import (
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
-
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -368,11 +367,10 @@ class SendManager:
         self._retry_q.put(response)
 
     def send(self, record: "Record") -> None:
-        record_type = record.WhichOneof("record_type")
-
         self._update_record_num(record.num)
         self._update_end_offset(record.control.end_offset)
 
+        record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
@@ -1045,7 +1043,6 @@ class SendManager:
             if not inserted:
                 # no need to flush this, it will get updated eventually
                 self._telemetry_obj.feature.maybe_run_overwrite = True
-
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -1130,7 +1127,6 @@ class SendManager:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
     def send_history(self, record: "Record") -> None:
-        # breakpoint()
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)

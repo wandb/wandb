@@ -977,14 +977,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {
-            "dryrun",
-            "run",
-            "offline",
-            "online",
-            "disabled",
-            "shared",
-        }  # , "fork"}
+        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True

@@ -548,8 +548,6 @@ class HandleManager:
     def handle_request_partial_history(self, record: Record) -> None:
         partial_history = record.request.partial_history
 
-        breakpoint
-
         flush = None
         if partial_history.HasField("action"):
             flush = partial_history.action.flush

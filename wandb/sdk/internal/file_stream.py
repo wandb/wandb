@@ -416,7 +416,6 @@ class FileStreamApi:
         while finished is None:
             items = self._read_queue()
             for item in items:
-                # print(item)
                 if isinstance(item, self.Finish):
                     finished = item
                 elif isinstance(item, self.Preempting):
