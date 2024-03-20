@@ -116,8 +116,8 @@ class OpenMetricsFilters(google.protobuf.message.Message):
 global___OpenMetricsFilters = OpenMetricsFilters
 
 class RunMoment(google.protobuf.message.Message):
-    """Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment. 
-    Used to communicate the moment in a run at which forking or resuming should 
+    """Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
+    Used to communicate the moment in a run at which forking or resuming should
     take place.
     """
 
