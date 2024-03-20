@@ -71,6 +71,8 @@ pub mod open_metrics_filters {
 /// 2. Run settings
 ///
 /// Some fields such as `run_id` only make sense at the run level.
+///
+/// Next ID: 164
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Settings {
@@ -79,6 +81,9 @@ pub struct Settings {
     /// This can be empty if we're in offline mode.
     #[prost(message, optional, tag = "55")]
     pub api_key: ::core::option::Option<::prost::alloc::string::String>,
+    /// Whether we are in offline mode.
+    #[prost(message, optional, tag = "30")]
+    pub offline: ::core::option::Option<bool>,
     /// The ID of the run.
     #[prost(message, optional, tag = "107")]
     pub run_id: ::core::option::Option<::prost::alloc::string::String>,
@@ -158,8 +163,6 @@ pub struct Settings {
     pub noop: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "29")]
     pub notebook: ::core::option::Option<bool>,
-    #[prost(message, optional, tag = "30")]
-    pub offline: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "31")]
     pub sync: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "32")]

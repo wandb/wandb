@@ -30,8 +30,7 @@ func From(proto *service.Settings) *Settings {
 //
 // Reads the API key from .netrc if it's not already set.
 func (s *Settings) EnsureAPIKey() error {
-	if s.Proto.GetApiKey().GetValue() != "" ||
-		s.Proto.GetXOffline().GetValue() {
+	if s.GetAPIKey() != "" || s.IsOffline() {
 		return nil
 	}
 
@@ -56,6 +55,11 @@ func (s *Settings) EnsureAPIKey() error {
 // This can be empty if we're in offline mode.
 func (s *Settings) GetAPIKey() string {
 	return s.Proto.ApiKey.GetValue()
+}
+
+// Whether we are in offline mode.
+func (s *Settings) IsOffline() bool {
+	return s.Proto.XOffline.GetValue()
 }
 
 // The ID of the run.
