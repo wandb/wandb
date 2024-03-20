@@ -63,6 +63,14 @@ pub mod open_metrics_filters {
         Mapping(super::MapStringKeyMapStringKeyStringValue),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RunMoment {
+    #[prost(message, optional, tag = "1")]
+    pub run: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "2")]
+    pub value: ::core::option::Option<f64>,
+}
 /// Settings for the SDK.
 ///
 /// There is a hierarchy of settings, with at least the following levels:
@@ -414,9 +422,7 @@ pub struct Settings {
     #[prost(message, optional, tag = "163")]
     pub code_path_local: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "164")]
-    pub fork_from_run_id: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "165")]
-    pub fork_from_run_value: ::core::option::Option<i32>,
+    pub fork_from: ::core::option::Option<RunMoment>,
     #[prost(message, optional, tag = "200")]
     pub proxies: ::core::option::Option<MapStringKeyStringValue>,
 }
