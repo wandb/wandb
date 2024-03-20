@@ -9,6 +9,8 @@ _STEP = typing.Literal["_step"]
 class RunMoment:
     """A moment in a run."""
 
+    entity: str  # entity name
+    project: str  # project name
     run: str  # run name
 
     # only step for now, in future this will be relaxed to be any metric

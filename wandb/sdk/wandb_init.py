@@ -1124,6 +1124,11 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
+        fork_from: (str, RunMoment, optional) A RunMoment or RunMoment path to fork from.
+            RunMoment uris have the format <entity>/<project>/<run_id>?_step=<step>
+            or <run_id>?_step=<step>. Creates a new run that picks up logging history
+            from the specified run at the specified moment.
+
 
     Examples:
     ### Set where the run is logged
@@ -1171,16 +1176,8 @@ def init(
     run: Optional[Union[Run, RunDisabled]] = None
 
     # convert fork_from into a version that can be passed to settings
-    if fork_from is not None:
-        if resume is not None:
-            raise ValueError("Cannot specify both `fork_from` and `resume`")
-
-        if isinstance(fork_from, str):
-            fork_from = RunMoment.from_uri(fork_from)
-
-        kwargs["fork_from_run_id"] = fork_from.run
-        kwargs["fork_from_run_value"] = fork_from.value
-        del kwargs["fork_from"]
+    if fork_from is not None and resume is not None:
+        raise ValueError("Cannot specify both `fork_from` and `resume`")
 
     try:
         wi = _WandbInit()
