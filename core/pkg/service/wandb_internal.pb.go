@@ -3354,13 +3354,13 @@ func (x *FilesRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
-// One or more files being saved with a run.
+// A file being saved with a run.
 type FilesItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// A path or Unix glob relative to the W&B files directory.
+	// A path relative to the W&B files directory.
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// When to upload the file.
 	Policy FilesItem_PolicyType `protobuf:"varint,2,opt,name=policy,proto3,enum=wandb_internal.FilesItem_PolicyType" json:"policy,omitempty"`
