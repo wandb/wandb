@@ -85,7 +85,12 @@ func (u *uploader) Finish() {
 
 // Schedules a file upload task, unless we are offline.
 func (u *uploader) upload(path string) {
+	if u.settings.IsOffline() {
+		return
+	}
+
 	// TODO
+	_ = path
 }
 
 // Acquires the stateMu mutex if Finish() has not been called.
