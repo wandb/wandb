@@ -33,11 +33,13 @@ class RunMoment(pydantic.BaseModel):
             raise ValueError(parse_err_msg(uri)) from e
 
         # extract entity, project, run, metric, value from parsed
-        spl_path = parsed.path.split("/")
-        if len(spl_path) != 1:
+        if not parsed.netloc:
             raise ValueError(parse_err_msg(uri))
-        else:
-            run = spl_path[0]
+
+        run = parsed.netloc
+
+        if parsed.path or parsed.params or parsed.fragment:
+            raise ValueError(parse_err_msg(uri))
 
         query = parse.parse_qs(parsed.query)
         if len(query) != 1:
