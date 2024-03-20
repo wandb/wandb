@@ -881,17 +881,18 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def _setup_fork(self):
-        self._resume_state.step = self._settings.fork_from_run_value
+        if self._settings.fork_from:
+            self._resume_state.step = int(self._settings.fork_from.value)
 
-        fork_state = self._api.run_resume_status(
-            entity=self._run.entity,  # type: ignore
-            project_name=self._run.project,
-            name=self._run.run_id,
-        )
+            fork_state = self._api.run_resume_status(
+                entity=self._run.entity,  # type: ignore
+                project_name=self._run.project,
+                name=self._run.run_id,
+            )
 
-        self._resume_state.history = fork_state["historyLineCount"]
-        self._run.forked = True
-        self._run.starting_step = self._resume_state.step
+            self._resume_state.history = fork_state["historyLineCount"]
+            self._run.forked = True
+            self._run.starting_step = self._resume_state.step
 
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run

@@ -684,8 +684,8 @@ class Run:
                 "step": self._settings.fork_from.value,
             }
 
-            self._step = self._settings.fork_from_run_value
-            self._starting_step = self._settings.fork_from_run_value
+            self._step = int(self._settings.fork_from.value)
+            self._starting_step = int(self._settings.fork_from.value)
 
         self._config._update(config, ignore_locked=True)
 
