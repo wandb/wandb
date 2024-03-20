@@ -1,4 +1,5 @@
 """Artifact class."""
+
 import atexit
 import concurrent.futures
 import contextlib
@@ -1271,12 +1272,14 @@ class Artifact:
             name: The path within the artifact to place the contents of this reference.
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
-                automatic integrity validation, however it can be disabled to speed up
-                artifact creation.
+                automatic integrity validation. Disabling checksumming will speed up
+                artifact creation but reference directories will not iterated through so the
+                objects in the directory will not be saved to the artifact. We recommend
+                adding reference objects in the case checksumming is false.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
-                the maximum number of objects allowed for Amazon S3 and
-                GCS is 10,000. Other URI schemas do not have a maximum.
+                the maximum number of objects allowed for Amazon S3,
+                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
 
         Returns:
             The added manifest entries.
