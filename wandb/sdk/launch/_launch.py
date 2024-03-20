@@ -62,7 +62,7 @@ def resolve_agent_config(  # noqa: C901
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
     config: Optional[str],
-    verbosity: Optional[int],
+    verbosity: int,
 ) -> Tuple[Dict[str, Any], Api]:
     """Resolve the agent config.
 

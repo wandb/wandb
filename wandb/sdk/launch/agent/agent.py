@@ -50,11 +50,6 @@ MAX_WAIT_RUN_STOPPED = 60
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
 
-ERROR = "error"
-WARN = "warn"
-INFO = "info"
-DEBUG = "debug"
-
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
     try:
@@ -113,6 +108,31 @@ def _max_from_config(
     return max_from_config
 
 
+class InternalAgentLogger:
+    def __init__(self, verbosity=0):
+        self.verbosity = verbosity
+
+    def error(self, message: str):
+        if self.verbosity >= 2:
+            wandb.termerror(f"{LOG_PREFIX}{message}")
+        _logger.error(f"{LOG_PREFIX}{message}")
+
+    def warn(self, message: str):
+        if self.verbosity >= 2:
+            wandb.termwarn(f"{LOG_PREFIX}{message}")
+        _logger.warn(f"{LOG_PREFIX}{message}")
+
+    def info(self, message: str):
+        if self.verbosity >= 2:
+            wandb.termlog(f"{LOG_PREFIX}{message}")
+        _logger.info(f"{LOG_PREFIX}{message}")
+
+    def debug(self, message: str):
+        if self.verbosity >= 2:
+            wandb.termlog(f"{LOG_PREFIX}{message}")
+        _logger.debug(f"{LOG_PREFIX}{message}")
+
+
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
@@ -166,6 +186,7 @@ class LaunchAgent:
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._secure_mode = config.get("secure_mode", False)
         self._verbosity = config.get("verbosity", 0)
+        self._internal_logger = InternalAgentLogger(verbosity=self._verbosity)
         self._last_status_print_time = 0.0
         self.default_config: Dict[str, Any] = config
 
@@ -211,28 +232,12 @@ class LaunchAgent:
         self._name = agent_response["name"]
         self._init_agent_run()
 
-    def _log(self, level: str, message: str):
-        if self._verbosity >= 2:
-            # In very verbose mode, print logs to terminal
-            if level == ERROR:
-                wandb.termerror(f"{LOG_PREFIX}{message}")
-            elif level == WARN:
-                wandb.termwarn(f"{LOG_PREFIX}{message}")
-            elif level in [INFO, DEBUG]:
-                wandb.termlog(f"{LOG_PREFIX}{message}")
-        if level == ERROR:
-            _logger.error(f"{LOG_PREFIX}{message}")
-        elif level == WARN:
-            _logger.warn(f"{LOG_PREFIX}{message}")
-        elif level == INFO:
-            _logger.info(f"{LOG_PREFIX}{message}")
-        elif level == DEBUG:
-            _logger.debug(f"{LOG_PREFIX}{message}")
-
     def _is_scheduler_job(self, run_spec: Dict[str, Any]) -> bool:
         """Determine whether a job/runSpec is a sweep scheduler."""
         if not run_spec:
-            self._log(DEBUG, "Recieved runSpec in _is_scheduler_job that was empty")
+            self._internal_logger.debug(
+                "Recieved runSpec in _is_scheduler_job that was empty"
+            )
 
         if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
             return False
@@ -371,8 +376,7 @@ class LaunchAgent:
             if run_state.lower() != "pending":
                 return True
         except CommError:
-            self._log(
-                INFO,
+            self._internal_logger.info(
                 f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run",
             )
         return False
@@ -389,8 +393,7 @@ class LaunchAgent:
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
         ):
-            self._log(
-                INFO,
+            self._internal_logger.info(
                 "Skipping check for completed run status because run is on a different entity than agent",
             )
         elif exception is not None:
@@ -407,8 +410,7 @@ class LaunchAgent:
                 fnames,
             )
         elif job_and_run_status.project is None or job_and_run_status.run_id is None:
-            self._log(
-                ERROR,
+            self._internal_logger.info(
                 f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}",
             )
             wandb.termerror(
@@ -460,7 +462,9 @@ class LaunchAgent:
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
-            self._log(INFO, f"Finish thread id {thread_id} had no exception and no run")
+            self._internal_logger.info(
+                f"Finish thread id {thread_id} had no exception and no run"
+            )
             wandb._sentry.exception(
                 "launch agent called finish thread id on thread without run or exception"
             )
@@ -488,7 +492,7 @@ class LaunchAgent:
         await self.update_status(AGENT_RUNNING)
 
         # parse job
-        self._log(INFO, "Parsing launch spec")
+        self._internal_logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
 
         # Abort if this job attempts to override secure mode
@@ -667,14 +671,14 @@ class LaunchAgent:
         await self.check_sweep_state(launch_spec, api)
 
         job_tracker.update_run_info(project)
-        self._log(INFO, "Fetching and validating project...")
+        self._internal_logger.info("Fetching and validating project...")
         project.fetch_and_validate_project()
-        self._log(INFO, "Fetching resource...")
+        self._internal_logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        self._log(INFO, "Loading backend")
+        self._internal_logger.info("Loading backend")
         override_build_config = launch_spec.get("builder")
 
         _, build_config, registry_config = construct_agent_configs(
@@ -694,7 +698,7 @@ class LaunchAgent:
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
-        self._log(INFO, "Backend loaded...")
+        self._internal_logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
             run = await backend.run(project, image_uri)
         else:
@@ -753,7 +757,7 @@ class LaunchAgent:
                     project=launch_spec["project"],
                 )
             except Exception as e:
-                self._log(DEBUG, f"Fetch sweep state error: {e}")
+                self._internal_logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
             if state != "RUNNING" and state != "PAUSED":

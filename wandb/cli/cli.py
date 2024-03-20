@@ -1680,9 +1680,7 @@ def launch(
     hidden=True,
     help="a wandb client registration URL, this is generated in the UI",
 )
-@click.option(
-    "--verbose", "-v", count=True, default=False, help="Display verbose output"
-)
+@click.option("--verbose", "-v", count=True, help="Display verbose output")
 @display_error
 def launch_agent(
     ctx,
