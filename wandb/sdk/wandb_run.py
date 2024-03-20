@@ -675,10 +675,27 @@ class Run:
                 os.path.join("code", self._settings.program_relpath)
             )
 
-        if self._settings.fork_from_run_id and self._settings.fork_from_run_value:
+        if self._settings.fork_from is not None:
+            # verify that the specified project matches the current project.
+            # forking from a different project or entity is not currently supported.
+
+            if (
+                self._settings.fork_from.project
+                and self._settings.fork_from.project != self._settings.project
+            ) or (
+                self._settings.fork_from.entity
+                and self._settings.fork_from.entity != self._settings.entity
+            ):
+                raise ValueError(
+                    f"Forking a run from one project or entity into another is not currently supported. \n"
+                    f"Please set project/entity in wandb.init(project=..., entity=...) to match the source run. \n"
+                    f"    Source Project: {self._settings.fork_from.entity}/{self._settings.fork_from.project}\n"
+                    f"    Destination project: {self._settings.entity}/{self._settings.project}"
+                )
+
             config[wandb_key]["branch_point"] = {
-                "run_id": self._settings.fork_from_run_id,
-                "step": self._settings.fork_from_run_value,
+                "run_id": self._settings.fork_from.run,
+                "step": self._settings.fork_from.value,
             }
 
             self._step = self._settings.fork_from_run_value
