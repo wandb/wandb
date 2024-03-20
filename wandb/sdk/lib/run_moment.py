@@ -4,6 +4,7 @@ from urllib import parse
 
 _STEP = typing.Literal["_step"]
 
+
 @dataclass
 class RunMoment:
     """A moment in a run."""
