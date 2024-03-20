@@ -7,6 +7,7 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
+
 import copy
 import json
 import logging
@@ -828,7 +829,7 @@ class _WandbInit:
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(self.settings.launch_config_path)
+            run.save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted

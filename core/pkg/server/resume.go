@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -40,7 +41,7 @@ type Bucket = gql.RunResumeStatusModelProjectBucketRun
 func (r *ResumeState) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
-	config *RunConfig,
+	config *runconfig.RunConfig,
 ) (*service.RunUpdateResult, error) {
 	// If we get that the run is not a resume run, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
@@ -178,7 +179,7 @@ func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) (*se
 // Merges the original run's config into the current config.
 func (r *ResumeState) updateConfig(
 	bucket *Bucket,
-	config *RunConfig,
+	config *runconfig.RunConfig,
 ) (*service.RunUpdateResult, error) {
 	var cfg map[string]interface{}
 	if err := json.Unmarshal([]byte(*bucket.GetConfig()), &cfg); err != nil {
@@ -194,7 +195,7 @@ func (r *ResumeState) updateConfig(
 		}
 	}
 
-	deserializedConfig := make(RunConfigDict)
+	deserializedConfig := make(runconfig.RunConfigDict)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]interface{})
 

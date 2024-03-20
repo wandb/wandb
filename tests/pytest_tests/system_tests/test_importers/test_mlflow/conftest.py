@@ -51,6 +51,7 @@ class MlflowServerSettings:
         self.new_port = self._get_free_port()
         self.base_url = self.base_url.replace("4040", self.new_port)
 
+    @staticmethod
     def _get_free_port():
         import socket
 
@@ -67,6 +68,7 @@ class MlflowLoggingConfig:
     n_steps_per_run: int
 
     # artifacts
+    n_artifacts: int
     n_root_files: int
     n_subdirs: int
     n_subdir_files: int
@@ -80,7 +82,9 @@ class MlflowLoggingConfig:
 
     @property
     def total_files(self):
-        return self.n_root_files + self.n_subdirs * self.n_subdir_files
+        return self.n_artifacts * (
+            self.n_root_files + self.n_subdirs * self.n_subdir_files
+        )
 
 
 # def make_nested_run():
@@ -150,6 +154,7 @@ def make_metrics(n_steps):
         yield {
             "metric_int": st.integers(min_value=0, max_value=100).example(),
             "metric_float": st.floats(min_value=0, max_value=100).example(),
+            "metric_bool": st.booleans().example(),
         }
 
 
@@ -270,9 +275,12 @@ def mlflow_server_settings(mlflow_artifacts_destination, mlflow_backend):
 @pytest.fixture
 def mlflow_logging_config():
     return MlflowLoggingConfig(
-        n_experiments=2,
-        n_runs_per_experiment=3,
-        n_steps_per_run=1000,
+        # run settings
+        n_experiments=1,
+        n_runs_per_experiment=2,
+        n_steps_per_run=100,
+        # artifact settings
+        n_artifacts=2,
         n_root_files=5,
         n_subdirs=3,
         n_subdir_files=2,
@@ -332,24 +340,26 @@ def prelogged_mlflow_server(mlflow_server, mlflow_logging_config):
 
             # Runs
             for _ in range(config.n_runs_per_experiment):
-                run_name = "Run :/" + str(uuid.uuid4())
+                run_name = "Run " + str(uuid.uuid4())
                 client = MlflowClient()
                 with mlflow.start_run() as run:
                     mlflow.set_tag("mlflow.runName", run_name)
                     mlflow.set_tags(make_tags())
+                    mlflow.set_tag("longTag", "abcd" * 100)
                     mlflow.log_params(make_params())
 
                     metrics = make_metrics(config.n_steps_per_run)
                     for batch in batch_metrics(metrics, config.logging_batch_size):
                         client.log_batch(run.info.run_id, metrics=batch)
 
-                    with tempfile.TemporaryDirectory() as temp_path:
-                        artifacts_dir = make_artifacts_dir(
-                            temp_path,
-                            config.n_root_files,
-                            config.n_subdirs,
-                            config.n_subdir_files,
-                        )
-                        mlflow.log_artifact(artifacts_dir)
+                    for _ in range(config.n_artifacts):
+                        with tempfile.TemporaryDirectory() as temp_path:
+                            artifacts_dir = make_artifacts_dir(
+                                temp_path,
+                                config.n_root_files,
+                                config.n_subdirs,
+                                config.n_subdir_files,
+                            )
+                            mlflow.log_artifact(artifacts_dir)
 
     return mlflow_server

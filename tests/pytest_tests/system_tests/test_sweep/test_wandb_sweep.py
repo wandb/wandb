@@ -1,4 +1,5 @@
 """Sweep tests."""
+
 from typing import Any, Dict, List
 
 import pytest

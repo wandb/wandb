@@ -2345,8 +2345,29 @@ def artifact():
     default=None,
     help="Resume the last run from your current directory.",
 )
+@click.option(
+    "--skip_cache",
+    is_flag=True,
+    default=False,
+    help="Skip caching while uploading artifact files.",
+)
+@click.option(
+    "--policy",
+    default="mutable",
+    help="Set the storage policy while uploading artifact files.",
+)
 @display_error
-def put(path, name, description, type, alias, run_id, resume):
+def put(
+    path,
+    name,
+    description,
+    type,
+    alias,
+    run_id,
+    resume,
+    skip_cache,
+    policy,
+):
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
@@ -2361,10 +2382,10 @@ def put(path, name, description, type, alias, run_id, resume):
     artifact_path = f"{entity}/{project}/{artifact_name}:{alias[0]}"
     if os.path.isdir(path):
         wandb.termlog(f'Uploading directory {path} to: "{artifact_path}" ({type})')
-        artifact.add_dir(path)
+        artifact.add_dir(path, skip_cache=skip_cache, policy=policy)
     elif os.path.isfile(path):
         wandb.termlog(f'Uploading file {path} to: "{artifact_path}" ({type})')
-        artifact.add_file(path)
+        artifact.add_file(path, skip_cache=skip_cache, policy=policy)
     elif "://" in path:
         wandb.termlog(
             f'Logging reference artifact from {path} to: "{artifact_path}" ({type})'
@@ -2864,30 +2885,3 @@ def verify(host):
         and url_success
     ):
         sys.exit(1)
-
-
-@cli.group("import", help="Commands for importing data from other systems")
-def importer():
-    pass
-
-
-@importer.command("mlflow", help="Import from MLFlow")
-@click.option("--mlflow-tracking-uri", help="MLFlow Tracking URI")
-@click.option(
-    "--target-entity", required=True, help="Override default entity to import data into"
-)
-@click.option(
-    "--target-project",
-    required=True,
-    help="Override default project to import data into",
-)
-def mlflow(mlflow_tracking_uri, target_entity, target_project):
-    from wandb.apis.importers import MlflowImporter
-
-    importer = MlflowImporter(mlflow_tracking_uri=mlflow_tracking_uri)
-    overrides = {
-        "entity": target_entity,
-        "project": target_project,
-    }
-
-    importer.import_all_parallel(overrides=overrides)

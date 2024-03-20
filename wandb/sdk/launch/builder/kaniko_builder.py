@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import tarfile
 import tempfile
 import time
@@ -50,6 +51,14 @@ _logger = logging.getLogger(__name__)
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
+PVC_NAME = os.environ.get("WANDB_LAUNCH_KANIKO_PVC_NAME")
+PVC_MOUNT_PATH = (
+    os.environ.get("WANDB_LAUNCH_KANIKO_PVC_MOUNT_PATH", "/kaniko").rstrip("/")
+    if PVC_NAME
+    else None
+)
+DOCKER_CONFIG_SECRET = os.environ.get("WANDB_LAUNCH_KANIKO_AUTH_SECRET")
+
 
 if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
@@ -109,12 +118,6 @@ class KanikoBuilder(AbstractBuilder):
             verify (bool, optional): Whether to verify the functionality of the builder.
                 Defaults to True.
         """
-        if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  storage url "
-                "in the 'build-context-store' field of your builder config."
-            )
         self.environment = environment
         self.registry = registry
         self.build_job_name = build_job_name
@@ -148,13 +151,16 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError(
                 "Builder config must include 'type':'kaniko' to create a KanikoBuilder."
             )
-        build_context_store = config.get("build-context-store")
+        build_context_store = config.get("build-context-store", "")
         if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  "
-                "storage url in the 'build_context_store' field of your builder config."
-            )
+            if not PVC_MOUNT_PATH:
+                raise LaunchError(
+                    "You must specify a build context store for kaniko builds. "
+                    "You can set builder.build-context-store in your agent config "
+                    "to a valid s3, gcs, or azure blog storage URI. Or, configure "
+                    "a persistent volume claim through the agent helm chart: "
+                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent"
+                )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
@@ -164,6 +170,7 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri is not None:
             registry = registry_from_uri(image_uri)
+
         return cls(
             environment,
             registry,
@@ -180,9 +187,8 @@ class KanikoBuilder(AbstractBuilder):
         Raises:
             LaunchError: If the builder config is invalid.
         """
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.verify_storage_uri(self.build_context_store)
+        if self.build_context_store:
+            await self.environment.verify_storage_uri(self.build_context_store)
 
     def login(self) -> None:
         """Login to the registry."""
@@ -191,8 +197,6 @@ class KanikoBuilder(AbstractBuilder):
     async def _create_docker_ecr_config_map(
         self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
-        if self.registry is None:
-            raise LaunchError("No registry specified for Kaniko build.")
         username, password = await self.registry.get_username_password()
         encoded = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
         ecr_config_map = client.V1ConfigMap(
@@ -229,11 +233,21 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-        destination = f"{self.build_context_store}/{run_id}.tgz"
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.upload_file(context_file.name, destination)
-        return destination
+        if PVC_MOUNT_PATH is None:
+            destination = f"{self.build_context_store}/{run_id}.tgz"
+            if self.environment is None:
+                raise LaunchError("No environment specified for Kaniko build.")
+            await self.environment.upload_file(context_file.name, destination)
+            return destination
+        else:
+            destination = f"{PVC_MOUNT_PATH}/{run_id}.tgz"
+            try:
+                shutil.copy(context_file.name, destination)
+            except Exception as e:
+                raise LaunchError(
+                    f"Error copying build context to PVC mounted at {PVC_MOUNT_PATH}: {e}"
+                ) from e
+            return f"tar:///context/{run_id}.tgz"
 
     async def build_image(
         self,
@@ -242,9 +256,6 @@ class KanikoBuilder(AbstractBuilder):
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         await self.verify()
-        # TODO: this should probably throw an error if the registry is a local registry
-        if not self.registry:
-            raise LaunchError("No registry specified for Kaniko build.")
         # kaniko builder doesn't seem to work with a custom user id, need more investigation
         dockerfile_str = generate_dockerfile(
             launch_project=launch_project,
@@ -256,7 +267,6 @@ class KanikoBuilder(AbstractBuilder):
         image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
-
         if (
             not launch_project.build_required()
             and await self.registry.check_image_exists(image_uri)
@@ -365,6 +375,20 @@ class KanikoBuilder(AbstractBuilder):
         env = []
         volume_mounts = []
         volumes = []
+
+        if PVC_MOUNT_PATH:
+            volumes.append(
+                client.V1Volume(
+                    name="kaniko-pvc",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=PVC_NAME
+                    ),
+                )
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(name="kaniko-pvc", mount_path="/context")
+            )
+
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
@@ -403,8 +427,27 @@ class KanikoBuilder(AbstractBuilder):
                     ),
                 )
             ]
-
-        if self.secret_name and self.secret_key:
+        if DOCKER_CONFIG_SECRET:
+            volumes.append(
+                client.V1Volume(
+                    name="kaniko-docker-config",
+                    secret=client.V1SecretVolumeSource(
+                        secret_name=DOCKER_CONFIG_SECRET,
+                        items=[
+                            client.V1KeyToPath(
+                                key=".dockerconfigjson", path="config.json"
+                            )
+                        ],
+                    ),
+                )
+            )
+            volume_mounts.append(
+                client.V1VolumeMount(
+                    name="kaniko-docker-config",
+                    mount_path="/kaniko/.docker",
+                )
+            )
+        elif self.secret_name and self.secret_key:
             volumes += [
                 client.V1Volume(
                     name="docker-config",

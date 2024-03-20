@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
@@ -23,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -82,7 +84,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// filetransfer is the file uploader/downloader
-	fileTransferManager *filetransfer.FileTransferManager
+	fileTransferManager filetransfer.FileTransferManager
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -102,7 +104,7 @@ type Sender struct {
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	runConfig *RunConfig
+	runConfig *runconfig.RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -134,7 +136,7 @@ func NewSender(
 		settings:       settings,
 		logger:         logger,
 		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      NewRunConfig(),
+		runConfig:      runconfig.New(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
@@ -186,15 +188,15 @@ func NewSender(
 			fs.WithClientId(shared.ShortID(32)),
 		)
 
-		fileTransferRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
+		fileTransferRetryClient := retryablehttp.NewClient()
+		fileTransferRetryClient.Logger = logger
+		fileTransferRetryClient.CheckRetry = clients.CheckRetry
+		fileTransferRetryClient.RetryMax = int(settings.GetXFileTransferRetryMax().GetValue())
+		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())
+		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())
+		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())
+		fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
+
 		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
 			logger,
 			fileTransferRetryClient,
@@ -258,6 +260,8 @@ func (s *Sender) SendRecord(record *service.Record) {
 }
 
 // sendRecord sends a record
+//
+//gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
@@ -296,6 +300,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
+	case *service.Record_WandbConfigParameters:
+		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -385,7 +391,7 @@ func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.runConfig.Tree()
+	s.jobBuilder.SetRunConfig(*s.runConfig)
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -399,7 +405,7 @@ func (s *Sender) sendJobFlush() {
 		output[k] = out
 	}
 
-	artifact, err := s.jobBuilder.Build(input, output)
+	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
 		return
@@ -453,7 +459,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
 		s.wgFileTransfer.Wait()
-		s.fileTransferManager.Close()
+		if s.fileTransferManager != nil {
+			s.fileTransferManager.Close()
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
@@ -546,7 +554,7 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format ConfigFormat) string {
+func (s *Sender) serializeConfig(format runconfig.ConfigFormat) string {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
@@ -634,7 +642,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
-		config := s.serializeConfig(FormatJson)
+		config := s.serializeConfig(runconfig.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -669,7 +677,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			utils.NilIfZero(repo),            // repo
 			utils.NilIfZero(run.JobType),     // jobType
 			nil,                              // state
-			nil,                              // sweep
+			utils.NilIfZero(run.SweepId),     // sweep
 			tags,                             // tags []string,
 			nil,                              // summaryMetrics
 		)
@@ -698,9 +706,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
-		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
-		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
-		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+		bucket := data.GetUpsertBucket().GetBucket()
+		project := bucket.GetProject()
+		entity := project.GetEntity()
+		s.RunRecord.StorageId = bucket.GetId()
+		// s.RunRecord.RunId = bucket.GetName()
+		s.RunRecord.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
+		s.RunRecord.Project = project.GetName()
+		s.RunRecord.Entity = entity.GetName()
+		s.RunRecord.SweepId = utils.ZeroIfNil(bucket.GetSweepName())
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -758,7 +772,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig(FormatJson)
+	config := s.serializeConfig(runconfig.FormatJson)
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
@@ -795,7 +809,7 @@ func (s *Sender) writeAndSendConfigFile() {
 		return
 	}
 
-	config := s.serializeConfig(FormatYaml)
+	config := s.serializeConfig(runconfig.FormatYaml)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
@@ -1071,7 +1085,7 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	}
 }
 
-func (s *Sender) sendArtifact(record *service.Record, msg *service.ArtifactRecord) {
+func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
 	)
@@ -1194,7 +1208,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 	s.fwdChan <- rec
 }
 
-func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
+func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
@@ -1278,4 +1292,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
+	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
 }

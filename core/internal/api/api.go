@@ -9,18 +9,23 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
-	"golang.org/x/time/rate"
 )
 
 const (
+	// Don't go slower than 1 request per 10 seconds.
+	minRateLimit = 0.1
+
+	// Don't go faster than 20 requests per second.
 	maxRequestsPerSecond = 20
-	maxBurst             = 10
+
+	// Don't send more than 10 requests at a time.
+	maxBurst = 10
 )
 
 // The W&B backend server.
 //
-// This models the server, in particular to handle rate limiting. There is
-// generally exactly one Backend and a small number of Clients in a process.
+// There is generally exactly one Backend and a small number of Clients in a
+// process.
 type Backend struct {
 	// The URL prefix for all requests to the W&B API.
 	baseURL *url.URL
@@ -33,15 +38,13 @@ type Backend struct {
 
 	// API key for backend requests.
 	apiKey string
-
-	// Rate limit for all outgoing requests.
-	rateLimiter *rate.Limiter
 }
 
 // An HTTP client for interacting with the W&B backend.
 //
-// Multiple Clients can be created for one Backend when different retry
-// policies are needed.
+// There is one Client per API provided by the backend, where "API" is a
+// collection of related HTTP endpoints. It's expected that different APIs
+// have different properties such as rate-limits and ideal retry behaviors.
 //
 // The client is responsible for setting auth headers, retrying
 // gracefully, and respecting rate-limit response headers.
@@ -111,10 +114,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL:     opts.BaseURL,
-		logger:      opts.Logger,
-		apiKey:      opts.APIKey,
-		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
+		baseURL: opts.BaseURL,
+		logger:  opts.Logger,
+		apiKey:  opts.APIKey,
 	}
 }
 
@@ -151,13 +153,12 @@ type ClientOptions struct {
 
 // Creates a new [Client] for making requests to the [Backend].
 func (backend *Backend) NewClient(opts ClientOptions) Client {
-	retryableHTTP := clients.NewRetryClient(
-		clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		clients.WithRetryClientRetryMax(opts.RetryMax),
-		clients.WithRetryClientRetryWaitMin(opts.RetryWaitMin),
-		clients.WithRetryClientRetryWaitMax(opts.RetryWaitMax),
-		clients.WithRetryClientHttpTimeout(opts.NonRetryTimeout),
-	)
+	retryableHTTP := retryablehttp.NewClient()
+	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
+	retryableHTTP.RetryMax = opts.RetryMax
+	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
+	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
+	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
@@ -177,9 +178,13 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	retryableHTTP.HTTPClient.Transport = backend.rateLimitedTransport(
+	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
 		retryableHTTP.HTTPClient.Transport,
 	)
 
-	return &clientImpl{backend, retryableHTTP, opts.ExtraHeaders}
+	return &clientImpl{
+		backend:       backend,
+		retryableHTTP: retryableHTTP,
+		extraHeaders:  opts.ExtraHeaders,
+	}
 }

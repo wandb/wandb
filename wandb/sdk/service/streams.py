@@ -5,6 +5,7 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety
 StreamMux: Container for dictionary of stream threads per runid
 """
+
 import functools
 import multiprocessing
 import queue
@@ -248,7 +249,7 @@ class StreamMux:
     def _on_probe_exit(self, probe_handle: MailboxProbe, stream: StreamRecord) -> None:
         handle = probe_handle.get_mailbox_handle()
         if handle:
-            result = handle.wait(timeout=0)
+            result = handle.wait(timeout=0, release=False)
             if not result:
                 return
             probe_handle.set_probe_result(result)
@@ -327,7 +328,6 @@ class StreamMux:
             result = internal_messages_handle.wait(timeout=-1)
             assert result
             internal_messages_response = result.response.internal_messages_response
-            job_info_handle = stream.interface.deliver_request_job_info()
 
             # wait for them, it's ok to do this serially but this can be improved
             result = poll_exit_handle.wait(timeout=-1)
@@ -346,17 +346,12 @@ class StreamMux:
             assert result
             final_summary = result.response.get_summary_response
 
-            result = job_info_handle.wait(timeout=-1)
-            assert result
-            job_info = result.response.job_info_response
-
             Run._footer(
                 sampled_history=sampled_history,
                 final_summary=final_summary,
                 poll_exit_response=poll_exit_response,
                 server_info_response=server_info_response,
                 internal_messages_response=internal_messages_response,
-                job_info=job_info,
                 settings=stream._settings,  # type: ignore
                 printer=printer,
             )
