@@ -37,6 +37,7 @@ from urllib.parse import quote, unquote, urlencode, urlparse, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 
+
 import wandb
 import wandb.env
 from wandb import util
@@ -1583,13 +1584,19 @@ class Settings(SettingsData):
                 # we only support sequences of strings for now
                 sequence = getattr(settings, k)
                 sequence.value.extend(v)
-            elif isinstance(v, (dict, RunMoment)):
-                if isinstance(v, RunMoment):
-                    v = dataclasses.asdict(v)
+            elif isinstance(v, dict):
                 mapping = getattr(settings, k)
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=StringValue(value=v.run),
+                        value=DoubleValue(value=v.value),
+                        metric=StringValue(value=v.metric),
+                    )
+                )
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.
