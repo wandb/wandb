@@ -1,8 +1,9 @@
-import json
-import typing
 from dataclasses import dataclass
-
 from urllib import parse
+import typing
+
+
+_STEP = typing.Literal["_step"]
 
 
 @dataclass
@@ -12,7 +13,7 @@ class RunMoment:
     run: str  # run name
 
     # only step for now, in future this will be relaxed to be any metric
-    metric: typing.Literal["_step"]
+    metric: _STEP
 
     # currently, the _step value to fork from. in future, this will be optional
     value: typing.Union[int, float]
@@ -31,8 +32,6 @@ class RunMoment:
 
     @classmethod
     def from_uri(cls, uri: str) -> "RunMoment":
-        """Create a RunMoment from a URI."""
-
         parsable = "runmoment://" + uri
         parse_err = ValueError(
             f"Could not parse passed run moment string '{uri}', "
@@ -65,12 +64,12 @@ class RunMoment:
             metric = list(query.keys())[0]
             if metric != "_step":
                 raise parse_err
-            value = query[metric][0]
+            value: str = query[metric][0]
             if not value.isdigit():
                 try:
-                    value = float(value)
+                    num_value = float(value)
                 except ValueError as e:
                     raise parse_err from e
             else:
-                value = int(value)
-        return cls(run=run, metric=metric, value=value)
+                num_value = int(value)
+        return cls(run=run, metric=typing.cast(_STEP, metric), value=num_value)
