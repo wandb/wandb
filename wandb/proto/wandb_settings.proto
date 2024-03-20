@@ -31,11 +31,16 @@ message OpenMetricsFilters {
 // 2. Run settings
 //
 // Some fields such as `run_id` only make sense at the run level.
+//
+// Next ID: 164
 message Settings {
   // The W&B API key.
   //
   // This can be empty if we're in offline mode.
   google.protobuf.StringValue api_key = 55;
+
+  // Whether we are in offline mode.
+  google.protobuf.BoolValue _offline = 30;
 
   // The ID of the run.
   google.protobuf.StringValue run_id = 107;
@@ -87,7 +92,6 @@ message Settings {
   google.protobuf.Int32Value _network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  google.protobuf.BoolValue _offline = 30;
   google.protobuf.BoolValue _sync = 31;
   google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
