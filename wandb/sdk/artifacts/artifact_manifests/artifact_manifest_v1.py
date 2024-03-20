@@ -36,6 +36,7 @@ class ArtifactManifestV1(ArtifactManifest):
                 size=val.get("size"),
                 extra=val.get("extra"),
                 local_path=val.get("local_path"),
+                skip_cache=val.get("skip_cache"),
             )
             for name, val in manifest_json["contents"].items()
         }
