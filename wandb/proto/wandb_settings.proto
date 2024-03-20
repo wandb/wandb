@@ -23,6 +23,11 @@ message OpenMetricsFilters {
   }
 }
 
+message RunMoment {
+  google.protobuf.StringValue run = 1;
+  google.protobuf.DoubleValue value = 2;
+}
+
 // Settings for the SDK.
 //
 // There is a hierarchy of settings, with at least the following levels:
@@ -216,8 +221,7 @@ message Settings {
   google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue _code_path_local = 163;
-  google.protobuf.StringValue fork_from_run_id = 164;
-  google.protobuf.Int32Value fork_from_run_value = 165;
+  RunMoment fork_from = 164;
 
   MapStringKeyStringValue _proxies = 200;
 
