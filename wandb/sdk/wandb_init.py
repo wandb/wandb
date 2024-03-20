@@ -962,7 +962,7 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
-    fork_from: Optional[RunMoment] = None,
+    fork_from: Optional[Union[RunMoment, str]] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
     r"""Start a new run to track and log to W&B.
@@ -1171,10 +1171,13 @@ def init(
     run: Optional[Union[Run, RunDisabled]] = None
 
     # convert start_from into a settings object
-    if start_from is not None:
-        kwargs["fork_from_run_id"] = start_from.run
-        kwargs["fork_from_run_value"] = start_from.value
-        del kwargs["start_from"]
+    if fork_from is not None:
+        if isinstance(fork_from, str):
+            fork_from = RunMoment.from_uri(fork_from)
+
+        kwargs["fork_from_run_id"] = fork_from.run
+        kwargs["fork_from_run_value"] = fork_from.value
+        del kwargs["fork_from"]
 
     try:
         wi = _WandbInit()
