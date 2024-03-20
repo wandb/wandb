@@ -506,8 +506,6 @@ class Run:
     _name: Optional[str]
     _notes: Optional[str]
     _sweep_id: Optional[str]
-    _fork_from_run_id: Optional[str]
-    _fork_from_run_value: Optional[int]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
@@ -616,8 +614,6 @@ class Run:
         self._remote_url = None
         self._commit = None
         self._sweep_id = None
-        self._fork_from_run_id = None
-        self._fork_from_run_value = None
 
         self._hooks = None
         self._teardown_hooks = []
