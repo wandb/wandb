@@ -1,10 +1,8 @@
+import typing
 from dataclasses import dataclass
 from urllib import parse
-import typing
-
 
 _STEP = typing.Literal["_step"]
-
 
 @dataclass
 class RunMoment:
