@@ -217,7 +217,7 @@ message Settings {
   google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.StringValue fork_from_run_id = 164;
-  google.protobuf.Int32Value  fork_from_run_value = 165;
+  google.protobuf.Int32Value fork_from_run_value = 165;
 
   MapStringKeyStringValue _proxies = 200;
 

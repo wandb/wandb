@@ -413,6 +413,10 @@ pub struct Settings {
     pub shared: ::core::option::Option<bool>,
     #[prost(message, optional, tag = "163")]
     pub code_path_local: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "164")]
+    pub fork_from_run_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag = "165")]
+    pub fork_from_run_value: ::core::option::Option<i32>,
     #[prost(message, optional, tag = "200")]
     pub proxies: ::core::option::Option<MapStringKeyStringValue>,
 }
@@ -1186,6 +1190,8 @@ pub struct RunRecord {
     pub runtime: i32,
     #[prost(message, optional, tag = "21")]
     pub git: ::core::option::Option<GitRepoRecord>,
+    #[prost(bool, tag = "22")]
+    pub forked: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

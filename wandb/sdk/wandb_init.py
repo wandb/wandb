@@ -25,7 +25,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.sdk.lib import runid, StartSpec
+from wandb.sdk.lib import StartSpec, runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
@@ -1172,8 +1172,8 @@ def init(
 
     # convert start_from into a settings object
     if kwargs.pop("start_from", None):
-        kwargs['fork_from_run_id'] = start_from.run
-        kwargs['fork_from_run_value'] = start_from.value
+        kwargs["fork_from_run_id"] = start_from.run
+        kwargs["fork_from_run_value"] = start_from.value
 
     try:
         wi = _WandbInit()
