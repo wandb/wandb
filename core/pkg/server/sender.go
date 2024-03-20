@@ -86,7 +86,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// filetransfer is the file uploader/downloader
-	fileTransferManager *filetransfer.FileTransferManager
+	fileTransferManager filetransfer.FileTransferManager
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -522,7 +522,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
 		s.wgFileTransfer.Wait()
-		s.fileTransferManager.Close()
+		if s.fileTransferManager != nil {
+			s.fileTransferManager.Close()
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:

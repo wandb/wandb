@@ -124,17 +124,21 @@ class Settings(google.protobuf.message.Message):
     2. Run settings
 
     Some fields such as `run_id` only make sense at the run level.
+
+    Next ID: 164
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     API_KEY_FIELD_NUMBER: builtins.int
+    _OFFLINE_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     RUN_URL_FIELD_NUMBER: builtins.int
     PROJECT_FIELD_NUMBER: builtins.int
     ENTITY_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
+    FILES_DIR_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _ASYNC_UPLOAD_CONCURRENCY_LIMIT_FIELD_NUMBER: builtins.int
@@ -164,7 +168,6 @@ class Settings(google.protobuf.message.Message):
     _NETWORK_BUFFER_FIELD_NUMBER: builtins.int
     _NOOP_FIELD_NUMBER: builtins.int
     _NOTEBOOK_FIELD_NUMBER: builtins.int
-    _OFFLINE_FIELD_NUMBER: builtins.int
     _SYNC_FIELD_NUMBER: builtins.int
     _OS_FIELD_NUMBER: builtins.int
     _PLATFORM_FIELD_NUMBER: builtins.int
@@ -202,7 +205,6 @@ class Settings(google.protobuf.message.Message):
     DISABLED_FIELD_NUMBER: builtins.int
     DOCKER_FIELD_NUMBER: builtins.int
     EMAIL_FIELD_NUMBER: builtins.int
-    FILES_DIR_FIELD_NUMBER: builtins.int
     FORCE_FIELD_NUMBER: builtins.int
     GIT_COMMIT_FIELD_NUMBER: builtins.int
     GIT_REMOTE_FIELD_NUMBER: builtins.int
@@ -298,6 +300,9 @@ class Settings(google.protobuf.message.Message):
         This can be empty if we're in offline mode.
         """
     @property
+    def _offline(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether we are in offline mode."""
+    @property
     def run_id(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The ID of the run."""
     @property
@@ -315,6 +320,9 @@ class Settings(google.protobuf.message.Message):
     @property
     def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Filename to use for internal logs."""
+    @property
+    def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Absolute path to the local directory where this run's files are stored."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property
@@ -373,8 +381,6 @@ class Settings(google.protobuf.message.Message):
     def _noop(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def _notebook(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
-    @property
-    def _offline(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def _sync(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -449,8 +455,6 @@ class Settings(google.protobuf.message.Message):
     def docker(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def email(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def force(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -631,12 +635,14 @@ class Settings(google.protobuf.message.Message):
         self,
         *,
         api_key: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _offline: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         run_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         project: google.protobuf.wrappers_pb2.StringValue | None = ...,
         entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -666,7 +672,6 @@ class Settings(google.protobuf.message.Message):
         _network_buffer: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         _noop: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _notebook: google.protobuf.wrappers_pb2.BoolValue | None = ...,
-        _offline: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _sync: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _os: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _platform: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -704,7 +709,6 @@ class Settings(google.protobuf.message.Message):
         disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         docker: google.protobuf.wrappers_pb2.StringValue | None = ...,
         email: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         force: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         git_commit: google.protobuf.wrappers_pb2.StringValue | None = ...,
         git_remote: google.protobuf.wrappers_pb2.StringValue | None = ...,
