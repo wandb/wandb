@@ -206,12 +206,15 @@ func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger,
 
 func (j *JobBuilder) logIfVerbose(msg string, level LogLevel) {
 
-	if level == Log {
+	switch {
+	case level == Log:
 		j.logger.Info(msg)
-	} else if level == Warn {
+	case level == Warn:
 		j.logger.Warn(msg)
-	} else if level == Error {
+	case level == Error:
 		j.logger.Error(msg)
+	default:
+		j.logger.Info(msg)
 	}
 
 	if j.verbose {
