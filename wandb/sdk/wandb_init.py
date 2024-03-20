@@ -1170,7 +1170,7 @@ def init(
     except_exit = None
     run: Optional[Union[Run, RunDisabled]] = None
 
-    # convert start_from into a settings object
+    # convert fork_from into a settings object
     if fork_from is not None:
         if isinstance(fork_from, str):
             fork_from = RunMoment.from_uri(fork_from)
