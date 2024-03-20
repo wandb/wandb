@@ -105,6 +105,7 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
+        config: Optional[dict] = None,
     ):
         """Initialize a KanikoBuilder.
 
@@ -125,6 +126,7 @@ class KanikoBuilder(AbstractBuilder):
         self.secret_name = secret_name
         self.secret_key = secret_key
         self.image = image
+        self.kaniko_config = config or {}
 
     @classmethod
     def from_config(
@@ -170,6 +172,7 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri is not None:
             registry = registry_from_uri(image_uri)
+        kaniko_config = config.get("kaniko-config", {})
 
         return cls(
             environment,
@@ -179,6 +182,7 @@ class KanikoBuilder(AbstractBuilder):
             secret_name=secret_name,
             secret_key=secret_key,
             image=kaniko_image,
+            config=kaniko_config,
         )
 
     async def verify(self) -> None:
@@ -372,9 +376,14 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
         core_client: client.CoreV1Api,
     ) -> "client.V1Job":
-        env = []
-        volume_mounts = []
-        volumes = []
+        if len(self.kaniko_config.get("containers", [{}])) > 1:
+            raise LaunchError(
+                "Multiple container configs is not supported for kaniko builder."
+            )
+        container_config = self.kaniko_config.get("containers", [{}])[0]
+        env = container_config.get("env", [])
+        volume_mounts = container_config.get("volumeMounts", [])
+        volumes = self.kaniko_config.get("volumes", [])
 
         if PVC_MOUNT_PATH:
             volumes.append(
@@ -520,19 +529,26 @@ class KanikoBuilder(AbstractBuilder):
         destination = image_tag
         if destination.startswith("https://"):
             destination = destination.replace("https://", "")
-        args = [
-            f"--context={build_context_path}",
-            f"--dockerfile={_WANDB_DOCKERFILE_NAME}",
-            f"--destination={destination}",
-            "--cache=true",
-            f"--cache-repo={repository.replace('https://', '')}",
-            "--snapshotMode=redo",
-            "--compressed-caching=false",
+        config_args = container_config.get("args", [])
+        args = {
+            "--context": build_context_path,
+            "--dockerfile": _WANDB_DOCKERFILE_NAME,
+            "--destination": destination,
+            "--cache": "true",
+            "--cache-repo": repository.replace("https://", ""),
+            "--snapshot-mode": "redo",
+            "--compressed-caching": "false",
+        }
+        for config_arg in config_args:
+            arg_name, arg_value = config_arg.split("=", 1)
+            args[arg_name] = arg_value
+        parsed_args = [
+            f"{arg_name}={arg_value}" for arg_name, arg_value in args.items()
         ]
         container = client.V1Container(
-            name="wandb-container-build",
-            image=self.image,
-            args=args,
+            name=container_config.get("name", "wandb-container-build"),
+            image=container_config.get("image", self.image),
+            args=parsed_args,
             volume_mounts=volume_mounts,
             env=env if env else None,
         )
