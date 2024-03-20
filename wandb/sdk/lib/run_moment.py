@@ -1,10 +1,11 @@
 import typing
-import pydantic
+from dataclasses import dataclass
 
 from urllib import parse
 
 
-class RunMoment(pydantic.BaseModel):
+@dataclass
+class RunMoment:
     """A moment in a run."""
 
     run: str  # run name
@@ -14,6 +15,18 @@ class RunMoment(pydantic.BaseModel):
 
     # currently, the _step value to fork from. in future, this will be optional
     value: typing.Union[int, float]
+
+    def __post_init__(self):
+        if self.metric != "_step":
+            raise ValueError(
+                f"Only the metric '_step' is supported, got '{self.metric}'."
+            )
+        if not isinstance(self.value, (int, float)):
+            raise ValueError(
+                f"Only int or float values are supported, got '{self.value}'."
+            )
+        if not isinstance(self.run, str):
+            raise ValueError(f"Only string run names are supported, got '{self.run}'.")
 
     @classmethod
     def from_uri(cls, uri: str) -> "RunMoment":
