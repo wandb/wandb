@@ -26,6 +26,7 @@ message OpenMetricsFilters {
 message RunMoment {
   google.protobuf.StringValue run = 1;
   google.protobuf.DoubleValue value = 2;
+  google.protobuf.StringValue metric = 3;
 }
 
 // Settings for the SDK.

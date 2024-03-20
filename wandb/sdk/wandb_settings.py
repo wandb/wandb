@@ -1,5 +1,6 @@
 import collections.abc
 import configparser
+import dataclasses
 import enum
 import getpass
 import json
@@ -1582,7 +1583,9 @@ class Settings(SettingsData):
                 # we only support sequences of strings for now
                 sequence = getattr(settings, k)
                 sequence.value.extend(v)
-            elif isinstance(v, dict):
+            elif isinstance(v, (dict, RunMoment)):
+                if isinstance(v, RunMoment):
+                    v = dataclasses.asdict(v)
                 mapping = getattr(settings, k)
                 for key, value in v.items():
                     # we only support dicts with string values for now
