@@ -57,6 +57,9 @@ func TestUploader(t *testing.T) {
 	// The _offline mode to set on Settings.
 	var isOffline bool
 
+	// The _sync mode to set on Settings.
+	var isSync bool
+
 	// Resets test objects and runs a given test.
 	runTest := func(
 		name string,
@@ -66,6 +69,7 @@ func TestUploader(t *testing.T) {
 		// Set a default and allow tests to override it.
 		filesDir = t.TempDir()
 		isOffline = false
+		isSync = false
 		configure()
 
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
@@ -79,13 +83,14 @@ func TestUploader(t *testing.T) {
 			Settings: settings.From(&service.Settings{
 				FilesDir: &wrapperspb.StringValue{Value: filesDir},
 				XOffline: &wrapperspb.BoolValue{Value: isOffline},
+				XSync:    &wrapperspb.BoolValue{Value: isSync},
 			}),
 		}))
 
 		t.Run(name, test)
 	}
 
-	runTest("'now' policy uploads immediately",
+	runTest("Process with 'now' policy uploads immediately",
 		func() {},
 		func(t *testing.T) {
 			t.Skip("Not implemented")
@@ -99,6 +104,21 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+		})
+
+	runTest("Process with 'now' policy during sync is no-op",
+		func() { isSync = true },
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
+
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "test.txt", Policy: service.FilesItem_NOW},
+				},
+			})
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
 	runTest("UploadNow uploads given file",
