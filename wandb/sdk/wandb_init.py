@@ -25,7 +25,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.sdk.lib import StartSpec, runid
+from wandb.sdk.lib import RunMoment, runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
@@ -962,7 +962,7 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
-    start_from: Optional[StartSpec] = None,
+    fork_from: Optional[RunMoment] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
     r"""Start a new run to track and log to W&B.
