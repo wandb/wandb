@@ -70,6 +70,8 @@ pub struct RunMoment {
     pub run: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(message, optional, tag = "2")]
     pub value: ::core::option::Option<f64>,
+    #[prost(message, optional, tag = "3")]
+    pub metric: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// Settings for the SDK.
 ///
