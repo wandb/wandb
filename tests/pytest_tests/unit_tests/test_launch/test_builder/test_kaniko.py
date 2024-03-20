@@ -216,6 +216,15 @@ async def test_create_kaniko_job_static(
             build_context_store="s3://test-bucket/test-prefix",
             secret_name="test-secret",
             secret_key="test-key",
+            config={
+                "containers": [{
+                    "args": ["--test-arg=test-value"],
+                    "volumeMounts": [{"name": "test-volume", "mountPath": "/test/path/"}]
+                }],
+                "volumes": [{
+                    "name": "test-volume"
+                }]
+            }
         )
         job_name = "test_job_name"
         repo_url = "repository-url"
@@ -244,9 +253,14 @@ async def test_create_kaniko_job_static(
             f"--cache-repo={repo_url}",
             "--snapshot-mode=redo",
             "--compressed-caching=false",
+            "--test-arg=test-value",
         ]
 
         assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
+            {
+                "name": "test-volume",
+                "mountPath": "/test/path/",
+            },
             {
                 "name": "docker-config",
                 "mount_path": "/kaniko/.docker/",
@@ -258,25 +272,26 @@ async def test_create_kaniko_job_static(
             },
         ]
 
-        assert job["spec"]["template"]["spec"]["volumes"][0] == {
+        assert job["spec"]["template"]["spec"]["volumes"][0] == {"name": "test-volume"}
+        assert job["spec"]["template"]["spec"]["volumes"][1] == {
             "name": "docker-config",
             "config_map": {"name": "docker-config-test_job_name"},
         }
-        assert job["spec"]["template"]["spec"]["volumes"][1]["name"] == "test-secret"
+        assert job["spec"]["template"]["spec"]["volumes"][2]["name"] == "test-secret"
         assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["secret_name"]
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["secret_name"]
             == "test-secret"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].key
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].key
             == "test-key"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].path
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].path
             == "credentials"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][1]["secret"]["items"][0].mode
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].mode
             is None
         )
 
