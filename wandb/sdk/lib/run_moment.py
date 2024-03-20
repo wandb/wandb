@@ -1,3 +1,4 @@
+import json
 import typing
 from dataclasses import dataclass
 
@@ -35,7 +36,7 @@ class RunMoment:
         parsable = "runmoment://" + uri
         parse_err = ValueError(
             f"Could not parse passed run moment string '{uri}', "
-            f"expected format '<run>?<metric>=<value>'. "
+            f"expected format '<run>?<metric>=<numeric_value>'. "
             f"Currently, only the metric '_step' is supported. "
             f"Example: 'ans3bsax?_step=123'."
         )
@@ -65,4 +66,13 @@ class RunMoment:
             if metric != "_step":
                 raise parse_err
             value = query[metric][0]
+            if not value.isdigit():
+                try:
+                    value = float(value)
+                except ValueError as e:
+                    raise parse_err from e
+                else:
+                    value = float(value)
+            else:
+                value = int(value)
         return cls(run=run, metric=metric, value=value)
