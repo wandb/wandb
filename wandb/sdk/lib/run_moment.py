@@ -11,11 +11,11 @@ class RunMoment:
 
     run: str  # run name
 
-    # only step for now, in future this will be relaxed to be any metric
-    metric: _STEP
-
     # currently, the _step value to fork from. in future, this will be optional
     value: typing.Union[int, float]
+
+    # only step for now, in future this will be relaxed to be any metric
+    metric: _STEP = "_step"
 
     def __post_init__(self):
         if self.metric != "_step":
