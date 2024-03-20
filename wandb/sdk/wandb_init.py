@@ -1172,6 +1172,9 @@ def init(
 
     # convert fork_from into a version that can be passed to settings
     if fork_from is not None:
+        if resume is not None:
+            raise ValueError("Cannot specify both `fork_from` and `resume`")
+
         if isinstance(fork_from, str):
             fork_from = RunMoment.from_uri(fork_from)
 
