@@ -22,7 +22,7 @@ class RunMoment(pydantic.BaseModel):
         parsable = "runmoment://" + uri
         parse_err_msg = lambda uri: (
             f"Could not parse passed run moment string '{uri}', "
-            f"expected format '[<entity>/<project>/]<run>?<metric>=<value>'. "
+            f"expected format '<run>?<metric>=<value>'. "
             f"Currently, only the metric '_step' is supported. "
             f"Example: 'ans3bsax?_step=123'."
         )
