@@ -34,7 +34,6 @@ from typing import (
 )
 from urllib.parse import quote, unquote, urlencode, urlparse, urlsplit
 
-from click import Option
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 
 import wandb
