@@ -242,7 +242,7 @@ async def test_create_kaniko_job_static(
             f"--destination={image_tag}",
             "--cache=true",
             f"--cache-repo={repo_url}",
-            "--snapshotMode=redo",
+            "--snapshot-mode=redo",
             "--compressed-caching=false",
         ]
 
@@ -315,7 +315,7 @@ async def test_create_kaniko_job_instance(
             f"--destination={image_tag}",
             "--cache=true",
             f"--cache-repo={repo_url}",
-            "--snapshotMode=redo",
+            "--snapshot-mode=redo",
             "--compressed-caching=false",
         ]
 
@@ -365,7 +365,7 @@ async def test_create_kaniko_job_pvc_dockerconfig(
             f"--destination={image_tag}",
             "--cache=true",
             f"--cache-repo={repo_url}",
-            "--snapshotMode=redo",
+            "--snapshot-mode=redo",
             "--compressed-caching=false",
         ]
 
