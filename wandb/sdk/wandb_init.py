@@ -1171,9 +1171,10 @@ def init(
     run: Optional[Union[Run, RunDisabled]] = None
 
     # convert start_from into a settings object
-    if kwargs.pop("start_from", None):
+    if start_from is not None:
         kwargs["fork_from_run_id"] = start_from.run
         kwargs["fork_from_run_value"] = start_from.value
+        del kwargs["start_from"]
 
     try:
         wi = _WandbInit()
