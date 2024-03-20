@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -202,7 +202,7 @@ class JobBuilder:
         return source, name
 
     def _log_if_verbose(self, message: str, level: LOG_LEVEL) -> None:
-        log_func = None
+        log_func: Optional[Union[Callable[[Any], None], Callable[[Any], None]]] = None
         if level == "log":
             _logger.info(message)
             log_func = wandb.termlog
@@ -213,7 +213,7 @@ class JobBuilder:
             _logger.error(message)
             log_func = wandb.termerror
 
-        if self._verbose:
+        if self._verbose and log_func is not None:
             log_func(message)
 
     def _build_artifact_job_source(
@@ -369,7 +369,7 @@ class JobBuilder:
                     or self._source_type
                 ):
                     self._log_if_verbose(
-                        "No source type found, not creating job artifact" "warn"
+                        "No source type found, not creating job artifact", "warn"
                     )
                 return None
 
