@@ -216,7 +216,6 @@ class JobBuilder:
         if self._verbose:
             log_func(message)
 
-
     def _build_artifact_job_source(
         self,
         program_relpath: str,
@@ -338,7 +337,7 @@ class JobBuilder:
         if runtime is None:
             self._log_if_verbose(
                 "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
-                "warn"
+                "warn",
             )
             return None
 
@@ -370,8 +369,7 @@ class JobBuilder:
                     or self._source_type
                 ):
                     self._log_if_verbose(
-                        "No source type found, not creating job artifact"
-                        "warn"
+                        "No source type found, not creating job artifact" "warn"
                     )
                 return None
 
@@ -409,7 +407,7 @@ class JobBuilder:
                         f"Source type is set to '{source_type}' but some required information is missing "
                         "from the environment. A job will not be created from this run. See "
                         "https://docs.wandb.ai/guides/launch/create-job",
-                        "warn"
+                        "warn",
                     )
                 return None
 
