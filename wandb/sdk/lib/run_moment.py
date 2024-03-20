@@ -71,8 +71,6 @@ class RunMoment:
                     value = float(value)
                 except ValueError as e:
                     raise parse_err from e
-                else:
-                    value = float(value)
             else:
                 value = int(value)
         return cls(run=run, metric=metric, value=value)
