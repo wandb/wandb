@@ -21,6 +21,7 @@ subsections here on every PR where this is applicable.
 * Added support to skip staging artifact files during upload by selecting a storage policy by @ibindlish in https://github.com/wandb/wandb/pull/7142
 
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
+* Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
 
 ### Changed
 
