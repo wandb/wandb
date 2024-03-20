@@ -1,6 +1,5 @@
 import collections.abc
 import configparser
-import dataclasses
 import enum
 import getpass
 import json
@@ -36,7 +35,6 @@ from typing import (
 from urllib.parse import quote, unquote, urlencode, urlparse, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
-
 
 import wandb
 import wandb.env

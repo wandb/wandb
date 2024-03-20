@@ -1125,9 +1125,9 @@ def init(
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
         fork_from: (str, RunMoment, optional) A RunMoment or RunMoment path to fork from.
-            RunMoment paths are strings with the format <run_id>?_step=<step>. Creates a 
-            new run that picks up logging history from the specified run at the specified 
-            moment. The target run must be in the current project. 
+            RunMoment paths are strings with the format <run_id>?_step=<step>. Creates a
+            new run that picks up logging history from the specified run at the specified
+            moment. The target run must be in the current project.
 
 
     Examples:
