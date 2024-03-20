@@ -507,7 +507,7 @@ class Run:
     _notes: Optional[str]
     _sweep_id: Optional[str]
     _fork_from_run_id: Optional[str]
-    _fork_from_run_step: Optional[int]
+    _fork_from_run_value: Optional[int]
 
     _run_obj: Optional[RunRecord]
     # Use string literal annotation because of type reference loop
@@ -618,7 +618,7 @@ class Run:
         self._commit = None
         self._sweep_id = None
         self._fork_from_run_id = None
-        self._fork_from_run_step = None
+        self._fork_from_run_value = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -677,14 +677,14 @@ class Run:
                 os.path.join("code", self._settings.program_relpath)
             )
 
-        if self._settings.fork_from_run_id and self._settings.fork_from_run_step:
+        if self._settings.fork_from_run_id and self._settings.fork_from_run_value:
             config[wandb_key]["branch_point"] = {
                 "run_id": self._settings.fork_from_run_id,
-                "step": self._settings.fork_from_run_step,
+                "step": self._settings.fork_from_run_value,
             }
 
-            self._step = self._settings.fork_from_run_step
-            self._starting_step = self._settings.fork_from_run_step
+            self._step = self._settings.fork_from_run_value
+            self._starting_step = self._settings.fork_from_run_value
 
         self._config._update(config, ignore_locked=True)
 

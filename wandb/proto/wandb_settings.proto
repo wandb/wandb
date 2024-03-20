@@ -186,7 +186,7 @@ message Settings {
   google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue fork_from_run_id = 163;
-  google.protobuf.Int32Value  fork_from_run_step = 164;
+  google.protobuf.Int32Value  fork_from_run_value = 164;
 
   MapStringKeyStringValue _proxies = 200;
 

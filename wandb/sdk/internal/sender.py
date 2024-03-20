@@ -59,6 +59,7 @@ from wandb.sdk.lib import (
 from wandb.sdk.lib.mailbox import ContextCancelledError
 from wandb.sdk.lib.proto_util import message_to_dict
 
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -892,7 +893,7 @@ class SendManager:
         # TODO: do something if sync spell is not successful?
 
     def _setup_fork(self):
-        self._resume_state.step = self._settings.fork_from_run_step
+        self._resume_state.step = self._settings.fork_from_run_value
 
         fork_state = self._api.run_resume_status(
             entity=self._run.entity,  # type: ignore
@@ -925,7 +926,7 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from_run_id and self._settings.fork_from_run_step
+        do_fork = self._settings.fork_from_run_id and self._settings.fork_from_run_value
 
         if is_wandb_init:
             # Ensure we have a project to query for status

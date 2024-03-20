@@ -393,7 +393,7 @@ class SettingsData:
     files_dir: str
     force: bool
     fork_from_run_id: str
-    fork_from_run_step: int
+    fork_from_run_value: int
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -806,7 +806,7 @@ class Settings(SettingsData):
                 "value": None,
                 "preprocessor": lambda x: x if x is None else str(x),
             },
-            fork_from_run_step={
+            fork_from_run_value={
                 "value": None,
                 "preprocessor": lambda x: x if x is None else int(x),
             },
