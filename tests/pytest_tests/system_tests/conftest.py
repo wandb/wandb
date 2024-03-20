@@ -17,6 +17,7 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
+from wandb.sdk.lib import RunMoment
 from wandb.testing.relay import (
     DeliberateHTTPError,
     InjectedResponse,
@@ -918,6 +919,7 @@ def wandb_init(user, test_settings, request):
         monitor_gym: Optional[bool] = None,
         save_code: Optional[bool] = None,
         id: Optional[str] = None,
+        fork_from: Optional[Union[str, RunMoment]] = None,
         settings: Union[
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
