@@ -20,7 +20,7 @@ class RunMoment(pydantic.BaseModel):
         """Create a RunMoment from a URI."""
 
         parsable = "runmoment://" + uri
-        parse_err_msg = lambda uri: (
+        parse_err = ValueError(
             f"Could not parse passed run moment string '{uri}', "
             f"expected format '<run>?<metric>=<value>'. "
             f"Currently, only the metric '_step' is supported. "
@@ -30,23 +30,26 @@ class RunMoment(pydantic.BaseModel):
         try:
             parsed = parse.urlparse(parsable)
         except ValueError as e:
-            raise ValueError(parse_err_msg(uri)) from e
+            raise parse_err from e
 
-        # extract entity, project, run, metric, value from parsed
+        if parsed.scheme != "runmoment":
+            raise parse_err
+
+        # extract run, metric, value from parsed
         if not parsed.netloc:
-            raise ValueError(parse_err_msg(uri))
+            raise parse_err
 
         run = parsed.netloc
 
         if parsed.path or parsed.params or parsed.fragment:
-            raise ValueError(parse_err_msg(uri))
+            raise parse_err
 
         query = parse.parse_qs(parsed.query)
         if len(query) != 1:
-            raise ValueError(parse_err_msg(uri))
+            raise parse_err
         else:
             metric = list(query.keys())[0]
             if metric != "_step":
-                raise ValueError(parse_err_msg(uri))
+                raise parse_err
             value = query[metric][0]
         return cls(run=run, metric=metric, value=value)
