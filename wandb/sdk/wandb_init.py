@@ -25,7 +25,7 @@ from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.sdk.lib import RunMoment, runid
+from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
@@ -962,7 +962,7 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
-    fork_from: Optional[Union[RunMoment, str]] = None,
+    fork_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
     r"""Start a new run to track and log to W&B.
@@ -1124,11 +1124,10 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
-        fork_from: (str, RunMoment, optional) A RunMoment or RunMoment path to fork from.
-            RunMoment paths are strings with the format <run_id>?_step=<step>. Creates a
-            new run that picks up logging history from the specified run at the specified
-            moment. The target run must be in the current project.
-
+        fork_from: (str, optional) A string with the format <run_id>?_step=<step> describing
+            a moment in a previous run to fork a new run from. Creates a new run that picks up
+            logging history from the specified run at the specified moment. The target run must
+            be in the current project.
 
     Examples:
     ### Set where the run is logged
