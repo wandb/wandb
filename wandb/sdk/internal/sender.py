@@ -887,7 +887,7 @@ class SendManager:
             fork_state = self._api.run_resume_status(
                 entity=self._run.entity,  # type: ignore
                 project_name=self._run.project,
-                name=self._run.run_id,
+                name=self._settings.fork_from.run,
             )
 
             self._resume_state.history = fork_state["historyLineCount"]
