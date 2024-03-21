@@ -9,6 +9,8 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (
@@ -150,12 +152,15 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// Log hook for response logging.
+	// NetworkResponder for logging network responses.
 	//
-	// This is used to log the response body and headers for debugging purposes.
-	// We currently abuse this method to communicate back with the client.
-	// Ideally, we should just use it for logging.
-	ResponseLogHook retryablehttp.ResponseLogHook
+	// This is used to log network responses and communicate back to the user.
+	// The client side has a polling mechanism to read the responses.
+	//
+	// TOOD: this is a temporary solution to communicate back to the user the
+	// network responses. We will replace this with a more robust solution in
+	// the future (with the client re-work)
+	NetworkResponder *observability.Printer[*service.HttpResponse]
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -185,12 +190,15 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
-		retryableHTTP.HTTPClient.Transport,
-	)
-
-	if opts.ResponseLogHook != nil {
-		retryableHTTP.ResponseLogHook = opts.ResponseLogHook
+	if opts.NetworkResponder != nil {
+		retryableHTTP.HTTPClient.Transport = NewRateLimitedTransportWithResponder(
+			retryableHTTP.HTTPClient.Transport,
+			opts.NetworkResponder,
+		)
+	} else {
+		retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
+			retryableHTTP.HTTPClient.Transport,
+		)
 	}
 
 	return &clientImpl{
