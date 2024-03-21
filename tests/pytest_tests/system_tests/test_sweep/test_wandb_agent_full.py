@@ -3,6 +3,7 @@ import os
 import unittest.mock
 
 import wandb
+from wandb.sdk.wandb_sweep import sweep
 
 
 def test_agent_basic(wandb_init):
@@ -71,3 +72,23 @@ def test_agent_config_ignore(wandb_init):
 
     assert len(sweep_configs) == 1
     assert sweep_configs[0] == {"a": 1, "extra": 2}
+
+
+def test_agent_ignore_project_entity_run_id(wandb_init, user):
+    sweep_entities = []
+    sweep_projects = []
+    sweep_run_ids = []
+
+    def train():
+        run = wandb_init(entity="ign", project="ignored", id="also_ignored")
+        sweep_projects.append(run.project)
+        sweep_entities.append(run.entity)
+        sweep_run_ids.append(run.id)
+        run.finish()
+
+    wandb.agent("test-sweep-id-3", function=train, count=1, project="actual")
+
+    assert len(sweep_projects) == len(sweep_entities) == 1
+    assert sweep_projects[0] == "actual"
+    assert sweep_entities[0] == user
+    assert sweep_run_ids[0] != "also_ignored"
