@@ -2,9 +2,11 @@ package filetransfer_test
 
 import (
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -96,6 +98,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 
 	// Mocking task
 	task := &filetransfer.Task{
+		Type:    filetransfer.UploadTask,
 		Path:    filename,
 		Url:     mockServer.URL,
 		Headers: headers,
@@ -104,4 +107,84 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	// Performing the upload
 	err = ft.Upload(task)
 	assert.NoError(t, err)
+}
+
+func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
+	// Create 1000 temporary files for testing
+	tempDir, err := os.MkdirTemp("", "test-files")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var filePaths []string
+	for i := 0; i < 1000; i++ {
+		tempFile, err := os.CreateTemp(tempDir, "test-file-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		filePaths = append(filePaths, tempFile.Name())
+	}
+
+	// Create a test server that fails 5% of the time and shuts down after 100 responses
+	var responsesServed int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&responsesServed, 1) > 100 {
+			return
+		}
+
+		if rand.Float64() < 0.05 {
+			// Simulate various errors
+			errorScenarios := []func(){
+				func() { w.WriteHeader(http.StatusNotFound) }, // 404 Not Found
+				func() {
+					hj, ok := w.(http.Hijacker)
+					if !ok {
+						t.Error("webserver doesn't support hijacking")
+					}
+					conn, _, err := hj.Hijack()
+					if err != nil {
+						t.Errorf("hijacking error: %v", err)
+					}
+					conn.Close()
+				}, // Closed connection
+				func() {}, // Non-response
+			}
+			scenario := errorScenarios[rand.Intn(len(errorScenarios))]
+			scenario()
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
+	ftm := filetransfer.NewFileTransferManager(
+		filetransfer.WithLogger(observability.NewNoOpLogger()),
+		filetransfer.WithFileTransfer(ft),
+	)
+	ftm.Start()
+
+	// Count successful uploads int32
+	var successfulUploads int32
+
+	// Upload all the files concurrently
+	for _, filePath := range filePaths {
+		ftm.AddTask(&filetransfer.Task{
+			Path: filePath,
+			Url:  server.URL,
+			CompletionCallback: func(task *filetransfer.Task) {
+				if task.Err == nil {
+					atomic.AddInt32(&successfulUploads, 1)
+				}
+			},
+		})
+	}
+
+	// Wait for all uploads to complete
+	ftm.Close()
+
+	if successfulUploads < 80 || successfulUploads > 100 {
+		t.Errorf("expected 80-100 successful uploads, got %d", successfulUploads)
+	}
 }
