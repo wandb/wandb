@@ -115,6 +115,7 @@ func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
 	err := uploadToServerWithHandler(t, fnfHandler)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
+	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
 func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
@@ -127,6 +128,7 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 	}
 	err := uploadToServerWithHandler(t, closeHandler)
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "EOF")
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
@@ -136,6 +138,7 @@ func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
 func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
@@ -158,6 +161,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	err = ft.Upload(task)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
+	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
 func uploadToServerWithHandler(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) error {
