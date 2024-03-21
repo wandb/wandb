@@ -29,6 +29,7 @@ subsections here on every PR where this is applicable.
 ### Fixed
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
+* Correctly report file upload errors by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 
 ### Removed
 
