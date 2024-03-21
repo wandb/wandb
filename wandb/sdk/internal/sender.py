@@ -882,7 +882,8 @@ class SendManager:
 
     def _setup_fork(self):
         if self._settings.fork_from:
-            self._resume_state.step = int(self._settings.fork_from.value)
+            first_step = int(self._settings.fork_from.value) + 1
+            self._resume_state.step = first_step
 
             # at this point, we have already created the run. now we need
             # to query the newly created forked run to get the history
@@ -896,7 +897,7 @@ class SendManager:
 
             self._resume_state.history = fork_state["historyLineCount"]
             self._run.forked = True
-            self._run.starting_step = self._resume_state.step
+            self._run.starting_step = first_step
 
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
