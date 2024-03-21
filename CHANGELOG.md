@@ -21,7 +21,7 @@ subsections here on every PR where this is applicable.
 * Added support to skip staging artifact files during upload by selecting a storage policy by @ibindlish in https://github.com/wandb/wandb/pull/7142
 
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
-* Added verbose and very-verbose mode to launch agent by @TimH98 in https://github.com/wandb/wandb/pull/7126
+* Reduced status printing frequency of launch agent, with verbose mode to increase frequency and very-verbose mode to also print debugging information by @TimH98 in https://github.com/wandb/wandb/pull/7126
 
 ### Changed
 

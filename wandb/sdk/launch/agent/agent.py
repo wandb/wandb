@@ -110,25 +110,25 @@ def _max_from_config(
 
 class InternalAgentLogger:
     def __init__(self, verbosity=0):
-        self.verbosity = verbosity
+        self._print_to_terminal = verbosity >= 2
 
     def error(self, message: str):
-        if self.verbosity >= 2:
+        if self._print_to_terminal:
             wandb.termerror(f"{LOG_PREFIX}{message}")
         _logger.error(f"{LOG_PREFIX}{message}")
 
     def warn(self, message: str):
-        if self.verbosity >= 2:
+        if self._print_to_terminal:
             wandb.termwarn(f"{LOG_PREFIX}{message}")
         _logger.warn(f"{LOG_PREFIX}{message}")
 
     def info(self, message: str):
-        if self.verbosity >= 2:
+        if self._print_to_terminal:
             wandb.termlog(f"{LOG_PREFIX}{message}")
         _logger.info(f"{LOG_PREFIX}{message}")
 
     def debug(self, message: str):
-        if self.verbosity >= 2:
+        if self._print_to_terminal:
             wandb.termlog(f"{LOG_PREFIX}{message}")
         _logger.debug(f"{LOG_PREFIX}{message}")
 

@@ -73,7 +73,7 @@ def resolve_agent_config(  # noqa: C901
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.
         config (str): The config.
-        verbosity (int): How verbose to print, 0 = default, 1 = verbose, 2 = very verbose
+        verbosity (int): How verbose to print, 0 = default, 1 = print status every 20 seconds, 2 = also print debugging information
 
     Returns:
         Tuple[Dict[str, Any], Api]: The resolved config and api.
