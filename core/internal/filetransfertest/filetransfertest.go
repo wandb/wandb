@@ -12,6 +12,9 @@ type FakeFileTransferManager struct {
 	tasks           []*filetransfer.Task
 	unfinishedTasks map[*filetransfer.Task]struct{}
 	tasksMu         *sync.Mutex
+
+	// Whether new tasks should be completed immediately.
+	ShouldCompleteImmediately bool
 }
 
 func NewFakeFileTransferManager() *FakeFileTransferManager {
@@ -54,7 +57,12 @@ func (m *FakeFileTransferManager) AddTask(t *filetransfer.Task) {
 	defer m.tasksMu.Unlock()
 
 	m.tasks = append(m.tasks, t)
-	m.unfinishedTasks[t] = struct{}{}
+
+	if m.ShouldCompleteImmediately {
+		t.CompletionCallback(t)
+	} else {
+		m.unfinishedTasks[t] = struct{}{}
+	}
 }
 
 func (m *FakeFileTransferManager) FileStreamCallback(t *filetransfer.Task) {}
