@@ -3,7 +3,6 @@ import os
 import unittest.mock
 
 import wandb
-from wandb.sdk.wandb_sweep import sweep
 
 
 def test_agent_basic(wandb_init):
