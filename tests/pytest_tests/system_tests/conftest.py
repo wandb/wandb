@@ -17,7 +17,6 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.sdk.lib import RunMoment
 from wandb.testing.relay import (
     DeliberateHTTPError,
     InjectedResponse,
