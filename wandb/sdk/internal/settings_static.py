@@ -3,6 +3,7 @@ from typing import Any, Iterable, Sequence, Tuple
 
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.wandb_settings import SettingsData
+from wandb.sdk.lib import RunMoment
 
 
 class SettingsStatic(SettingsData):
@@ -38,6 +39,12 @@ class SettingsStatic(SettingsData):
                             unpacked_inner[inner_key] = inner_value
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
+            elif key == "fork_from":
+                value = getattr(proto, key)
+                if value is not None:
+                    value = RunMoment(
+                        run=value.run, value=value.value, metric=value.metric
+                    )
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
