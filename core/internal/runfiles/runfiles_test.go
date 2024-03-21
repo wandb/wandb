@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	. "github.com/wandb/wandb/core/internal/runfiles"
@@ -21,14 +20,16 @@ import (
 func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
 	mockGQLClient.StubMatchOnce(
 		gqlmock.WithOpName("CreateRunFiles"),
-		`"createRunFiles": {
-			"runID": "test-run",
-			"files": [
-				{
-					"name": "test-file",
-					"uploadUrl": "https://example.com/test-file",
-				}
-			]
+		`{
+			"createRunFiles": {
+				"runID": "test-run",
+				"files": [
+					{
+						"name": "test-file",
+						"uploadUrl": "https://example.com/test-file"
+					}
+				]
+			}
 		}`,
 	)
 }
@@ -93,8 +94,8 @@ func TestUploader(t *testing.T) {
 	runTest("Process with 'now' policy uploads immediately",
 		func() {},
 		func(t *testing.T) {
-			t.Skip("Not implemented")
 			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
 			uploader.Process(&service.FilesRecord{
 				Files: []*service.FilesItem{
@@ -124,13 +125,24 @@ func TestUploader(t *testing.T) {
 	runTest("UploadNow uploads given file",
 		func() {},
 		func(t *testing.T) {
-			t.Skip("Not implemented")
 			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+		})
+
+	runTest("UploadNow ignores non-existent file",
+		func() {},
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
+
+			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
 	runTest("UploadNow does nothing if offline",
@@ -144,52 +156,67 @@ func TestUploader(t *testing.T) {
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
-	runTest("UploadRemaining uploads all files",
-		func() { filesDir = t.TempDir() },
+	runTest("upload is no-op if GraphQL returns wrong number of files",
+		func() {},
 		func(t *testing.T) {
-			t.Skip("Not implemented")
 			stubCreateRunFilesOneFile(mockGQLClient)
 			writeEmptyFile(t, filepath.Join(filesDir, "file1.txt"))
-			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "file2.txt"))
+			writeEmptyFile(t, filepath.Join(filesDir, "file2.txt"))
+
+			// This tries to upload 2 files, but GraphQL returns 1 file.
+			uploader.UploadRemaining()
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
+		})
+
+	runTest("UploadRemaining uploads all files using GraphQL response",
+		func() { filesDir = filepath.Join(t.TempDir(), "files") },
+		func(t *testing.T) {
+			mockGQLClient.StubMatchOnce(
+				gqlmock.WithOpName("CreateRunFiles"),
+				`{
+					"createRunFiles": {
+						"runID": "test-run",
+						"uploadHeaders": ["Header1:Value1", "Header2:Value2"],
+						"files": [
+							{
+								"name": "test-file1",
+								"uploadUrl": "URL1"
+							},
+							{
+								"name": "subdir/test-file2",
+								"uploadUrl": "URL2"
+							}
+						]
+					}
+				}`,
+			)
+			writeEmptyFile(t, filepath.Join(filesDir, "test-file1"))
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test-file2"))
 
 			uploader.UploadRemaining()
 			uploader.Finish()
 
-			assert.Len(t, fakeFileTransfer.Tasks(), 2)
-		})
-
-	runTest("uploads using GraphQL response",
-		func() { filesDir = "the/files/directory" },
-		func(t *testing.T) {
-			t.Skip("Not implemented")
-
-			mockGQLClient.StubMatchOnce(
-				gqlmock.WithOpName("CreateRunFiles"),
-				`"createRunFiles": {
-					"runID": "test-run",
-					"uploadHeaders": ["Header1:Value1", "Header2:Value2"],
-					"files": [
-						{
-							"name": "test-file",
-							"uploadUrl": "https://example.com/test-file",
-						}
-					]
-				}`,
-			)
-
-			uploader.UploadNow("file.txt")
-			uploader.Finish()
-
 			uploadTasks := fakeFileTransfer.Tasks()
-			assert.Len(t, uploadTasks, 1)
+			require.Len(t, uploadTasks, 2)
+
 			assert.Equal(t,
-				&filetransfer.Task{
-					Type:    filetransfer.UploadTask,
-					Path:    "the/files/directory/file.txt",
-					Name:    "test-file",
-					Url:     "https://example.com/test-file",
-					Headers: []string{"Header1:Value1", "Header2:Value2"},
-				},
+				filepath.Join(filesDir, "test-file1"),
 				uploadTasks[0].Path)
+			assert.Equal(t, "test-file1", uploadTasks[0].Name)
+			assert.Equal(t, "URL1", uploadTasks[0].Url)
+			assert.Equal(t,
+				[]string{"Header1:Value1", "Header2:Value2"},
+				uploadTasks[0].Headers)
+
+			assert.Equal(t,
+				filepath.Join(filesDir, "subdir", "test-file2"),
+				uploadTasks[1].Path)
+			assert.Equal(t, "subdir/test-file2", uploadTasks[1].Name)
+			assert.Equal(t, "URL2", uploadTasks[1].Url)
+			assert.Equal(t,
+				[]string{"Header1:Value1", "Header2:Value2"},
+				uploadTasks[1].Headers)
 		})
 }
