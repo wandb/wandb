@@ -78,8 +78,11 @@ def test_agent_ignore_project_entity_run_id(wandb_init, user):
     sweep_entities = []
     sweep_projects = []
     sweep_run_ids = []
+
+    project_name = "actual"
     public_api = Api()
-    public_api.create_project("actual", user)
+    public_api.create_project(project_name, user)
+
     def train():
         run = wandb_init(entity="ign", project="ignored", id="also_ignored")
         sweep_projects.append(run.project)
@@ -92,8 +95,8 @@ def test_agent_ignore_project_entity_run_id(wandb_init, user):
         "method": "grid",
         "parameters": {"a": {"values": [1, 2, 3]}},
     }
-    sweep_id = wandb.sweep(sweep_config)
-    wandb.agent(sweep_id, function=train, count=1, project="actual")
+    sweep_id = wandb.sweep(sweep_config, project=project_name)
+    wandb.agent(sweep_id, function=train, count=1, project=project_name)
 
     assert len(sweep_projects) == len(sweep_entities) == 1
     assert sweep_projects[0] == "actual"
