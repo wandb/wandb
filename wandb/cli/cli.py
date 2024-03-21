@@ -1680,6 +1680,12 @@ def launch(
     hidden=True,
     help="a wandb client registration URL, this is generated in the UI",
 )
+@click.option(
+    "--experimental",
+    default=False,
+    is_flag=True,
+    help="Enable experimental launch agent features",
+)
 @display_error
 def launch_agent(
     ctx,
@@ -1690,6 +1696,7 @@ def launch_agent(
     config=None,
     url=None,
     log_file=None,
+    experimental=False,
 ):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
@@ -1719,7 +1726,7 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(api, agent_config, use_launch_agent2=experimental)
     except Exception as e:
         wandb._sentry.exception(e)
         raise e

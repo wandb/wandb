@@ -631,6 +631,21 @@ class Api:
         return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
+    def jobset_introspection(self) -> Optional[str]:
+        query = gql(
+            """
+            query JobSetIntrospection {
+                JobSetDiffType: __type(name: "JobSetDiff") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("JobSetDiffType", {}).get("name") or None
+
+    @normalize_exceptions
     def create_run_queue_introspection(self) -> Tuple[bool, bool, bool]:
         _, _, mutations = self.server_info_introspection()
         query_string = """
@@ -4198,3 +4213,225 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    @normalize_exceptions
+    def get_jobset_by_id(
+        self,
+        agent_id: str,
+        id: str,
+    ):
+        query = gql(
+            """
+            query getJobSetById($agentID: ID!, $id: ID!) {
+                jobSetDiff(id: $id, fromVersion: -1, agentID: $agentID) {
+                    jobs: upsertJobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "agentID": agent_id,
+                "id": id,
+            },
+        )
+
+        return response["jobSetDiff"]
+
+    @normalize_exceptions
+    def get_jobset_by_spec(
+        self,
+        agent_id: str,
+        jobset_name: str,
+        entity_name: str,
+        project_name: Optional[str],
+    ):
+        query = gql(
+            """
+            query getJobSetBySpec($agentID: ID! $jobSetName: String!, $entityName: String!, $projectName: String) {
+                jobSetDiff(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }, fromVersion: -1, agentID: $agentID) {
+                    jobs: upsertJobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "agentID": agent_id,
+                "jobSetName": jobset_name,
+                "entityName": entity_name,
+                "projectName": project_name,
+            },
+        )
+
+        return response["jobSetDiff"]
+
+    @normalize_exceptions
+    def get_jobset_diff_by_id(
+        self,
+        id: str,
+        from_version: Optional[int],
+        agent_id: str,
+    ):
+        query = gql(
+            """
+            query getJobSetDiffByID($id: ID!, $fromVersion: Int, $agentID: ID!) {
+                jobSetDiff(id: $id, fromVersion: $fromVersion, agentID: $agentID) {
+                    version
+                    complete
+                    upsertJobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    removeJobs
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "id": id,
+                "fromVersion": from_version,
+                "agentID": agent_id,
+            },
+        )
+
+        return response["jobSetDiff"]
+
+    @normalize_exceptions
+    def get_jobset_diff_by_spec(
+        self,
+        jobset_name: str,
+        entity_name: str,
+        project_name: Optional[str],
+        from_version: Optional[int],
+        agent_id: str,
+    ):
+        query = gql(
+            """
+            query getJobSetDiffBySpec($jobSetName: String!, $entityName: String!, $projectName: String, $fromVersion: Int, $agentID: ID!) {
+                jobSetDiff(selector: { jobSetName: $jobSetName, entityName: $entityName, projectName: $projectName }, fromVersion: $fromVersion, agentID: $agentID) {
+                    version
+                    complete
+                    upsertJobs {
+                        createdAt
+                        updatedAt
+                        id
+                        runSpec
+                        priority
+                        state
+                        associatedRunId
+                        launchAgentId
+                    }
+                    removeJobs
+                    metadata
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            query,
+            variable_values={
+                "jobSetName": jobset_name,
+                "entityName": entity_name,
+                "projectName": project_name,
+                "fromVersion": from_version,
+                "agentID": agent_id,
+            },
+        )
+
+        return response["jobSetDiff"]
+
+    @normalize_exceptions
+    def lease_jobset_item(
+        self,
+        jobset_id: str,
+        jobset_item_id: str,
+        agent_id: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation leaseJobSetItem($jobSetId: ID!, $jobSetItemId: ID!, $agentId: ID!) {
+                leaseJobSetItem(input: { jobSetId: $jobSetId, jobSetItemId: $jobSetItemId, agentId: $agentId }) {
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "jobSetId": jobset_id,
+                "jobSetItemId": jobset_item_id,
+                "agentId": agent_id,
+            },
+        )
+
+        result: bool = response["leaseJobSetItem"]["success"]
+        return result
+
+    @normalize_exceptions
+    def ack_jobset_item(
+        self,
+        jobset_id: str,
+        jobset_item_id: str,
+        agent_id: str,
+        run_name: str,
+    ) -> bool:
+        mutation = gql(
+            """
+            mutation ackJobSetItem($jobSetId: ID!, $jobSetItemId: ID!, $agentId: ID!, $runName: String!) {
+                ackJobSetItem(input: { jobSetId: $jobSetId, jobSetItemId: $jobSetItemId, agentId: $agentId, runName: $runName }) {
+                    success
+                }
+            }
+            """
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values={
+                "jobSetId": jobset_id,
+                "jobSetItemId": jobset_item_id,
+                "agentId": agent_id,
+                "runName": run_name,
+            },
+        )
+
+        result: bool = response["ackJobSetItem"]["success"]
+        return result
