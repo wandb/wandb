@@ -218,7 +218,7 @@ func (j *JobBuilder) logIfVerbose(msg string, level LogLevel) {
 	}
 
 	if j.verbose {
-		// TODO: here and elsewhere, we should pass messages back to the user
+		// TODO: we should pass messages back to the user
 		// and print them there, instead of printing them here
 		fmt.Println(msg)
 	}

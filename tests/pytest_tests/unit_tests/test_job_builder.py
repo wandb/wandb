@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 import random
 import string
 
@@ -177,7 +178,8 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker):
         assert job_builder._is_notebook_run is True
 
 
-def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd):
+@pytest.parametrize("verbose", [True, False])
+def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose):
     metadata = {
         "program": "blah/test.ipynb",
         "args": ["--test", "test"],
@@ -201,7 +203,7 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd):
                 }
             )
         )
-        job_builder = JobBuilder(settings, True)
+        job_builder = JobBuilder(settings, verbose)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -210,13 +212,15 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd):
 
         assert not artifact
         out = capfd.readouterr().err
-        assert (
-            "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
-            in out
-        )
+        _msg = "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
+        if verbose:
+            assert _msg in out
+        else:
+            assert _msg not in out
 
 
-def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd):
+@pytest.parametrize("verbose", [True, False])
+def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbose):
     artifact_name = str_of_length(129)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
@@ -232,7 +236,7 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd):
                 }
             )
         )
-        job_builder = JobBuilder(settings, True)
+        job_builder = JobBuilder(settings, verbose)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -241,10 +245,17 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd):
 
         assert not artifact
         out = capfd.readouterr().err
-        assert "Ensure read and write access to run files dir" in out
+        _msg = "Ensure read and write access to run files dir"
+        if verbose:
+            assert _msg in out
+        else:
+            assert _msg not in out
 
 
-def test_build_artifact_notebook_job_no_program_metadata(runner, tmp_path, capfd):
+@pytest.parametrize("verbose", [True, False])
+def test_build_artifact_notebook_job_no_program_metadata(
+    runner, tmp_path, capfd, verbose
+):
     metadata = {
         "args": ["--test", "test"],
         "python": "3.7",
@@ -266,7 +277,7 @@ def test_build_artifact_notebook_job_no_program_metadata(runner, tmp_path, capfd
                 }
             )
         )
-        job_builder = JobBuilder(settings, True)
+        job_builder = JobBuilder(settings, verbose)
         job_builder._logged_code_artifact = {
             "id": "testtest",
             "name": artifact_name,
@@ -275,7 +286,11 @@ def test_build_artifact_notebook_job_no_program_metadata(runner, tmp_path, capfd
 
         assert not artifact
         out = capfd.readouterr().err
-        assert "WARNING Notebook 'program' path not found in metadata" in out
+        _msg = "WARNING Notebook 'program' path not found in metadata"
+        if verbose:
+            assert _msg in out
+        else:
+            assert _msg not in out
 
 
 def test_build_image_job(runner):
