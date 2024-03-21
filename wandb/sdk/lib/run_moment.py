@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import cast, Literal, Union
 from urllib import parse
 
 _STEP = Literal["_step"]
@@ -71,4 +71,4 @@ class RunMoment:
                     raise parse_err from e
             else:
                 num_value = int(value)
-        return cls(run=run, metric=typing.cast(_STEP, metric), value=num_value)
+        return cls(run=run, metric=cast(_STEP, metric), value=num_value)
