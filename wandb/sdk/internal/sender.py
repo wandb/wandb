@@ -884,10 +884,14 @@ class SendManager:
         if self._settings.fork_from:
             self._resume_state.step = int(self._settings.fork_from.value)
 
+            # at this point, we have already created the run. now we need
+            # to query the newly created forked run to get the history
+            # line count. this information is calculated on the backend
+            # and installed on the new run metadata object.
             fork_state = self._api.run_resume_status(
                 entity=self._run.entity,  # type: ignore
                 project_name=self._run.project,
-                name=self._settings.fork_from.run,
+                name=self._run.run_id,
             )
 
             self._resume_state.history = fork_state["historyLineCount"]
