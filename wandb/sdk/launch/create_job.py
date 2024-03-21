@@ -313,7 +313,9 @@ def _create_repo_metadata(
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
     if not entrypoint_file:
-        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
         return None
 
     if not os.path.exists(os.path.join(local_dir, entrypoint_file)):
@@ -344,7 +346,9 @@ def _create_artifact_metadata(
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
     if not entrypoint_file:
-        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
         return None, None
 
     # read local requirements.txt and dump to temp dir for builder
@@ -409,7 +413,9 @@ def _make_code_artifact(
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
     if not entrypoint_file:
-        wandb.termerror(f"Entrypoint {entrypoint} is invalid")
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
         return None
 
     artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
