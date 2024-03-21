@@ -60,7 +60,7 @@ func (u *uploader) UploadNow(path string) {
 	}
 	defer u.stateMu.Unlock()
 
-	u.upload(path)
+	u.upload([]string{path})
 }
 
 func (u *uploader) UploadRemaining() {
@@ -88,14 +88,14 @@ func (u *uploader) Finish() {
 	u.uploadWg.Wait()
 }
 
-// Schedules a file upload task, unless we are offline.
-func (u *uploader) upload(path string) {
+// Schedules file upload tasks, unless we are offline.
+func (u *uploader) upload(relativePaths []string) {
 	if u.settings.IsOffline() {
 		return
 	}
 
 	// TODO
-	_ = path
+	_ = relativePaths
 }
 
 // Acquires the stateMu mutex if Finish() has not been called.
