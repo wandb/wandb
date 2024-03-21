@@ -175,6 +175,7 @@ class LaunchAgent:
         self._project = config.get("project", LAUNCH_DEFAULT_PROJECT)
         self._api = api
         self._base_url = self._api.settings().get("base_url")
+        self._ticks = 0
         self._jobs: Dict[int, JobAndRunStatusTracker] = {}
         self._jobs_lock = threading.Lock()
         self._jobs_event = Event()
@@ -552,6 +553,7 @@ class LaunchAgent:
         try:
             while True:
                 job = None
+                self._ticks += 1
                 agent_response = self._api.get_launch_agent(
                     self._id, self.gorilla_supports_agents
                 )
@@ -599,11 +601,12 @@ class LaunchAgent:
                                 files=files,
                             )
 
-                if time.time() - self._last_status_print_time > print_interval:
+                if self._ticks % 2 == 0:
                     if len(self.thread_ids) == 0:
                         await self.update_status(AGENT_POLLING)
                     else:
                         await self.update_status(AGENT_RUNNING)
+                if time.time() - self._last_status_print_time > print_interval:
                     self.print_status()
 
                 if self.num_running_jobs == self._max_jobs or job is None:
