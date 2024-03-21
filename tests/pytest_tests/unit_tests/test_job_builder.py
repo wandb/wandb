@@ -1,9 +1,9 @@
 import json
 import os
-import pytest
 import random
 import string
 
+import pytest
 from google.protobuf.wrappers_pb2 import BoolValue, StringValue
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.job_builder import JobBuilder
