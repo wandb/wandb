@@ -1,6 +1,7 @@
 import threading
 from collections import deque
 from typing import TYPE_CHECKING, List
+import time
 
 try:
     import psutil
@@ -71,23 +72,26 @@ class NetworkRecv:
 class NetworkTrafficSent:
     """Network traffic sent."""
 
-    name = "network.traffic_sent"
+    name = "network.upload_speed"
     samples: "Deque[float]"
     last_sample: float
 
     def __init__(self) -> None:
 
-        self.network_sent = NetworkSent()
+        self.upload_speed = psutil.net_io_counters().bytes_sent
         self.samples = deque([])
-        self.network_sent.sample()
-        self.last_sample = self.network_sent.samples[-1]
+        self.upload_speed.sample()
+        self.last_sample = self.upload_speed.samples[-1]
+        self.initial_timestamp = time.time()
 
     def sample(self) -> None:
-        self.network_sent.sample()
+        self.upload_speed.sample()
+        current_timestamp = time.time()
         current_sample = self.network_sent.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / 2
+        delta_sent = (current_sample - self.last_sample) / (current_timestamp - self.initial_timestamp)  # this should be the difference in timestamps
         self.samples.append(delta_sent)
         self.last_sample = current_sample
+        self.initial_timestamp = current_timestamp
 
     def clear(self) -> None:
         self.network_sent.clear()
@@ -104,22 +108,25 @@ class NetworkTrafficSent:
 class NetworkTrafficReceived:
     """Network traffic received."""
 
-    name = "network.traffic_recv"
+    name = "network.download_speed"
     samples: "Deque[float]"
 
     def __init__(self) -> None:
 
-        self.network_received = NetworkRecv()
+        self.network_received = psutil.net_io_counters().bytes_recv
         self.samples = deque([])
         self.network_received.sample()
         self.last_sample = self.network_received.samples[-1]
+        self.initial_timestamp = time.time()
 
     def sample(self) -> None:
         self.network_received.sample()
+        current_timestamp = time.time()
         current_sample = self.network_received.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / 2
+        delta_sent = (current_sample - self.last_sample) / (current_timestamp - self.initial_timestamp)
         self.samples.append(delta_sent)
         self.last_sample = current_sample
+        self.initial_timestamp = current_timestamp
 
     def clear(self) -> None:
         self.network_received.clear()
