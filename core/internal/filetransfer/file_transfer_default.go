@@ -74,7 +74,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	if err != nil {
 		return err
 	} else if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("file transfer: upload: failed to upload: (code %v)", resp.StatusCode)
+		return fmt.Errorf("file transfer: upload: failed to upload: %v", resp.Status)
 	}
 	return nil
 }

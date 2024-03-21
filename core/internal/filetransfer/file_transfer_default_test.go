@@ -2,12 +2,11 @@ package filetransfer_test
 
 import (
 	"io"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
@@ -109,97 +108,81 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
-	// Create 1000 temporary files for testing
-	tempDir, err := os.MkdirTemp("", "test-files")
-	if err != nil {
-		t.Fatal(err)
+func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
+	fnfHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
 	}
-	defer os.RemoveAll(tempDir)
+	err := uploadToServerWithHandler(t, fnfHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "404")
+}
 
-	var filePaths []string
-	for i := 0; i < 1000; i++ {
-		tempFile, err := os.CreateTemp(tempDir, "test-file-*")
-		if err != nil {
-			t.Fatal(err)
-		}
-		filePaths = append(filePaths, tempFile.Name())
+func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
+	closeHandler := func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		assert.True(t, ok, "webserver doesn't support hijacking")
+		conn, _, err := hj.Hijack()
+		assert.NoError(t, err, "hijacking error")
+		conn.Close()
+	}
+	err := uploadToServerWithHandler(t, closeHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
+	err := uploadToServerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(500 * time.Millisecond)
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
+func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), impatientClient())
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.Task{
+		Type: filetransfer.UploadTask,
+		Path: tempFile.Name(),
+		Url:  server.URL,
 	}
 
-	// Create a channel to let the server signal that it should be closed
-	closeServer := make(chan bool)
+	// Close the server before the upload begins.
+	server.Close()
 
-	// Create a test server that fails 5% of the time and shuts down after 100 responses
-	var responsesServed int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if atomic.AddInt32(&responsesServed, 1) > 100 {
-            select {
-			case closeServer <- true:
-			default:
-			}
-            return
-        }
+	err = ft.Upload(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+}
 
-		if rand.Float64() < 0.05 {
-			// Simulate various errors
-			errorScenarios := []func(){
-				func() { w.WriteHeader(http.StatusNotFound) }, // 404 Not Found
-				func() {
-					hj, ok := w.(http.Hijacker)
-					if !ok {
-						t.Error("webserver doesn't support hijacking")
-					}
-					conn, _, err := hj.Hijack()
-					if err != nil {
-						t.Errorf("hijacking error: %v", err)
-					}
-					conn.Close()
-				}, // Closed connection
-				func() {}, // Non-response
-			}
-			scenario := errorScenarios[rand.Intn(len(errorScenarios))]
-			scenario()
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
+func uploadToServerWithHandler(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) error {
+	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
+	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), impatientClient())
 
-	// Listen for the close signal and terminate the server early.
-	go func() {
-		<-closeServer
-		server.Close()
-	}()
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
 
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
-	ftm := filetransfer.NewFileTransferManager(
-		filetransfer.WithLogger(observability.NewNoOpLogger()),
-		filetransfer.WithFileTransfer(ft),
-	)
-	ftm.Start()
-
-	// Count successful uploads
-	var successfulUploads int32
-
-	// Upload all the files concurrently
-	for _, filePath := range filePaths {
-		ftm.AddTask(&filetransfer.Task{
-			Path: filePath,
-			Url:  server.URL,
-			CompletionCallback: func(task *filetransfer.Task) {
-				if task.Err == nil {
-					atomic.AddInt32(&successfulUploads, 1)
-				}
-			},
-		})
+	task := &filetransfer.Task{
+		Type: filetransfer.UploadTask,
+		Path: tempFile.Name(),
+		Url:  server.URL,
 	}
 
-	// Wait for all uploads to complete
-	ftm.Close()
+	return ft.Upload(task)
+}
 
-	// It should be impossible for it to succeed more than 100 times,
-	// and less than a 1 / 10**7 chance it doesn't succeed at least 80 times.
-	if successfulUploads < 80 || successfulUploads > 100 {
-		t.Errorf("expected 80-100 successful uploads, got %d", successfulUploads)
-	}
+func impatientClient() *retryablehttp.Client {
+	client := retryablehttp.NewClient()
+	client.RetryMax = 1
+	client.RetryWaitMin = 1 * time.Millisecond
+	client.RetryWaitMax = 10 * time.Millisecond
+	client.HTTPClient.Timeout = 100 * time.Millisecond
+	return client
 }
