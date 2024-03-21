@@ -1590,9 +1590,9 @@ class Settings(SettingsData):
             elif isinstance(v, RunMoment):
                 getattr(settings, k).CopyFrom(
                     wandb_settings_pb2.RunMoment(
-                        run=StringValue(value=v.run),
-                        value=DoubleValue(value=v.value),
-                        metric=StringValue(value=v.metric),
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
                     )
                 )
             elif v is None:
