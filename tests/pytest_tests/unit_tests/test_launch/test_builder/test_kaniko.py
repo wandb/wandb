@@ -15,6 +15,7 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
+from wandb.sdk.launch.utils import to_lower_camel_case
 
 
 class AsyncMock(MagicMock):
@@ -83,12 +84,14 @@ async def test_kaniko_azure(azure_container_registry, azure_environment):
     )
     core_client = MagicMock()
     core_client.read_namespaced_secret = AsyncMock(return_value=None)
+    api_client = MagicMock()
     job = await builder._create_kaniko_job(
         "test-job",
         "https://registry.azurecr.io/test-repo",
         "12345678",
         "https://account.blob.core.windows.net/container/blob",
         core_client,
+        api_client,
     )
     # Check that the AZURE_STORAGE_ACCESS_KEY env var is set correctly.
     assert any(
@@ -107,6 +110,39 @@ async def test_kaniko_azure(azure_container_registry, azure_environment):
 
 def return_kwargs(**kwargs):
     return kwargs
+
+
+class ObjectFromDict(object):
+    def __init__(self, d):
+        self.dict = d
+        for k, v in d.items():
+            # k = to_snake_case(k)
+            # print(v)
+            # print(k)
+            if isinstance(v, (list, tuple)):
+                # setattr(self, k, [ObjectFromDict(x) if isinstance(x, dict) else x for x in v])
+                setattr(self, k, [ObjectFromDict(x) if isinstance(x, dict) else x for x in v])
+            else:
+                setattr(self, k, ObjectFromDict(v) if (isinstance(v, dict) and k != "labels") else v)
+
+    def __getitem__(self, index):
+        # if index == "volume_mounts":
+        # print(index)
+        # print(to_camel_case(index))
+        return getattr(self, to_lower_camel_case(index))
+
+    def __eq__(self, other):
+        if isinstance(other, dict):
+            print("HERE")
+            print(self.dict)
+            print(other)
+            print(self.dict == other)
+            return self.dict == other
+        return super().__eq__(other)
+    
+
+async def mock_create_from_dict(api_client, job, namespace):
+    return [ObjectFromDict(job)]
 
 
 @pytest.fixture
@@ -155,6 +191,9 @@ def mock_kubernetes_clients(monkeypatch):
     monkeypatch.setattr(kubernetes_asyncio.client, "V1ObjectMeta", return_kwargs)
     monkeypatch.setattr(
         kubernetes_asyncio.config, "load_incluster_config", return_kwargs
+    )
+    monkeypatch.setattr(
+        kubernetes_asyncio.utils, "create_from_dict", mock_create_from_dict
     )
     yield mock_core_client, mock_batch_client
 
@@ -217,14 +256,16 @@ async def test_create_kaniko_job_static(
             secret_name="test-secret",
             secret_key="test-key",
             config={
-                "containers": [{
-                    "args": ["--test-arg=test-value"],
-                    "volumeMounts": [{"name": "test-volume", "mountPath": "/test/path/"}]
-                }],
-                "volumes": [{
-                    "name": "test-volume"
-                }]
-            }
+                "containers": [
+                    {
+                        "args": ["--test-arg=test-value"],
+                        "volumeMounts": [
+                            {"name": "test-volume", "mountPath": "/test/path/"}
+                        ],
+                    }
+                ],
+                "volumes": [{"name": "test-volume"}],
+            },
         )
         job_name = "test_job_name"
         repo_url = "repository-url"
@@ -236,6 +277,7 @@ async def test_create_kaniko_job_static(
             image_tag,
             context_path,
             kubernetes_asyncio.client.CoreV1Api(),
+            MagicMock(),
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -314,7 +356,7 @@ async def test_create_kaniko_job_instance(
         image_tag = "image_tag:12345678"
         context_path = "./test/context/path/"
         job = await builder._create_kaniko_job(
-            job_name, repo_url, image_tag, context_path, MagicMock()
+            job_name, repo_url, image_tag, context_path, MagicMock(), MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -364,7 +406,7 @@ async def test_create_kaniko_job_pvc_dockerconfig(
             AnonynmousRegistry(repo_url),
         )
         job = await builder._create_kaniko_job(
-            job_name, repo_url, image_tag, context_path, MagicMock()
+            job_name, repo_url, image_tag, context_path, MagicMock(), MagicMock()
         )
 
         assert job["metadata"]["name"] == "test_job_name"
@@ -384,6 +426,7 @@ async def test_create_kaniko_job_pvc_dockerconfig(
             "--compressed-caching=false",
         ]
 
+    print(type(job["spec"]["template"]["spec"]["containers"][0]))
     assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
         {
             "name": "kaniko-pvc",

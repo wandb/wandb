@@ -623,6 +623,13 @@ def to_camel_case(maybe_snake_str: str) -> str:
     return "".join(x.title() if x else "_" for x in components)
 
 
+def to_lower_camel_case(maybe_snake_str: str) -> str:
+    if "_" not in maybe_snake_str:
+        return maybe_snake_str
+    components = maybe_snake_str.split("_")
+    return components[0].lower() + "".join(x.title() if x else "_" for x in components[1:])
+
+
 def run_shell(args: List[str]) -> Tuple[str, str]:
     out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()
