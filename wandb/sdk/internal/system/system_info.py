@@ -212,7 +212,10 @@ class SystemInfo:
                 os.path.join(self.settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
             ) as f:
                 subprocess.call(
-                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                    ["conda", "env", "export"],
+                    stdout=f,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15,  # add timeout since conda env export could take a really long time
                 )
         except Exception as e:
             logger.exception(f"Error saving conda packages: {e}")

@@ -862,9 +862,6 @@ class HandleManager:
         self._respond_result(result)
         self._stopped.set()
 
-    def handle_request_job_info(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
-
     def finish(self) -> None:
         logger.info("shutting down handler")
         if self._system_monitor is not None:
