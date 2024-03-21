@@ -2,8 +2,8 @@ from dataclasses import fields
 from typing import Any, Iterable, Sequence, Tuple
 
 from wandb.proto import wandb_settings_pb2
-from wandb.sdk.wandb_settings import SettingsData
 from wandb.sdk.lib import RunMoment
+from wandb.sdk.wandb_settings import SettingsData
 
 
 class SettingsStatic(SettingsData):

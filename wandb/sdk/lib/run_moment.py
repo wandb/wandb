@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import cast, Literal, Union
+from typing import Literal, Union, cast
 from urllib import parse
 
 _STEP = Literal["_step"]
