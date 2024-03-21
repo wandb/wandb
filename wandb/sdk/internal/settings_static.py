@@ -41,10 +41,12 @@ class SettingsStatic(SettingsData):
                     value = unpacked_mapping
             elif key == "fork_from":
                 value = getattr(proto, key)
-                if value is not None:
+                if value.run:
                     value = RunMoment(
                         run=value.run, value=value.value, metric=value.metric
                     )
+                else:
+                    value = None
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value

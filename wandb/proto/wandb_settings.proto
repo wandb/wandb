@@ -168,7 +168,7 @@ message Settings {
   google.protobuf.StringValue resume = 102;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
-  optional RunMoment fork_from = 164;
+  RunMoment fork_from = 164;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
