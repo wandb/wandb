@@ -126,12 +126,19 @@ func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
 		filePaths = append(filePaths, tempFile.Name())
 	}
 
+	// Create a channel to let the server signal that it should be closed
+	closeServer := make(chan bool)
+
 	// Create a test server that fails 5% of the time and shuts down after 100 responses
 	var responsesServed int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if atomic.AddInt32(&responsesServed, 1) > 100 {
-			return
-		}
+            select {
+			case closeServer <- true:
+			default:
+			}
+            return
+        }
 
 		if rand.Float64() < 0.05 {
 			// Simulate various errors
@@ -158,6 +165,12 @@ func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
 	}))
 	defer server.Close()
 
+	// Listen for the close signal and terminate the server early.
+	go func() {
+		<-closeServer
+		server.Close()
+	}()
+
 	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
 	ftm := filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(observability.NewNoOpLogger()),
@@ -165,7 +178,7 @@ func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
 	)
 	ftm.Start()
 
-	// Count successful uploads int32
+	// Count successful uploads
 	var successfulUploads int32
 
 	// Upload all the files concurrently
@@ -184,6 +197,8 @@ func TestManagedDefaultFileTransfer_FaultyUpload(t *testing.T) {
 	// Wait for all uploads to complete
 	ftm.Close()
 
+	// It should be impossible for it to succeed more than 100 times,
+	// and less than a 1 / 10**7 chance it doesn't succeed at least 80 times.
 	if successfulUploads < 80 || successfulUploads > 100 {
 		t.Errorf("expected 80-100 successful uploads, got %d", successfulUploads)
 	}

@@ -70,8 +70,11 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 		req.Header.Set(parts[0], parts[1])
 	}
-	if _, err := ft.client.Do(req); err != nil {
+	resp, err := ft.client.Do(req)
+	if err != nil {
 		return err
+	} else if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("file transfer: upload: failed to upload: (code %v)", resp.StatusCode)
 	}
 	return nil
 }
