@@ -1,8 +1,8 @@
-import typing
 from dataclasses import dataclass
+from typing import Literal, Union
 from urllib import parse
 
-_STEP = typing.Literal["_step"]
+_STEP = Literal["_step"]
 
 
 @dataclass
@@ -12,7 +12,7 @@ class RunMoment:
     run: str  # run name
 
     # currently, the _step value to fork from. in future, this will be optional
-    value: typing.Union[int, float]
+    value: Union[int, float]
 
     # only step for now, in future this will be relaxed to be any metric
     metric: _STEP = "_step"
