@@ -178,7 +178,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker):
         assert job_builder._is_notebook_run is True
 
 
-@pytest.parametrize("verbose", [True, False])
+@pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose):
     metadata = {
         "program": "blah/test.ipynb",
@@ -219,7 +219,7 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose
             assert _msg not in out
 
 
-@pytest.parametrize("verbose", [True, False])
+@pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbose):
     artifact_name = str_of_length(129)
     with runner.isolated_filesystem():
@@ -252,7 +252,7 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbos
             assert _msg not in out
 
 
-@pytest.parametrize("verbose", [True, False])
+@pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program_metadata(
     runner, tmp_path, capfd, verbose
 ):
