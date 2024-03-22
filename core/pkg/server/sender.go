@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,6 +124,7 @@ type Sender struct {
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
+	backendOrNil *api.Backend,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	opts ...SenderOption,
@@ -140,24 +140,15 @@ func NewSender(
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
 	}
-	if !settings.GetXOffline().GetValue() {
-		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
-		if err != nil {
-			logger.CaptureFatalAndPanic("sender: failed to parse base URL", err)
-		}
-		backend := api.New(api.BackendOptions{
-			BaseURL: baseURL,
-			Logger:  logger.Logger,
-			APIKey:  settings.GetApiKey().GetValue(),
-		})
 
+	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
 		graphqlHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
 		}
 		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
 
-		graphqlClient := backend.NewClient(api.ClientOptions{
+		graphqlClient := backendOrNil.NewClient(api.ClientOptions{
 			RetryPolicy:     clients.CheckRetry,
 			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
 			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
@@ -173,7 +164,7 @@ func NewSender(
 			fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 		}
 
-		fileStreamRetryClient := backend.NewClient(api.ClientOptions{
+		fileStreamRetryClient := backendOrNil.NewClient(api.ClientOptions{
 			RetryMax:        int(settings.GetXFileStreamRetryMax().GetValue()),
 			RetryWaitMin:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()),
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
