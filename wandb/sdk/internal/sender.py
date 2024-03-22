@@ -889,6 +889,17 @@ class SendManager:
         self._run.forked = True
         self._run.starting_step = first_step
 
+    def _handle_error(
+        self, record: "Record", error: "wandb_internal_pb2.ErrorInfo", run: "RunRecord"
+    ) -> None:
+        if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(run)
+            result.run_result.error.CopyFrom(error)
+            self._respond_result(result)
+        else:
+            logger.error("Got error in async mode: %s", error.message)
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
@@ -938,13 +949,7 @@ class SendManager:
                 error = self._setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         # Save the resumed config
@@ -967,12 +972,8 @@ class SendManager:
             server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                error = ProtobufErrorHandler.from_exception(e)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
+            error = ProtobufErrorHandler.from_exception(e)
+            self._handle_error(record, error, run)
             return
 
         assert self._run  # self._run is configured in _init_run()
@@ -981,13 +982,7 @@ class SendManager:
             error = self._setup_fork(server_run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         if record.control.req_resp or record.control.mailbox_slot:
