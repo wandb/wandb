@@ -734,7 +734,7 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def _maybe_setup_resume(
+    def _setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -920,7 +920,23 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
-        do_fork = self._settings.fork_from is not None
+        do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_resume = bool(self._settings.resume)
+
+        if do_fork and do_resume:
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You cannot use `resume` and `fork_from` together. Please choose one."
+            )
+            if record.control.req_resp or record.control.mailbox_slot:
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                result.run_result.error.CopyFrom(error)
+                self._respond_result(result)
+            else:
+                logger.error("Got error in async mode: %s", error.message)
+            return
 
         if is_wandb_init:
             # Ensure we have a project to query for status
@@ -928,8 +944,8 @@ class SendManager:
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
 
-            if not do_fork:
-                error = self._maybe_setup_resume(run)
+            if do_resume:
+                error = self._setup_resume(run)
 
         if error is not None:
             if record.control.req_resp or record.control.mailbox_slot:
