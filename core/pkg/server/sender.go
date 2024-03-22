@@ -974,66 +974,21 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	for _, f := range data.GetCreateRunFiles().GetFiles() {
 		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
 		task := &filetransfer.Task{
-			Type:    filetransfer.UploadTask,
-			Path:    fullPath,
-			Name:    f.Name,
-			Url:     *f.UploadUrl,
-			Headers: headers,
+			// TODO: This assumes relationship between file and f
+			FileKind: filetransfer.RunFileKindFromProto(file.Type),
+			Type:     filetransfer.UploadTask,
+			Path:     fullPath,
+			Name:     f.Name,
+			Url:      *f.UploadUrl,
+			Headers:  headers,
 		}
 
-		task.SetProgressCallback(
-			func(processed, total int) {
-				if processed == 0 {
-					return
-				}
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:      service.FileTransferInfoRequest_Upload,
-									Path:      fullPath,
-									Size:      int64(total),
-									Processed: int64(processed),
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
-		)
 		task.SetCompletionCallback(
 			func(t *filetransfer.Task) {
 				s.fileTransferManager.FileStreamCallback(t)
-				fileCounts := &service.FileCounts{}
-				switch file.GetType() {
-				case service.FilesItem_MEDIA:
-					fileCounts.MediaCount = 1
-				case service.FilesItem_OTHER:
-					fileCounts.OtherCount = 1
-				case service.FilesItem_WANDB:
-					fileCounts.WandbCount = 1
-				}
-
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:       service.FileTransferInfoRequest_Upload,
-									Path:       fullPath,
-									Size:       t.Size,
-									Processed:  t.Size,
-									FileCounts: fileCounts,
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
 			},
 		)
+
 		s.fileTransferManager.AddTask(task)
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -75,9 +76,9 @@ func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
 	}
 }
 
-func WithHandlerFilesInfoHandler(handler *FilesInfoHandler) HandlerOption {
+func WithHandlerFileTransferStats(stats filetransfer.FileTransferStats) HandlerOption {
 	return func(h *Handler) {
-		h.filesInfoHandler = handler
+		h.fileTransferStats = stats
 	}
 }
 
@@ -143,8 +144,8 @@ type Handler struct {
 	// filesHandler is the file handler for the stream
 	filesHandler *FilesHandler
 
-	// filesInfoHandler is the file transfer info for the stream
-	filesInfoHandler *FilesInfoHandler
+	// fileTransferStats reports file upload/download statistics
+	fileTransferStats filetransfer.FileTransferStats
 
 	// internalPrinter is the internal messages handler for the stream
 	internalPrinter *observability.Printer
@@ -322,8 +323,6 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleCancel(record)
 	case *service.Request_GetSystemMetrics:
 		h.handleGetSystemMetrics(record, response)
-	case *service.Request_FileTransferInfo:
-		h.handleFileTransferInfo(record)
 	case *service.Request_InternalMessages:
 		h.handleInternalMessages(record, response)
 	case *service.Request_Sync:
@@ -402,15 +401,24 @@ func (h *Handler) handleLinkArtifact(record *service.Record) {
 }
 
 func (h *Handler) handlePollExit(record *service.Record) {
+	var response *service.PollExitResponse
+	if h.fileTransferStats != nil {
+		response = &service.PollExitResponse{
+			PusherStats: h.fileTransferStats.GetFilesStats(),
+			FileCounts:  h.fileTransferStats.GetFileCounts(),
+			Done:        h.fileTransferStats.IsDone(),
+		}
+	} else {
+		response = &service.PollExitResponse{
+			Done: true,
+		}
+	}
+
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						PusherStats: h.filesInfoHandler.GetFilesStats(),
-						FileCounts:  h.filesInfoHandler.GetFilesCount(),
-						Done:        h.filesInfoHandler.GetDone(),
-					},
+					PollExitResponse: response,
 				},
 			},
 		},
@@ -847,10 +855,6 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 			Record: buffer,
 		}
 	}
-}
-
-func (h *Handler) handleFileTransferInfo(record *service.Record) {
-	h.filesInfoHandler.Handle(record)
 }
 
 func (h *Handler) handleInternalMessages(_ *service.Record, response *service.Response) {

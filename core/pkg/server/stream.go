@@ -140,6 +140,21 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		Logger:   s.logger,
 		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
 	})
+
+	backendOrNil := NewBackend(s.logger, settings)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	var fileStreamOrNil *filestream.FileStream
+	var fileTransferManagerOrNil filetransfer.FileTransferManager
+	if backendOrNil != nil {
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
+		fileTransferManagerOrNil = NewFileTransferManager(
+			fileStreamOrNil,
+			fileTransferStats,
+			s.logger,
+			settings,
+		)
+	}
+
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
@@ -147,7 +162,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings.Proto)),
 		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFilesInfoHandler(NewFilesInfoHandler()),
+		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
 		WithHandlerWatcher(watcher),
@@ -157,19 +172,6 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterSettings(s.settings.Proto),
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
-
-	backendOrNil := NewBackend(s.logger, settings)
-
-	var fileStreamOrNil *filestream.FileStream
-	var fileTransferManagerOrNil filetransfer.FileTransferManager
-	if backendOrNil != nil {
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
-		fileTransferManagerOrNil = NewFileTransferManager(
-			fileStreamOrNil,
-			s.logger,
-			settings,
-		)
-	}
 
 	s.sender = NewSender(
 		s.ctx,

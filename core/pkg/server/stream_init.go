@@ -63,6 +63,7 @@ func NewFileStream(
 
 func NewFileTransferManager(
 	fileStream *filestream.FileStream,
+	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 ) filetransfer.FileTransferManager {
@@ -76,13 +77,15 @@ func NewFileTransferManager(
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
 
 	defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
-		logger,
 		fileTransferRetryClient,
+		logger,
+		fileTransferStats,
 	)
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
 		filetransfer.WithFileTransfer(defaultFileTransfer),
+		filetransfer.WithFileTransferStats(fileTransferStats),
 		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
 }

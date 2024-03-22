@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/coretest"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -24,7 +25,12 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(backend, logger, settings)
-	fileTransferManager := server.NewFileTransferManager(fileStream, logger, settings)
+	fileTransferManager := server.NewFileTransferManager(
+		fileStream,
+		filetransfer.NewFileTransferStats(),
+		logger,
+		settings,
+	)
 	sender := server.NewSender(
 		ctx,
 		cancel,
