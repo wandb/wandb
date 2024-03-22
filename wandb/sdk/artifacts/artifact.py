@@ -218,10 +218,12 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        entity = attrs["artifactSequence"]["project"]["entityName"]
-        project = attrs["artifactSequence"]["project"]["name"]
+        project = attrs["artifactSequence"]["project"]
+        if project:
+            entity_name = project["entityName"]
+            project_name = project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
     def _from_name(
@@ -268,6 +270,7 @@ class Artifact:
         client: RetryingClient,
     ) -> "Artifact":
         # Placeholder is required to skip validation.
+        print(attrs)
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
         artifact._id = attrs["id"]
@@ -277,7 +280,9 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == entity
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
@@ -286,8 +291,10 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        project = attrs["artifactSequence"]["project"]
+        if project:
+            artifact._source_entity = project["entityName"]
+            artifact._source_project = project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -419,17 +426,21 @@ class Artifact:
         )
 
     @property
-    def source_entity(self) -> str:
-        """The name of the entity of the primary (sequence) artifact collection."""
+    def source_entity(self) -> Optional[str]:
+        """The name of the entity of the primary (sequence) artifact collection.
+
+        This property is None if you don't have access to the source artifact collection's entity.
+        """
         self._ensure_logged("source_entity")
-        assert self._source_entity is not None
         return self._source_entity
 
     @property
-    def source_project(self) -> str:
-        """The name of the project of the primary (sequence) artifact collection."""
+    def source_project(self) -> Optional[str]:
+        """The name of the project of the primary (sequence) artifact collection.
+
+        This property is None if you don't have access to the source artifact collection's project.
+        """
         self._ensure_logged("source_project")
-        assert self._source_project is not None
         return self._source_project
 
     @property
@@ -854,8 +865,10 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        self._entity = attrs["artifactSequence"]["project"]["entityName"]
-        self._project = attrs["artifactSequence"]["project"]["name"]
+        project = attrs["artifactSequence"]["project"]
+        if project:
+            self._entity = project["entityName"]
+            self._project = project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -874,7 +887,9 @@ class Artifact:
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
