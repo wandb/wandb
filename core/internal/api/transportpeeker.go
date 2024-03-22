@@ -9,9 +9,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// A rate-limited HTTP transport for requests to the W&B backend.
-// Implements [http.RoundTripper] for use as a transport for an HTTP client.
-// With a responder to communicate back to the user about the http responses.
+// An HTTP transport wrapper that reports HTTP responses back to the client.
 type PeekingTransport struct {
 	// The underlying transport to use for making requests.
 	delegate http.RoundTripper
