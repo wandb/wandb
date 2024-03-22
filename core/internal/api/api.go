@@ -150,14 +150,9 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// NetworkPeeker for logging network responses.
-	//
-	// This is used to log network responses and communicate back to the user.
-	// The client side has a polling mechanism to read the responses.
-	//
-	// TOOD: this is a temporary solution to communicate back to the user the
-	// network responses. We will replace this with a more robust solution in
-	// the future (with the client re-work)
+	// Allows the client to peek at the network traffic, can preform any action
+	// on the request and response. Need to make sure that the response body is
+	// available to read by later stages.
 	NetworkPeeker Peeker
 }
 
