@@ -138,7 +138,7 @@ class RunMoment(google.protobuf.message.Message):
     value: builtins.float
     """The value of the metric to fork at."""
     metric: builtins.str
-    """The name of the metric in value."""
+    """The name of the metric to use to find a fork point."""
     def __init__(
         self,
         *,

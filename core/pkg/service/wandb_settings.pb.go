@@ -253,7 +253,7 @@ type RunMoment struct {
 
 	Run    string  `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`       // The name of the run to fork from.
 	Value  float64 `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"` // The value of the metric to fork at.
-	Metric string  `protobuf:"bytes,3,opt,name=metric,proto3" json:"metric,omitempty"` // The name of the metric in value.
+	Metric string  `protobuf:"bytes,3,opt,name=metric,proto3" json:"metric,omitempty"` // The name of the metric to use to find a fork point.
 }
 
 func (x *RunMoment) Reset() {
