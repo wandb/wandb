@@ -221,7 +221,7 @@ class Artifact:
         attr_project = attrs["artifactSequence"]["project"]
         entity_name = ""
         project_name = ""
-        if project:
+        if attr_project:
             entity_name = attr_project["entityName"]
             project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
@@ -295,7 +295,7 @@ class Artifact:
         attr_project = attrs["artifactSequence"]["project"]
         artifact._source_entity = ""
         artifact._source_project = ""
-        if attrProject:
+        if attr_project:
             artifact._source_entity = attr_project["entityName"]
             artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
@@ -867,7 +867,7 @@ class Artifact:
         attr_project = attrs["artifactSequence"]["project"]
         self._entity = ""
         self._project = ""
-        if project:
+        if attr_project:
             self._entity = attr_project["entityName"]
             self._project = attr_project["name"]
         self._name = "{}:v{}".format(
