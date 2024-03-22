@@ -931,14 +931,7 @@ class SendManager:
             error.message = (
                 "You cannot use `resume` and `fork_from` together. Please choose one."
             )
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
-            return
+            self._handle_error(record, error, run)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
