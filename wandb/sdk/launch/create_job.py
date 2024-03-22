@@ -396,6 +396,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
         settings=settings,  # type: ignore
+        verbose=True,
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
