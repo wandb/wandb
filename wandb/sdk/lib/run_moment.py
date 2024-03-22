@@ -59,16 +59,14 @@ class RunMoment:
         query = parse.parse_qs(parsed.query)
         if len(query) != 1:
             raise parse_err
-        else:
-            metric = list(query.keys())[0]
-            if metric != "_step":
-                raise parse_err
-            value: str = query[metric][0]
-            if not value.isdigit():
-                try:
-                    num_value = float(value)
-                except ValueError as e:
-                    raise parse_err from e
-            else:
-                num_value = int(value)
+
+        metric = list(query.keys())[0]
+        if metric != "_step":
+            raise parse_err
+        value: str = query[metric][0]
+        try:
+            num_value = int(value) if value.isdigit() else float(value)
+        except ValueError as e:
+            raise parse_err from e
+
         return cls(run=run, metric=cast(_STEP, metric), value=num_value)
