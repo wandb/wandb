@@ -291,6 +291,8 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
+        artifact._source_entity = ""
+        artifact._source_project = ""
         project = attrs["artifactSequence"]["project"]
         if project:
             artifact._source_entity = project["entityName"]
@@ -427,20 +429,16 @@ class Artifact:
 
     @property
     def source_entity(self) -> Optional[str]:
-        """The name of the entity of the primary (sequence) artifact collection.
-
-        This property is None if you don't have access to the source artifact collection's entity.
-        """
+        """The name of the entity of the primary (sequence) artifact collection."""
         self._ensure_logged("source_entity")
+        assert self._source_entity is not None
         return self._source_entity
 
     @property
     def source_project(self) -> Optional[str]:
-        """The name of the project of the primary (sequence) artifact collection.
-
-        This property is None if you don't have access to the source artifact collection's project.
-        """
+        """The name of the project of the primary (sequence) artifact collection."""
         self._ensure_logged("source_project")
+        assert self._source_project is not None
         return self._source_project
 
     @property
