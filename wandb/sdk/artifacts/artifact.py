@@ -1707,14 +1707,17 @@ class Artifact:
             _thread_local_api_settings.cookies = cookies
             _thread_local_api_settings.headers = headers
 
+            print(f"Starting {entry.path}")
             try:
                 entry.download(root, skip_cache=skip_cache)
+                print(f"Downloaded {entry.path}")
             except FileNotFoundError as e:
                 if allow_missing_references:
                     wandb.termwarn(str(e))
                     return
                 raise
             download_logger.notify_downloaded()
+            print(f"Notified {entry.path}")
 
         download_entry = partial(
             _download_entry,
