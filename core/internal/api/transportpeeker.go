@@ -12,36 +12,36 @@ import (
 // A rate-limited HTTP transport for requests to the W&B backend.
 // Implements [http.RoundTripper] for use as a transport for an HTTP client.
 // With a responder to communicate back to the user about the http responses.
-type RateLimitedTransportWithResponder struct {
-	// The underlying rate-limited transport.
-	delegate *RateLimitedTransport
+type PeekingTransport struct {
+	// The underlying transport to use for making requests.
+	delegate http.RoundTripper
 
-	// An optional responder to use for communicatating back to the user.
-	responder *observability.Printer[*service.HttpResponse]
+	// An optional peek to use for communicatating back to the user.
+	peek *observability.Printer[*service.HttpResponse]
 }
 
-func NewRateLimitedTransportWithResponder(
-	delegate http.RoundTripper,
+func NewPeekingTransport(
 	responder *observability.Printer[*service.HttpResponse],
-) *RateLimitedTransportWithResponder {
-	return &RateLimitedTransportWithResponder{
-		delegate:  NewRateLimitedTransport(delegate),
-		responder: responder,
+	delegate http.RoundTripper,
+) *PeekingTransport {
+	return &PeekingTransport{
+		delegate: delegate,
+		peek:     responder,
 	}
 }
 
-func (transport *RateLimitedTransportWithResponder) RoundTrip(
+func (transport *PeekingTransport) RoundTrip(
 	req *http.Request,
 ) (*http.Response, error) {
 	resp, err := transport.delegate.RoundTrip(req)
-	// If there is no responder, we don't need to do anything
-	if transport.responder == nil {
+	// If there is no peeker, we don't need to do anything
+	if transport.peek == nil {
 		return resp, err
 	}
 	if resp != nil && resp.Body != nil && resp.StatusCode >= http.StatusOK {
 		// We need to read the response body to send it to the user
 		buf, _ := io.ReadAll(resp.Body)
-		transport.responder.Write(&service.HttpResponse{
+		transport.peek.Write(&service.HttpResponse{
 			HttpStatusCode:   int32(resp.StatusCode),
 			HttpResponseText: string(buf),
 		})

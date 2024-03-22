@@ -190,10 +190,11 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransportWithResponder(
-		retryableHTTP.HTTPClient.Transport,
-		opts.NetworkResponder,
-	)
+	retryableHTTP.HTTPClient.Transport =
+		NewPeekingTransport(
+			opts.NetworkResponder,
+			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
+		)
 
 	return &clientImpl{
 		backend:       backend,
