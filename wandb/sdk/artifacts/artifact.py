@@ -22,7 +22,6 @@ from typing import (
     Dict,
     Generator,
     List,
-    Literal,
     Optional,
     Sequence,
     Set,
@@ -31,6 +30,12 @@ from typing import (
     Union,
     cast,
 )
+
+# python 3.7 compatability
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 from urllib.parse import urlparse
 
 import requests
