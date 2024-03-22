@@ -1,6 +1,7 @@
 # Install pre-commit hooks via `pip install pre-commit && pre-commit install`
 default_stages:
   - pre-push
+default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/doublify/pre-commit-rust
     rev: v1.0

@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import time
 from copy import copy
@@ -22,7 +23,6 @@ from typing import (
     Dict,
     Generator,
     List,
-    Literal,
     Optional,
     Sequence,
     Set,
@@ -31,6 +31,12 @@ from typing import (
     Union,
     cast,
 )
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 from urllib.parse import urlparse
 
 import requests
