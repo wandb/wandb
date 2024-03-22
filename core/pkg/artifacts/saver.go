@@ -20,7 +20,7 @@ type ArtifactSaver struct {
 	// Resources.
 	Ctx                 context.Context
 	GraphqlClient       graphql.Client
-	FileTransferManager *filetransfer.FileTransferManager
+	FileTransferManager filetransfer.FileTransferManager
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
@@ -30,7 +30,7 @@ type ArtifactSaver struct {
 func NewArtifactSaver(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	uploadManager *filetransfer.FileTransferManager,
+	uploadManager filetransfer.FileTransferManager,
 	artifact *service.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
