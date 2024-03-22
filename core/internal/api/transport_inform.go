@@ -16,7 +16,7 @@ type RateLimitedTransportWithResponder struct {
 	// The underlying rate-limited transport.
 	delegate *RateLimitedTransport
 
-	// The responder to use for communicatating back to the user.
+	// An optional responder to use for communicatating back to the user.
 	responder *observability.Printer[*service.HttpResponse]
 }
 
