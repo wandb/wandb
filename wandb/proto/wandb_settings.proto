@@ -29,7 +29,7 @@ message OpenMetricsFilters {
 message RunMoment {
   string run = 1;     // The name of the run to fork from.
   double value = 2;   // The value of the metric to fork at.
-  string metric = 3;  // The name of the metric in value.
+  string metric = 3;  // The name of the metric to use to find a fork point.
 }
 
 // Settings for the SDK.
