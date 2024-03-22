@@ -6,14 +6,17 @@ import (
 	"net/url"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
 func NewBackend(
-	settings *settings.Settings,
 	logger *observability.CoreLogger,
+	settings *settings.Settings,
 ) *api.Backend {
 	if settings.IsOffline() {
 		return nil
@@ -28,4 +31,30 @@ func NewBackend(
 		Logger:  logger.Logger,
 		APIKey:  settings.GetAPIKey(),
 	})
+}
+
+func NewFileStream(
+	backend *api.Backend,
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+) *filestream.FileStream {
+	fileStreamHeaders := map[string]string{}
+	if settings.Proto.GetXShared().GetValue() {
+		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
+	}
+
+	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
+		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
+		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),
+		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
+		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXFileStreamTimeoutSeconds().GetValue()),
+		ExtraHeaders:    fileStreamHeaders,
+	})
+
+	return filestream.NewFileStream(
+		filestream.WithSettings(settings.Proto),
+		filestream.WithLogger(logger),
+		filestream.WithAPIClient(fileStreamRetryClient),
+		filestream.WithClientId(shared.ShortID(32)),
+	)
 }

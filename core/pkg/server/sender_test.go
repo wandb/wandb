@@ -22,11 +22,13 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	settings := wbsettings.From(&service.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
-	backend := server.NewBackend(settings, logger)
+	backend := server.NewBackend(logger, settings)
+	fileStream := server.NewFileStream(backend, logger, settings)
 	sender := server.NewSender(
 		ctx,
 		cancel,
 		backend,
+		fileStream,
 		logger,
 		settings.Proto,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),

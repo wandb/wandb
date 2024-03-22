@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -156,9 +157,20 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	backend := NewBackend(settings, s.logger)
+	backendOrNil := NewBackend(s.logger, settings)
 
-	s.sender = NewSender(s.ctx, s.cancel, backend, s.logger, s.settings.Proto,
+	var fileStreamOrNil *filestream.FileStream
+	if backendOrNil != nil {
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
+	}
+
+	s.sender = NewSender(
+		s.ctx,
+		s.cancel,
+		backendOrNil,
+		fileStreamOrNil,
+		s.logger,
+		s.settings.Proto,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
