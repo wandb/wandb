@@ -672,9 +672,6 @@ class Run:
             )
 
         if self._settings.fork_from is not None:
-            # verify that the specified project matches the current project.
-            # forking from a different project or entity is not currently supported.
-
             config[wandb_key]["branch_point"] = {
                 "run_id": self._settings.fork_from.run,
                 "step": self._settings.fork_from.value,

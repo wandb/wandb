@@ -880,23 +880,12 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
-    def _setup_fork(self):
+    def _setup_fork(self, server_run: dict):
         assert self._settings.fork_from
         assert self._settings.fork_from.metric == "_step"
         first_step = int(self._settings.fork_from.value) + 1
         self._resume_state.step = first_step
-
-        # at this point, we have already created the run. now we need
-        # to query the newly created forked run to get the history
-        # line count. this information is calculated on the backend
-        # and installed on the new run metadata object.
-        fork_state = self._api.run_resume_status(
-            entity=self._run.entity,  # type: ignore
-            project_name=self._run.project,
-            name=self._run.run_id,
-        )
-
-        self._resume_state.history = fork_state["historyLineCount"]
+        self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
         self._run.starting_step = first_step
 
@@ -975,7 +964,7 @@ class SendManager:
             self._config_save(config_value_dict)
 
         try:
-            self._init_run(run, config_value_dict)
+            server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
             if record.control.req_resp or record.control.mailbox_slot:
@@ -989,7 +978,7 @@ class SendManager:
         assert self._run  # self._run is configured in _init_run()
 
         if do_fork:
-            error = self._setup_fork()
+            error = self._setup_fork(server_run)
 
         if error is not None:
             if record.control.req_resp or record.control.mailbox_slot:
@@ -1104,6 +1093,7 @@ class SendManager:
             self._run.sweep_id = sweep_id
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
+        return server_run
 
     def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
