@@ -211,7 +211,7 @@ func NewSender(
 		sender.getServerInfo()
 
 		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
+			sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
 		}
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
