@@ -132,6 +132,7 @@ func NewSender(
 	fileStreamOrNil *fs.FileStream,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
+	peeker *observability.Peeker,
 	opts ...SenderOption,
 ) *Sender {
 
@@ -144,7 +145,8 @@ func NewSender(
 		runConfig:      runconfig.New(),
 		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer: sync.WaitGroup{},
-		networkPeeker:  observability.NewPeeker(),
+		fileStream:     fileStreamOrNil,
+		networkPeeker:  peeker,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
@@ -366,6 +368,12 @@ func (s *Sender) sendNetworkStatusRequest(
 	record *service.Record,
 	_ *service.NetworkStatusRequest,
 ) {
+	// in case of network peeker is not set, we don't need to do anything
+	if s.networkPeeker == nil {
+		return
+	}
+
+	// send the network status response if there is any
 	if response := s.networkPeeker.Read(); len(response) > 0 {
 		result := &service.Result{
 			ResultType: &service.Result_Response{

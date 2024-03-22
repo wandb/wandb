@@ -37,6 +37,7 @@ func NewFileStream(
 	backend *api.Backend,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
+	peeker api.Peeker,
 ) *filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
 	if settings.Proto.GetXShared().GetValue() {
@@ -49,6 +50,7 @@ func NewFileStream(
 		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
 		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXFileStreamTimeoutSeconds().GetValue()),
 		ExtraHeaders:    fileStreamHeaders,
+		NetworkPeeker:   peeker,
 	})
 
 	return filestream.NewFileStream(

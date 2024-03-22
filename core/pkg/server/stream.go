@@ -157,11 +157,14 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
+
 	backendOrNil := NewBackend(s.logger, settings)
 
 	var fileStreamOrNil *filestream.FileStream
 	if backendOrNil != nil {
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
 	}
 
 	s.sender = NewSender(
@@ -171,6 +174,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		fileStreamOrNil,
 		s.logger,
 		s.settings.Proto,
+		peeker,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
