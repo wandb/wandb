@@ -164,7 +164,10 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
-func uploadToServerWithHandler(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) error {
+func uploadToServerWithHandler(
+	t *testing.T,
+	handler func(w http.ResponseWriter, r *http.Request),
+) error {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
 	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), impatientClient())
