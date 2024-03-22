@@ -219,6 +219,8 @@ class Artifact:
         if attrs is None:
             return None
         project = attrs["artifactSequence"]["project"]
+        entity_name = ""
+        project_name = ""
         if project:
             entity_name = project["entityName"]
             project_name = project["name"]
@@ -270,7 +272,6 @@ class Artifact:
         client: RetryingClient,
     ) -> "Artifact":
         # Placeholder is required to skip validation.
-        print(attrs)
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
         artifact._id = attrs["id"]
@@ -428,14 +429,14 @@ class Artifact:
         )
 
     @property
-    def source_entity(self) -> Optional[str]:
+    def source_entity(self) -> str:
         """The name of the entity of the primary (sequence) artifact collection."""
         self._ensure_logged("source_entity")
         assert self._source_entity is not None
         return self._source_entity
 
     @property
-    def source_project(self) -> Optional[str]:
+    def source_project(self) -> str:
         """The name of the project of the primary (sequence) artifact collection."""
         self._ensure_logged("source_project")
         assert self._source_project is not None
