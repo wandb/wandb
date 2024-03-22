@@ -967,30 +967,36 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError("sender: sendFile error", err)
 		return
 	}
-	headers := data.GetCreateRunFiles().GetUploadHeaders()
-	for _, f := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
-		task := &filetransfer.Task{
-			// TODO: This assumes relationship between file and f
-			FileKind: filetransfer.RunFileKindFromProto(file.Type),
-			Type:     filetransfer.UploadTask,
-			Path:     fullPath,
-			Name:     f.Name,
-			Url:      *f.UploadUrl,
-			Headers:  headers,
-		}
 
-		task.SetCompletionCallback(
-			func(t *filetransfer.Task) {
-				s.fileTransferManager.FileStreamCallback(t)
-			},
+	if len(data.CreateRunFiles.Files) != 1 {
+		err = fmt.Errorf(
+			"sender: sendFile: unexpected GraphQL response:"+
+				" expected 1 file but got %v",
+			len(data.CreateRunFiles.Files),
 		)
-
-		s.fileTransferManager.AddTask(task)
+		s.logger.CaptureError("sender: sendFile error", err)
+		return
 	}
+
+	task := &filetransfer.Task{
+		FileKind: filetransfer.RunFileKindFromProto(file.Type),
+		Type:     filetransfer.UploadTask,
+		Path:     fullPath,
+		Name:     data.CreateRunFiles.Files[0].Name,
+		Url:      *data.CreateRunFiles.Files[0].UploadUrl,
+		Headers:  data.CreateRunFiles.UploadHeaders,
+	}
+
+	task.SetCompletionCallback(
+		func(t *filetransfer.Task) {
+			s.fileTransferManager.FileStreamCallback(t)
+		},
+	)
+
+	s.fileTransferManager.AddTask(task)
 }
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
