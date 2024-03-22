@@ -233,23 +233,15 @@ eval "$(pyenv init --path)"
 eval "$(pyenv virtualenv-init -)"
 ```
 
-Then run the following command to set up your environment:
+For example to install python 3.7.17, you should run the following command:
 
-```shell
-./tools/setup_dev_environment.py
 ```
-
-At the first invocation, this tool will set up multiple python environments, which takes some time.
-You can set up a subset of the target environments to test against, for example:
-
-```shell
-./tools/setup_dev_environment.py --python-versions 3.7 3.8
+pyenv install 3.7.17
 ```
-
-The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use
-for automating development tasks such as code linting and testing.
 
 Note: to switch the default python version, edit the `.python-version` file in the repository root.
+
+You would also likely want to setup pyenv-virtualenv to manage multiple environement. For more details see: [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv)
 
 ### Mac with the Apple M1 chip
 
@@ -286,46 +278,6 @@ You can install `cmake` and `libomp` with the following command using [homebrew]
 $ brew install cmake libomp
 ```
 
-## Code organization
-
-```bash
-wandb/
-├── ...
-├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
-│   ├── ...
-│   ├── internal.py
-│   ├── ...
-│   └── public.py
-├── cli/    # Handlers for command line functionality
-├── ...
-├── integration/    # Third party integration
-│   ├── fastai/
-│   ├── gym/
-│   ├── keras/
-│   ├── lightgbm/
-│   ├── metaflow/
-│   ├── prodigy/
-│   ├── sacred/
-│   ├── sagemaker/
-│   ├── sb3/
-│   ├── tensorboard/
-│   ├── tensorflow/
-│   ├── torch/
-│   ├── xgboost/
-│   └── ...
-├── ...
-├── proto/  # Protocol buffers for inter-process communication and persist file store
-├── ...
-├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-│   ├── backend/    # Support to launch internal process
-│   ├── ...
-│   ├── interface/  # Interface to backend execution
-│   ├── internal/   # Backend threads/processes
-│   └── ...
-├── ...
-├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
-└── ...
-```
 
 ## Building protocol buffers
 
@@ -348,12 +300,8 @@ To reformat the code, run:
 ```shell
 tox -e format
 ```
+TODO: fix this section
 
-To run checks, execute:
-
-```shell
-tox -e flake8,mypy
-```
 
 ## Testing
 
@@ -411,39 +359,6 @@ Testing `wandb` is tricky for a few reasons:
 
 To make our lives easier we've created lots of tooling to help with the above challenges. Most of this tooling comes in the form of [Pytest Fixtures](https://docs.pytest.org/en/stable/fixture.html). There are detailed descriptions of our fixtures in the section below. What follows is a general overview of writing good tests for wandb.
 
-To test functionality in the user process the `wandb_init_run` is the simplest fixture to start with. This is like calling `wandb.init()` except we don't actually launch the wandb backend process and instead returned a mocked object you can make assertions with. For example:
-
-```python
-def test_basic_log(wandb_init_run):
-    wandb.log({"test": 1})
-    assert wandb.run._backend.history[0]["test"] == 1
-```
-
-One of the most powerful fixtures is `live_mock_server`. When running tests we start a Flask server that provides our graphql, filestream, and additional web service endpoints with sane defaults. This allows us to use wandb just like we would in the real world. It also means we can assert various requests were made. All server logic can be found in `tests/utils/mock_server.py` and it's really straight forward to add additional logic to this server. Here's a basic example of using the `live_mock_server`:
-
-```python
-def test_live_log(live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
-    run.log({"test": 1})
-    ctx = live_mock_server.get_ctx()
-    first_stream_hist = utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]
-    assert json.loads(first_stream_hist["content"][0])["test"] == 1
-```
-
-Notice we also used the `test_settings` fixture. This turns off console logging and ensures the run is automatically finished when the test finishes. Another really cool benefit of this fixture is it creates a run directory for the test at `tests/logs/NAME_OF_TEST`. This is super useful for debugging because the logs are stored there. In addition to getting the debug logs you can find the `live_mock_server` logs at `tests/logs/live_mock_server.log`.
-
-We also have pytest fixtures that are automatically used. These include `local_netrc` and `local_settings` this ensures we never read those settings files from your own environment.
-
-The final fixture worth noting is `notebook`. This actually runs a jupyter notebook kernel and allows you to execute specific cells within the notebook environment:
-
-```python
-def test_one_cell(notebook):
-    with notebook("one_cell.ipynb") as nb:
-        nb.execute_all()
-        output = nb.cell_output(0)
-        assert "lovely-dawn-32" in output[-1]["data"]["text/html"]
-```
-
 ### Finding good test points
 
 The wandb system can be viewed as 3 distinct services:
@@ -495,12 +410,9 @@ Global fixtures are defined in `tests/**/conftest.py`, separated into [unit test
 - `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`. See `tests/wandb_integration_test.py`
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
-- `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling `wandb.init`). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
-- `mock_server` - mocks all calls to the `requests` module with sane defaults. You can customize `tests/utils/mock_server.py` to use context or add api calls.
-- `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get its context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
 - `git_repo` — places the test context into an isolated git repository
 - `test_dir` - places the test into `tests/logs/NAME_OF_TEST` this is useful for looking at debug logs. This is used by `test_settings`
-- `notebook` — gives you a context manager for reading a notebook providing `execute_cell`. See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`. This uses `live_mock_server` to enable actual api calls in a notebook context.
+- `notebook` — gives you a context manager for reading a notebook providing `execute_cell`. See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`.
 - `mocked_ipython` - to get credit for codecov you may need to pretend you're in a jupyter notebook when you aren't, this fixture enables that.
 
 ### Code Coverage
