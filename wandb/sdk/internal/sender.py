@@ -891,7 +891,10 @@ class SendManager:
         self._run.starting_step = first_step
 
     def _handle_error(
-        self, record: "Record", error: "wandb_internal_pb2.ErrorInfo", run: "RunRecord"
+        self,
+        record: "Record",
+        error: "wandb_internal_pb2.ErrorInfo",
+        run: "RunRecord",
     ) -> None:
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
