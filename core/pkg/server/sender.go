@@ -122,7 +122,7 @@ type Sender struct {
 
 	wgFileTransfer sync.WaitGroup
 
-	internalPrinter *observability.Printer[*service.HttpResponse]
+	networkPeeker *observability.Peeker
 }
 
 // NewSender creates a new Sender with the given settings
@@ -136,15 +136,15 @@ func NewSender(
 ) *Sender {
 
 	sender := &Sender{
-		ctx:             ctx,
-		cancel:          cancel,
-		settings:        settings,
-		logger:          logger,
-		summaryMap:      make(map[string]*service.SummaryItem),
-		runConfig:       runconfig.New(),
-		telemetry:       &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer:  sync.WaitGroup{},
-		internalPrinter: observability.NewPrinter[*service.HttpResponse](),
+		ctx:            ctx,
+		cancel:         cancel,
+		settings:       settings,
+		logger:         logger,
+		summaryMap:     make(map[string]*service.SummaryItem),
+		runConfig:      runconfig.New(),
+		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer: sync.WaitGroup{},
+		networkPeeker:  observability.NewPeeker(),
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
@@ -155,13 +155,13 @@ func NewSender(
 		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
 
 		graphqlClient := backendOrNil.NewClient(api.ClientOptions{
-			RetryPolicy:      clients.CheckRetry,
-			RetryMax:         int(settings.GetXGraphqlRetryMax().GetValue()),
-			RetryWaitMin:     clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:     clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout:  clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
-			ExtraHeaders:     graphqlHeaders,
-			NetworkResponder: sender.internalPrinter,
+			RetryPolicy:     clients.CheckRetry,
+			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
+			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
+			ExtraHeaders:    graphqlHeaders,
+			NetworkPeeker:   sender.networkPeeker,
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
@@ -177,6 +177,7 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
 			ExtraHeaders:    fileStreamHeaders,
+			NetworkPeeker:   sender.networkPeeker,
 		})
 
 		sender.fileStream = fs.NewFileStream(
@@ -386,9 +387,7 @@ func (s *Sender) sendNetworkStatusRequest(
 	record *service.Record,
 	_ *service.NetworkStatusRequest,
 ) {
-	response := s.internalPrinter.Read()
-
-	if len(response) > 0 {
+	if response := s.networkPeeker.Read(); len(response) > 0 {
 		result := &service.Result{
 			ResultType: &service.Result_Response{
 				Response: &service.Response{
@@ -404,7 +403,6 @@ func (s *Sender) sendNetworkStatusRequest(
 		}
 		s.outChan <- result
 	}
-
 }
 
 func (s *Sender) sendJobFlush() {

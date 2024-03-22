@@ -1,30 +1,29 @@
 package api
 
 import (
-	"bytes"
-	"io"
 	"net/http"
-
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
+
+type Peeker interface {
+	Peek(*http.Request, *http.Response)
+}
 
 // An HTTP transport wrapper that reports HTTP responses back to the client.
 type PeekingTransport struct {
 	// The underlying transport to use for making requests.
 	delegate http.RoundTripper
 
-	// An optional peek to use for communicatating back to the user.
-	peek *observability.Printer[*service.HttpResponse]
+	// An optional peeker to use for communicatating back to the user.
+	peeker Peeker
 }
 
 func NewPeekingTransport(
-	responder *observability.Printer[*service.HttpResponse],
+	peeker Peeker,
 	delegate http.RoundTripper,
 ) *PeekingTransport {
 	return &PeekingTransport{
+		peeker:   peeker,
 		delegate: delegate,
-		peek:     responder,
 	}
 }
 
@@ -33,19 +32,9 @@ func (transport *PeekingTransport) RoundTrip(
 ) (*http.Response, error) {
 	resp, err := transport.delegate.RoundTrip(req)
 	// If there is no peeker, we don't need to do anything
-	if transport.peek == nil {
-		return resp, err
+	if transport.peeker != nil {
+		transport.peeker.Peek(req, resp)
 	}
-	if resp != nil && resp.Body != nil && resp.StatusCode >= http.StatusOK {
-		// We need to read the response body to send it to the user
-		buf, _ := io.ReadAll(resp.Body)
-		transport.peek.Write(&service.HttpResponse{
-			HttpStatusCode:   int32(resp.StatusCode),
-			HttpResponseText: string(buf),
-		})
-		// Restore the body so it can be read again
-		reader := io.NopCloser(bytes.NewReader(buf))
-		resp.Body = reader
-	}
+
 	return resp, err
 }

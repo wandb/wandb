@@ -9,8 +9,6 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (
@@ -152,7 +150,7 @@ type ClientOptions struct {
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
 
-	// NetworkResponder for logging network responses.
+	// NetworkPeeker for logging network responses.
 	//
 	// This is used to log network responses and communicate back to the user.
 	// The client side has a polling mechanism to read the responses.
@@ -160,7 +158,7 @@ type ClientOptions struct {
 	// TOOD: this is a temporary solution to communicate back to the user the
 	// network responses. We will replace this with a more robust solution in
 	// the future (with the client re-work)
-	NetworkResponder *observability.Printer[*service.HttpResponse]
+	NetworkPeeker Peeker
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -192,7 +190,7 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(
-			opts.NetworkResponder,
+			opts.NetworkPeeker,
 			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
 		)
 
