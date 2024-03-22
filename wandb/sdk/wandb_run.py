@@ -671,6 +671,12 @@ class Run:
                 os.path.join("code", self._settings.program_relpath)
             )
 
+        if self._settings.fork_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.fork_from.run,
+                "step": self._settings.fork_from.value,
+            }
+
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
