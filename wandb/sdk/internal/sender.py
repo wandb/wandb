@@ -882,6 +882,7 @@ class SendManager:
 
     def _setup_fork(self):
         assert self._settings.fork_from
+        assert self._settings.fork_from.metric == "_step"
         first_step = int(self._settings.fork_from.value) + 1
         self._resume_state.step = first_step
 
