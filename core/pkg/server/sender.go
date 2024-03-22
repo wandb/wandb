@@ -24,7 +24,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -130,6 +129,7 @@ func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	backendOrNil *api.Backend,
+	fileStreamOrNil *fs.FileStream,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	opts ...SenderOption,
@@ -165,27 +165,6 @@ func NewSender(
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
-		fileStreamHeaders := map[string]string{}
-		if settings.GetXShared().GetValue() {
-			fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		}
-
-		fileStreamRetryClient := backendOrNil.NewClient(api.ClientOptions{
-			RetryMax:        int(settings.GetXFileStreamRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
-			ExtraHeaders:    fileStreamHeaders,
-			NetworkPeeker:   sender.networkPeeker,
-		})
-
-		sender.fileStream = fs.NewFileStream(
-			fs.WithSettings(settings),
-			fs.WithLogger(logger),
-			fs.WithAPIClient(fileStreamRetryClient),
-			fs.WithClientId(shared.ShortID(32)),
-		)
 
 		fileTransferRetryClient := retryablehttp.NewClient()
 		fileTransferRetryClient.Logger = logger
