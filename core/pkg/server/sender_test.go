@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/coretest"
 	"github.com/wandb/wandb/core/internal/gql"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -18,13 +19,16 @@ import (
 func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := observability.NewNoOpLogger()
+	settings := wbsettings.From(&service.Settings{
+		RunId: &wrapperspb.StringValue{Value: "run1"},
+	})
+	backend := server.NewBackend(settings, logger)
 	sender := server.NewSender(
 		ctx,
 		cancel,
+		backend,
 		logger,
-		&service.Settings{
-			RunId: &wrapperspb.StringValue{Value: "run1"},
-		},
+		settings.Proto,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
 	)

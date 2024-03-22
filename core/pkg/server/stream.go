@@ -156,7 +156,9 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings.Proto,
+	backend := NewBackend(settings, s.logger)
+
+	s.sender = NewSender(s.ctx, s.cancel, backend, s.logger, s.settings.Proto,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
