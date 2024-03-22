@@ -218,12 +218,12 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        project = attrs["artifactSequence"]["project"]
+        attr_project = attrs["artifactSequence"]["project"]
         entity_name = ""
         project_name = ""
         if project:
-            entity_name = project["entityName"]
-            project_name = project["name"]
+            entity_name = attr_project["entityName"]
+            project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
         return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
@@ -292,12 +292,12 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
+        attr_project = attrs["artifactSequence"]["project"]
         artifact._source_entity = ""
         artifact._source_project = ""
-        project = attrs["artifactSequence"]["project"]
-        if project:
-            artifact._source_entity = project["entityName"]
-            artifact._source_project = project["name"]
+        if attrProject:
+            artifact._source_entity = attr_project["entityName"]
+            artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -864,10 +864,12 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        project = attrs["artifactSequence"]["project"]
+        attr_project = attrs["artifactSequence"]["project"]
+        self._entity = ""
+        self._project = ""
         if project:
-            self._entity = project["entityName"]
-            self._project = project["name"]
+            self._entity = attr_project["entityName"]
+            self._project = attr_project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
