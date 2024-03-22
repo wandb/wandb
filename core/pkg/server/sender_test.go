@@ -24,11 +24,13 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(backend, logger, settings)
+	fileTransferManager := server.NewFileTransferManager(fileStream, logger, settings)
 	sender := server.NewSender(
 		ctx,
 		cancel,
 		backend,
 		fileStream,
+		fileTransferManager,
 		logger,
 		settings.Proto,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
