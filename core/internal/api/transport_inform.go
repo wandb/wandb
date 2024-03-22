@@ -38,16 +38,15 @@ func (transport *RateLimitedTransportWithResponder) RoundTrip(
 	if transport.responder == nil {
 		return resp, err
 	}
-	if resp != nil && resp.StatusCode >= http.StatusOK {
-		// we want to read the body and use it to update the response, however
-		// we also need to put it back in the response so the calling code
-		// can read it
+	if resp != nil && resp.Body != nil && resp.StatusCode >= http.StatusOK {
+		// We need to read the response body to send it to the user
 		buf, _ := io.ReadAll(resp.Body)
-		reader := io.NopCloser(bytes.NewReader(buf))
 		transport.responder.Write(&service.HttpResponse{
 			HttpStatusCode:   int32(resp.StatusCode),
 			HttpResponseText: string(buf),
 		})
+		// Restore the body so it can be read again
+		reader := io.NopCloser(bytes.NewReader(buf))
 		resp.Body = reader
 	}
 	return resp, err
