@@ -883,6 +883,7 @@ class SendManager:
     def _setup_fork(self, server_run: dict):
         assert self._settings.fork_from
         assert self._settings.fork_from.metric == "_step"
+        assert self._run
         first_step = int(self._settings.fork_from.value) + 1
         self._resume_state.step = first_step
         self._resume_state.history = server_run.get("historyLineCount", 0)
@@ -1003,7 +1004,7 @@ class SendManager:
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
-    ) -> None:
+    ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
