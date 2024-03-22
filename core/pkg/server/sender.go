@@ -391,7 +391,10 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(record *service.Record, _ *service.NetworkStatusRequest) {
+func (s *Sender) sendNetworkStatusRequest(
+	record *service.Record,
+	_ *service.NetworkStatusRequest,
+) {
 
 	response := s.internalPrinter.Read()
 
