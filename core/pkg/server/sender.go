@@ -147,7 +147,7 @@ func NewSender(
 		wgFileTransfer:      sync.WaitGroup{},
 		fileStream:          fileStreamOrNil,
 		fileTransferManager: fileTransferManagerOrNil,
-    networkPeeker:  peeker,
+		networkPeeker:       peeker,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {

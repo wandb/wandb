@@ -52,7 +52,9 @@ func (p *Peeker) Peek(_ *http.Request, resp *http.Response) {
 		return
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	// If the status code is not a success code, we need to send the response to
+	// the user so they can see what happened.
+	if resp.StatusCode >= 300 {
 		// We need to read the response body to send it to the user
 		buf, _ := io.ReadAll(resp.Body)
 		p.Printer.Write(&service.HttpResponse{
