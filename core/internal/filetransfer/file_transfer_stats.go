@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
 
 // FileTransferStats reports file upload/download progress and totals.
@@ -41,13 +42,13 @@ func NewFileTransferStats() FileTransferStats {
 func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
 	fts.Lock()
 	defer fts.Unlock()
-	return fts.filesStats
+	return proto.Clone(fts.filesStats).(*service.FilePusherStats)
 }
 
 func (fts *fileTransferStats) GetFileCounts() *service.FileCounts {
 	fts.Lock()
 	defer fts.Unlock()
-	return fts.fileCounts
+	return proto.Clone(fts.fileCounts).(*service.FileCounts)
 }
 
 func (fts *fileTransferStats) IsDone() bool {
