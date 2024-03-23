@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
@@ -157,11 +158,20 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
+
 	backendOrNil := NewBackend(s.logger, settings)
 
 	var fileStreamOrNil *filestream.FileStream
+	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	if backendOrNil != nil {
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileTransferManagerOrNil = NewFileTransferManager(
+			fileStreamOrNil,
+			s.logger,
+			settings,
+		)
 	}
 
 	s.sender = NewSender(
@@ -169,8 +179,10 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		s.cancel,
 		backendOrNil,
 		fileStreamOrNil,
+		fileTransferManagerOrNil,
 		s.logger,
 		s.settings.Proto,
+		peeker,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
