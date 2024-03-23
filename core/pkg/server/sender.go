@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
@@ -125,21 +124,23 @@ func NewSender(
 	cancel context.CancelFunc,
 	backendOrNil *api.Backend,
 	fileStreamOrNil *fs.FileStream,
+	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	opts ...SenderOption,
 ) *Sender {
 
 	sender := &Sender{
-		ctx:            ctx,
-		cancel:         cancel,
-		settings:       settings,
-		logger:         logger,
-		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      runconfig.New(),
-		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer: sync.WaitGroup{},
-		fileStream:     fileStreamOrNil,
+		ctx:                 ctx,
+		cancel:              cancel,
+		settings:            settings,
+		logger:              logger,
+		summaryMap:          make(map[string]*service.SummaryItem),
+		runConfig:           runconfig.New(),
+		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer:      sync.WaitGroup{},
+		fileStream:          fileStreamOrNil,
+		fileTransferManager: fileTransferManagerOrNil,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
@@ -159,26 +160,6 @@ func NewSender(
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
-		fileTransferRetryClient := retryablehttp.NewClient()
-		fileTransferRetryClient.Logger = logger
-		fileTransferRetryClient.CheckRetry = clients.CheckRetry
-		fileTransferRetryClient.RetryMax = int(settings.GetXFileTransferRetryMax().GetValue())
-		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())
-		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())
-		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())
-		fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
-			logger,
-			fileTransferRetryClient,
-		)
-		sender.fileTransferManager = filetransfer.NewFileTransferManager(
-			filetransfer.WithLogger(logger),
-			filetransfer.WithSettings(settings),
-			filetransfer.WithFileTransfer(defaultFileTransfer),
-			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
-		)
 
 		sender.getServerInfo()
 
