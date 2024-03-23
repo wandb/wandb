@@ -141,12 +141,15 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
 	})
 
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
+
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	var fileStreamOrNil *filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	if backendOrNil != nil {
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings)
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileStreamOrNil,
 			fileTransferStats,
@@ -181,6 +184,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		fileTransferManagerOrNil,
 		s.logger,
 		s.settings.Proto,
+		peeker,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)

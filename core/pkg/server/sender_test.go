@@ -24,7 +24,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 	backend := server.NewBackend(logger, settings)
-	fileStream := server.NewFileStream(backend, logger, settings)
+	fileStream := server.NewFileStream(backend, logger, settings, nil)
 	fileTransferManager := server.NewFileTransferManager(
 		fileStream,
 		filetransfer.NewFileTransferStats(),
@@ -39,6 +39,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		fileTransferManager,
 		logger,
 		settings.Proto,
+		nil, /* peeker */
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
 	)

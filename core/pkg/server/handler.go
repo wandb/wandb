@@ -148,7 +148,7 @@ type Handler struct {
 	fileTransferStats filetransfer.FileTransferStats
 
 	// internalPrinter is the internal messages handler for the stream
-	internalPrinter *observability.Printer
+	internalPrinter *observability.Printer[string]
 }
 
 // NewHandler creates a new handler
@@ -160,7 +160,7 @@ func NewHandler(
 	h := &Handler{
 		ctx:             ctx,
 		logger:          logger,
-		internalPrinter: observability.NewPrinter(),
+		internalPrinter: observability.NewPrinter[string](),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -288,6 +288,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleGetSummary(record, response)
 	case *service.Request_Keepalive:
 	case *service.Request_NetworkStatus:
+		h.handleNetworkStatus(record)
+		response = nil
 	case *service.Request_PartialHistory:
 		h.handlePartialHistory(record, x.PartialHistory)
 		response = nil
@@ -976,6 +978,10 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	h.flushHistory(history)
 
 	h.activeHistory.Flush()
+}
+
+func (h *Handler) handleNetworkStatus(record *service.Record) {
+	h.sendRecord(record)
 }
 
 // The main entry point for partial history records.
