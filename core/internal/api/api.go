@@ -149,6 +149,11 @@ type ClientOptions struct {
 	// In particular, they are not sent if using this client to send
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
+
+	// Allows the client to peek at the network traffic, can preform any action
+	// on the request and response. Need to make sure that the response body is
+	// available to read by later stages.
+	NetworkPeeker Peeker
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -178,9 +183,11 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	retryableHTTP.HTTPClient.Transport = NewRateLimitedTransport(
-		retryableHTTP.HTTPClient.Transport,
-	)
+	retryableHTTP.HTTPClient.Transport =
+		NewPeekingTransport(
+			opts.NetworkPeeker,
+			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
+		)
 
 	return &clientImpl{
 		backend:       backend,
