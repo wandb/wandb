@@ -1,6 +1,10 @@
 package filetransfer
 
-import "github.com/wandb/wandb/core/pkg/service"
+import (
+	"sync"
+
+	"github.com/wandb/wandb/core/pkg/service"
+)
 
 // FileTransferStats reports file upload/download progress and totals.
 type FileTransferStats interface {
@@ -18,6 +22,8 @@ type FileTransferStats interface {
 }
 
 type fileTransferStats struct {
+	*sync.Mutex
+
 	statsByPath map[string]FileUploadInfo
 	filesStats  *service.FilePusherStats
 	fileCounts  *service.FileCounts
@@ -25,6 +31,7 @@ type fileTransferStats struct {
 
 func NewFileTransferStats() FileTransferStats {
 	return &fileTransferStats{
+		Mutex:       &sync.Mutex{},
 		statsByPath: make(map[string]FileUploadInfo),
 		filesStats:  &service.FilePusherStats{},
 		fileCounts:  &service.FileCounts{},
@@ -32,14 +39,20 @@ func NewFileTransferStats() FileTransferStats {
 }
 
 func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
+	fts.Lock()
+	defer fts.Unlock()
 	return fts.filesStats
 }
 
 func (fts *fileTransferStats) GetFileCounts() *service.FileCounts {
+	fts.Lock()
+	defer fts.Unlock()
 	return fts.fileCounts
 }
 
 func (fts *fileTransferStats) IsDone() bool {
+	fts.Lock()
+	defer fts.Unlock()
 	return fts.filesStats.TotalBytes == fts.filesStats.UploadedBytes
 }
 
@@ -59,6 +72,9 @@ type FileUploadInfo struct {
 }
 
 func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
+	fts.Lock()
+	defer fts.Unlock()
+
 	if oldInfo, ok := fts.statsByPath[newInfo.Path]; ok {
 		fts.addStats(oldInfo, -1)
 	}
