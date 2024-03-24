@@ -20,7 +20,7 @@ import yaml
 from wandb_gql import gql
 
 import wandb
-import wandb.apis.reports as wr
+import wandb.apis.reports.v2 as wr
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
 from wandb.apis.reports import Report
