@@ -1547,7 +1547,9 @@ class Report(Base):
         return self
 
     @classmethod
-    def from_url(cls, url, *, as_model: bool = False):
+    def from_url(cls, url, *, as_model: bool = False, api: Optional[wandb.Api] = None):
+        if api is None:
+            api = wandb.Api()
         vs = _url_to_viewspec(url)
         model = internal.ReportViewspec.model_validate(vs)
         if as_model:
