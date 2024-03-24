@@ -727,7 +727,6 @@ class WandbImporter:
 
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
-        name = report.name
         title = report.title
 
         api = self.dst_api
@@ -786,7 +785,7 @@ class WandbImporter:
         logger.debug("Replacing blocks with new blocks")
         dst_report.blocks = new_blocks
 
-        logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
+        logger.debug(f"Upserting report {entity=}, {project=}, {title=}")
         dst_report.save()
 
         # api.client.execute(
