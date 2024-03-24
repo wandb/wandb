@@ -41,6 +41,9 @@ RunId = str
 
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
+report_config = ConfigDict(
+    validate_assignment=True, extra="forbid", slots=True, arbitrary_types_allowed=True
+)
 
 
 @dataclass(config=dataclass_config)
@@ -1413,7 +1416,7 @@ def _get_api():
         raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=report_config)
 class Report(Base):
     project: str
     entity: str = Field(default_factory=lambda: _get_api().default_entity)
