@@ -369,7 +369,9 @@ class WandbImporter:
         }
 
     def __repr__(self):
-        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
+        return (
+            f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
+        )  # pragma: no cover
 
     def _import_run(
         self,
@@ -710,7 +712,11 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Optional[Namespace] = None
+        self,
+        report: Report,
+        *,
+        namespace: Optional[Namespace] = None,
+        runset_remapping: Optional[Dict[Namespace, Namespace]] = None,
     ) -> None:
         """Import one wandb.Report.
 
@@ -723,7 +729,6 @@ class WandbImporter:
         project = coalesce(namespace.project, report.project)
         name = report.name
         title = report.title
-        description = report.description
 
         api = self.dst_api
 
@@ -736,19 +741,50 @@ class WandbImporter:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
-        api.client.execute(
-            wr.report.UPSERT_VIEW,
-            variable_values={
-                "id": None,  # Is there any benefit for this to be the same as default report?
-                "name": name,
-                "entityName": entity,
-                "projectName": project,
-                "description": description,
-                "displayName": title,
-                "type": "runs",
-                "spec": json.dumps(report.spec),
-            },
-        )
+
+        dst_report = wr.Report.from_model(report.to_model())
+        dst_report._api = api
+
+        # Patch the runsets to match the new namespaces
+        if runset_remapping is None:
+            runset_remapping = {}
+
+        if (ns := Namespace(entity, project)) not in runset_remapping:
+            runset_remapping[namespace] = ns
+
+        new_blocks = []
+        for block in dst_report.blocks:
+            if not isinstance(block, wr.PanelGrid):
+                continue
+
+            # Block is a panel grid, try to remap runsets where specified
+            new_runsets = []
+            for rs in block.runsets:
+                rs_namespace = Namespace(rs.entity, rs.project)
+                new_rs = wr.RunSet.from_model(rs.to_model())
+                if rs_namespace in runset_remapping:
+                    new_rs.entity = runset_remapping[rs_namespace].entity
+                    new_rs.project = runset_remapping[rs_namespace].project
+                new_runsets.append(new_rs)
+            block.runsets = new_runsets
+
+        dst_report.blocks = new_blocks
+
+        dst_report.save()
+
+        # api.client.execute(
+        #     wr.report.UPSERT_VIEW,
+        #     variable_values={
+        #         "id": None,  # Is there any benefit for this to be the same as default report?
+        #         "name": name,
+        #         "entityName": entity,
+        #         "projectName": project,
+        #         "description": description,
+        #         "displayName": title,
+        #         "type": "runs",
+        #         "spec": json.dumps(report.spec),
+        #     },
+        # )
 
     def _use_artifact_sequence(
         self,

@@ -1406,6 +1406,13 @@ class WeavePanel(Panel):
         return cls(config=model.config)
 
 
+def _get_api():
+    try:
+        return wandb.Api()
+    except wandb.errors.UsageError as e:
+        raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
+
+
 @dataclass(config=dataclass_config)
 class Report(Base):
     project: str
@@ -1426,6 +1433,8 @@ class Report(Base):
     _updated_at: Optional[datetime] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
+
+    _api: wandb.Api = Field(default_factory=_get_api, repr=False, kw_only=True)
 
     def to_model(self):
         blocks = self.blocks
@@ -1487,7 +1496,7 @@ class Report(Base):
         if self.id == "":
             raise AttributeError("save report or explicitly pass `id` to get a url")
 
-        base = urlparse(_get_api().client.app_url)
+        base = urlparse(self._api.client.app_url)
 
         title = self.title.replace(" ", "-")
 
@@ -1504,7 +1513,7 @@ class Report(Base):
         model = self.to_model()
 
         # create project if not exists
-        projects = _get_api().projects(self.entity)
+        projects = self._api.projects(self.entity)
         is_new_project = True
         for p in projects:
             if p.name == self.project:
@@ -1512,9 +1521,9 @@ class Report(Base):
                 break
 
         if is_new_project:
-            _get_api().create_project(self.project, self.entity)
+            self._api.create_project(self.project, self.entity)
 
-        r = _get_api().client.execute(
+        r = self._api.client.execute(
             gql.upsert_view,
             variable_values={
                 "id": None if clone or not model.id else model.id,
@@ -1562,23 +1571,16 @@ class Report(Base):
         return self.to_html()
 
 
-def _get_api():
-    try:
-        return wandb.Api()
-    except wandb.errors.UsageError as e:
-        raise Exception("not logged in to W&B, try `wandb login --relogin`") from e
-
-
-def _url_to_viewspec(url):
+def _url_to_viewspec(url: str, *, api: Optional[wandb.Api] = None) -> dict:
+    if api is None:
+        api = _get_api()
     report_id = _url_to_report_id(url)
-    r = _get_api().client.execute(
-        gql.view_report, variable_values={"reportId": report_id}
-    )
+    r = api.client.execute(gql.view_report, variable_values={"reportId": report_id})
     viewspec = r["view"]
     return viewspec
 
 
-def _url_to_report_id(url):
+def _url_to_report_id(url: str) -> str:
     parse_result = urlparse(url)
     path = parse_result.path
 
