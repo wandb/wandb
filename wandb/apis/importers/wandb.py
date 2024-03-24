@@ -1381,7 +1381,7 @@ class WandbImporter:
         def reports():
             for ns in namespaces:
                 for r in api.reports(ns.path):
-                    yield wr.Report.from_url(r.url, api=api)
+                    yield wr.Report.from_url(r.url)
 
         yield from itertools.islice(reports(), limit)
 
