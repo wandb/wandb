@@ -742,8 +742,12 @@ class WandbImporter:
 
         logger.debug(f"Duplicating source {report=}")
         dst_report = wr.Report.from_model(report.to_model())
+
+        logger.debug("Updating API")
         dst_report._api = api
+        logger.debug("Updating entity")
         dst_report.entity = entity
+        logger.debug("Updating project")
         dst_report.project = project
 
         # Patch the runsets to match the new namespaces
