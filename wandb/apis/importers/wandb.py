@@ -727,7 +727,6 @@ class WandbImporter:
 
         entity = coalesce(namespace.entity, report.entity)
         project = coalesce(namespace.project, report.project)
-        title = report.title
 
         api = self.dst_api
 
@@ -740,18 +739,9 @@ class WandbImporter:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Duplicating source {report=}")
-        try:
-            model = report.to_model()
-            dst_report = wr.Report.from_model(model)
-        except Exception as e:
-            logger.error(f"Error duplicating {report=}, {e=}")
-            return
-
-        logger.debug("Updating API")
+        dst_report = wr.Report.from_model(report.to_model())
         dst_report._api = api
-        logger.debug("Updating entity")
         dst_report.entity = entity
-        logger.debug("Updating project")
         dst_report.project = project
 
         # Patch the runsets to match the new namespaces
@@ -785,9 +775,9 @@ class WandbImporter:
         logger.debug("Replacing blocks with new blocks")
         dst_report.blocks = new_blocks
 
-        logger.debug(f"Upserting report {entity=}, {project=}, {title=}")
-        logger.debug(f"New {dst_report=}")
+        logger.debug(f"Upserting {dst_report=}")
         logger.debug(f"New {dst_report._api.api_key=}")
+        logger.debug(f"New {dst_report._api.settings=}")
         dst_report.save()
 
         # api.client.execute(
