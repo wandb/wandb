@@ -916,7 +916,10 @@ class WandbImporter:
                 namespace = remapping[namespace]
 
             logger.debug(f"Importing {report=}, {namespace=}")
-            self._import_report(report, namespace=namespace)
+            try:
+                self._import_report(report, namespace=namespace)
+            except Exception as e:
+                logger.error(f"Error importing report, {e=}")
             logger.debug(f"Finished importing {report=}, {namespace=}")
 
         for_each(_import_report_wrapped, reports)
