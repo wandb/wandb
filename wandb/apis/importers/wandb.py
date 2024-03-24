@@ -744,6 +744,8 @@ class WandbImporter:
 
         dst_report = wr.Report.from_model(report.to_model())
         dst_report._api = api
+        dst_report.entity = entity
+        dst_report.project = project
 
         # Patch the runsets to match the new namespaces
         if runset_remapping is None:
@@ -889,9 +891,9 @@ class WandbImporter:
         logger.info("START: Importing reports")
 
         logger.info("Collecting reports")
-        reports = self._collect_reports(namespaces=namespaces, limit=limit)
+        reports = list(self._collect_reports(namespaces=namespaces, limit=limit))
 
-        logger.info("Importing reports")
+        logger.info(f"Importing reports, {len(reports)=}")
 
         def _import_report_wrapped(report):
             namespace = Namespace(report.entity, report.project)
