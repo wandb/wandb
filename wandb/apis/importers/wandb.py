@@ -733,19 +733,21 @@ class WandbImporter:
         api = self.dst_api
 
         # We shouldn't need to upsert the project for every report
-        logger.debug(f"Upserting {entity=}/{project=}")
+        logger.debug(f"Upserting {entity=}, {project=}")
         try:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code != 409:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
+        logger.debug(f"Duplicating source {report=}")
         dst_report = wr.Report.from_model(report.to_model())
         dst_report._api = api
         dst_report.entity = entity
         dst_report.project = project
 
         # Patch the runsets to match the new namespaces
+        logger.debug("Patching runsets")
         if runset_remapping is None:
             runset_remapping = {}
 
@@ -758,17 +760,21 @@ class WandbImporter:
                 continue
 
             # Block is a panel grid, try to remap runsets where specified
+            logger.debug(f"Found a valid {block=}")
             pg = block
             new_runsets = []
             for rs in pg.runsets:
+                logger.debug(f"Found a valid {rs=}")
                 rs_namespace = Namespace(rs.entity, rs.project)
                 new_rs = wr.RunSet.from_model(rs.to_model())
                 if rs_namespace in runset_remapping:
                     new_rs.entity = runset_remapping[rs_namespace].entity
                     new_rs.project = runset_remapping[rs_namespace].project
+                logger.debug(f"Patched {new_rs=}")
                 new_runsets.append(new_rs)
             block.runsets = new_runsets
 
+        logger.debug("Replacing blocks with new blocks")
         dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
