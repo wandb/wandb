@@ -740,8 +740,6 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
-
         dst_report = wr.Report.from_model(report.to_model())
         dst_report._api = api
         dst_report.entity = entity
@@ -751,8 +749,8 @@ class WandbImporter:
         if runset_remapping is None:
             runset_remapping = {}
 
-        if (ns := Namespace(entity, project)) not in runset_remapping:
-            runset_remapping[namespace] = ns
+        if namespace not in runset_remapping:
+            runset_remapping[namespace] = namespace
 
         new_blocks = []
         for block in dst_report.blocks:
@@ -760,8 +758,9 @@ class WandbImporter:
                 continue
 
             # Block is a panel grid, try to remap runsets where specified
+            pg = block
             new_runsets = []
-            for rs in block.runsets:
+            for rs in pg.runsets:
                 rs_namespace = Namespace(rs.entity, rs.project)
                 new_rs = wr.RunSet.from_model(rs.to_model())
                 if rs_namespace in runset_remapping:
@@ -772,6 +771,7 @@ class WandbImporter:
 
         dst_report.blocks = new_blocks
 
+        logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         dst_report.save()
 
         # api.client.execute(
