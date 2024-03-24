@@ -786,6 +786,8 @@ class WandbImporter:
         dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting report {entity=}, {project=}, {title=}")
+        logger.debug(f"New {dst_report=}")
+        logger.debug(f"New {dst_report._api.api_key=}")
         dst_report.save()
 
         # api.client.execute(
