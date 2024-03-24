@@ -741,7 +741,12 @@ class WandbImporter:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Duplicating source {report=}")
-        dst_report = wr.Report.from_model(report.to_model())
+        try:
+            model = report.to_model()
+            dst_report = wr.Report.from_model(model)
+        except Exception as e:
+            logger.error(f"Error duplicating {report=}, {e=}")
+            return
 
         logger.debug("Updating API")
         dst_report._api = api
