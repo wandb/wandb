@@ -767,7 +767,7 @@ class WandbImporter:
             new_runsets = []
             for rs in block.runsets:
                 logger.debug(f"Found a valid {rs=}")
-                rs_namespace = Namespace(rs.entity, rs.project)
+                # rs_namespace = Namespace(rs.entity, rs.project)
                 # new_rs = wr.Runset.from_model(rs.to_model())
                 new_rs = wr.Runset(
                     # entity=rs.entity,
@@ -778,9 +778,9 @@ class WandbImporter:
                     # groupby=rs.groupby,
                     # order=rs.order,
                 )
-                if rs_namespace in runset_remapping:
-                    new_rs.entity = runset_remapping[rs_namespace].entity
-                    new_rs.project = runset_remapping[rs_namespace].project
+                # if rs_namespace in runset_remapping:
+                #     new_rs.entity = runset_remapping[rs_namespace].entity
+                #     new_rs.project = runset_remapping[rs_namespace].project
                 logger.debug(f"Patched {new_rs=}")
                 new_runsets.append(new_rs)
 
