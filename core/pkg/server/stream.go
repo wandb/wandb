@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -156,9 +158,31 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	backend := NewBackend(settings, s.logger)
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
 
-	s.sender = NewSender(s.ctx, s.cancel, backend, s.logger, s.settings.Proto,
+	backendOrNil := NewBackend(s.logger, settings)
+
+	var fileStreamOrNil *filestream.FileStream
+	var fileTransferManagerOrNil filetransfer.FileTransferManager
+	if backendOrNil != nil {
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileTransferManagerOrNil = NewFileTransferManager(
+			fileStreamOrNil,
+			s.logger,
+			settings,
+		)
+	}
+
+	s.sender = NewSender(
+		s.ctx,
+		s.cancel,
+		backendOrNil,
+		fileStreamOrNil,
+		fileTransferManagerOrNil,
+		s.logger,
+		s.settings.Proto,
+		peeker,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)

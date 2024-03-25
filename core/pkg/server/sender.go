@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
@@ -24,7 +23,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -93,10 +91,13 @@ type Sender struct {
 	// resumeState is the resume state
 	resumeState *ResumeState
 
+	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
+	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
+	// debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
@@ -118,6 +119,8 @@ type Sender struct {
 	jobBuilder *launch.JobBuilder
 
 	wgFileTransfer sync.WaitGroup
+
+	networkPeeker *observability.Peeker
 }
 
 // NewSender creates a new Sender with the given settings
@@ -125,20 +128,26 @@ func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	backendOrNil *api.Backend,
+	fileStreamOrNil *fs.FileStream,
+	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
+	peeker *observability.Peeker,
 	opts ...SenderOption,
 ) *Sender {
 
 	sender := &Sender{
-		ctx:            ctx,
-		cancel:         cancel,
-		settings:       settings,
-		logger:         logger,
-		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      runconfig.New(),
-		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer: sync.WaitGroup{},
+		ctx:                 ctx,
+		cancel:              cancel,
+		settings:            settings,
+		logger:              logger,
+		summaryMap:          make(map[string]*service.SummaryItem),
+		runConfig:           runconfig.New(),
+		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer:      sync.WaitGroup{},
+		fileStream:          fileStreamOrNil,
+		fileTransferManager: fileTransferManagerOrNil,
+		networkPeeker:       peeker,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
@@ -155,49 +164,10 @@ func NewSender(
 			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
 			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
 			ExtraHeaders:    graphqlHeaders,
+			NetworkPeeker:   sender.networkPeeker,
 		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
 		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
-		fileStreamHeaders := map[string]string{}
-		if settings.GetXShared().GetValue() {
-			fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		}
-
-		fileStreamRetryClient := backendOrNil.NewClient(api.ClientOptions{
-			RetryMax:        int(settings.GetXFileStreamRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
-			ExtraHeaders:    fileStreamHeaders,
-		})
-
-		sender.fileStream = fs.NewFileStream(
-			fs.WithSettings(settings),
-			fs.WithLogger(logger),
-			fs.WithAPIClient(fileStreamRetryClient),
-			fs.WithClientId(shared.ShortID(32)),
-		)
-
-		fileTransferRetryClient := retryablehttp.NewClient()
-		fileTransferRetryClient.Logger = logger
-		fileTransferRetryClient.CheckRetry = clients.CheckRetry
-		fileTransferRetryClient.RetryMax = int(settings.GetXFileTransferRetryMax().GetValue())
-		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())
-		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())
-		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())
-		fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
-			logger,
-			fileTransferRetryClient,
-		)
-		sender.fileTransferManager = filetransfer.NewFileTransferManager(
-			filetransfer.WithLogger(logger),
-			filetransfer.WithSettings(settings),
-			filetransfer.WithFileTransfer(defaultFileTransfer),
-			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
-		)
 
 		sender.getServerInfo()
 
@@ -309,7 +279,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
-		s.sendNetworkStatusRequest(x.NetworkStatus)
+		s.sendNetworkStatusRequest(record, x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
@@ -375,7 +345,32 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+func (s *Sender) sendNetworkStatusRequest(
+	record *service.Record,
+	_ *service.NetworkStatusRequest,
+) {
+	// in case of network peeker is not set, we don't need to do anything
+	if s.networkPeeker == nil {
+		return
+	}
+
+	// send the network status response if there is any
+	if response := s.networkPeeker.Read(); len(response) > 0 {
+		result := &service.Result{
+			ResultType: &service.Result_Response{
+				Response: &service.Response{
+					ResponseType: &service.Response_NetworkStatusResponse{
+						NetworkStatusResponse: &service.NetworkStatusResponse{
+							NetworkResponses: response,
+						},
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.outChan <- result
+	}
 }
 
 func (s *Sender) sendJobFlush() {
