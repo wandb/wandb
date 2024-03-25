@@ -569,37 +569,18 @@ class InterfaceBase:
     ) -> None:
         run = run or self._run
 
-        def flatten_dict(
-            d: dict,
-            key_path: Optional[Tuple] = None,
-        ):
-            if key_path is None:
-                key_path = tuple()
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    yield from flatten_dict(v, key_path + (k,))
-                else:
-                    yield key_path + (k,), v
+        data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
+        data.pop("_step", None)
 
         # add timestamp to the history request, if not already present
         # the timestamp might come from the tensorboard log logic
         if "_timestamp" not in data:
             data["_timestamp"] = time.time()
 
-        data = {k: v for k, v in flatten_dict(data)}
-
-        data = history_dict_to_json(
-            run,
-            data,
-            step=user_step,
-            ignore_copy_err=True,
-        )
-        data.pop("_step", None)
-
         partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():
             item = partial_history.item.add()
-            item.key = os.path.join(*k)
+            item.key = k
             item.value_json = json_dumps_safer_history(v)
 
         if publish_step and step is not None:
