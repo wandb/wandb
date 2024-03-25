@@ -110,11 +110,11 @@ class WandbRun:
         self.run = run
         self.api = wandb.Api(
             api_key=src_api_key,
-            overrides={"base_url": src_base_url},
+            overrides={"base_url": src_base_url, "api_key": src_api_key},
         )
         self.dst_api = wandb.Api(
             api_key=dst_api_key,
-            overrides={"base_url": dst_base_url},
+            overrides={"base_url": dst_base_url, "api_key": dst_api_key},
         )
 
         # For caching
