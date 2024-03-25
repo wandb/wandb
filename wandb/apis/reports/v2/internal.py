@@ -265,7 +265,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
-    custom_run_colors: Dict[str, str] = Field(default_factory=dict)
+    custom_run_colors: Union[Ref, Dict[str, str]] = Field(default_factory=dict)
     # custom_run_colors: PanelGridCustomRunColors = Field(
     #     default_factory=PanelGridCustomRunColors
     # )

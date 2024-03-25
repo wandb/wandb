@@ -1902,21 +1902,24 @@ def _to_color_dict(custom_run_colors, runsets):
 
 
 def _from_color_dict(d, runsets):
-    d2 = {}
-    for k, v in d.items():
-        id, *backend_parts = k.split("-")
+    if isinstance(d, dict):
+        d2 = {}
+        for k, v in d.items():
+            id, *backend_parts = k.split("-")
 
-        if backend_parts:
-            groups = []
-            for part in backend_parts:
-                key, value = part.rsplit(":", 1)
-                kkey = _metric_to_frontend_panel_grid(key)
-                group = RunsetGroupKey(kkey, value)
-                groups.append(group)
-            rs = _get_rs_by_id(runsets, id)
-            rg = RunsetGroup(runset_name=rs.name, keys=groups)
-            new_key = rg
-        else:
-            new_key = k
-        d2[new_key] = v
-    return d2
+            if backend_parts:
+                groups = []
+                for part in backend_parts:
+                    key, value = part.rsplit(":", 1)
+                    kkey = _metric_to_frontend_panel_grid(key)
+                    group = RunsetGroupKey(kkey, value)
+                    groups.append(group)
+                rs = _get_rs_by_id(runsets, id)
+                rg = RunsetGroup(runset_name=rs.name, keys=groups)
+                new_key = rg
+            else:
+                new_key = k
+            d2[new_key] = v
+        return d2
+    else:  # ref
+        return {}
