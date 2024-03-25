@@ -289,7 +289,8 @@ class RunFeed(ReportAPIBaseModel):
     version: int = 2
     column_visible: Dict[str, bool] = Field(default_factory=lambda: {"run:name": False})
     column_pinned: Dict[str, bool] = Field(default_factory=dict)
-    column_widths: Dict[str, int] = Field(default_factory=dict)
+    # Should int, but the backend can return 9.99995 so this is more robust.
+    column_widths: Dict[str, float] = Field(default_factory=dict)
     column_order: LList[str] = Field(default_factory=list)
     page_size: int = 10
     only_show_selected: bool = False
