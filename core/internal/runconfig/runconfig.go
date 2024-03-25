@@ -77,10 +77,12 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 	for _, configItem := range configRecord.Update {
 		path := keyPath(configItem)
 
-		var value interface{}
-		if err := json.Unmarshal(
-			[]byte(configItem.GetValueJson()),
-			&value,
+		var (
+			value interface{}
+			err   error
+		)
+		if err = json.Unmarshal(
+			[]byte(configItem.GetValueJson()), &value,
 		); err != nil {
 			onError(
 				fmt.Errorf(
