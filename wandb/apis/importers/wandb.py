@@ -110,11 +110,11 @@ class WandbRun:
         self.run = run
         self.api = wandb.Api(
             api_key=src_api_key,
-            overrides={"base_url": src_base_url, "api_key": src_api_key},
+            overrides={"base_url": src_base_url},
         )
         self.dst_api = wandb.Api(
             api_key=dst_api_key,
-            overrides={"base_url": dst_base_url, "api_key": dst_api_key},
+            overrides={"base_url": dst_base_url},
         )
 
         # For caching
@@ -778,7 +778,7 @@ class WandbImporter:
         logger.debug(f"Upserting {dst_report=}")
         logger.debug(f"New {dst_report._api.api_key=}")
         logger.debug(f"New {dst_report._api.settings=}")
-        dst_report.save()
+        dst_report.save(clone=True)
 
         # api.client.execute(
         #     wr.report.UPSERT_VIEW,
@@ -906,7 +906,7 @@ class WandbImporter:
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
-            logger.debug(f"Importing {report=}, {namespace=}")
+            logger.debug(f"Importing {namespace=}, {report=}")
             try:
                 self._import_report(report, namespace=namespace)
             except Exception as e:
