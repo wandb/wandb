@@ -739,7 +739,10 @@ class WandbImporter:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
         logger.debug(f"Duplicating source {report=}")
-        dst_report = wr.Report.from_model(report.to_model())
+        model = report.to_model()
+        logger.debug(f"{model=}")
+        dst_report = wr.Report.from_model(model)
+        logger.debug(f"{dst_report=}")
         dst_report._api = api
         dst_report.entity = entity
         dst_report.project = project
@@ -752,28 +755,28 @@ class WandbImporter:
         if namespace not in runset_remapping:
             runset_remapping[namespace] = namespace
 
-        new_blocks = []
-        for block in dst_report.blocks:
-            if not isinstance(block, wr.PanelGrid):
-                continue
+        # new_blocks = []
+        # for block in dst_report.blocks:
+        #     if not isinstance(block, wr.PanelGrid):
+        #         continue
 
-            # Block is a panel grid, try to remap runsets where specified
-            logger.debug(f"Found a valid {block=}")
-            pg = block
-            new_runsets = []
-            for rs in pg.runsets:
-                logger.debug(f"Found a valid {rs=}")
-                rs_namespace = Namespace(rs.entity, rs.project)
-                new_rs = wr.Runset.from_model(rs.to_model())
-                if rs_namespace in runset_remapping:
-                    new_rs.entity = runset_remapping[rs_namespace].entity
-                    new_rs.project = runset_remapping[rs_namespace].project
-                logger.debug(f"Patched {new_rs=}")
-                new_runsets.append(new_rs)
-            block.runsets = new_runsets
+        #     # Block is a panel grid, try to remap runsets where specified
+        #     logger.debug(f"Found a valid {block=}")
+        #     pg = block
+        #     new_runsets = []
+        #     for rs in pg.runsets:
+        #         logger.debug(f"Found a valid {rs=}")
+        #         rs_namespace = Namespace(rs.entity, rs.project)
+        #         new_rs = wr.Runset.from_model(rs.to_model())
+        #         if rs_namespace in runset_remapping:
+        #             new_rs.entity = runset_remapping[rs_namespace].entity
+        #             new_rs.project = runset_remapping[rs_namespace].project
+        #         logger.debug(f"Patched {new_rs=}")
+        #         new_runsets.append(new_rs)
+        #     block.runsets = new_runsets
 
-        logger.debug("Replacing blocks with new blocks")
-        dst_report.blocks = new_blocks
+        # logger.debug("Replacing blocks with new blocks")
+        # dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting {dst_report=}")
         logger.debug(f"New {dst_report._api.api_key=}")
