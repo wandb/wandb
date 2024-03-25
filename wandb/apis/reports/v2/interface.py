@@ -1595,11 +1595,16 @@ def _url_to_viewspec(url: str, *, api: Optional[wandb.Api] = None) -> dict:
 
 
 def _url_to_report_id(url: str) -> str:
+    view_str = "Vmlldzo2"
+
     parse_result = urlparse(url)
     path = parse_result.path
 
     _, entity, project, _, name = path.split("/")
-    title, report_id = name.split("--")
+
+    # This covers cases where the split is more than "--"
+    *title, report_id = name.split(f"--{view_str}")
+    report_id = view_str + report_id
 
     return report_id
 
