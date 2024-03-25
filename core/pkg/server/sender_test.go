@@ -65,10 +65,10 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		logger,
 		settings.Proto,
 		nil, /* peeker */
+		client,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
 	)
-	sender.SetGraphqlClient(client)
 	return sender
 }
 
