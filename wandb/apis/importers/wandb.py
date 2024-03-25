@@ -770,13 +770,13 @@ class WandbImporter:
                 rs_namespace = Namespace(rs.entity, rs.project)
                 # new_rs = wr.Runset.from_model(rs.to_model())
                 new_rs = wr.Runset(
-                    entity=rs.entity,
-                    project=rs.project,
-                    name=rs.name,
-                    query=rs.query,
-                    filters=rs.filters,
-                    groupby=rs.groupby,
-                    order=rs.order,
+                    # entity=rs.entity,
+                    # project=rs.project,
+                    # name=rs.name,
+                    # query=rs.query,
+                    # filters=rs.filters,
+                    # groupby=rs.groupby,
+                    # order=rs.order,
                 )
                 if rs_namespace in runset_remapping:
                     new_rs.entity = runset_remapping[rs_namespace].entity
