@@ -1513,6 +1513,11 @@ class Report(Base):
         return urlunparse((scheme, netloc, path, params, query, fragment))
 
     def save(self, draft: bool = False, clone: bool = False):
+        return self._save(draft=draft, clone=clone)
+
+    def _save(
+        self, draft: bool = False, clone: bool = False, *, name: Optional[str] = None
+    ):
         model = self.to_model()
 
         # create project if not exists
@@ -1526,7 +1531,12 @@ class Report(Base):
         if is_new_project:
             self._api.create_project(self.project, self.entity)
 
-        name = internal._generate_name() if clone or not model.name else model.name
+        if name is None:
+            if clone or not model.name:
+                name = internal._generate_name()
+            else:
+                name = model.name
+
         r = self._api.client.execute(
             gql.upsert_view,
             variable_values={

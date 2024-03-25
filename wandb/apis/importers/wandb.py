@@ -23,7 +23,7 @@ import wandb
 import wandb.apis.reports.v2 as wr
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
-from wandb.apis.reports import Report
+from wandb.apis.reports.v2 import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import validation
@@ -780,7 +780,7 @@ class WandbImporter:
         )
 
         logger.debug(f"Upserting {dst_report=}")
-        dst_report.save()
+        dst_report._save(name=report.to_model().name)
 
     def _use_artifact_sequence(
         self,
