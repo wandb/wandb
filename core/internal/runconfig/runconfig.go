@@ -81,12 +81,12 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 			value interface{}
 			err   error
 		)
-		if value, err = corelib.Unmarshal(
-			[]byte(configItem.GetValueJson()),
+		if err = json.Unmarshal(
+			[]byte(configItem.GetValueJson()), &value,
 		); err != nil {
 			onError(
 				fmt.Errorf(
-					"config: failed to unmarshall JSON for config key %v: %v",
+					"config: failed to unmarshal JSON for config key %v: %v",
 					path,
 					err,
 				),

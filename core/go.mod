@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/core
 
-go 1.22.0
+go 1.22.1
 
 require (
 	github.com/Khan/genqlient v0.6.0
@@ -13,7 +13,8 @@ require (
 	github.com/segmentio/encoding v0.4.0
 	github.com/shirou/gopsutil/v3 v3.24.1
 	github.com/spf13/afero v1.11.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
+	github.com/wandb/simplejsonext v0.0.0-20240321190947-e1d07eb04a83
 	golang.org/x/time v0.5.0
 	google.golang.org/protobuf v1.32.0
 	gopkg.in/yaml.v3 v3.0.1
