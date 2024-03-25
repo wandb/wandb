@@ -764,9 +764,8 @@ class WandbImporter:
 
             # Block is a panel grid, try to remap runsets where specified
             logger.debug(f"Found a valid {block=}")
-            pg = block
             new_runsets = []
-            for rs in pg.runsets:
+            for rs in block.runsets:
                 logger.debug(f"Found a valid {rs=}")
                 rs_namespace = Namespace(rs.entity, rs.project)
                 new_rs = wr.Runset.from_model(rs.to_model())
@@ -775,7 +774,8 @@ class WandbImporter:
                     new_rs.project = runset_remapping[rs_namespace].project
                 logger.debug(f"Patched {new_rs=}")
                 new_runsets.append(new_rs)
-            pg.runsets = new_runsets
+
+            pg = wr.PanelGrid(runsets=new_runsets, panels=block.panels)
             new_blocks.append(pg)
 
         logger.debug("Replacing blocks with new blocks")
