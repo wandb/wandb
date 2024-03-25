@@ -785,6 +785,7 @@ class WandbImporter:
             width=report.width,
             description=report.description,
             blocks=new_blocks,
+            _api=api,
         )
         # dst_report.blocks = new_blocks
 
