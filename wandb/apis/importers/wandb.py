@@ -775,7 +775,7 @@ class WandbImporter:
                 logger.debug(f"Patched {new_rs=}")
                 new_runsets.append(new_rs)
 
-            pg = wr.PanelGrid()
+            pg = wr.PanelGrid(runsets=new_runsets, panels=block.panels)
             new_blocks.append(pg)
 
         dst_report = wr.Report(
