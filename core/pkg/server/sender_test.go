@@ -7,6 +7,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -48,8 +49,13 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 	backend := server.NewBackend(logger, settings)
-	fileStream := server.NewFileStream(backend, logger, settings, nil /* peeker */)
-	fileTransferManager := server.NewFileTransferManager(fileStream, logger, settings)
+	fileStream := server.NewFileStream(backend, logger, settings, nil)
+	fileTransferManager := server.NewFileTransferManager(
+		fileStream,
+		filetransfer.NewFileTransferStats(),
+		logger,
+		settings,
+	)
 	sender := server.NewSender(
 		ctx,
 		cancel,
