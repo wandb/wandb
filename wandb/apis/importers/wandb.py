@@ -764,7 +764,7 @@ class WandbImporter:
             for rs in pg.runsets:
                 logger.debug(f"Found a valid {rs=}")
                 rs_namespace = Namespace(rs.entity, rs.project)
-                new_rs = wr.RunSet.from_model(rs.to_model())
+                new_rs = wr.Runset.from_model(rs.to_model())
                 if rs_namespace in runset_remapping:
                     new_rs.entity = runset_remapping[rs_namespace].entity
                     new_rs.project = runset_remapping[rs_namespace].project
