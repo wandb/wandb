@@ -738,14 +738,14 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        logger.debug(f"Duplicating source {report=}")
-        model = report.to_model()
-        logger.debug(f"{model=}")
-        dst_report = wr.Report.from_model(model)
-        logger.debug(f"{dst_report=}")
-        dst_report._api = api
-        dst_report.entity = entity
-        dst_report.project = project
+        # logger.debug(f"Duplicating source {report=}")
+        # model = report.to_model()
+        # logger.debug(f"{model=}")
+        # dst_report = wr.Report.from_model(model)
+        # logger.debug(f"{dst_report=}")
+        # dst_report._api = api
+        # dst_report.entity = entity
+        # dst_report.project = project
 
         # Patch the runsets to match the new namespaces
         logger.debug("Patching runsets")
@@ -756,7 +756,7 @@ class WandbImporter:
             runset_remapping[namespace] = namespace
 
         new_blocks = []
-        for block in dst_report.blocks:
+        for block in report.blocks:
             # Normal block, just append and move on
             if not isinstance(block, wr.PanelGrid):
                 new_blocks.append(block)
@@ -778,7 +778,15 @@ class WandbImporter:
             pg = wr.PanelGrid()
             new_blocks.append(pg)
 
-        dst_report.blocks = new_blocks
+        dst_report = wr.Report(
+            entity=entity,
+            project=project,
+            title=report.title,
+            width=report.width,
+            description=report.description,
+            blocks=new_blocks,
+        )
+        # dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting {dst_report=}")
         dst_report.save(clone=True)
