@@ -9,6 +9,9 @@ const (
 
 // Task is a task to upload/download a file
 type Task struct {
+	// FileKind is the category of file being uploaded or downloaded
+	FileKind RunFileKind
+
 	// Type is the type of task (upload or download)
 	Type TaskType
 

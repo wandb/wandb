@@ -1000,75 +1000,36 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError("sender: sendFile error", err)
 		return
 	}
-	headers := data.GetCreateRunFiles().GetUploadHeaders()
-	for _, f := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
-		task := &filetransfer.Task{
-			Type:    filetransfer.UploadTask,
-			Path:    fullPath,
-			Name:    f.Name,
-			Url:     *f.UploadUrl,
-			Headers: headers,
-		}
 
-		task.SetProgressCallback(
-			func(processed, total int) {
-				if processed == 0 {
-					return
-				}
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:      service.FileTransferInfoRequest_Upload,
-									Path:      fullPath,
-									Size:      int64(total),
-									Processed: int64(processed),
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
+	if len(data.CreateRunFiles.Files) != 1 {
+		err = fmt.Errorf(
+			"sender: sendFile: unexpected GraphQL response:"+
+				" expected 1 file but got %v",
+			len(data.CreateRunFiles.Files),
 		)
-		task.SetCompletionCallback(
-			func(t *filetransfer.Task) {
-				s.fileTransferManager.FileStreamCallback(t)
-				fileCounts := &service.FileCounts{}
-				switch file.GetType() {
-				case service.FilesItem_MEDIA:
-					fileCounts.MediaCount = 1
-				case service.FilesItem_OTHER:
-					fileCounts.OtherCount = 1
-				case service.FilesItem_WANDB:
-					fileCounts.WandbCount = 1
-				}
-
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:       service.FileTransferInfoRequest_Upload,
-									Path:       fullPath,
-									Size:       t.Size,
-									Processed:  t.Size,
-									FileCounts: fileCounts,
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
-		)
-		s.fileTransferManager.AddTask(task)
+		s.logger.CaptureError("sender: sendFile error", err)
+		return
 	}
+
+	task := &filetransfer.Task{
+		FileKind: filetransfer.RunFileKindFromProto(file.Type),
+		Type:     filetransfer.UploadTask,
+		Path:     fullPath,
+		Name:     data.CreateRunFiles.Files[0].Name,
+		Url:      *data.CreateRunFiles.Files[0].UploadUrl,
+		Headers:  data.CreateRunFiles.UploadHeaders,
+	}
+
+	task.SetCompletionCallback(
+		func(t *filetransfer.Task) {
+			s.fileTransferManager.FileStreamCallback(t)
+		},
+	)
+
+	s.fileTransferManager.AddTask(task)
 }
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {

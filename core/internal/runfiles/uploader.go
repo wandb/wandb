@@ -244,6 +244,7 @@ func (u *uploader) scheduleUploadTask(
 ) {
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
+		// TODO: Set FileKind
 		Type:    filetransfer.UploadTask,
 		Path:    localPath,
 		Name:    relativePath,
@@ -251,7 +252,6 @@ func (u *uploader) scheduleUploadTask(
 		Headers: headers,
 	}
 
-	// TODO: FileTransferInfoRequest on progress and completion
 	task.SetCompletionCallback(func(t *filetransfer.Task) {
 		u.uploadWG.Done()
 	})

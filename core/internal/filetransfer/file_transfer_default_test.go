@@ -31,7 +31,11 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Mocking task
 	task := &filetransfer.Task{
@@ -86,7 +90,11 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"
