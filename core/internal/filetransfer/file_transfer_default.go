@@ -20,13 +20,21 @@ type DefaultFileTransfer struct {
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
+
+	// fileTransferStats is used to track upload/download progress
+	fileTransferStats FileTransferStats
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
-func NewDefaultFileTransfer(logger *observability.CoreLogger, client *retryablehttp.Client) *DefaultFileTransfer {
+func NewDefaultFileTransfer(
+	client *retryablehttp.Client,
+	logger *observability.CoreLogger,
+	fileTransferStats FileTransferStats,
+) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
-		logger: logger,
-		client: client,
+		logger:            logger,
+		client:            client,
+		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
 }
@@ -54,7 +62,22 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	}
 	task.Size = stat.Size()
 
-	progressReader, err := NewProgressReader(file, task.Size, task.ProgressCallback)
+	progressReader, err := NewProgressReader(
+		file,
+		task.Size,
+		func(processed int, total int) {
+			if task.ProgressCallback != nil {
+				task.ProgressCallback(processed, total)
+			}
+
+			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+				FileKind:      task.FileKind,
+				Path:          task.Path,
+				UploadedBytes: int64(processed),
+				TotalBytes:    int64(total),
+			})
+		},
+	)
 	if err != nil {
 		return err
 	}
