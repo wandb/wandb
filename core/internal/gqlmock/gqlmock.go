@@ -19,8 +19,9 @@ import (
 //
 // Use `AllStubsUsed` to check that all stubbed requests were made.
 type MockClient struct {
-	mu    *sync.Mutex
-	stubs []*stubbedRequest
+	mu       *sync.Mutex
+	stubs    []*stubbedRequest
+	requests []*graphql.Request
 }
 
 func NewMockClient() *MockClient {
@@ -93,6 +94,14 @@ func (c *MockClient) AllStubsUsed() bool {
 	return len(c.stubs) == 0
 }
 
+// AllRequests returns all requests made to the mock client.
+func (c *MockClient) AllRequests() []*graphql.Request {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return slices.Clone(c.requests)
+}
+
 func (c *MockClient) MakeRequest(
 	ctx context.Context,
 	req *graphql.Request,
@@ -101,11 +110,13 @@ func (c *MockClient) MakeRequest(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.requests = append(c.requests, req)
+
 	if stub := c.stubFor(req); stub != nil {
 		return stub.Handle(req, resp)
 	}
 
-	return &notStubbedError{req: fmt.Sprintf("%#v", req)}
+	return &notStubbedError{req}
 }
 
 // A stubbedRequest is a request matcher and a response function.
@@ -144,9 +155,13 @@ func (c *recorderClient) MakeRequest(
 
 // notStubbedError is returned by MakeRequest when no response stub exists.
 type notStubbedError struct {
-	req string
+	req *graphql.Request
 }
 
 func (e *notStubbedError) Error() string {
-	return fmt.Sprintf("gqlmock: no stub for request %v", e.req)
+	return fmt.Sprintf(
+		"gqlmock: no stub for request with query '%v' and with variables '%v'",
+		e.req.Query,
+		jsonMarshallToMap(e.req.Variables),
+	)
 }

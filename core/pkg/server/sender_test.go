@@ -7,14 +7,39 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/coretest"
-	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+const validUpsertBucketResponse = `{
+	"upsertBucket": {
+		"bucket": {
+			"displayName": "FakeName",
+			"project": {
+				"name": "FakeProject",
+				"entity": {
+					"name": "FakeEntity"
+				}
+			}
+		}
+	}
+}`
+
+const validLinkArtifactResponse = `{
+	"linkArtifact": { "versionIndex": 0 }
+}`
+
+const validCreateArtifactResponse = `{
+	"createArtifact": {
+		"artifact": {
+			"id": "artifact-id"
+		}
+	}
+}`
 
 func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -41,17 +66,26 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	return sender
 }
 
+// Verify that project and entity are properly passed through to graphql
 func TestSendRun(t *testing.T) {
-	// Verify that project and entity are properly passed through to graphql
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
-
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("UpsertBucket"),
+		validUpsertBucketResponse,
+	)
+	sender := makeSender(mockGQL, make(chan *service.Result, 1))
 
 	run := &service.Record{
 		RecordType: &service.Record_Run{
 			Run: &service.RunRecord{
-				Config:  to.MakeConfig(),
+				Config: &service.ConfigRecord{
+					Update: []*service.ConfigItem{
+						{
+							Key:       "_wandb",
+							ValueJson: "{}",
+						},
+					},
+				},
 				Project: "testProject",
 				Entity:  "testEntity",
 			}},
@@ -60,51 +94,23 @@ func TestSendRun(t *testing.T) {
 		},
 	}
 
-	respEncode := &graphql.Response{
-		Data: &gql.UpsertBucketResponse{
-			UpsertBucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayload{
-				Bucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun{
-					DisplayName: coretest.StrPtr("FakeName"),
-					Project: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject{
-						Name: "FakeProject",
-						Entity: gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity{
-							Name: "FakeEntity",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "testEntity", vars["entity"])
-			assert.Equal(t, "testProject", vars["project"])
-		},
-	))
-
 	sender.SendRecord(run)
 	<-sender.GetOutboundChannel()
+
+	requests := mockGQL.AllRequests()
+	assert.Len(t, requests, 1)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("project", gomock.Eq("testProject")),
+			gqlmock.GQLVar("entity", gomock.Eq("testEntity")),
+		),
+		requests[0])
 }
 
+// Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
-	// Verify that arguments are properly passed through to graphql
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
-
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
-
-	respEncode := &graphql.Response{
-		Data: &gql.LinkArtifactResponse{
-			LinkArtifact: &gql.LinkArtifactLinkArtifactLinkArtifactPayload{
-				VersionIndex: coretest.IntPtr(0),
-			},
-		}}
+	mockGQL := gqlmock.NewMockClient()
+	sender := makeSender(mockGQL, make(chan *service.Result, 1))
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &service.Record{
@@ -121,23 +127,24 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	}
 
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Nil(t, vars["clientId"])
-			assert.Equal(t, "serverId", vars["artifactId"])
-		},
-	))
-
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
 	sender.SendRecord(linkArtifact)
 	<-sender.GetOutboundChannel()
+
+	requests := mockGQL.AllRequests()
+	assert.Len(t, requests, 1)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
+		),
+		requests[0])
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
@@ -154,25 +161,26 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	}
 
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Equal(t, "clientId", vars["clientId"])
-			assert.Nil(t, vars["artifactId"])
-		},
-	))
-
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
 	sender.SendRecord(linkArtifact)
 	<-sender.GetOutboundChannel()
 
-	// 2. When only serverId is sent, serverId is used
+	requests = mockGQL.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
+			gqlmock.GQLVar("artifactId", gomock.Eq(nil)),
+		),
+		requests[1])
+
+	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
 		RecordType: &service.Record_LinkArtifact{
 			LinkArtifact: &service.LinkArtifactRecord{
@@ -187,30 +195,29 @@ func TestSendLinkArtifact(t *testing.T) {
 		},
 	}
 
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Nil(t, vars["clientId"])
-			assert.Equal(t, "serverId", vars["artifactId"])
-		},
-	))
-
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
 	sender.SendRecord(linkArtifact)
 	<-sender.GetOutboundChannel()
+
+	requests = mockGQL.AllRequests()
+	assert.Len(t, requests, 3)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
+		),
+		requests[2])
 }
 
 func TestSendUseArtifact(t *testing.T) {
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
-
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+	mockGQL := gqlmock.NewMockClient()
+	sender := makeSender(mockGQL, make(chan *service.Result, 1))
 
 	useArtifact := &service.Record{
 		RecordType: &service.Record_UseArtifact{
@@ -252,12 +259,14 @@ func TestSendUseArtifact(t *testing.T) {
 	sender.SendRecord(useArtifact)
 }
 
+// Verify that arguments are properly passed through to graphql
 func TestSendArtifact(t *testing.T) {
-	// Verify that arguments are properly passed through to graphql
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
-
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("CreateArtifact"),
+		validCreateArtifactResponse,
+	)
+	sender := makeSender(mockGQL, make(chan *service.Result, 1))
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	artifact := &service.Record{
@@ -286,23 +295,14 @@ func TestSendArtifact(t *testing.T) {
 				SequenceClientId: "sequence-client-id",
 			}},
 	}
-	createArtifactRespEncode := &graphql.Response{
-		Data: &gql.CreateArtifactResponse{
-			CreateArtifact: &gql.CreateArtifactCreateArtifactCreateArtifactPayload{
-				Artifact: gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{
-					Id: "artifact-id",
-				},
-			},
-		}}
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		createArtifactRespEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "test-entity", vars["entityName"])
-		},
-	))
+
 	sender.SendRecord(artifact)
+
+	requests := mockGQL.AllRequests()
+	assert.Len(t, requests, 1)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
+		),
+		requests[0])
 }
