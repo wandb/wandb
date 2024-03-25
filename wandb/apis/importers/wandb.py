@@ -767,47 +767,21 @@ class WandbImporter:
             new_runsets = []
             for rs in block.runsets:
                 logger.debug(f"Found a valid {rs=}")
-                # rs_namespace = Namespace(rs.entity, rs.project)
-                # new_rs = wr.Runset.from_model(rs.to_model())
-                new_rs = wr.Runset(
-                    # entity=rs.entity,
-                    # project=rs.project,
-                    # name=rs.name,
-                    # query=rs.query,
-                    # filters=rs.filters,
-                    # groupby=rs.groupby,
-                    # order=rs.order,
-                )
-                # if rs_namespace in runset_remapping:
-                #     new_rs.entity = runset_remapping[rs_namespace].entity
-                #     new_rs.project = runset_remapping[rs_namespace].project
+                rs_namespace = Namespace(rs.entity, rs.project)
+                new_rs = wr.Runset.from_model(rs.to_model())
+                if rs_namespace in runset_remapping:
+                    new_rs.entity = runset_remapping[rs_namespace].entity
+                    new_rs.project = runset_remapping[rs_namespace].project
                 logger.debug(f"Patched {new_rs=}")
                 new_runsets.append(new_rs)
 
             pg = wr.PanelGrid(runsets=new_runsets, panels=block.panels)
             new_blocks.append(pg)
 
-        logger.debug("Replacing blocks with new blocks")
         dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting {dst_report=}")
-        logger.debug(f"New {dst_report._api.api_key=}")
-        logger.debug(f"New {dst_report._api.settings=}")
         dst_report.save(clone=True)
-
-        # api.client.execute(
-        #     wr.report.UPSERT_VIEW,
-        #     variable_values={
-        #         "id": None,  # Is there any benefit for this to be the same as default report?
-        #         "name": name,
-        #         "entityName": entity,
-        #         "projectName": project,
-        #         "description": description,
-        #         "displayName": title,
-        #         "type": "runs",
-        #         "spec": json.dumps(report.spec),
-        #     },
-        # )
 
     def _use_artifact_sequence(
         self,
