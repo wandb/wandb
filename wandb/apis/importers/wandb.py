@@ -789,7 +789,7 @@ class WandbImporter:
         # dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting {dst_report=}")
-        dst_report.save(clone=True)
+        dst_report.save()
 
     def _use_artifact_sequence(
         self,
