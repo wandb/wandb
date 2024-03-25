@@ -738,15 +738,6 @@ class WandbImporter:
             if e.response.status_code != 409:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        # logger.debug(f"Duplicating source {report=}")
-        # model = report.to_model()
-        # logger.debug(f"{model=}")
-        # dst_report = wr.Report.from_model(model)
-        # logger.debug(f"{dst_report=}")
-        # dst_report._api = api
-        # dst_report.entity = entity
-        # dst_report.project = project
-
         # Patch the runsets to match the new namespaces
         logger.debug("Patching runsets")
         if runset_remapping is None:
@@ -787,7 +778,6 @@ class WandbImporter:
             blocks=new_blocks,
             _api=api,
         )
-        # dst_report.blocks = new_blocks
 
         logger.debug(f"Upserting {dst_report=}")
         dst_report.save()
