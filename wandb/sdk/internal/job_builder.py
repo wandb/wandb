@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
+
+LOG_LEVEL = Literal["log", "warn", "error"]
 
 
 class GitInfo(TypedDict):
@@ -89,8 +91,9 @@ class JobBuilder:
     _job_seq_id: Optional[str]
     _job_version_alias: Optional[str]
     _is_notebook_run: bool
+    _verbose: bool
 
-    def __init__(self, settings: SettingsStatic):
+    def __init__(self, settings: SettingsStatic, verbose: bool = False):
         self._settings = settings
         self._metadatafile_path = None
         self._requirements_path = None
@@ -106,6 +109,7 @@ class JobBuilder:
             Literal["repo", "artifact", "image"]
         ] = settings.job_source  # type: ignore[assignment]
         self._is_notebook_run = self._get_is_notebook_run()
+        self._verbose = verbose
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -121,7 +125,9 @@ class JobBuilder:
     def disable(self, val: bool) -> None:
         self._disable = val
 
-    def _handle_server_artifact(self, res: Dict, artifact: "ArtifactRecord") -> None:
+    def _handle_server_artifact(
+        self, res: Optional[Dict], artifact: "ArtifactRecord"
+    ) -> None:
         if artifact.type == "job" and res is not None:
             try:
                 if res["artifactSequence"]["latestArtifact"] is None:
@@ -135,7 +141,7 @@ class JobBuilder:
                 self._job_seq_id = res["artifactSequence"]["id"]
             except KeyError as e:
                 _logger.info(f"Malformed response from ArtifactSaver.save {e}")
-        if artifact.type == "code" and "id" in res:
+        if artifact.type == "code" and res is not None:
             self._logged_code_artifact = ArtifactInfoForJob(
                 {
                     "id": res["id"],
@@ -195,6 +201,21 @@ class JobBuilder:
 
         return source, name
 
+    def _log_if_verbose(self, message: str, level: LOG_LEVEL) -> None:
+        log_func: Optional[Union[Callable[[Any], None], Callable[[Any], None]]] = None
+        if level == "log":
+            _logger.info(message)
+            log_func = wandb.termlog
+        elif level == "warn":
+            _logger.warning(message)
+            log_func = wandb.termwarn
+        elif level == "error":
+            _logger.error(message)
+            log_func = wandb.termerror
+
+        if self._verbose and log_func is not None:
+            log_func(message)
+
     def _build_artifact_job_source(
         self,
         program_relpath: str,
@@ -210,8 +231,9 @@ class JobBuilder:
                 # at the directory the notebook is in instead of the jupyter core
                 if not os.path.exists(os.path.basename(program_relpath)):
                     _logger.info("target path does not exist, exiting")
-                    wandb.termwarn(
-                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job"
+                    self._log_if_verbose(
+                        "No program path found when generating artifact job source for a non-colab notebook run. See https://docs.wandb.ai/guides/launch/create-job",
+                        "warn",
                     )
                     return None, None
                 full_program_relpath = os.path.basename(program_relpath)
@@ -297,22 +319,25 @@ class JobBuilder:
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
         ):
-            wandb.termwarn(
-                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            self._log_if_verbose(
+                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "warn",
             )
             return None
         metadata = self._handle_metadata_file()
         if metadata is None:
-            wandb.termwarn(
-                f"Ensure read and write access to run files dir: {self._settings.files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables"
+            self._log_if_verbose(
+                f"Ensure read and write access to run files dir: {self._settings.files_dir}, control this via the WANDB_DIR env var. See https://docs.wandb.ai/guides/track/environment-variables",
+                "warn",
             )
             return None
 
         runtime: Optional[str] = metadata.get("python")
         # can't build a job without a python version
         if runtime is None:
-            wandb.termwarn(
-                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+            self._log_if_verbose(
+                "No python version found in metadata, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                "warn",
             )
             return None
 
@@ -343,13 +368,16 @@ class JobBuilder:
                     or self._settings.job_source
                     or self._source_type
                 ):
-                    wandb.termwarn("No source type found, not creating job artifact")
+                    self._log_if_verbose(
+                        "No source type found, not creating job artifact", "warn"
+                    )
                 return None
 
             program_relpath = self._get_program_relpath(source_type, metadata)
             if source_type != "image" and not program_relpath:
-                wandb.termwarn(
-                    "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job"
+                self._log_if_verbose(
+                    "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                    "warn",
                 )
                 return None
 
@@ -375,10 +403,11 @@ class JobBuilder:
 
             if source is None:
                 if source_type:
-                    wandb.termwarn(
+                    self._log_if_verbose(
                         f"Source type is set to '{source_type}' but some required information is missing "
                         "from the environment. A job will not be created from this run. See "
-                        "https://docs.wandb.ai/guides/launch/create-job"
+                        "https://docs.wandb.ai/guides/launch/create-job",
+                        "warn",
                     )
                 return None
 
@@ -445,8 +474,9 @@ class JobBuilder:
             program = metadata.get("program")
 
             if not program:
-                wandb.termwarn(
-                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job"
+                self._log_if_verbose(
+                    "Notebook 'program' path not found in metadata. See https://docs.wandb.ai/guides/launch/create-job",
+                    "warn",
                 )
 
             return program

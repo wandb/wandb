@@ -16,15 +16,17 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 	switch {
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
 		return false, err
-	case statusCode == http.StatusConflict:
-		return false, err
 	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
 		return false, err
 	case statusCode == http.StatusForbidden: // don't retry on 403 forbidden
 		return false, err
 	case statusCode == http.StatusNotFound: // don't retry on 404 not found
 		return false, err
-	case statusCode >= 400 && statusCode < 500: // retry on 4xx client error
+	case statusCode == http.StatusConflict: // don't retry on 409 conflict
+		return false, err
+	case statusCode == http.StatusGone: // don't retry on 410 Gone
+		return false, err
+	case statusCode >= 400 && statusCode < 500: // TODO: ideally we should only retry on 429
 		return true, err
 	default: // use default retry policy for all other status codes
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)

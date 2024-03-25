@@ -254,10 +254,6 @@ def test_ignore_globs_wandb_files(relay_server, wandb_init):
     assert "requirements.txt" not in uploaded_files
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="need to implement upload of wandb files",
-)
 def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init):
     inject_response = inject_graphql_response(
         body=json.dumps({"errors": ["Server down"]}),

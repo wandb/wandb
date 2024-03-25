@@ -42,7 +42,7 @@ def _server_accepts_image_filenames() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
         max_cli_version
@@ -51,7 +51,7 @@ def _server_accepts_image_filenames() -> bool:
 
 
 def _server_accepts_artifact_path() -> bool:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     target_version = "0.12.14"
     max_cli_version = util._get_max_cli_version() if not util._is_offline() else None

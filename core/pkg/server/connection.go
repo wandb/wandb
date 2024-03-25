@@ -8,13 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"net/url"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
-
-	"github.com/wandb/wandb/core/pkg/auth"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
@@ -232,28 +229,17 @@ func (nc *Connection) handleServerRequest() {
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
-	settings := msg.GetSettings()
-	func(s *service.Settings) {
-		if s.GetApiKey().GetValue() != "" {
-			return
-		}
-		if s.GetXOffline().GetValue() {
-			return
-		}
-		baseUrl := s.GetBaseUrl().GetValue()
-		u, err := url.Parse(baseUrl)
-		if err != nil {
-			slog.Error("error parsing url", "err", err, "url", baseUrl)
-			panic(err)
-		}
-		host := u.Hostname()
-		_, password, err := auth.GetNetrcLogin(host)
-		if err != nil {
-			slog.Error("error getting password from netrc", "err", err, "id", nc.id)
-			panic(err)
-		}
-		s.ApiKey = &wrapperspb.StringValue{Value: password}
-	}(settings)
+	settings := settings.From(msg.GetSettings())
+
+	err := settings.EnsureAPIKey()
+	if err != nil {
+		slog.Error(
+			"connection: couldn't get API key",
+			"err", err,
+			"id", nc.id,
+		)
+		panic(err)
+	}
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
@@ -276,12 +262,13 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = msg.GetSettings()
+	nc.stream.settings = settings.From(msg.GetSettings())
+
 	// update sentry tags
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.GetRunUrl().GetValue(),
-		"entity":  nc.stream.settings.GetEntity().GetValue(),
+		"run_url": nc.stream.settings.GetRunURL(),
+		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)
@@ -306,7 +293,7 @@ func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest)
 			ServerResponseType: &service.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &service.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.settings,
+					Settings: nc.stream.settings.Proto,
 				},
 			},
 		}

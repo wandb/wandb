@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/observability"
 	server "github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -229,7 +230,7 @@ func TestUpdate(t *testing.T) {
 				},
 			}
 
-			configCopy := make(map[string]interface{})
+			configCopy := runconfig.New()
 			_, err := rs.Update(fakeResp, tc.run, configCopy)
 
 			if tc.expectError {
@@ -253,8 +254,8 @@ func TestUpdate(t *testing.T) {
 				}
 
 				if tc.expectConfigUpdate {
-					require.Len(t, configCopy, 1)
-					value, ok := configCopy["lr"]
+					require.Len(t, configCopy.Tree(), 1)
+					value, ok := configCopy.Tree()["lr"]
 					require.True(t, ok, "Expected key 'lr' in config")
 					assert.Equal(t, 0.001, value)
 				}

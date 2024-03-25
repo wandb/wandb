@@ -93,11 +93,13 @@ launch = [
     "nbformat",
     "pydantic",
     "typing_extensions",
+    "tomli",
     "PyYAML>=6.0.0",
 ]
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
 perf = ["orjson"]
+importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
 
 [tool.setuptools]
@@ -114,7 +116,7 @@ version = { attr = "wandb.__version__" }
 [tool.pytest.ini_options]
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope --capture=no"
+addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
 markers = [
     "image_output",
     "multiclass",
@@ -178,6 +180,7 @@ ignore = [
     "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
     "UP022",
+    "UP032", # Allow using format instead of f-string.
     "UP036",
 ]
 target-version = "py37"

@@ -1,7 +1,7 @@
 import base64
 import os
 from logging import getLogger
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -26,13 +26,16 @@ def test_repr():
     )
     assert (
         repr(blank_entry) == "ArtifactManifestEntry"
-        "(path='foo', digest='bar', ref='', birth_artifact_id='', size=0)"
+        "(path='foo', digest='bar', ref='', birth_artifact_id='', size=0, skip_cache=False)"
     )
     assert entry != blank_entry
     assert entry != repr(entry)
 
     short_entry = ArtifactManifestEntry(path="foo", digest="barr")
-    assert repr(short_entry) == "ArtifactManifestEntry(path='foo', digest='barr')"
+    assert (
+        repr(short_entry)
+        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
+    )
     assert entry != short_entry
 
 
@@ -46,7 +49,10 @@ def base64_decode(data):
 def test_manifest_download(monkeypatch):
     artifact = Artifact("mnist", type="dataset")
     short_entry = ArtifactManifestEntry(path="foo", digest="barr")
-    assert repr(short_entry) == "ArtifactManifestEntry(path='foo', digest='barr')"
+    assert (
+        repr(short_entry)
+        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
+    )
     short_entry._parent_artifact = artifact
 
     abspath_to_cur_dir = os.path.dirname(os.path.abspath(__file__))
@@ -64,5 +70,5 @@ def test_manifest_download(monkeypatch):
     )
 
     short_entry.path = default_cache
-    fpath = short_entry.download(root=abspath_to_cur_dir, skip_cache=True)
-    assert fpath.endswith("unit_tests/test_artifacts/default_cache")
+    fpath = PurePath(short_entry.download(root=abspath_to_cur_dir, skip_cache=True))
+    assert fpath.parts[-3:] == ("unit_tests", "test_artifacts", "default_cache")

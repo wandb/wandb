@@ -1,6 +1,7 @@
 """WandB storage policy."""
 import hashlib
 import math
+import os
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 from urllib.parse import quote
@@ -8,12 +9,12 @@ from urllib.parse import quote
 import requests
 import urllib3
 
-from wandb.apis import InternalApi
 from wandb.errors.term import termwarn
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
@@ -28,6 +29,7 @@ from wandb.sdk.artifacts.storage_handlers.wb_local_artifact_handler import (
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
@@ -60,8 +62,10 @@ class WandbStoragePolicy(StoragePolicy):
         return WANDB_STORAGE_POLICY
 
     @classmethod
-    def from_config(cls, config: Dict) -> "WandbStoragePolicy":
-        return cls(config=config)
+    def from_config(
+        cls, config: Dict, api: Optional[InternalApi] = None
+    ) -> "WandbStoragePolicy":
+        return cls(config=config, api=api)
 
     def __init__(
         self,
@@ -131,6 +135,7 @@ class WandbStoragePolicy(StoragePolicy):
         if manifest_entry._download_url is None:
             auth = None
             if not _thread_local_api_settings.cookies:
+                assert self._api.api_key is not None
                 auth = ("api", self._api.api_key)
             response = self._session.get(
                 self._file_url(self._api, artifact.entity, manifest_entry),
@@ -222,9 +227,10 @@ class WandbStoragePolicy(StoragePolicy):
                     extra_headers={
                         "content-md5": md5_b64_str,
                         "content-length": str(len(data)),
-                        "content-type": extra_headers.get("Content-Type"),
+                        "content-type": extra_headers.get("Content-Type", ""),
                     },
                 )
+                assert upload_resp is not None
                 etags.append(
                     {"partNumber": part_number, "hexMD5": upload_resp.headers["ETag"]}
                 )
@@ -311,7 +317,6 @@ class WandbStoragePolicy(StoragePolicy):
             return True
         if entry.local_path is None:
             return False
-
         extra_headers = {
             header.split(":", 1)[0]: header.split(":", 1)[1]
             for header in (resp.upload_headers or {})
@@ -333,6 +338,7 @@ class WandbStoragePolicy(StoragePolicy):
                 multipart_urls,
                 extra_headers,
             )
+            assert resp.storage_path is not None
             self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
@@ -389,9 +395,16 @@ class WandbStoragePolicy(StoragePolicy):
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
-        if not hit:
-            try:
+
+        staging_dir = get_staging_dir()
+        try:
+            if not entry.skip_cache and not hit:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-            except OSError as e:
-                termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
+            if entry.local_path.startswith(staging_dir):
+                # Delete staged files here instead of waiting till
+                # all the files are uploaded
+                os.chmod(entry.local_path, 0o600)
+                os.remove(entry.local_path)
+        except OSError as e:
+            termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")

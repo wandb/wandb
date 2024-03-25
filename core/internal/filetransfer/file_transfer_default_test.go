@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -31,7 +31,11 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), clients.NewRetryClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Mocking task
 	task := &filetransfer.Task{
@@ -86,7 +90,11 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), clients.NewRetryClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"

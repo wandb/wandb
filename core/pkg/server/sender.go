@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,18 +12,17 @@ import (
 	"time"
 
 	"github.com/segmentio/encoding/json"
-	"gopkg.in/yaml.v3"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -82,7 +81,7 @@ type Sender struct {
 	fileStream *fs.FileStream
 
 	// filetransfer is the file uploader/downloader
-	fileTransferManager *filetransfer.FileTransferManager
+	fileTransferManager filetransfer.FileTransferManager
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -92,17 +91,20 @@ type Sender struct {
 	// resumeState is the resume state
 	resumeState *ResumeState
 
+	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
+	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
+	// debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
 	summaryMap map[string]*service.SummaryItem
 
 	// Keep track of config which is being updated incrementally
-	configMap map[string]interface{}
+	runConfig *runconfig.RunConfig
 
 	// Info about the (local) server we are talking to
 	serverInfo *gql.ServerInfoServerInfo
@@ -117,98 +119,60 @@ type Sender struct {
 	jobBuilder *launch.JobBuilder
 
 	wgFileTransfer sync.WaitGroup
+
+	networkPeeker *observability.Peeker
 }
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
+	backendOrNil *api.Backend,
+	fileStreamOrNil *fs.FileStream,
+	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
+	peeker *observability.Peeker,
 	opts ...SenderOption,
 ) *Sender {
 
 	sender := &Sender{
-		ctx:            ctx,
-		cancel:         cancel,
-		settings:       settings,
-		logger:         logger,
-		summaryMap:     make(map[string]*service.SummaryItem),
-		configMap:      make(map[string]interface{}),
-		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer: sync.WaitGroup{},
+		ctx:                 ctx,
+		cancel:              cancel,
+		settings:            settings,
+		logger:              logger,
+		summaryMap:          make(map[string]*service.SummaryItem),
+		runConfig:           runconfig.New(),
+		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer:      sync.WaitGroup{},
+		fileStream:          fileStreamOrNil,
+		fileTransferManager: fileTransferManagerOrNil,
+		networkPeeker:       peeker,
 	}
-	if !settings.GetXOffline().GetValue() {
-		baseHeaders := map[string]string{
+
+	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
+		graphqlHeaders := map[string]string{
 			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
 			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
 		}
-		graphqlRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientHttpAuthTransport(
-				settings.GetApiKey().GetValue(),
-				baseHeaders,
-				settings.GetXExtraHttpHeaders().GetValue(),
-			),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXGraphqlRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
+		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
+
+		graphqlClient := backendOrNil.NewClient(api.ClientOptions{
+			RetryPolicy:     clients.CheckRetry,
+			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
+			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
+			ExtraHeaders:    graphqlHeaders,
+			NetworkPeeker:   sender.networkPeeker,
+		})
 		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlRetryClient.StandardClient())
-
-		headers := map[string]string{}
-		if settings.GetXShared().GetValue() {
-			headers["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		}
-		fileStreamRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientResponseLogger(logger.Logger, func(resp *http.Response) bool {
-				return resp.StatusCode >= 400
-			}),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileStreamRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue())),
-			clients.WithRetryClientHttpAuthTransport(sender.settings.GetApiKey().GetValue(), headers),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-			// TODO(core:beta): add custom retry function
-			// retryClient.CheckRetry = fs.GetCheckRetryFunc()
-		)
-		sender.fileStream = fs.NewFileStream(
-			fs.WithSettings(settings),
-			fs.WithLogger(logger),
-			fs.WithHttpClient(fileStreamRetryClient),
-			fs.WithClientId(shared.ShortID(32)),
-		)
-
-		fileTransferRetryClient := clients.NewRetryClient(
-			clients.WithRetryClientLogger(logger),
-			clients.WithRetryClientRetryPolicy(clients.CheckRetry),
-			clients.WithRetryClientRetryMax(int(settings.GetXFileTransferRetryMax().GetValue())),
-			clients.WithRetryClientRetryWaitMin(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())),
-			clients.WithRetryClientRetryWaitMax(clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())),
-			clients.WithRetryClientHttpTimeout(clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())),
-			clients.WithRetryClientBackoff(clients.ExponentialBackoffWithJitter),
-		)
-		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
-			logger,
-			fileTransferRetryClient,
-		)
-		sender.fileTransferManager = filetransfer.NewFileTransferManager(
-			filetransfer.WithLogger(logger),
-			filetransfer.WithSettings(settings),
-			filetransfer.WithFileTransfer(defaultFileTransfer),
-			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
-		)
+		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
 
 		sender.getServerInfo()
 
 		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
+			sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
 		}
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
@@ -257,6 +221,8 @@ func (s *Sender) SendRecord(record *service.Record) {
 }
 
 // sendRecord sends a record
+//
+//gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
 	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
@@ -294,6 +260,9 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
+		s.sendArtifact(record, x.Artifact)
+	case *service.Record_WandbConfigParameters:
+		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -310,7 +279,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
-		s.sendNetworkStatusRequest(x.NetworkStatus)
+		s.sendNetworkStatusRequest(record, x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
@@ -361,8 +330,12 @@ func (s *Sender) updateSettings() {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
-	fsPath := fmt.Sprintf("%s/files/%s/%s/%s/file_stream",
-		s.settings.GetBaseUrl().GetValue(), s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+	fsPath := fmt.Sprintf(
+		"files/%s/%s/%s/file_stream",
+		s.RunRecord.Entity,
+		s.RunRecord.Project,
+		s.RunRecord.RunId,
+	)
 
 	fs.WithPath(fsPath)(s.fileStream)
 	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
@@ -372,14 +345,39 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+func (s *Sender) sendNetworkStatusRequest(
+	record *service.Record,
+	_ *service.NetworkStatusRequest,
+) {
+	// in case of network peeker is not set, we don't need to do anything
+	if s.networkPeeker == nil {
+		return
+	}
+
+	// send the network status response if there is any
+	if response := s.networkPeeker.Read(); len(response) > 0 {
+		result := &service.Result{
+			ResultType: &service.Result_Response{
+				Response: &service.Response{
+					ResponseType: &service.Response_NetworkStatusResponse{
+						NetworkStatusResponse: &service.NetworkStatusResponse{
+							NetworkResponses: response,
+						},
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.outChan <- result
+	}
 }
 
 func (s *Sender) sendJobFlush() {
 	if s.jobBuilder == nil {
 		return
 	}
-	input := s.configMap
+	s.jobBuilder.SetRunConfig(*s.runConfig)
 	output := make(map[string]interface{})
 
 	var out interface{}
@@ -393,7 +391,7 @@ func (s *Sender) sendJobFlush() {
 		output[k] = out
 	}
 
-	artifact, err := s.jobBuilder.Build(input, output)
+	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
 		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
 		return
@@ -447,7 +445,9 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 		s.sendRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
 		s.wgFileTransfer.Wait()
-		s.fileTransferManager.Close()
+		if s.fileTransferManager != nil {
+			s.fileTransferManager.Close()
+		}
 		request.State++
 		s.sendRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
@@ -484,7 +484,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 
 func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRecord) {
 	proto.Merge(s.telemetry, telemetry)
-	s.updateConfigPrivate(s.telemetry)
+	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
 	s.sendConfig(nil, nil /*configRecord*/)
 }
@@ -520,81 +520,34 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// updateConfig updates the config map with the config record
+// Applies the change record to the run configuration.
 func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	// TODO: handle nested key updates and deletes
-	for _, d := range configRecord.GetUpdate() {
-		var value interface{}
-		if err := json.Unmarshal([]byte(d.GetValueJson()), &value); err != nil {
-			s.logger.CaptureError("unmarshal problem", err)
-			continue
-		}
-		keyList := d.GetNestedKey()
-		if keyList == nil {
-			keyList = []string{d.GetKey()}
-		}
-		target := s.configMap
-		for _, k := range keyList[:len(keyList)-1] {
-			val, ok := target[k].(map[string]interface{})
-			if !ok {
-				val = make(map[string]interface{})
-				target[k] = val
-			}
-			target = val
-		}
-		target[keyList[len(keyList)-1]] = value
-	}
-	for _, d := range configRecord.GetRemove() {
-		delete(s.configMap, d.GetKey())
-	}
+	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
+		s.logger.CaptureError("Error updating run config", err)
+	})
 }
 
-// updateConfigPrivate updates the private part of the config map
-func (s *Sender) updateConfigPrivate(telemetry *service.TelemetryRecord) {
-	if _, ok := s.configMap["_wandb"]; !ok {
-		s.configMap["_wandb"] = make(map[string]interface{})
+// Inserts W&B-internal information into the run configuration.
+//
+// Uses the given telemetry
+func (s *Sender) updateConfigPrivate() {
+	metrics := []map[int]interface{}(nil)
+	if s.metricSender != nil {
+		metrics = s.metricSender.configMetrics
 	}
 
-	switch v := s.configMap["_wandb"].(type) {
-	case map[string]interface{}:
-		if telemetry.GetCliVersion() != "" {
-			v["cli_version"] = telemetry.CliVersion
-		}
-		if telemetry.GetPythonVersion() != "" {
-			v["python_version"] = telemetry.PythonVersion
-		}
-		v["t"] = corelib.ProtoEncodeToDict(s.telemetry)
-		if s.metricSender != nil {
-			v["m"] = s.metricSender.configMetrics
-		}
-		// todo: add the rest of the telemetry from telemetry
-	default:
-		err := fmt.Errorf("can not parse config _wandb, saw: %v", v)
-		s.logger.CaptureFatalAndPanic("sender received error", err)
-	}
+	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
 }
 
-// serializeConfig serializes the config map to a json string
-// that can be sent to the server
-func (s *Sender) serializeConfig(format string) string {
-	valueConfig := make(map[string]map[string]interface{})
-	for key, elem := range s.configMap {
-		valueConfig[key] = make(map[string]interface{})
-		valueConfig[key]["value"] = elem
-	}
-	var serializedConfig []byte
-	var err error
-	if format == "yaml" {
-		serializedConfig, err = yaml.Marshal(valueConfig)
-	} else {
-		// json
-		serializedConfig, err = json.Marshal(valueConfig)
-	}
+// Serializes the run configuration to send to the backend.
+func (s *Sender) serializeConfig(format runconfig.ConfigFormat) string {
+	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
 	}
+
 	return string(serializedConfig)
 }
 
@@ -636,7 +589,11 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		return err
 	}
 
-	if result, err := s.resumeState.Update(data, s.RunRecord, s.configMap); err != nil {
+	if result, err := s.resumeState.Update(
+		data,
+		s.RunRecord,
+		s.runConfig,
+	); err != nil {
 		s.sendRunResult(record, result)
 		return err
 	}
@@ -645,27 +602,33 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 }
 
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
-
-	if s.RunRecord == nil && s.graphqlClient != nil {
-		var ok bool
-		s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
-		if !ok {
-			err := fmt.Errorf("failed to clone RunRecord")
-			s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
-		}
-
-		if err := s.checkAndUpdateResumeState(record); err != nil {
-			s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
-			return
-		}
-	}
-
 	if s.graphqlClient != nil {
-
+		// The first run record sent by the client is encoded incorrectly,
+		// causing it to overwrite the entire "_wandb" config key rather than
+		// just the necessary part ("_wandb/code_path"). This can overwrite
+		// the config from a resumed run, so we have to do this first.
+		//
+		// Logically, it would make more sense to instead start with the
+		// resumed config and apply updates on top of it.
 		s.updateConfig(run.Config)
 		proto.Merge(s.telemetry, run.Telemetry)
-		s.updateConfigPrivate(run.Telemetry)
-		config := s.serializeConfig("json")
+		s.updateConfigPrivate()
+
+		if s.RunRecord == nil {
+			var ok bool
+			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
+			if !ok {
+				err := fmt.Errorf("failed to clone RunRecord")
+				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+			}
+
+			if err := s.checkAndUpdateResumeState(record); err != nil {
+				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				return
+			}
+		}
+
+		config := s.serializeConfig(runconfig.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -700,7 +663,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			utils.NilIfZero(repo),            // repo
 			utils.NilIfZero(run.JobType),     // jobType
 			nil,                              // state
-			nil,                              // sweep
+			utils.NilIfZero(run.SweepId),     // sweep
 			tags,                             // tags []string,
 			nil,                              // summaryMetrics
 		)
@@ -729,9 +692,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
-		s.RunRecord.DisplayName = *data.UpsertBucket.Bucket.DisplayName
-		s.RunRecord.Project = data.UpsertBucket.Bucket.Project.Name
-		s.RunRecord.Entity = data.UpsertBucket.Bucket.Project.Entity.Name
+		bucket := data.GetUpsertBucket().GetBucket()
+		project := bucket.GetProject()
+		entity := project.GetEntity()
+		s.RunRecord.StorageId = bucket.GetId()
+		// s.RunRecord.RunId = bucket.GetName()
+		s.RunRecord.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
+		s.RunRecord.Project = project.GetName()
+		s.RunRecord.Entity = entity.GetName()
+		s.RunRecord.SweepId = utils.ZeroIfNil(bucket.GetSweepName())
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -789,7 +758,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig("json")
+	config := s.serializeConfig(runconfig.FormatJson)
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err := gql.UpsertBucket(
@@ -826,7 +795,7 @@ func (s *Sender) writeAndSendConfigFile() {
 		return
 	}
 
-	config := s.serializeConfig("yaml")
+	config := s.serializeConfig(runconfig.FormatYaml)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
@@ -984,7 +953,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	}
 
 	s.encodeMetricHints(record, metric)
-	s.updateConfigPrivate(nil /*telemetry*/)
+	s.updateConfigPrivate()
 	s.sendConfig(nil, nil /*configRecord*/)
 }
 
@@ -1031,74 +1000,47 @@ func (s *Sender) sendFile(file *service.FilesItem) {
 	)
 	if err != nil {
 		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError("sender: sendFile error", err)
 		return
 	}
-	headers := data.GetCreateRunFiles().GetUploadHeaders()
-	for _, f := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
-		task := &filetransfer.Task{
-			Type:    filetransfer.UploadTask,
-			Path:    fullPath,
-			Name:    f.Name,
-			Url:     *f.UploadUrl,
-			Headers: headers,
-		}
 
-		task.SetProgressCallback(
-			func(processed, total int) {
-				if processed == 0 {
-					return
-				}
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:      service.FileTransferInfoRequest_Upload,
-									Path:      fullPath,
-									Size:      int64(total),
-									Processed: int64(processed),
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
+	if len(data.CreateRunFiles.Files) != 1 {
+		err = fmt.Errorf(
+			"sender: sendFile: unexpected GraphQL response:"+
+				" expected 1 file but got %v",
+			len(data.CreateRunFiles.Files),
 		)
-		task.SetCompletionCallback(
-			func(t *filetransfer.Task) {
-				s.fileTransferManager.FileStreamCallback(t)
-				fileCounts := &service.FileCounts{}
-				switch file.GetType() {
-				case service.FilesItem_MEDIA:
-					fileCounts.MediaCount = 1
-				case service.FilesItem_OTHER:
-					fileCounts.OtherCount = 1
-				case service.FilesItem_WANDB:
-					fileCounts.WandbCount = 1
-				}
+		s.logger.CaptureError("sender: sendFile error", err)
+		return
+	}
 
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:       service.FileTransferInfoRequest_Upload,
-									Path:       fullPath,
-									Size:       t.Size,
-									Processed:  t.Size,
-									FileCounts: fileCounts,
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
-		)
-		s.fileTransferManager.AddTask(task)
+	task := &filetransfer.Task{
+		FileKind: filetransfer.RunFileKindFromProto(file.Type),
+		Type:     filetransfer.UploadTask,
+		Path:     fullPath,
+		Name:     data.CreateRunFiles.Files[0].Name,
+		Url:      *data.CreateRunFiles.Files[0].UploadUrl,
+		Headers:  data.CreateRunFiles.UploadHeaders,
+	}
+
+	task.SetCompletionCallback(
+		func(t *filetransfer.Task) {
+			s.fileTransferManager.FileStreamCallback(t)
+		},
+	)
+
+	s.fileTransferManager.AddTask(task)
+}
+
+func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
+	saver := artifacts.NewArtifactSaver(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
+	)
+	artifactID, err := saver.Save(s.fwdChan)
+	if err != nil {
+		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
+		s.logger.Error("sender: sendArtifact:", "error", err)
+		return
 	}
 }
 
@@ -1125,7 +1067,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
-	s.jobBuilder.HandleLogArtifactResult(&response, record)
+	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
 	s.outChan <- result
 }
 
@@ -1213,7 +1155,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 	s.fwdChan <- rec
 }
 
-func (s *Sender) sendSenderRead(record *service.Record, request *service.SenderReadRequest) {
+func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
@@ -1297,4 +1239,8 @@ func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoReq
 		Uuid:    record.Uuid,
 	}
 	s.outChan <- result
+}
+
+func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
+	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
 }

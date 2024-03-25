@@ -148,15 +148,14 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
         if launch_project.docker_image:
-            if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
-                try:
-                    pull_docker_image(image_uri)
-                except Exception as e:
-                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
-                    if not docker_image_exists(image_uri):
-                        raise LaunchError(
-                            f"Failed to pull docker image {image_uri} with error: {e}"
-                        )
+            try:
+                pull_docker_image(image_uri)
+            except Exception as e:
+                wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                if not docker_image_exists(image_uri):
+                    raise LaunchError(
+                        f"Failed to pull docker image {image_uri} with error: {e}"
+                    )
 
             assert launch_project.docker_image == image_uri
 
@@ -234,7 +233,13 @@ def _thread_process_runner(
         if not chunk:
             break
         index = chunk.find(b"\r")
-        decoded_chunk = chunk.decode()
+        decoded_chunk = None
+        while not decoded_chunk:
+            try:
+                decoded_chunk = chunk.decode()
+            except UnicodeDecodeError:
+                # Multi-byte character cut off, try to get the rest of it
+                chunk += os.read(process.stdout.fileno(), 1)  # type: ignore
         if index != -1:
             run._stdout += decoded_chunk
             print(chunk.decode(), end="")

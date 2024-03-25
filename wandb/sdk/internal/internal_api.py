@@ -2150,6 +2150,7 @@ class Api:
                             name
                         }
                     }
+                    historyLineCount
                 }
                 inserted
                 _Server_Settings_
@@ -2237,6 +2238,7 @@ class Api:
                 .get("serverSettings", {})
                 .get("serverMessages", [])
             )
+
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],
@@ -3720,7 +3722,7 @@ class Api:
         artifact_id: str,
         storage_path: str,
         completed_parts: List[Dict[str, Any]],
-        upload_id: str,
+        upload_id: Optional[str],
         complete_multipart_action: str = "Complete",
     ) -> Optional[str]:
         mutation = gql(

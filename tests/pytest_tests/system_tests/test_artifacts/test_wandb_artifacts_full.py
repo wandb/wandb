@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import Api
+from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -236,6 +237,142 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
+@pytest.mark.wandb_core_failure(feature="artifacts_cache")
+def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path)
+
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert found
+
+    # The staged files are deleted after caching
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+
+def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True)
+
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is not cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not found
+
+    # The staged files are deleted even if caching is disabled
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+
+@pytest.mark.wandb_core_failure(feature="artifacts_cache")
+def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, policy="immutable")
+
+    # The file is not staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert found
+
+
+def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
+    staging_dir = Path(get_staging_dir())
+
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
+    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
+    assert cache._cache_dir == artifact_file_cache.get_artifact_file_cache()._cache_dir
+    cache.cleanup(0)
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True, policy="immutable")
+
+    # The file is not staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not found
+
+
 def test_local_references(wandb_init):
     run = wandb_init()
 
@@ -435,7 +572,7 @@ def test_new_draft(wandb_init):
     # We would use public properties, but they're only available on non-draft artifacts.
     assert draft._entity == parent.entity
     assert draft._project == parent.project
-    assert draft._source_name == art.name.split(":")[0]
+    assert draft._source_name == art.name
     assert draft._source_entity == parent.entity
     assert draft._source_project == parent.project
 

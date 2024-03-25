@@ -10,6 +10,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Creates a files Record with the given set of files.
+//
+// Sets the policy for each file to "now" (maybe it shouldn't!)
+//
+// Returns nil if there are no files.
 func makeRecord(fileSet map[string]*service.FilesItem) *service.Record {
 	if len(fileSet) == 0 {
 		return nil
@@ -38,9 +43,20 @@ func WithFilesHandlerHandleFn(fn func(*service.Record)) FilesHandlerOption {
 }
 
 type FilesHandler struct {
-	watcher  *watcher.Watcher
+	// Function to forward records down the chain.
+	//
+	// Passing a file record here causes it to be persisted if necessary and
+	// causes the file to get uploaded.
 	handleFn func(*service.Record)
-	endSet   map[string]*service.FilesItem
+
+	// File watcher for "live"-mode files.
+	watcher *watcher.Watcher
+
+	// Files to upload at the end of the run.
+	//
+	// Map from the file path to the file.
+	endSet map[string]*service.FilesItem
+
 	settings *service.Settings
 	logger   *observability.CoreLogger
 }
@@ -172,53 +188,4 @@ func (fh *FilesHandler) handleEnd() {
 
 func (fh *FilesHandler) Flush() {
 	fh.handleEnd()
-}
-
-// FilesInfoHandler is a handler for file transfer info records.
-type FilesInfoHandler struct {
-	tracked    map[string]*service.FileTransferInfoRequest
-	filesStats *service.FilePusherStats
-	filesCount *service.FileCounts
-}
-
-func NewFilesInfoHandler() *FilesInfoHandler {
-	return &FilesInfoHandler{
-		filesStats: &service.FilePusherStats{},
-		tracked:    make(map[string]*service.FileTransferInfoRequest),
-		filesCount: &service.FileCounts{},
-	}
-}
-
-func (fh *FilesInfoHandler) Handle(record *service.Record) {
-	request := record.GetRequest().GetFileTransferInfo()
-	fileCounts := request.GetFileCounts()
-	path := request.GetPath()
-	if info, ok := fh.tracked[path]; ok {
-		fh.filesStats.UploadedBytes += request.GetProcessed() - info.GetProcessed()
-		fh.filesCount.OtherCount += fileCounts.GetOtherCount() - info.GetFileCounts().GetOtherCount()
-		fh.filesCount.WandbCount += fileCounts.GetWandbCount() - info.GetFileCounts().GetWandbCount()
-		fh.filesCount.MediaCount += fileCounts.GetMediaCount() - info.GetFileCounts().GetMediaCount()
-		fh.filesCount.ArtifactCount += fileCounts.GetArtifactCount() - info.GetFileCounts().GetArtifactCount()
-		fh.tracked[path] = request
-	} else {
-		fh.filesStats.TotalBytes += request.GetSize()
-		fh.filesStats.UploadedBytes += request.GetProcessed()
-		fh.filesCount.OtherCount += fileCounts.GetOtherCount()
-		fh.filesCount.WandbCount += fileCounts.GetWandbCount()
-		fh.filesCount.MediaCount += fileCounts.GetMediaCount()
-		fh.filesCount.ArtifactCount += fileCounts.GetArtifactCount()
-		fh.tracked[path] = request
-	}
-}
-
-func (fh *FilesInfoHandler) GetFilesStats() *service.FilePusherStats {
-	return fh.filesStats
-}
-
-func (fh *FilesInfoHandler) GetFilesCount() *service.FileCounts {
-	return fh.filesCount
-}
-
-func (fh *FilesInfoHandler) GetDone() bool {
-	return fh.filesStats.TotalBytes == fh.filesStats.UploadedBytes
 }
