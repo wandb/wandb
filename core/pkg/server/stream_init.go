@@ -3,12 +3,16 @@ package server
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"fmt"
+	"maps"
 	"net/url"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/pkg/filestream"
@@ -33,6 +37,31 @@ func NewBackend(
 		Logger:  logger.Logger,
 		APIKey:  settings.GetAPIKey(),
 	})
+}
+
+func NewGraphQLClient(
+	backend *api.Backend,
+	settings *settings.Settings,
+	peeker *observability.Peeker,
+) graphql.Client {
+	graphqlHeaders := map[string]string{
+		"X-WANDB-USERNAME":   settings.Proto.GetUsername().GetValue(),
+		"X-WANDB-USER-EMAIL": settings.Proto.GetEmail().GetValue(),
+	}
+	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
+
+	httpClient := backend.NewClient(api.ClientOptions{
+		RetryPolicy:     clients.CheckRetry,
+		RetryMax:        int(settings.Proto.GetXGraphqlRetryMax().GetValue()),
+		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXGraphqlTimeoutSeconds().GetValue()),
+		ExtraHeaders:    graphqlHeaders,
+		NetworkPeeker:   peeker,
+	})
+	url := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
+
+	return graphql.NewClient(url, httpClient)
 }
 
 func NewFileStream(
@@ -90,4 +119,18 @@ func NewFileTransferManager(
 		filetransfer.WithFileTransferStats(fileTransferStats),
 		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
+}
+
+func NewRunfilesUploader(
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+	fileTransfer filetransfer.FileTransferManager,
+	graphQL graphql.Client,
+) runfiles.Uploader {
+	return runfiles.NewUploader(runfiles.UploaderParams{
+		Logger:       logger,
+		Settings:     settings,
+		FileTransfer: fileTransfer,
+		GraphQL:      graphQL,
+	})
 }

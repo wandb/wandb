@@ -56,6 +56,12 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		logger,
 		settings,
 	)
+	runfilesUploader := server.NewRunfilesUploader(
+		logger,
+		settings,
+		fileTransferManager,
+		client,
+	)
 	sender := server.NewSender(
 		ctx,
 		cancel,
@@ -63,12 +69,13 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		fileStream,
 		fileTransferManager,
 		logger,
+		runfilesUploader,
 		settings.Proto,
 		nil, /* peeker */
+		client,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
 	)
-	sender.SetGraphqlClient(client)
 	return sender
 }
 

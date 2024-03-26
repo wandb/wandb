@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -83,6 +83,9 @@ type Sender struct {
 	// filetransfer is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
 
+	// runfilesUploader manages uploading a run's files
+	runfilesUploader runfiles.Uploader
+
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
 	//       + a flag indicating whether the run has started
@@ -131,8 +134,10 @@ func NewSender(
 	fileStreamOrNil *fs.FileStream,
 	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
+	runfilesUploaderOrNil runfiles.Uploader,
 	settings *service.Settings,
 	peeker *observability.Peeker,
+	graphqlClient graphql.Client,
 	opts ...SenderOption,
 ) *Sender {
 
@@ -147,28 +152,12 @@ func NewSender(
 		wgFileTransfer:      sync.WaitGroup{},
 		fileStream:          fileStreamOrNil,
 		fileTransferManager: fileTransferManagerOrNil,
+		runfilesUploader:    runfilesUploaderOrNil,
 		networkPeeker:       peeker,
+		graphqlClient:       graphqlClient,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
-		graphqlHeaders := map[string]string{
-			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
-			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
-		}
-		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
-
-		graphqlClient := backendOrNil.NewClient(api.ClientOptions{
-			RetryPolicy:     clients.CheckRetry,
-			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
-			ExtraHeaders:    graphqlHeaders,
-			NetworkPeeker:   sender.networkPeeker,
-		})
-		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
 		sender.getServerInfo()
 
 		if !settings.GetDisableJobCreation().GetValue() {
@@ -209,10 +198,6 @@ func (s *Sender) Close() {
 
 func (s *Sender) GetOutboundChannel() chan *service.Result {
 	return s.outChan
-}
-
-func (s *Sender) SetGraphqlClient(client graphql.Client) {
-	s.graphqlClient = client
 }
 
 func (s *Sender) SendRecord(record *service.Record) {
@@ -957,79 +942,16 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	s.sendConfig(nil, nil /*configRecord*/)
 }
 
-// sendFiles iterates over the files in the FilesRecord and sends them to
+// sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
-	files := filesRecord.GetFiles()
-	for _, file := range files {
-		if strings.HasPrefix(file.GetPath(), "media") {
-			file.Type = service.FilesItem_MEDIA
-		}
-		s.wgFileTransfer.Add(1)
-		go func(file *service.FilesItem) {
-			s.sendFile(file)
-			s.wgFileTransfer.Done()
-		}(file)
-	}
-}
-
-// sendFile sends a file to the server
-// TODO: improve this to handle multiple files and send them in one request
-func (s *Sender) sendFile(file *service.FilesItem) {
-	if s.graphqlClient == nil || s.fileTransferManager == nil {
-		return
-	}
-
-	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
-	}
-
-	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.GetPath())
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		s.logger.Warn("sender: sendFile: file does not exist", "path", fullPath)
-		return
-	}
-
-	data, err := gql.CreateRunFiles(
-		s.ctx,
-		s.graphqlClient,
-		s.RunRecord.Entity,
-		s.RunRecord.Project,
-		s.RunRecord.RunId,
-		[]string{file.GetPath()},
-	)
-	if err != nil {
-		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureError("sender: sendFile error", err)
-		return
-	}
-
-	if len(data.CreateRunFiles.Files) != 1 {
-		err = fmt.Errorf(
-			"sender: sendFile: unexpected GraphQL response:"+
-				" expected 1 file but got %v",
-			len(data.CreateRunFiles.Files),
+	if s.runfilesUploader == nil {
+		s.logger.CaptureWarn(
+			"sender: tried to sendFiles, but runfiles uploader is nil",
 		)
-		s.logger.CaptureError("sender: sendFile error", err)
 		return
 	}
 
-	task := &filetransfer.Task{
-		FileKind: filetransfer.RunFileKindFromProto(file.Type),
-		Type:     filetransfer.UploadTask,
-		Path:     fullPath,
-		Name:     data.CreateRunFiles.Files[0].Name,
-		Url:      *data.CreateRunFiles.Files[0].UploadUrl,
-		Headers:  data.CreateRunFiles.UploadHeaders,
-	}
-
-	task.SetCompletionCallback(
-		func(t *filetransfer.Task) {
-			s.fileTransferManager.FileStreamCallback(t)
-		},
-	)
-
-	s.fileTransferManager.AddTask(task)
+	s.runfilesUploader.Process(filesRecord)
 }
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
