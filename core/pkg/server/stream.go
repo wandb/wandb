@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
@@ -146,9 +147,11 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
+	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil *filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	if backendOrNil != nil {
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
 		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileStreamOrNil,
@@ -185,6 +188,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		s.logger,
 		s.settings.Proto,
 		peeker,
+		graphqlClientOrNil,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
