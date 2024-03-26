@@ -167,6 +167,7 @@ class Settings(google.protobuf.message.Message):
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
     FILES_DIR_FIELD_NUMBER: builtins.int
+    IGNORE_GLOBS_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _ASYNC_UPLOAD_CONCURRENCY_LIMIT_FIELD_NUMBER: builtins.int
@@ -240,7 +241,6 @@ class Settings(google.protobuf.message.Message):
     GIT_ROOT_FIELD_NUMBER: builtins.int
     HEARTBEAT_SECONDS_FIELD_NUMBER: builtins.int
     HOST_FIELD_NUMBER: builtins.int
-    IGNORE_GLOBS_FIELD_NUMBER: builtins.int
     INIT_TIMEOUT_FIELD_NUMBER: builtins.int
     IS_LOCAL_FIELD_NUMBER: builtins.int
     JOB_SOURCE_FIELD_NUMBER: builtins.int
@@ -352,6 +352,9 @@ class Settings(google.protobuf.message.Message):
     @property
     def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Absolute path to the local directory where this run's files are stored."""
+    @property
+    def ignore_globs(self) -> global___ListStringValue:
+        """Unix glob patterns relative to `files_dir` to not upload."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property
@@ -498,8 +501,6 @@ class Settings(google.protobuf.message.Message):
     def heartbeat_seconds(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
     @property
     def host(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def ignore_globs(self) -> global___ListStringValue: ...
     @property
     def init_timeout(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
@@ -674,6 +675,7 @@ class Settings(google.protobuf.message.Message):
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        ignore_globs: global___ListStringValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -747,7 +749,6 @@ class Settings(google.protobuf.message.Message):
         git_root: google.protobuf.wrappers_pb2.StringValue | None = ...,
         heartbeat_seconds: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         host: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        ignore_globs: global___ListStringValue | None = ...,
         init_timeout: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         is_local: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         job_source: google.protobuf.wrappers_pb2.StringValue | None = ...,
