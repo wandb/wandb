@@ -68,6 +68,71 @@ class NetworkRecv:
         return {self.name: aggregate}
 
 
+class NetworkTrafficSent:
+    """Network traffic sent."""
+
+    name = "network.traffic_sent"
+    samples: "Deque[float]"
+    last_sample: float
+
+    def __init__(self) -> None:
+
+        self.network_sent = NetworkSent()
+        self.samples = deque([])
+        self.network_sent.sample()
+        self.last_sample = self.network_sent.samples[-1]
+
+    def sample(self) -> None:
+        self.network_sent.sample()
+        current_sample = self.network_sent.samples[-1]
+        delta_sent = (current_sample - self.last_sample) / 2
+        self.samples.append(delta_sent)
+        self.last_sample = current_sample
+
+    def clear(self) -> None:
+        self.network_sent.clear()
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        return (
+            {self.name: aggregate_mean(self.samples)}
+            if self.samples
+            else {self.name: 0}
+        )
+
+
+class NetworkTrafficReceived:
+    """Network traffic received."""
+
+    name = "network.traffic_recv"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+
+        self.network_received = NetworkRecv()
+        self.samples = deque([])
+        self.network_received.sample()
+        self.last_sample = self.network_received.samples[-1]
+
+    def sample(self) -> None:
+        self.network_received.sample()
+        current_sample = self.network_received.samples[-1]
+        delta_sent = (current_sample - self.last_sample) / 2
+        self.samples.append(delta_sent)
+        self.last_sample = current_sample
+
+    def clear(self) -> None:
+        self.network_received.clear()
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        return (
+            {self.name: aggregate_mean(self.samples)}
+            if self.samples
+            else {self.name: 0}
+        )
+
+
 @asset_registry.register
 class Network:
     def __init__(
@@ -80,6 +145,8 @@ class Network:
         self.metrics: List[Metric] = [
             NetworkSent(),
             NetworkRecv(),
+            NetworkTrafficSent(),
+            NetworkTrafficReceived(),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
