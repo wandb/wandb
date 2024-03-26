@@ -272,6 +272,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_StopStatus:
+		s.sendStopStatus(record, x.StopStatus)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -1132,6 +1134,54 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Uuid:    record.Uuid,
 	}
 	s.fwdChan <- rec
+}
+
+func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusRequest) {
+	// TODO: ideally we could get it direclty from the settings
+	entity := s.RunRecord.GetEntity()
+	project := s.RunRecord.GetProject()
+	runId := s.RunRecord.GetRunId()
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_StopStatusResponse{
+					StopStatusResponse: &service.StopStatusResponse{
+						RunShouldStop: false,
+					},
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+
+	if entity == "" || project == "" || runId == "" {
+		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
+		s.outChan <- result
+		return
+	}
+
+	response, err := gql.RunStoppedStatus(s.ctx,
+		s.graphqlClient,
+		&entity,
+		&project,
+		runId,
+	)
+	if err != nil {
+		err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
+		s.logger.CaptureError("sender received error", err)
+		s.outChan <- result
+		return
+	}
+
+	result.ResultType.(*service.Result_Response).Response.ResponseType =
+		&service.Response_StopStatusResponse{
+			StopStatusResponse: &service.StopStatusResponse{
+				RunShouldStop: *response.GetProject().GetRun().GetStopped(),
+			},
+		}
+	s.outChan <- result
 }
 
 func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
