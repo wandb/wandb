@@ -71,7 +71,7 @@ func NewFileTransferManager(
 ) filetransfer.FileTransferManager {
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
-	fileTransferRetryClient.CheckRetry = clients.CheckRetry
+	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
 	fileTransferRetryClient.RetryMax = int(settings.Proto.GetXFileTransferRetryMax().GetValue())
 	fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMinSeconds().GetValue())
 	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
