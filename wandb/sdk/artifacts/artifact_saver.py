@@ -75,25 +75,22 @@ class ArtifactSaver:
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        try:
-            return self._save_internal(
-                type,
-                name,
-                client_id,
-                sequence_client_id,
-                distributed_id,
-                finalize,
-                metadata,
-                ttl_duration_seconds,
-                description,
-                aliases,
-                use_after_commit,
-                incremental,
-                history_step,
-                base_id,
-            )
-        finally:
-            pass
+        return self._save_internal(
+            type,
+            name,
+            client_id,
+            sequence_client_id,
+            distributed_id,
+            finalize,
+            metadata,
+            ttl_duration_seconds,
+            description,
+            aliases,
+            use_after_commit,
+            incremental,
+            history_step,
+            base_id,
+        )
 
     def _save_internal(
         self,

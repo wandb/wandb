@@ -25,6 +25,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 
 ### Changed
 
+* Limit policy option on artifact cli's put() to choices, ["mutable", "immutable"] by @ibindish in https://github.com/wandb/wandb/pull/7172
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
 
 ### Fixed
