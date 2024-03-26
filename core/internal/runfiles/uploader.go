@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"golang.org/x/sync/errgroup"
 )
 
 // uploader is the implementation of the Uploader interface.
@@ -183,8 +184,6 @@ func (u *uploader) lockForOperation(method string) bool {
 }
 
 // Begins watching the given path and uploading when the file changes.
-//
-// Note that this uses native filesystem events, and
 func (u *uploader) watch(path string) error {
 	// Lazily start the watcher when we receive our first file to watch.
 	if u.watcherOrNil == nil {
@@ -211,16 +210,18 @@ func (u *uploader) startWatcher() error {
 	u.watcherOrNil = watcher.New()
 	u.watcherOrNil.FilterOps(watcher.Write)
 
-	killLoop := make(chan struct{})
+	grp, ctx := errgroup.WithContext(context.Background())
 	u.watcherWG.Add(2)
 
-	go func() {
+	grp.Go(func() error {
 		defer u.watcherWG.Done()
 
-		u.loopWatchFiles(killLoop)
-	}()
+		u.loopWatchFiles(ctx)
 
-	go func() {
+		return nil
+	})
+
+	grp.Go(func() error {
 		defer u.watcherWG.Done()
 
 		if err := u.watcherOrNil.Start(time.Millisecond * 500); err != nil {
@@ -228,18 +229,22 @@ func (u *uploader) startWatcher() error {
 				"runfiles: failed to start file watcher",
 				err,
 			)
-			killLoop <- struct{}{}
+
+			// Returning the error cancels the above loop.
+			return err
 		}
-	}()
+
+		return nil
+	})
 
 	return nil
 }
 
 // Loops and processes file events.
 //
-// 'killLoop' is used to break the loop in case the watcher fails to even
+// 'ctx' is used to break the loop in case the watcher fails to even
 // start, in which case none of its channels will ever receive a message.
-func (u *uploader) loopWatchFiles(killLoop <-chan struct{}) {
+func (u *uploader) loopWatchFiles(ctx context.Context) {
 	for {
 		select {
 		case event := <-u.watcherOrNil.Event:
@@ -257,7 +262,7 @@ func (u *uploader) loopWatchFiles(killLoop <-chan struct{}) {
 		case <-u.watcherOrNil.Closed:
 			return
 
-		case <-killLoop:
+		case <-ctx.Done():
 			return
 		}
 	}
