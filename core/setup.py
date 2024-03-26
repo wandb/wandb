@@ -111,7 +111,7 @@ class CustomBuildPy(build_py):
             except FileNotFoundError:
                 pass
 
-            os.symlink(file, dest)
+            os.symlink(file.resolve(), dest)
 
         super().run()
 
