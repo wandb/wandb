@@ -1,4 +1,3 @@
-import _thread as thread
 import atexit
 import functools
 import glob
@@ -274,13 +273,16 @@ class RunStatusChecker:
         )
 
     def check_stop_status(self) -> None:
+        import signal
+
         def _process_stop_status(result: Result) -> None:
             stop_status = result.response.stop_status_response
             if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
-                    thread.interrupt_main()
+                    # thread.interrupt_main()
+                    os.kill(os.getpid(), signal.SIGINT)
                     return
 
         self._loop_check_status(
