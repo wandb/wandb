@@ -10,6 +10,7 @@ depend:
         - tensorflow==2.5.0
         - pandas
         - pillow
+        - packaging
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][summary][parameters/dense.bias][_type]: histogram
