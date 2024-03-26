@@ -17,6 +17,14 @@ the package in your environment. The `wandb` library will automatically detect a
 pip install -U wandb wandb-core
 ```
 
+in the top of your script add the following:
+
+```python
+import wandb
+
+wandb.require("core")
+```
+
 Note: ensure you have `wandb>=0.16.4`.
 
 ### Platform Compatibility
@@ -41,6 +49,8 @@ To revert to the old SDK backend, simply uninstall `wandb-core` from your enviro
 ```bash
 pip uninstall wandb-core
 ```
+
+or remove the `wandb.require("core")` from your script.
 
 ## Contributing
 
