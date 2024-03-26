@@ -60,6 +60,15 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
 		return err
 	}
+
+	// Don't try to upload directories.
+	if stat.IsDir() {
+		return fmt.Errorf(
+			"file transfer: upload: cannot upload directory %v",
+			task.Path,
+		)
+	}
+
 	task.Size = stat.Size()
 
 	progressReader, err := NewProgressReader(
@@ -147,6 +156,8 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 }
 
 type ProgressReader struct {
+	// Note: this turns ProgressReader into a ReadSeeker, not just a Reader!
+	// The retryablehttp client will seek to 0 on every retry.
 	*os.File
 	len      int
 	read     int
