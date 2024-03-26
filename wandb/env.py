@@ -87,6 +87,7 @@ _EXECUTABLE = "WANDB_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
+REQUIRE_CORE = "WANDB_REQUIRE_CORE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -144,6 +145,10 @@ def _env_as_bool(
     except (AttributeError, ValueError):
         pass
     return val if isinstance(val, bool) else False
+
+
+def is_require_core(env: Optional[Env] = None) -> bool:
+    return _env_as_bool(REQUIRE_CORE, default="False", env=env)
 
 
 def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
