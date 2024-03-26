@@ -3,8 +3,11 @@ package server
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"fmt"
+	"maps"
 	"net/url"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
@@ -33,6 +36,31 @@ func NewBackend(
 		Logger:  logger.Logger,
 		APIKey:  settings.GetAPIKey(),
 	})
+}
+
+func NewGraphQLClient(
+	backend *api.Backend,
+	settings *settings.Settings,
+	peeker *observability.Peeker,
+) graphql.Client {
+	graphqlHeaders := map[string]string{
+		"X-WANDB-USERNAME":   settings.Proto.GetUsername().GetValue(),
+		"X-WANDB-USER-EMAIL": settings.Proto.GetEmail().GetValue(),
+	}
+	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
+
+	httpClient := backend.NewClient(api.ClientOptions{
+		RetryPolicy:     clients.CheckRetry,
+		RetryMax:        int(settings.Proto.GetXGraphqlRetryMax().GetValue()),
+		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMinSeconds().GetValue()),
+		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
+		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXGraphqlTimeoutSeconds().GetValue()),
+		ExtraHeaders:    graphqlHeaders,
+		NetworkPeeker:   peeker,
+	})
+	url := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
+
+	return graphql.NewClient(url, httpClient)
 }
 
 func NewFileStream(
@@ -71,7 +99,7 @@ func NewFileTransferManager(
 ) filetransfer.FileTransferManager {
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
-	fileTransferRetryClient.CheckRetry = clients.CheckRetry
+	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
 	fileTransferRetryClient.RetryMax = int(settings.Proto.GetXFileTransferRetryMax().GetValue())
 	fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMinSeconds().GetValue())
 	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
