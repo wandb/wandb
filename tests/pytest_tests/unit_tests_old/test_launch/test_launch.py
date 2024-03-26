@@ -758,6 +758,8 @@ async def test_launch_local_docker_image(live_mock_server, test_settings, monkey
         "-e",
         "WANDB_CONFIG='{}'",
         "-e",
+        "WANDB_LAUNCH_FILE_OVERRIDES='{}'",
+        "-e",
         "WANDB_ARTIFACTS='{}'",
         "--volume",
         "/test-volume:/test-volume",

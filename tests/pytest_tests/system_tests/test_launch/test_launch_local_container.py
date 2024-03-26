@@ -51,6 +51,7 @@ async def test_local_container_entrypoint(relay_server, monkeypatch):
         project.override_entrypoint = entrypoint
         project.get_single_entry_point.return_value = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
+        project.override_files = {}
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"

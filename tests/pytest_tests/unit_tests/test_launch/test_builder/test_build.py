@@ -55,12 +55,13 @@ def test_get_env_vars_dict(mocker):
 
     assert resp == {
         "WANDB_API_KEY": "test-api-key",
-        "WANDB_ARTIFACTS": "test-wandb-artifacts",
+        "WANDB_ARTIFACTS": "{}",
         "WANDB_BASE_URL": "base_url",
-        "WANDB_CONFIG": "test-wandb-artifacts",
+        "WANDB_CONFIG": '{"test-key": "test-value"}',
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
         "WANDB_LAUNCH": "True",
+        "WANDB_LAUNCH_FILE_OVERRIDES": '{"test-path": "test-config"}',
         "WANDB_LAUNCH_QUEUE_NAME": "test-queue-name",
         "WANDB_LAUNCH_QUEUE_ENTITY": "test-queue-entity",
         "WANDB_LAUNCH_TRACE_ID": "test-run-queue-item-id",
@@ -80,13 +81,17 @@ def test_get_env_vars_dict_api_key_override(mocker):
 
     assert resp == {
         "WANDB_API_KEY": "override-api-key",
-        "WANDB_ARTIFACTS": "test-wandb-artifacts",
+        "WANDB_ARTIFACTS": "{}",
         "WANDB_BASE_URL": "base_url",
-        "WANDB_CONFIG_0": "test-wandb",
-        "WANDB_CONFIG_1": "-artifacts",
+        "WANDB_CONFIG_0": '{"test-key',
+        "WANDB_CONFIG_1": '": "test-v',
+        "WANDB_CONFIG_2": 'alue"}',
         "WANDB_DOCKER": "test-docker-image",
         "WANDB_ENTITY": "test-entity",
         "WANDB_LAUNCH": "True",
+        "WANDB_LAUNCH_FILE_OVERRIDES_0": '{"test-pat',
+        "WANDB_LAUNCH_FILE_OVERRIDES_1": 'h": "test-',
+        "WANDB_LAUNCH_FILE_OVERRIDES_2": 'config"}',
         "WANDB_LAUNCH_QUEUE_NAME": "test-queue-name",
         "WANDB_LAUNCH_QUEUE_ENTITY": "test-queue-entity",
         "WANDB_LAUNCH_TRACE_ID": "test-run-queue-item-id",
@@ -162,6 +167,7 @@ def test_create_build_ctx_custom_dockerfile_subdir(mock_launch_project, tmp_path
 
 def _setup(mocker):
     launch_project = MagicMock()
+    launch_project.job = None
     launch_project.target_project = "test-project"
     launch_project.target_entity = "test-entity"
     launch_project.run_id = "test-run-id"
@@ -172,7 +178,12 @@ def _setup(mocker):
     launch_project.queue_name = "test-queue-name"
     launch_project.queue_entity = "test-queue-entity"
     launch_project.run_queue_item_id = "test-run-queue-item-id"
-    launch_project.override_config = {}
+    launch_project.override_config = {
+        "test-key": "test-value",
+    }
+    launch_project.override_files = {
+        "test-path": "test-config",
+    }
     launch_project.override_args = []
     launch_project.override_artifacts = {}
 
@@ -182,8 +193,6 @@ def _setup(mocker):
     api.settings = lambda x: x
     api.api_key = "test-api-key"
     mocker.api = api
-
-    mocker.patch("json.dumps", lambda x: "test-wandb-artifacts")
 
 
 @pytest.fixture
