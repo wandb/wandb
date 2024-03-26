@@ -1137,18 +1137,40 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 }
 
 func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusRequest) {
-	// TODO: ideally we could get it direclty from the settings
+
+	// TODO: unify everywhere to use settings
 	entity := s.RunRecord.GetEntity()
 	project := s.RunRecord.GetProject()
 	runId := s.RunRecord.GetRunId()
+
+	var stopResponse *service.StopStatusResponse
+
+	// if any of the entity, project or runId is empty, we can't make the request
+	if entity == "" || project == "" || runId == "" {
+		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
+		stopResponse = &service.StopStatusResponse{
+			RunShouldStop: false,
+		}
+	} else {
+		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
+		// if there is an error, we don't know if the run should stop
+		if err != nil {
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: false,
+			}
+		} else {
+			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: stopped,
+			}
+		}
+	}
 
 	result := &service.Result{
 		ResultType: &service.Result_Response{
 			Response: &service.Response{
 				ResponseType: &service.Response_StopStatusResponse{
-					StopStatusResponse: &service.StopStatusResponse{
-						RunShouldStop: false,
-					},
+					StopStatusResponse: stopResponse,
 				},
 			},
 		},
@@ -1156,31 +1178,6 @@ func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusReq
 		Uuid:    record.Uuid,
 	}
 
-	if entity == "" || project == "" || runId == "" {
-		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
-		s.outChan <- result
-		return
-	}
-
-	response, err := gql.RunStoppedStatus(s.ctx,
-		s.graphqlClient,
-		&entity,
-		&project,
-		runId,
-	)
-	if err != nil {
-		err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
-		s.logger.CaptureError("sender received error", err)
-		s.outChan <- result
-		return
-	}
-
-	result.ResultType.(*service.Result_Response).Response.ResponseType =
-		&service.Response_StopStatusResponse{
-			StopStatusResponse: &service.StopStatusResponse{
-				RunShouldStop: *response.GetProject().GetRun().GetStopped(),
-			},
-		}
 	s.outChan <- result
 }
 
