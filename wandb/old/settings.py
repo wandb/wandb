@@ -50,6 +50,9 @@ class Settings:
     def _persist_settings(self, settings, settings_path) -> None:
         # write a temp file and then move it to the settings path
         target_dir = os.path.dirname(settings_path)
+        # make target dir if it doesn't exist
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
         with tempfile.NamedTemporaryFile(
             "w+", suffix=".tmp", delete=False, dir=target_dir
         ) as fp:
