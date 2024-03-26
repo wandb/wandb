@@ -65,10 +65,10 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		logger,
 		settings.Proto,
 		nil, /* peeker */
+		client,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
 	)
-	sender.SetGraphqlClient(client)
 	return sender
 }
 
@@ -104,13 +104,13 @@ func TestSendRun(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
+	assert.Len(t, requests, 2) // First is ServerInfo
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("project", gomock.Eq("testProject")),
 			gqlmock.GQLVar("entity", gomock.Eq("testEntity")),
 		),
-		requests[0])
+		requests[1])
 }
 
 // Verify that arguments are properly passed through to graphql
@@ -141,7 +141,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
+	assert.Len(t, requests, 2) // First is ServerInfo
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -150,7 +150,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
 			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
 		),
-		requests[0])
+		requests[1])
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
@@ -175,7 +175,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests = mockGQL.AllRequests()
-	assert.Len(t, requests, 2)
+	assert.Len(t, requests, 3)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -184,7 +184,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
 			gqlmock.GQLVar("artifactId", gomock.Eq(nil)),
 		),
-		requests[1])
+		requests[2])
 
 	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
@@ -209,7 +209,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests = mockGQL.AllRequests()
-	assert.Len(t, requests, 3)
+	assert.Len(t, requests, 4)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -218,7 +218,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
 			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
 		),
-		requests[2])
+		requests[3])
 }
 
 func TestSendUseArtifact(t *testing.T) {
@@ -305,10 +305,10 @@ func TestSendArtifact(t *testing.T) {
 	sender.SendRecord(artifact)
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
+	assert.Len(t, requests, 2) // First is ServerInfo
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
 		),
-		requests[0])
+		requests[1])
 }

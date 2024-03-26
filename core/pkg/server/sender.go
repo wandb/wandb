@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,6 +132,7 @@ func NewSender(
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	peeker *observability.Peeker,
+	graphqlClient graphql.Client,
 	opts ...SenderOption,
 ) *Sender {
 
@@ -148,27 +148,10 @@ func NewSender(
 		fileStream:          fileStreamOrNil,
 		fileTransferManager: fileTransferManagerOrNil,
 		networkPeeker:       peeker,
+		graphqlClient:       graphqlClient,
 	}
 
 	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
-		graphqlHeaders := map[string]string{
-			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
-			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
-		}
-		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
-
-		graphqlClient := backendOrNil.NewClient(api.ClientOptions{
-			RetryPolicy:     clients.CheckRetry,
-			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
-			ExtraHeaders:    graphqlHeaders,
-			NetworkPeeker:   sender.networkPeeker,
-		})
-		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
 		sender.getServerInfo()
 
 		if !settings.GetDisableJobCreation().GetValue() {
@@ -209,10 +192,6 @@ func (s *Sender) Close() {
 
 func (s *Sender) GetOutboundChannel() chan *service.Result {
 	return s.outChan
-}
-
-func (s *Sender) SetGraphqlClient(client graphql.Client) {
-	s.graphqlClient = client
 }
 
 func (s *Sender) SendRecord(record *service.Record) {
