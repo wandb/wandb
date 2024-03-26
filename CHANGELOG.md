@@ -10,20 +10,22 @@ Starting with the 0.16.4 release on March 5, 2024, the format is based on
 
 ## Unreleased
 
-Starting with the next release, we would like to follow
-https://keepachangelog.com/en/1.1.0/. Please add to relevant
-subsections here on every PR where this is applicable.
+Starting with the next release, we follow https://keepachangelog.com/en/1.1.0/.
+Please add to relevant subsections here on every PR where this is applicable.
+
+## [0.16.5] - 2024-03-25
 
 ### Added
 
 * Added feature to move staging files to cache (instead of copying) for mutable artifact file uploads when caching is enabled by @ibindlish in https://github.com/wandb/wandb/pull/7143
 * Added support to skip caching files to the local filesystem while uploading files to artifacts by @ibindlish in https://github.com/wandb/wandb/pull/7098
 * Added support to skip staging artifact files during upload by selecting a storage policy by @ibindlish in https://github.com/wandb/wandb/pull/7142
-
+* Preliminary support for forking a run using `wandb.init(fork_from=...)` by @dannygoldstein in https://github.com/wandb/wandb/pull/7078
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 
 ### Changed
 
+* Limit policy option on artifact cli's put() to choices, ["mutable", "immutable"] by @ibindish in https://github.com/wandb/wandb/pull/7172
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
 
 ### Fixed
@@ -33,6 +35,7 @@ subsections here on every PR where this is applicable.
 ### Removed
 
 * When printing run's information in the terminal remove links to jobs by @kptkin in https://github.com/wandb/wandb/pull/7132
+
 
 ## [0.16.4] - 2024-03-05
 

@@ -9,10 +9,13 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -138,6 +141,26 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		Logger:   s.logger,
 		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
 	})
+
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
+
+	backendOrNil := NewBackend(s.logger, settings)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	var graphqlClientOrNil graphql.Client
+	var fileStreamOrNil *filestream.FileStream
+	var fileTransferManagerOrNil filetransfer.FileTransferManager
+	if backendOrNil != nil {
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileTransferManagerOrNil = NewFileTransferManager(
+			fileStreamOrNil,
+			fileTransferStats,
+			s.logger,
+			settings,
+		)
+	}
+
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
@@ -145,7 +168,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings.Proto)),
 		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFilesInfoHandler(NewFilesInfoHandler()),
+		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
 		WithHandlerWatcher(watcher),
@@ -156,7 +179,16 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
 	)
 
-	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings.Proto,
+	s.sender = NewSender(
+		s.ctx,
+		s.cancel,
+		backendOrNil,
+		fileStreamOrNil,
+		fileTransferManagerOrNil,
+		s.logger,
+		s.settings.Proto,
+		peeker,
+		graphqlClientOrNil,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
 	)
