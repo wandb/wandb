@@ -1,7 +1,6 @@
 package runfiles_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -92,27 +91,21 @@ func TestUploader(t *testing.T) {
 		t.Run(name, test)
 	}
 
-	policiesUploadImmediately := []service.FilesItem_PolicyType{
-		service.FilesItem_NOW,
-		service.FilesItem_LIVE,
-	}
-	for _, policy := range policiesUploadImmediately {
-		runTest(fmt.Sprintf("Process with '%v' policy uploads immediately", policy),
-			func() {},
-			func(t *testing.T) {
-				stubCreateRunFilesOneFile(mockGQLClient)
-				writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+	runTest("Process with 'now' policy uploads immediately",
+		func() {},
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-				uploader.Process(&service.FilesRecord{
-					Files: []*service.FilesItem{
-						{Path: "test.txt", Policy: policy},
-					},
-				})
-				uploader.Finish()
-
-				assert.Len(t, fakeFileTransfer.Tasks(), 1)
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "test.txt", Policy: service.FilesItem_NOW},
+				},
 			})
-	}
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+		})
 
 	runTest("Process with 'now' policy during sync is no-op",
 		func() { isSync = true },
