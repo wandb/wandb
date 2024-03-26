@@ -1155,6 +1155,8 @@ func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusReq
 		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
 		// if there is an error, we don't know if the run should stop
 		if err != nil {
+			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
+			s.logger.CaptureError("sender received error", err)
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: false,
 			}
