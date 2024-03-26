@@ -19,6 +19,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	filePollingPeriod = 500 * time.Millisecond
+)
+
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
 	logger       *observability.CoreLogger
@@ -224,7 +228,7 @@ func (u *uploader) startWatcher() error {
 	grp.Go(func() error {
 		defer u.watcherWG.Done()
 
-		if err := u.watcherOrNil.Start(time.Millisecond * 500); err != nil {
+		if err := u.watcherOrNil.Start(filePollingPeriod); err != nil {
 			u.logger.CaptureError(
 				"runfiles: failed to start file watcher",
 				err,
