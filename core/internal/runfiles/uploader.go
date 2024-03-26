@@ -354,14 +354,15 @@ func (u *uploader) filterNonExistingAndWarn(relativePaths []string) []string {
 func (u *uploader) filterIgnored(relativePaths []string) []string {
 	includedPaths := make([]string, 0)
 
+outerLoop:
 	for _, relativePath := range relativePaths {
 		for _, ignoreGlob := range u.settings.GetIgnoreGlobs() {
 			if matched, _ := filepath.Match(ignoreGlob, relativePath); matched {
-				continue
+				continue outerLoop
 			}
-
-			includedPaths = append(includedPaths, relativePath)
 		}
+
+		includedPaths = append(includedPaths, relativePath)
 	}
 
 	return includedPaths
