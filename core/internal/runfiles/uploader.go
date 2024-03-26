@@ -7,13 +7,20 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/radovskyb/watcher"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"golang.org/x/sync/errgroup"
+)
+
+const (
+	filePollingPeriod = 500 * time.Millisecond
 )
 
 // uploader is the implementation of the Uploader interface.
@@ -31,6 +38,12 @@ type uploader struct {
 
 	// Mutex that's locked whenever any state is being read or modified.
 	stateMu *sync.Mutex
+
+	// A watcher for 'live' mode files.
+	watcherOrNil *watcher.Watcher
+
+	// Wait group for the watcher.
+	watcherWG *sync.WaitGroup
 }
 
 func newUploader(params UploaderParams) *uploader {
@@ -42,6 +55,8 @@ func newUploader(params UploaderParams) *uploader {
 
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
+
+		watcherWG: &sync.WaitGroup{},
 	}
 }
 
@@ -62,8 +77,18 @@ func (u *uploader) Process(record *service.FilesRecord) {
 		switch file.GetPolicy() {
 		case service.FilesItem_NOW:
 			nowFiles = append(nowFiles, file.GetPath())
+
 		case service.FilesItem_LIVE:
-			// TODO
+			nowFiles = append(nowFiles, file.GetPath())
+			if err := u.watch(file.GetPath()); err != nil {
+				u.logger.CaptureError(
+					"runfiles: error watching file",
+					err,
+					"file",
+					file.GetPath(),
+				)
+			}
+
 		case service.FilesItem_END:
 			// No-op. All files are uploaded at the end by default.
 		}
@@ -133,6 +158,11 @@ func (u *uploader) Finish() {
 	}()
 
 	u.uploadWG.Wait()
+
+	if u.watcherOrNil != nil {
+		u.watcherOrNil.Close()
+		u.watcherWG.Wait()
+	}
 }
 
 // Acquires the stateMu mutex if Finish() has not been called.
@@ -155,6 +185,91 @@ func (u *uploader) lockForOperation(method string) bool {
 	}
 
 	return true
+}
+
+// Begins watching the given path and uploading when the file changes.
+func (u *uploader) watch(path string) error {
+	// Lazily start the watcher when we receive our first file to watch.
+	if u.watcherOrNil == nil {
+		if err := u.startWatcher(); err != nil {
+			return err
+		}
+	}
+
+	if err := u.watcherOrNil.Add(path); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Starts up the file watcher goroutine.
+func (u *uploader) startWatcher() error {
+	if u.watcherOrNil != nil {
+		return fmt.Errorf(
+			"runfiles: tried to start watcher, but it is already started",
+		)
+	}
+
+	u.watcherOrNil = watcher.New()
+	u.watcherOrNil.FilterOps(watcher.Write)
+
+	grp, ctx := errgroup.WithContext(context.Background())
+	u.watcherWG.Add(2)
+
+	grp.Go(func() error {
+		defer u.watcherWG.Done()
+
+		u.loopWatchFiles(ctx)
+
+		return nil
+	})
+
+	grp.Go(func() error {
+		defer u.watcherWG.Done()
+
+		if err := u.watcherOrNil.Start(filePollingPeriod); err != nil {
+			u.logger.CaptureError(
+				"runfiles: failed to start file watcher",
+				err,
+			)
+
+			// Returning the error cancels the above loop.
+			return err
+		}
+
+		return nil
+	})
+
+	return nil
+}
+
+// Loops and processes file events.
+//
+// 'ctx' is used to break the loop in case the watcher fails to even
+// start, in which case none of its channels will ever receive a message.
+func (u *uploader) loopWatchFiles(ctx context.Context) {
+	for {
+		select {
+		case event := <-u.watcherOrNil.Event:
+			if event.Op != watcher.Write {
+				continue
+			}
+			u.UploadNow(event.Path)
+
+		case err := <-u.watcherOrNil.Error:
+			u.logger.CaptureError(
+				"runfiles: error in file watcher",
+				err,
+			)
+
+		case <-u.watcherOrNil.Closed:
+			return
+
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // Uploads the given files unless we are offline.
