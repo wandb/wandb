@@ -18,6 +18,11 @@ type Uploader interface {
 	// Process handles a file save record from a client.
 	Process(record *service.FilesRecord)
 
+	// Sets a file's category for statistics reporting.
+	//
+	// The path is relative to the run's file directory.
+	SetCategory(path string, category filetransfer.RunFileKind)
+
 	// UploadNow asynchronously uploads a run file.
 	//
 	// The path is relative to the run's file directory.
