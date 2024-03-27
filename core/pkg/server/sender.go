@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
@@ -25,7 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -86,6 +83,9 @@ type Sender struct {
 	// filetransfer is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
 
+	// runfilesUploader manages uploading a run's files
+	runfilesUploader runfiles.Uploader
+
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
 	//       + a flag indicating whether the run has started
@@ -94,10 +94,13 @@ type Sender struct {
 	// resumeState is the resume state
 	resumeState *ResumeState
 
+	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
+	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
+	// debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
@@ -119,99 +122,46 @@ type Sender struct {
 	jobBuilder *launch.JobBuilder
 
 	wgFileTransfer sync.WaitGroup
+
+	networkPeeker *observability.Peeker
 }
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
+	backendOrNil *api.Backend,
+	fileStreamOrNil *fs.FileStream,
+	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
+	runfilesUploaderOrNil runfiles.Uploader,
 	settings *service.Settings,
+	peeker *observability.Peeker,
+	graphqlClient graphql.Client,
 	opts ...SenderOption,
 ) *Sender {
 
 	sender := &Sender{
-		ctx:            ctx,
-		cancel:         cancel,
-		settings:       settings,
-		logger:         logger,
-		summaryMap:     make(map[string]*service.SummaryItem),
-		runConfig:      runconfig.New(),
-		telemetry:      &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer: sync.WaitGroup{},
+		ctx:                 ctx,
+		cancel:              cancel,
+		settings:            settings,
+		logger:              logger,
+		summaryMap:          make(map[string]*service.SummaryItem),
+		runConfig:           runconfig.New(),
+		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		wgFileTransfer:      sync.WaitGroup{},
+		fileStream:          fileStreamOrNil,
+		fileTransferManager: fileTransferManagerOrNil,
+		runfilesUploader:    runfilesUploaderOrNil,
+		networkPeeker:       peeker,
+		graphqlClient:       graphqlClient,
 	}
-	if !settings.GetXOffline().GetValue() {
-		baseURL, err := url.Parse(settings.GetBaseUrl().GetValue())
-		if err != nil {
-			logger.CaptureFatalAndPanic("sender: failed to parse base URL", err)
-		}
-		backend := api.New(api.BackendOptions{
-			BaseURL: baseURL,
-			Logger:  logger.Logger,
-			APIKey:  settings.GetApiKey().GetValue(),
-		})
 
-		graphqlHeaders := map[string]string{
-			"X-WANDB-USERNAME":   settings.GetUsername().GetValue(),
-			"X-WANDB-USER-EMAIL": settings.GetEmail().GetValue(),
-		}
-		maps.Copy(graphqlHeaders, settings.GetXExtraHttpHeaders().GetValue())
-
-		graphqlClient := backend.NewClient(api.ClientOptions{
-			RetryPolicy:     clients.CheckRetry,
-			RetryMax:        int(settings.GetXGraphqlRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXGraphqlTimeoutSeconds().GetValue()),
-			ExtraHeaders:    graphqlHeaders,
-		})
-		url := fmt.Sprintf("%s/graphql", settings.GetBaseUrl().GetValue())
-		sender.graphqlClient = graphql.NewClient(url, graphqlClient)
-
-		fileStreamHeaders := map[string]string{}
-		if settings.GetXShared().GetValue() {
-			fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		}
-
-		fileStreamRetryClient := backend.NewClient(api.ClientOptions{
-			RetryMax:        int(settings.GetXFileStreamRetryMax().GetValue()),
-			RetryWaitMin:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-			RetryWaitMax:    clients.SecondsToDuration(settings.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
-			NonRetryTimeout: clients.SecondsToDuration(settings.GetXFileStreamTimeoutSeconds().GetValue()),
-			ExtraHeaders:    fileStreamHeaders,
-		})
-
-		sender.fileStream = fs.NewFileStream(
-			fs.WithSettings(settings),
-			fs.WithLogger(logger),
-			fs.WithAPIClient(fileStreamRetryClient),
-			fs.WithClientId(shared.ShortID(32)),
-		)
-
-		fileTransferRetryClient := retryablehttp.NewClient()
-		fileTransferRetryClient.Logger = logger
-		fileTransferRetryClient.CheckRetry = clients.CheckRetry
-		fileTransferRetryClient.RetryMax = int(settings.GetXFileTransferRetryMax().GetValue())
-		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMinSeconds().GetValue())
-		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.GetXFileTransferRetryWaitMaxSeconds().GetValue())
-		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.GetXFileTransferTimeoutSeconds().GetValue())
-		fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-		defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
-			logger,
-			fileTransferRetryClient,
-		)
-		sender.fileTransferManager = filetransfer.NewFileTransferManager(
-			filetransfer.WithLogger(logger),
-			filetransfer.WithSettings(settings),
-			filetransfer.WithFileTransfer(defaultFileTransfer),
-			filetransfer.WithFSCChan(sender.fileStream.GetInputChan()),
-		)
-
+	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
 		sender.getServerInfo()
 
 		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger)
+			sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
 		}
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
@@ -248,10 +198,6 @@ func (s *Sender) Close() {
 
 func (s *Sender) GetOutboundChannel() chan *service.Result {
 	return s.outChan
-}
-
-func (s *Sender) SetGraphqlClient(client graphql.Client) {
-	s.graphqlClient = client
 }
 
 func (s *Sender) SendRecord(record *service.Record) {
@@ -318,7 +264,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_RunStart:
 		s.sendRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
-		s.sendNetworkStatusRequest(x.NetworkStatus)
+		s.sendNetworkStatusRequest(record, x.NetworkStatus)
 	case *service.Request_Defer:
 		s.sendDefer(x.Defer)
 	case *service.Request_LogArtifact:
@@ -332,6 +278,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_StopStatus:
+		s.sendStopStatus(record, x.StopStatus)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -384,7 +332,32 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(_ *service.NetworkStatusRequest) {
+func (s *Sender) sendNetworkStatusRequest(
+	record *service.Record,
+	_ *service.NetworkStatusRequest,
+) {
+	// in case of network peeker is not set, we don't need to do anything
+	if s.networkPeeker == nil {
+		return
+	}
+
+	// send the network status response if there is any
+	if response := s.networkPeeker.Read(); len(response) > 0 {
+		result := &service.Result{
+			ResultType: &service.Result_Response{
+				Response: &service.Response{
+					ResponseType: &service.Response_NetworkStatusResponse{
+						NetworkStatusResponse: &service.NetworkStatusResponse{
+							NetworkResponses: response,
+						},
+					},
+				},
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
+		s.outChan <- result
+	}
 }
 
 func (s *Sender) sendJobFlush() {
@@ -971,118 +944,16 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 	s.sendConfig(nil, nil /*configRecord*/)
 }
 
-// sendFiles iterates over the files in the FilesRecord and sends them to
+// sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) {
-	files := filesRecord.GetFiles()
-	for _, file := range files {
-		if strings.HasPrefix(file.GetPath(), "media") {
-			file.Type = service.FilesItem_MEDIA
-		}
-		s.wgFileTransfer.Add(1)
-		go func(file *service.FilesItem) {
-			s.sendFile(file)
-			s.wgFileTransfer.Done()
-		}(file)
-	}
-}
-
-// sendFile sends a file to the server
-// TODO: improve this to handle multiple files and send them in one request
-func (s *Sender) sendFile(file *service.FilesItem) {
-	if s.graphqlClient == nil || s.fileTransferManager == nil {
-		return
-	}
-
-	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendFile: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
-	}
-
-	fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), file.GetPath())
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		s.logger.Warn("sender: sendFile: file does not exist", "path", fullPath)
-		return
-	}
-
-	data, err := gql.CreateRunFiles(
-		s.ctx,
-		s.graphqlClient,
-		s.RunRecord.Entity,
-		s.RunRecord.Project,
-		s.RunRecord.RunId,
-		[]string{file.GetPath()},
-	)
-	if err != nil {
-		err = fmt.Errorf("sender: sendFile: failed to get upload urls: %s", err)
-		s.logger.CaptureError("sender received error", err)
-		return
-	}
-	headers := data.GetCreateRunFiles().GetUploadHeaders()
-	for _, f := range data.GetCreateRunFiles().GetFiles() {
-		fullPath := filepath.Join(s.settings.GetFilesDir().GetValue(), f.Name)
-		task := &filetransfer.Task{
-			Type:    filetransfer.UploadTask,
-			Path:    fullPath,
-			Name:    f.Name,
-			Url:     *f.UploadUrl,
-			Headers: headers,
-		}
-
-		task.SetProgressCallback(
-			func(processed, total int) {
-				if processed == 0 {
-					return
-				}
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:      service.FileTransferInfoRequest_Upload,
-									Path:      fullPath,
-									Size:      int64(total),
-									Processed: int64(processed),
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
+	if s.runfilesUploader == nil {
+		s.logger.CaptureWarn(
+			"sender: tried to sendFiles, but runfiles uploader is nil",
 		)
-		task.SetCompletionCallback(
-			func(t *filetransfer.Task) {
-				s.fileTransferManager.FileStreamCallback(t)
-				fileCounts := &service.FileCounts{}
-				switch file.GetType() {
-				case service.FilesItem_MEDIA:
-					fileCounts.MediaCount = 1
-				case service.FilesItem_OTHER:
-					fileCounts.OtherCount = 1
-				case service.FilesItem_WANDB:
-					fileCounts.WandbCount = 1
-				}
-
-				record := &service.Record{
-					RecordType: &service.Record_Request{
-						Request: &service.Request{
-							RequestType: &service.Request_FileTransferInfo{
-								FileTransferInfo: &service.FileTransferInfoRequest{
-									Type:       service.FileTransferInfoRequest_Upload,
-									Path:       fullPath,
-									Size:       t.Size,
-									Processed:  t.Size,
-									FileCounts: fileCounts,
-								},
-							},
-						},
-					},
-				}
-				s.fwdChan <- record
-			},
-		)
-		s.fileTransferManager.AddTask(task)
+		return
 	}
+
+	s.runfilesUploader.Process(filesRecord)
 }
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
@@ -1206,6 +1077,53 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Uuid:    record.Uuid,
 	}
 	s.fwdChan <- rec
+}
+
+func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusRequest) {
+
+	// TODO: unify everywhere to use settings
+	entity := s.RunRecord.GetEntity()
+	project := s.RunRecord.GetProject()
+	runId := s.RunRecord.GetRunId()
+
+	var stopResponse *service.StopStatusResponse
+
+	// if any of the entity, project or runId is empty, we can't make the request
+	if entity == "" || project == "" || runId == "" {
+		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
+		stopResponse = &service.StopStatusResponse{
+			RunShouldStop: false,
+		}
+	} else {
+		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
+		// if there is an error, we don't know if the run should stop
+		if err != nil {
+			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
+			s.logger.CaptureError("sender received error", err)
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: false,
+			}
+		} else {
+			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: stopped,
+			}
+		}
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_StopStatusResponse{
+					StopStatusResponse: stopResponse,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+
+	s.outChan <- result
 }
 
 func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {

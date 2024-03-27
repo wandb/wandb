@@ -1,6 +1,7 @@
 package runfiles_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -55,6 +56,9 @@ func TestUploader(t *testing.T) {
 	// The files_dir to set on Settings.
 	var filesDir string
 
+	// The ignore_globs to set on Settings.
+	var ignoreGlobs []string
+
 	// The _offline mode to set on Settings.
 	var isOffline bool
 
@@ -69,6 +73,7 @@ func TestUploader(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		filesDir = t.TempDir()
+		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
 		configure()
@@ -82,30 +87,37 @@ func TestUploader(t *testing.T) {
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
-				FilesDir: &wrapperspb.StringValue{Value: filesDir},
-				XOffline: &wrapperspb.BoolValue{Value: isOffline},
-				XSync:    &wrapperspb.BoolValue{Value: isSync},
+				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
+				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
+				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+				XSync:       &wrapperspb.BoolValue{Value: isSync},
 			}),
 		}))
 
 		t.Run(name, test)
 	}
 
-	runTest("Process with 'now' policy uploads immediately",
-		func() {},
-		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
-			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+	policiesUploadImmediately := []service.FilesItem_PolicyType{
+		service.FilesItem_NOW,
+		service.FilesItem_LIVE,
+	}
+	for _, policy := range policiesUploadImmediately {
+		runTest(fmt.Sprintf("Process with '%v' policy uploads immediately", policy),
+			func() {},
+			func(t *testing.T) {
+				stubCreateRunFilesOneFile(mockGQLClient)
+				writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_NOW},
-				},
+				uploader.Process(&service.FilesRecord{
+					Files: []*service.FilesItem{
+						{Path: "test.txt", Policy: policy},
+					},
+				})
+				uploader.Finish()
+
+				assert.Len(t, fakeFileTransfer.Tasks(), 1)
 			})
-			uploader.Finish()
-
-			assert.Len(t, fakeFileTransfer.Tasks(), 1)
-		})
+	}
 
 	runTest("Process with 'now' policy during sync is no-op",
 		func() { isSync = true },
@@ -140,6 +152,18 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient)
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
+		})
+
+	runTest("UploadNow ignores file matching ignore glob",
+		func() { ignoreGlobs = []string{"subdir/*/file.txt"} },
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "xyz", "file.txt"))
+
+			uploader.UploadNow(filepath.Join("subdir", "xyz", "file.txt"))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)

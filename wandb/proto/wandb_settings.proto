@@ -23,6 +23,15 @@ message OpenMetricsFilters {
   }
 }
 
+// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
+// Used to communicate the moment in a run at which forking or resuming should
+// take place.
+message RunMoment {
+  string run = 1;     // The name of the run to fork from.
+  double value = 2;   // The value of the metric to fork at.
+  string metric = 3;  // The name of the metric to use to find a fork point.
+}
+
 // Settings for the SDK.
 //
 // There is a hierarchy of settings, with at least the following levels:
@@ -32,7 +41,7 @@ message OpenMetricsFilters {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 164
+// Next ID: 165
 message Settings {
   // The W&B API key.
   //
@@ -62,6 +71,9 @@ message Settings {
 
   // Absolute path to the local directory where this run's files are stored.
   google.protobuf.StringValue files_dir = 70;
+
+  // Unix glob patterns relative to `files_dir` to not upload.
+  ListStringValue ignore_globs = 78;
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
@@ -136,7 +148,6 @@ message Settings {
   google.protobuf.StringValue git_root = 75;
   google.protobuf.Int32Value heartbeat_seconds = 76;
   google.protobuf.StringValue host = 77;
-  ListStringValue ignore_globs = 78;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
   google.protobuf.StringValue job_source = 81;
@@ -159,6 +170,7 @@ message Settings {
   google.protobuf.StringValue resume = 102;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
+  RunMoment fork_from = 164;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;

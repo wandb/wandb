@@ -49,6 +49,9 @@ type fileTransferManager struct {
 	// todo: make this a map of uploaders for different destination storage types
 	fileTransfer FileTransfer
 
+	// fileTransferStats keeps track of upload/download statistics
+	fileTransferStats FileTransferStats
+
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
 
@@ -82,6 +85,12 @@ func WithSettings(settings *service.Settings) FileTransferManagerOption {
 func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
 		fm.fileTransfer = fileTransfer
+	}
+}
+
+func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferManagerOption {
+	return func(fm *fileTransferManager) {
+		fm.fileTransferStats = fileTransferStats
 	}
 }
 
@@ -124,6 +133,7 @@ func (fm *fileTransferManager) Start() {
 				task.Err = fm.transfer(task)
 				// Release the semaphore
 				<-fm.semaphore
+
 				if task.Err != nil {
 					fm.logger.CaptureError(
 						"filetransfer: uploader: error uploading",
@@ -131,14 +141,30 @@ func (fm *fileTransferManager) Start() {
 						"path", task.Path, "url", task.Url,
 					)
 				}
+
 				// Execute the callback.
-				task.CompletionCallback(task)
+				fm.completeTask(task)
+
 				// mark the task as done
 				fm.wg.Done()
 			}(task)
 		}
 		fm.wg.Done()
 	}()
+}
+
+// completeTask runs the completion callback and updates statistics.
+func (fm *fileTransferManager) completeTask(task *Task) {
+	task.CompletionCallback(task)
+
+	if task.Type == UploadTask {
+		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+			FileKind:      task.FileKind,
+			Path:          task.Path,
+			UploadedBytes: task.Size,
+			TotalBytes:    task.Size,
+		})
+	}
 }
 
 func (fm *fileTransferManager) AddTask(task *Task) {

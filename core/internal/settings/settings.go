@@ -96,3 +96,8 @@ func (s *Settings) GetInternalLogFile() string {
 func (s *Settings) GetFilesDir() string {
 	return s.Proto.FilesDir.GetValue()
 }
+
+// Unix glob patterns relative to `files_dir` to not upload.
+func (s *Settings) GetIgnoreGlobs() []string {
+	return s.Proto.IgnoreGlobs.GetValue()
+}
