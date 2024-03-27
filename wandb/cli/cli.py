@@ -1907,7 +1907,7 @@ def describe(job):
     "--entry-point",
     "-E",
     "entrypoint",
-    help="Codepath to the main script, required for repo jobs",
+    help="Entrypoint to the script, including an executable and an entrypoint file. Required for code or repo jobs",
 )
 @click.option(
     "--git-hash",
