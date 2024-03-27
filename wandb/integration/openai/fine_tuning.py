@@ -3,7 +3,7 @@ import io
 import json
 import re
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb import util
@@ -26,7 +26,10 @@ if parse_version(openai.__version__) < parse_version("1.0.1"):
 
 from openai import OpenAI  # noqa: E402
 from openai.types.fine_tuning import FineTuningJob  # noqa: E402
-from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E402
+from openai.types.fine_tuning.fine_tuning_job import (  # noqa: E402
+    Error,
+    Hyperparameters,
+)
 
 np = util.get_module(
     name="numpy",
@@ -286,15 +289,9 @@ class WandbLogger:
                 config["finished_at"]
             ).strftime("%Y-%m-%d %H:%M:%S")
         if config.get("hyperparameters"):
-            hyperparameters = config.pop("hyperparameters")
-            hyperparams = cls._unpack_hyperparameters(hyperparameters)
-            if hyperparams is None:
-                # If unpacking fails, log the object which will render as string
-                config["hyperparameters"] = hyperparameters
-            else:
-                # nested rendering on hyperparameters
-                config["hyperparameters"] = hyperparams
-
+            config["hyperparameters"] = cls.sanitize(config["hyperparameters"])
+        if config.get("error"):
+            config["error"] = cls.sanitize(config["error"])
         return config
 
     @classmethod
@@ -313,6 +310,20 @@ class WandbLogger:
             return None
 
         return hyperparams
+
+    @staticmethod
+    def sanitize(input: Any) -> Union[Dict, List, str]:
+        valid_types = [bool, int, float, str]
+        if isinstance(input, (Hyperparameters, Error)):
+            return dict(input)
+        if isinstance(input, dict):
+            return {
+                k: v if type(v) in valid_types else str(v) for k, v in input.items()
+            }
+        elif isinstance(input, list):
+            return [v if type(v) in valid_types else str(v) for v in input]
+        else:
+            return str(input)
 
     @classmethod
     def _log_artifacts(
@@ -337,9 +348,14 @@ class WandbLogger:
             type="model",
             metadata=dict(fine_tune),
         )
+
         with artifact.new_file("model_metadata.json", mode="w", encoding="utf-8") as f:
             dict_fine_tune = dict(fine_tune)
-            dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
+            dict_fine_tune["hyperparameters"] = cls.sanitize(
+                dict_fine_tune["hyperparameters"]
+            )
+            dict_fine_tune["error"] = cls.sanitize(dict_fine_tune["error"])
+            dict_fine_tune = cls.sanitize(dict_fine_tune)
             json.dump(dict_fine_tune, f, indent=2)
         cls._run.log_artifact(
             artifact,
