@@ -2356,6 +2356,7 @@ def artifact():
 @click.option(
     "--policy",
     default="mutable",
+    type=click.Choice(["mutable", "immutable"]),
     help="Set the storage policy while uploading artifact files.",
 )
 @display_error
