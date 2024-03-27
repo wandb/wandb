@@ -70,8 +70,8 @@ def test_save_relative_path_glob_files(
     assert pathlib.Path(run.dir, "test.rad").exists()
     assert pathlib.Path(run.dir, "foo.rad").exists()
     parsed = parse_records(record_q)
-    file_record = parsed.files[0].files[0]
-    assert file_record.path == "*.rad"
+    paths = set([f.path for f in parsed.files[0].files])
+    assert paths == set(["test.rad", "foo.rad"])
 
 
 def test_save_valid_absolute_glob(
@@ -89,8 +89,8 @@ def test_save_valid_absolute_glob(
     run.save(str(test_glob), policy="now")
 
     parsed = parse_records(record_q)
-    file_record = parsed.files[0].files[0]
-    assert pathlib.Path(file_record.path) == pathlib.Path("subdir", "*.txt")
+    paths = set([pathlib.Path(f.path) for f in parsed.files[0].files])
+    assert paths == set([pathlib.Path("subdir", "test.txt")])
 
 
 def test_save_valid_absolute_glob_base_path(
@@ -113,8 +113,13 @@ def test_save_valid_absolute_glob_base_path(
     assert pathlib.Path(run.dir, "dir", "x", "file.txt").exists()
     assert pathlib.Path(run.dir, "dir", "y", "file.txt").exists()
     parsed = parse_records(record_q)
-    file_record = parsed.files[0].files[0]
-    assert pathlib.Path(file_record.path) == pathlib.Path("dir", "*", "file.txt")
+    paths = set([pathlib.Path(f.path) for f in parsed.files[0].files])
+    assert paths == set(
+        [
+            pathlib.Path("dir", "x", "file.txt"),
+            pathlib.Path("dir", "y", "file.txt"),
+        ]
+    )
 
 
 def test_save_base_path_glob_first_directory_invalid(mock_run):
