@@ -291,9 +291,9 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Metadata:
 		// not implemented in the old handler
 	case *service.Request_SummaryRecord:
-		// not implemented in the old handler
+		// TODO: handles sending summary file
 	case *service.Request_TelemetryRecord:
-		// not implemented in the old handler
+		// TODO: handles sending telemetry record
 	case *service.Request_TestInject:
 		// not implemented in the old handler
 	case *service.Request_JobInfo:
@@ -358,15 +358,20 @@ func (h *Handler) handleRequest(record *service.Record) {
 }
 
 func (h *Handler) handleRequestLogin(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO: implement login if it is needed
+	if record.GetControl().GetReqResp() {
+		h.respond(record, &service.Response{})
+	}
 }
 
 func (h *Handler) handleRequestCheckVersion(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO: implement check version
+	h.respond(record, &service.Response{})
 }
 
 func (h *Handler) handleRequestRunStatus(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO(flow-control): implement run status
+	h.respond(record, &service.Response{})
 }
 
 func (h *Handler) handleRequestStatus(record *service.Record) {
@@ -374,16 +379,15 @@ func (h *Handler) handleRequestStatus(record *service.Record) {
 }
 
 func (h *Handler) handleRequestSenderMark(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO(flow-control): implement sender mark
 }
 
 func (h *Handler) handleRequestStatusReport(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO(flow-control): implement status report
 }
 
 func (h *Handler) handleRequestShutdown(record *service.Record) {
-	response := &service.Response{}
-	h.respond(record, response)
+	h.respond(record, &service.Response{})
 }
 
 // handleStepMetric handles the step metric for a given metric key. If the step metric is not
@@ -842,7 +846,7 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 }
 
 func (h *Handler) handleRequestCancel(record *service.Record) {
-	h.fwdRecord(record)
+	// TODO(flow-control): implement cancel
 }
 
 func (h *Handler) handleRequestPause() {

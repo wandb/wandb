@@ -177,6 +177,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
 	for record := range inChan {
+		s.logger.Debug("sender: Do:", "record", record.RecordType, "stream_id", s.settings.RunId)
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
@@ -203,13 +204,17 @@ func (s *Sender) SendRecord(record *service.Record) {
 //
 //gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
-	s.logger.Debug("sender: sendRecord", "record", record, "stream_id", s.settings.RunId)
 	switch x := record.RecordType.(type) {
+	case *service.Record_Footer:
+		// this is a no-op
+	case *service.Record_Header:
+		// this is a no-op
+	case *service.Record_Final:
+		// this is a no-op
+	case *service.Record_Tbrecord:
+		// handle in the handler
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
-	case *service.Record_Footer:
-	case *service.Record_Header:
-	case *service.Record_Final:
 	case *service.Record_Exit:
 		s.sendExit(record, x.Exit)
 	case *service.Record_Alert:
@@ -228,6 +233,8 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendSystemMetrics(record, x.Stats)
 	case *service.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
+	case *service.Record_Output:
+		s.sendOutput(record, x.Output)
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
 	case *service.Record_Preempting:
@@ -253,29 +260,25 @@ func (s *Sender) sendRecord(record *service.Record) {
 
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
-
 	switch x := request.RequestType.(type) {
 	case *service.Request_RunStart:
-		s.sendRunStart(x.RunStart)
+		s.sendRequestRunStart(x.RunStart)
 	case *service.Request_NetworkStatus:
-		s.sendNetworkStatusRequest(record, x.NetworkStatus)
+		s.sendRequestNetworkStatus(record, x.NetworkStatus)
 	case *service.Request_Defer:
-		s.sendDefer(x.Defer)
+		s.sendRequestDefer(x.Defer)
 	case *service.Request_LogArtifact:
-		s.sendLogArtifact(record, x.LogArtifact)
-	case *service.Request_PollExit:
+		s.sendRequestLogArtifact(record, x.LogArtifact)
 	case *service.Request_ServerInfo:
-		s.sendServerInfo(record, x.ServerInfo)
+		s.sendRequestServerInfo(record, x.ServerInfo)
 	case *service.Request_DownloadArtifact:
-		s.sendDownloadArtifact(record, x.DownloadArtifact)
+		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
 	case *service.Request_Sync:
-		s.sendSync(record, x.Sync)
+		s.sendRequestSync(record, x.Sync)
 	case *service.Request_SenderRead:
-		s.sendSenderRead(record, x.SenderRead)
+		s.sendRequestSenderRead(record, x.SenderRead)
 	case *service.Request_StopStatus:
-		s.sendStopStatus(record, x.StopStatus)
-	case *service.Request_Cancel:
-		// TODO: audit this
+		s.sendRequestStopStatus(record, x.StopStatus)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -310,7 +313,7 @@ func (s *Sender) updateSettings() {
 }
 
 // sendRun starts up all the resources for a run
-func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
+func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	fsPath := fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		s.RunRecord.Entity,
@@ -326,7 +329,7 @@ func (s *Sender) sendRunStart(_ *service.RunStartRequest) {
 	s.fileTransferManager.Start()
 }
 
-func (s *Sender) sendNetworkStatusRequest(
+func (s *Sender) sendRequestNetworkStatus(
 	record *service.Record,
 	_ *service.NetworkStatusRequest,
 ) {
@@ -389,58 +392,58 @@ func (s *Sender) sendJobFlush() {
 	}
 }
 
-func (s *Sender) sendDefer(request *service.DeferRequest) {
+func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_RUN:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_STATS:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_TB:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
 		s.writeAndSendConfigFile()
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
 		s.sendJobFlush()
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DIR:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
 		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.fileTransferManager.Close()
 		}
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_JOIN_FP:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		s.fileStream.Close()
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
 		request.State++
-		s.sendRequestDefer(request)
+		s.fwdRequestDefer(request)
 	case service.DeferRequest_END:
 		request.State++
 		s.syncService.Flush()
@@ -453,7 +456,7 @@ func (s *Sender) sendDefer(request *service.DeferRequest) {
 	}
 }
 
-func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
+func (s *Sender) fwdRequestDefer(request *service.DeferRequest) {
 	rec := &service.Record{
 		RecordType: &service.Record_Request{Request: &service.Request{
 			RequestType: &service.Request_Defer{Defer: request},
@@ -811,6 +814,10 @@ func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecor
 	s.fileStream.StreamRecord(record)
 }
 
+func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord) {
+	panic("not implemented")
+}
+
 func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)
@@ -1025,7 +1032,7 @@ func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	}
 }
 
-func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
+func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
@@ -1052,7 +1059,7 @@ func (s *Sender) sendLogArtifact(record *service.Record, msg *service.LogArtifac
 	s.outChan <- result
 }
 
-func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
+func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	// TODO: this should be handled by a separate service starup mechanism
 	s.fileTransferManager.Start()
 
@@ -1078,7 +1085,7 @@ func (s *Sender) sendDownloadArtifact(record *service.Record, msg *service.Downl
 	s.outChan <- result
 }
 
-func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) {
+func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRequest) {
 
 	s.syncService = NewSyncService(s.ctx,
 		WithSyncServiceLogger(s.logger),
@@ -1136,7 +1143,7 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 	s.fwdChan <- rec
 }
 
-func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusRequest) {
+func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
 	entity := s.RunRecord.GetEntity()
@@ -1183,7 +1190,7 @@ func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusReq
 	s.outChan <- result
 }
 
-func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
+func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
 		err := store.Open(os.O_RDONLY)
@@ -1243,7 +1250,7 @@ func (s *Sender) getServerInfo() {
 // 	return s.serverInfo.GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
 // }
 
-func (s *Sender) sendServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
 
 	localInfo := &service.LocalInfo{}
 	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
