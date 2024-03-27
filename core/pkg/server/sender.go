@@ -272,6 +272,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendSync(record, x.Sync)
 	case *service.Request_SenderRead:
 		s.sendSenderRead(record, x.SenderRead)
+	case *service.Request_StopStatus:
+		s.sendStopStatus(record, x.StopStatus)
 	case *service.Request_Cancel:
 		// TODO: audit this
 	case nil:
@@ -1132,6 +1134,53 @@ func (s *Sender) sendSync(record *service.Record, request *service.SyncRequest) 
 		Uuid:    record.Uuid,
 	}
 	s.fwdChan <- rec
+}
+
+func (s *Sender) sendStopStatus(record *service.Record, _ *service.StopStatusRequest) {
+
+	// TODO: unify everywhere to use settings
+	entity := s.RunRecord.GetEntity()
+	project := s.RunRecord.GetProject()
+	runId := s.RunRecord.GetRunId()
+
+	var stopResponse *service.StopStatusResponse
+
+	// if any of the entity, project or runId is empty, we can't make the request
+	if entity == "" || project == "" || runId == "" {
+		s.logger.Error("sender: sendStopStatus: entity, project, runId are empty")
+		stopResponse = &service.StopStatusResponse{
+			RunShouldStop: false,
+		}
+	} else {
+		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
+		// if there is an error, we don't know if the run should stop
+		if err != nil {
+			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
+			s.logger.CaptureError("sender received error", err)
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: false,
+			}
+		} else {
+			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: stopped,
+			}
+		}
+	}
+
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_StopStatusResponse{
+					StopStatusResponse: stopResponse,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+
+	s.outChan <- result
 }
 
 func (s *Sender) sendSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
