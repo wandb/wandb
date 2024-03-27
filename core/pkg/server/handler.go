@@ -16,8 +16,8 @@ import (
 
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -59,21 +59,15 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
-func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
-	return func(h *Handler) {
-		h.watcher = watcher
-	}
-}
-
 func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	return func(h *Handler) {
 		h.tbHandler = handler
 	}
 }
 
-func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
+func WithHandlerRunfilesUploader(uploaderOrNil runfiles.Uploader) HandlerOption {
 	return func(h *Handler) {
-		h.filesHandler = handler
+		h.runfilesUploaderOrNil = uploaderOrNil
 	}
 }
 
@@ -136,14 +130,13 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// watcher is the watcher for the stream
-	watcher *watcher.Watcher
-
 	// tbHandler is the tensorboard handler
 	tbHandler *TBHandler
 
-	// filesHandler is the file handler for the stream
-	filesHandler *FilesHandler
+	// runfilesUploaderOrNil manages uploading a run's files
+	//
+	// It may be nil when offline.
+	runfilesUploaderOrNil runfiles.Uploader
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
@@ -462,9 +455,10 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		h.watcher.Close()
 	case service.DeferRequest_FLUSH_FP:
-		h.filesHandler.Flush()
+		if h.runfilesUploaderOrNil != nil {
+			h.runfilesUploaderOrNil.Finish()
+		}
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
@@ -603,28 +597,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	}
 	h.fwdRecord(record)
 
-	// start the tensorboard handler
-	h.watcher.Start()
-
-	h.filesHandler = h.filesHandler.With(
-		WithFilesHandlerHandleFn(h.fwdRecord),
-	)
-
-	if h.settings.GetConsole().GetValue() != "off" {
-		h.filesHandler.Handle(&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
-						{
-							Path:   OutputFileName,
-							Type:   service.FilesItem_WANDB,
-							Policy: service.FilesItem_END,
-						},
-					},
-				},
-			},
-		})
-	}
+	// TODO: mark OutputFileName as a WANDB file
+	_ = OutputFileName
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -923,7 +897,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-	h.filesHandler.Handle(record)
+	h.sendRecord(record)
 }
 
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
@@ -1020,18 +994,10 @@ func (h *Handler) writeAndSendSummaryFile() {
 	}
 
 	// send summary file
-	h.filesHandler.Handle(&service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: SummaryFileName,
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	})
+	if h.runfilesUploaderOrNil != nil {
+		// TODO: mark as WANDB file
+		h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
+	}
 }
 
 func (h *Handler) fwdSummary() {

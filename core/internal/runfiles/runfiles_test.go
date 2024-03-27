@@ -56,6 +56,9 @@ func TestUploader(t *testing.T) {
 	// The files_dir to set on Settings.
 	var filesDir string
 
+	// The ignore_globs to set on Settings.
+	var ignoreGlobs []string
+
 	// The _offline mode to set on Settings.
 	var isOffline bool
 
@@ -70,6 +73,7 @@ func TestUploader(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		filesDir = t.TempDir()
+		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
 		configure()
@@ -83,9 +87,10 @@ func TestUploader(t *testing.T) {
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
-				FilesDir: &wrapperspb.StringValue{Value: filesDir},
-				XOffline: &wrapperspb.BoolValue{Value: isOffline},
-				XSync:    &wrapperspb.BoolValue{Value: isSync},
+				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
+				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
+				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+				XSync:       &wrapperspb.BoolValue{Value: isSync},
 			}),
 		}))
 
@@ -147,6 +152,18 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient)
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
+		})
+
+	runTest("UploadNow ignores file matching ignore glob",
+		func() { ignoreGlobs = []string{"subdir/*/file.txt"} },
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient)
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "xyz", "file.txt"))
+
+			uploader.UploadNow(filepath.Join("subdir", "xyz", "file.txt"))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)

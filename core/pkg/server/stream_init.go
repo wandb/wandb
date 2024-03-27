@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/pkg/filestream"
@@ -118,4 +119,18 @@ func NewFileTransferManager(
 		filetransfer.WithFileTransferStats(fileTransferStats),
 		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
+}
+
+func NewRunfilesUploader(
+	logger *observability.CoreLogger,
+	settings *settings.Settings,
+	fileTransfer filetransfer.FileTransferManager,
+	graphQL graphql.Client,
+) runfiles.Uploader {
+	return runfiles.NewUploader(runfiles.UploaderParams{
+		Logger:       logger,
+		Settings:     settings,
+		FileTransfer: fileTransfer,
+		GraphQL:      graphQL,
+	})
 }
