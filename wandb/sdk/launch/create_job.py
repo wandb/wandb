@@ -11,7 +11,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
-from wandb.sdk.launch.utils import _is_git_uri
+from wandb.sdk.launch.utils import _is_git_uri, get_entrypoint_file
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
 
@@ -145,6 +145,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
+        assert entrypoint is not None
         job_name = _make_code_artifact(
             api=api,
             job_builder=job_builder,
@@ -233,7 +234,6 @@ def _make_metadata_for_partial_job(
         return metadata, None
 
     if job_type == "code":
-        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
         if not entrypoint:
             wandb.termerror(
                 "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
@@ -304,15 +304,22 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            major, minor = get_current_python_version()
-            python_version = f"{major}.{minor}"
+            _, python_version = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
 
     # check if entrypoint is valid
     assert entrypoint is not None
-    if not os.path.exists(os.path.join(local_dir, entrypoint)):
-        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
+        return None
+
+    if not os.path.exists(os.path.join(local_dir, entrypoint_file)):
+        wandb.termerror(f"Entrypoint file {entrypoint_file} not found in git repo")
         return None
 
     metadata = {
@@ -320,9 +327,9 @@ def _create_repo_metadata(
             "commit": commit,
             "remote": ref.url,
         },
-        "codePathLocal": entrypoint,  # not in git context, optionally also set local
-        "codePath": entrypoint,
-        "entrypoint": [f"python{python_version}", entrypoint],
+        "codePathLocal": entrypoint_file,  # not in git context, optionally also set local
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
         "python": python_version,  # used to build container
         "notebook": False,  # partial jobs from notebooks not supported
     }
@@ -332,10 +339,17 @@ def _create_repo_metadata(
 
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
-) -> Tuple[Dict[str, Any], List[str]]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
+        return None, None
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
@@ -347,39 +361,15 @@ def _create_artifact_metadata(
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
-        python_version = ".".join(get_current_python_version())
+        python_version, _ = get_current_python_version()
+        python_version = _clean_python_version(python_version)
 
-    metadata = {"python": python_version, "codePath": entrypoint}
+    metadata = {
+        "python": python_version,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
     return metadata, requirements
-
-
-def _handle_artifact_entrypoint(
-    path: str, entrypoint: Optional[str] = None
-) -> Tuple[str, Optional[str]]:
-    if os.path.isfile(path):
-        if entrypoint and path.endswith(entrypoint):
-            path = path.replace(entrypoint, "")
-            wandb.termwarn(
-                f"Both entrypoint provided and path contains file. Using provided entrypoint: {entrypoint}, path is now: {path}"
-            )
-        elif entrypoint:
-            wandb.termwarn(
-                f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
-            )
-        entrypoint = path.split("/")[-1]
-        path = "/".join(path.split("/")[:-1])
-    elif not entrypoint:
-        wandb.termerror("Entrypoint not valid")
-        return "", None
-    path = path or "."  # when path is just an entrypoint, use cdw
-
-    if not os.path.exists(os.path.join(path, entrypoint)):
-        wandb.termerror(
-            f"Could not find execution point: {os.path.join(path, entrypoint)}"
-        )
-        return "", None
-
-    return path, entrypoint
 
 
 def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuilder:
@@ -411,7 +401,7 @@ def _make_code_artifact(
     job_builder: JobBuilder,
     run: "wandb.sdk.wandb_run.Run",
     path: str,
-    entrypoint: Optional[str],
+    entrypoint: str,
     entity: Optional[str],
     project: Optional[str],
     name: Optional[str],
@@ -420,16 +410,21 @@ def _make_code_artifact(
 
     Returns the name of the eventual job.
     """
-    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint or ""), name)
+    assert entrypoint is not None
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
+        return None
+
+    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
     code_artifact = wandb.Artifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
     )
-
-    # Update path and entrypoint vars to match metadata
-    # TODO(gst): consolidate into one place
-    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
 
     try:
         code_artifact.add_dir(path)
@@ -451,7 +446,7 @@ def _make_code_artifact(
         project_name=project,
         run_name=run.id,  # run will be deleted after creation
         description="Code artifact for job",
-        metadata={"codePath": path, "entrypoint": entrypoint},
+        metadata={"codePath": path, "entrypoint": entrypoint_file},
         is_user_created=True,
         aliases=[
             {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
