@@ -225,6 +225,10 @@ class AgentConfig(BaseModel):
         None,
         description="The builder to use.",
     )
+    verbosity: Optional[int] = Field(
+        0,
+        description="How verbose to print, 0 = default, 1 = verbose, 2 = very verbose",
+    )
 
     class Config:
         extra = "forbid"
