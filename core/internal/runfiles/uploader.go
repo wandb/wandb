@@ -30,6 +30,12 @@ type uploader struct {
 	fileTransfer filetransfer.FileTransferManager
 	graphQL      graphql.Client
 
+	// A mapping from files to their category, if set.
+	//
+	// The default category is OTHER. The keys are paths relative to
+	// the files directory.
+	category map[string]filetransfer.RunFileKind
+
 	// Whether 'Finish' was called.
 	isFinished bool
 
@@ -53,6 +59,8 @@ func newUploader(params UploaderParams) *uploader {
 		fileTransfer: params.FileTransfer,
 		graphQL:      params.GraphQL,
 
+		category: make(map[string]filetransfer.RunFileKind),
+
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
 
@@ -74,6 +82,9 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	nowFiles := make([]string, 0)
 
 	for _, file := range record.GetFiles() {
+		u.category[file.GetPath()] =
+			filetransfer.RunFileKindFromProto(file.GetType())
+
 		switch file.GetPolicy() {
 		case service.FilesItem_NOW:
 			nowFiles = append(nowFiles, file.GetPath())
@@ -95,6 +106,15 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	}
 
 	u.upload(nowFiles)
+}
+
+func (u *uploader) SetCategory(path string, category filetransfer.RunFileKind) {
+	if !u.lockForOperation("SetCategory") {
+		return
+	}
+	defer u.stateMu.Unlock()
+
+	u.category[path] = category
 }
 
 func (u *uploader) UploadNow(path string) {
@@ -378,12 +398,12 @@ func (u *uploader) scheduleUploadTask(
 ) {
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
-		// TODO: Set FileKind. Infer it for "media/" files.
-		Type:    filetransfer.UploadTask,
-		Path:    localPath,
-		Name:    relativePath,
-		Url:     uploadURL,
-		Headers: headers,
+		FileKind: u.category[relativePath],
+		Type:     filetransfer.UploadTask,
+		Path:     localPath,
+		Name:     relativePath,
+		Url:      uploadURL,
+		Headers:  headers,
 	}
 
 	task.SetCompletionCallback(func(t *filetransfer.Task) {
