@@ -324,7 +324,9 @@ class KanikoBuilder(AbstractBuilder):
             ):
                 if job_tracker:
                     job_tracker.set_err_stage("build")
-                raise Exception(f"Failed to build image in kaniko for job {run_id}")
+                raise Exception(
+                    f"Failed to build image in kaniko for job {run_id}. View logs with `kubectl logs -n {NAMESPACE} {build_job_name}`."
+                )
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
