@@ -898,7 +898,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
