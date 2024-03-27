@@ -819,18 +819,60 @@ func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecor
 }
 
 func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord) {
-	panic("not implemented")
+	// TODO: currently we just do the same as sendOutputRaw, we don't do any processing
+	//  of the output, we just write it to a file and send it to the server
+
+	// ignore empty "new lines"
+	if output.Line == "\n" {
+		return
+	}
+
+	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
+	// append line to file
+	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		s.logger.Error("sender: sendOutput: failed to open output file", "error", err)
+	}
+	if _, err := f.WriteString(output.Line + "\n"); err != nil {
+		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.logger.Error("sender: sendOutput: failed to close output file", "error", err)
+		}
+	}()
+
+	// generate compatible timestamp to python iso-format (microseconds without Z)
+	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
+	var line string
+	switch output.OutputType {
+	case service.OutputRecord_STDOUT:
+		line = fmt.Sprintf("%s %s", t, output.Line)
+	case service.OutputRecord_STDERR:
+		line = fmt.Sprintf("ERROR %s %s", t, output.Line)
+	default:
+		err := fmt.Errorf("sender: sendOutput: unexpected output type %v", output.OutputType)
+		s.logger.CaptureError("sender received error", err)
+		return
+	}
+	newRecord := &service.Record{
+		RecordType: &service.Record_Output{
+			Output: &service.OutputRecord{
+				Line: line,
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+		XInfo:   record.XInfo,
+	}
+	s.fileStream.StreamRecord(newRecord)
 }
 
-func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecord) {
+func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)
 	// - handle caching multiple (non-new lines) and sending them in one chunk
 	// - handle lines longer than ~60_000 characters
-
-	// copy the record to avoid mutating the original
-	recordCopy := proto.Clone(record).(*service.Record)
-	outputRaw := recordCopy.GetOutputRaw()
 
 	// ignore empty "new lines"
 	if outputRaw.Line == "\n" {
@@ -854,11 +896,28 @@ func (s *Sender) sendOutputRaw(record *service.Record, _ *service.OutputRawRecor
 
 	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
-	outputRaw.Line = fmt.Sprintf("%s %s", t, outputRaw.Line)
-	if outputRaw.OutputType == service.OutputRawRecord_STDERR {
-		outputRaw.Line = fmt.Sprintf("ERROR %s", outputRaw.Line)
+	var line string
+	switch outputRaw.OutputType {
+	case service.OutputRawRecord_STDOUT:
+		line = fmt.Sprintf("%s %s", t, outputRaw.Line)
+	case service.OutputRawRecord_STDERR:
+		line = fmt.Sprintf("ERROR %s %s", t, outputRaw.Line)
+	default:
+		err := fmt.Errorf("sender: sendOutputRaw: unexpected output type %v", outputRaw.OutputType)
+		s.logger.CaptureError("sender received error", err)
+		return
 	}
-	s.fileStream.StreamRecord(recordCopy)
+	newRecord := &service.Record{
+		RecordType: &service.Record_OutputRaw{
+			OutputRaw: &service.OutputRawRecord{
+				Line: line,
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+		XInfo:   record.XInfo,
+	}
+	s.fileStream.StreamRecord(newRecord)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
