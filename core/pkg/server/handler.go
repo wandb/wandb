@@ -810,10 +810,11 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 }
 
 func (h *Handler) handleRequestAttach(record *service.Record) {
-	response := &service.Response{}
-	response.ResponseType = &service.Response_AttachResponse{
-		AttachResponse: &service.AttachResponse{
-			Run: h.runRecord,
+	response := &service.Response{
+		ResponseType: &service.Response_AttachResponse{
+			AttachResponse: &service.AttachResponse{
+				Run: h.runRecord,
+			},
 		},
 	}
 	h.respond(record, response)
@@ -947,11 +948,12 @@ func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 
 func (h *Handler) handleRequestInternalMessages(record *service.Record) {
 	messages := h.internalPrinter.Read()
-	response := &service.Response{}
-	response.ResponseType = &service.Response_InternalMessagesResponse{
-		InternalMessagesResponse: &service.InternalMessagesResponse{
-			Messages: &service.InternalMessages{
-				Warning: messages,
+	response := &service.Response{
+		ResponseType: &service.Response_InternalMessagesResponse{
+			InternalMessagesResponse: &service.InternalMessagesResponse{
+				Messages: &service.InternalMessages{
+					Warning: messages,
+				},
 			},
 		},
 	}

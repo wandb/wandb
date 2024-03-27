@@ -211,14 +211,6 @@ func (s *Sender) SendRecord(record *service.Record) {
 //gocyclo:ignore
 func (s *Sender) sendRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
-	case *service.Record_Footer:
-		// this is a no-op
-	case *service.Record_Header:
-		// this is a no-op
-	case *service.Record_Final:
-		// this is a no-op
-	case *service.Record_Tbrecord:
-		// handle in the handler
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Exit:
