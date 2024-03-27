@@ -2150,6 +2150,7 @@ class Api:
                             name
                         }
                     }
+                    historyLineCount
                 }
                 inserted
                 _Server_Settings_
@@ -2237,6 +2238,7 @@ class Api:
                 .get("serverSettings", {})
                 .get("serverMessages", [])
             )
+
         return (
             response["upsertBucket"]["bucket"],
             response["upsertBucket"]["inserted"],

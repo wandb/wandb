@@ -1,6 +1,5 @@
 import json
 import os
-import platform
 import sys
 import tempfile
 from unittest.mock import MagicMock
@@ -13,7 +12,6 @@ from wandb.sdk.launch.create_job import (
     _create_artifact_metadata,
     _create_repo_metadata,
     _dump_metadata_and_requirements,
-    _handle_artifact_entrypoint,
     _make_code_artifact_name,
 )
 
@@ -21,7 +19,9 @@ from wandb.sdk.launch.create_job import (
 def test_create_artifact_metadata():
     path = tempfile.TemporaryDirectory().name
     runtime = "3.9"
-    entrypoint = "test.py"
+    entrypoint = "python test.py"
+    entrypoint_list = ["python", "test.py"]
+    entrypoint_file = "test.py"
 
     # files don't exist yet
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
@@ -33,38 +33,22 @@ def test_create_artifact_metadata():
 
     # basic case
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
-    assert metadata == {"python": runtime, "codePath": entrypoint}
+    assert metadata == {
+        "python": runtime,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
     assert requirements == ["wandb"]
 
     # python picked up correctly
     metadata, requirements = _create_artifact_metadata(path, entrypoint)
-    py = ".".join(get_current_python_version())
-    assert metadata == {"python": py, "codePath": entrypoint}
+    py, _ = get_current_python_version()
+    assert metadata == {
+        "python": py,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
     assert requirements == ["wandb"]
-
-
-@pytest.mark.skipif(
-    platform.system() == "Windows", reason="Windows base path if empty is broken, TODO"
-)
-def test_handle_artifact_entrypoint():
-    path = tempfile.TemporaryDirectory().name
-    entrypoint = "test.py"
-
-    os.makedirs(path)
-
-    out_path, out_entrypoint = _handle_artifact_entrypoint(path, None)
-    assert not out_path  # path isn't to file and entrypoint is None
-
-    with open(os.path.join(path, entrypoint), "w") as f:
-        f.write("print('hello world')")
-
-    out_path, out_entrypoint = _handle_artifact_entrypoint(path, entrypoint)
-    assert out_path == path and out_entrypoint == entrypoint
-
-    joined_path = os.path.join(path, entrypoint)
-    out_path, out_entrypoint = _handle_artifact_entrypoint(joined_path)
-
-    assert out_path == path, out_entrypoint == entrypoint
 
 
 def test_configure_job_builder_for_partial():
