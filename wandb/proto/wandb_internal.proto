@@ -366,7 +366,7 @@ message FilesRecord {
   _RecordInfo _info = 200;
 }
 
-// One or more files being saved with a run.
+// A file being saved with a run.
 message FilesItem {
   reserved 16;
 
@@ -388,7 +388,7 @@ message FilesItem {
     ARTIFACT = 3;
   }
 
-  // A path or Unix glob relative to the W&B files directory.
+  // A path relative to the W&B files directory.
   string path = 1;
 
   // When to upload the file.
