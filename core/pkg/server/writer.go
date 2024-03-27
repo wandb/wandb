@@ -128,11 +128,11 @@ func (w *Writer) handleRecord(record *service.Record) {
 	w.logger.Debug("write: got a message", "record", record, "stream_id", w.settings.RunId)
 	switch record.RecordType.(type) {
 	case *service.Record_Request:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 	case nil:
 		w.logger.Error("nil record type")
 	default:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 		w.storeRecord(record)
 	}
 }
@@ -147,7 +147,7 @@ func (w *Writer) storeRecord(record *service.Record) {
 	w.storeChan <- record
 }
 
-func (w *Writer) sendRecord(record *service.Record) {
+func (w *Writer) fwdRecord(record *service.Record) {
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
