@@ -378,7 +378,7 @@ func (u *uploader) scheduleUploadTask(
 ) {
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
-		// TODO: Set FileKind
+		// TODO: Set FileKind. Infer it for "media/" files.
 		Type:    filetransfer.UploadTask,
 		Path:    localPath,
 		Name:    relativePath,
