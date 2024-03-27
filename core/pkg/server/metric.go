@@ -68,58 +68,6 @@ func (mh *MetricHandler) createMatchingGlobMetric(key string) *service.MetricRec
 	return nil
 }
 
-// handleStepMetric handles the step metric for a given metric key. If the step metric is not
-// defined, it will be added to the defined metrics map.
-func (h *Handler) handleStepMetric(key string) {
-	if key == "" {
-		return
-	}
-
-	// already exists no need to add
-	if _, defined := h.metricHandler.definedMetrics[key]; defined {
-		return
-	}
-
-	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
-
-	if err != nil {
-		h.logger.CaptureError("error adding metric to map", err)
-		return
-	}
-
-	stepRecord := &service.Record{
-		RecordType: &service.Record_Metric{
-			Metric: metric,
-		},
-		Control: &service.Control{
-			Local: true,
-		},
-	}
-	h.sendRecord(stepRecord)
-}
-
-func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	// metric can have a glob name or a name
-	// TODO: replace glob-name/name with one-of field
-	switch {
-	case metric.GetGlobName() != "":
-		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
-			return
-		}
-		h.sendRecord(record)
-	case metric.GetName() != "":
-		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
-			return
-		}
-		h.handleStepMetric(metric.GetStepMetric())
-		h.sendRecord(record)
-	default:
-		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
-	}
-}
-
 type MetricSender struct {
 	definedMetrics map[string]*service.MetricRecord
 	metricIndex    map[string]int32
