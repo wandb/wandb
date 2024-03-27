@@ -855,9 +855,10 @@ func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord
 		s.logger.CaptureError("sender received error", err)
 		return
 	}
+	// TODO: use this for file stream for now
 	newRecord := &service.Record{
-		RecordType: &service.Record_Output{
-			Output: &service.OutputRecord{
+		RecordType: &service.Record_OutputRaw{
+			OutputRaw: &service.OutputRawRecord{
 				Line: line,
 			},
 		},
