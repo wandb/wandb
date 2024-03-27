@@ -15,7 +15,6 @@ from wandb.sdk.launch.registry.azure_container_registry import AzureContainerReg
 from wandb.sdk.launch.registry.elastic_container_registry import (
     ElasticContainerRegistry,
 )
-from wandb.sdk.launch.utils import to_lower_camel_case
 
 
 class AsyncMock(MagicMock):
@@ -95,54 +94,24 @@ async def test_kaniko_azure(azure_container_registry, azure_environment):
     )
     # Check that the AZURE_STORAGE_ACCESS_KEY env var is set correctly.
     assert any(
-        env_var.name == "AZURE_STORAGE_ACCESS_KEY"
-        for env_var in job.spec.template.spec.containers[0].env
+        env_var["name"] == "AZURE_STORAGE_ACCESS_KEY"
+        for env_var in job["spec"]["template"]["spec"]["containers"][0]["env"]
     )
     # Check the dockerconfig is mounted and the correct secret + value are used.
     assert any(
-        volume.name == "docker-config" for volume in job.spec.template.spec.volumes
+        volume["name"] == "docker-config"
+        for volume in job["spec"]["template"]["spec"]["volumes"]
     )
     assert any(
-        volume_mount.name == "docker-config"
-        for volume_mount in job.spec.template.spec.containers[0].volume_mounts
+        volume_mount["name"] == "docker-config"
+        for volume_mount in job["spec"]["template"]["spec"]["containers"][0][
+            "volumeMounts"
+        ]
     )
 
 
 def return_kwargs(**kwargs):
     return kwargs
-
-
-class ObjectFromDict(object):
-    def __init__(self, d):
-        self.dict = d
-        for k, v in d.items():
-            # k = to_snake_case(k)
-            # print(v)
-            # print(k)
-            if isinstance(v, (list, tuple)):
-                # setattr(self, k, [ObjectFromDict(x) if isinstance(x, dict) else x for x in v])
-                setattr(self, k, [ObjectFromDict(x) if isinstance(x, dict) else x for x in v])
-            else:
-                setattr(self, k, ObjectFromDict(v) if (isinstance(v, dict) and k != "labels") else v)
-
-    def __getitem__(self, index):
-        # if index == "volume_mounts":
-        # print(index)
-        # print(to_camel_case(index))
-        return getattr(self, to_lower_camel_case(index))
-
-    def __eq__(self, other):
-        if isinstance(other, dict):
-            print("HERE")
-            print(self.dict)
-            print(other)
-            print(self.dict == other)
-            return self.dict == other
-        return super().__eq__(other)
-    
-
-async def mock_create_from_dict(api_client, job, namespace):
-    return [ObjectFromDict(job)]
 
 
 @pytest.fixture
@@ -191,9 +160,6 @@ def mock_kubernetes_clients(monkeypatch):
     monkeypatch.setattr(kubernetes_asyncio.client, "V1ObjectMeta", return_kwargs)
     monkeypatch.setattr(
         kubernetes_asyncio.config, "load_incluster_config", return_kwargs
-    )
-    monkeypatch.setattr(
-        kubernetes_asyncio.utils, "create_from_dict", mock_create_from_dict
     )
     yield mock_core_client, mock_batch_client
 
@@ -256,15 +222,24 @@ async def test_create_kaniko_job_static(
             secret_name="test-secret",
             secret_key="test-key",
             config={
-                "containers": [
-                    {
-                        "args": ["--test-arg=test-value"],
-                        "volumeMounts": [
-                            {"name": "test-volume", "mountPath": "/test/path/"}
-                        ],
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "args": ["--test-arg=test-value"],
+                                    "volumeMounts": [
+                                        {
+                                            "name": "test-volume",
+                                            "mountPath": "/test/path/",
+                                        }
+                                    ],
+                                }
+                            ],
+                            "volumes": [{"name": "test-volume"}],
+                        }
                     }
-                ],
-                "volumes": [{"name": "test-volume"}],
+                }
             },
         )
         job_name = "test_job_name"
@@ -298,43 +273,43 @@ async def test_create_kaniko_job_static(
             "--test-arg=test-value",
         ]
 
-        assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
+        assert job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"] == [
             {
                 "name": "test-volume",
                 "mountPath": "/test/path/",
             },
             {
                 "name": "docker-config",
-                "mount_path": "/kaniko/.docker/",
+                "mountPath": "/kaniko/.docker",
             },
             {
                 "name": "test-secret",
-                "mount_path": "/root/.aws",
-                "read_only": True,
+                "mountPath": "/root/.aws",
+                "readOnly": True,
             },
         ]
 
         assert job["spec"]["template"]["spec"]["volumes"][0] == {"name": "test-volume"}
         assert job["spec"]["template"]["spec"]["volumes"][1] == {
             "name": "docker-config",
-            "config_map": {"name": "docker-config-test_job_name"},
+            "configMap": {"name": "docker-config-test_job_name"},
         }
         assert job["spec"]["template"]["spec"]["volumes"][2]["name"] == "test-secret"
         assert (
-            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["secret_name"]
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["secretName"]
             == "test-secret"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].key
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0]["key"]
             == "test-key"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].path
+            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0]["path"]
             == "credentials"
         )
         assert (
-            job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0].mode
-            is None
+            "mode"
+            not in job["spec"]["template"]["spec"]["volumes"][2]["secret"]["items"][0]
         )
 
 
@@ -376,7 +351,7 @@ async def test_create_kaniko_job_instance(
             "--compressed-caching=false",
         ]
 
-        assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == []
+        assert job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"] == []
         assert job["spec"]["template"]["spec"]["volumes"] == []
 
 
@@ -426,15 +401,14 @@ async def test_create_kaniko_job_pvc_dockerconfig(
             "--compressed-caching=false",
         ]
 
-    print(type(job["spec"]["template"]["spec"]["containers"][0]))
-    assert job["spec"]["template"]["spec"]["containers"][0]["volume_mounts"] == [
+    assert job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"] == [
         {
             "name": "kaniko-pvc",
-            "mount_path": "/context",
+            "mountPath": "/context",
         },
         {
             "name": "kaniko-docker-config",
-            "mount_path": "/kaniko/.docker",
+            "mountPath": "/kaniko/.docker",
         },
     ]
 
@@ -442,13 +416,13 @@ async def test_create_kaniko_job_pvc_dockerconfig(
     dockerconfig_volume = job["spec"]["template"]["spec"]["volumes"][1]
 
     assert pvc_volume["name"] == "kaniko-pvc"
-    assert pvc_volume["persistent_volume_claim"].claim_name == "test-pvc"
-    assert pvc_volume["persistent_volume_claim"].read_only is None
+    assert pvc_volume["persistentVolumeClaim"]["claimName"] == "test-pvc"
+    assert "readOnly" not in pvc_volume["persistentVolumeClaim"]
 
     assert dockerconfig_volume["name"] == "kaniko-docker-config"
-    assert dockerconfig_volume["secret"]["secret_name"] == "test-secret"
-    assert dockerconfig_volume["secret"]["items"][0].key == ".dockerconfigjson"
-    assert dockerconfig_volume["secret"]["items"][0].path == "config.json"
+    assert dockerconfig_volume["secret"]["secretName"] == "test-secret"
+    assert dockerconfig_volume["secret"]["items"][0]["key"] == ".dockerconfigjson"
+    assert dockerconfig_volume["secret"]["items"][0]["path"] == "config.json"
 
 
 @pytest.mark.asyncio

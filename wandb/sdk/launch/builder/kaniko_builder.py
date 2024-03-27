@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 import time
 import traceback
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -377,7 +377,7 @@ class KanikoBuilder(AbstractBuilder):
         build_context_path: str,
         core_client: client.CoreV1Api,
         api_client,
-    ) -> "client.V1Job":
+    ) -> Dict[str, Any]:
         job = copy.deepcopy(self.kaniko_config)
         job_metadata = job.get("metadata", {})
         job_labels = job_metadata.get("labels", {})
