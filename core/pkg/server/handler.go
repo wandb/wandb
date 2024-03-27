@@ -281,17 +281,13 @@ func (h *Handler) handleRecord(record *service.Record) {
 //gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
 	request := record.GetRequest()
-	response := &service.Response{}
 	switch x := request.RequestType.(type) {
 	case *service.Request_Login:
 		h.handleRequestLogin(record)
-		response = nil
 	case *service.Request_CheckVersion:
 		h.handleRequestCheckVersion(record)
-		response = nil
 	case *service.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-		response = nil
 	case *service.Request_Metadata:
 		// not implemented in the old handler
 	case *service.Request_SummaryRecord:
@@ -304,53 +300,40 @@ func (h *Handler) handleRequest(record *service.Record) {
 		// not implemented in the old handler
 	case *service.Request_Status:
 		h.handleRequestStatus(record)
-		response = nil
 	case *service.Request_SenderMark:
 		h.handleRequestSenderMark(record)
-		response = nil
 	case *service.Request_StatusReport:
 		h.handleRequestStatusReport(record)
-		response = nil
 	case *service.Request_Keepalive:
 		// keepalive is a no-op
-		response = nil
 	case *service.Request_Shutdown:
 		h.handleRequestShutdown(record)
 	case *service.Request_Defer:
 		h.handleRequestDefer(record, x.Defer)
-		response = nil
 	case *service.Request_GetSummary:
-		h.handleRequestGetSummary(record, response)
+		h.handleRequestGetSummary(record)
 	case *service.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record)
-		response = nil
 	case *service.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
-		response = nil
 	case *service.Request_PollExit:
 		h.handleRequestPollExit(record)
-		response = nil
 	case *service.Request_RunStart:
 		h.handleRequestRunStart(record, x.RunStart)
 	case *service.Request_SampledHistory:
-		h.handleRequestSampledHistory(record, response)
+		h.handleRequestSampledHistory(record)
 	case *service.Request_ServerInfo:
 		h.handleRequestServerInfo(record)
-		response = nil
 	case *service.Request_PythonPackages:
 		h.handleRequestPythonPackages(record, x.PythonPackages)
-		response = nil
 	case *service.Request_StopStatus:
 		h.handleRequestStopStatus(record)
-		response = nil
 	case *service.Request_LogArtifact:
 		h.handleRequestLogArtifact(record)
-		response = nil
 	case *service.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record)
-		response = nil
 	case *service.Request_Attach:
-		h.handleRequestAttach(record, response)
+		h.handleRequestAttach(record)
 	case *service.Request_Pause:
 		h.handleRequestPause()
 	case *service.Request_Resume:
@@ -358,15 +341,13 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Cancel:
 		h.handleRequestCancel(record)
 	case *service.Request_GetSystemMetrics:
-		h.handleRequestGetSystemMetrics(record, response)
+		h.handleRequestGetSystemMetrics(record)
 	case *service.Request_InternalMessages:
-		h.handleRequestInternalMessages(record, response)
+		h.handleRequestInternalMessages(record)
 	case *service.Request_Sync:
 		h.handleRequestSync(record)
-		response = nil
 	case *service.Request_SenderRead:
 		h.handleRequestSenderRead(record)
-		response = nil
 	case nil:
 		err := fmt.Errorf("handler: handleRequest: request type is nil")
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -374,37 +355,35 @@ func (h *Handler) handleRequest(record *service.Record) {
 		err := fmt.Errorf("handler: handleRequest: unknown request type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
-	if response != nil {
-		h.respond(record, response)
-	}
 }
 
 func (h *Handler) handleRequestLogin(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestCheckVersion(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestRunStatus(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestStatus(record *service.Record) {
-	panic("not implemented")
+	h.respond(record, &service.Response{})
 }
 
 func (h *Handler) handleRequestSenderMark(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestStatusReport(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestShutdown(record *service.Record) {
-	panic("not implemented")
+	response := &service.Response{}
+	h.respond(record, response)
 }
 
 // handleStepMetric handles the step metric for a given metric key. If the step metric is not
@@ -691,6 +670,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		}
 	}
 	h.handleMetadata(metadata)
+
+	h.respond(record, &service.Response{})
 }
 
 func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
@@ -850,13 +831,14 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	h.handleFiles(record)
 }
 
-func (h *Handler) handleRequestAttach(_ *service.Record, response *service.Response) {
-
+func (h *Handler) handleRequestAttach(record *service.Record) {
+	response := &service.Response{}
 	response.ResponseType = &service.Response_AttachResponse{
 		AttachResponse: &service.AttachResponse{
 			Run: h.runRecord,
 		},
 	}
+	h.respond(record, response)
 }
 
 func (h *Handler) handleRequestCancel(record *service.Record) {
@@ -878,7 +860,7 @@ func (h *Handler) handleSystemMetrics(record *service.Record) {
 }
 
 func (h *Handler) handleOutput(record *service.Record) {
-	panic("not implemented")
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleOutputRaw(record *service.Record) {
@@ -940,9 +922,10 @@ func (h *Handler) handleFiles(record *service.Record) {
 	h.filesHandler.Handle(record)
 }
 
-func (h *Handler) handleRequestGetSummary(_ *service.Record, response *service.Response) {
-	var items []*service.SummaryItem
+func (h *Handler) handleRequestGetSummary(record *service.Record) {
+	response := &service.Response{}
 
+	var items []*service.SummaryItem
 	for key, element := range h.summaryHandler.consolidatedSummary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
@@ -951,10 +934,13 @@ func (h *Handler) handleRequestGetSummary(_ *service.Record, response *service.R
 			Item: items,
 		},
 	}
+	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestGetSystemMetrics(_ *service.Record, response *service.Response) {
+func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 	sm := h.systemMonitor.GetBuffer()
+
+	response := &service.Response{}
 
 	response.ResponseType = &service.Response_GetSystemMetricsResponse{
 		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
@@ -977,10 +963,13 @@ func (h *Handler) handleRequestGetSystemMetrics(_ *service.Record, response *ser
 			Record: buffer,
 		}
 	}
+
+	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestInternalMessages(_ *service.Record, response *service.Response) {
+func (h *Handler) handleRequestInternalMessages(record *service.Record) {
 	messages := h.internalPrinter.Read()
+	response := &service.Response{}
 	response.ResponseType = &service.Response_InternalMessagesResponse{
 		InternalMessagesResponse: &service.InternalMessagesResponse{
 			Messages: &service.InternalMessages{
@@ -988,6 +977,7 @@ func (h *Handler) handleRequestInternalMessages(_ *service.Record, response *ser
 			},
 		},
 	}
+	h.respond(record, response)
 }
 
 func (h *Handler) handleRequestSync(record *service.Record) {
@@ -1303,26 +1293,28 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // This function samples history items and updates the history record with the
 // sampled values. It is used to diplay a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
-func (h *Handler) handleRequestSampledHistory(_ *service.Record, response *service.Response) {
-	if h.sampledHistory == nil {
-		return
-	}
-	var items []*service.SampledHistoryItem
+func (h *Handler) handleRequestSampledHistory(record *service.Record) {
+	response := &service.Response{}
 
-	for key, sampler := range h.sampledHistory {
-		values := sampler.GetSample()
-		item := &service.SampledHistoryItem{
-			Key:         key,
-			ValuesFloat: values,
+	if h.sampledHistory != nil {
+		var items []*service.SampledHistoryItem
+		for key, sampler := range h.sampledHistory {
+			values := sampler.GetSample()
+			item := &service.SampledHistoryItem{
+				Key:         key,
+				ValuesFloat: values,
+			}
+			items = append(items, item)
 		}
-		items = append(items, item)
+
+		response.ResponseType = &service.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &service.SampledHistoryResponse{
+				Item: items,
+			},
+		}
 	}
 
-	response.ResponseType = &service.Response_SampledHistoryResponse{
-		SampledHistoryResponse: &service.SampledHistoryResponse{
-			Item: items,
-		},
-	}
+	h.respond(record, response)
 }
 
 // flush history record to the writer and update the summary
