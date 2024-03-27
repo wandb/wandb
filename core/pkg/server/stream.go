@@ -11,6 +11,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
@@ -150,6 +151,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil *filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
+	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
 		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
@@ -159,6 +161,12 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 			s.logger,
 			settings,
 		)
+		runfilesUploaderOrNil = NewRunfilesUploader(
+			s.logger,
+			settings,
+			fileTransferManagerOrNil,
+			graphqlClientOrNil,
+		)
 	}
 
 	s.handler = NewHandler(s.ctx, s.logger,
@@ -166,12 +174,11 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings.Proto)),
+		WithHandlerRunfilesUploader(runfilesUploaderOrNil),
 		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
-		WithHandlerWatcher(watcher),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
@@ -186,6 +193,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		fileStreamOrNil,
 		fileTransferManagerOrNil,
 		s.logger,
+		runfilesUploaderOrNil,
 		s.settings.Proto,
 		peeker,
 		graphqlClientOrNil,

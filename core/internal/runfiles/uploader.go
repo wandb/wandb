@@ -282,6 +282,7 @@ func (u *uploader) upload(relativePaths []string) {
 	}
 
 	relativePaths = u.filterNonExistingAndWarn(relativePaths)
+	relativePaths = u.filterIgnored(relativePaths)
 	u.uploadWG.Add(len(relativePaths))
 
 	go func() {
@@ -349,6 +350,24 @@ func (u *uploader) filterNonExistingAndWarn(relativePaths []string) []string {
 	return existingRelativePaths
 }
 
+// Filters any paths that are ignored by the run settings.
+func (u *uploader) filterIgnored(relativePaths []string) []string {
+	includedPaths := make([]string, 0)
+
+outerLoop:
+	for _, relativePath := range relativePaths {
+		for _, ignoreGlob := range u.settings.GetIgnoreGlobs() {
+			if matched, _ := filepath.Match(ignoreGlob, relativePath); matched {
+				continue outerLoop
+			}
+		}
+
+		includedPaths = append(includedPaths, relativePath)
+	}
+
+	return includedPaths
+}
+
 // Schedules a file upload task.
 //
 // Decrements `uploadWG` when the task is complete or fails.
@@ -359,7 +378,7 @@ func (u *uploader) scheduleUploadTask(
 ) {
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
-		// TODO: Set FileKind
+		// TODO: Set FileKind. Infer it for "media/" files.
 		Type:    filetransfer.UploadTask,
 		Path:    localPath,
 		Name:    relativePath,
