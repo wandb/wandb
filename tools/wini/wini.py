@@ -73,7 +73,6 @@ def _build_wandb_core_artifacts(
 
         if workspace.target_os() == workspace.OS.DARWIN and not skip_swift_build:
             build_applestats.build_applestats(
-                architecture=architecture,
                 output_path=outdir / "AppleStats",
             )
 
