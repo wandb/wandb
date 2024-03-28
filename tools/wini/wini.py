@@ -4,8 +4,8 @@ import sys
 from typing import Sequence
 
 import click
+from apple_stats import winibuild as build_applestats
 from core import winibuild as build_core
-from core.pkg.monitor.apple import winibuild as build_applestats
 from tools.wini import arch
 
 from . import print, subprocess, workspace
