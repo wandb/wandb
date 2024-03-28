@@ -98,7 +98,9 @@ launch = [
 ]
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
-perf = ["orjson"]
+perf = [
+    "orjson<3.10", # Skip 3.10.0, which doesn't have prebuilt wheels on macOS.
+]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
 
