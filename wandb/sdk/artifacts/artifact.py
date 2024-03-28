@@ -37,6 +37,7 @@ if sys.version_info < (3, 8):
 else:
     from typing import Literal
 
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import requests
@@ -1827,14 +1828,15 @@ class Artifact:
             True if all files were restored, False if any entries are missing.
         """
         cache = get_artifact_file_cache()
-        restored = True
-        for entry in self.manifest.entries.values():
+
+        def restore_entry(entry):
             local_path = Path(root, entry.path)
             if (
                 not self.should_download_entry(entry, path_prefix)
-                or local_path.exists() and local_path.stat().st_size == entry.size
+                or local_path.exists()
+                and local_path.stat().st_size == entry.size
             ):
-                continue
+                return True
             if entry.ref:
                 cache_path, hit, _ = cache.check_etag_obj_path(
                     entry.ref, entry.digest, entry.size
@@ -1844,15 +1846,16 @@ class Artifact:
             if hit:
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(cache_path, local_path)
-            else:
-                restored = False
-        return restored
+            return hit
+
+        with ThreadPoolExecutor() as executor:
+            return all(executor.map(restore_entry, self.manifest.entries.values()))
 
     @retry.retriable(
         retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
-    def to_fetch_file_urls(
+    def _fetch_file_urls(
         self, cursor: Optional[str], per_page: Optional[int] = 5000
     ) -> Any:
         query = gql(
