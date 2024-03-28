@@ -438,6 +438,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 	case service.DeferRequest_FLUSH_FP:
 		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
+			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
 		}
 		request.State++

@@ -457,7 +457,7 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_DIR:
 	case service.DeferRequest_FLUSH_FP:
 		if h.runfilesUploaderOrNil != nil {
-			h.runfilesUploaderOrNil.Finish()
+			h.runfilesUploaderOrNil.UploadRemaining()
 		}
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
