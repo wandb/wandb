@@ -183,7 +183,11 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
 	for record := range inChan {
-		s.logger.Debug("sender: Do:", "record", record.RecordType, "stream_id", s.settings.RunId)
+		s.logger.Debug(
+			"sender: processing record",
+			"record", record.RecordType,
+			"stream_id", s.settings.RunId,
+		)
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
