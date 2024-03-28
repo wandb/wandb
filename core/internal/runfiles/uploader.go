@@ -301,7 +301,7 @@ func (u *uploader) upload(relativePaths []string) {
 		return
 	}
 
-	u.logger.Info("runfiles: uploading files", "files", relativePaths)
+	u.logger.Debug("runfiles: uploading files", "files", relativePaths)
 
 	relativePaths = u.filterNonExistingAndWarn(relativePaths)
 	relativePaths = u.filterIgnored(relativePaths)
