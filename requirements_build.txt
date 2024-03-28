@@ -7,7 +7,3 @@ wheel>=0.38.0
 build
 setuptools>=64
 nox
-
-# 3.10.0 doesn't have macOS wheels for Python <3.11, breaking CI
-# https://github.com/ijl/orjson/issues/468
-orjson!=3.10.0
