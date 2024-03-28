@@ -98,7 +98,7 @@ launch = [
 ]
 models = ["cloudpickle"]
 async = ["httpx>=0.23.0"]
-perf = ["orjson"]
+perf = ["orjson<3.10.0"]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
 
