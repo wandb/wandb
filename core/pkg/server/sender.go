@@ -823,54 +823,19 @@ func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecor
 }
 
 func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord) {
-	// TODO: currently we just do the same as sendOutputRaw, we don't do any processing
-	//  of the output, we just write it to a file and send it to the server
+	// TODO: implement me
+}
 
-	// ignore empty "new lines"
-	if output.Line == "\n" {
-		return
-	}
-
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
+func writeOutputToFile(file, line string) error {
 	// append line to file
-	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		s.logger.Error("sender: sendOutput: failed to open output file", "error", err)
+		return err
 	}
-	if _, err := f.WriteString(output.Line + "\n"); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			s.logger.Error("sender: sendOutput: failed to close output file", "error", err)
-		}
-	}()
+	defer f.Close()
 
-	// generate compatible timestamp to python iso-format (microseconds without Z)
-	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
-	var line string
-	switch output.OutputType {
-	case service.OutputRecord_STDOUT:
-		line = fmt.Sprintf("%s %s", t, output.Line)
-	case service.OutputRecord_STDERR:
-		line = fmt.Sprintf("ERROR %s %s", t, output.Line)
-	default:
-		err := fmt.Errorf("sender: sendOutput: unexpected output type %v", output.OutputType)
-		s.logger.CaptureError("sender received error", err)
-		return
-	}
-	// TODO: use this for file stream for now
-	newRecord := &service.Record{
-		RecordType: &service.Record_OutputRaw{
-			OutputRaw: &service.OutputRawRecord{
-				Line: line,
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-		XInfo:   record.XInfo,
-	}
-	s.fileStream.StreamRecord(newRecord)
+	_, err = fmt.Fprintln(f, line)
+	return err
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
@@ -886,18 +851,9 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 
 	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
 	// append line to file
-	f, err := os.OpenFile(outputFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		s.logger.Error("sender: sendOutputRaw: failed to open output file", "error", err)
+	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
+		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
-	if _, err := f.WriteString(outputRaw.Line + "\n"); err != nil {
-		s.logger.Error("sender: sendOutputRaw: failed to write to output file", "error", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			s.logger.Error("sender: sendOutputRaw: failed to close output file", "error", err)
-		}
-	}()
 
 	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
