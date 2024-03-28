@@ -10,6 +10,10 @@ Starting with the 0.16.4 release on March 5, 2024, the format is based on
 
 ## Unreleased
 
+### Added
+
+* Attempt to restore artifact files from cache before collecting download URLs by @moredatarequired in https://github.com/wandb/wandb/pull/7245
+
 Starting with the next release, we follow https://keepachangelog.com/en/1.1.0/.
 Please add to relevant subsections here on every PR where this is applicable.
 

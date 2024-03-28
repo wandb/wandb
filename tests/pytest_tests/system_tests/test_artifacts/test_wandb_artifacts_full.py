@@ -502,6 +502,33 @@ def test_check_changed_artifact_then_download(wandb_init, tmp_path):
         assert file2.read_text() == "hello"
 
 
+def test_artifact_download_skips_when_cached(wandb_init, tmp_path, monkeypatch):
+    cache_dir = tmp_path / "cache"
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+
+    original_file = tmp_path / "test.txt"
+    original_file.write_text("hello")
+    with wandb_init() as run:
+        artifact = wandb.Artifact("art", type="dataset")
+        artifact.add_file(original_file)
+        run.log_artifact(artifact)
+    # Remove the original file, rely on the cached copy.
+    original_file.unlink()
+
+    # Mock the download function to raise an error if called
+    def mock_download(*args, **kwargs):
+        raise RuntimeError("Download should not be called when files are cached")
+
+    # Ensure downloading works anyway (it restores from the cache).
+    with wandb_init() as run:
+        artifact = run.use_artifact("art:latest")
+        artifact._download = mock_download
+        artifact_path = Path(artifact.download())
+        file1 = artifact_path / "test.txt"
+        assert file1.is_file()
+        assert file1.read_text() == "hello"
+
+
 @pytest.mark.parametrize("path_type", [str, Path])
 def test_log_dir_directly(example_files, wandb_init, path_type):
     with wandb_init() as run:

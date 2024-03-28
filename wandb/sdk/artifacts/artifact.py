@@ -15,7 +15,7 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -37,6 +37,7 @@ if sys.version_info < (3, 8):
 else:
     from typing import Literal
 
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import requests
@@ -48,6 +49,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient,
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -1629,6 +1631,9 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
+        if self._restore_from_cache(root, path_prefix):
+            return FilePathStr(root)
+
         if get_core_path() != "":
             return self._download_using_core(
                 root=root,
@@ -1813,6 +1818,38 @@ class Artifact:
                 prefix=False,
             )
         return FilePathStr(root)
+
+    def _restore_from_cache(
+        self, root: str, path_prefix: Optional[StrPath] = None
+    ) -> bool:
+        """Restore all files available in the cache to the specified root directory.
+
+        Returns:
+            True if all files were restored, False if any entries are missing.
+        """
+        cache = get_artifact_file_cache()
+
+        def restore_entry(entry):
+            local_path = Path(root, entry.path)
+            if (
+                not self.should_download_entry(entry, path_prefix)
+                or local_path.exists()
+                and local_path.stat().st_size == entry.size
+            ):
+                return True
+            if entry.ref:
+                cache_path, hit, _ = cache.check_etag_obj_path(
+                    entry.ref, entry.digest, entry.size
+                )
+            else:
+                cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+            if hit:
+                local_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(cache_path, local_path)
+            return hit
+
+        with ThreadPoolExecutor() as executor:
+            return all(executor.map(restore_entry, self.manifest.entries.values()))
 
     @retry.retriable(
         retry_timedelta=timedelta(minutes=3),
