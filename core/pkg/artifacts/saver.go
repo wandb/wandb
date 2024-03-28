@@ -120,7 +120,7 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, outChan chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string) error {
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
@@ -259,7 +259,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, outChan chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
 		FileKind: filetransfer.RunFileKindArtifact,
@@ -345,7 +345,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id, ch)
+	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
@@ -364,7 +364,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
-	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, ch)
+	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
