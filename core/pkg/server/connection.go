@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -48,6 +49,9 @@ type Connection struct {
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
 	stream *Stream
+
+	// mark if outChan is closed and we should stop writing to it
+	closed *atomic.Bool
 }
 
 // NewConnection creates a new connection
@@ -64,6 +68,7 @@ func NewConnection(
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
+		closed:       &atomic.Bool{},
 	}
 	return nc
 }
@@ -72,7 +77,7 @@ func NewConnection(
 // and passing the messages to the stream
 // and writing messages from the stream to the connection
 func (nc *Connection) HandleConnection() {
-	slog.Info("created new connection", "id", nc.id)
+	slog.Info("connection: HandleConnection: created new connection", "id", nc.id)
 
 	wg := sync.WaitGroup{}
 
@@ -132,6 +137,10 @@ func (nc *Connection) Close() {
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
+	// check if channel is closed
+	if nc.closed.Load() {
+		return
+	}
 	nc.outChan <- resp
 }
 
@@ -159,6 +168,7 @@ func (nc *Connection) readConnection() {
 	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
 		panic(scanner.Err())
 	}
+
 	close(nc.inChan)
 }
 
@@ -222,7 +232,11 @@ func (nc *Connection) handleServerRequest() {
 			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 		}
 	}
-	close(nc.outChan)
+	// mark this connection as done
+	if !nc.closed.Swap(true) {
+		close(nc.outChan)
+	}
+
 	slog.Debug("finished handleServerRequest", "id", nc.id)
 }
 
