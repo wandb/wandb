@@ -25,6 +25,7 @@ type ArtifactSaver struct {
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
 	StagingDir  string
+	Manifest    *Manifest
 }
 
 func NewArtifactSaver(
@@ -42,6 +43,7 @@ func NewArtifactSaver(
 		Artifact:            artifact,
 		HistoryStep:         historyStep,
 		StagingDir:          stagingDir,
+		Manifest:            nil, // The manifest will be loaded from the proto by Save.
 	}
 }
 
@@ -120,21 +122,28 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string) error {
+// uploadFiles handles the uploading of files associated with an artifact to the server.
+// It takes the artifactID, a manifest containing file information, the manifestID, and an output channel for records.
+func (as *ArtifactSaver) uploadFiles(artifactID string, manifestID string) error {
+	// Define constants for the maximum number of files to process in a single batch and the maximum number of tasks to keep in progress.
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
+	// TaskResult is a struct to hold the result of a file upload task, including the task itself and the file name.
 	type TaskResult struct {
 		Task *filetransfer.Task
 		Name string
 	}
 
-	// Prepare all file specs.
+	// Initialize an empty slice to hold file specifications for GraphQL.
 	fileSpecs := []gql.CreateArtifactFileSpecInput{}
-	for name, entry := range manifest.Contents {
+	// Iterate over the contents of the manifest to prepare file specifications.
+	for name, entry := range as.Manifest.Contents {
+		// Skip entries without a local path.
 		if entry.LocalPath == nil {
 			continue
 		}
+		// Create a file specification for each file and append it to the fileSpecs slice.
 		fileSpec := gql.CreateArtifactFileSpecInput{
 			ArtifactID:         artifactID,
 			Name:               name,
@@ -184,9 +193,9 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 			// Save birth artifact ids, schedule uploads.
 			for i, edge := range response.CreateArtifactFiles.Files.Edges {
 				name := fileSpecsBatch[i].Name
-				entry := manifest.Contents[name]
+				entry := as.Manifest.Contents[name]
 				entry.BirthArtifactID = &edge.Node.Artifact.Id
-				manifest.Contents[name] = entry
+				as.Manifest.Contents[name] = entry
 				if edge.Node.UploadUrl == nil {
 					numDone++
 					continue
@@ -226,9 +235,9 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	return nil
 }
 
-func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
+func (as *ArtifactSaver) resolveClientIDReferences() error {
 	cache := map[string]string{}
-	for name, entry := range manifest.Contents {
+	for name, entry := range as.Manifest.Contents {
 		if entry.Ref != nil && strings.HasPrefix(*entry.Ref, "wandb-client-artifact:") {
 			refParsed, err := url.Parse(*entry.Ref)
 			if err != nil {
@@ -253,7 +262,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 			}
 			resolvedRef := "wandb-artifact://" + serverIdHex + "/" + path
 			entry.Ref = &resolvedRef
-			manifest.Contents[name] = entry
+			as.Manifest.Contents[name] = entry
 		}
 	}
 	return nil
@@ -288,8 +297,8 @@ func (as *ArtifactSaver) commitArtifact(artifactID string) error {
 	return err
 }
 
-func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
-	for _, entry := range manifest.Contents {
+func (as *ArtifactSaver) deleteStagingFiles() {
+	for _, entry := range as.Manifest.Contents {
 		if entry.LocalPath != nil && strings.HasPrefix(*entry.LocalPath, as.StagingDir) {
 			// We intentionally ignore errors below.
 			_ = os.Chmod(*entry.LocalPath, 0600)
@@ -303,8 +312,8 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if err != nil {
 		return "", err
 	}
-
-	defer as.deleteStagingFiles(&manifest)
+	as.Manifest = &manifest
+	defer as.deleteStagingFiles()
 
 	artifactAttrs, err := as.createArtifact()
 	if err != nil {
@@ -345,17 +354,17 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
+	err = as.uploadFiles(artifactID, manifestAttrs.Id)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
 
-	err = as.resolveClientIDReferences(&manifest)
+	err = as.resolveClientIDReferences()
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.resolveClientIDReferences: %w", err)
 	}
 	// TODO: check if size is needed
-	manifestFile, manifestDigest, _, err := manifest.WriteToFile()
+	manifestFile, manifestDigest, _, err := as.Manifest.WriteToFile()
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
