@@ -1302,16 +1302,16 @@ jobs:
 
 workflows:
   nightly:
-    # when:
-    #   or:
-    #     - and:
-    #         - equal:
-    #             - << pipeline.trigger_source >>
-    #             - scheduled_pipeline
-    #         - equal:
-    #             - << pipeline.schedule.name >>
-    #             - "nightly"
-    #     - << pipeline.parameters.manual_nightly >> # this is a manual trigger
+    when:
+      or:
+        - and:
+            - equal:
+                - << pipeline.trigger_source >>
+                - scheduled_pipeline
+            - equal:
+                - << pipeline.schedule.name >>
+                - "nightly"
+        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
     jobs:
       #
       # "And now my watch begins"
