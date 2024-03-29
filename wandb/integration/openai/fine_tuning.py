@@ -163,7 +163,9 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termlog("Waiting for the OpenAI fine-tuning job to be finished...")
+        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...You can set \
+`wait_for_job_success` to `False` and call `WandbLogger.sync` once the OpenAI training is \
+finished if you don't want `.sync` to be blocking.")
         while True:
             if fine_tune.status == "succeeded":
                 wandb.termlog(
