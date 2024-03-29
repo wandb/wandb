@@ -899,7 +899,6 @@ def is_valid_color(color_str: str) -> bool:
             and 0 <= parts[-1] <= 1
         ):
             return True  # Valid RGBA
-
     except ValueError:
         pass
 
