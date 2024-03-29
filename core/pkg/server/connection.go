@@ -50,7 +50,7 @@ type Connection struct {
 	// however, a stream can have multiple connections
 	stream *Stream
 
-	// closed is a flag to indicate if the connection is closed
+	// closed indicates if the outChan is closed
 	closed *atomic.Bool
 }
 
