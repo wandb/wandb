@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -48,6 +49,9 @@ type Connection struct {
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
 	stream *Stream
+
+	// closed indicates if the outChan is closed
+	closed *atomic.Bool
 }
 
 // NewConnection creates a new connection
@@ -64,6 +68,7 @@ func NewConnection(
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
+		closed:       &atomic.Bool{},
 	}
 	return nc
 }
@@ -132,6 +137,12 @@ func (nc *Connection) Close() {
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
+	if nc.closed.Load() {
+		// TODO: this is a bit of a hack, we should probably handle this better
+		//       and not send responses to closed connections
+		slog.Error("connection is closed", "id", nc.id)
+		return
+	}
 	nc.outChan <- resp
 }
 
@@ -222,7 +233,9 @@ func (nc *Connection) handleServerRequest() {
 			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 		}
 	}
-	close(nc.outChan)
+	if !nc.closed.Swap(true) {
+		close(nc.outChan)
+	}
 	slog.Debug("finished handleServerRequest", "id", nc.id)
 }
 
