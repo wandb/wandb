@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -42,7 +43,6 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -531,7 +531,6 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -642,7 +641,6 @@ class Run:
         self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
-        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -672,6 +670,12 @@ class Run:
             config[wandb_key]["code_path"] = LogicalPath(
                 os.path.join("code", self._settings.program_relpath)
             )
+
+        if self._settings.fork_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.fork_from.run,
+                "step": self._settings.fork_from.value,
+            }
 
         self._config._update(config, ignore_locked=True)
 
@@ -734,7 +738,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1385,6 +1389,8 @@ class Run:
 
     @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_summary = True
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
@@ -1811,6 +1817,10 @@ class Run:
             ValueError: if invalid data is passed
 
         """
+        if step is not None:
+            with telemetry.context(run=self) as tel:
+                tel.feature.set_step_log = True
+
         if sync is not None:
             deprecate.deprecate(
                 field_name=deprecate.Deprecated.run__log_sync,
@@ -1831,20 +1841,53 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str, os.PathLike]] = None,
+        base_path: Optional[Union[str, os.PathLike]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
-        """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
+        """Sync one or more files to W&B.
+
+        Relative paths are relative to the current working directory.
+
+        A Unix glob, such as "myfiles/*", is expanded at the time `save` is
+        called regardless of the `policy`. In particular, new files are not
+        picked up automatically.
+
+        A `base_path` may be provided to control the directory structure of
+        uploaded files. It should be a prefix of `glob_str`, and the direcotry
+        structure beneath it is preserved. It's best understood through
+        examples:
+
+        ```
+        wandb.save("these/are/myfiles/*")
+        # => Saves files in a "these/are/myfiles/" folder in the run.
+
+        wandb.save("these/are/myfiles/*", base_path="these")
+        # => Saves files in an "are/myfiles/" folder in the run.
+
+        wandb.save("/User/username/Documents/run123/*.txt")
+        # => Saves files in a "run123/" folder in the run.
+
+        wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        # => Saves files in a "username/Documents/run123/" folder in the run.
+
+        wandb.save("files/*/saveme.txt")
+        # => Saves each "saveme.txt" file in an appropriate subdirectory
+        # of "files/".
+        ```
 
         Arguments:
-            glob_str: (string) a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
-            base_path: (string) the base path to run the glob relative to
-            policy: (string) one of `live`, `now`, or `end`
-                - live: upload the file as it changes, overwriting the previous version
-                - now: upload the file once now
-                - end: only upload file when the run ends
+            glob_str: A relative or absolute path or Unix glob.
+            base_path: A path to use to infer a directory structure; see examples.
+            policy: One of `live`, `now`, or `end`.
+                * live: upload the file as it changes, overwriting the previous version
+                * now: upload the file once now
+                * end: upload file when the run ends
+
+        Returns:
+            Paths to the symlinks created for the matched files.
+
+            For historical reasons, this may return a boolean in legacy code.
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
@@ -1857,77 +1900,124 @@ class Run:
             )
             return True
 
-        return self._save(glob_str, base_path, policy)
+        if isinstance(glob_str, bytes):
+            # Preserved for backward compatibility: allow bytes inputs.
+            glob_str = glob_str.decode("utf-8")
+        if isinstance(glob_str, str) and (
+            glob_str.startswith("gs://") or glob_str.startswith("s3://")
+        ):
+            # Provide a better error message for a common misuse.
+            wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
+            return []
+        glob_path = pathlib.Path(glob_str)
+
+        if base_path is not None:
+            base_path = pathlib.Path(base_path)
+        elif not glob_path.is_absolute():
+            base_path = pathlib.Path(".")
+        else:
+            # Absolute glob paths with no base path get special handling.
+            wandb.termwarn(
+                "Saving files without folders. If you want to preserve "
+                "subdirectories pass base_path to wandb.save, i.e. "
+                'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                repeat=False,
+            )
+            base_path = glob_path.resolve().parent.parent
+
+        if policy not in ("live", "end", "now"):
+            raise ValueError(
+                'Only "live", "end" and "now" policies are currently supported.'
+            )
+
+        resolved_glob_path = glob_path.resolve()
+        resolved_base_path = base_path.resolve()
+
+        return self._save(
+            resolved_glob_path,
+            resolved_base_path,
+            policy,
+        )
 
     def _save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
-        policy: "PolicyName" = "live",
-    ) -> Union[bool, List[str]]:
-        if policy not in ("live", "end", "now"):
-            raise ValueError(
-                'Only "live" "end" and "now" policies are currently supported.'
-            )
-        if isinstance(glob_str, bytes):
-            glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+        glob_path: pathlib.Path,
+        base_path: pathlib.Path,
+        policy: "PolicyName",
+    ) -> List[str]:
+        # Can't use is_relative_to() because that's added in Python 3.9,
+        # but we support down to Python 3.7.
+        if not str(glob_path).startswith(str(base_path)):
+            raise ValueError("Glob may not walk above the base path")
 
-        if base_path is None:
-            if os.path.isabs(glob_str):
-                base_path = os.path.dirname(glob_str)
-                wandb.termwarn(
-                    "Saving files without folders. If you want to preserve "
-                    "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
-                    repeat=False,
-                )
-            else:
-                base_path = "."
-        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
-        if ".." + os.sep in wandb_glob_str:
-            raise ValueError("globs can't walk above base_path")
+        if glob_path == base_path:
+            raise ValueError("Glob cannot be the same as the base path")
+
+        relative_glob = glob_path.relative_to(base_path)
+        if relative_glob.parts[0] == "*":
+            raise ValueError("Glob may not start with '*' relative to the base path")
+        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
-            wandb.termlog(
-                "%s is a cloud storage url, can't save file to wandb." % glob_str
-            )
-            return []
-        files = glob.glob(os.path.join(self._settings.files_dir, wandb_glob_str))
-        warn = False
-        if len(files) == 0 and "*" in wandb_glob_str:
-            warn = True
-        for path in glob.glob(glob_str):
-            file_name = os.path.relpath(path, base_path)
-            abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self._settings.files_dir, file_name)
-            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
-            # We overwrite symlinks because namespaces can change in Tensorboard
-            if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
-                os.remove(wandb_path)
-                os.symlink(abs_path, wandb_path)
-            elif not os.path.exists(wandb_path):
-                os.symlink(abs_path, wandb_path)
-            files.append(wandb_path)
-        if warn:
-            file_str = "%i file" % len(files)
-            if len(files) > 1:
+        # Files in the files directory matched by the glob, including old and
+        # new ones.
+        globbed_files = list(
+            pathlib.Path(
+                self._settings.files_dir,
+            ).glob(relative_glob_str)
+        )
+
+        had_symlinked_files = len(globbed_files) > 0
+        is_star_glob = "*" in relative_glob_str
+
+        # The base_path may itself be a glob, so we can't do
+        #     base_path.glob(relative_glob_str)
+        for path_str in glob.glob(str(base_path / relative_glob_str)):
+            path = pathlib.Path(path_str).absolute()
+
+            # We can't use relative_to() because base_path may be a glob.
+            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+
+            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
+            globbed_files.append(wandb_path)
+
+            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Delete the symlink if it exists.
+            try:
+                wandb_path.unlink()
+            except FileNotFoundError:
+                # In Python 3.8, we would pass missing_ok=True, but as of now
+                # we support down to Python 3.7.
+                pass
+
+            wandb_path.symlink_to(path)
+
+        # Inform users that new files aren't detected automatically.
+        if not had_symlinked_files and is_star_glob:
+            file_str = f"{len(globbed_files)} file"
+            if len(globbed_files) > 1:
                 file_str += "s"
             wandb.termwarn(
-                (
-                    "Symlinked %s into the W&B run directory, "
-                    "call wandb.save again to sync new files."
-                )
-                % file_str
+                f"Symlinked {file_str} into the W&B run directory, "
+                "call wandb.save again to sync new files."
             )
-        files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
+
+        files_dict: FilesDict = {
+            "files": [
+                (
+                    GlobStr(str(f.relative_to(self._settings.files_dir))),
+                    policy,
+                )
+                for f in globbed_files
+            ]
+        }
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
-        return files
+
+        return [str(f) for f in globbed_files]
 
     @_run_decorator._attach
     def restore(
@@ -2485,7 +2575,6 @@ class Run:
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        job_info_handle = self._backend.interface.deliver_request_job_info()
 
         result = server_info_handle.wait(timeout=-1)
         assert result
@@ -2498,10 +2587,6 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
-
-        result = job_info_handle.wait(timeout=-1)
-        assert result
-        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2525,7 +2610,6 @@ class Run:
             server_info_response=self._server_info_response,
             check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
-            job_info=self._job_info,
             reporter=self._reporter,
             quiet=self._quiet,
             settings=self._settings,
@@ -3509,7 +3593,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        run_url = settings.run_url
+        workspace_url = f"{settings.run_url}/workspace"
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3520,7 +3604,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3552,7 +3636,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3576,7 +3660,6 @@ class Run:
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3593,7 +3676,6 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3778,7 +3860,6 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3798,14 +3879,10 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
+                run_workspace = f"{settings.run_url}/workspace"
                 info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
                 ]
-            if job_info and job_info.version and job_info.sequenceId:
-                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
-                info.append(
-                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
-                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

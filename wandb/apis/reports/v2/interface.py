@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import Dict, Iterable, Optional, Tuple, Union
 from typing import List as LList
 
+from annotated_types import Annotated, Ge, Le
+
 try:
     from typing import Literal
 except ImportError:
@@ -1248,14 +1250,8 @@ block_mapping = {
 
 @dataclass(config=dataclass_config)
 class GradientPoint(Base):
-    color: str
-    offset: float = Field(0, ge=0, le=100)
-
-    @validator("color")
-    def validate_color(cls, v):  # noqa: N805
-        if not internal.is_valid_color(v):
-            raise ValueError("invalid color, value should be hex, rgb, or rgba")
-        return v
+    color: Annotated[str, internal.ColorStrConstraints]
+    offset: Annotated[float, Ge(0), Le(100)] = 0
 
     def to_model(self):
         return internal.GradientPoint(color=self.color, offset=self.offset)

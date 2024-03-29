@@ -128,22 +128,6 @@ class BuilderConfig(BaseModel):
         "the image will be pushed to the registry.",
     )
 
-    @validator("destination")  # type: ignore
-    @classmethod
-    def validate_destination(cls, destination: str) -> str:
-        """Validate that the destination is a valid container registry URI."""
-        for regex in [
-            GCP_ARTIFACT_REGISTRY_URI_REGEX,
-            AZURE_CONTAINER_REGISTRY_URI_REGEX,
-            ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
-        ]:
-            if regex.match(destination):
-                return destination
-        raise ValueError(
-            "Invalid destination. Destination must be a repository URI for an "
-            "ECR, ACR, or GCP Artifact Registry."
-        )
-
     platform: Optional[TargetPlatform] = Field(
         None,
         description="The platform to use for the built image. If not provided, "
@@ -198,17 +182,6 @@ class BuilderConfig(BaseModel):
 
     @root_validator(pre=True)  # type: ignore
     @classmethod
-    def validate_kaniko(cls, values: dict) -> dict:
-        """Validate that kaniko is configured correctly."""
-        if values.get("type") == BuilderType.kaniko:
-            if values.get("build-context-store") is None:
-                raise ValueError(
-                    "builder.build-context-store is required if builder.type is set to kaniko."
-                )
-        return values
-
-    @root_validator(pre=True)  # type: ignore
-    @classmethod
     def validate_docker(cls, values: dict) -> dict:
         """Right now there are no required fields for docker builds."""
         return values
@@ -251,6 +224,10 @@ class AgentConfig(BaseModel):
     builder: Optional[BuilderConfig] = Field(
         None,
         description="The builder to use.",
+    )
+    verbosity: Optional[int] = Field(
+        0,
+        description="How verbose to print, 0 = default, 1 = verbose, 2 = very verbose",
     )
 
     class Config:

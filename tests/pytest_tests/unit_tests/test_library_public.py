@@ -299,6 +299,7 @@ SYMBOLS_WANDB_INIT = {
     "notes",
     "job_type",
     "reinit",
+    "fork_from",
 }
 
 

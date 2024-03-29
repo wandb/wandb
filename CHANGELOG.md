@@ -1,3 +1,84 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Starting with the 0.16.4 release on March 5, 2024, the format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+
+## Unreleased
+
+Starting with the next release, we follow https://keepachangelog.com/en/1.1.0/.
+Please add to relevant subsections here on every PR where this is applicable.
+
+## [0.16.5] - 2024-03-25
+
+### Added
+
+* Added feature to move staging files to cache (instead of copying) for mutable artifact file uploads when caching is enabled by @ibindlish in https://github.com/wandb/wandb/pull/7143
+* Added support to skip caching files to the local filesystem while uploading files to artifacts by @ibindlish in https://github.com/wandb/wandb/pull/7098
+* Added support to skip staging artifact files during upload by selecting a storage policy by @ibindlish in https://github.com/wandb/wandb/pull/7142
+* Preliminary support for forking a run using `wandb.init(fork_from=...)` by @dannygoldstein in https://github.com/wandb/wandb/pull/7078
+* `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
+* Reduced default status print frequency of launch agent. Added verbosity controls to allow for increased status print frequency and printing debug information to stdout by @TimH98 in https://github.com/wandb/wandb/pull/7126
+
+### Changed
+
+* Limit policy option on artifact cli's put() to choices, ["mutable", "immutable"] by @ibindish in https://github.com/wandb/wandb/pull/7172
+* When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
+
+### Fixed
+
+* In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
+
+### Removed
+
+* When printing run's information in the terminal remove links to jobs by @kptkin in https://github.com/wandb/wandb/pull/7132
+
+
+## [0.16.4] - 2024-03-05
+
+### Added
+
+* Added ability to change artifact collection types by @biaslucas in https://github.com/wandb/wandb/pull/6971
+* Add support for installing deps from pyproject.toml by @bcsherma in https://github.com/wandb/wandb/pull/6964
+* Support kaniko build with user-provided pvc and docker config by @bcsherma in https://github.com/wandb/wandb/pull/7059
+* Added ability to import runs between W&B instances by @andrewtruong in https://github.com/wandb/wandb/pull/6897
+
+### Changed
+
+* wandb-core rate-limits requests to the backend and respects RateLimit-* headers
+  by @timoffex in https://github.com/wandb/wandb/pull/7065
+
+### Fixed
+
+* Fix passing of template variables in the sweeps-on-launch scheduler by @dannygoldstein in https://github.com/wandb/wandb/pull/6959
+* Link job artifact to a run to be specified as input by @kptkin in https://github.com/wandb/wandb/pull/6940
+* Fix sagemaker entrypoint to use given entrypoint by @KyleGoyette in https://github.com/wandb/wandb/pull/6969
+* Parse upload headers correctly by @kptkin in https://github.com/wandb/wandb/pull/6983
+* Properly propagate server errors by @kptkin in https://github.com/wandb/wandb/pull/6944
+* Make file upload faster by using parallelism by @kptkin in https://github.com/wandb/wandb/pull/6975
+* Don't send git data if it's not populated by @kptkin in https://github.com/wandb/wandb/pull/6984
+* Fix console logging resumption, avoid overwrite by @kptkin in https://github.com/wandb/wandb/pull/6963
+* Remove hostname validation when using --host on wandb login by @Jamil in https://github.com/wandb/wandb/pull/6999
+* Don't discard past visualizations when resuming a run by @timoffex in https://github.com/wandb/wandb/pull/7005
+* Avoid retrying on conflict status code by @kptkin in https://github.com/wandb/wandb/pull/7011
+* Fix visualization config merging for resumed runs in wandb-core by @timoffex in https://github.com/wandb/wandb/pull/7012
+* Replace usage of standard library's json with `segmentio`'s by @kptkin in https://github.com/wandb/wandb/pull/7027
+* Remove stderr as writer for the logs by @kptkin in https://github.com/wandb/wandb/pull/7022
+* Disable negative steps from initialization by @kptkin in https://github.com/wandb/wandb/pull/7030
+* Fix report loading in pydantic26 by @andrewtruong in https://github.com/wandb/wandb/pull/6988
+* Revert "make upload request async to support progress reporting (#6497)" by @jlzhao27 in https://github.com/wandb/wandb/pull/7049
+* Fix entrypoint specification when using a Dockerfile.wandb by @KyleGoyette in https://github.com/wandb/wandb/pull/7080
+* Fix stream releasing probe handle too early by @jlzhao27 in https://github.com/wandb/wandb/pull/7056
+* Always attempt to pull latest image for local container by @KyleGoyette in https://github.com/wandb/wandb/pull/7079
+
+### New Contributors
+* @Jamil made their first contribution in https://github.com/wandb/wandb/pull/6999
+
+
 # 0.16.3 (Feb 6, 2024)
 
 ### :magic_wand: Enhancements

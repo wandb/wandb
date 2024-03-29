@@ -1,18 +1,19 @@
 """JSONSchema for internal types.  Hopefully this is auto-generated one day!"""
 import json
 import random
-import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from typing import List as LList
+
+from annotated_types import Annotated, Ge, Le
 
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, validator
 from pydantic.alias_generators import to_camel
 
 
@@ -47,6 +48,13 @@ def _generate_name(length: int = 12) -> str:
     rand36 = base_repr(rand, 36)
     return rand36.lower()[:length]
 
+
+hex_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+rgb_pattern = r"^rgb\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*\)$"
+rgba_pattern = r"^rgba\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(1|0|0?\.\d+)\s*\)$"
+ColorStrConstraints = StringConstraints(
+    pattern=f"{hex_pattern}|{rgb_pattern}|{rgba_pattern}"
+)
 
 LinePlotStyle = Literal["line", "stacked-area", "pct-area"]
 BarPlotStyle = Literal["bar", "boxplot", "violin"]
@@ -609,14 +617,8 @@ class LinePlot(Panel):
 
 
 class GradientPoint(ReportAPIBaseModel):
-    color: str
-    offset: float = Field(0, ge=0, le=100)
-
-    @validator("color")
-    def validate_color(cls, v):  # noqa: N805
-        if not is_valid_color(v):
-            raise ValueError("invalid color, value should be hex, rgb, or rgba")
-        return v
+    color: Annotated[str, ColorStrConstraints]
+    offset: Annotated[float, Ge(0), Le(100)] = 0
 
 
 class ScatterPlotConfig(ReportAPIBaseModel):

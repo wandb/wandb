@@ -53,6 +53,7 @@ class Record(google.protobuf.message.Message):
     PREEMPTING_FIELD_NUMBER: builtins.int
     LINK_ARTIFACT_FIELD_NUMBER: builtins.int
     USE_ARTIFACT_FIELD_NUMBER: builtins.int
+    WANDB_CONFIG_PARAMETERS_FIELD_NUMBER: builtins.int
     REQUEST_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
@@ -101,6 +102,8 @@ class Record(google.protobuf.message.Message):
     @property
     def use_artifact(self) -> global___UseArtifactRecord: ...
     @property
+    def wandb_config_parameters(self) -> global___LaunchWandbConfigParametersRecord: ...
+    @property
     def request(self) -> global___Request:
         """request field does not belong here longterm"""
     @property
@@ -132,14 +135,15 @@ class Record(google.protobuf.message.Message):
         preempting: global___RunPreemptingRecord | None = ...,
         link_artifact: global___LinkArtifactRecord | None = ...,
         use_artifact: global___UseArtifactRecord | None = ...,
+        wandb_config_parameters: global___LaunchWandbConfigParametersRecord | None = ...,
         request: global___Request | None = ...,
         control: global___Control | None = ...,
         uuid: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "use_artifact", "request"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "wandb_config_parameters", b"wandb_config_parameters"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "alert", b"alert", "artifact", b"artifact", "config", b"config", "control", b"control", "exit", b"exit", "files", b"files", "final", b"final", "footer", b"footer", "header", b"header", "history", b"history", "link_artifact", b"link_artifact", "metric", b"metric", "num", b"num", "output", b"output", "output_raw", b"output_raw", "preempting", b"preempting", "record_type", b"record_type", "request", b"request", "run", b"run", "stats", b"stats", "summary", b"summary", "tbrecord", b"tbrecord", "telemetry", b"telemetry", "use_artifact", b"use_artifact", "uuid", b"uuid", "wandb_config_parameters", b"wandb_config_parameters"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["record_type", b"record_type"]) -> typing_extensions.Literal["history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "link_artifact", "use_artifact", "wandb_config_parameters", "request"] | None: ...
 
 global___Record = Record
 
@@ -362,6 +366,7 @@ class RunRecord(google.protobuf.message.Message):
     TELEMETRY_FIELD_NUMBER: builtins.int
     RUNTIME_FIELD_NUMBER: builtins.int
     GIT_FIELD_NUMBER: builtins.int
+    FORKED_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
     entity: builtins.str
@@ -390,6 +395,7 @@ class RunRecord(google.protobuf.message.Message):
     runtime: builtins.int
     @property
     def git(self) -> global___GitRepoRecord: ...
+    forked: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -415,10 +421,11 @@ class RunRecord(google.protobuf.message.Message):
         telemetry: wandb.proto.wandb_telemetry_pb2.TelemetryRecord | None = ...,
         runtime: builtins.int = ...,
         git: global___GitRepoRecord | None = ...,
+        forked: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "git", b"git", "settings", b"settings", "start_time", b"start_time", "summary", b"summary", "telemetry", b"telemetry"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "config", b"config", "display_name", b"display_name", "entity", b"entity", "forked", b"forked", "git", b"git", "host", b"host", "job_type", b"job_type", "notes", b"notes", "project", b"project", "resumed", b"resumed", "run_group", b"run_group", "run_id", b"run_id", "runtime", b"runtime", "settings", b"settings", "start_time", b"start_time", "starting_step", b"starting_step", "storage_id", b"storage_id", "summary", b"summary", "sweep_id", b"sweep_id", "tags", b"tags", "telemetry", b"telemetry"]) -> None: ...
 
 global___RunRecord = RunRecord
 
@@ -438,6 +445,58 @@ class GitRepoRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal["commit", b"commit", "remote_url", b"remote_url"]) -> None: ...
 
 global___GitRepoRecord = GitRepoRecord
+
+class ConfigFilterPath(google.protobuf.message.Message):
+    """Path within nested configuration object.
+
+    The path is a list of strings, each string is a key in the nested configuration
+    dict.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    PATH_FIELD_NUMBER: builtins.int
+    @property
+    def path(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    def __init__(
+        self,
+        *,
+        path: collections.abc.Iterable[builtins.str] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["path", b"path"]) -> None: ...
+
+global___ConfigFilterPath = ConfigFilterPath
+
+class LaunchWandbConfigParametersRecord(google.protobuf.message.Message):
+    """Specifies include and exclude paths for filtering job inputs.
+
+    If this record is published to the core internal process then it will filter
+    the given paths into or out of the job inputs it builds.
+
+    If include_paths is not empty, then endpoints of the config not prefixed by
+    an include path will be ignored.
+
+    If exclude_paths is not empty, then endpoints of the config prefixed by an
+    exclude path will be ignored.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    INCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    @property
+    def include_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    @property
+    def exclude_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ConfigFilterPath]: ...
+    def __init__(
+        self,
+        *,
+        include_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+        exclude_paths: collections.abc.Iterable[global___ConfigFilterPath] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths"]) -> None: ...
+
+global___LaunchWandbConfigParametersRecord = LaunchWandbConfigParametersRecord
 
 class RunUpdateResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
@@ -1036,9 +1095,7 @@ class SummaryResult(google.protobuf.message.Message):
 global___SummaryResult = SummaryResult
 
 class FilesRecord(google.protobuf.message.Message):
-    """
-    FilesRecord: files added to run
-    """
+    """Files added to a run, such as through run.save()."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1060,6 +1117,8 @@ class FilesRecord(google.protobuf.message.Message):
 global___FilesRecord = FilesRecord
 
 class FilesItem(google.protobuf.message.Message):
+    """One or more files being saved with a run."""
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     class _PolicyType:
@@ -1069,13 +1128,19 @@ class FilesItem(google.protobuf.message.Message):
     class _PolicyTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[FilesItem._PolicyType.ValueType], builtins.type):  # noqa: F821
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
         NOW: FilesItem._PolicyType.ValueType  # 0
+        """Upload the file immediately."""
         END: FilesItem._PolicyType.ValueType  # 1
+        """Upload the file during run.finish()."""
         LIVE: FilesItem._PolicyType.ValueType  # 2
+        """Re-upload the file continuously as it changes."""
 
     class PolicyType(_PolicyType, metaclass=_PolicyTypeEnumTypeWrapper): ...
     NOW: FilesItem.PolicyType.ValueType  # 0
+    """Upload the file immediately."""
     END: FilesItem.PolicyType.ValueType  # 1
+    """Upload the file during run.finish()."""
     LIVE: FilesItem.PolicyType.ValueType  # 2
+    """Re-upload the file continuously as it changes."""
 
     class _FileType:
         ValueType = typing.NewType("ValueType", builtins.int)
@@ -1097,20 +1162,20 @@ class FilesItem(google.protobuf.message.Message):
     PATH_FIELD_NUMBER: builtins.int
     POLICY_FIELD_NUMBER: builtins.int
     TYPE_FIELD_NUMBER: builtins.int
-    EXTERNAL_PATH_FIELD_NUMBER: builtins.int
     path: builtins.str
+    """A path or Unix glob relative to the W&B files directory."""
     policy: global___FilesItem.PolicyType.ValueType
+    """When to upload the file."""
     type: global___FilesItem.FileType.ValueType
-    external_path: builtins.str
+    """What kind of file it is."""
     def __init__(
         self,
         *,
         path: builtins.str = ...,
         policy: global___FilesItem.PolicyType.ValueType = ...,
         type: global___FilesItem.FileType.ValueType = ...,
-        external_path: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["external_path", b"external_path", "path", b"path", "policy", b"policy", "type", b"type"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["path", b"path", "policy", b"policy", "type", b"type"]) -> None: ...
 
 global___FilesItem = FilesItem
 
@@ -1296,6 +1361,7 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     MIMETYPE_FIELD_NUMBER: builtins.int
     LOCAL_PATH_FIELD_NUMBER: builtins.int
     BIRTH_ARTIFACT_ID_FIELD_NUMBER: builtins.int
+    SKIP_CACHE_FIELD_NUMBER: builtins.int
     EXTRA_FIELD_NUMBER: builtins.int
     path: builtins.str
     digest: builtins.str
@@ -1304,6 +1370,8 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
     mimetype: builtins.str
     local_path: builtins.str
     birth_artifact_id: builtins.str
+    skip_cache: builtins.bool
+    """Whether to avoid copying/moving files to the cache while uploading."""
     @property
     def extra(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ExtraItem]: ...
     def __init__(
@@ -1316,9 +1384,10 @@ class ArtifactManifestEntry(google.protobuf.message.Message):
         mimetype: builtins.str = ...,
         local_path: builtins.str = ...,
         birth_artifact_id: builtins.str = ...,
+        skip_cache: builtins.bool = ...,
         extra: collections.abc.Iterable[global___ExtraItem] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "ref", b"ref", "size", b"size"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["birth_artifact_id", b"birth_artifact_id", "digest", b"digest", "extra", b"extra", "local_path", b"local_path", "mimetype", b"mimetype", "path", b"path", "ref", b"ref", "size", b"size", "skip_cache", b"skip_cache"]) -> None: ...
 
 global___ArtifactManifestEntry = ArtifactManifestEntry
 
@@ -1534,7 +1603,6 @@ class Request(google.protobuf.message.Message):
     TELEMETRY_RECORD_FIELD_NUMBER: builtins.int
     JOB_INFO_FIELD_NUMBER: builtins.int
     GET_SYSTEM_METRICS_FIELD_NUMBER: builtins.int
-    FILE_TRANSFER_INFO_FIELD_NUMBER: builtins.int
     SYNC_FIELD_NUMBER: builtins.int
     TEST_INJECT_FIELD_NUMBER: builtins.int
     @property
@@ -1600,8 +1668,6 @@ class Request(google.protobuf.message.Message):
     @property
     def get_system_metrics(self) -> global___GetSystemMetricsRequest: ...
     @property
-    def file_transfer_info(self) -> global___FileTransferInfoRequest: ...
-    @property
     def sync(self) -> global___SyncRequest: ...
     @property
     def test_inject(self) -> global___TestInjectRequest: ...
@@ -1639,13 +1705,12 @@ class Request(google.protobuf.message.Message):
         telemetry_record: global___TelemetryRecordRequest | None = ...,
         job_info: global___JobInfoRequest | None = ...,
         get_system_metrics: global___GetSystemMetricsRequest | None = ...,
-        file_transfer_info: global___FileTransferInfoRequest | None = ...,
         sync: global___SyncRequest | None = ...,
         test_inject: global___TestInjectRequest | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "file_transfer_info", b"file_transfer_info", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "file_transfer_info", b"file_transfer_info", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "file_transfer_info", "sync", "test_inject"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["attach", b"attach", "cancel", b"cancel", "check_version", b"check_version", "defer", b"defer", "download_artifact", b"download_artifact", "get_summary", b"get_summary", "get_system_metrics", b"get_system_metrics", "internal_messages", b"internal_messages", "job_info", b"job_info", "keepalive", b"keepalive", "log_artifact", b"log_artifact", "login", b"login", "metadata", b"metadata", "network_status", b"network_status", "partial_history", b"partial_history", "pause", b"pause", "poll_exit", b"poll_exit", "python_packages", b"python_packages", "request_type", b"request_type", "resume", b"resume", "run_start", b"run_start", "run_status", b"run_status", "sampled_history", b"sampled_history", "sender_mark", b"sender_mark", "sender_read", b"sender_read", "server_info", b"server_info", "shutdown", b"shutdown", "status", b"status", "status_report", b"status_report", "stop_status", b"stop_status", "summary_record", b"summary_record", "sync", b"sync", "telemetry_record", b"telemetry_record", "test_inject", b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["request_type", b"request_type"]) -> typing_extensions.Literal["stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "metadata", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "sync", "test_inject"] | None: ...
 
 global___Request = Request
 

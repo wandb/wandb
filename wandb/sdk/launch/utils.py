@@ -222,14 +222,14 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
 
 
 def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
-    wandb.termwarn(
-        "Launch spec contains both resource_args and template_variables, "
-        "only one can be set. Using template_variables."
-    )
     if launch_spec.get("resource_args", None) and launch_spec.get(
         "template_variables", None
     ):
-        launch_spec["resource_args"] = None
+        wandb.termwarn(
+            "Launch spec contains both resource_args and template_variables, "
+            "only one can be set. Using template_variables."
+        )
+        launch_spec.pop("resource_args")
 
 
 def construct_launch_spec(
@@ -846,3 +846,21 @@ def fetch_and_validate_template_variables(
             raise LaunchError(f"Value for {key} must be of type {field_type}.")
         template_variables[key] = val
     return template_variables
+
+
+def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+    """Get the entrypoint file from the given command.
+
+    Args:
+        entrypoint (List[str]): List of command and arguments.
+
+    Returns:
+        Optional[str]: The entrypoint file if found, otherwise None.
+    """
+    if not entrypoint:
+        return None
+    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+        return entrypoint[0]
+    if len(entrypoint) < 2:
+        return None
+    return entrypoint[1]

@@ -11,7 +11,7 @@ import pytest
 import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
-from wandb.sdk import wandb_login, wandb_settings
+from wandb.sdk import wandb_settings
 from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
 
 if sys.version_info >= (3, 8):
@@ -1010,21 +1010,6 @@ def test_code_saving_disable_code(mock_run, test_settings):
         settings._infer_settings_from_environment()
         run = mock_run(settings=settings)
         assert run.settings.save_code is False
-
-
-def test_override_login_settings(test_settings):
-    wlogin = wandb_login._WandbLogin()
-    login_settings = test_settings().copy()
-    login_settings.update(show_emoji=True)
-    wlogin.setup({"_settings": login_settings})
-    assert wlogin._settings.show_emoji is True
-
-
-def test_override_login_settings_with_dict():
-    wlogin = wandb_login._WandbLogin()
-    login_settings = dict(show_emoji=True)
-    wlogin.setup({"_settings": login_settings})
-    assert wlogin._settings.show_emoji is True
 
 
 def test_setup_offline(test_settings):
