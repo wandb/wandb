@@ -55,9 +55,13 @@ jobs:
         if: runner.os != 'Linux'
         run: pip install -r requirements_tools.txt
 
-      - name: Build artifacts using wini
-        if: runner.os != 'Linux'
+      - name: Build artifacts using wini (Windows)
+        if: runner.os == 'Windows'
         run: bash wini build wandb-core-artifacts
+
+      - name: Build artifacts using wini (macOS)
+        if: runner.os == 'macOS'
+        run: bash wini build wandb-core-artifacts --arch x86_64 --arch aarch64
 
       ##################################################
       # All platforms: create wheels
