@@ -128,6 +128,7 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 	numInProgress *int32, numDone *int32, errorChan chan error,
 	retryChan chan gql.CreateArtifactFileSpecInput) {
 
+
 	// Get upload URLs for the whole batch.
 	response, err := gql.CreateArtifactFiles(
 		as.Ctx,
@@ -149,6 +150,7 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 	}
 
 	receivedAt := time.Now()
+	wg := sync.WaitGroup{}
 
 	// Set birth artifact ids and schedule uploads.
 	for i, edge := range response.CreateArtifactFiles.Files.Edges {
@@ -161,7 +163,6 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 			atomic.AddInt32(numDone, 1)
 			continue
 		}
-		atomic.AddInt32(numInProgress, 1)
 		task := &filetransfer.Task{
 			FileKind: filetransfer.RunFileKindArtifact,
 			Type:     filetransfer.UploadTask,
@@ -171,6 +172,7 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 		}
 		task.SetCompletionCallback(
 			func(t *filetransfer.Task) {
+				defer wg.Done()
 				atomic.AddInt32(numInProgress, -1)
 				if t.Err != nil {
 					// Retry if it's been more than an hour (URL may have expired).
@@ -184,10 +186,11 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 				}
 			},
 		)
-		// The file transfer manager will buffer tasks and block until it has space, so we
-		// won't actually start more than ~32 concurrent goroutines across all batches.
+		wg.Add(1)
+		atomic.AddInt32(numInProgress, 1)
 		as.FileTransferManager.AddTask(task)
 	}
+	wg.Wait()
 }
 
 func (as *ArtifactSaver) uploadFiles(fileSpecs []gql.CreateArtifactFileSpecInput,
