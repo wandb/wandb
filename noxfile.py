@@ -1,5 +1,4 @@
 import os
-import platform
 from typing import Callable, List
 
 import nox
