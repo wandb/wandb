@@ -1,0 +1,7 @@
+query RunStoppedStatus($entityName: String, $projectName: String, $runId: String!) {
+    project(name:$projectName, entityName:$entityName) {
+        run(name:$runId) {
+            stopped
+        }
+    }
+}
