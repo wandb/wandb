@@ -1,6 +1,12 @@
+import sys
 from dataclasses import dataclass
-from typing import Literal, Union, cast
+from typing import Union, cast
 from urllib import parse
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 _STEP = Literal["_step"]
 
