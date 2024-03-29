@@ -749,31 +749,11 @@ class RunComparer(Panel):
     config: RunComparerConfig
 
 
-class QueryFieldsValue(ReportAPIBaseModel):
-    name: str
-    value: Any
-
-
-class QueryFieldsField(ReportAPIBaseModel):
-    name: str = ""
-    fields: LList["QueryFieldsField"] = Field(default_factory=list)
-    value: Optional[LList[QueryFieldsValue]] = None
-
-
 class QueryField(ReportAPIBaseModel):
     name: str = "runSets"
-    args: LList[QueryFieldsValue] = Field(
-        default_factory=lambda: [
-            QueryFieldsValue(name="runSets", value="${runSets}"),
-            QueryFieldsValue(name="limit", value=500),
-        ]
-    )
-    fields: LList[QueryFieldsField] = Field(
-        default_factory=lambda: [
-            QueryFieldsField(name="id", fields=[]),
-            QueryFieldsField(name="name", fields=[]),
-        ]
-    )
+    args: Optional[LList["QueryField"]] = None
+    fields: Optional[LList["QueryField"]] = None
+    value: Optional[Union[list, float, str]] = None
 
 
 class UserQuery(ReportAPIBaseModel):

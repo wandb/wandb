@@ -1329,7 +1329,7 @@ class MarkdownPanel(Panel):
 class CustomChart(Panel):
     # Custom chart configs should look exactly like they do in the UI.  Please check the query carefully!
     query: dict = Field(default_factory=dict)
-    chart_name: str = Field(default_factory=dict)
+    chart_name: str = Field(default_factory=str)
     chart_fields: dict = Field(default_factory=dict)
     chart_strings: dict = Field(default_factory=dict)
 
@@ -1347,14 +1347,16 @@ class CustomChart(Panel):
         def dict_to_fields(d):
             fields = []
             for k, v in d.items():
+                if k in ("runSets", "limit"):
+                    continue
                 if isinstance(v, dict) and len(v) > 0:
-                    if k == "runSets":
-                        continue
-                    field = {"name": k, "args": dict_to_fields(v), "fields": []}
+                    field = internal.QueryField(
+                        name=k, args=dict_to_fields(v), fields=[]
+                    )
                 elif isinstance(v, dict) and len(v) == 0 or v is None:
-                    field = {"name": k, "fields": []}
+                    field = internal.QueryField(name=k, fields=[])
                 else:
-                    field = {"name": k, "value": v}
+                    field = internal.QueryField(name=k, value=v)
                 fields.append(field)
             return fields
 
@@ -1363,19 +1365,20 @@ class CustomChart(Panel):
         d.setdefault("name", None)
 
         _query = [
-            {
-                "name": "runSets",
-                "args": [
-                    {"name": "runSets", "value": r"${runSets}"},
-                    {"name": "limit", "value": 500},
+            internal.QueryField(
+                name="runSets",
+                args=[
+                    internal.QueryField(name="runSets", value=r"${runSets}"),
+                    internal.QueryField(name="limit", value=500),
                 ],
-                "fields": dict_to_fields(d),
-            }
+                fields=dict_to_fields(d),
+            )
         ]
+        user_query = internal.UserQuery(query_fields=_query)
 
         obj = internal.Vega2(
             config=internal.Vega2Config(
-                user_query=internal.UserQuery(query_fields=_query),
+                user_query=user_query,
                 panel_def_id=self.chart_name,
                 field_settings=self.chart_fields,
                 string_settings=self.chart_strings,
@@ -1390,22 +1393,25 @@ class CustomChart(Panel):
         def fields_to_dict(fields):
             d = {}
             for field in fields:
-                field = dict(field)
-                keys = set(field.keys())
-                name = field["name"]
+                if field.args:
+                    for arg in field.args:
+                        d[arg.name] = arg.value
 
-                if keys == {"name", "fields"}:
-                    d[name] = {}
-                elif keys == {"name", "value"}:
-                    d[name] = field["value"]
-                elif keys == {"name", "args", "fields"}:
-                    d[name] = fields_to_dict(field["args"])
+                if field.fields:
+                    for subfield in field.fields:
+                        if subfield.args is not None:
+                            d[subfield.name] = fields_to_dict(subfield.args)
+                        else:
+                            d[subfield.name] = subfield.value
+
+                d[field.name] = field.value
+
             return d
 
-        _query = fields_to_dict(model.config.user_query.query_fields)
+        query = fields_to_dict(model.config.user_query.query_fields)
 
         obj = cls(
-            query=_query,
+            query=query,
             chart_name=model.config.panel_def_id,
             chart_fields=model.config.field_settings,
             chart_strings=model.config.string_settings,
