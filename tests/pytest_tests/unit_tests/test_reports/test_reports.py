@@ -159,7 +159,7 @@ if sys.version_info >= (3, 8):
 
         @classmethod
         def query(cls):
-            return {}
+            return {"history": {"keys": ["x", "y"], "id": None, "name": None}}
 
     @register_fixture
     class LinePlotFactory(CustomDataclassFactory[wr2.LinePlot]):
