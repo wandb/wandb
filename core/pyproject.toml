@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wandb-core"
+version = "0.17.0b10"
+description = "W&B Core Library"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.7"
+license = { text = "MIT License" }
+
+[tool.setuptools]
+packages = ["wandb_core"]
+include-package-data = true
