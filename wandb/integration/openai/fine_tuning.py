@@ -165,13 +165,12 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...You can set \
-`wait_for_job_success` to `False` and call `WandbLogger.sync` once the OpenAI training is \
-finished if you don't want `.sync` to be blocking.")
+        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...") 
+        wandb.termlog("To avoid blocking, you can call `WandbLogger.sync` with `wait_for_job_success=False` after OpenAI training completes.")
         while True:
             if fine_tune.status == "succeeded":
                 wandb.termlog(
-                    "Fine-tuning finished, logging metrics, model metadata, and more to W&B"
+                    "Fine-tuning finished, logging metrics, model metadata, and run metadata to Weights & Biases"
                 )
                 return fine_tune
             if fine_tune.status == "failed":
@@ -257,7 +256,7 @@ finished if you don't want `.sync` to be blocking.")
             else:
                 raise Exception(
                     "It appears you are not currently logged in to Weights & Biases. "
-                    "Please run `wandb login` in your terminal. "
+                    "Please run `wandb login` in your terminal or `wandb.login()` in a notebook."
                     "When prompted, you can obtain your API key by visiting wandb.ai/authorize."
                 )
 
@@ -336,6 +335,7 @@ finished if you don't want `.sync` to be blocking.")
     ) -> None:
         
         if log_datasets:
+            wandb.termlog("Logging training/validation files...")
             # training/validation files
             training_file = fine_tune.training_file if fine_tune.training_file else None
             validation_file = (
