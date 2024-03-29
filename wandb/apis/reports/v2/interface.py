@@ -1327,6 +1327,7 @@ class MarkdownPanel(Panel):
 
 @dataclass(config=dataclass_config)
 class CustomChart(Panel):
+    # Custom chart configs should look exactly like they do in the UI.  Please check the query carefully!
     query: dict = Field(default_factory=dict)
     chart_name: str = Field(default_factory=dict)
     chart_fields: dict = Field(default_factory=dict)

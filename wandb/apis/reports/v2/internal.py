@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from typing import List as LList
 
-from annotated_types import Annotated, Ge, Le
+from annotated_types import Annotated, Ge, Le, Len
 
 try:
     from typing import Literal
@@ -777,7 +777,9 @@ class QueryField(ReportAPIBaseModel):
 
 
 class UserQuery(ReportAPIBaseModel):
-    query_fields: LList[QueryField] = Field(default_factory=lambda: [QueryField()])
+    query_fields: Annotated[LList[QueryField], Len(min_length=1, max_length=1)] = Field(
+        default_factory=lambda: [QueryField()]
+    )
 
 
 class Vega2ConfigTransform(ReportAPIBaseModel):

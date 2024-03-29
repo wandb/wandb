@@ -157,6 +157,10 @@ if sys.version_info >= (3, 8):
     class CustomChartFactory(CustomDataclassFactory[wr2.CustomChart]):
         __model__ = wr2.CustomChart
 
+        @classmethod
+        def query(cls):
+            return {}
+
     @register_fixture
     class LinePlotFactory(CustomDataclassFactory[wr2.LinePlot]):
         __model__ = wr2.LinePlot
