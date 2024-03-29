@@ -124,9 +124,9 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-
 func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput,
-	numInProgress *int32, numDone *int32, errorChan chan error, retryChan chan gql.CreateArtifactFileSpecInput) {
+	numInProgress *int32, numDone *int32, errorChan chan error,
+	retryChan chan gql.CreateArtifactFileSpecInput) {
 
 	// Get upload URLs for the whole batch.
 	response, err := gql.CreateArtifactFiles(
@@ -174,7 +174,7 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 				atomic.AddInt32(numInProgress, -1)
 				if t.Err != nil {
 					// Retry if it's been more than an hour (URL may have expired).
-					if time.Since(receivedAt) > 1 * time.Hour {
+					if time.Since(receivedAt) > 1*time.Hour {
 						retryChan <- fileSpec
 					} else {
 						errorChan <- t.Err
@@ -184,13 +184,14 @@ func (as *ArtifactSaver) uploadBatch(fileSpecs []gql.CreateArtifactFileSpecInput
 				}
 			},
 		)
-		// The file transfer manager will buffer tasks and block until it has space.
+		// The file transfer manager will buffer tasks and block until it has space, so we
+		// won't actually start more than ~32 concurrent goroutines across all batches.
 		as.FileTransferManager.AddTask(task)
 	}
 }
 
-
-func (as *ArtifactSaver) uploadFiles(fileSpecs []gql.CreateArtifactFileSpecInput, numInProgress *int32, numDone *int32) error {
+func (as *ArtifactSaver) uploadFiles(fileSpecs []gql.CreateArtifactFileSpecInput,
+	numInProgress *int32, numDone *int32) error {
 	const batchSize int = 10000
 	const maxActiveBatches int = 3
 	batchSemaphore := make(chan struct{}, maxActiveBatches)
@@ -250,6 +251,7 @@ func (as *ArtifactSaver) uploadFiles(fileSpecs []gql.CreateArtifactFileSpecInput
 		retryBatch = append(retryBatch, fileSpec)
 	}
 	if len(retryBatch) > 0 {
+
 		return as.uploadFiles(retryBatch, numInProgress, numDone)
 	}
 	return nil
