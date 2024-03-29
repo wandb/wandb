@@ -265,7 +265,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     panel_bank_section_config: PanelBankSectionConfig = Field(
         default_factory=PanelBankSectionConfig
     )
-    custom_run_colors: Dict[str, str] = Field(default_factory=dict)
+    custom_run_colors: Dict[str, Union[str, dict]] = Field(default_factory=dict)
     # custom_run_colors: PanelGridCustomRunColors = Field(
     #     default_factory=PanelGridCustomRunColors
     # )
@@ -552,6 +552,7 @@ class Layout(ReportAPIBaseModel):
 
 class Panel(ReportAPIBaseModel):
     id: str = Field("", alias="__id__")
+    view_type: str = "UnknownPanel"
     layout: Layout = Field(default_factory=Layout)
     ref: Optional[Ref] = None
 
@@ -755,11 +756,12 @@ class QueryFieldsValue(ReportAPIBaseModel):
 
 class QueryFieldsField(ReportAPIBaseModel):
     name: str = ""
-    fields: Optional[LList["QueryFieldsField"]] = None
-    value: LList[QueryFieldsValue] = Field(default_factory=list)
+    fields: LList["QueryFieldsField"] = Field(default_factory=list)
+    value: Optional[LList[QueryFieldsValue]] = None
 
 
 class QueryField(ReportAPIBaseModel):
+    name: str = "runSets"
     args: LList[QueryFieldsValue] = Field(
         default_factory=lambda: [
             QueryFieldsValue(name="runSets", value="${runSets}"),
@@ -768,11 +770,10 @@ class QueryField(ReportAPIBaseModel):
     )
     fields: LList[QueryFieldsField] = Field(
         default_factory=lambda: [
-            QueryFieldsField(name="id", value=[], fields=None),
-            QueryFieldsField(name="name", value=[], fields=None),
+            QueryFieldsField(name="id", fields=[]),
+            QueryFieldsField(name="name", fields=[]),
         ]
     )
-    name: str = "runSets"
 
 
 class UserQuery(ReportAPIBaseModel):

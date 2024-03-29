@@ -621,7 +621,7 @@ class PanelGrid(Block):
     runsets: LList["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: LList["PanelTypes"] = Field(default_factory=list)
     active_runset: int = 0
-    custom_run_colors: Dict[Union[RunId, RunsetGroup], str] = Field(
+    custom_run_colors: Dict[Union[RunId, RunsetGroup], Union[str, dict]] = Field(
         default_factory=dict
     )
 
@@ -1343,31 +1343,71 @@ class CustomChart(Panel):
         )
 
     def to_model(self):
+        def dict_to_fields(d):
+            fields = []
+            for k, v in d.items():
+                if isinstance(v, dict) and len(v) > 0:
+                    if k == "runSets":
+                        continue
+                    field = {"name": k, "args": dict_to_fields(v), "fields": []}
+                elif isinstance(v, dict) and len(v) == 0 or v is None:
+                    field = {"name": k, "fields": []}
+                else:
+                    field = {"name": k, "value": v}
+                fields.append(field)
+            return fields
+
+        d = self.query
+        d.setdefault("id", None)
+        d.setdefault("name", None)
+
+        _query = [
+            {
+                "name": "runSets",
+                "args": [
+                    {"name": "runSets", "value": r"${runSets}"},
+                    {"name": "limit", "value": 500},
+                ],
+                "fields": dict_to_fields(d),
+            }
+        ]
+
         obj = internal.Vega2(
             config=internal.Vega2Config(
-                # user_query=internal.UserQuery(
-                #     query_fields=[
-                #         internal.QueryField(
-                #             args=...,
-                #             fields=...,
-                #             name=...,
-                #         )
-                #     ]
-                # )
+                user_query=internal.UserQuery(query_fields=_query),
+                panel_def_id=self.chart_name,
+                field_settings=self.chart_fields,
+                string_settings=self.chart_strings,
             ),
             layout=self.layout.to_model(),
         )
         obj.ref = self._ref
-        # obj.id=self.id,
         return obj
 
     @classmethod
-    def from_model(cls, model: internal.ScatterPlot):
+    def from_model(cls, model: internal.Vega2):
+        def fields_to_dict(fields):
+            d = {}
+            for field in fields:
+                field = dict(field)
+                keys = set(field.keys())
+                name = field["name"]
+
+                if keys == {"name", "fields"}:
+                    d[name] = {}
+                elif keys == {"name", "value"}:
+                    d[name] = field["value"]
+                elif keys == {"name", "args", "fields"}:
+                    d[name] = fields_to_dict(field["args"])
+            return d
+
+        _query = fields_to_dict(model.config.user_query.query_fields)
+
         obj = cls(
-            # query=model.config.user_query.query_fields,
-            # chart_name=model.config.panel_def_id,
-            # chart_fields=model.config.field_settings,
-            # chart_strings=model.config.string_settings,
+            query=_query,
+            chart_name=model.config.panel_def_id,
+            chart_fields=model.config.field_settings,
+            chart_strings=model.config.string_settings,
             layout=Layout.from_model(model.layout),
         )
         obj._ref = model.ref
@@ -1614,9 +1654,9 @@ def _listify(x):
     return [x]
 
 
-def _lookup_panel(panel):
-    cls = panel_mapping.get(panel.__class__, UnknownPanel)
-    return cls.from_model(panel)
+def _lookup_panel(panel_model):
+    cls = panel_mapping.get(panel_model.__class__, UnknownPanel)
+    return cls.from_model(panel_model)
 
 
 def _load_spec_from_url(url, as_model=False):
