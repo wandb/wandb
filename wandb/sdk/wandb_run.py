@@ -1961,15 +1961,15 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        # Paths to the symlinks created for the globbed files.
-        wandb_files = [
-            str(path)
-            for path in pathlib.Path(
+        # Files in the files directory matched by the glob, including old and
+        # new ones.
+        globbed_files = list(
+            pathlib.Path(
                 self._settings.files_dir,
             ).glob(relative_glob_str)
-        ]
+        )
 
-        had_symlinked_files = len(wandb_files) > 0
+        had_symlinked_files = len(globbed_files) > 0
         is_star_glob = "*" in relative_glob_str
 
         # The base_path may itself be a glob, so we can't do
@@ -1981,8 +1981,8 @@ class Run:
             saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
 
             wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
+            globbed_files.append(wandb_path)
 
-            wandb_files.append(str(wandb_path))
             wandb_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
@@ -1997,19 +1997,27 @@ class Run:
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
-            file_str = f"{len(wandb_files)} file"
-            if len(wandb_files) > 1:
+            file_str = f"{len(globbed_files)} file"
+            if len(globbed_files) > 1:
                 file_str += "s"
             wandb.termwarn(
                 f"Symlinked {file_str} into the W&B run directory, "
                 "call wandb.save again to sync new files."
             )
 
-        files_dict: FilesDict = {"files": [(relative_glob_str, policy)]}
+        files_dict: FilesDict = {
+            "files": [
+                (
+                    GlobStr(str(f.relative_to(self._settings.files_dir))),
+                    policy,
+                )
+                for f in globbed_files
+            ]
+        }
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
 
-        return wandb_files
+        return [str(f) for f in globbed_files]
 
     @_run_decorator._attach
     def restore(
