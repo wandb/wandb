@@ -3,7 +3,8 @@ package corelib
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	// "github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -18,8 +19,13 @@ func JsonifyItems[V genericItem](items []V) (string, error) {
 	jsonMap := make(map[string]interface{})
 
 	for _, item := range items {
-		var value interface{}
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
+		var (
+			value interface{}
+			err   error
+		)
+		// TODO: use simplejsonext for now until we replace the usage of json with protocol buffer
+		// and proto json marshaler
+		if value, err = json.Unmarshal([]byte(item.GetValueJson())); err != nil {
 			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
 			return "", e
 		}
