@@ -327,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1963,7 +1962,7 @@ class Run:
 
         # Files in the files directory matched by the glob, including old and
         # new ones.
-        globbed_files = list(
+        globbed_files = set(
             pathlib.Path(
                 self._settings.files_dir,
             ).glob(relative_glob_str)
@@ -1975,25 +1974,29 @@ class Run:
         # The base_path may itself be a glob, so we can't do
         #     base_path.glob(relative_glob_str)
         for path_str in glob.glob(str(base_path / relative_glob_str)):
-            path = pathlib.Path(path_str).absolute()
+            source_path = pathlib.Path(path_str).absolute()
 
             # We can't use relative_to() because base_path may be a glob.
-            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
 
-            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
-            globbed_files.append(wandb_path)
+            target_path = pathlib.Path(self._settings.files_dir, relative_path)
+            globbed_files.add(target_path)
 
-            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+            # If the file is already where it needs to be, don't create a symlink.
+            if source_path.resolve() == target_path.resolve():
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
             try:
-                wandb_path.unlink()
+                target_path.unlink()
             except FileNotFoundError:
                 # In Python 3.8, we would pass missing_ok=True, but as of now
                 # we support down to Python 3.7.
                 pass
 
-            wandb_path.symlink_to(path)
+            target_path.symlink_to(source_path)
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
@@ -3299,8 +3302,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3392,8 +3395,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type

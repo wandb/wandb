@@ -122,6 +122,18 @@ def test_save_valid_absolute_glob_base_path(
     )
 
 
+def test_save_file_in_run_dir(mock_run):
+    run = mock_run()
+    file = pathlib.Path(run.dir, "my_file.txt")
+    file.parent.mkdir(parents=True)
+    file.touch()
+
+    run.save(file, base_path=run.dir)
+
+    assert file.exists()
+    assert not file.is_symlink()
+
+
 def test_save_base_path_glob_first_directory_invalid(mock_run):
     with pytest.raises(ValueError, match="may not start with '*'"):
         mock_run().save("dir/*/file.txt", base_path="dir")
