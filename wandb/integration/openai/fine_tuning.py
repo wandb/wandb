@@ -62,6 +62,7 @@ class WandbLogger:
         entity: Optional[str] = None,
         overwrite: bool = False,
         wait_for_job_success: bool = True,
+        log_datasets: bool = True,
         **kwargs_wandb_init: Dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
@@ -153,6 +154,7 @@ class WandbLogger:
                 entity,
                 overwrite,
                 show_individual_warnings,
+                log_datasets,
                 **kwargs_wandb_init,
             )
 
@@ -195,6 +197,7 @@ finished if you don't want `.sync` to be blocking.")
         entity: Optional[str],
         overwrite: bool,
         show_individual_warnings: bool,
+        log_datasets: bool,
         **kwargs_wandb_init: Dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
@@ -238,7 +241,7 @@ finished if you don't want `.sync` to be blocking.")
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity)
+        cls._log_artifacts(fine_tune, project, entity, log_datasets)
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
@@ -329,19 +332,21 @@ finished if you don't want `.sync` to be blocking.")
 
     @classmethod
     def _log_artifacts(
-        cls, fine_tune: FineTuningJob, project: str, entity: Optional[str]
+        cls, fine_tune: FineTuningJob, project: str, entity: Optional[str], log_datasets: bool
     ) -> None:
-        # training/validation files
-        training_file = fine_tune.training_file if fine_tune.training_file else None
-        validation_file = (
-            fine_tune.validation_file if fine_tune.validation_file else None
-        )
-        for file, prefix, artifact_type in (
-            (training_file, "train", "training_files"),
-            (validation_file, "valid", "validation_files"),
-        ):
-            if file is not None:
-                cls._log_artifact_inputs(file, prefix, artifact_type, project, entity)
+        
+        if log_datasets:
+            # training/validation files
+            training_file = fine_tune.training_file if fine_tune.training_file else None
+            validation_file = (
+                fine_tune.validation_file if fine_tune.validation_file else None
+            )
+            for file, prefix, artifact_type in (
+                (training_file, "train", "training_files"),
+                (validation_file, "valid", "validation_files"),
+            ):
+                if file is not None:
+                    cls._log_artifact_inputs(file, prefix, artifact_type, project, entity)
 
         # fine-tune details
         fine_tune_id = fine_tune.id
@@ -387,10 +392,10 @@ finished if you don't want `.sync` to be blocking.")
         if artifact is None:
             # get file content
             try:
-                file_content = cls.openai_client.files.retrieve_content(file_id=file_id)
+                file_content = cls.openai_client.files.content(file_id=file_id)
             except openai.NotFoundError:
                 wandb.termerror(
-                    f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
+                    f"File {file_id} could not be retrieved. Make sure you have OpenAI permissions to download training/validation files"
                 )
                 return
 
