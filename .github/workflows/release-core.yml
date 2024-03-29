@@ -77,6 +77,16 @@ jobs:
           CIBW_SKIP: cp36-* pp* *musllinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+
+          # Work around https://github.com/matthew-brett/delocate/issues/204
+          # by adding `--exclude libswift`.
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-wheel
+              --require-archs {delocate_archs}
+              -w {dest_dir}
+              -v {wheel}
+              --exclude libswift
+
           # Linux is special because it's built in a container using qemu, so we must
           # build our Go binary inside the cibuildwheel step.
           #
