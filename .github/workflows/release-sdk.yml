@@ -12,7 +12,9 @@ on:
 jobs:
   build:
     name: Build wheels
-    runs-on: ubuntu-latest
+    # We run on macOS to build apple_gpu_stats, which is a Mac-specific binary
+    # that we nonetheless always include in the built universal wheel.
+    runs-on: macos-14
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -22,12 +24,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.9"
+
+      - name: Install wini dependencies
+        run: pip install -U -r requirements_tools.txt
+      - name: Build additional binary files
+        run: bash wini build wandb-artifacts
+
       - name: Install dependencies
         run: pip install -U -r requirements_build.txt
       - name: Build source and wheels
         run: |
           python -m build -n
           ls -l dist
+
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-sdk-distributions
