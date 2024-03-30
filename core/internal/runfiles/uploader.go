@@ -25,10 +25,10 @@ const (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	logger       *observability.CoreLogger
-	settings     *settings.Settings
-	fileTransfer filetransfer.FileTransferManager
-	graphQL      graphql.Client
+	logger            *observability.CoreLogger
+	settings          *settings.Settings
+	debouncedTransfer *debouncedTransfer
+	graphQL           graphql.Client
 
 	// A mapping from files to their category, if set.
 	//
@@ -54,10 +54,13 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	return &uploader{
-		logger:       params.Logger,
-		settings:     params.Settings,
-		fileTransfer: params.FileTransfer,
-		graphQL:      params.GraphQL,
+		logger:   params.Logger,
+		settings: params.Settings,
+		debouncedTransfer: newDebouncedTransfer(
+			params.FileTransfer,
+			params.Logger,
+		),
+		graphQL: params.GraphQL,
 
 		category: make(map[string]filetransfer.RunFileKind),
 
@@ -412,5 +415,5 @@ func (u *uploader) scheduleUploadTask(
 		u.uploadWG.Done()
 	})
 
-	u.fileTransfer.AddTask(task)
+	u.debouncedTransfer.AddTask(task)
 }
