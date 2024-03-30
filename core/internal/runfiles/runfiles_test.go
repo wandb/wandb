@@ -210,6 +210,20 @@ func TestUploader(t *testing.T) {
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
+	runTest("upload does not reupload same file if unchanged",
+		func() {},
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			uploader.UploadNow("test.txt")
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			uploader.UploadNow("test.txt")
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+		})
+
 	runTest("upload is no-op if GraphQL returns wrong number of files",
 		func() {},
 		func(t *testing.T) {
