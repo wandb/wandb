@@ -157,7 +157,9 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
+        self._polling_sleep = (
+            polling_sleep if polling_sleep is not None else DEFAULT_POLLING_SLEEP
+        )
         self._project_queue = project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages

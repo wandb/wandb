@@ -143,6 +143,7 @@ message RunRecord {
   TelemetryRecord telemetry = 19;
   int32 runtime = 20;
   GitRepoRecord git = 21;
+  bool forked = 22;
   _RecordInfo _info = 200;
 }
 
@@ -458,6 +459,8 @@ message ArtifactManifestEntry {
   string mimetype = 5;
   string local_path = 6;
   string birth_artifact_id = 7;
+  // Whether to avoid copying/moving files to the cache while uploading.
+  bool skip_cache = 8;
   repeated ExtraItem extra = 16;
 }
 
@@ -521,6 +524,8 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
+  reserved 75;
+
   oneof request_type {
     StopStatusRequest stop_status = 1;
     NetworkStatusRequest network_status = 2;
@@ -553,7 +558,6 @@ message Request {
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
-    FileTransferInfoRequest file_transfer_info = 75;
     SyncRequest sync = 76;
     TestInjectRequest test_inject = 1000;
   }
