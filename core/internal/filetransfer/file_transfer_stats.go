@@ -68,7 +68,7 @@ type FileUploadInfo struct {
 	// The number of bytes uploaded so far.
 	UploadedBytes int64
 
-	// The total number of bytes of the fully uploaded files.
+	// The total number of bytes being uploaded.
 	TotalBytes int64
 }
 
@@ -86,10 +86,7 @@ func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
 
 func (fts *fileTransferStats) addStats(info FileUploadInfo, mult int64) {
 	fts.filesStats.UploadedBytes += info.UploadedBytes * mult
-
-	if info.UploadedBytes == info.TotalBytes {
-		fts.filesStats.TotalBytes += info.TotalBytes * mult
-	}
+	fts.filesStats.TotalBytes += info.TotalBytes * mult
 
 	switch info.FileKind {
 	default:
