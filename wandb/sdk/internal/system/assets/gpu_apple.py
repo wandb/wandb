@@ -13,6 +13,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
+from wandb.errors import Error
 from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
@@ -28,6 +29,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class WandbSysMonitorError(Error):
+    pass
+
+
 class _Stats(TypedDict):
     gpu: float
     memoryAllocated: float  # noqa: N815
@@ -35,6 +40,25 @@ class _Stats(TypedDict):
     powerWatts: float  # noqa: N815
     powerPercent: float  # noqa: N815
     # cpuWaitMs: float
+
+
+def get_apple_gpu_path() -> pathlib.Path:
+    return (
+        pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
+    ).resolve()
+
+
+def sample_apple_gpu(executalbe: str) -> dict:
+    try:
+        command = [executalbe, "--json"]
+        output = (
+            subprocess.check_output(command, universal_newlines=True)
+            .strip()
+            .split("\n")
+        )[0]
+        return json.loads(output)
+    except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+        raise WandbSysMonitorError("Error sampling GPU stats %s" % e)
 
 
 class GPUAppleStats:
@@ -49,35 +73,35 @@ class GPUAppleStats:
 
     def __init__(self) -> None:
         self.samples = deque()
-        self.binary_path = (
-            pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
-        ).resolve()
+        self.binary_path = get_apple_gpu_path()
 
     def sample(self) -> None:
         try:
-            command = [str(self.binary_path), "--json"]
-            output = (
-                subprocess.check_output(command, universal_newlines=True)
-                .strip()
-                .split("\n")
-            )[0]
-            raw_stats = json.loads(output)
+            raw_stats = sample_apple_gpu(str(self.binary_path))
 
             stats: _Stats = {
                 "gpu": raw_stats["utilization"],
-                "memoryAllocated": raw_stats["mem_used"],
-                "temp": raw_stats["temperature"],
-                "powerWatts": raw_stats["power"],
-                "powerPercent": (raw_stats["power"] / self.MAX_POWER_WATTS) * 100,
+                "memoryAllocated": raw_stats["inUseSystemMemory"]
+                / raw_stats["allocatedSystemMemory"]
+                * 100,
+                "powerWatts": raw_stats["systemPower"],
+                "powerPercent": (raw_stats["systemPower"] / self.MAX_POWER_WATTS) * 100,
                 # TODO: this stat could be useful eventually, it was consistently
                 #  0 in my experimentation and requires a frontend change
                 #  so leaving it out for now.
                 # "cpuWaitMs": raw_stats["cpu_wait_ms"],
             }
 
+            temp, count = 0, 0
+            for k in ["m1Gpu1", "m1Gpu2", "m1Gpu3", "m1Gpu4", "m2Gpu1", "m2Gpu2"]:
+                if k in raw_stats:
+                    if raw_stats[k] > 0:
+                        temp += raw_stats[k]
+                        count += 1
+            stats["temp"] = temp / count if count > 0 else 0
             self.samples.append(stats)
 
-        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+        except WandbSysMonitorError as e:
             logger.exception(f"GPU stats error: {e}")
 
     def clear(self) -> None:
@@ -116,6 +140,7 @@ class GPUApple:
         telemetry_record = telemetry.TelemetryRecord()
         telemetry_record.env.m1_gpu = True
         interface._publish_telemetry(telemetry_record)
+        self.binary_path = get_apple_gpu_path()
 
     @classmethod
     def is_available(cls) -> bool:
@@ -128,5 +153,14 @@ class GPUApple:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        # todo: make this actually meaningful
-        return {self.name: {"type": "arm", "vendor": "Apple"}}
+        try:
+            raw_stats = sample_apple_gpu(str(self.binary_path))
+            return {
+                self.name: {
+                    "type": raw_stats["name"],
+                    "vendor": raw_stats["vendor"],
+                }
+            }
+        except WandbSysMonitorError as e:
+            logger.exception(f"GPU stats error: {e}")
+            return {self.name: {"type": "arm", "vendor": "Apple"}}
