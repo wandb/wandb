@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,8 +15,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -57,27 +59,21 @@ func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
 	}
 }
 
-func WithHandlerWatcher(watcher *watcher.Watcher) HandlerOption {
-	return func(h *Handler) {
-		h.watcher = watcher
-	}
-}
-
 func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
 	return func(h *Handler) {
 		h.tbHandler = handler
 	}
 }
 
-func WithHandlerFileHandler(handler *FilesHandler) HandlerOption {
+func WithHandlerRunfilesUploader(uploaderOrNil runfiles.Uploader) HandlerOption {
 	return func(h *Handler) {
-		h.filesHandler = handler
+		h.runfilesUploaderOrNil = uploaderOrNil
 	}
 }
 
-func WithHandlerFilesInfoHandler(handler *FilesInfoHandler) HandlerOption {
+func WithHandlerFileTransferStats(stats filetransfer.FileTransferStats) HandlerOption {
 	return func(h *Handler) {
-		h.filesInfoHandler = handler
+		h.fileTransferStats = stats
 	}
 }
 
@@ -134,20 +130,19 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
-	// watcher is the watcher for the stream
-	watcher *watcher.Watcher
-
 	// tbHandler is the tensorboard handler
 	tbHandler *TBHandler
 
-	// filesHandler is the file handler for the stream
-	filesHandler *FilesHandler
+	// runfilesUploaderOrNil manages uploading a run's files
+	//
+	// It may be nil when offline.
+	runfilesUploaderOrNil runfiles.Uploader
 
-	// filesInfoHandler is the file transfer info for the stream
-	filesInfoHandler *FilesInfoHandler
+	// fileTransferStats reports file upload/download statistics
+	fileTransferStats filetransfer.FileTransferStats
 
 	// internalPrinter is the internal messages handler for the stream
-	internalPrinter *observability.Printer
+	internalPrinter *observability.Printer[string]
 }
 
 // NewHandler creates a new handler
@@ -159,7 +154,7 @@ func NewHandler(
 	h := &Handler{
 		ctx:             ctx,
 		logger:          logger,
-		internalPrinter: observability.NewPrinter(),
+		internalPrinter: observability.NewPrinter[string](),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -172,7 +167,7 @@ func (h *Handler) Do(inChan <-chan *service.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 	for record := range inChan {
-		h.logger.Debug("handling record", "record", record)
+		h.logger.Debug("handle: got a message", "record_type", record.RecordType, "stream_id", h.settings.RunId)
 		h.handleRecord(record)
 	}
 	h.Close()
@@ -181,10 +176,11 @@ func (h *Handler) Do(inChan <-chan *service.Record) {
 func (h *Handler) Close() {
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Debug("handler: closed", "stream_id", h.settings.RunId)
+	h.logger.Debug("handler: Close: closed", "stream_id", h.settings.RunId)
 }
 
-func (h *Handler) sendResponse(record *service.Record, response *service.Response) {
+// respond sends a response to the client
+func (h *Handler) respond(record *service.Record, response *service.Response) {
 	result := &service.Result{
 		ResultType: &service.Result_Response{Response: response},
 		Control:    record.Control,
@@ -193,7 +189,16 @@ func (h *Handler) sendResponse(record *service.Record, response *service.Respons
 	h.outChan <- result
 }
 
-func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+// fwdRecord forwards a record to the next component
+func (h *Handler) fwdRecord(record *service.Record) {
+	if record == nil {
+		return
+	}
+	h.fwdChan <- record
+}
+
+// fwdRecordWithControl forwards a record to the next component with control options
+func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
 	if record == nil {
 		return
 	}
@@ -206,21 +211,12 @@ func (h *Handler) sendRecordWithControl(record *service.Record, controlOptions .
 	for _, opt := range controlOptions {
 		opt(control)
 	}
-	h.sendRecord(record)
-}
-
-func (h *Handler) sendRecord(record *service.Record) {
-	if record == nil {
-		return
-	}
-	h.fwdChan <- record
+	h.fwdRecord(record)
 }
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryHandler.Debounce(h.sendSummary)
-	recordType := record.GetRecordType()
-	h.logger.Debug("handle: got a message", "record_type", recordType)
+	h.summaryHandler.Debounce(h.fwdSummary)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
@@ -245,6 +241,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
+		h.handleOutput(record)
 	case *service.Record_OutputRaw:
 		h.handleOutputRaw(record)
 	case *service.Record_Preempting:
@@ -264,10 +261,10 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
 	case nil:
-		err := fmt.Errorf("handleRecord: record type is nil")
+		err := fmt.Errorf("handler: handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
 	default:
-		err := fmt.Errorf("handleRecord: unknown record type %T", x)
+		err := fmt.Errorf("handler: handleRecord: unknown record type %T", x)
 		h.logger.CaptureFatalAndPanic("error handling record", err)
 	}
 }
@@ -275,73 +272,170 @@ func (h *Handler) handleRecord(record *service.Record) {
 //gocyclo:ignore
 func (h *Handler) handleRequest(record *service.Record) {
 	request := record.GetRequest()
-	response := &service.Response{}
 	switch x := request.RequestType.(type) {
+	case *service.Request_Login:
+		h.handleRequestLogin(record)
 	case *service.Request_CheckVersion:
-	case *service.Request_Defer:
-		h.handleDefer(record, x.Defer)
-		response = nil
-	case *service.Request_GetSummary:
-		h.handleGetSummary(record, response)
-	case *service.Request_Keepalive:
-	case *service.Request_NetworkStatus:
-	case *service.Request_PartialHistory:
-		h.handlePartialHistory(record, x.PartialHistory)
-		response = nil
-	case *service.Request_PollExit:
-		h.handlePollExit(record)
-		response = nil
-	case *service.Request_RunStart:
-		h.handleRunStart(record, x.RunStart)
-	case *service.Request_SampledHistory:
-		h.handleSampledHistory(record, response)
-	case *service.Request_ServerInfo:
-		h.handleServerInfo(record)
-		response = nil
-	case *service.Request_PythonPackages:
-		h.handlePythonPackages(record, x.PythonPackages)
-		response = nil
-	case *service.Request_Shutdown:
-	case *service.Request_StopStatus:
-	case *service.Request_LogArtifact:
-		h.handleLogArtifact(record)
-		response = nil
-	case *service.Request_DownloadArtifact:
-		h.handleDownloadArtifact(record)
-		response = nil
+		h.handleRequestCheckVersion(record)
+	case *service.Request_RunStatus:
+		h.handleRequestRunStatus(record)
+	case *service.Request_Metadata:
+		// not implemented in the old handler
+	case *service.Request_SummaryRecord:
+		// TODO: handles sending summary file
+	case *service.Request_TelemetryRecord:
+		// TODO: handles sending telemetry record
+	case *service.Request_TestInject:
+		// not implemented in the old handler
 	case *service.Request_JobInfo:
+		// not implemented in the old handler
+	case *service.Request_Status:
+		h.handleRequestStatus(record)
+	case *service.Request_SenderMark:
+		h.handleRequestSenderMark(record)
+	case *service.Request_StatusReport:
+		h.handleRequestStatusReport(record)
+	case *service.Request_Keepalive:
+		// keepalive is a no-op
+	case *service.Request_Shutdown:
+		h.handleRequestShutdown(record)
+	case *service.Request_Defer:
+		h.handleRequestDefer(record, x.Defer)
+	case *service.Request_GetSummary:
+		h.handleRequestGetSummary(record)
+	case *service.Request_NetworkStatus:
+		h.handleRequestNetworkStatus(record)
+	case *service.Request_PartialHistory:
+		h.handleRequestPartialHistory(record, x.PartialHistory)
+	case *service.Request_PollExit:
+		h.handleRequestPollExit(record)
+	case *service.Request_RunStart:
+		h.handleRequestRunStart(record, x.RunStart)
+	case *service.Request_SampledHistory:
+		h.handleRequestSampledHistory(record)
+	case *service.Request_ServerInfo:
+		h.handleRequestServerInfo(record)
+	case *service.Request_PythonPackages:
+		h.handleRequestPythonPackages(record, x.PythonPackages)
+	case *service.Request_StopStatus:
+		h.handleRequestStopStatus(record)
+	case *service.Request_LogArtifact:
+		h.handleRequestLogArtifact(record)
+	case *service.Request_DownloadArtifact:
+		h.handleRequestDownloadArtifact(record)
 	case *service.Request_Attach:
-		h.handleAttach(record, response)
+		h.handleRequestAttach(record)
 	case *service.Request_Pause:
-		h.handlePause()
+		h.handleRequestPause()
 	case *service.Request_Resume:
-		h.handleResume()
+		h.handleRequestResume()
 	case *service.Request_Cancel:
-		h.handleCancel(record)
+		h.handleRequestCancel(record)
 	case *service.Request_GetSystemMetrics:
-		h.handleGetSystemMetrics(record, response)
-	case *service.Request_FileTransferInfo:
-		h.handleFileTransferInfo(record)
+		h.handleRequestGetSystemMetrics(record)
 	case *service.Request_InternalMessages:
-		h.handleInternalMessages(record, response)
+		h.handleRequestInternalMessages(record)
 	case *service.Request_Sync:
-		h.handleSync(record)
-		response = nil
+		h.handleRequestSync(record)
 	case *service.Request_SenderRead:
-		h.handleSenderRead(record)
-		response = nil
+		h.handleRequestSenderRead(record)
 	case *service.Request_JobInput:
-		h.handleJobInput(record)
-	default:
-		err := fmt.Errorf("handleRequest: unknown request type %T", x)
+		h.handleRequestJobInput(record)
+	case nil:
+		err := fmt.Errorf("handler: handleRequest: request type is nil")
 		h.logger.CaptureFatalAndPanic("error handling request", err)
-	}
-	if response != nil {
-		h.sendResponse(record, response)
+	default:
+		err := fmt.Errorf("handler: handleRequest: unknown request type %T", x)
+		h.logger.CaptureFatalAndPanic("error handling request", err)
 	}
 }
 
-func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequest) {
+func (h *Handler) handleRequestLogin(record *service.Record) {
+	// TODO: implement login if it is needed
+	if record.GetControl().GetReqResp() {
+		h.respond(record, &service.Response{})
+	}
+}
+
+func (h *Handler) handleRequestCheckVersion(record *service.Record) {
+	// TODO: implement check version
+	h.respond(record, &service.Response{})
+}
+
+func (h *Handler) handleRequestRunStatus(record *service.Record) {
+	// TODO(flow-control): implement run status
+	h.respond(record, &service.Response{})
+}
+
+func (h *Handler) handleRequestStatus(record *service.Record) {
+	h.respond(record, &service.Response{})
+}
+
+func (h *Handler) handleRequestSenderMark(record *service.Record) {
+	// TODO(flow-control): implement sender mark
+}
+
+func (h *Handler) handleRequestStatusReport(record *service.Record) {
+	// TODO(flow-control): implement status report
+}
+
+func (h *Handler) handleRequestShutdown(record *service.Record) {
+	h.respond(record, &service.Response{})
+}
+
+// handleStepMetric handles the step metric for a given metric key. If the step metric is not
+// defined, it will be added to the defined metrics map.
+func (h *Handler) handleStepMetric(key string) {
+	if key == "" {
+		return
+	}
+
+	// already exists no need to add
+	if _, defined := h.metricHandler.definedMetrics[key]; defined {
+		return
+	}
+
+	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
+
+	if err != nil {
+		h.logger.CaptureError("error adding metric to map", err)
+		return
+	}
+
+	stepRecord := &service.Record{
+		RecordType: &service.Record_Metric{
+			Metric: metric,
+		},
+		Control: &service.Control{
+			Local: true,
+		},
+	}
+	h.fwdRecord(stepRecord)
+}
+
+func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
+	// metric can have a glob name or a name
+	// TODO: replace glob-name/name with one-of field
+	switch {
+	case metric.GetGlobName() != "":
+		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
+			h.logger.CaptureError("error adding metric to map", err)
+			return
+		}
+		h.fwdRecord(record)
+	case metric.GetName() != "":
+		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
+			h.logger.CaptureError("error adding metric to map", err)
+			return
+		}
+		h.handleStepMetric(metric.GetStepMetric())
+		h.fwdRecord(record)
+	default:
+		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
+	}
+}
+
+func (h *Handler) handleRequestDefer(record *service.Record, request *service.DeferRequest) {
 	switch request.State {
 	case service.DeferRequest_BEGIN:
 	case service.DeferRequest_FLUSH_RUN:
@@ -355,15 +449,16 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryHandler.Flush(h.sendSummary)
+		h.summaryHandler.Flush(h.fwdSummary)
 		h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
 	case service.DeferRequest_FLUSH_DIR:
-		h.watcher.Close()
 	case service.DeferRequest_FLUSH_FP:
-		h.filesHandler.Flush()
+		if h.runfilesUploaderOrNil != nil {
+			h.runfilesUploaderOrNil.UploadRemaining()
+		}
 	case service.DeferRequest_JOIN_FP:
 	case service.DeferRequest_FLUSH_FS:
 	case service.DeferRequest_FLUSH_FINAL:
@@ -376,7 +471,7 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 	}
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
-	h.sendRecordWithControl(record,
+	h.fwdRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
 		},
@@ -385,39 +480,47 @@ func (h *Handler) handleDefer(record *service.Record, request *service.DeferRequ
 		},
 	)
 }
+
+func (h *Handler) handleRequestStopStatus(record *service.Record) {
+	h.fwdRecord(record)
+}
+
 func (h *Handler) handleArtifact(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
-func (h *Handler) handleLogArtifact(record *service.Record) {
-	h.sendRecord(record)
+func (h *Handler) handleRequestLogArtifact(record *service.Record) {
+	h.fwdRecord(record)
 }
 
-func (h *Handler) handleDownloadArtifact(record *service.Record) {
-	h.sendRecord(record)
+func (h *Handler) handleRequestDownloadArtifact(record *service.Record) {
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleLinkArtifact(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
-func (h *Handler) handlePollExit(record *service.Record) {
-	result := &service.Result{
-		ResultType: &service.Result_Response{
-			Response: &service.Response{
-				ResponseType: &service.Response_PollExitResponse{
-					PollExitResponse: &service.PollExitResponse{
-						PusherStats: h.filesInfoHandler.GetFilesStats(),
-						FileCounts:  h.filesInfoHandler.GetFilesCount(),
-						Done:        h.filesInfoHandler.GetDone(),
-					},
-				},
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
+func (h *Handler) handleRequestPollExit(record *service.Record) {
+	var pollExitResponse *service.PollExitResponse
+	if h.fileTransferStats != nil {
+		pollExitResponse = &service.PollExitResponse{
+			PusherStats: h.fileTransferStats.GetFilesStats(),
+			FileCounts:  h.fileTransferStats.GetFileCounts(),
+			Done:        h.fileTransferStats.IsDone(),
+		}
+	} else {
+		pollExitResponse = &service.PollExitResponse{
+			Done: true,
+		}
 	}
-	h.outChan <- result
+
+	response := &service.Response{
+		ResponseType: &service.Response_PollExitResponse{
+			PollExitResponse: pollExitResponse,
+		},
+	}
+	h.respond(record, response)
 }
 
 func (h *Handler) handleHeader(record *service.Record) {
@@ -427,7 +530,7 @@ func (h *Handler) handleHeader(record *service.Record) {
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
 	}
-	h.sendRecordWithControl(
+	h.fwdRecordWithControl(
 		record,
 		func(control *service.Control) {
 			control.AlwaysSend = false
@@ -445,7 +548,7 @@ func (h *Handler) handleFinal() {
 			Final: &service.FinalRecord{},
 		},
 	}
-	h.sendRecordWithControl(
+	h.fwdRecordWithControl(
 		record,
 		func(control *service.Control) {
 			control.AlwaysSend = false
@@ -463,7 +566,7 @@ func (h *Handler) handleFooter() {
 			Footer: &service.FooterRecord{},
 		},
 	}
-	h.sendRecordWithControl(
+	h.fwdRecordWithControl(
 		record,
 		func(control *service.Control) {
 			control.AlwaysSend = false
@@ -471,15 +574,15 @@ func (h *Handler) handleFooter() {
 	)
 }
 
-func (h *Handler) handleServerInfo(record *service.Record) {
-	h.sendRecordWithControl(record,
+func (h *Handler) handleRequestServerInfo(record *service.Record) {
+	h.fwdRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
 		},
 	)
 }
 
-func (h *Handler) handleRunStart(record *service.Record, request *service.RunStartRequest) {
+func (h *Handler) handleRequestRunStart(record *service.Record, request *service.RunStartRequest) {
 	var ok bool
 	run := request.Run
 
@@ -492,30 +595,10 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		err := fmt.Errorf("handleRunStart: failed to clone run")
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
 	}
-	h.sendRecord(record)
+	h.fwdRecord(record)
 
-	// start the tensorboard handler
-	h.watcher.Start()
-
-	h.filesHandler = h.filesHandler.With(
-		WithFilesHandlerHandleFn(h.sendRecord),
-	)
-
-	if h.settings.GetConsole().GetValue() != "off" {
-		h.filesHandler.Handle(&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
-						{
-							Path:   OutputFileName,
-							Type:   service.FilesItem_WANDB,
-							Policy: service.FilesItem_END,
-						},
-					},
-				},
-			},
-		})
-	}
+	// TODO: mark OutputFileName as a WANDB file
+	_ = OutputFileName
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -565,9 +648,11 @@ func (h *Handler) handleRunStart(record *service.Record, request *service.RunSta
 		}
 	}
 	h.handleMetadata(metadata)
+
+	h.respond(record, &service.Response{})
 }
 
-func (h *Handler) handlePythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
+func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
 	// write all requirements to a file
 	// send the file as a Files record
 	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), RequirementsFileName)
@@ -724,43 +809,49 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	h.handleFiles(record)
 }
 
-func (h *Handler) handleAttach(_ *service.Record, response *service.Response) {
-
-	response.ResponseType = &service.Response_AttachResponse{
-		AttachResponse: &service.AttachResponse{
-			Run: h.runRecord,
+func (h *Handler) handleRequestAttach(record *service.Record) {
+	response := &service.Response{
+		ResponseType: &service.Response_AttachResponse{
+			AttachResponse: &service.AttachResponse{
+				Run: h.runRecord,
+			},
 		},
 	}
+	h.respond(record, response)
 }
 
-func (h *Handler) handleCancel(record *service.Record) {
-	h.sendRecord(record)
+func (h *Handler) handleRequestCancel(record *service.Record) {
+	// TODO(flow-control): implement cancel
 }
 
-func (h *Handler) handlePause() {
+func (h *Handler) handleRequestPause() {
 	h.timer.Pause()
 	h.systemMonitor.Stop()
 }
 
-func (h *Handler) handleResume() {
+func (h *Handler) handleRequestResume() {
 	h.timer.Resume()
 	h.systemMonitor.Do()
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
+}
+
+func (h *Handler) handleOutput(record *service.Record) {
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleOutputRaw(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handlePreempting(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRun(record *service.Record) {
-	h.sendRecordWithControl(record,
+	h.fwdRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
 		},
@@ -768,11 +859,11 @@ func (h *Handler) handleRun(record *service.Record) {
 }
 
 func (h *Handler) handleConfig(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleAlert(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
@@ -792,7 +883,7 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	}
 
 	// send the exit record
-	h.sendRecordWithControl(record,
+	h.fwdRecordWithControl(record,
 		func(control *service.Control) {
 			control.AlwaysSend = true
 			// do not write to the transaction log when syncing an offline run
@@ -807,12 +898,13 @@ func (h *Handler) handleFiles(record *service.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
-	h.filesHandler.Handle(record)
+	h.fwdRecord(record)
 }
 
-func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response) {
-	var items []*service.SummaryItem
+func (h *Handler) handleRequestGetSummary(record *service.Record) {
+	response := &service.Response{}
 
+	var items []*service.SummaryItem
 	for key, element := range h.summaryHandler.consolidatedSummary {
 		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
 	}
@@ -821,10 +913,13 @@ func (h *Handler) handleGetSummary(_ *service.Record, response *service.Response
 			Item: items,
 		},
 	}
+	h.respond(record, response)
 }
 
-func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Response) {
+func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 	sm := h.systemMonitor.GetBuffer()
+
+	response := &service.Response{}
 
 	response.ResponseType = &service.Response_GetSystemMetricsResponse{
 		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
@@ -847,37 +942,42 @@ func (h *Handler) handleGetSystemMetrics(_ *service.Record, response *service.Re
 			Record: buffer,
 		}
 	}
+
+	h.respond(record, response)
 }
 
-func (h *Handler) handleFileTransferInfo(record *service.Record) {
-	h.filesInfoHandler.Handle(record)
-}
-
-func (h *Handler) handleInternalMessages(_ *service.Record, response *service.Response) {
+func (h *Handler) handleRequestInternalMessages(record *service.Record) {
 	messages := h.internalPrinter.Read()
-	response.ResponseType = &service.Response_InternalMessagesResponse{
-		InternalMessagesResponse: &service.InternalMessagesResponse{
-			Messages: &service.InternalMessages{
-				Warning: messages,
+	response := &service.Response{
+		ResponseType: &service.Response_InternalMessagesResponse{
+			InternalMessagesResponse: &service.InternalMessagesResponse{
+				Messages: &service.InternalMessages{
+					Warning: messages,
+				},
 			},
 		},
 	}
+	h.respond(record, response)
 }
 
-func (h *Handler) handleSync(record *service.Record) {
-	h.sendRecord(record)
+func (h *Handler) handleRequestSync(record *service.Record) {
+	h.fwdRecord(record)
 }
 
-func (h *Handler) handleSenderRead(record *service.Record) {
-	h.sendRecord(record)
+func (h *Handler) handleRequestSenderRead(record *service.Record) {
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleTelemetry(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleUseArtifact(record *service.Record) {
-	h.sendRecord(record)
+	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestJobInput(record *service.Record) {
+	h.fwdRecord(record)
 }
 
 func (h *Handler) writeAndSendSummaryFile() {
@@ -900,21 +1000,13 @@ func (h *Handler) writeAndSendSummaryFile() {
 	}
 
 	// send summary file
-	h.filesHandler.Handle(&service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: SummaryFileName,
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	})
+	if h.runfilesUploaderOrNil != nil {
+		// TODO: mark as WANDB file
+		h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
+	}
 }
 
-func (h *Handler) sendSummary() {
+func (h *Handler) fwdSummary() {
 	summaryRecord := &service.SummaryRecord{
 		Update: []*service.SummaryItem{},
 	}
@@ -930,7 +1022,7 @@ func (h *Handler) sendSummary() {
 			Summary: summaryRecord,
 		},
 	}
-	h.sendRecord(record)
+	h.fwdRecord(record)
 	// reset delta summary
 	clear(h.summaryHandler.summaryDelta)
 }
@@ -974,6 +1066,10 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	h.activeHistory.Flush()
 }
 
+func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
+	h.fwdRecord(record)
+}
+
 // The main entry point for partial history records.
 //
 // This collects partial history records until a full history record is
@@ -981,7 +1077,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 // the history record is met. The condition for flushing the history record is
 // determined by the action in the partial history request and the step number.
 // Once a full history record is received, it is forwarded to the writer.
-func (h *Handler) handlePartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
+func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
 	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
 	} else {
@@ -1173,26 +1269,28 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // This function samples history items and updates the history record with the
 // sampled values. It is used to diplay a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
-func (h *Handler) handleSampledHistory(_ *service.Record, response *service.Response) {
-	if h.sampledHistory == nil {
-		return
-	}
-	var items []*service.SampledHistoryItem
+func (h *Handler) handleRequestSampledHistory(record *service.Record) {
+	response := &service.Response{}
 
-	for key, sampler := range h.sampledHistory {
-		values := sampler.GetSample()
-		item := &service.SampledHistoryItem{
-			Key:         key,
-			ValuesFloat: values,
+	if h.sampledHistory != nil {
+		var items []*service.SampledHistoryItem
+		for key, sampler := range h.sampledHistory {
+			values := sampler.GetSample()
+			item := &service.SampledHistoryItem{
+				Key:         key,
+				ValuesFloat: values,
+			}
+			items = append(items, item)
 		}
-		items = append(items, item)
+
+		response.ResponseType = &service.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &service.SampledHistoryResponse{
+				Item: items,
+			},
+		}
 	}
 
-	response.ResponseType = &service.Response_SampledHistoryResponse{
-		SampledHistoryResponse: &service.SampledHistoryResponse{
-			Item: items,
-		},
-	}
+	h.respond(record, response)
 }
 
 // flush history record to the writer and update the summary
@@ -1250,7 +1348,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	record := &service.Record{
 		RecordType: &service.Record_History{History: history},
 	}
-	h.sendRecord(record)
+	h.fwdRecord(record)
 
 	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
@@ -1259,10 +1357,6 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
 	h.summaryHandler.updateSummaryDelta(summary)
-}
-
-func (h *Handler) handleJobInput(record *service.Record) {
-	h.sendRecord(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
