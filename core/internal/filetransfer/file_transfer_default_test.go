@@ -1,6 +1,7 @@
 package filetransfer_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -148,6 +149,34 @@ func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+	}))
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	err = ft.Upload(&filetransfer.Task{
+		Type:    filetransfer.UploadTask,
+		Path:    tempFile.Name(),
+		Url:     server.URL,
+		Context: ctx,
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
+	// Context cancellation shouldn't result in a retry.
+	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
 func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {

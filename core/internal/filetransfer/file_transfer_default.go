@@ -102,6 +102,9 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 		req.Header.Set(parts[0], parts[1])
 	}
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
+	}
 	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
