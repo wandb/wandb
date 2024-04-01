@@ -1,6 +1,7 @@
 package runfiles_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	. "github.com/wandb/wandb/core/internal/runfiles"
@@ -17,20 +19,23 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func stubCreateRunFilesOneFile(mockGQLClient *gqlmock.MockClient) {
+func stubCreateRunFilesOneFile(
+	mockGQLClient *gqlmock.MockClient,
+	path string,
+) {
 	mockGQLClient.StubMatchOnce(
 		gqlmock.WithOpName("CreateRunFiles"),
-		`{
+		fmt.Sprintf(`{
 			"createRunFiles": {
 				"runID": "test-run",
 				"files": [
 					{
-						"name": "test-file",
+						"name": "%v",
 						"uploadUrl": "https://example.com/test-file"
 					}
 				]
 			}
-		}`,
+		}`, path),
 	)
 }
 
@@ -55,6 +60,9 @@ func TestUploader(t *testing.T) {
 	// The files_dir to set on Settings.
 	var filesDir string
 
+	// The ignore_globs to set on Settings.
+	var ignoreGlobs []string
+
 	// The _offline mode to set on Settings.
 	var isOffline bool
 
@@ -69,6 +77,7 @@ func TestUploader(t *testing.T) {
 	) {
 		// Set a default and allow tests to override it.
 		filesDir = t.TempDir()
+		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
 		configure()
@@ -82,35 +91,43 @@ func TestUploader(t *testing.T) {
 			GraphQL:      mockGQLClient,
 			FileTransfer: fakeFileTransfer,
 			Settings: settings.From(&service.Settings{
-				FilesDir: &wrapperspb.StringValue{Value: filesDir},
-				XOffline: &wrapperspb.BoolValue{Value: isOffline},
-				XSync:    &wrapperspb.BoolValue{Value: isSync},
+				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
+				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
+				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
+				XSync:       &wrapperspb.BoolValue{Value: isSync},
 			}),
 		}))
 
 		t.Run(name, test)
 	}
 
-	runTest("Process with 'now' policy uploads immediately",
-		func() {},
-		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
-			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+	policiesUploadImmediately := []service.FilesItem_PolicyType{
+		service.FilesItem_NOW,
+		service.FilesItem_LIVE,
+	}
+	for _, policy := range policiesUploadImmediately {
+		runTest(fmt.Sprintf("Process with '%v' policy uploads immediately", policy),
+			func() {},
+			func(t *testing.T) {
+				stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+				writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_NOW},
-				},
+				uploader.Process(&service.FilesRecord{
+					Files: []*service.FilesItem{
+						{Path: "test.txt", Policy: policy},
+					},
+				})
+				uploader.Finish()
+
+				assert.Len(t, fakeFileTransfer.Tasks(), 1)
 			})
-			uploader.Finish()
-
-			assert.Len(t, fakeFileTransfer.Tasks(), 1)
-		})
+	}
 
 	runTest("Process with 'now' policy during sync is no-op",
 		func() { isSync = true },
 		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
 			uploader.Process(&service.FilesRecord{
 				Files: []*service.FilesItem{
@@ -122,10 +139,34 @@ func TestUploader(t *testing.T) {
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
+	runTest("Process sets file category",
+		func() {},
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path:   "test.txt",
+						Policy: service.FilesItem_NOW,
+						Type:   service.FilesItem_ARTIFACT,
+					},
+				},
+			})
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+			assert.Equal(t,
+				filetransfer.RunFileKindArtifact,
+				fakeFileTransfer.Tasks()[0].FileKind,
+			)
+		})
+
 	runTest("UploadNow uploads given file",
 		func() {},
 		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
@@ -137,9 +178,21 @@ func TestUploader(t *testing.T) {
 	runTest("UploadNow ignores non-existent file",
 		func() {},
 		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 0)
+		})
+
+	runTest("UploadNow ignores file matching ignore glob",
+		func() { ignoreGlobs = []string{"subdir/*/file.txt"} },
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/xyz/file.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "xyz", "file.txt"))
+
+			uploader.UploadNow(filepath.Join("subdir", "xyz", "file.txt"))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -148,7 +201,8 @@ func TestUploader(t *testing.T) {
 	runTest("UploadNow does nothing if offline",
 		func() { isOffline = true },
 		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
 			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
 			uploader.Finish()
@@ -159,7 +213,7 @@ func TestUploader(t *testing.T) {
 	runTest("upload is no-op if GraphQL returns wrong number of files",
 		func() {},
 		func(t *testing.T) {
-			stubCreateRunFilesOneFile(mockGQLClient)
+			stubCreateRunFilesOneFile(mockGQLClient, "file1.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "file1.txt"))
 			writeEmptyFile(t, filepath.Join(filesDir, "file2.txt"))
 

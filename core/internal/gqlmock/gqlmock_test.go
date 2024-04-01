@@ -16,13 +16,17 @@ func TestUnstubbedRequest_ErrorContainsRequest(t *testing.T) {
 
 	err := mock.MakeRequest(
 		context.Background(),
-		&graphql.Request{Query: "hero { name }"},
+		&graphql.Request{
+			Query: "hero { name }",
+			Variables: map[string]string{
+				"x": "y",
+			},
+		},
 		nil,
 	)
 
-	assert.ErrorContains(t,
-		err,
-		`&graphql.Request{Query:"hero { name }", Variables:interface {}(nil), OpName:""}`)
+	assert.ErrorContains(t, err, "hero { name }")
+	assert.ErrorContains(t, err, "map[x:y]")
 }
 
 func TestStubbedRequest_UsesStub(t *testing.T) {
