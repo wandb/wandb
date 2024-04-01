@@ -142,7 +142,7 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 
 func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
 	err := uploadToServerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
@@ -197,7 +197,7 @@ func impatientClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
 	client.RetryMax = 1
 	client.RetryWaitMin = 1 * time.Millisecond
-	client.RetryWaitMax = 10 * time.Millisecond
-	client.HTTPClient.Timeout = 100 * time.Millisecond
+	client.RetryWaitMax = 5 * time.Millisecond
+	client.HTTPClient.Timeout = 20 * time.Millisecond
 	return client
 }
