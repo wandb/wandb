@@ -123,6 +123,7 @@ func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
 	err := uploadToServerWithHandler(t, fnfHandler)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "404")
+	// 404s shouldn't be retried.
 	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
@@ -151,7 +152,11 @@ func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
 
 func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), impatientClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
@@ -178,7 +183,11 @@ func uploadToServerWithHandler(
 ) error {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	defer server.Close()
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), impatientClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	tempFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
