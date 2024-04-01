@@ -17,6 +17,10 @@ Please add to relevant subsections here on every PR where this is applicable.
 
 * Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
 
+### Fixed
+
+* Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+
 ## [0.16.5] - 2024-03-25
 
 ### Added
