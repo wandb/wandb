@@ -13,6 +13,10 @@ Starting with the 0.16.4 release on March 5, 2024, the format is based on
 Starting with the next release, we follow https://keepachangelog.com/en/1.1.0/.
 Please add to relevant subsections here on every PR where this is applicable.
 
+### Added
+
+* Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
+
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
@@ -27,6 +31,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 * Preliminary support for forking a run using `wandb.init(fork_from=...)` by @dannygoldstein in https://github.com/wandb/wandb/pull/7078
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 * Reduced default status print frequency of launch agent. Added verbosity controls to allow for increased status print frequency and printing debug information to stdout by @TimH98 in https://github.com/wandb/wandb/pull/7126
+
 
 ### Changed
 
