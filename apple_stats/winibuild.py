@@ -31,7 +31,7 @@ def build_applestats(
         architecture.swift_name,
     ]
 
-    source_path = pathlib.PurePath("./core/pkg/monitor/apple")
+    source_path = pathlib.PurePath("./apple_stats")
 
     # TODO: It's unfortunately not clear how to control the output, so we must
     # hardcode it like this.

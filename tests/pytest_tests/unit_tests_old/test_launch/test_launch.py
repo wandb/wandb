@@ -466,8 +466,8 @@ async def test_launch_code_artifact(
 # this test includes building a docker container which can take some time,
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.flaky
-# @pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
+@pytest.mark.skip(reason="this test is flaky and should be re-enabled with WB7616")
 def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -940,7 +940,12 @@ def test_resolve_agent_config(monkeypatch, runner):
                 f,
             )
         config, returned_api = _launch.resolve_agent_config(
-            None, None, -1, ["diff-queue"], None
+            entity=None,
+            project=None,
+            max_jobs=-1,
+            queues=["diff-queue"],
+            config=None,
+            verbosity=None,
         )
 
         assert config["registry"] == {"url": "test"}
