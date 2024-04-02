@@ -190,6 +190,9 @@ class LaunchAgent:
         self._internal_logger = InternalAgentLogger(verbosity=self._verbosity)
         self._last_status_print_time = 0.0
         self.default_config: Dict[str, Any] = config
+        self._stopped_run_timeout = config.get(
+            "stopped_run_timeout", MAX_WAIT_RUN_STOPPED
+        )
 
         # Get agent version from env var if present, otherwise wandb version
         self.version: str = "wandb@" + wandb.__version__
@@ -740,7 +743,7 @@ class LaunchAgent:
                 if stopped_time is None:
                     stopped_time = time.time()
                 else:
-                    if time.time() - stopped_time > MAX_WAIT_RUN_STOPPED:
+                    if time.time() - stopped_time > self._stopped_run_timeout:
                         await run.cancel()
             await asyncio.sleep(AGENT_POLLING_INTERVAL)
 
