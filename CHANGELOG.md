@@ -24,6 +24,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+* Fixed wandb.login causing runs not to be associated with launch queue by @KyleGoyette in https://github.com/wandb/wandb/pull/7280
 
 ## [0.16.5] - 2024-03-25
 
