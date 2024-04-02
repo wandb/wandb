@@ -413,7 +413,7 @@ class WandbLogger:
                 tmp_file.write(file_content.content)
                 tmp_file_path = tmp_file.name
             artifact.add_file(tmp_file_path, file_id)
-            cls._run.log_artifact(artifact)
+            # cls._run.log_artifact(artifact)
             os.unlink(tmp_file_path)
 
             # create a Table
@@ -426,9 +426,9 @@ class WandbLogger:
                 # Update the run config and artifact metadata
                 cls._run.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
-            except Exception:
+            except Exception as e:
                 wandb.termerror(
-                    f"File {file_id} could not be read as a valid JSON file"
+                    f"Issue saving {file_id} as a Table to Artifacts, exception:\n  '{e}'"
                 )
         else:
             # log number of items
