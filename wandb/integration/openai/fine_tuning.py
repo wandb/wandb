@@ -220,7 +220,7 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            results = cls.openai_client.files.content(file_id=results_id)
+            results = cls.openai_client.files.content(file_id=results_id).text
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(
