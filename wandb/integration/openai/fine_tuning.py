@@ -165,8 +165,10 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...") 
-        wandb.termlog("To avoid blocking, you can call `WandbLogger.sync` with `wait_for_job_success=False` after OpenAI training completes.")
+        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...")
+        wandb.termlog(
+            "To avoid blocking, you can call `WandbLogger.sync` with `wait_for_job_success=False` after OpenAI training completes."
+        )
         while True:
             if fine_tune.status == "succeeded":
                 wandb.termlog(
@@ -331,9 +333,12 @@ class WandbLogger:
 
     @classmethod
     def _log_artifacts(
-        cls, fine_tune: FineTuningJob, project: str, entity: Optional[str], log_datasets: bool
+        cls,
+        fine_tune: FineTuningJob,
+        project: str,
+        entity: Optional[str],
+        log_datasets: bool,
     ) -> None:
-        
         if log_datasets:
             wandb.termlog("Logging training/validation files...")
             # training/validation files
@@ -346,7 +351,9 @@ class WandbLogger:
                 (validation_file, "valid", "validation_files"),
             ):
                 if file is not None:
-                    cls._log_artifact_inputs(file, prefix, artifact_type, project, entity)
+                    cls._log_artifact_inputs(
+                        file, prefix, artifact_type, project, entity
+                    )
 
         # fine-tune details
         fine_tune_id = fine_tune.id
@@ -400,8 +407,10 @@ class WandbLogger:
                 return
 
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            with artifact.new_file(file_id, mode="w", encoding="utf-8") as f:
-                f.write(file_content)
+            # with artifact.new_file(file_id, mode="w", encoding="utf-8") as f:
+            #     f.write(file_content)
+
+            artifact.add_file(io.StringIO(file_content), file_id)
 
             # create a Table
             try:
