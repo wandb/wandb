@@ -86,9 +86,11 @@ class GPUAppleStats:
 
             stats: _Stats = {
                 "gpu": raw_stats["utilization"],
-                "memoryAllocated": raw_stats["inUseSystemMemory"]
-                / raw_stats["allocatedSystemMemory"]
-                * 100,
+                "memoryAllocated": (
+                    raw_stats["inUseSystemMemory"]
+                    / raw_stats["allocatedSystemMemory"]
+                    * 100
+                ),
                 "powerWatts": raw_stats["systemPower"],
                 "powerPercent": (raw_stats["systemPower"] / self.MAX_POWER_WATTS) * 100,
                 "temp": temp / count if count > 0 else 0,
