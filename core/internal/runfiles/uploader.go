@@ -263,7 +263,7 @@ func (u *uploader) startWatcher() error {
 	// wouldn't have stopped the above goroutines.
 	watcherStarted := make(chan struct{})
 	go func() {
-		u.watcherWG.Wait()
+		u.watcherOrNil.Wait()
 		watcherStarted <- struct{}{}
 	}()
 	select {
