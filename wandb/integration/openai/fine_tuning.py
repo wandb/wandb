@@ -407,9 +407,6 @@ class WandbLogger:
                 return
 
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            # with artifact.new_file(file_id, mode="w", encoding="utf-8") as f:
-            #     f.write(file_content)
-
             artifact.add_file(io.StringIO(file_content), file_id)
 
             # create a Table
