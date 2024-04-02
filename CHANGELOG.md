@@ -17,6 +17,10 @@ Please add to relevant subsections here on every PR where this is applicable.
 
 * Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
 
+### Changed
+
+* Updated artifact public api methods to handle nullable Project field on the ArtifactSequence/ArtifactCollection type, based on gorilla server changes by @ibindlish in https://github.com/wandb/wandb/pull/7201
+
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
