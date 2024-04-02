@@ -28,8 +28,13 @@ type Uploader interface {
 	// The path is relative to the run's file directory.
 	UploadNow(path string)
 
-	// UploadRemaining asynchronously uploads all files
-	// in the run's file directory.
+	// UploadAtEnd marks a file to be uploaded at the end of the run.
+	//
+	// The path is relative to the run's file directory.
+	UploadAtEnd(path string)
+
+	// UploadRemaining asynchronously uploads all files that should be
+	// uploaded at the end of the run.
 	UploadRemaining()
 
 	// Finish waits for all asynchronous operations to finish.
