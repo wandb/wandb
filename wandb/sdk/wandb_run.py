@@ -3597,7 +3597,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        workspace_url = f"{settings.run_url}/workspace"
+        run_url = settings.run_url
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3608,7 +3608,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3640,7 +3640,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3883,10 +3883,13 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                run_workspace = f"{settings.run_url}/workspace"
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
-                ]
+                info.append(
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
