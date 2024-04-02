@@ -1,8 +1,10 @@
 import datetime
+import os
 import io
 import json
 import re
 import time
+import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
@@ -218,7 +220,7 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            results = cls.openai_client.files.retrieve_content(file_id=results_id)
+            results = cls.openai_client.files.content(file_id=results_id)
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(
@@ -407,10 +409,12 @@ class WandbLogger:
                 return
 
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            # with open(file_id, "wb") as f:
-            #     f.write(file_content.content)
-            artifact.add_file(io.StringIO(file_content.text), file_id)
-            # artifact.add_file(io.BytesIO(file_content.content), file_id)
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                tmp_file.write(file_content.content)
+                tmp_file_path = tmp_file.name
+            artifact.add_file(tmp_file_path, file_id)
+            cls._run.log_artifact(artifact)
+            os.unlink(tmp_file_path)
 
             # create a Table
             try:
