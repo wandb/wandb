@@ -41,10 +41,12 @@ Please add to relevant subsections here on every PR where this is applicable.
 
 * Limit policy option on artifact cli's put() to choices, ["mutable", "immutable"] by @ibindish in https://github.com/wandb/wandb/pull/7172
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
+* `WandbLogger.sync` in the OpenAI Fine-Tuning integration gets a new `log_datasets` argument to turn off logging datasets to Artifacts in https://github.com/wandb/wandb/pull/7150
 
 ### Fixed
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
+* Fix handling of saving training files to Artifacts in the OpenAI Fine-Tuning integration in https://github.com/wandb/wandb/pull/7150
 
 ### Removed
 
