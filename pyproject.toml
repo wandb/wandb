@@ -173,6 +173,9 @@ wandb/vendor/
 [tool.ruff]
 exclude = ["wandb/__init__.py"]
 extend-exclude = ["wandb/vendor/**", "wandb/proto/**"]
+target-version = "py37"
+
+[tool.ruff.lint]
 select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
@@ -183,12 +186,22 @@ ignore = [
     "UP032", # Allow using format instead of f-string.
     "UP036",
 ]
-target-version = "py37"
 
-[tool.ruff.isort]
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.isort]
 split-on-trailing-comma = false
 
-[tool.ruff.per-file-ignores]
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
@@ -203,14 +216,6 @@ split-on-trailing-comma = false
 "tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
 "tests/functional_tests/t0_main/metaflow/**" = ["D", "N806"]
 
-[tool.ruff.pydocstyle]
-convention = "google"
-
-[tool.ruff.pycodestyle]
-ignore-overlong-task-comments = true
-
-[tool.ruff.mccabe]
-max-complexity = 18
 
 [tool.mypy]
 warn_redundant_casts = true
