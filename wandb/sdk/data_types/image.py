@@ -268,12 +268,14 @@ class Image(BatchableMedia):
         # self._masks = wbimage._masks
 
     def _initialize_from_path(self, path: str) -> None:
-        pil_image = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
+        try:
+            import PIL.Image as PILImage
+        except ImportError:
+            raise wandb.Error(
+                'wandb.Image needs the PIL package. To get it, run "pip install pillow".'
+            )
         self._set_file(path, is_tmp=False)
-        self._image = pil_image.open(path)
+        self._image = PILImage.open(path)
         assert self._image is not None
         self._image.load()
         ext = os.path.splitext(path)[1][1:]
@@ -293,15 +295,17 @@ class Image(BatchableMedia):
         mode: Optional[str] = None,
         file_type: Optional[str] = None,
     ) -> None:
-        pil_image = util.get_module(
-            "PIL.Image",
-            required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-        )
+        try:
+            import PIL.Image as PILImage
+        except ImportError:
+            raise wandb.Error(
+                'wandb.Image needs the PIL package. To get it, run "pip install pillow".'
+            )
         if util.is_matplotlib_typename(util.get_full_typename(data)):
             buf = BytesIO()
             util.ensure_matplotlib_figure(data).savefig(buf, format="png")
-            self._image = pil_image.open(buf, formats=["PNG"])
-        elif isinstance(data, pil_image.Image):
+            self._image = PILImage.open(buf, formats=["PNG"])
+        elif isinstance(data, PILImage.Image):
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
             vis_util = util.get_module(
@@ -312,7 +316,7 @@ class Image(BatchableMedia):
             if hasattr(data, "dtype") and str(data.dtype) == "torch.uint8":
                 data = data.to(float)
             data = vis_util.make_grid(data, normalize=True)
-            self._image = pil_image.fromarray(
+            self._image = PILImage.fromarray(
                 data.mul(255).clamp(0, 255).byte().permute(1, 2, 0).cpu().numpy()
             )
         else:
@@ -320,7 +324,7 @@ class Image(BatchableMedia):
                 data = data.numpy()
             if data.ndim > 2:
                 data = data.squeeze()  # get rid of trivial dimensions as a convenience
-            self._image = pil_image.fromarray(
+            self._image = PILImage.fromarray(
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
         accepted_formats = ["png", "jpg", "jpeg", "bmp"]
@@ -678,10 +682,12 @@ class Image(BatchableMedia):
     def image(self) -> Optional["PILImage"]:
         if self._image is None:
             if self._path is not None and not self.path_is_reference(self._path):
-                pil_image = util.get_module(
-                    "PIL.Image",
-                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
-                )
-                self._image = pil_image.open(self._path)
+                try:
+                    import PIL.Image as PILImage
+                except ImportError:
+                    raise wandb.Error(
+                        'wandb.Image needs the PIL package. To get it, run "pip install pillow".'
+                    )
+                self._image = PILImage.open(self._path)
                 self._image.load()
         return self._image
