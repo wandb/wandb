@@ -407,11 +407,14 @@ class WandbLogger:
                 return
 
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            artifact.add_file(io.StringIO(file_content), file_id)
+            # with open(file_id, "wb") as f:
+            #     f.write(file_content.content)
+            artifact.add_file(io.StringIO(file_content.text), file_id)
+            # artifact.add_file(io.BytesIO(file_content.content), file_id)
 
             # create a Table
             try:
-                table, n_items = cls._make_table(file_content)
+                table, n_items = cls._make_table(file_content.text)
                 # Add table to the artifact.
                 artifact.add(table, file_id)
                 # Add the same table to the workspace.
