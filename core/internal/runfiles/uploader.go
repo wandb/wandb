@@ -255,6 +255,22 @@ func (u *uploader) startWatcher() error {
 		return nil
 	})
 
+	// We want to guarantee at this point that either:
+	//   1. Watcher.Start() is successfully looping
+	//   2. Watcher.Start() returned an error
+	// Until this, Watcher.Close() is a no-op! If Finish() is called too
+	// quickly, it will get stuck waiting on watcherWG because Watcher.Close()
+	// wouldn't have stopped the above goroutines.
+	watcherStarted := make(chan struct{})
+	go func() {
+		u.watcherWG.Wait()
+		watcherStarted <- struct{}{}
+	}()
+	select {
+	case <-watcherStarted:
+	case <-ctx.Done():
+	}
+
 	return nil
 }
 
