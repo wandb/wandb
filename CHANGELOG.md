@@ -16,6 +16,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 ### Added
 
 * Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
+* Added link to the project workspace of a run in the footer by @kptkin in https://github.com/wandb/wandb/pull/7276
 
 ### Changed
 
