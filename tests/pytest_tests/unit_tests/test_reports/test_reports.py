@@ -38,10 +38,6 @@ if sys.version_info >= (3, 8):
         __model__ = wr2.GradientPoint
 
         @classmethod
-        def offset(cls):
-            return cls.__random__.uniform(0, 100)
-
-        @classmethod
         def color(cls):
             return "#FFFFFF"
 
@@ -127,6 +123,10 @@ if sys.version_info >= (3, 8):
         __model__ = wr2.PanelGrid
 
         @classmethod
+        def panels(cls):
+            return [wr2.LinePlot()]
+
+        @classmethod
         def runsets(cls):
             return [
                 wr2.Runset(filters="a >= 1"),
@@ -176,16 +176,12 @@ if sys.version_info >= (3, 8):
         __model__ = wr2.ParallelCoordinatesPlot
 
         @classmethod
-        def columns(cls):
-            column = ParallelCoordinatesPlotColumnFactory.build()
-            return [column]
+        def gradient(cls):
+            return [GradientPointFactory.build()]
 
         @classmethod
-        def gradient(cls):
-            # gradient_point = GradientPointFactory.build()
-            # print("gradient_point", gradient_point)
-            # return [gradient_point]
-            return [wr2.GradientPoint("#FFFFFF", 1)]
+        def columns(cls):
+            return [ParallelCoordinatesPlotColumnFactory.build()]
 
     @register_fixture
     class ParameterImportancePlotFactory(
@@ -207,9 +203,8 @@ if sys.version_info >= (3, 8):
 
         @classmethod
         def gradient(cls):
-            # gradient_point = GradientPointFactory.build()
-            # return [gradient_point]
-            return [wr2.GradientPoint("#FFFFFF", 1)]
+            gradient_point = GradientPointFactory.build()
+            return [gradient_point]
 
 
 block_factory_names = [

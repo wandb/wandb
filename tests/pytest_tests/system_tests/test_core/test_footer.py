@@ -1,5 +1,4 @@
 """footer tests."""
-import re
 
 import numpy as np
 import pytest
@@ -68,8 +67,6 @@ def test_footer_private(wandb_init, check_output_fn):
     check_output_fn(exp_summary=[], exp_history=[])
 
 
-# todo(core): implement sparklines / run history
-@pytest.mark.wandb_core_failure(feature="terminal_ui")
 def test_footer_normal(wandb_init, check_output_fn):
     run = wandb_init()
     run.log(dict(d=2))
@@ -77,7 +74,7 @@ def test_footer_normal(wandb_init, check_output_fn):
     run.log(dict(a=1, b="b"))
     run.log(dict(a=3))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=["a", "d"])
+    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=["a", "d"])
 
 
 def test_footer_summary(wandb_init, check_output_fn):
@@ -87,7 +84,7 @@ def test_footer_summary(wandb_init, check_output_fn):
     run.log(dict(a="a", b="b"))
     run.log(dict(a="a"))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
 def test_footer_summary_array(wandb_init, check_output_fn):
@@ -97,7 +94,7 @@ def test_footer_summary_array(wandb_init, check_output_fn):
     run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
     run.log(dict(a="a"))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
 def test_footer_summary_image(wandb_init, check_output_fn):
@@ -108,11 +105,11 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     run.log(dict(a="a"))
     run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀"], exp_history=[])
+    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
 # todo(core): implement sparklines / run history
-@pytest.mark.wandb_core_failure(feature="terminal_ui")
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_footer_history(wandb_init, check_output_fn):
     run = wandb_init()
     run.define_metric("*", summary="none")
@@ -121,24 +118,4 @@ def test_footer_history(wandb_init, check_output_fn):
     run.log(dict(a=1, b="b"))
     run.log(dict(a=3))
     run.finish()
-    check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀"])
-
-
-# todo(core): implement job info
-@pytest.mark.wandb_core_failure(feature="terminal_ui")
-def test_footer_job_output(wandb_init, capsys, monkeypatch):
-    """Test that footer includes job info when a job is created."""
-    monkeypatch.setenv("WANDB_DOCKER", "hello-world")  # Needed to trigger job creation.
-    run = wandb_init()
-    run.log({"a": 1})
-    run.finish()
-    captured = capsys.readouterr()
-    lines = captured.err.splitlines()
-    for line in lines:
-        if re.search(
-            r"View job at http://localhost:8080/user-\w+-\w+/uncategorized/jobs/[\w=]+/version_details/v0",
-            line,
-        ):
-            break
-    else:
-        raise AssertionError(f"Job URL not found in footer: {captured.err}")
+    check_output_fn(exp_summary=[], exp_history=["a", "d", "🚀", "⭐️"])

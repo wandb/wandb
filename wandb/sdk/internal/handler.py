@@ -705,7 +705,7 @@ class HandleManager:
             self._settings, interface=self._interface, run_proto=run_start.run
         )
 
-        if run_start.run.resumed:
+        if run_start.run.resumed or run_start.run.forked:
             self._step = run_start.run.starting_step
         result = proto_util._result_from_record(record)
         self._respond_result(result)
@@ -877,9 +877,6 @@ class HandleManager:
         result = proto_util._result_from_record(record)
         self._respond_result(result)
         self._stopped.set()
-
-    def handle_request_job_info(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
 
     def finish(self) -> None:
         logger.info("shutting down handler")

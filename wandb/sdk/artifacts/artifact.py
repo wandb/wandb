@@ -1,4 +1,5 @@
 """Artifact class."""
+
 import atexit
 import concurrent.futures
 import contextlib
@@ -7,6 +8,8 @@ import multiprocessing.dummy
 import os
 import re
 import shutil
+import stat
+import sys
 import tempfile
 import time
 from copy import copy
@@ -28,6 +31,12 @@ from typing import (
     Union,
     cast,
 )
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 from urllib.parse import urlparse
 
 import requests
@@ -216,10 +225,14 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        entity = attrs["artifactSequence"]["project"]["entityName"]
-        project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        entity_name = ""
+        project_name = ""
+        if attr_project:
+            entity_name = attr_project["entityName"]
+            project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
     def _from_name(
@@ -275,7 +288,9 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == entity
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
@@ -284,8 +299,12 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        artifact._source_entity = ""
+        artifact._source_project = ""
+        if attr_project:
+            artifact._source_entity = attr_project["entityName"]
+            artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -852,8 +871,12 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        self._entity = attrs["artifactSequence"]["project"]["entityName"]
-        self._project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        self._entity = ""
+        self._project = ""
+        if attr_project:
+            self._entity = attr_project["entityName"]
+            self._project = attr_project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -872,7 +895,9 @@ class Artifact:
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
@@ -1122,13 +1147,15 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name)
+        self.add_file(path, name=name, policy="immutable", skip_cache=True)
 
     def add_file(
         self,
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1138,6 +1165,10 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Returns:
             The added manifest entry
@@ -1145,6 +1176,7 @@ class Artifact:
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
@@ -1159,9 +1191,17 @@ class Artifact:
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        return self._add_local_file(
+            name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
+        )
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+    ) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -1169,10 +1209,15 @@ class Artifact:
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
+            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
@@ -1196,7 +1241,12 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(
+                name=logical_path,
+                path=physical_path,
+                skip_cache=skip_cache,
+                policy=policy,
+            )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1244,12 +1294,14 @@ class Artifact:
             name: The path within the artifact to place the contents of this reference.
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
-                automatic integrity validation, however it can be disabled to speed up
-                artifact creation.
+                automatic integrity validation. Disabling checksumming will speed up
+                artifact creation but reference directories will not iterated through so the
+                objects in the directory will not be saved to the artifact. We recommend
+                adding reference objects in the case checksumming is false.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
-                the maximum number of objects allowed for Amazon S3 and
-                GCS is 10,000. Other URI schemas do not have a maximum.
+                the maximum number of objects allowed for Amazon S3,
+                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
 
         Returns:
             The added manifest entries.
@@ -1386,20 +1438,34 @@ class Artifact:
         return entry
 
     def _add_local_file(
-        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
+        self,
+        name: StrPath,
+        path: StrPath,
+        digest: Optional[B64MD5] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
-        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
-            shutil.copyfile(path, staging_path)
-            os.chmod(staging_path, 0o400)
+        policy = policy or "mutable"
+        if policy not in ["mutable", "immutable"]:
+            raise ValueError(
+                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+            )
+        upload_path = path
+        if policy == "mutable":
+            with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+                staging_path = f.name
+                shutil.copyfile(path, staging_path)
+                # Set as read-only to prevent changes to the file during upload process
+                os.chmod(staging_path, stat.S_IRUSR)
+                upload_path = staging_path
 
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(staging_path),
-            size=os.path.getsize(staging_path),
-            local_path=staging_path,
+            digest=digest or md5_file_b64(upload_path),
+            size=os.path.getsize(upload_path),
+            local_path=upload_path,
+            skip_cache=skip_cache,
         )
-
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry

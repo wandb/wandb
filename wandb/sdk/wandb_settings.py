@@ -45,6 +45,7 @@ from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
+from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
@@ -158,6 +159,14 @@ def _get_program() -> Optional[str]:
         return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
+
+
+def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
+    if isinstance(val, RunMoment) or val is None:
+        return val
+    elif isinstance(val, str):
+        return RunMoment.from_uri(val)
+    raise UsageError(f"Could not parse value {val} as a RunMoment.")
 
 
 def _get_program_relpath(
@@ -297,8 +306,8 @@ class SettingsData:
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
     _disable_service: (
-        bool
-    )  # Disable wandb-service, spin up internal process the old way
+        bool  # Disable wandb-service, spin up internal process the old way
+    )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
     _disable_viewer: bool  # Prevent early viewer query
@@ -355,20 +364,18 @@ class SettingsData:
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
     _stats_join_assets: (
-        bool
-    )  # join metrics from different assets before sending to backend
+        bool  # join metrics from different assets before sending to backend
+    )
     _stats_neuron_monitor_config_path: (
-        str
-    )  # path to place config file for neuron-monitor (AWS Trainium)
+        str  # path to place config file for neuron-monitor (AWS Trainium)
+    )
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
     # - ("metric regex pattern 1", "metric regex pattern 2", ...)
     _stats_open_metrics_filters: Union[Sequence[str], Mapping[str, Mapping[str, str]]]
     _stats_disk_paths: Sequence[str]  # paths to monitor disk usage
-    _stats_buffer_size: (
-        int
-    )  # number of consolidated samples to buffer before flushing, available in run obj
+    _stats_buffer_size: int  # number of consolidated samples to buffer before flushing, available in run obj
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
@@ -393,6 +400,7 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
+    fork_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -805,6 +813,10 @@ class Settings(SettingsData):
                 ),
             },
             force={"preprocessor": _str_as_bool},
+            fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             ignore_globs={
@@ -1575,6 +1587,14 @@ class Settings(SettingsData):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
+                    )
+                )
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.
@@ -1897,16 +1917,33 @@ class Settings(SettingsData):
                 f.write(json.dumps({"run_id": self.run_id}))
 
     def _apply_login(
-        self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
+        self,
+        login_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
-        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
-        login_settings = {
-            param_map.get(k, k): v for k, v in login_settings.items() if v is not None
+        key_map = {
+            "key": "api_key",
+            "host": "base_url",
+            "timeout": "login_timeout",
         }
-        if login_settings:
-            if _logger:
-                _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
-            self.update(login_settings, source=Source.LOGIN)
+
+        # Rename keys and keep only the non-None values.
+        #
+        # The input keys are parameters to wandb.login(), but we use different
+        # names for some of them in Settings.
+        login_settings = {
+            key_map.get(key, key): value
+            for key, value in login_settings.items()
+            if value is not None
+        }
+
+        if _logger:
+            _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
+
+        self.update(
+            login_settings,
+            source=Source.LOGIN,
+        )
 
     def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
         # This dictionary maps from the "run message dict" to relevant fields in settings

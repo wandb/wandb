@@ -8,16 +8,6 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel, get_platform
 
-# Package naming
-# --------------
-#   wandb-core:         Package containing architecture specific code
-
-# wandb-core versioning
-# ---------------------
-CORE_VERSION = "0.17.0b9"
-
-PACKAGE = "wandb_core"
-
 
 class CustomWheel(bdist_wheel):
     """Overrides the wheel tag with the proper information.
@@ -70,7 +60,7 @@ class CustomBuildPy(build_py):
     """Custom step to copy pre-built binary artifacts into the package."""
 
     def run(self):
-        pkgdir = pathlib.Path(__file__).parent / PACKAGE
+        pkgdir = pathlib.Path(__file__).parent / "wandb_core"
 
         # Figure out the normalized architecture name for our current arch.
         arch = platform.machine().lower()
@@ -105,10 +95,13 @@ class CustomBuildPy(build_py):
         for file in archdir.iterdir():
             dest = pkgdir / file.name
 
-            if dest.exists():
+            try:
+                # missing_ok=True doesn't exist in Python 3.7
                 dest.unlink()
+            except FileNotFoundError:
+                pass
 
-            os.symlink(file, dest)
+            os.symlink(file.resolve(), dest)
 
         super().run()
 
@@ -117,16 +110,6 @@ if __name__ == "__main__":
     log.set_verbosity(log.INFO)
 
     setup(
-        name="wandb-core",
-        version=CORE_VERSION,
-        description="W&B Core Library",
-        long_description=open("README.md", encoding="utf-8").read(),
-        long_description_content_type="text/markdown",
-        packages=[PACKAGE],
-        zip_safe=False,
-        include_package_data=True,
-        license="MIT license",
-        python_requires=">=3.6",
         cmdclass={
             "bdist_wheel": CustomWheel,
             "build_py": CustomBuildPy,
