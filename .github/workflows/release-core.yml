@@ -20,7 +20,6 @@ jobs:
         os:
           - ubuntu-20.04
           - windows-2019
-          - macos-13
           - macos-14
     steps:
       - uses: actions/checkout@v4
@@ -56,39 +55,19 @@ jobs:
         if: runner.os != 'Linux'
         run: pip install -r requirements_tools.txt
 
-      - name: Build artifacts using wini (Windows and macOS-14)
-        if: runner.os == 'Windows' || matrix.os == 'macOS-14'
+      - name: Build artifacts using wini (Windows)
+        if: runner.os == 'Windows'
         run: bash wini build wandb-core-artifacts
 
-        # We skip building AppleStats on macOS-13 because it fails
-        # cibuildwheel's repair step in delocation. This seems to be because
-        # the Swift standard libraries aren't stored in /usr/lib/swift/ for
-        # x86_64 architecture.
-        #
-        # You can test this by compiling AppleStats for arm64 and x86_64
-        # separately, and then running "otool -L AppleStats". On x86_64,
-        # you'll see entries like "@rpath/libswiftCore.dylib", whereas on
-        # arm64 they are "/usr/lib/swift/libswiftCore.dylib".
-        #
-        # This could just be a Swift compiler bug.
-        #
-        # Interestingly, "/usr/lib/swift/libswiftCore.dylib" doesn't exist
-        # under /usr/lib/swift/ on my machine, yet the binary works.
-        #
-        # The "delocate" step copies non-system dependencies into the wheel.
-        # It explicitly ignores "/usr/lib/..." paths, but when it sees
-        # "@rpath/libswiftCore.dylib" it tries to find the binary. The RPATH
-        # on x86_64 includes "/usr/lib/swift/", but like I mentioned, the
-        # files don't actually exist, and the step fails.
-      - name: Build artifacts using wini (macOS-13)
-        if: matrix.os == 'macOS-13'
-        run: bash wini build wandb-core-artifacts --skip-swift-build
+      - name: Build artifacts using wini (macOS)
+        if: runner.os == 'macOS'
+        run: bash wini build wandb-core-artifacts --arch x86_64 --arch aarch64
 
       ##################################################
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.5
+        uses: pypa/cibuildwheel@v2.17.0
         with:
            package-dir: core
            output-dir: core/wheelhouse
@@ -101,6 +80,18 @@ jobs:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* pp* *musllinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+
+          # Work around https://github.com/matthew-brett/delocate/issues/204
+          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
+          # repair wheel command.
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-wheel \
+              --require-archs {delocate_archs} \
+              --ignore-missing-dependencies \
+              -w {dest_dir} \
+              -v {wheel}
+
           # Linux is special because it's built in a container using qemu, so we must
           # build our Go binary inside the cibuildwheel step.
           #
