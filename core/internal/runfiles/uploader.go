@@ -28,6 +28,7 @@ type uploader struct {
 	settings          *settings.Settings
 	debouncedTransfer *debouncedTransfer
 	graphQL           graphql.Client
+	uploadBatcher     *uploadBatcher
 
 	// A mapping from files to their category, if set.
 	//
@@ -55,7 +56,7 @@ type uploader struct {
 }
 
 func newUploader(params UploaderParams) *uploader {
-	return &uploader{
+	uploader := &uploader{
 		logger:   params.Logger,
 		settings: params.Settings,
 		debouncedTransfer: newDebouncedTransfer(
@@ -72,6 +73,24 @@ func newUploader(params UploaderParams) *uploader {
 
 		watcherWG: &sync.WaitGroup{},
 	}
+
+	if params.BatchWindow != 0 {
+		params.BatchDelayFunc = func() <-chan struct{} {
+			ch := make(chan struct{})
+			go func() {
+				<-time.After(params.BatchWindow)
+				ch <- struct{}{}
+			}()
+			return ch
+		}
+	}
+
+	uploader.uploadBatcher = newUploadBatcher(
+		params.BatchDelayFunc,
+		uploader.upload,
+	)
+
+	return uploader
 }
 
 func (u *uploader) Process(record *service.FilesRecord) {
@@ -114,7 +133,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 		}
 	}
 
-	u.upload(nowFiles)
+	u.uploadBatcher.Add(nowFiles)
 }
 
 func (u *uploader) SetCategory(path string, category filetransfer.RunFileKind) {
@@ -132,7 +151,7 @@ func (u *uploader) UploadNow(path string) {
 	}
 	defer u.stateMu.Unlock()
 
-	u.upload([]string{path})
+	u.uploadBatcher.Add([]string{path})
 }
 
 func (u *uploader) UploadAtEnd(path string) {
@@ -155,7 +174,7 @@ func (u *uploader) UploadRemaining() {
 		relativePaths = append(relativePaths, k)
 	}
 
-	u.upload(relativePaths)
+	u.uploadBatcher.Add(relativePaths)
 }
 
 func (u *uploader) Finish() {
@@ -171,6 +190,7 @@ func (u *uploader) Finish() {
 		u.isFinished = true
 	}()
 
+	u.uploadBatcher.Finish()
 	u.uploadWG.Wait()
 
 	if u.watcherOrNil != nil {
