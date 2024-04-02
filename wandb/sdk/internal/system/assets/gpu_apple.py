@@ -59,7 +59,7 @@ class GPUAppleStats:
 
     def sample(self) -> None:
         try:
-            command = [self.binary_path, "--json"]
+            command = [str(self.binary_path), "--json"]
             output = (
                 subprocess.check_output(command, universal_newlines=True)
                 .strip()
@@ -142,7 +142,7 @@ class GPUApple:
 
     def probe(self) -> dict:
         try:
-            command = [self.binary_path, "--json"]
+            command = [str(self.binary_path), "--json"]
             output = (
                 subprocess.check_output(command, universal_newlines=True)
                 .strip()
