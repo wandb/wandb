@@ -45,7 +45,7 @@ MAX_RESUME_COUNT = 5
 
 RUN_INFO_GRACE_PERIOD = 60
 
-MAX_WAIT_RUN_STOPPED = 60
+DEFAULT_STOPPED_RUN_TIMEOUT = 60
 
 DEFAULT_PRINT_INTERVAL = 5 * 60
 VERBOSE_PRINT_INTERVAL = 20
@@ -191,7 +191,7 @@ class LaunchAgent:
         self._last_status_print_time = 0.0
         self.default_config: Dict[str, Any] = config
         self._stopped_run_timeout = config.get(
-            "stopped_run_timeout", MAX_WAIT_RUN_STOPPED
+            "stopped_run_timeout", DEFAULT_STOPPED_RUN_TIMEOUT
         )
 
         # Get agent version from env var if present, otherwise wandb version
