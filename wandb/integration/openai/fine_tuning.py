@@ -1,10 +1,10 @@
 import datetime
-import os
 import io
 import json
+import os
 import re
-import time
 import tempfile
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
@@ -244,7 +244,7 @@ class WandbLogger:
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity, log_datasets)
+        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite)
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
@@ -340,6 +340,7 @@ class WandbLogger:
         project: str,
         entity: Optional[str],
         log_datasets: bool,
+        overwrite: bool,
     ) -> None:
         if log_datasets:
             wandb.termlog("Logging training/validation files...")
@@ -354,7 +355,7 @@ class WandbLogger:
             ):
                 if file is not None:
                     cls._log_artifact_inputs(
-                        file, prefix, artifact_type, project, entity
+                        file, prefix, artifact_type, project, entity, overwrite
                     )
 
         # fine-tune details
@@ -386,6 +387,7 @@ class WandbLogger:
         artifact_type: str,
         project: str,
         entity: Optional[str],
+        overwrite: bool,
     ) -> None:
         # get input artifact
         artifact_name = f"{prefix}-{file_id}"
@@ -398,7 +400,7 @@ class WandbLogger:
         artifact = cls._get_wandb_artifact(artifact_path)
 
         # create artifact if file not already logged previously
-        if artifact is None:
+        if artifact is None or overwrite:
             # get file content
             try:
                 file_content = cls.openai_client.files.content(file_id=file_id)
@@ -413,7 +415,6 @@ class WandbLogger:
                 tmp_file.write(file_content.content)
                 tmp_file_path = tmp_file.name
             artifact.add_file(tmp_file_path, file_id)
-            # cls._run.log_artifact(artifact)
             os.unlink(tmp_file_path)
 
             # create a Table
