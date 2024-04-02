@@ -13,6 +13,19 @@ Starting with the 0.16.4 release on March 5, 2024, the format is based on
 Starting with the next release, we follow https://keepachangelog.com/en/1.1.0/.
 Please add to relevant subsections here on every PR where this is applicable.
 
+### Added
+
+* Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
+* Added link to the project workspace of a run in the footer by @kptkin in https://github.com/wandb/wandb/pull/7276
+
+### Changed
+
+* Updated artifact public api methods to handle nullable Project field on the ArtifactSequence/ArtifactCollection type, based on gorilla server changes by @ibindlish in https://github.com/wandb/wandb/pull/7201
+
+### Fixed
+
+* Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+
 ## [0.16.5] - 2024-03-25
 
 ### Added
@@ -23,6 +36,8 @@ Please add to relevant subsections here on every PR where this is applicable.
 * Preliminary support for forking a run using `wandb.init(fork_from=...)` by @dannygoldstein in https://github.com/wandb/wandb/pull/7078
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 * Reduced default status print frequency of launch agent. Added verbosity controls to allow for increased status print frequency and printing debug information to stdout by @TimH98 in https://github.com/wandb/wandb/pull/7126
+* `WandbLogger.sync` in the OpenAI Fine-Tuning integration gets a new `log_datasets` boolean argument to turn off automatic logging of datasets to Artifacts by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
+
 
 ### Changed
 
@@ -32,6 +47,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 ### Fixed
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
+* Fix handling of saving training files to Artifacts in the OpenAI Fine-Tuning integration by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
 
 ### Removed
 

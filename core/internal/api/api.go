@@ -13,10 +13,10 @@ import (
 
 const (
 	// Don't go slower than 1 request per 10 seconds.
-	minRateLimit = 0.1
+	minRequestsPerSecond = 0.1
 
-	// Don't go faster than 20 requests per second.
-	maxRequestsPerSecond = 20
+	// Don't go faster than 200 requests per second.
+	maxRequestsPerSecond = 200
 
 	// Don't send more than 10 requests at a time.
 	maxBurst = 10

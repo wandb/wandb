@@ -225,10 +225,14 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        entity = attrs["artifactSequence"]["project"]["entityName"]
-        project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        entity_name = ""
+        project_name = ""
+        if attr_project:
+            entity_name = attr_project["entityName"]
+            project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
     def _from_name(
@@ -284,7 +288,9 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == entity
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
@@ -293,8 +299,12 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        artifact._source_entity = ""
+        artifact._source_project = ""
+        if attr_project:
+            artifact._source_entity = attr_project["entityName"]
+            artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -861,8 +871,12 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        self._entity = attrs["artifactSequence"]["project"]["entityName"]
-        self._project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        self._entity = ""
+        self._project = ""
+        if attr_project:
+            self._entity = attr_project["entityName"]
+            self._project = attr_project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -881,7 +895,9 @@ class Artifact:
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
