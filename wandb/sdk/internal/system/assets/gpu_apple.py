@@ -78,6 +78,11 @@ class GPUAppleStats:
     def sample(self) -> None:
         try:
             raw_stats = sample_apple_gpu(str(self.binary_path))
+            temp, count = 0, 0
+            for k in ["m1Gpu1", "m1Gpu2", "m1Gpu3", "m1Gpu4", "m2Gpu1", "m2Gpu2"]:
+                if raw_stats.get(k, 0) > 0:
+                    temp += raw_stats[k]
+                    count += 1
 
             stats: _Stats = {
                 "gpu": raw_stats["utilization"],
@@ -86,19 +91,12 @@ class GPUAppleStats:
                 * 100,
                 "powerWatts": raw_stats["systemPower"],
                 "powerPercent": (raw_stats["systemPower"] / self.MAX_POWER_WATTS) * 100,
+                "temp": temp / count if count > 0 else 0,
                 # TODO: this stat could be useful eventually, it was consistently
                 #  0 in my experimentation and requires a frontend change
                 #  so leaving it out for now.
                 # "cpuWaitMs": raw_stats["cpu_wait_ms"],
             }
-
-            temp, count = 0, 0
-            for k in ["m1Gpu1", "m1Gpu2", "m1Gpu3", "m1Gpu4", "m2Gpu1", "m2Gpu2"]:
-                if k in raw_stats:
-                    if raw_stats[k] > 0:
-                        temp += raw_stats[k]
-                        count += 1
-            stats["temp"] = temp / count if count > 0 else 0
             self.samples.append(stats)
 
         except WandbSysMonitorError as e:
