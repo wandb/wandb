@@ -139,8 +139,8 @@ github.com/tklauser/numcpus v0.7.0 h1:yjuerZP127QG9m5Zh/mSO4wqurYil27tHrqwRoRjpr
 github.com/tklauser/numcpus v0.7.0/go.mod h1:bb6dMVcj8A42tSE7i32fsIUCbQNllK5iDguyOZRUzAY=
 github.com/vektah/gqlparser/v2 v2.5.11 h1:JJxLtXIoN7+3x6MBdtIP59TP1RANnY7pXOaDnADQSf8=
 github.com/vektah/gqlparser/v2 v2.5.11/go.mod h1:1rCcfwB2ekJofmluGWXMSEnPMZgbxzwj6FaZ/4OT8Cc=
-github.com/wandb/simplejsonext v0.0.0-20240321190947-e1d07eb04a83 h1:Zr6U4WP4Ygj9nceSTGCxW0/zaJWZdG/hqGa13dbiTfE=
-github.com/wandb/simplejsonext v0.0.0-20240321190947-e1d07eb04a83/go.mod h1:1C0JeI1VoqmKoe+DlmsZwnGYRmFBrZlTT1id1sbPJFI=
+github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635 h1:k7PFWbQaatq7N9Iuj8tzHOqeZ0Nw/GtIEp3+BYZgJAQ=
+github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635/go.mod h1:1C0JeI1VoqmKoe+DlmsZwnGYRmFBrZlTT1id1sbPJFI=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=
 github.com/xanzy/ssh-agent v0.3.3/go.mod h1:6dzNDKs0J9rVPHPhaGCukekBHKqfl+L3KghI1Bc68Uw=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
