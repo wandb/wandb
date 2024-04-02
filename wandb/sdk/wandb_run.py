@@ -1963,7 +1963,7 @@ class Run:
 
         # Files in the files directory matched by the glob, including old and
         # new ones.
-        globbed_files = list(
+        globbed_files = set(
             pathlib.Path(
                 self._settings.files_dir,
             ).glob(relative_glob_str)
@@ -1975,25 +1975,29 @@ class Run:
         # The base_path may itself be a glob, so we can't do
         #     base_path.glob(relative_glob_str)
         for path_str in glob.glob(str(base_path / relative_glob_str)):
-            path = pathlib.Path(path_str).absolute()
+            source_path = pathlib.Path(path_str).absolute()
 
             # We can't use relative_to() because base_path may be a glob.
-            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
 
-            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
-            globbed_files.append(wandb_path)
+            target_path = pathlib.Path(self._settings.files_dir, relative_path)
+            globbed_files.add(target_path)
 
-            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+            # If the file is already where it needs to be, don't create a symlink.
+            if source_path.resolve() == target_path.resolve():
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
             try:
-                wandb_path.unlink()
+                target_path.unlink()
             except FileNotFoundError:
                 # In Python 3.8, we would pass missing_ok=True, but as of now
                 # we support down to Python 3.7.
                 pass
 
-            wandb_path.symlink_to(path)
+            target_path.symlink_to(source_path)
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
@@ -3593,7 +3597,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        workspace_url = f"{settings.run_url}/workspace"
+        run_url = settings.run_url
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3604,7 +3608,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3636,7 +3640,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3879,10 +3883,13 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                run_workspace = f"{settings.run_url}/workspace"
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
-                ]
+                info.append(
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts
