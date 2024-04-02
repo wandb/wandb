@@ -58,7 +58,7 @@ def sample_apple_gpu(executalbe: str) -> dict:
         )[0]
         return json.loads(output)
     except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-        raise WandbSysMonitorError("Error sampling GPU stats %s" % e)
+        raise WandbSysMonitorError("Error sampling GPU stats") from e
 
 
 class GPUAppleStats:
