@@ -36,18 +36,18 @@ Please add to relevant subsections here on every PR where this is applicable.
 * Preliminary support for forking a run using `wandb.init(fork_from=...)` by @dannygoldstein in https://github.com/wandb/wandb/pull/7078
 * `run.save()` accepts `pathlib.Path` values; by @timoffex in https://github.com/wandb/wandb/pull/7146
 * Reduced default status print frequency of launch agent. Added verbosity controls to allow for increased status print frequency and printing debug information to stdout by @TimH98 in https://github.com/wandb/wandb/pull/7126
+* `WandbLogger.sync` in the OpenAI Fine-Tuning integration gets a new `log_datasets` boolean argument to turn off automatic logging of datasets to Artifacts by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
 
 
 ### Changed
 
 * Limit policy option on artifact cli's put() to choices, ["mutable", "immutable"] by @ibindish in https://github.com/wandb/wandb/pull/7172
 * When printing the run link point to the workspace explicitly by @kptkin in https://github.com/wandb/wandb/pull/7132
-* `WandbLogger.sync` in the OpenAI Fine-Tuning integration gets a new `log_datasets` argument to turn off logging datasets to Artifacts in https://github.com/wandb/wandb/pull/7150
 
 ### Fixed
 
 * In case of transient server issues when creating the wandb API key kubernetes secret, we'll retry up to 5 times by @TimH98 in https://github.com/wandb/wandb/pull/7108
-* Fix handling of saving training files to Artifacts in the OpenAI Fine-Tuning integration in https://github.com/wandb/wandb/pull/7150
+* Fix handling of saving training files to Artifacts in the OpenAI Fine-Tuning integration by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
 
 ### Removed
 
