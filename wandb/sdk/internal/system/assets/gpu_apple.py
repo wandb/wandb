@@ -13,7 +13,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import TypedDict
 
-from wandb.errors import Error
 from wandb.sdk.lib import telemetry
 
 from .aggregators import aggregate_mean
@@ -29,10 +28,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class WandbSysMonitorError(Error):
-    pass
-
-
 class _Stats(TypedDict):
     gpu: float
     memoryAllocated: float  # noqa: N815
@@ -46,19 +41,6 @@ def get_apple_gpu_path() -> pathlib.Path:
     return (
         pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
     ).resolve()
-
-
-def sample_apple_gpu(executalbe: str) -> dict:
-    try:
-        command = [executalbe, "--json"]
-        output = (
-            subprocess.check_output(command, universal_newlines=True)
-            .strip()
-            .split("\n")
-        )[0]
-        return json.loads(output)
-    except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-        raise WandbSysMonitorError("Error sampling GPU stats") from e
 
 
 class GPUAppleStats:
@@ -77,7 +59,13 @@ class GPUAppleStats:
 
     def sample(self) -> None:
         try:
-            raw_stats = sample_apple_gpu(str(self.binary_path))
+            command = [self.binary_path, "--json"]
+            output = (
+                subprocess.check_output(command, universal_newlines=True)
+                .strip()
+                .split("\n")
+            )[0]
+            raw_stats = json.loads(output)
             temp, count = 0, 0
             for k in ["m1Gpu1", "m1Gpu2", "m1Gpu3", "m1Gpu4", "m2Gpu1", "m2Gpu2"]:
                 if raw_stats.get(k, 0) > 0:
@@ -101,8 +89,8 @@ class GPUAppleStats:
             }
             self.samples.append(stats)
 
-        except WandbSysMonitorError as e:
-            logger.exception(f"GPU stats error: {e}")
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+            logger.exception("GPU stats error: %s", e)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -154,13 +142,19 @@ class GPUApple:
 
     def probe(self) -> dict:
         try:
-            raw_stats = sample_apple_gpu(str(self.binary_path))
+            command = [self.binary_path, "--json"]
+            output = (
+                subprocess.check_output(command, universal_newlines=True)
+                .strip()
+                .split("\n")
+            )[0]
+            raw_stats = json.loads(output)
             return {
                 self.name: {
                     "type": raw_stats["name"],
                     "vendor": raw_stats["vendor"],
                 }
             }
-        except WandbSysMonitorError as e:
-            logger.exception(f"GPU stats error: {e}")
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+            logger.exception("GPU stats error: %s", e)
             return {self.name: {"type": "arm", "vendor": "Apple"}}
