@@ -9,7 +9,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// TBHandler is the TB handler.
+// TBHandler is the TB Handler.
 type TBHandler struct {
 	watcher    *watcher.Watcher
 	workingDir string
