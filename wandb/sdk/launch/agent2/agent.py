@@ -176,7 +176,12 @@ class LaunchAgent2:
                     return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
 
                 legacy_resources = LegacyResources(
-                    self._api, builder, registry, runner, job_tracker_factory
+                    self._api,
+                    builder,
+                    registry,
+                    runner,
+                    environment,
+                    job_tracker_factory,
                 )
 
                 controller_logger = self._logger.getChild("controller." + q)

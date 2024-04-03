@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Dict, List, Optional, Union
+from typing import List, Optional
 
 from wandb.apis.internal import Api
+
+from ..agent2.jobset import Job
 
 
 class AbstractQueueDriver(ABC):
@@ -12,7 +14,7 @@ class AbstractQueueDriver(ABC):
     @abstractmethod
     async def pop_from_run_queue(
         self,
-    ) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
+    ) -> Optional[Job]:
         """Determine which item should run next and pop it.
 
         Returns:
@@ -21,7 +23,7 @@ class AbstractQueueDriver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def ack_run_queue_item(self, job_id: str, run_name: str) -> Awaitable[bool]:
+    async def ack_run_queue_item(self, job_id: str, run_name: str) -> bool:
         """Mark a run queue item as running.
 
         Arguments:
@@ -40,7 +42,7 @@ class AbstractQueueDriver(ABC):
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
-    ) -> Awaitable[bool]:
+    ) -> bool:
         """Mark a run queue item as failed.
 
         Arguments:

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -33,6 +33,32 @@ def create_jobset(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Log
     return JobSet(api, jobset_response, agent_id, logger)
 
 
+@dataclass
+class Job:
+    id: str
+    name: str = field(init=False)
+    run_spec: Dict[str, Any]
+    state: str
+    priority: int
+    preemptible: bool
+    can_preempt: bool
+    created_at: bool
+    claimed_by: str
+
+
+def run_queue_item_to_job(run_queue_item: Dict[str, Any]) -> Job:
+    return Job(
+        id=run_queue_item["id"],
+        run_spec=run_queue_item["runSpec"],
+        state=run_queue_item["state"],
+        priority=run_queue_item["priority"],
+        preemptible=run_queue_item["priority"] > 0,
+        can_preempt=run_queue_item["priority"] == 0,
+        created_at=run_queue_item["createdAt"],
+        claimed_by=run_queue_item.get("launchAgentId", None),
+    )
+
+
 class JobSet:
     _task: Optional[asyncio.Task] = None
 
@@ -48,7 +74,7 @@ class JobSet:
         self._lock = asyncio.Lock()
 
         self._logger = logger
-        self._jobs: Dict = dict()
+        self._jobs: Dict[str, Job] = dict()
         self._ready_event = asyncio.Event()
         self._updated_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
@@ -117,9 +143,9 @@ class JobSet:
         # self._metadata = next_state.metadata
         async with self.lock:
             for job in self._last_state.upsert_jobs:
-                id = job["id"]
-                self._jobs[id] = job
-                self._logger.debug(f"Upsert Job: {id}")
+                _job = run_queue_item_to_job(job)
+                self._jobs[_job.id] = _job
+                self._logger.debug(f"Upsert Job: {_job.id}")
 
             for job_id in self._last_state.remove_jobs:
                 if not self._jobs.pop(job_id, False):
