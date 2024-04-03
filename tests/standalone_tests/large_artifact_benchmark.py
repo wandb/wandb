@@ -1,9 +1,48 @@
-"""Benchmark large artifacts."""
+"""Benchmark large artifacts.
+
+The simplest way of running this benchmark is just
+`python large_artifact_benchmark.py`
+That runs all the individual benchmarks in order. Most likely, the main options you'll
+want to change are `--count` and `--size`, which default to fairly small values.
+
+To run only some of the benchmarks, or to manually decide how to chain them, you can use
+the subcommands:
+```sh
+python large_artifact_benchmark.py upload download incremental --modify 10 download
+```
+Would create a new artifact, download the original, incrementally modify 10 files, and
+then download that new artifact.
+
+```sh
+python large_artifact_benchmark.py download --qualified_name="me/foo/bar:v3"
+```
+Downloads a pre-existing artifact `me/foo/bar:v3`.
+
+
+Options:
+  --count INTEGER       number of artifact files
+  --size INTEGER        size of each file
+  --name TEXT           artifact name
+  --cache / --no-cache  use the artifact cache
+  --stage / --no-stage  copy files to staging area
+  --project TEXT
+  --entity TEXT
+  --help                Show this message and exit.
+
+Commands with additional options:
+  download              Benchmark downloading a large artifact.
+    --qualified-name      fully qualified artifact name
+  incremental           Benchmark incremental changes to a large artifact.
+    --add                 number of files to add
+    --remove              number of files to remove
+    --modify              number of files to modify
+    --qualified-name      fully qualified artifact name
+  upload                Upload a large artifact.
+"""
 
 import contextlib
 import os
 import sys
-
 from datetime import timedelta
 from pathlib import Path
 from secrets import token_hex, token_urlsafe
@@ -73,7 +112,10 @@ def cli(
 
     ctx.obj["project"] = project.format(**params)
     ctx.obj["name"] = name.format(**params)
-    ctx.obj["qualified_name"] = f"{entity}/{project}/{name}:latest"
+    qualified_name = f"{entity}/{project}/{name}"
+    if ":" not in qualified_name:
+        qualified_name += ":latest"
+    ctx.obj["qualified_name"] = qualified_name
     ctx.obj["skip_cache"] = not cache
     ctx.obj["policy"] = "mutable" if stage else "immutable"
 
@@ -94,6 +136,7 @@ def cli(
 @cli.command("upload")
 @click.pass_context
 def upload(ctx) -> None:
+    """Upload a large artifact."""
     o = ctx.obj
     print(f"Uploading {o['count']} {o['size']}-byte files")
     with TemporaryDirectory() as tmpdir:
@@ -132,8 +175,13 @@ def upload(ctx) -> None:
 @click.option("--add", default=0, help="number of files to add")
 @click.option("--remove", default=0, help="number of files to remove")
 @click.option("--modify", default=0, help="number of files to modify")
-def incremental(ctx: click.Context, add: int, remove: int, modify: int) -> None:
+@click.option("--qualified-name", help="fully qualified artifact name")
+def incremental(
+    ctx: click.Context, add: int, remove: int, modify: int, qualified_name: str | None
+) -> None:
     """Benchmark incremental changes to a large artifact."""
+    if not qualified_name:
+        qualified_name = ctx.obj["qualified_name"]
     o = ctx.obj
     start = perf_counter()
     with TemporaryDirectory() as tmpdir, wandb.init(
@@ -195,17 +243,15 @@ def incremental(ctx: click.Context, add: int, remove: int, modify: int) -> None:
 
 @cli.command("download")
 @click.pass_context
-@click.option("--name", help="fully qualified artifact name")
-def download(ctx: click.Context, name: str | None) -> None:
+@click.option("--qualified-name", help="fully qualified artifact name")
+def download(ctx: click.Context, qualified_name: str | None) -> None:
     """Benchmark downloading a large artifact."""
-    if name is None:
-        name = ctx.obj["qualified_name"]
-    else:
-        ctx.obj["qualified_name"] = name
-    print(f"Downloading {name}")
+    if not qualified_name:
+        qualified_name = ctx.obj["qualified_name"]
+    print(f"Downloading {qualified_name}")
     with TemporaryDirectory() as tmpdir:
         begin = perf_counter()
-        artifact = wandb.Api().artifact(name)
+        artifact = wandb.Api().artifact(qualified_name)
         _ = artifact.manifest
         done_retrieve_manifest = perf_counter()
         print("\tretrieve manifest: ", duration(done_retrieve_manifest, begin))
