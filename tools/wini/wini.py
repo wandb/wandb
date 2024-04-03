@@ -118,7 +118,7 @@ def package_wandb_core(should_install, with_coverage):
             "-x",  # Do not check that build deps are installed.
             "--outdir",
             _CORE_WHEEL_DIR,
-            "./wandb_core",
+            "./wandb_core_pkg",
         ]
     )
 
