@@ -57,15 +57,15 @@ API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+    r"([\w]+)\.azurecr\.io/(?P<repository>[\w\-]+):?(?P<tag>.*)"
 )
 
 ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$"
+    r"^(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\w-]+):?(?P<tag>.*)$"
 )
 
 GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/?(?P<image_name>[\w-]+)?(?P<tag>:.*)?$",
     re.IGNORECASE,
 )
 
