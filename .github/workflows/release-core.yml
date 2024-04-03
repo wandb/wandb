@@ -10,7 +10,7 @@ on:
         default: false
 
 jobs:
-  build-wheels:
+  build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -69,8 +69,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.17.0
         with:
-           package-dir: core
-           output-dir: core/wheelhouse
+           package-dir: wandb_core
+           output-dir: wandb_core/wheelhouse
         env:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
@@ -115,12 +115,23 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-core-distributions
-          path: ./core/wheelhouse/*.whl
+          path: ./wandb_core/wheelhouse/*.whl
 
+  build-noop-wheel:
+    name: Build universal no-op wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build no-op wheel
+        run: python -m build -wnx --outdir wheelhouse wandb_core_noop
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-core-distributions
+          path: wheelhouse
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: build-wheels
+    needs: [build-platform-wheels, build-noop-wheel]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:

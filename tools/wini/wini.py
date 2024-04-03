@@ -42,8 +42,8 @@ def build():
 def build_wandb_core_artifacts(archs, with_coverage):
     """Builds artifacts to include in the wandb-core wheel.
 
-    The artifacts are stored in ./core/wandb_core_artifacts/<arch> to be included
-    in the wandb-core Python wheel.
+    The artifacts are stored in ./wandb_core/wandb_core_artifacts/<arch> to be
+    included in the wandb-core Python wheel.
     """
     _build_wandb_core_artifacts(
         archs=[arch.parse(a) for a in archs],
@@ -60,7 +60,11 @@ def _build_wandb_core_artifacts(
         archs = [arch.current()]
 
     for architecture in archs:
-        outdir = pathlib.PurePath("core", "wandb_core_artifacts", architecture.name)
+        outdir = pathlib.PurePath(
+            "wandb_core",
+            "wandb_core_artifacts",
+            architecture.name,
+        )
 
         build_core.build_wandb_core(
             architecture=architecture,
@@ -114,7 +118,7 @@ def package_wandb_core(should_install, with_coverage):
             "-x",  # Do not check that build deps are installed.
             "--outdir",
             _CORE_WHEEL_DIR,
-            "./core",
+            "./wandb_core",
         ]
     )
 

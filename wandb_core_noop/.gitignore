@@ -1,0 +1,3 @@
+# Python build artifacts.
+__pycache__/
+wandb_core.egg-info/
