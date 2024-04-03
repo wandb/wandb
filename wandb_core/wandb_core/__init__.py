@@ -1,14 +1,13 @@
 """W&B Core: This is the backend for the W&B client library."""
-
-from pathlib import Path
-
-from .version import __version__
-
 __all__ = (
     "__version__",
     "get_core_path",
     "get_nexus_path",
 )
+
+from pathlib import Path
+
+__version__ = "0.17.0b10"
 
 
 def get_core_path() -> Path:
