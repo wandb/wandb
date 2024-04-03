@@ -292,4 +292,8 @@ def validate_registry_uri(uri: str) -> str:
             )
         return uri
 
+    wandb.termwarn(
+        f"Unable to recognize registry type in URI {uri}. You are responsible 
+        for ensuring the agent can push images to this registry."
+    )
     return uri
