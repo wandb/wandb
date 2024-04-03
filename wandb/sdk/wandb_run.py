@@ -2353,6 +2353,8 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
+            if self._settings._disable_update_check:
+                return
             logger.info("communicating current version")
             version_handle = self._backend.interface.deliver_check_version(
                 current_version=wandb.__version__
