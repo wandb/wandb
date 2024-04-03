@@ -1,6 +1,6 @@
-import asyncio
 import json
 import logging
+from abc import ABC, abstractmethod
 from typing import Dict, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
@@ -9,39 +9,11 @@ from wandb.sdk.launch.runner.abstract import AbstractRun
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
-from .base import BaseManager
-from .util import parse_max_concurrency
 
+class BaseManager(ABC):
+    """Maintains state for multiple jobs."""
 
-async def k8s_controller(
-    config: LaunchControllerConfig,
-    jobset: JobSet,
-    logger: logging.Logger,
-    shutdown_event: asyncio.Event,
-    legacy: LegacyResources,
-) -> None:
-    iter = 0
-    max_concurrency = parse_max_concurrency(config, 1000)
-
-    logger.debug(
-        f"Starting kubernetes controller with max concurrency {max_concurrency}"
-    )
-
-    mgr = KubernetesManager(config, jobset, logger, legacy, max_concurrency)
-
-    while not shutdown_event.is_set():
-        await mgr.reconcile()
-        await asyncio.sleep(
-            5
-        )  # TODO(np): Ideally waits for job set or target resource events
-        iter += 1
-
-    return None
-
-
-class KubernetesManager(BaseManager):
-    """Maintains state for multiple Kubernetes jobs."""
-
+    @abstractmethod
     def __init__(
         self,
         config: LaunchControllerConfig,
@@ -50,16 +22,7 @@ class KubernetesManager(BaseManager):
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.config = config
-        self.jobset = jobset
-        self.logger = logger
-        self.legacy = legacy
-        self.max_concurrency = max_concurrency
-
-        self.id = config["jobset_spec"].name
-        self.active_runs: Dict[str, AbstractRun] = {}
-        self.queue_driver = StandardQueueDriver(jobset.api, jobset)
-
+        raise NotImplementedError
         # TODO: handle orphaned jobs in resource and assign to self
 
     async def reconcile(self) -> None:
@@ -149,3 +112,15 @@ class KubernetesManager(BaseManager):
     async def release_item(self, item: str) -> None:
         self.logger.info(f"Releasing item: {item}")
         del self.active_runs[item]
+
+    @abstractmethod
+    async def find_orphaned_jobs(self) -> None:
+        pass
+
+    @abstractmethod
+    async def cleanup_removed_jobs(self) -> None:
+        pass
+
+    @abstractmethod
+    async def label_jobs(self) -> None:
+        pass
