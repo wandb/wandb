@@ -2,53 +2,53 @@
 
 import pathlib
 
-from tools.wini import arch, subprocess
+from tools.wini import subprocess
 
 
-def build_applestats(
-    architecture: arch.Arch,
-    output_path: pathlib.PurePath,
-) -> None:
-    """Builds the AppleStats Swift binary.
+def build_applestats(output_path: pathlib.PurePath) -> None:
+    """Builds the AppleStats universal Swift binary.
 
     NOTE: Swift creates a cache in a directory called ".build/" which speeds
     up subsequent builds but can cause issues when changing the commands here.
     If you're running into problems, try deleting ".build/".
 
     Args:
-        architecture: The machine architecture to target.
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    cmd = [
+    source_path = pathlib.Path("./apple_stats")
+
+    def arch_output_path(arch: str) -> pathlib.Path:
+        return (
+            source_path  # (break line for readability)
+            / ".build"
+            / f"{arch}-apple-macosx"
+            / "release"
+            / "AppleStats"
+        )
+
+    base_cmd = [
         "swift",
         "build",
         "--configuration",
         "release",
         "-Xswiftc",
         "-cross-module-optimization",
-        "--arch",
-        architecture.swift_name,
     ]
 
-    source_path = pathlib.PurePath("./apple_stats")
+    cmd_x86_64 = base_cmd + ["--arch", "x86_64"]
+    cmd_arm64 = base_cmd + ["--arch", "arm64"]
 
-    # TODO: It's unfortunately not clear how to control the output, so we must
-    # hardcode it like this.
-    swift_output = (
-        source_path
-        / ".build"
-        / f"{architecture.swift_name}-apple-macosx"
-        / "release"
-        / "AppleStats"
-    )
-
-    subprocess.check_call(cmd, cwd=source_path)
+    subprocess.check_call(cmd_x86_64, cwd=source_path)
+    subprocess.check_call(cmd_arm64, cwd=source_path)
 
     subprocess.check_call(
         [
-            "cp",
-            str(swift_output),
+            "lipo",
+            "-create",
+            arch_output_path("x86_64"),
+            arch_output_path("arm64"),
+            "-output",
             str(output_path),
         ]
     )

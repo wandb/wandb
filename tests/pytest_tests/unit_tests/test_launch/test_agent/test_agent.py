@@ -594,7 +594,7 @@ async def test_thread_run_job_calls_finish_thread_id(mocker, exception, clean_ag
 @pytest.mark.asyncio
 async def test_inner_thread_run_job(mocker, clean_agent):
     _setup(mocker)
-    mocker.patch("wandb.sdk.launch.agent.agent.MAX_WAIT_RUN_STOPPED", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.DEFAULT_STOPPED_RUN_TIMEOUT", new=0)
     mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
     mock_config = {
         "entity": "test-entity",
