@@ -9,6 +9,7 @@ from wandb.sdk.launch.runner.abstract import AbstractRun
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
+from .util import parse_max_concurrency
 
 
 async def k8s_controller(
@@ -19,19 +20,10 @@ async def k8s_controller(
     legacy: LegacyResources,
 ) -> Any:
     iter = 0
-    max_concurrency = config["jobset_metadata"]["@max_concurrency"]
-    if max_concurrency is None or max_concurrency == "auto":
-        max_concurrency = 1000
-    else:
-        try:
-            max_concurrency = int(max_concurrency)
-        except ValueError:
-            raise ValueError(
-                f"Invalid value for @max_concurrency: {max_concurrency}. Must be an integer or 'auto'."
-            )
+    max_concurrency = parse_max_concurrency(config, 1000)
 
     logger.debug(
-        f"Starting local process controller with max concurrency {max_concurrency}"
+        f"Starting kubernetes controller with max concurrency {max_concurrency}"
     )
 
     mgr = KubernetesManager(config, jobset, logger, legacy, max_concurrency)
