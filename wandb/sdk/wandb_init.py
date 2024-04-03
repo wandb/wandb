@@ -195,12 +195,6 @@ class _WandbInit:
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
 
-        # when using launch, we don't want to reuse the same run id from the singleton
-        # since users might launch multiple runs in the same process
-        # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
-            settings.update({"run_id": None}, source=Source.INIT)
-
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)

@@ -15,8 +15,10 @@ const (
 	// Don't go slower than 1 request per 10 seconds.
 	minRequestsPerSecond = 0.1
 
-	// Don't go faster than 200 requests per second.
-	maxRequestsPerSecond = 200
+	// Don't go faster than 2^16 requests per second.
+	//
+	// This is an arbitrary limit that the client is never expected to hit.
+	maxRequestsPerSecond = 65536
 
 	// Don't send more than 10 requests at a time.
 	maxBurst = 10
