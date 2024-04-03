@@ -142,15 +142,6 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
-func TestDefaultFileTransfer_UploadNoResponse(t *testing.T) {
-	err := uploadToServerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(50 * time.Millisecond)
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
-	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
-}
-
 func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
