@@ -408,6 +408,9 @@ func (u *uploader) scheduleUploadTask(
 	uploadURL string,
 	headers []string,
 ) {
+	u.stateMu.Lock()
+	defer u.stateMu.Unlock()
+
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
 		FileKind: u.category[relativePath],
