@@ -61,13 +61,17 @@ type Client interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
+type RetryableClient interface {
+	Do(*retryablehttp.Request) (*http.Response, error)
+}
+
 // Implementation of the Client interface.
 type clientImpl struct {
 	// A reference to the backend.
 	backend *Backend
 
 	// The underlying retryable HTTP client.
-	retryableHTTP *retryablehttp.Client
+	retryableHTTP RetryableClient
 
 	// Headers to pass in every request.
 	extraHeaders map[string]string
