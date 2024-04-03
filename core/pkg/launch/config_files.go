@@ -22,21 +22,27 @@ type configFileParameter struct {
 func newFileInputFromRequest(
 	request *service.JobInputRequest,
 ) (*configFileParameter, error) {
-	includePaths := make([]ConfigPath, len(request.GetIncludePaths()))
-	excludePaths := make([]ConfigPath, len(request.GetExcludePaths()))
-	for i, path := range request.GetIncludePaths() {
-		includePaths[i] = ConfigPath(path.Path)
-	}
-	for i, path := range request.GetExcludePaths() {
-		excludePaths[i] = ConfigPath(path.Path)
-	}
-	switch source := request.GetSource().GetSource().(type) {
-	case *service.JobInputSource_File:
-		return &configFileParameter{
-			source.File.GetPath(), includePaths, excludePaths}, nil
-	default:
+	source := request.GetInputSource().GetSource()
+	file, ok := source.(*service.JobInputSource_File)
+	if !ok {
 		return nil, fmt.Errorf("jobBuilder: invalid source type for file input")
 	}
+
+	includePaths := make([]ConfigPath, 0, len(request.GetIncludePaths()))
+	for _, path := range request.GetIncludePaths() {
+		includePaths = append(includePaths, ConfigPath(path.Path))
+	}
+
+	excludePaths := make([]ConfigPath, 0, len(request.GetExcludePaths()))
+	for _, path := range request.GetExcludePaths() {
+		excludePaths = append(excludePaths, ConfigPath(path.Path))
+	}
+
+	return &configFileParameter{
+		relpath:      file.File.GetPath(),
+		includePaths: includePaths,
+		excludePaths: excludePaths,
+	}, nil
 }
 
 // Infers the structure of a config file.

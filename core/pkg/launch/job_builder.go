@@ -795,7 +795,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		j.logger.Error("jobBuilder: job input request is nil")
 		return
 	}
-	source := request.GetSource()
+	source := request.GetInputSource()
 	switch source.GetSource().(type) {
 	case *service.JobInputSource_File:
 		newInput, err := newFileInputFromRequest(request)

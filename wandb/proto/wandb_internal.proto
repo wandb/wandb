@@ -1187,7 +1187,7 @@ message JobInputSource {
 // If exclude_paths is not empty, then endpoints of the config prefixed by an
 // exclude path will be ignored.
 message JobInputRequest {
-  JobInputSource source = 1;
+  JobInputSource input_source = 1;
   repeated JobInputPath include_paths = 2;
   repeated JobInputPath exclude_paths = 3;
 }
