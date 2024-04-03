@@ -75,8 +75,8 @@ def duration(end: float, start: float = 0) -> str:
 @click.option("--project", default="artifact-benchmark")
 @click.option("--entity", default="wandb")
 def cli(
-    *,
     ctx: click.Context,
+    *,
     count: int,
     size: int,
     name: str,
@@ -113,7 +113,7 @@ def cli(
 
     ctx.obj["project"] = project.format(**params)
     ctx.obj["name"] = name.format(**params)
-    qualified_name = f"{entity}/{project}/{name}"
+    qualified_name = f"{entity}/{ctx.obj['project']}/{ctx.obj['name']}"
     if ":" not in qualified_name:
         qualified_name += ":latest"
     ctx.obj["qualified_name"] = qualified_name
@@ -139,13 +139,14 @@ def cli(
 def upload(ctx) -> None:
     """Upload a large artifact."""
     o = ctx.obj
-    print(f"Uploading {o['count']} {o['size']}-byte files")
+    print(f"Uploading {o['count']} {o['size']}-byte files as {o['qualified_name']}")
     with TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         for i in range(o["count"]):
             path = root / f"{i % 1000:03}" / f"{i // 1000:06}.txt"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(token_hex((o["size"] + 1) // 2)[: o["size"]])
+        print(f"\tcreated {o['count']} test files under {root}")
 
         start = perf_counter()
         with wandb.init(
