@@ -1,1 +1,1 @@
-../wandb_core/README.md
+../wandb_core_pkg/README.md

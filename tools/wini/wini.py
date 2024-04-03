@@ -42,7 +42,7 @@ def build():
 def build_wandb_core_artifacts(archs, with_coverage):
     """Builds artifacts to include in the wandb-core wheel.
 
-    The artifacts are stored in ./wandb_core/wandb_core_artifacts/<arch> to be
+    The artifacts are stored in ./wandb_core_pkg/wandb_core_artifacts/<arch> to be
     included in the wandb-core Python wheel.
     """
     _build_wandb_core_artifacts(
