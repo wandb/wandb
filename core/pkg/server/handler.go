@@ -214,7 +214,6 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 	h.fwdRecord(record)
 }
 
-//gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
 	h.summaryHandler.Debounce(h.fwdSummary)
 	switch x := record.RecordType.(type) {
