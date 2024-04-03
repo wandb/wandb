@@ -2353,16 +2353,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach

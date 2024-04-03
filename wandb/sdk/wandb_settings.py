@@ -310,6 +310,7 @@ class SettingsData:
     )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
+    _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
     _except_exit: bool
@@ -656,6 +657,7 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_bool,
                 "hook": lambda x: self._disable_machine_info or x,
             },
+            _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)

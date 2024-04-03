@@ -18,6 +18,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 * Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
 * Added link to the project workspace of a run in the footer by @kptkin in https://github.com/wandb/wandb/pull/7276
 * Added support for overriding stopped run grace period in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7281
+* Added setting (`_disable_update_check`) to disable version checks during init by @kptkin in https://github.com/wandb/wandb/pull/7287
 * `WandbLogger.sync` in the OpenAI Fine-Tuning integration gets a new `log_datasets` boolean argument to turn off automatic logging of datasets to Artifacts by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
 * Reduced default status print frequency of launch agent. Added verbosity controls to allow for increased status print frequency and printing debug information to stdout by @TimH98 in https://github.com/wandb/wandb/pull/7126
 
