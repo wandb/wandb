@@ -22,6 +22,7 @@ _Setting = Literal[
     "_disable_service",
     "_disable_setproctitle",
     "_disable_stats",
+    "_disable_update_check",
     "_disable_viewer",
     "_disable_machine_info",
     "_except_exit",
