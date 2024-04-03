@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
@@ -18,7 +18,7 @@ async def k8s_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-) -> Any:
+) -> None:
     iter = 0
     max_concurrency = parse_max_concurrency(config, 1000)
 
@@ -118,21 +118,33 @@ class KubernetesManager:
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
-        assert (
-            project.docker_image is not None
-        ), "Docker image must be set when using k8s"
-        run = await self.legacy.runner.run(project, project.docker_image)
+        ack_result = await self.jobset.ack_job(item.id, run_id)
+        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+        if not ack_result:
+            self.logger.error(f"Failed to ack item: {item.id}")
+            return None
+        image_uri = None
+        if not project.docker_image:
+            entrypoint = project.get_single_entry_point()
+            assert entrypoint is not None
+            image_uri = await self.legacy.builder.build_image(
+                project, entrypoint, job_tracker
+            )
+        else:
+            assert project.docker_image is not None
+            image_uri = project.docker_image
+
+        assert image_uri is not None
+        run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
             self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.jobset.ack_job(item.id, run_id)
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
         self.active_runs[item.id] = run
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item: str) -> Any:
+    async def release_item(self, item: str) -> None:
         self.logger.info(f"Releasing item: {item}")
         del self.active_runs[item]
