@@ -16,6 +16,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+* Fixed rare panic during large artifact uploads by @moredatarequire in https://github.com/wandb/wandb/pull/7272
 
 ## [0.16.5] - 2024-03-25
 
