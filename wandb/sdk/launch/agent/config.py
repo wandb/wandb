@@ -229,6 +229,10 @@ class AgentConfig(BaseModel):
         0,
         description="How verbose to print, 0 = default, 1 = verbose, 2 = very verbose",
     )
+    stopped_run_timeout: Optional[int] = Field(
+        60,
+        description="How many seconds to wait after receiving the stop command before forcibly cancelling a run.",
+    )
 
     class Config:
         extra = "forbid"
