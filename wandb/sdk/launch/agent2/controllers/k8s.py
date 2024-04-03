@@ -119,10 +119,11 @@ class KubernetesManager:
         job_tracker.update_run_info(project)
 
         ack_result = await self.jobset.ack_job(item.id, run_id)
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
         if not ack_result:
             self.logger.error(f"Failed to ack item: {item.id}")
             return None
+        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
         image_uri = None
         if not project.docker_image:
             entrypoint = project.get_single_entry_point()
@@ -145,6 +146,6 @@ class KubernetesManager:
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item: str) -> None:
-        self.logger.info(f"Releasing item: {item}")
-        del self.active_runs[item]
+    async def release_item(self, item_id: str) -> None:
+        self.logger.info(f"Releasing item: {item_id}")
+        del self.active_runs[item_id]

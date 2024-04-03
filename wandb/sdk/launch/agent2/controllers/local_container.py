@@ -112,6 +112,12 @@ class LocalContainerManager:
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
+        ack_result = await self.jobset.ack_job(item.id, run_id)
+        if not ack_result:
+            self.logger.error(f"Failed to ack item: {item.id}")
+            return None
+        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
         image_uri = None
         if not project.docker_image:
             entrypoint = project.get_single_entry_point()
