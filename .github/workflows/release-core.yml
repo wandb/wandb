@@ -69,8 +69,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.17.0
         with:
-           package-dir: wandb_core
-           output-dir: wandb_core/wheelhouse
+           package-dir: wandb_core_pkg
+           output-dir: wandb_core_pkg/wheelhouse
         env:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
@@ -115,7 +115,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-core-distributions
-          path: ./wandb_core/wheelhouse/*.whl
+          path: ./wandb_core_pkg/wheelhouse/*.whl
 
 
   test-pypi-publish:
