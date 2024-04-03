@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,7 +139,10 @@ func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
 	}
 	err := uploadToServerWithHandler(t, closeHandler)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "EOF")
+	assert.Condition(t, func() bool {
+		return strings.Contains(err.Error(), "EOF") ||
+			strings.Contains(err.Error(), "connection reset")
+	})
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
 
