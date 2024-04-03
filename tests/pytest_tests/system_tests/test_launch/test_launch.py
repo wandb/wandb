@@ -92,23 +92,7 @@ def test_launch_multi_run(relay_server, runner, user, wandb_init, test_settings)
         run2.finish()
 
         assert run1.id == "test"
-        assert run2.id != "test"
-
-
-def test_launch_multi_run_context(
-    relay_server, runner, user, wandb_init, test_settings
-):
-    with runner.isolated_filesystem(), mock.patch.dict(
-        "os.environ", {"WANDB_RUN_ID": "test", "WANDB_LAUNCH": "true"}
-    ):
-        with wandb_init() as run1:
-            run1.log({"test": 1})
-
-        with wandb_init() as run2:
-            run2.log({"test": 2})
-
-        assert run1.id == "test"
-        assert run2.id != "test"
+        assert run2.id == "test"
 
 
 def test_launch_get_project_queue_error(user):

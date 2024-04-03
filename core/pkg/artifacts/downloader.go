@@ -19,7 +19,7 @@ type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
-	DownloadManager *filetransfer.FileTransferManager
+	DownloadManager filetransfer.FileTransferManager
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
@@ -29,7 +29,7 @@ type ArtifactDownloader struct {
 func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	downloadManager *filetransfer.FileTransferManager,
+	downloadManager filetransfer.FileTransferManager,
 	artifactID string,
 	downloadRoot string,
 	allowMissingReferences *bool,
@@ -151,9 +151,10 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 					}
 					task := &filetransfer.Task{
-						Type: filetransfer.DownloadTask,
-						Path: downloadLocalPath,
-						Url:  *entry.DownloadURL,
+						FileKind: filetransfer.RunFileKindArtifact,
+						Type:     filetransfer.DownloadTask,
+						Path:     downloadLocalPath,
+						Url:      *entry.DownloadURL,
 					}
 					task.SetCompletionCallback(
 						func(t *filetransfer.Task) {

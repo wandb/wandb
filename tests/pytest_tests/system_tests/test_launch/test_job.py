@@ -68,7 +68,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         entity=user,
         job_type="code",
         description="This is a description",
-        entrypoint="test.py",
+        entrypoint="python test.py",
         name="test-job-9999",
         runtime="3.8.9",  # micro will get stripped
     )
@@ -83,7 +83,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert job_v0._partial
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
-    assert job_v0._job_info["source"]["entrypoint"] == ["python3.8", "test.py"]
+    assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
     assert job_v0._job_info["source"]["notebook"] is False
 
     # Now use artifact as input, assert it gets upgraded
@@ -145,7 +145,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     artifact, action, aliases = _create_job(
         api=internal_api,
         path=path,
-        entrypoint="main.py",
+        entrypoint="python main.py",
         project=proj,
         entity=user,
         job_type="git",
@@ -164,7 +164,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == [
-        "python3.8",
+        "python",
         "main.py",
     ]
     assert job_v0._job_info["source"]["notebook"] is False

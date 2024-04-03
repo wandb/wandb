@@ -4,8 +4,8 @@ import sys
 from typing import Sequence
 
 import click
+from apple_stats import winibuild as build_applestats
 from core import winibuild as build_core
-from core.pkg.monitor.apple import winibuild as build_applestats
 from tools.wini import arch
 
 from . import print, subprocess, workspace
@@ -39,8 +39,7 @@ def build():
     default=[],
 )
 @click.option("--coverage", "with_coverage", is_flag=True, default=False)
-@click.option("--skip-swift-build", is_flag=True, default=False)
-def build_wandb_core_artifacts(archs, with_coverage, skip_swift_build):
+def build_wandb_core_artifacts(archs, with_coverage):
     """Builds artifacts to include in the wandb-core wheel.
 
     The artifacts are stored in ./core/wandb_core_artifacts/<arch> to be included
@@ -49,7 +48,6 @@ def build_wandb_core_artifacts(archs, with_coverage, skip_swift_build):
     _build_wandb_core_artifacts(
         archs=[arch.parse(a) for a in archs],
         with_coverage=with_coverage,
-        skip_swift_build=skip_swift_build,
     )
 
 
@@ -57,13 +55,12 @@ def _build_wandb_core_artifacts(
     *,
     archs: Sequence[arch.Arch] = [],
     with_coverage: bool,
-    skip_swift_build: bool = False,
 ):
     if not archs:
         archs = [arch.current()]
 
     for architecture in archs:
-        outdir = pathlib.PurePath(f"core/wandb_core_artifacts/{architecture.name}")
+        outdir = pathlib.PurePath("core", "wandb_core_artifacts", architecture.name)
 
         build_core.build_wandb_core(
             architecture=architecture,
@@ -71,9 +68,8 @@ def _build_wandb_core_artifacts(
             with_code_coverage=with_coverage,
         )
 
-        if workspace.target_os() == workspace.OS.DARWIN and not skip_swift_build:
+        if workspace.target_os() == workspace.OS.DARWIN:
             build_applestats.build_applestats(
-                architecture=architecture,
                 output_path=outdir / "AppleStats",
             )
 

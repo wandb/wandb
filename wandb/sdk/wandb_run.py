@@ -671,6 +671,12 @@ class Run:
                 os.path.join("code", self._settings.program_relpath)
             )
 
+        if self._settings.fork_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.fork_from.run,
+                "step": self._settings.fork_from.value,
+            }
+
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
@@ -1955,55 +1961,67 @@ class Run:
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        # Paths to the symlinks created for the globbed files.
-        wandb_files = [
-            str(path)
-            for path in pathlib.Path(
+        # Files in the files directory matched by the glob, including old and
+        # new ones.
+        globbed_files = set(
+            pathlib.Path(
                 self._settings.files_dir,
             ).glob(relative_glob_str)
-        ]
+        )
 
-        had_symlinked_files = len(wandb_files) > 0
+        had_symlinked_files = len(globbed_files) > 0
         is_star_glob = "*" in relative_glob_str
 
         # The base_path may itself be a glob, so we can't do
         #     base_path.glob(relative_glob_str)
         for path_str in glob.glob(str(base_path / relative_glob_str)):
-            path = pathlib.Path(path_str).absolute()
+            source_path = pathlib.Path(path_str).absolute()
 
             # We can't use relative_to() because base_path may be a glob.
-            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
 
-            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
+            target_path = pathlib.Path(self._settings.files_dir, relative_path)
+            globbed_files.add(target_path)
 
-            wandb_files.append(str(wandb_path))
-            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+            # If the file is already where it needs to be, don't create a symlink.
+            if source_path.resolve() == target_path.resolve():
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
             try:
-                wandb_path.unlink()
+                target_path.unlink()
             except FileNotFoundError:
                 # In Python 3.8, we would pass missing_ok=True, but as of now
                 # we support down to Python 3.7.
                 pass
 
-            wandb_path.symlink_to(path)
+            target_path.symlink_to(source_path)
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
-            file_str = f"{len(wandb_files)} file"
-            if len(wandb_files) > 1:
+            file_str = f"{len(globbed_files)} file"
+            if len(globbed_files) > 1:
                 file_str += "s"
             wandb.termwarn(
                 f"Symlinked {file_str} into the W&B run directory, "
                 "call wandb.save again to sync new files."
             )
 
-        files_dict: FilesDict = {"files": [(relative_glob_str, policy)]}
+        files_dict: FilesDict = {
+            "files": [
+                (
+                    GlobStr(str(f.relative_to(self._settings.files_dir))),
+                    policy,
+                )
+                for f in globbed_files
+            ]
+        }
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
 
-        return wandb_files
+        return [str(f) for f in globbed_files]
 
     @_run_decorator._attach
     def restore(
@@ -2335,16 +2353,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3579,7 +3598,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        workspace_url = f"{settings.run_url}/workspace"
+        run_url = settings.run_url
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3590,7 +3609,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3622,7 +3641,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3865,10 +3884,13 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                run_workspace = f"{settings.run_url}/workspace"
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
-                ]
+                info.append(
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

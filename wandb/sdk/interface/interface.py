@@ -25,6 +25,7 @@ from typing import (
     Union,
 )
 
+from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -350,6 +351,7 @@ class InterfaceBase:
                 proto_entry.ref = entry.ref
             if entry.local_path:
                 proto_entry.local_path = entry.local_path
+            proto_entry.skip_cache = entry.skip_cache
             for k, v in entry.extra.items():
                 proto_extra = proto_entry.extra.add()
                 proto_extra.key = k
@@ -446,16 +448,27 @@ class InterfaceBase:
                 path = artifact.get_entry("wandb-job.json").download()
                 with open(path) as f:
                     job_info = json.load(f)
+
             except Exception as e:
                 logger.warning(
                     f"Failed to download partial job info from artifact {artifact}, : {e}"
                 )
-            use_artifact = self._make_proto_use_artifact(
-                use_artifact=use_artifact,
-                job_name=artifact.name,
-                job_info=job_info,
-                metadata=artifact.metadata,
-            )
+                termwarn(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+                return
+
+            try:
+                use_artifact = self._make_proto_use_artifact(
+                    use_artifact=use_artifact,
+                    job_name=artifact.name,
+                    job_info=job_info,
+                    metadata=artifact.metadata,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to construct use artifact proto: {e}")
+                termwarn(f"Failed to construct use artifact proto: {e}")
+                return
 
         self._publish_use_artifact(use_artifact)
 
