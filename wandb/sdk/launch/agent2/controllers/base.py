@@ -109,9 +109,9 @@ class BaseManager(ABC):
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item: str) -> None:
-        self.logger.info(f"Releasing item: {item}")
-        del self.active_runs[item]
+    async def release_item(self, item_id: str) -> None:
+        self.logger.info(f"Releasing item: {item_id}")
+        del self.active_runs[item_id]
 
     @abstractmethod
     async def find_orphaned_jobs(self) -> None:
