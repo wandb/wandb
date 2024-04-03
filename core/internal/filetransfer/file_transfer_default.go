@@ -102,10 +102,8 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 		req.Header.Set(parts[0], parts[1])
 	}
-	if _, err := ft.client.Do(req); err != nil {
-		return err
-	}
-	return nil
+	_, err = ft.client.Do(req)
+	return err
 }
 
 // Download downloads a file from the server
