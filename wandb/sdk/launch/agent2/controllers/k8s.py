@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
+from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import JobSet
+from ..jobset import Job, JobSet
 
 
 async def k8s_controller(
@@ -64,6 +65,9 @@ class KubernetesManager:
 
         self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
+        self.queue_driver = StandardQueueDriver(jobset.api, jobset)
+
+        # TODO: handle orphaned jobs in resource and assign to self
 
     async def reconcile(self):
         raw_items = list(self.jobset.jobs.values())
@@ -73,22 +77,19 @@ class KubernetesManager:
             f"====== Raw items ======\n{json.dumps(raw_items, indent=2)}\n======================"
         )
 
-        owned_items = [
-            item
+        owned_items = {
+            item.id: item
             for item in raw_items
-            if item["state"] in ["LEASED", "CLAIMED", "RUNNING"]
+            if item.state in ["LEASED", "CLAIMED"]
             and item["launchAgentId"] == self.config["agent_id"]
-        ]
-        pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
+        }
 
-        self.logger.info(
-            f"Reconciling {len(owned_items)} owned items and {len(pending_items)} pending items"
-        )
-
-        if len(owned_items) < self.max_concurrency and len(pending_items) > 0:
+        if len(owned_items) < self.max_concurrency:
             # we own fewer items than our max concurrency, and there are other items waiting to be run
             # let's lease the next item
-            await self.lease_next_item()
+            next_item = await self.pop_next_item()
+            if next_item is not None:
+                self.owned_items[next_item.id] = next_item
 
         # ensure all our owned items are running
         for item in owned_items:
@@ -96,25 +97,17 @@ class KubernetesManager:
                 # we own this item but it's not running
                 await self.launch_item(item)
 
+        # TODO: validate job set clears finished runs
         # release any items that are no longer in owned items
         for item in self.active_runs:
             if item not in owned_items:
                 # we don't own this item anymore
                 await self.release_item(item)
 
-    async def lease_next_item(self) -> Any:
-        raw_items = list(self.jobset.jobs.values())
-        pending_items = [item for item in raw_items if item["state"] in ["PENDING"]]
-        if len(pending_items) == 0:
-            return None
-
-        sorted_items = sorted(
-            pending_items, key=lambda item: (item["priority"], item["createdAt"])
-        )
-        next_item = sorted_items[0]
-        self.logger.info(f"Next item: {json.dumps(next_item, indent=2)}")
-        lease_result = await self.jobset.lease_job(next_item["id"])
-        self.logger.info(f"Leased item: {json.dumps(lease_result, indent=2)}")
+    async def pop_next_item(self) -> Optional[Job]:
+        next_item = await self.queue_driver.pop_from_run_queue()
+        self.logger.info(f"Leased item: {json.dumps(next_item, indent=2)}")
+        return next_item
 
     async def launch_item(self, item: Any) -> Any:
         run_id = await self.launch_item_task(item)
@@ -148,6 +141,6 @@ class KubernetesManager:
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
-    async def release_item(self, item: Any) -> Any:
-        del self.active_runs[item["id"]]
-        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
+    async def release_item(self, item: str) -> Any:
+        self.logger.info(f"Releasing item: {item}")
+        del self.active_runs[item]
