@@ -17,6 +17,7 @@ Please add to relevant subsections here on every PR where this is applicable.
 
 * Added support for overriding kaniko builder settings in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7191
 * Added link to the project workspace of a run in the footer by @kptkin in https://github.com/wandb/wandb/pull/7276
+* Added support for overriding stopped run grace period in the agent config by @TimH98 in https://github.com/wandb/wandb/pull/7281
 
 ### Changed
 
@@ -25,6 +26,8 @@ Please add to relevant subsections here on every PR where this is applicable.
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+* Fixed wandb.login causing runs not to be associated with launch queue by @KyleGoyette in https://github.com/wandb/wandb/pull/7280
+* Fixed job artifact download failing silently and causing run crash when using W&B Launch by @KyleGoyette https://github.com/wandb/wandb/pull/7285
 
 ## [0.16.5] - 2024-03-25
 
