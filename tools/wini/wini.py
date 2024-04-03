@@ -61,7 +61,7 @@ def _build_wandb_core_artifacts(
 
     for architecture in archs:
         outdir = pathlib.PurePath(
-            "wandb_core",
+            "wandb_core_pkg",
             "wandb_core_artifacts",
             architecture.name,
         )
