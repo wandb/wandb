@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch._launch import create_and_run_agent
+from wandb.sdk.launch.agent.config import validate_registry_uri
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -84,3 +85,27 @@ def test_create_and_run_agent(config, error, mock_agent):
             create_and_run_agent(MagicMock(), config)
     else:
         create_and_run_agent(MagicMock(), config)
+
+
+@pytest.mark.parametrize(
+    "registry_uri, valid",
+    [
+        # Valid URIs
+        ("https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo", True),
+        ("https://myregistry.azurecr.io/my-repo", True),
+        ("https://us-central1-docker.pkg.dev/my-project/my-repo/my-image", True),
+        ("https://myregistry.com/my-repo", True),
+        # Invalid URIs
+        ("https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:tag", False),
+        ("https://myregistry.azurecr.io/my-repo:tag", False),
+        ("https://us-central1-docker.pkg.dev/my-project/my-repo/my-image:tag", False),
+        ("https://us-central1-docker.pkg.dev/my-project/my-repo", False),
+    ],
+)
+def test_validate_registry_uri(registry_uri, valid):
+    """Test that we validated the registry URI correctly."""
+    if not valid:
+        with pytest.raises(ValueError):
+            validate_registry_uri(registry_uri)
+    else:
+        validate_registry_uri(registry_uri)
