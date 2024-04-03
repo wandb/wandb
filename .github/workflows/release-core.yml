@@ -122,6 +122,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pip install build setuptools
       - name: Build no-op wheel
         run: python -m build -wnx --outdir wheelhouse wandb_core_noop
       - uses: actions/upload-artifact@v3
