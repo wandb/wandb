@@ -1,0 +1,8 @@
+# Python build artifacts.
+__pycache__/
+wandb_core.egg-info/
+
+# Generated files.
+wandb_core_artifacts/
+wandb_core/AppleStats
+wandb_core/wandb-core
