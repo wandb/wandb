@@ -1,8 +1,9 @@
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
 
+from ..agent2.jobset import Job
 from .abstract import AbstractQueueDriver
 
 
@@ -31,7 +32,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         self.project = project
         self.agent_id = agent_id
 
-    async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]]:
+    async def pop_from_run_queue(self) -> Optional[Job]:
         def _rq_pop():
             return self.api.pop_from_run_queue(
                 self.queue_name, self.entity, self.project, self.agent_id
@@ -41,7 +42,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
 
     async def ack_run_queue_item(
         self, item_id: str, run_id: Optional[str] = None
-    ) -> Awaitable[bool]:
+    ) -> bool:
         def _rq_ack():
             return self.api.ack_run_queue_item(item_id, run_id)
 
@@ -53,7 +54,7 @@ class PassthroughQueueDriver(AbstractQueueDriver):
         message: str,
         stage: str,
         file_paths: Optional[List[str]] = None,
-    ) -> Awaitable[bool]:
+    ) -> bool:
         def _rqi_fail():
             return self.api.fail_run_queue_item(
                 run_queue_item_id,

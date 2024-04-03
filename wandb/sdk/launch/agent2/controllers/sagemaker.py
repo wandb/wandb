@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Dict, Optional, Union
+from typing import Dict, List, Optional
 
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
@@ -61,27 +61,28 @@ class SageMakerManager:
 
         # TODO: find orphaned jobs in resource and assign to self
 
-    async def pop_next_item(self) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
+    async def pop_next_item(self) -> Optional[Job]:
         next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
         return next_item
 
-    async def release_item(self, item: Job) -> None:
-        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
-        del self.active_runs[item.id]
+    async def release_item(self, item_id: str) -> None:
+        self.logger.info(f"Releasing item: {item_id}")
+        # TODO: delete item if exists on resource?
+        del self.active_runs[item_id]
 
-    async def reconcile(self):
-        raw_items = list(self.jobset.jobs.values())
+    async def reconcile(self) -> None:
+        raw_items: List[Job] = list(self.jobset.jobs.values())
         self.logger.info(
             f"===== Raw items ===== \n{json.dumps(raw_items, indent=2)}\n================"
         )
 
-        owned_items = [
-            item
+        owned_items = {
+            item.id: item
             for item in raw_items
             if item.state in ["CLAIMED", "LEASED"]
             and item.claimed_by == self.config["agent_id"]
-        ]
+        }
         # TODO: validate that lease expirations are set back to PENDING
         pending_items = [item for item in raw_items if item.state == "PENDING"]
         self.logger.info(
@@ -92,17 +93,18 @@ class SageMakerManager:
             # we own fewer items than our max concurrency, and there are other items waiting to be run
             # let's lease the next item
             next_item = await self.pop_next_item()
-            owned_items.append(next_item)
+            if next_item:
+                owned_items[next_item.id] = next_item
 
         # ensure all our owned items are running
-        for item in owned_items:
+        for item in owned_items.values():
             if item.id not in self.active_runs:
                 await self.launch_item(item)
 
         # TODO: ensure JobSet removes completed runs from the set
-        for item in self.active_runs:
-            if item not in owned_items:
-                await self.release_item(item)
+        for item_id in self.active_runs:
+            if owned_items.get(item_id) is None:
+                await self.release_item(item_id)
 
     async def launch_item(self, item: Job) -> Optional[str]:
         run_id = await self.launch_item_task(item)
