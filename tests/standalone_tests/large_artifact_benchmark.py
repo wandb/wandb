@@ -1,5 +1,9 @@
+"""Benchmark large artifacts."""
+
+import contextlib
 import os
 import sys
+
 from datetime import timedelta
 from pathlib import Path
 from secrets import token_hex, token_urlsafe
@@ -11,7 +15,8 @@ import click
 import wandb
 
 
-def duration(end, start=0):
+def duration(end: float, start: float = 0) -> str:
+    """Turn a duration in seconds into a human-readable string."""
     seconds = end - start
     if seconds < 1:
         return f"{int(seconds * 1000)}ms"
@@ -30,7 +35,8 @@ def duration(end, start=0):
 @click.option("--project", default="artifact-benchmark")
 @click.option("--entity", default="wandb")
 def cli(
-    ctx,
+    *,
+    ctx: click.Context,
     count: int,
     size: int,
     name: str,
@@ -43,10 +49,8 @@ def cli(
 
     version = wandb.__version__
     git_sha = None
-    try:
+    with contextlib.suppress(CalledProcessError):
         git_sha = check_output(["git", "rev-parse", "HEAD"]).decode("utf-8")[:8]
-    except CalledProcessError:
-        pass
     print(f"python version: {sys.version}")
     print(f"wandb version: {version}{f'@{git_sha}' if git_sha else ''}")
 
@@ -128,7 +132,8 @@ def upload(ctx) -> None:
 @click.option("--add", default=0, help="number of files to add")
 @click.option("--remove", default=0, help="number of files to remove")
 @click.option("--modify", default=0, help="number of files to modify")
-def incremental(ctx, add: int, remove: int, modify: int) -> None:
+def incremental(ctx: click.Context, add: int, remove: int, modify: int) -> None:
+    """Benchmark incremental changes to a large artifact."""
     o = ctx.obj
     start = perf_counter()
     with TemporaryDirectory() as tmpdir, wandb.init(
@@ -191,7 +196,8 @@ def incremental(ctx, add: int, remove: int, modify: int) -> None:
 @cli.command("download")
 @click.pass_context
 @click.option("--name", help="fully qualified artifact name")
-def download(ctx, name: str | None) -> None:
+def download(ctx: click.Context, name: str | None) -> None:
+    """Benchmark downloading a large artifact."""
     if name is None:
         name = ctx.obj["qualified_name"]
     else:
