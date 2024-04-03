@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import pickle
 import sys
@@ -8,6 +9,26 @@ import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import UsageError
+
+
+def test_log_nan_inf(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log(
+            {
+                "nan": float("nan"),
+                "inf": float("inf"),
+                "nested": {"neg_inf": float("-inf")},
+            }
+        )
+        run.finish()
+
+    history = relay.context.get_run_history(run.id).to_dict(orient="records")[0]
+
+    assert sorted(history.keys()) == sorted({"nan", "inf", "nested"})
+    assert math.isnan(history["nan"])
+    assert math.isinf(history["inf"])
+    assert math.isinf(history["nested"]["neg_inf"]) and history["nested"]["neg_inf"] < 0
 
 
 def test_log_code(wandb_init):

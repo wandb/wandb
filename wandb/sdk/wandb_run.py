@@ -2353,16 +2353,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3597,7 +3598,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        workspace_url = f"{settings.run_url}/workspace"
+        run_url = settings.run_url
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3608,7 +3609,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3640,7 +3641,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3883,10 +3884,13 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                run_workspace = f"{settings.run_url}/workspace"
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
-                ]
+                info.append(
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

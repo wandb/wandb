@@ -3,7 +3,6 @@ package runfiles
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -25,16 +24,19 @@ const (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	logger       *observability.CoreLogger
-	settings     *settings.Settings
-	fileTransfer filetransfer.FileTransferManager
-	graphQL      graphql.Client
+	logger            *observability.CoreLogger
+	settings          *settings.Settings
+	debouncedTransfer *debouncedTransfer
+	graphQL           graphql.Client
 
 	// A mapping from files to their category, if set.
 	//
 	// The default category is OTHER. The keys are paths relative to
 	// the files directory.
 	category map[string]filetransfer.RunFileKind
+
+	// Files explicitly requested to be uploaded at the end of the run.
+	uploadAtEnd map[string]struct{}
 
 	// Whether 'Finish' was called.
 	isFinished bool
@@ -54,12 +56,16 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	return &uploader{
-		logger:       params.Logger,
-		settings:     params.Settings,
-		fileTransfer: params.FileTransfer,
-		graphQL:      params.GraphQL,
+		logger:   params.Logger,
+		settings: params.Settings,
+		debouncedTransfer: newDebouncedTransfer(
+			params.FileTransfer,
+			params.Logger,
+		),
+		graphQL: params.GraphQL,
 
-		category: make(map[string]filetransfer.RunFileKind),
+		category:    make(map[string]filetransfer.RunFileKind),
+		uploadAtEnd: make(map[string]struct{}),
 
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
@@ -90,7 +96,10 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			nowFiles = append(nowFiles, file.GetPath())
 
 		case service.FilesItem_LIVE:
+			// Upload live files both immediately and at the end.
 			nowFiles = append(nowFiles, file.GetPath())
+			u.uploadAtEnd[file.GetPath()] = struct{}{}
+
 			if err := u.watch(file.GetPath()); err != nil {
 				u.logger.CaptureError(
 					"runfiles: error watching file",
@@ -101,7 +110,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			}
 
 		case service.FilesItem_END:
-			// No-op. All files are uploaded at the end by default.
+			u.uploadAtEnd[file.GetPath()] = struct{}{}
 		}
 	}
 
@@ -126,39 +135,24 @@ func (u *uploader) UploadNow(path string) {
 	u.upload([]string{path})
 }
 
+func (u *uploader) UploadAtEnd(path string) {
+	if !u.lockForOperation("UploadAtEnd") {
+		return
+	}
+	defer u.stateMu.Unlock()
+
+	u.uploadAtEnd[path] = struct{}{}
+}
+
 func (u *uploader) UploadRemaining() {
 	if !u.lockForOperation("UploadRemaining") {
 		return
 	}
 	defer u.stateMu.Unlock()
 
-	relativePaths := make([]string, 0)
-	err := filepath.WalkDir(u.settings.GetFilesDir(),
-		func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if d.IsDir() {
-				return nil
-			}
-
-			relativePath, err := filepath.Rel(u.settings.GetFilesDir(), path)
-			if err != nil {
-				return err
-			}
-
-			relativePaths = append(relativePaths, relativePath)
-			return nil
-		})
-
-	if err != nil {
-		// Report the error (e.g. a permissions issue) but try to upload
-		// everything we can anyway.
-		u.logger.CaptureError(
-			"runfiles: error walking run files directory",
-			err,
-		)
+	relativePaths := make([]string, 0, len(u.uploadAtEnd))
+	for k := range u.uploadAtEnd {
+		relativePaths = append(relativePaths, k)
 	}
 
 	u.upload(relativePaths)
@@ -260,6 +254,22 @@ func (u *uploader) startWatcher() error {
 
 		return nil
 	})
+
+	// We want to guarantee at this point that either:
+	//   1. Watcher.Start() is successfully looping
+	//   2. Watcher.Start() returned an error
+	// Until this, Watcher.Close() is a no-op! If Finish() is called too
+	// quickly, it will get stuck waiting on watcherWG because Watcher.Close()
+	// wouldn't have stopped the above goroutines.
+	watcherStarted := make(chan struct{})
+	go func() {
+		u.watcherOrNil.Wait()
+		watcherStarted <- struct{}{}
+	}()
+	select {
+	case <-watcherStarted:
+	case <-ctx.Done():
+	}
 
 	return nil
 }
@@ -398,6 +408,9 @@ func (u *uploader) scheduleUploadTask(
 	uploadURL string,
 	headers []string,
 ) {
+	u.stateMu.Lock()
+	defer u.stateMu.Unlock()
+
 	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
 	task := &filetransfer.Task{
 		FileKind: u.category[relativePath],
@@ -412,5 +425,5 @@ func (u *uploader) scheduleUploadTask(
 		u.uploadWG.Done()
 	})
 
-	u.fileTransfer.AddTask(task)
+	u.debouncedTransfer.AddTask(task)
 }
