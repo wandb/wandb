@@ -67,7 +67,7 @@ class SageMakerManager:
         session = await self.legacy.environment.get_session()
 
     
-    async def pop_next_itemm(self) -> Awaitable[Optional[Dict[str, Any]]]:
+    async def pop_next_item(self) -> Awaitable[Optional[Dict[str, Any]]]:
         next_item = self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
         return next_item
@@ -132,6 +132,7 @@ class SageMakerManager:
 
         ack_result = await self.queue_driver.ack_run_queue_item(item.id, run_id)
         if not ack_result:
+            self.logger.error(f"Failed to ack item: {item.id}")
             return None
         self.logger.info(f"Acknowledged item: {item.id} with run_id: {run_id}")
 
