@@ -1,16 +1,15 @@
-from ast import Not
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Dict, Optional
+from typing import Any, Awaitable, Dict, Optional, Union
 
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
+from ..._project_spec import LaunchProject
+from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
 from .util import parse_max_concurrency
-from ...queue_driver.standard_queue_driver import StandardQueueDriver
-from ..._project_spec import LaunchProject
 
 DEFAULT_MAX_CONCURRENCY = 1000
 
@@ -18,7 +17,7 @@ DEFAULT_MAX_CONCURRENCY = 1000
 async def sagemaker_controller(
     config: LaunchControllerConfig,
     jobset: JobSet,
-    logger: logging.logger,
+    logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ):
@@ -29,7 +28,7 @@ async def sagemaker_controller(
         f"Starting SageMaker controller with max_concurrency={max_concurrency}"
     )
 
-    mgr = SageMakerManager(config, jobset, logger, legacy)
+    mgr = SageMakerManager(config, jobset, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -46,7 +45,7 @@ class SageMakerManager:
         self,
         config: LaunchControllerConfig,
         jobset: JobSet,
-        logger: logging.logger,
+        logger: logging.Logger,
         legacy: LegacyResources,
         max_concurrency: int,
     ):
@@ -60,23 +59,17 @@ class SageMakerManager:
         self.active_runs: Dict[str, AbstractRun] = {}
         self.queue_driver = StandardQueueDriver(jobset.api, jobset)
 
-
         # TODO: find orphaned jobs in resource and assign to self
 
-    async def get_session(self) -> Any:
-        session = await self.legacy.environment.get_session()
-
-    
-    async def pop_next_item(self) -> Awaitable[Optional[Dict[str, Any]]]:
-        next_item = self.queue_driver.pop_from_run_queue()
+    async def pop_next_item(self) -> Union[Awaitable[Optional[Dict[str, Any]]], None]:
+        next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
         return next_item
-    
+
     async def release_item(self, item: Job) -> None:
         self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
-        del self.active_runs(item.id)
+        del self.active_runs[item.id]
 
-    
     async def reconcile(self):
         raw_items = list(self.jobset.jobs.values())
         self.logger.info(
@@ -111,18 +104,17 @@ class SageMakerManager:
             if item not in owned_items:
                 await self.release_item(item)
 
-
     async def launch_item(self, item: Job) -> Optional[str]:
         run_id = await self.launch_item_task(item)
         if not run_id:
             return None
         self.logger.info(f"Launch item got run_id: {run_id}")
         return run_id
-    
+
     async def launch_item_task(self, item: Job) -> Optional[str]:
         self.logger.info(f"Lauinch item: {json.dumps(item, indent=2)}")
         project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
-        project.queue_name = self.config["jobset_spec"].queue_name
+        project.queue_name = self.config["jobset_spec"].name
         project.queue_entity = self.config["jobset_spec"].entity_name
         project.run_queue_item_id = item.id
         project.fetch_and_validate_project()
@@ -140,19 +132,17 @@ class SageMakerManager:
         if not project.docker_image:
             entrypoint = project.get_single_entry_point()
             assert entrypoint is not None
-            image_uri = await self.legacy.builder.build_image(project, entrypoint, job_tracker)
+            image_uri = await self.legacy.builder.build_image(
+                project, entrypoint, job_tracker
+            )
         else:
             assert project.docker_image is not None
             image_uri = project.docker_image
-        run = await self.legacy.runner.run(
-            project,
-            image_uri
-        )
+        run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
             self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
-        
+
         self.active_runs[item.id] = run
         return run_id
-

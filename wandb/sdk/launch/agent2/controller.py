@@ -6,6 +6,7 @@ from typing import Any, Callable, Coroutine, Dict, Protocol, TypedDict
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
+from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
@@ -29,6 +30,7 @@ class LegacyResources:
     builder: AbstractBuilder
     registry: AbstractRegistry
     runner: AbstractRunner
+    environment: AbstractEnvironment
     job_tracker_factory: Callable[[str], JobAndRunStatusTracker]
 
 

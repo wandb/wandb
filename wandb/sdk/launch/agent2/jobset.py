@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from dataclasses import dataclass, InitVar, field
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Dict, List, Optional
 
 from wandb.apis.internal import Api
@@ -32,23 +32,26 @@ def create_jobset(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Log
     )
     return JobSet(api, jobset_response, agent_id, logger)
 
+
 @dataclass
 class Job:
     id: str
     name: str = field(init=False)
     run_spec: Dict[str, Any]
+    state: str
     priority: int
     preemptible: bool
     can_preempt: bool
     created_at: bool
     claimed_by: str
 
+
 def run_queue_item_to_job(run_queue_item: Dict[str, Any]) -> Job:
     return Job(
         id=run_queue_item["id"],
         run_spec=run_queue_item["runSpec"],
-        priority=run_queue_item["priority"],
         state=run_queue_item["state"],
+        priority=run_queue_item["priority"],
         preemptible=run_queue_item["priority"] > 0,
         can_preempt=run_queue_item["priority"] == 0,
         created_at=run_queue_item["createdAt"],
