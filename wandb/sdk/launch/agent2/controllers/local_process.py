@@ -65,14 +65,6 @@ class LocalProcessesManager:
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.config = config
-        self.logger = logger
-        self.legacy = legacy
-        self.max_concurrency = max_concurrency
-
-        self.id = config["jobset_spec"].name
-        self.active_runs: Dict[str, AbstractRun] = {}
-
         self.queue_driver = passthrough.PassthroughQueueDriver(
             api=jobset.api,
             queue_name=config["jobset_spec"].name,
@@ -80,6 +72,7 @@ class LocalProcessesManager:
             project=config["jobset_spec"].project_name,
             agent_id=config["agent_id"],
         )
+        super().__init__(config, jobset, logger, legacy, max_concurrency)
 
     async def pop_next_item(self) -> Any:
         next_item = await self.queue_driver.pop_from_run_queue()
@@ -114,14 +107,17 @@ class LocalProcessesManager:
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
+        ack_result = await self.queue_driver.ack_run_queue_item(item_id, run_id)
+        if ack_result is None:
+            self.logger.error(f"Failed to ack item {item_id}")
+            return
+        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
         run = await self.legacy.runner.run(project, "")  # image is unused
         if not run:
             job_tracker.failed_to_start = True
             self.logger.error(f"Failed to start run for item {item['id']}")
             raise NotImplementedError("TODO: handle this case")
-
-        ack_result = await self.queue_driver.ack_run_queue_item(item_id, run_id)
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
 
         self.active_runs[item_id] = run
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")

@@ -1,7 +1,7 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
@@ -13,7 +13,6 @@ from ..jobset import Job, JobSet
 class BaseManager(ABC):
     """Maintains state for multiple jobs."""
 
-    @abstractmethod
     def __init__(
         self,
         config: LaunchControllerConfig,
@@ -22,7 +21,14 @@ class BaseManager(ABC):
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        raise NotImplementedError
+        self.config = config
+        self.jobset = jobset
+        self.logger = logger
+        self.legacy = legacy
+        self.max_concurrency = max_concurrency
+
+        self.id = config["jobset_spec"].name
+        self.active_runs: Dict[str, AbstractRun] = {}
         # TODO: handle orphaned jobs in resource and assign to self
 
     async def reconcile(self) -> None:
@@ -114,7 +120,7 @@ class BaseManager(ABC):
         del self.active_runs[item_id]
 
     @abstractmethod
-    async def find_orphaned_jobs(self) -> None:
+    async def find_orphaned_jobs(self) -> List[Any]:
         pass
 
     @abstractmethod

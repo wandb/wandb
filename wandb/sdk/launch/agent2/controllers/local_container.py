@@ -58,14 +58,6 @@ class LocalContainerManager:
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.config = config
-        self.logger = logger
-        self.legacy = legacy
-        self.max_concurrency = max_concurrency
-
-        self.id = config["jobset_spec"].name
-        self.active_runs: Dict[str, AbstractRun] = {}
-
         self.queue_driver = passthrough.PassthroughQueueDriver(
             api=jobset.api,
             queue_name=config["jobset_spec"].name,
@@ -74,69 +66,15 @@ class LocalContainerManager:
             agent_id=config["agent_id"],
         )
 
+        super().__init__(config, jobset, logger, legacy, max_concurrency)
+
         # TODO: handle orphaned runs
+    
+    async def find_orphaned_jobs(self) -> List[Any]:
+        raise NotImplementedError
+    
+    async def cleanup_removed_jobs(self) -> None:
+        raise NotImplementedError
 
-    async def pop_next_item(self) -> Optional[Job]:
-        next_item = await self.queue_driver.pop_from_run_queue()
-        self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
-        return next_item
-
-    async def reconcile(self) -> None:
-        new_items: List[Job] = []
-        num_runs_needed = self.max_concurrency - len(self.active_runs)
-        if num_runs_needed > 0:
-            for _ in range(num_runs_needed):
-                # we own fewer items than our max concurrency, and there are other items waiting to be run
-                # let's pop the next item
-                item_to_run = await self.pop_next_item()
-                if item_to_run is None:
-                    break
-
-                new_items.append(item_to_run)
-
-        for item in new_items:
-            # launch it
-            await self.launch_item(item)
-
-        # TODO: clean up orphaned items
-
-    async def launch_item(self, item: Job) -> Optional[str]:
-        self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
-
-        project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
-        project.queue_name = self.config["jobset_spec"].name
-        project.queue_entity = self.config["jobset_spec"].entity_name
-        project.run_queue_item_id = item.id
-        project.fetch_and_validate_project()
-        run_id = project.run_id
-        job_tracker = self.legacy.job_tracker_factory(run_id)
-        job_tracker.update_run_info(project)
-
-        image_uri = None
-        if not project.docker_image:
-            entrypoint = project.get_single_entry_point()
-            assert entrypoint is not None
-            image_uri = await self.legacy.builder.build_image(
-                project, entrypoint, job_tracker
-            )
-        else:
-            assert project.docker_image is not None
-            image_uri = project.docker_image
-
-        assert image_uri is not None
-        run = await self.legacy.runner.run(project, image_uri)
-        if not run:
-            job_tracker.failed_to_start = True
-            self.logger.error(f"Failed to start run for item {item.id}")
-            raise NotImplementedError("TODO: handle this case")
-
-        self.active_runs[item.id] = run
-        self.logger.info(f"Inside launch_item, project.run_id = {run_id}")
-
-        run_id = project.run_id
-        self.logger.info(f"Launched item got run_id: {run_id}")
-        return run_id
-
-    async def release_item(self, item: Any) -> Any:
-        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
-        del self.active_runs[item["runQueueItemId"]]
+    async def label_jobs(self) -> None:
+        raise NotImplementedError
