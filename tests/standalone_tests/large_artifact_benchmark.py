@@ -2,6 +2,7 @@
 
 The simplest way of running this benchmark is just
 `python large_artifact_benchmark.py`
+
 That runs all the individual benchmarks in order. Most likely, the main options you'll
 want to change are `--count` and `--size`, which default to fairly small values.
 
@@ -29,7 +30,7 @@ Options:
   --entity TEXT
   --help                Show this message and exit.
 
-Commands with additional options:
+Commands and additional options:
   download              Benchmark downloading a large artifact.
     --qualified-name      fully qualified artifact name
   incremental           Benchmark incremental changes to a large artifact.
