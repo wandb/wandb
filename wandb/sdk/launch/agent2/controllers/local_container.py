@@ -64,7 +64,6 @@ class LocalContainerManager(BaseManager):
         )
 
         super().__init__(config, jobset, logger, legacy, max_concurrency)
-
         # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
 
     async def find_orphaned_jobs(self) -> List[Any]:
