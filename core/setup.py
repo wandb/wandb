@@ -8,6 +8,12 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from wheel.bdist_wheel import bdist_wheel, get_platform
 
+PKGDIR = pathlib.Path(__file__).parent / "wandb_core"
+
+
+def _should_build_noop():
+    return bool(os.getenv("WANDB_CORE_BUILD_NOOP", ""))
+
 
 class CustomWheel(bdist_wheel):
     """Overrides the wheel tag with the proper information.
@@ -28,6 +34,10 @@ class CustomWheel(bdist_wheel):
     # Setting self.plat_name in initialize_options() would be the proper way to
     # do this, but see the macOS issue described below.
     def get_tag(self):
+        if _should_build_noop():
+            # The default tag will be universal.
+            return super().get_tag()
+
         python, abi = super().get_tag()[:2]
 
         # We always build wheels for the platform we're running on.
@@ -60,8 +70,17 @@ class CustomBuildPy(build_py):
     """Custom step to copy pre-built binary artifacts into the package."""
 
     def run(self):
-        pkgdir = pathlib.Path(__file__).parent / "wandb_core"
+        # Delete all files except __init__.py.
+        for file in PKGDIR.iterdir():
+            if file.name != "__init__.py":
+                file.unlink()
 
+        if not _should_build_noop():
+            self._symlink_binaries()
+
+        super().run()
+
+    def _symlink_binaries(self):
         # Figure out the normalized architecture name for our current arch.
         arch = platform.machine().lower()
         if arch == "arm64":
@@ -91,19 +110,10 @@ class CustomBuildPy(build_py):
 
         # Symlink the artifacts into bin/. The build system will copy the
         # actual files into the wheel.
-        archdir = pkgdir.parent / "wandb_core_artifacts" / arch
+        archdir = PKGDIR.parent / "wandb_core_artifacts" / arch
         for file in archdir.iterdir():
-            dest = pkgdir / file.name
-
-            try:
-                # missing_ok=True doesn't exist in Python 3.7
-                dest.unlink()
-            except FileNotFoundError:
-                pass
-
+            dest = PKGDIR / file.name
             os.symlink(file.resolve(), dest)
-
-        super().run()
 
 
 if __name__ == "__main__":
