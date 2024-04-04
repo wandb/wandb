@@ -122,10 +122,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: pip install build setuptools
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install requirements for wini
+        run: pip install -r requirements_tools.txt
+
+      - name: Install requirements for build
+        run: pip install -U build setuptools
+
       - name: Build no-op wheel
-        run: WANDB_CORE_BUILD_NOOP=1 python -m build -wnx --outdir wheelhouse core
+        run: bash wini package wandb-core --noop
+
+      - name: Copy wheel to temporary directory
+        run: |
+          mkdir wheelhouse
+          cp $(bash wini info wandb-core-wheel) wheelhouse/
+
       - uses: actions/upload-artifact@v3
         with:
           name: wandb-core-distributions
