@@ -417,7 +417,7 @@ jobs:
     executor: <<parameters.executor>>
 
     environment:
-      WANDB_REQUIRE_CORE: <<parameters.with_core>>
+      WANDB__REQUIRE_CORE: <<parameters.with_core>>
 
     # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
     # https://circleci.com/docs/parallelism-faster-jobs/
@@ -493,7 +493,7 @@ jobs:
     executor: <<parameters.executor>>
 
     environment:
-      WANDB_REQUIRE_CORE: <<parameters.with_core>>
+      WANDB__REQUIRE_CORE: <<parameters.with_core>>
 
     parallelism: 4
 
@@ -630,7 +630,7 @@ jobs:
     environment:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
-      WANDB_REQUIRE_CORE: << parameters.with_core >>
+      WANDB__REQUIRE_CORE: << parameters.with_core >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk

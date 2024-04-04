@@ -13,7 +13,7 @@ import os
 from typing import Optional, Sequence, Union
 
 import wandb
-from wandb.env import REQUIRE_CORE
+from wandb.env import _REQUIRE_CORE
 from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
@@ -41,7 +41,7 @@ class _Requires:
         self._require_service()
 
     def require_core(self) -> None:
-        os.environ[REQUIRE_CORE] = "true"
+        os.environ[_REQUIRE_CORE] = "true"
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
