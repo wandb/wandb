@@ -32,10 +32,10 @@ here on every PR where this is applicable.
 ### Fixed
 
 * Fixed `run.save()` not working with files inside `run.dir`, introduced in previous release
+* Fixed rare panic during large artifact uploads by @moredatarequire in https://github.com/wandb/wandb/pull/7272
 * Fixed wandb.login causing runs not to be associated with launch queue by @KyleGoyette in https://github.com/wandb/wandb/pull/7280
 * Fixed job artifact download failing silently and causing run crash when using W&B Launch by @KyleGoyette https://github.com/wandb/wandb/pull/7285
 * Fix handling of saving training files to Artifacts in the OpenAI Fine-Tuning integration by @morganmcg1 in https://github.com/wandb/wandb/pull/7150
-
 
 ## [0.16.5] - 2024-03-25
 
