@@ -64,6 +64,7 @@ func (g *GPUApple) parseStats() (map[string]interface{}, error) {
 
 func (g *GPUApple) Name() string { return g.name }
 
+//gocyclo:ignore
 func (g *GPUApple) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
