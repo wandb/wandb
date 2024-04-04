@@ -1,7 +1,6 @@
 package runfiles
 
 import (
-	"slices"
 	"sync"
 )
 
@@ -13,7 +12,7 @@ type uploadBatcher struct {
 	addWG *sync.WaitGroup
 
 	// Files collected so far.
-	files []string
+	files map[string]struct{}
 
 	// Whether an upload is queued to happen soon.
 	isQueued bool
@@ -32,7 +31,7 @@ func newUploadBatcher(
 ) *uploadBatcher {
 	return &uploadBatcher{
 		addWG: &sync.WaitGroup{},
-		files: make([]string, 0),
+		files: make(map[string]struct{}),
 
 		delayFunc: delayFunc,
 		upload:    upload,
@@ -49,7 +48,9 @@ func (b *uploadBatcher) Add(files []string) {
 	b.Lock()
 	defer b.Unlock()
 
-	b.files = append(b.files, files...)
+	for _, file := range files {
+		b.files[file] = struct{}{}
+	}
 
 	if !b.isQueued {
 		b.addWG.Add(1)
@@ -70,14 +71,15 @@ func (b *uploadBatcher) uploadAfterDelay() {
 	b.Lock()
 	b.isQueued = false
 	files := b.files
-	b.files = make([]string, 0)
+	b.files = make(map[string]struct{})
 	b.Unlock()
 
-	// Deduplicate.
-	slices.Sort(files)
-	files = slices.Compact(files)
+	filesSlice := make([]string, 0, len(files))
+	for k := range files {
+		filesSlice = append(filesSlice, k)
+	}
 
-	b.upload(files)
+	b.upload(filesSlice)
 
 	b.addWG.Done()
 }
