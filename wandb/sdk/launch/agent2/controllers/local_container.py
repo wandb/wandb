@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.runner.abstract import AbstractRun
@@ -9,7 +9,7 @@ from wandb.sdk.launch.runner.abstract import AbstractRun
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import JobSet
+from ..jobset import Job, JobSet
 
 
 async def local_container_controller(
@@ -74,13 +74,15 @@ class LocalContainerManager:
             agent_id=config["agent_id"],
         )
 
-    async def pop_next_item(self) -> Any:
+        # TODO: handle orphaned runs
+
+    async def pop_next_item(self) -> Optional[Job]:
         next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
         return next_item
 
-    async def reconcile(self):
-        new_items = []
+    async def reconcile(self) -> None:
+        new_items: List[Job] = []
         num_runs_needed = self.max_concurrency - len(self.active_runs)
         if num_runs_needed > 0:
             for _ in range(num_runs_needed):
@@ -96,36 +98,45 @@ class LocalContainerManager:
             # launch it
             await self.launch_item(item)
 
-    async def launch_item(self, item: Any) -> Any:
+        # TODO: clean up orphaned items
+
+    async def launch_item(self, item: Job) -> Optional[str]:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
 
-        project = LaunchProject.from_spec(item["runSpec"], self.legacy.api)
+        project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
         project.queue_name = self.config["jobset_spec"].name
         project.queue_entity = self.config["jobset_spec"].entity_name
-        project.run_queue_item_id = item["runQueueItemId"]
+        project.run_queue_item_id = item.id
         project.fetch_and_validate_project()
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id)
         job_tracker.update_run_info(project)
 
-        entrypoint = project.get_single_entry_point()
-        assert entrypoint is not None
-        image_uri = await self.legacy.builder.build_image(
-            project, entrypoint, job_tracker
-        )
+        ack_result = await self.jobset.ack_job(item.id, run_id)
+        if not ack_result:
+            self.logger.error(f"Failed to ack item: {item.id}")
+            return None
+        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
 
+        image_uri = None
+        if not project.docker_image:
+            entrypoint = project.get_single_entry_point()
+            assert entrypoint is not None
+            image_uri = await self.legacy.builder.build_image(
+                project, entrypoint, job_tracker
+            )
+        else:
+            assert project.docker_image is not None
+            image_uri = project.docker_image
+
+        assert image_uri is not None
         run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
-            self.logger.error(f"Failed to start run for item {item['id']}")
+            self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
 
-        ack_result = await self.queue_driver.ack_run_queue_item(
-            item["runQueueItemId"], run_id
-        )
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
-
-        self.active_runs[item["runQueueItemId"]] = run
+        self.active_runs[item.id] = run
         self.logger.info(f"Inside launch_item, project.run_id = {run_id}")
 
         run_id = project.run_id

@@ -1,10 +1,11 @@
 import logging
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.jobset import JobSet
 from wandb.sdk.launch.utils import PRIORITIZATION_MODE
 
+from ..agent2.jobset import Job
 from .abstract import AbstractQueueDriver
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ class StandardQueueDriver(AbstractQueueDriver):
         self.api = api
         self.jobset = jobset
 
-    async def pop_from_run_queue(self) -> Awaitable[Optional[Dict[str, Any]]] | None:
+    async def pop_from_run_queue(self) -> Optional[Job]:
         # get highest prio job
         if self.jobset.metadata.get(PRIORITIZATION_MODE) == "V0":
             job = sorted(
@@ -35,7 +36,7 @@ class StandardQueueDriver(AbstractQueueDriver):
             return None
 
         # if lease successful, return job from jobset
-        return job
+        return self.jobset.jobs[job]
 
     async def ack_run_queue_item(self, item_id: str, run_id: str):
         return await self.jobset.ack_job(item_id, run_id)
