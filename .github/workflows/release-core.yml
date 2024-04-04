@@ -10,7 +10,7 @@ on:
         default: false
 
 jobs:
-  build-wheels:
+  build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -117,10 +117,23 @@ jobs:
           name: wandb-core-distributions
           path: ./core/wheelhouse/*.whl
 
+  build-noop-wheel:
+    name: Build universal no-op wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pip install build setuptools
+      - name: Build no-op wheel
+        run: WANDB_CORE_BUILD_NOOP=1 python -m build -wnx --outdir wheelhouse core
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-core-distributions
+          path: wheelhouse
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: build-wheels
+    needs: [build-platform-wheels, build-noop-wheel]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
