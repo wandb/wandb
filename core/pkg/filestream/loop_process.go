@@ -11,6 +11,12 @@ import (
 
 var boolTrue bool = true
 
+// processTask is an input for the filestream.
+type processTask struct {
+	// A record type supported by filestream.
+	Record *service.Record
+}
+
 type processedChunk struct {
 	fileType   ChunkTypeEnum
 	fileLine   string
@@ -21,7 +27,7 @@ type processedChunk struct {
 }
 
 func (fs *FileStream) addProcess(rec *service.Record) {
-	fs.processChan <- ProcessTask{Record: rec}
+	fs.processChan <- processTask{Record: rec}
 }
 
 func (fs *FileStream) processRecord(record *service.Record) {
@@ -47,7 +53,7 @@ func (fs *FileStream) processRecord(record *service.Record) {
 	}
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan ProcessTask) {
+func (fs *FileStream) loopProcess(inChan <-chan processTask) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
 	for message := range inChan {
