@@ -130,6 +130,10 @@ class BaseManager(ABC):
         self.logger.info(f"Releasing item: {item_id}")
         del self.active_runs[item_id]
 
+    def _construct_jobset_discoverability_label(self):
+        # TODO: replace with queue_id
+        return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+
     @abstractmethod
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
