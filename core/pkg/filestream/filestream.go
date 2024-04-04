@@ -35,8 +35,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -64,6 +62,12 @@ const (
 	SummaryChunk
 )
 
+// ProcessTask is an input for the filestream.
+type ProcessTask struct {
+	// A record type supported by filestream.
+	Record *service.Record
+}
+
 // FileStream is a stream of data to the server
 type FileStream struct {
 	// The relative path on the server to which to make requests.
@@ -71,7 +75,7 @@ type FileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan protoreflect.ProtoMessage
+	processChan  chan ProcessTask
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -171,7 +175,7 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan protoreflect.ProtoMessage, BufferSize),
+		processChan:     make(chan ProcessTask, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
@@ -215,10 +219,6 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	}
 	fs.logger.Debug("filestream: stream record", "record", rec)
 	fs.addProcess(rec)
-}
-
-func (fs *FileStream) GetInputChan() chan protoreflect.ProtoMessage {
-	return fs.processChan
 }
 
 // Close gracefully shuts down the goroutines created by Start

@@ -64,5 +64,3 @@ func (m *FakeFileTransferManager) AddTask(t *filetransfer.Task) {
 		m.unfinishedTasks[t] = struct{}{}
 	}
 }
-
-func (m *FakeFileTransferManager) FileStreamCallback(t *filetransfer.Task) {}

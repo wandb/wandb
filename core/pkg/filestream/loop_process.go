@@ -7,7 +7,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var boolTrue bool = true
@@ -22,7 +21,7 @@ type processedChunk struct {
 }
 
 func (fs *FileStream) addProcess(rec *service.Record) {
-	fs.processChan <- rec
+	fs.processChan <- ProcessTask{Record: rec}
 }
 
 func (fs *FileStream) processRecord(record *service.Record) {
@@ -48,22 +47,17 @@ func (fs *FileStream) processRecord(record *service.Record) {
 	}
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
+func (fs *FileStream) loopProcess(inChan <-chan ProcessTask) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
-		switch x := message.(type) {
-		case *service.Record:
-			fs.processRecord(x)
-		case *service.FilesUploaded:
-			fs.streamFilesUploaded(x)
-		case nil:
-			err := fmt.Errorf("filestream: field not set")
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
-		default:
-			err := fmt.Errorf("filestream: Unknown type %T", x)
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
+
+		// TODO: add streamFilesUploaded support
+		if message.Record != nil {
+			fs.processRecord(message.Record)
+		} else {
+			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
 		}
 	}
 }
