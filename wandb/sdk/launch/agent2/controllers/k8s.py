@@ -1,14 +1,10 @@
 import asyncio
-import json
 import logging
 from typing import Any, List
 
-from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.abstract import AbstractRun
-
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import JobSet
 from .base import BaseManager
 from .util import parse_max_concurrency
 
@@ -52,11 +48,12 @@ class KubernetesManager(BaseManager):
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset)
         super().__init__(config, jobset, logger, legacy, max_concurrency)
-        # TODO: handle orphaned jobs in resource and assign to self
+        # TODO: handle orphaned jobs in resource and assign to self (can do this because we will tell users they can only have one to one relationships of agents
+        # and jobs to queues in a cluster)
 
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
-    
+
     async def cleanup_removed_jobs(self) -> None:
         raise NotImplementedError
 

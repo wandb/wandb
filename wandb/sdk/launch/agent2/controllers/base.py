@@ -4,14 +4,18 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun
 
-from ...queue_driver.standard_queue_driver import StandardQueueDriver
+from ...queue_driver.abstract import AbstractQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
 
+
 class BaseManager(ABC):
     """Maintains state for multiple jobs."""
+
+    queue_driver: Optional[AbstractQueueDriver] = None
 
     def __init__(
         self,
@@ -29,9 +33,13 @@ class BaseManager(ABC):
 
         self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, AbstractRun] = {}
-        # TODO: handle orphaned jobs in resource and assign to self
+        if self.queue_driver is None:
+            raise LaunchError(
+                "queue_driver is not set, set queue driver in subclass constructor"
+            )
 
     async def reconcile(self) -> None:
+        assert self.queue_driver is not None
         raw_items = list(self.jobset.jobs.values())
 
         # Dump all raw items
@@ -67,6 +75,7 @@ class BaseManager(ABC):
                 await self.release_item(item)
 
     async def pop_next_item(self) -> Optional[Job]:
+        assert self.queue_driver is not None
         next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Leased item: {json.dumps(next_item, indent=2)}")
         return next_item
@@ -78,6 +87,7 @@ class BaseManager(ABC):
 
     async def launch_item_task(self, item: Job) -> Optional[str]:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
+        assert self.queue_driver is not None
 
         project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
         project.queue_name = self.config["jobset_spec"].name
@@ -108,10 +118,11 @@ class BaseManager(ABC):
         run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
+            await self.release_item(item.id)
             self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
-
         self.active_runs[item.id] = run
+
         self.logger.info(f"Inside launch_item_task, project.run_id = {run_id}")
         return project.run_id
 
@@ -121,12 +132,12 @@ class BaseManager(ABC):
 
     @abstractmethod
     async def find_orphaned_jobs(self) -> List[Any]:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def cleanup_removed_jobs(self) -> None:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def label_jobs(self) -> None:
-        pass
+        raise NotImplementedError

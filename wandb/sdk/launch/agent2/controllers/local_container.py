@@ -1,15 +1,12 @@
 import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
-
-from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.abstract import AbstractRun
+from typing import Any, List
 
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import JobSet
+from .base import BaseManager
 
 
 async def local_container_controller(
@@ -47,7 +44,7 @@ async def local_container_controller(
         iter += 1
 
 
-class LocalContainerManager:
+class LocalContainerManager(BaseManager):
     """Maintains state for multiple docker containers."""
 
     def __init__(
@@ -68,11 +65,11 @@ class LocalContainerManager:
 
         super().__init__(config, jobset, logger, legacy, max_concurrency)
 
-        # TODO: handle orphaned runs
-    
+        # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
+
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
-    
+
     async def cleanup_removed_jobs(self) -> None:
         raise NotImplementedError
 
