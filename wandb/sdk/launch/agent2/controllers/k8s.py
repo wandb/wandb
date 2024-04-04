@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, List
+from typing import Any, Dict, List
 
 from ..._project_spec import LaunchProject
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
@@ -51,10 +51,11 @@ class KubernetesManager(BaseManager):
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset)
         super().__init__(config, jobset, logger, legacy, max_concurrency)
-        # TODO: handle orphaned jobs in resource and assign to self (can do this because we will tell users they can only have one to one relationships of agents
-        # and jobs to queues in a cluster)
+        # TODO: handle orphaned jobs in resource and assign to self (can do
+        # this because we will tell users they can only have one to one
+        # relationships of agents and jobs to queues in a cluster)
 
-    async def find_orphaned_jobs(self) -> List[Any]:
+    async def find_orphaned_jobs(self) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
     async def label_job(self, project: LaunchProject) -> None:
