@@ -2,6 +2,7 @@
 
 Backend server process can be connected to using tcp sockets transport.
 """
+
 import datetime
 import os
 import pathlib
@@ -14,10 +15,10 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import error_reporting_enabled
+from wandb.env import core_debug, core_error_reporting
 from wandb.errors import Error
 from wandb.sdk.lib.wburls import wburls
-from wandb.util import get_core_path, get_module
+from wandb.util import get_core_path, get_module, is_core_dev
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -169,9 +170,11 @@ class _Service:
             core_path = get_core_path()
             if core_path:
                 service_args.extend([core_path])
-                if not error_reporting_enabled():
+                # if core in dev mode we disable error reporting, unless it's explicitly set
+                report_errors = "False" if is_core_dev() else "True"
+                if not core_error_reporting(default=report_errors):
                     service_args.append("--no-observability")
-                if os.environ.get("WANDB_CORE_DEBUG", False):
+                if core_debug(default="False"):
                     service_args.append("--debug")
                 trace_filename = os.environ.get("_WANDB_TRACE")
                 if trace_filename is not None:

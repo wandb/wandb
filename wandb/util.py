@@ -1851,6 +1851,15 @@ def get_core_path() -> str:
     return core_path
 
 
+# check if wandb_core is installed and if it is a dev version
+def is_core_dev() -> bool:
+    wandb_core = get_module("wandb_core")
+    # if wandb_core is not installed, we don't care
+    if not wandb_core:
+        return False
+    return "dev" in wandb_core.__version__
+
+
 @dataclasses.dataclass(frozen=True)
 class InstalledDistribution:
     """An installed distribution.

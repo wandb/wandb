@@ -61,6 +61,8 @@ SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
 ERROR_REPORTING = "WANDB_ERROR_REPORTING"
+CORE_ERROR_REPORTING = "WANDB_CORE_ERROR_REPORTING"
+CORE_DEBUG = "WANDB_CORE_DEBUG"
 DOCKER = "WANDB_DOCKER"
 AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
 AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
@@ -152,6 +154,14 @@ def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
 
 def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
+
+
+def core_error_reporting(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_ERROR_REPORTING, default=default)
+
+
+def core_debug(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_DEBUG, default=default)
 
 
 def ssl_disabled() -> bool:
