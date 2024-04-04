@@ -62,8 +62,6 @@ public func getGPUStats() -> [String: Any] {
         let gpuPowerPMVR = SMC.shared.getValue("PMVR")
         let gpuPowerPG0R = SMC.shared.getValue("PG0R")
 
-        let gpuCorePercentage = SMC.shared.getValue("GPU MTR Temp Sensor%")
-
         let gpuVoltage = SMC.shared.getValue("VG0C")
         let gpuCurrent = SMC.shared.getValue("IG0C")
         let gpuPower = SMC.shared.getValue("PG0C")
@@ -93,7 +91,6 @@ public func getGPUStats() -> [String: Any] {
         GPUStats["m3Gpu8"] = m3Gpu8 ?? 0
         GPUStats["gpuPowerPMVR"] = gpuPowerPMVR ?? 0
         GPUStats["gpuPowerPG0R"] = gpuPowerPG0R ?? 0
-        GPUStats["gpuCorePercentage"] = gpuCorePercentage ?? 0
         GPUStats["gpuVoltage"] = gpuVoltage ?? 0
         GPUStats["gpuCurrent"] = gpuCurrent ?? 0
         GPUStats["gpuPower"] = gpuPower ?? 0
