@@ -440,11 +440,11 @@ def _make_code_artifact(
         return None
 
     # Remove paths we don't want to include, if present
-    try:
-        for item in CODE_ARTIFACT_EXCLUDE_PATHS:
+    for item in CODE_ARTIFACT_EXCLUDE_PATHS:
+        try:
             code_artifact.remove(item)
-    except FileNotFoundError:
-        pass
+        except FileNotFoundError:
+            pass
 
     res, _ = api.create_artifact(
         artifact_type_name="code",
