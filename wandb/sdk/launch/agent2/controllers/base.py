@@ -65,7 +65,7 @@ class BaseManager(ABC):
         for owned_item_id in owned_items:
             if owned_item_id not in self.active_runs:
                 # we own this item but it's not running
-                await self.launch_item(owned_items[owned_item_id])
+                await self.launch_item_task(owned_items[owned_item_id])
 
         # TODO: validate job set clears finished runs
         # release any items that are no longer in owned items
@@ -79,11 +79,6 @@ class BaseManager(ABC):
         next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Leased item: {json.dumps(next_item, indent=2)}")
         return next_item
-
-    async def launch_item(self, item: Job) -> Optional[str]:
-        run_id = await self.launch_item_task(item)
-        self.logger.info(f"Launched item got run_id: {run_id}")
-        return run_id
 
     async def launch_item_task(self, item: Job) -> Optional[str]:
         self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")

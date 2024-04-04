@@ -74,11 +74,6 @@ class LocalProcessesManager(BaseManager):
         )
         super().__init__(config, jobset, logger, legacy, max_concurrency)
 
-    async def pop_next_item(self) -> Optional[Job]:
-        next_item = await self.queue_driver.pop_from_run_queue()
-        self.logger.info(f" item: {json.dumps(next_item, indent=2)}")
-        return next_item
-
     async def reconcile(self) -> None:
         num_runs_needed = self.max_concurrency - len(self.active_runs)
         if num_runs_needed > 0:
