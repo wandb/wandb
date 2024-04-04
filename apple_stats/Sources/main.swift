@@ -45,6 +45,17 @@ public func getGPUStats() -> [String: Any] {
         let m2Gpu1 = SMC.shared.getValue("Tg0f")
         let m2Gpu2 = SMC.shared.getValue("Tg0j")
 
+        // M3 GPU temperature
+        // platforms: [.m3, .m3Pro, .m3Max, .m3Ultra]
+        let m3Gpu1 = SMC.shared.getValue("Tf14")
+        let m3Gpu2 = SMC.shared.getValue("Tf18")
+        let m3Gpu3 = SMC.shared.getValue("Tf19")
+        let m3Gpu4 = SMC.shared.getValue("Tf1A")
+        let m3Gpu5 = SMC.shared.getValue("Tf24")
+        let m3Gpu6 = SMC.shared.getValue("Tf28")
+        let m3Gpu7 = SMC.shared.getValue("Tf29")
+        let m3Gpu8 = SMC.shared.getValue("Tf2A")
+
         // TODO: add M3 GPU temperature
 
         // GPU / Neural Engine Total Power
@@ -65,6 +76,14 @@ public func getGPUStats() -> [String: Any] {
         GPUStats["m1Gpu4"] = m1Gpu4 ?? 0
         GPUStats["m2Gpu1"] = m2Gpu1 ?? 0
         GPUStats["m2Gpu2"] = m2Gpu2 ?? 0
+        GPUStats["m3Gpu1"] = m3Gpu1 ?? 0
+        GPUStats["m3Gpu2"] = m3Gpu2 ?? 0
+        GPUStats["m3Gpu3"] = m3Gpu3 ?? 0
+        GPUStats["m3Gpu4"] = m3Gpu4 ?? 0
+        GPUStats["m3Gpu5"] = m3Gpu5 ?? 0
+        GPUStats["m3Gpu6"] = m3Gpu6 ?? 0
+        GPUStats["m3Gpu7"] = m3Gpu7 ?? 0
+        GPUStats["m3Gpu8"] = m3Gpu8 ?? 0
         GPUStats["gpuPower"] = gpuPower ?? 0
         GPUStats["systemPower"] = systemPower ?? 0
     }
