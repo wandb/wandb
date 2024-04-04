@@ -2,11 +2,12 @@ import asyncio
 import logging
 from typing import Any, List
 
+from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import JobSet
-from .base import BaseManager
+from .base import WANDB_JOBSET_DISCOVERABILITY_LABEL, BaseManager
 
 
 async def local_container_controller(
@@ -47,6 +48,8 @@ async def local_container_controller(
 class LocalContainerManager(BaseManager):
     """Maintains state for multiple docker containers."""
 
+    resource_type = "local-container"
+
     def __init__(
         self,
         config: LaunchControllerConfig,
@@ -69,8 +72,24 @@ class LocalContainerManager(BaseManager):
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
 
-    async def cleanup_removed_jobs(self) -> None:
-        raise NotImplementedError
+    async def label_job(self, project: LaunchProject) -> None:
+        lc_block = self._get_resource_block(project)
+        if lc_block is None:
+            return
 
-    async def label_jobs(self) -> None:
-        raise NotImplementedError
+        jobset_label = self._construct_jobset_discoverability_label()
+        label_value = f"{WANDB_JOBSET_DISCOVERABILITY_LABEL}={jobset_label}"
+
+        self._update_or_set_labels(lc_block, label_value)
+
+    def _update_or_set_labels(self, lc_block, label_value):
+        label_key = "l" if "l" in lc_block or "label" not in lc_block else "label"
+
+        if isinstance(lc_block.get(label_key), list):
+            lc_block[label_key].append(label_value)
+        else:
+            lc_block[label_key] = (
+                [lc_block.get(label_key, []), label_value]
+                if lc_block.get(label_key)
+                else [label_value]
+            )

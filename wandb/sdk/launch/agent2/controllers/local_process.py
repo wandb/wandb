@@ -3,8 +3,7 @@ import json
 import logging
 from typing import Any, List, Optional
 
-from wandb.sdk.launch._project_spec import LaunchProject
-
+from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
@@ -54,6 +53,8 @@ async def local_process_controller(
 
 class LocalProcessesManager(BaseManager):
     """Maintains state for multiple local processes."""
+
+    resource_type = "local-process"
 
     def __init__(
         self,
@@ -119,8 +120,5 @@ class LocalProcessesManager(BaseManager):
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
 
-    async def cleanup_removed_jobs(self) -> None:
-        raise NotImplementedError
-
-    async def label_jobs(self) -> None:
-        raise NotImplementedError
+    async def label_job(self, project: LaunchProject) -> None:
+        pass

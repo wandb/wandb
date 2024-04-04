@@ -11,11 +11,14 @@ from ...queue_driver.abstract import AbstractQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
 
+WANDB_JOBSET_DISCOVERABILITY_LABEL = "_wandb-jobset"
+
 
 class BaseManager(ABC):
     """Maintains state for multiple jobs."""
 
     queue_driver: Optional[AbstractQueueDriver] = None
+    resource_type: str
 
     def __init__(
         self,
@@ -72,6 +75,7 @@ class BaseManager(ABC):
         for item in self.active_runs:
             if item not in owned_items:
                 # we don't own this item anymore
+                await self.cancel_job(item)
                 await self.release_item(item)
 
     async def pop_next_item(self) -> Optional[Job]:
@@ -110,6 +114,7 @@ class BaseManager(ABC):
             image_uri = project.docker_image
 
         assert image_uri is not None
+        await self.label_job(project)
         run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
@@ -125,18 +130,33 @@ class BaseManager(ABC):
         self.logger.info(f"Releasing item: {item_id}")
         del self.active_runs[item_id]
 
-    def _construct_jobset_discoverability_label(self):
+    async def _construct_jobset_discoverability_label(self) -> str:
         # TODO: replace with queue_id
         return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+
+    async def cancel_job(self, item: str) -> None:
+        run = self.active_runs[item]
+        status = None
+        try:
+            status = run.get_status()
+        except Exception as e:
+            self.logger.error(f"Error getting status for run {run.id}: {e}")
+            return
+        if status == "running":
+            try:
+                await run.cancel()
+            except Exception as e:
+                self.logger.error(f"Error stopping run {run.id}: {e}")
+
+    async def _get_resource_block(
+        self, project: LaunchProject
+    ) -> Optional[Dict[str, Any]]:
+        return project.resource_args.get(self.resource_type, None)
 
     @abstractmethod
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
 
     @abstractmethod
-    async def cleanup_removed_jobs(self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def label_jobs(self) -> None:
+    async def label_job(self, project: LaunchProject) -> None:
         raise NotImplementedError
