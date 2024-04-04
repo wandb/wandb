@@ -72,6 +72,7 @@ func (g *GPUApple) SampleMetrics() {
 	if err != nil {
 		return
 	}
+	fmt.Println(stats)
 	// TODO: add more metrics to g.metrics,
 	//  such as render or tiler utilization
 
@@ -168,6 +169,14 @@ func (g *GPUApple) SampleMetrics() {
 			nMeasurements++
 		}
 	}
+
+	if m3Gpu1, ok := stats["m3Gpu1"]; ok {
+		if m3Gpu1.(float64) > 0 {
+			temperature += m3Gpu1.(float64)
+			nMeasurements++
+		}
+	}
+
 	if nMeasurements > 0 {
 		key := fmt.Sprintf("gpu.%d.temp", 0)
 		g.metrics[key] = append(
