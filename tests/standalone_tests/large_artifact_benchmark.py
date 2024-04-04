@@ -206,9 +206,8 @@ def incremental(
 
         if add > 0:
             start_add = perf_counter()
-            for i in range(len(artifact.manifest), len(artifact.manifest) + add):
-                path = root / f"{i % 1000:03}" / f"{i // 1000:06}.txt"
-                path.parent.mkdir(parents=True, exist_ok=True)
+            for _ in range(add):
+                path = root / f"{token_urlsafe(8)}.txt"
                 path.write_text(token_hex((o["size"] + 1) // 2)[: o["size"]])
             artifact.add_dir(root, skip_cache=o["skip_cache"], policy=o["policy"])
             done_add = perf_counter()
