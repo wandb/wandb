@@ -19,6 +19,9 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
 
 
+CODE_ARTIFACT_EXCLUDE_PATHS = ["wandb", ".git"]
+
+
 def create_job(
     path: str,
     job_type: str,
@@ -435,6 +438,13 @@ def _make_code_artifact(
             )
         wandb.termerror(f"Error adding to code artifact: {e}")
         return None
+
+    # Remove paths we don't want to include, if present
+    try:
+        for item in CODE_ARTIFACT_EXCLUDE_PATHS:
+            code_artifact.remove(item)
+    except FileNotFoundError:
+        pass
 
     res, _ = api.create_artifact(
         artifact_type_name="code",
