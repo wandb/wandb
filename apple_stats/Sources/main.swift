@@ -59,7 +59,8 @@ public func getGPUStats() -> [String: Any] {
         // TODO: add M3 GPU temperature
 
         // GPU / Neural Engine Total Power
-        let gpuPower = SMC.shared.getValue("PMVR") ?? SMC.shared.getValue("PG0R") ?? 0
+        let gpuPowerPMVR = SMC.shared.getValue("PMVR")
+        let gpuPowerPG0R = SMC.shared.getValue("PG0R")
 
         // System total power
         let systemPower = SMC.shared.getValue("PSTR")
@@ -84,7 +85,7 @@ public func getGPUStats() -> [String: Any] {
         GPUStats["m3Gpu6"] = m3Gpu6 ?? 0
         GPUStats["m3Gpu7"] = m3Gpu7 ?? 0
         GPUStats["m3Gpu8"] = m3Gpu8 ?? 0
-        GPUStats["gpuPower"] = gpuPower ?? 0
+        GPUStats["gpuPower"] = gpuPowerPMVR ?? gpuPowerPG0R ?? 0
         GPUStats["systemPower"] = systemPower ?? 0
     }
 
