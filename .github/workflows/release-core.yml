@@ -132,7 +132,7 @@ jobs:
         run: pip install -r requirements_tools.txt
 
       - name: Install requirements for build
-        run: pip install -U build setuptools
+        run: pip install -r requirements_build.txt
 
       - name: Build no-op wheel
         run: bash wini package wandb-core --noop
