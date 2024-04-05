@@ -72,6 +72,12 @@ type FileStream interface {
 	// StreamRecord adds data to be sent to the filestream API.
 	StreamRecord(rec *service.Record)
 
+	// SignalFileUploaded tells the backend that a run file has been uploaded.
+	//
+	// This is used in some deployments where the backend is not notified when
+	// files finish uploading.
+	SignalFileUploaded(path string)
+
 	// SetPath sets the path portion of the URL to which to send HTTP requests.
 	SetPath(path string)
 
@@ -214,6 +220,10 @@ func (fs *fileStream) Start() {
 func (fs *fileStream) StreamRecord(rec *service.Record) {
 	fs.logger.Debug("filestream: stream record", "record", rec)
 	fs.addProcess(processTask{Record: rec})
+}
+
+func (fs *fileStream) SignalFileUploaded(path string) {
+	fs.addProcess(processTask{UploadedFile: path})
 }
 
 func (fs *fileStream) Close() {

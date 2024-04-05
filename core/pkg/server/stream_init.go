@@ -123,12 +123,14 @@ func NewFileTransferManager(
 func NewRunfilesUploader(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
+	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
 		Logger:       logger,
 		Settings:     settings,
+		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
 		BatchWindow:  50 * time.Millisecond,

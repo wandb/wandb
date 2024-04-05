@@ -163,6 +163,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.logger,
 			settings,
+			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)

@@ -16,6 +16,7 @@ import (
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -54,6 +55,7 @@ func writeEmptyFile(t *testing.T, path string) {
 }
 
 func TestUploader(t *testing.T) {
+	var fakeFileStream *filestreamtest.FakeFileStream
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
 	var uploader Uploader
@@ -87,6 +89,8 @@ func TestUploader(t *testing.T) {
 		isSync = false
 		configure()
 
+		fakeFileStream = filestreamtest.NewFakeFileStream()
+
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
 		fakeFileTransfer.ShouldCompleteImmediately = true
 
@@ -101,6 +105,7 @@ func TestUploader(t *testing.T) {
 
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
 			GraphQL:        mockGQLClient,
+			FileStream:     fakeFileStream,
 			FileTransfer:   fakeFileTransfer,
 			BatchDelayFunc: batchDelayFunc,
 			Settings: settings.From(&service.Settings{
@@ -221,6 +226,20 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
+		})
+
+	runTest("upload signals filestream on success",
+		func() {},
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
+
+			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Equal(t,
+				[]string{filepath.Join("subdir", "test.txt")},
+				fakeFileStream.GetFilesUploaded())
 		})
 
 	runTest("upload does not reupload same file if unchanged",

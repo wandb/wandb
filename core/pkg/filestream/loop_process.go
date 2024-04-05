@@ -15,6 +15,11 @@ var boolTrue bool = true
 type processTask struct {
 	// A record type supported by filestream.
 	Record *service.Record
+
+	// A path to one of a run's files that has been uploaded.
+	//
+	// The path is relative to the run's files directory.
+	UploadedFile string
 }
 
 type processedChunk struct {
@@ -59,10 +64,12 @@ func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
 
-		// TODO: add streamFilesUploaded support
-		if message.Record != nil {
+		switch {
+		case message.Record != nil:
 			fs.processRecord(message.Record)
-		} else {
+		case message.UploadedFile != "":
+			fs.streamFilesUploaded(message.UploadedFile)
+		default:
 			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
 		}
 	}
@@ -138,6 +145,12 @@ func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	fs.addTransmit(processedChunk{
 		fileType: EventsChunk,
 		fileLine: string(line),
+	})
+}
+
+func (fs *fileStream) streamFilesUploaded(path string) {
+	fs.addTransmit(processedChunk{
+		Uploaded: []string{path},
 	})
 }
 
