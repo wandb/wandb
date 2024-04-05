@@ -7,10 +7,15 @@ import (
 
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var boolTrue bool = true
+
+// processTask is an input for the filestream.
+type processTask struct {
+	// A record type supported by filestream.
+	Record *service.Record
+}
 
 type processedChunk struct {
 	fileType   ChunkTypeEnum
@@ -22,7 +27,7 @@ type processedChunk struct {
 }
 
 func (fs *FileStream) addProcess(rec *service.Record) {
-	fs.processChan <- rec
+	fs.processChan <- processTask{Record: rec}
 }
 
 func (fs *FileStream) processRecord(record *service.Record) {
@@ -48,22 +53,17 @@ func (fs *FileStream) processRecord(record *service.Record) {
 	}
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
+func (fs *FileStream) loopProcess(inChan <-chan processTask) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
-		switch x := message.(type) {
-		case *service.Record:
-			fs.processRecord(x)
-		case *service.FilesUploaded:
-			fs.streamFilesUploaded(x)
-		case nil:
-			err := fmt.Errorf("filestream: field not set")
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
-		default:
-			err := fmt.Errorf("filestream: Unknown type %T", x)
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
+
+		// TODO: add streamFilesUploaded support
+		if message.Record != nil {
+			fs.processRecord(message.Record)
+		} else {
+			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
 		}
 	}
 }
@@ -144,12 +144,6 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
-	})
-}
-
-func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploaded) {
-	fs.addTransmit(processedChunk{
-		Uploaded: msg.Files,
 	})
 }
 
