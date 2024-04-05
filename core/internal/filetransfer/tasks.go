@@ -1,7 +1,5 @@
 package filetransfer
 
-import "context"
-
 type TaskType int
 
 const (
@@ -40,9 +38,6 @@ type Task struct {
 
 	// ProgressCallback is a callback to execute on progress updates
 	ProgressCallback func(int, int)
-
-	// This can be used to cancel the file upload or download if it is no longer needed.
-	Context context.Context
 }
 
 func (ut *Task) SetProgressCallback(callback func(int, int)) {
