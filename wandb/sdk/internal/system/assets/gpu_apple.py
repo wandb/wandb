@@ -66,8 +66,25 @@ class GPUAppleStats:
                 .split("\n")
             )[0]
             raw_stats = json.loads(output)
+
+            temp_keys = [
+                "m1Gpu1",
+                "m1Gpu2",
+                "m1Gpu3",
+                "m1Gpu4",
+                "m2Gpu1",
+                "m2Gpu2",
+                "m3Gpu1",
+                "m3Gpu2",
+                "m3Gpu3",
+                "m3Gpu4",
+                "m3Gpu5",
+                "m3Gpu6",
+                "m3Gpu7",
+                "m3Gpu8",
+            ]
             temp, count = 0, 0
-            for k in ["m1Gpu1", "m1Gpu2", "m1Gpu3", "m1Gpu4", "m2Gpu1", "m2Gpu2"]:
+            for k in temp_keys:
                 if raw_stats.get(k, 0) > 0:
                     temp += raw_stats[k]
                     count += 1

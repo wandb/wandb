@@ -73,7 +73,6 @@ func (g *GPUApple) SampleMetrics() {
 	if err != nil {
 		return
 	}
-	fmt.Println(stats)
 	// TODO: add more metrics to g.metrics,
 	//  such as render or tiler utilization
 
