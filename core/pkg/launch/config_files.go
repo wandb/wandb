@@ -1,7 +1,6 @@
 package launch
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/internal/data_types"
@@ -19,22 +18,20 @@ type configFileParameter struct {
 	excludePaths []ConfigPath
 }
 
-func newFileInputFromRequest(
-	request *service.JobInputRequest,
+// Converts proto messages representing a file input to a configFileParameter.
+func newFileInputFromProto(
+	file *service.JobInputSource_File,
+	includePathMsgs []*service.JobInputPath,
+	excludePathMsgs []*service.JobInputPath,
 ) (*configFileParameter, error) {
-	source := request.GetInputSource().GetSource()
-	file, ok := source.(*service.JobInputSource_File)
-	if !ok {
-		return nil, fmt.Errorf("jobBuilder: invalid source type for file input")
-	}
 
-	includePaths := make([]ConfigPath, 0, len(request.GetIncludePaths()))
-	for _, path := range request.GetIncludePaths() {
+	includePaths := make([]ConfigPath, 0, len(includePathMsgs))
+	for _, path := range includePathMsgs {
 		includePaths = append(includePaths, ConfigPath(path.Path))
 	}
 
-	excludePaths := make([]ConfigPath, 0, len(request.GetExcludePaths()))
-	for _, path := range request.GetExcludePaths() {
+	excludePaths := make([]ConfigPath, 0, len(excludePathMsgs))
+	for _, path := range excludePathMsgs {
 		excludePaths = append(excludePaths, ConfigPath(path.Path))
 	}
 

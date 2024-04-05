@@ -796,9 +796,13 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		return
 	}
 	source := request.GetInputSource()
-	switch source.GetSource().(type) {
+	switch source := source.GetSource().(type) {
 	case *service.JobInputSource_File:
-		newInput, err := newFileInputFromRequest(request)
+		newInput, err := newFileInputFromProto(
+			source,
+			request.GetIncludePaths(),
+			request.GetExcludePaths(),
+		)
 		if err != nil {
 			j.logger.Error("jobBuilder: error creating file input from request", err)
 			return

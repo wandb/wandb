@@ -738,7 +738,7 @@ class InterfaceBase:
     ):
         """Publishes a request to add inputs to the job.
 
-        If wandb_config is True, the wandb.config will be added as a job input.
+        If run_config is True, the wandb.config will be added as a job input.
         If file_path is provided, the file at file_path will be added as a job
         input.
 
