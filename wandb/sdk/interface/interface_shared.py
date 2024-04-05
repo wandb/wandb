@@ -100,6 +100,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
+    def _publish_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+        record = self._make_request(job_input=job_input)
+        return self._deliver_record(record)
+
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -147,6 +151,7 @@ class InterfaceShared(InterfaceBase):
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
+        job_input: Optional[pb.JobInputRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -207,6 +212,8 @@ class InterfaceShared(InterfaceBase):
             request.sync.CopyFrom(sync)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
+        elif job_input:
+            request.job_input.CopyFrom(job_input)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -239,9 +246,6 @@ class InterfaceShared(InterfaceBase):
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
-        launch_wandb_config_parameters: Optional[
-            pb.LaunchWandbConfigParametersRecord
-        ] = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -286,8 +290,6 @@ class InterfaceShared(InterfaceBase):
             record.output.CopyFrom(output)
         elif output_raw:
             record.output_raw.CopyFrom(output_raw)
-        elif launch_wandb_config_parameters:
-            record.wandb_config_parameters.CopyFrom(launch_wandb_config_parameters)
         else:
             raise Exception("Invalid record")
         return record
@@ -415,14 +417,6 @@ class InterfaceShared(InterfaceBase):
 
     def _publish_alert(self, proto_alert: pb.AlertRecord) -> None:
         rec = self._make_record(alert=proto_alert)
-        self._publish(rec)
-
-    def _publish_launch_wandb_config_parameters(
-        self, launch_wandb_config_parameters: pb.LaunchWandbConfigParametersRecord
-    ) -> None:
-        rec = self._make_record(
-            launch_wandb_config_parameters=launch_wandb_config_parameters
-        )
         self._publish(rec)
 
     def _communicate_status(

@@ -260,8 +260,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
-	case *service.Record_WandbConfigParameters:
-		h.handleWandbConfigParameters(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -341,6 +339,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRequestSync(record)
 	case *service.Request_SenderRead:
 		h.handleRequestSenderRead(record)
+	case *service.Request_JobInput:
+		h.handleRequestJobInput(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRequest: request type is nil")
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -976,6 +976,10 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
+func (h *Handler) handleRequestJobInput(record *service.Record) {
+	h.fwdRecord(record)
+}
+
 func (h *Handler) writeAndSendSummaryFile() {
 	if h.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
@@ -1353,10 +1357,6 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
 	h.summaryHandler.updateSummaryDelta(summary)
-}
-
-func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	h.fwdRecord(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
