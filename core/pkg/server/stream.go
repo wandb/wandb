@@ -156,7 +156,6 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
 		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
 		fileTransferManagerOrNil = NewFileTransferManager(
-			fileStreamOrNil,
 			fileTransferStats,
 			s.logger,
 			settings,

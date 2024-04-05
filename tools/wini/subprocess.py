@@ -19,7 +19,7 @@ def check_call(
     Args:
         cmd: The command to run.
         cwd: The directory in which to run the command.
-        env: Environment variables to use for the command.
+        extra_env: Environment variables to use for the command.
     """
     if cwd:
         print.info(f"In directory '{cwd}', running")
@@ -41,12 +41,23 @@ def check_call(
     )
 
 
-def run(cmd: Sequence[Union[str, pathlib.PurePath]]) -> None:
+def run(
+    cmd: Sequence[Union[str, pathlib.PurePath]],
+    extra_env: Optional[Dict[str, str]],
+) -> None:
     """Invokes `subprocess.run`.
 
     Args:
         cmd: The command to run.
+        extra_env: Environment variables to use for the command.
     """
     print.info("Running")
     print.command([str(part) for part in cmd])
-    subprocess.run(cmd)
+
+    if extra_env:
+        env = os.environ.copy()
+        env.update(extra_env)
+    else:
+        env = None
+
+    subprocess.run(cmd, env=env)
