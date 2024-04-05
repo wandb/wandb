@@ -73,7 +73,7 @@ class LocalContainerManager(BaseManager):
         raise NotImplementedError
 
     async def label_job(self, project: LaunchProject) -> None:
-        lc_block = self._get_resource_block(project)
+        lc_block = await self._get_resource_block(project)
         if lc_block is None:
             return
 

@@ -44,10 +44,10 @@ class BaseManager(ABC):
     async def reconcile(self) -> None:
         assert self.queue_driver is not None
         raw_items = list(self.jobset.jobs.values())
-
+        print(raw_items)
         # Dump all raw items
         self.logger.info(
-            f"====== Raw items ======\n{json.dumps(raw_items, indent=2)}\n======================"
+            f"====== Raw items ======\n{raw_items}\n======================"
         )
 
         owned_items = {
@@ -72,7 +72,7 @@ class BaseManager(ABC):
 
         # TODO: validate job set clears finished runs
         # release any items that are no longer in owned items
-        for item in self.active_runs:
+        for item in list(self.active_runs):
             if item not in owned_items:
                 # we don't own this item anymore
                 await self.cancel_job(item)
@@ -81,11 +81,11 @@ class BaseManager(ABC):
     async def pop_next_item(self) -> Optional[Job]:
         assert self.queue_driver is not None
         next_item = await self.queue_driver.pop_from_run_queue()
-        self.logger.info(f"Leased item: {json.dumps(next_item, indent=2)}")
+        self.logger.info(f"Leased item: {next_item}")
         return next_item
 
     async def launch_item(self, item: Job) -> Optional[str]:
-        self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
+        self.logger.info(f"Launching item: {item}")
         assert self.queue_driver is not None
 
         project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
@@ -138,7 +138,7 @@ class BaseManager(ABC):
         run = self.active_runs[item]
         status = None
         try:
-            status = run.get_status()
+            status = await run.get_status()
         except Exception as e:
             self.logger.error(f"Error getting status for run {run.id}: {e}")
             return
