@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -93,7 +94,6 @@ func NewFileStream(
 }
 
 func NewFileTransferManager(
-	fileStream *filestream.FileStream,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
@@ -117,7 +117,6 @@ func NewFileTransferManager(
 		filetransfer.WithSettings(settings.Proto),
 		filetransfer.WithFileTransfer(defaultFileTransfer),
 		filetransfer.WithFileTransferStats(fileTransferStats),
-		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
 }
 
@@ -132,5 +131,6 @@ func NewRunfilesUploader(
 		Settings:     settings,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
+		BatchWindow:  50 * time.Millisecond,
 	})
 }

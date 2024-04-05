@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -32,18 +31,12 @@ type FileTransferManager interface {
 
 	// Schedules a file upload operation.
 	AddTask(task *Task)
-
-	// Generates a FilesUploaded record.
-	FileStreamCallback(task *Task)
 }
 
 // FileTransferManager handles the upload/download of files
 type fileTransferManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *Task
-
-	// fsChan is the channel for messages outgoing to the filestream
-	fsChan chan protoreflect.ProtoMessage
 
 	// fileTransfer is the uploader/downloader
 	// todo: make this a map of uploaders for different destination storage types
@@ -91,12 +84,6 @@ func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
 		fm.fileTransferStats = fileTransferStats
-	}
-}
-
-func WithFSCChan(fsChan chan protoreflect.ProtoMessage) FileTransferManagerOption {
-	return func(fm *fileTransferManager) {
-		fm.fsChan = fsChan
 	}
 }
 
@@ -170,17 +157,6 @@ func (fm *fileTransferManager) completeTask(task *Task) {
 func (fm *fileTransferManager) AddTask(task *Task) {
 	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
 	fm.inChan <- task
-}
-
-func (fm *fileTransferManager) FileStreamCallback(task *Task) {
-	fm.logger.Debug("uploader: filestream callback", "task", task)
-	if task.Err != nil {
-		return
-	}
-	record := &service.FilesUploaded{
-		Files: []string{task.Name},
-	}
-	fm.fsChan <- record
 }
 
 func (fm *fileTransferManager) Close() {

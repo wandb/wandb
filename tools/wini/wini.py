@@ -26,6 +26,27 @@ def wini():
 
 
 @wini.group()
+def info():
+    """Commands that help with automation by printing info to stdout."""
+
+
+@info.command(name="wandb-core-wheel")
+def info_wandb_core_wheel():
+    """Prints out the path to the built wandb-core wheel."""
+    try:
+        for file in _CORE_WHEEL_DIR.iterdir():
+            if file.name.endswith(".whl"):
+                sys.stdout.write(str(file))
+                return
+    except FileNotFoundError:
+        # Fall through to below.
+        pass
+
+    print.error("No wandb-core wheel found.")
+    sys.exit(1)
+
+
+@wini.group()
 def build():
     """Commands to build parts of the application."""
 
@@ -94,9 +115,16 @@ def package():
     is_flag=True,
     default=False,
 )
-def package_wandb_core(should_install, with_coverage):
+@click.option(
+    "--noop",
+    help="Builds a wandb-core package that does nothing.",
+    is_flag=True,
+    default=False,
+)
+def package_wandb_core(should_install, with_coverage, noop):
     """Creates the wandb-core wheel, optionally installing it."""
-    _build_wandb_core_artifacts(with_coverage=with_coverage)
+    if not noop:
+        _build_wandb_core_artifacts(with_coverage=with_coverage)
 
     if _CORE_WHEEL_DIR.exists():
         # Remove old wheel files to prevent ambiguity issues when installing.
@@ -115,7 +143,8 @@ def package_wandb_core(should_install, with_coverage):
             "--outdir",
             _CORE_WHEEL_DIR,
             "./core",
-        ]
+        ],
+        extra_env={"WANDB_CORE_BUILD_NOOP": "1"} if noop else {},
     )
 
     if should_install:
