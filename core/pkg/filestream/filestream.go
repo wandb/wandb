@@ -74,10 +74,8 @@ type FileStream interface {
 
 	// SignalFileUploaded tells the backend that a run file has been uploaded.
 	//
-	// This is used in non-SaaS deployments where the run's files are not uploaded
-	// directly to the W&B backend. We register new run files with the backend
-	// before uploading them, and the backend needs to know when the files are
-	// ready.
+	// This is used in some deployments where the backend is not notified when
+	// files finish uploading.
 	SignalFileUploaded(path string)
 
 	// SetPath sets the path portion of the URL to which to send HTTP requests.
