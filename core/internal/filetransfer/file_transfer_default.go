@@ -108,8 +108,13 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	resp, err := ft.client.Do(req)
 	if err != nil {
 		return err
-	} else if resp == nil || resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %v", resp.Status)
+	}
+	// TODO: why would we get an empty response?
+	if resp == nil {
+		return fmt.Errorf("file transfer: upload: response is nil")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
 	}
 	return nil
 }
