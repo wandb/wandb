@@ -160,10 +160,11 @@ def _create_job(
         )
         if not job_name:
             return None, "", []
-        name = job_name
+        if not name:
+            name = job_name
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
-    artifact = job_builder.build()
+    artifact = job_builder.build(name)
     if not artifact:
         wandb.termerror("JobBuilder failed to build a job")
         _logger.debug("Failed to build job, check job source and metadata")

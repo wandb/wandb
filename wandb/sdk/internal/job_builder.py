@@ -314,7 +314,7 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self) -> Optional[Artifact]:
+    def build(self, create_job_name: Optional[str] = None) -> Optional[Artifact]:
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
@@ -425,8 +425,7 @@ class JobBuilder:
         if metadata.get("_partial"):
             assert not self._partial_source, "partial job has partial output"
             source_info.update({"_partial": metadata["_partial"]})
-
-        artifact = JobArtifact(name)
+        artifact = JobArtifact(create_job_name or name)
 
         _logger.info("adding wandb-job metadata file")
         with artifact.new_file("wandb-job.json") as f:
