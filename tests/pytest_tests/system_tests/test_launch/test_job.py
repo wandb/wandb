@@ -61,6 +61,10 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     with open(f"{source_dir}/requirements.txt", "w") as f:
         f.write("wandb")
 
+    os.makedirs(f"{source_dir}/wandb")
+    with open(f"{source_dir}/wandb/debug.log", "w") as f:
+        f.write("log text")
+
     artifact, action, aliases = _create_job(
         api=internal_api,
         path=source_dir,
@@ -74,6 +78,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     )
 
     assert isinstance(artifact, Artifact)
+    assert artifact.file_count == 2
     assert artifact.name == "test-job-9999:v0"
     assert action == "Created"
     assert aliases == ["latest"]
