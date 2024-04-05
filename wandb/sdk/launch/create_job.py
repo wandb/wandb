@@ -7,8 +7,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal.job_builder import JobBuilder
+from wandb.sdk.internal.job_builder import ArtifactInfoForJob, JobBuilder
 from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.utils import _is_git_uri, get_entrypoint_file
@@ -155,8 +156,6 @@ def _create_job(
             path=path,
             entrypoint=entrypoint,
             run=run,  # type: ignore
-            entity=entity,
-            project=project,
             name=name,
         )
         if not job_name:
@@ -177,29 +176,20 @@ def _create_job(
     if "latest" not in aliases:
         aliases += ["latest"]
 
-    res, _ = api.create_artifact(
-        artifact_type_name="job",
-        artifact_collection_name=name,
-        digest=artifact.digest,
-        client_id=artifact._client_id,
-        sequence_client_id=artifact._sequence_client_id,
-        entity_name=entity,
-        project_name=project,
-        run_name=run.id,  # type: ignore # run will be deleted after creation
-        description=description,
-        metadata=metadata,
-        is_user_created=True,
-        aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
-    )
+    artifact.metadata = metadata
+
     action = "No changes detected for"
-    if not res.get("artifactSequence", {}).get("latestArtifact"):
-        # When there is no latestArtifact, we are creating new
-        action = "Created"
-    elif res.get("state") == "PENDING":
-        # updating an existing artifafct, state is pending awaiting call to
-        # log_artifact to upload and finalize artifact. If not pending, digest
-        # is the same as latestArtifact, so no changes detected
-        action = "Updated"
+    try:
+        check_artifact = wandb.Api().artifact(
+            f"{entity}/{project}/{artifact.name}:latest"
+        )
+        if check_artifact.digest != artifact.digest:
+            action = "Updated"
+    except CommError as e:
+        if "Unable to fetch artifact" in str(e):
+            action = "Created"
+        else:
+            raise e
 
     run.log_artifact(artifact, aliases=aliases)  # type: ignore
     artifact.wait()
@@ -405,8 +395,6 @@ def _make_code_artifact(
     run: "wandb.sdk.wandb_run.Run",
     path: str,
     entrypoint: str,
-    entity: Optional[str],
-    project: Optional[str],
     name: Optional[str],
 ) -> Optional[str]:
     """Helper for creating and logging code artifacts.
@@ -445,26 +433,17 @@ def _make_code_artifact(
             code_artifact.remove(item)
         except FileNotFoundError:
             pass
-
-    res, _ = api.create_artifact(
-        artifact_type_name="code",
-        artifact_collection_name=artifact_name,
-        digest=code_artifact.digest,
-        client_id=code_artifact._client_id,
-        sequence_client_id=code_artifact._sequence_client_id,
-        entity_name=entity,
-        project_name=project,
-        run_name=run.id,  # run will be deleted after creation
-        description="Code artifact for job",
-        metadata={"codePath": path, "entrypoint": entrypoint_file},
-        is_user_created=True,
-        aliases=[
-            {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
-        ],
-    )
-    run.log_artifact(code_artifact)
+    code_artifact.metadata = {"entrypoint": entrypoint_file}
+    code_artifact.description = "Code artifact for job"
+    run.use_artifact(code_artifact)
     code_artifact.wait()
-    job_builder._handle_server_artifact(res, code_artifact)  # type: ignore
+    assert code_artifact.id is not None
+    job_builder._logged_code_artifact = ArtifactInfoForJob(
+        {
+            "id": code_artifact.id,
+            "name": artifact_name,
+        }
+    )
 
     # code artifacts have "code" prefix, remove it and alias
     if not name:
