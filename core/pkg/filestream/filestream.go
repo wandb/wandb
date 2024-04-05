@@ -212,17 +212,11 @@ func (fs *fileStream) Start() {
 }
 
 func (fs *fileStream) StreamRecord(rec *service.Record) {
-	if fs == nil {
-		return
-	}
 	fs.logger.Debug("filestream: stream record", "record", rec)
 	fs.addProcess(processTask{Record: rec})
 }
 
 func (fs *fileStream) Close() {
-	if fs == nil {
-		return
-	}
 	close(fs.processChan)
 	fs.processWait.Wait()
 	close(fs.transmitChan)
