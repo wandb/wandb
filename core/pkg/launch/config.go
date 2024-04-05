@@ -9,15 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Type representing a configuration tree.
+// ConfigDict is the Type representing a configuration tree.
 type ConfigDict = map[string]interface{}
 
-// A key path determining a node in the run config tree.
+// ConfigPath is a key path determining a node in the run config tree.
 type ConfigPath []string
 
-// Wrapper around a configuration tree that provides helpful methods.
+// Config is a wrapper around a configuration tree that provides helpful methods.
 //
-// In launch we use this to filter various configuration trees based on
+// In launch, we use this to filter various configuration trees based on
 // include and exclude paths. This allows users to specify which parts of the
 // configuration tree they want to include in job inputs.
 type Config struct {
@@ -25,7 +25,7 @@ type Config struct {
 	tree ConfigDict
 }
 
-// This is a flat representation of the configuration tree, where each path is
+// PathMap is a flat representation of the configuration tree, where each path is
 // a list of keys and the value is the value at that path in the tree.
 //
 // Note that this is a map of pointers to paths, not paths themselves. If you
@@ -33,9 +33,9 @@ type Config struct {
 // path or iterate over the map and compare the paths.
 type PathMap map[*ConfigPath]interface{}
 
-func NewConfig() *Config {
-	return &Config{make(ConfigDict)}
-}
+// func NewConfig() *Config {
+// 	return &Config{make(ConfigDict)}
+// }
 
 func NewConfigFrom(tree ConfigDict) *Config {
 	return &Config{tree}
