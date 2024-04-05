@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -57,6 +58,9 @@ func TestUploader(t *testing.T) {
 	var mockGQLClient *gqlmock.MockClient
 	var uploader Uploader
 
+	// Optional channel that's returned by the uploader's BatchDelayFunc.
+	var batchChan chan struct{}
+
 	// The files_dir to set on Settings.
 	var filesDir string
 
@@ -76,6 +80,7 @@ func TestUploader(t *testing.T) {
 		test func(t *testing.T),
 	) {
 		// Set a default and allow tests to override it.
+		batchChan = nil
 		filesDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
@@ -87,9 +92,17 @@ func TestUploader(t *testing.T) {
 
 		mockGQLClient = gqlmock.NewMockClient()
 
+		var batchDelayFunc func() <-chan struct{}
+		if batchChan != nil {
+			batchDelayFunc = func() <-chan struct{} {
+				return batchChan
+			}
+		}
+
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			GraphQL:      mockGQLClient,
-			FileTransfer: fakeFileTransfer,
+			GraphQL:        mockGQLClient,
+			FileTransfer:   fakeFileTransfer,
+			BatchDelayFunc: batchDelayFunc,
 			Settings: settings.From(&service.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
 				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
@@ -222,6 +235,45 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+		})
+
+	runTest("upload batches and deduplicates CreateRunFiles calls",
+		func() { batchChan = make(chan struct{}) },
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test1.txt"))
+			writeEmptyFile(t, filepath.Join(filesDir, "test2.txt"))
+			mockGQLClient.StubMatchOnce(
+				gomock.All(
+					gqlmock.WithOpName("CreateRunFiles"),
+					gqlmock.WithVariables(
+						gqlmock.GQLVar("files", gomock.Len(2)),
+					),
+				),
+				`{
+					"createRunFiles": {
+						"runID": "test-run",
+						"uploadHeaders": [],
+						"files": [
+							{
+								"name": "test1.txt",
+								"uploadURL": ""
+							},
+							{
+								"name": "test2.txt",
+								"uploadURL": ""
+							}
+						]
+					}
+				}`,
+			)
+
+			uploader.UploadNow("test1.txt")
+			uploader.UploadNow("test2.txt")
+			uploader.UploadNow("test2.txt")
+			batchChan <- struct{}{}
+			uploader.Finish()
+
+			assert.True(t, mockGQLClient.AllStubsUsed())
 		})
 
 	runTest("upload is no-op if GraphQL returns wrong number of files",

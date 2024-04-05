@@ -51,7 +51,6 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(backend, logger, settings, nil)
 	fileTransferManager := server.NewFileTransferManager(
-		fileStream,
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,
