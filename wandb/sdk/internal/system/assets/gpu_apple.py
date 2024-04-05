@@ -37,6 +37,12 @@ class _Stats(TypedDict):
     # cpuWaitMs: float
 
 
+def get_apple_gpu_path() -> pathlib.Path:
+    return (
+        pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
+    ).resolve()
+
+
 class GPUAppleStats:
     """Apple GPU stats available on Arm Macs."""
 
@@ -49,9 +55,7 @@ class GPUAppleStats:
 
     def __init__(self) -> None:
         self.samples = deque()
-        self.binary_path = (
-            pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "apple_gpu_stats"
-        ).resolve()
+        self.binary_path = get_apple_gpu_path()
 
     def sample(self) -> None:
         try:
@@ -63,22 +67,47 @@ class GPUAppleStats:
             )[0]
             raw_stats = json.loads(output)
 
+            temp_keys = [
+                "m1Gpu1",
+                "m1Gpu2",
+                "m1Gpu3",
+                "m1Gpu4",
+                "m2Gpu1",
+                "m2Gpu2",
+                "m3Gpu1",
+                "m3Gpu2",
+                "m3Gpu3",
+                "m3Gpu4",
+                "m3Gpu5",
+                "m3Gpu6",
+                "m3Gpu7",
+                "m3Gpu8",
+            ]
+            temp, count = 0, 0
+            for k in temp_keys:
+                if raw_stats.get(k, 0) > 0:
+                    temp += raw_stats[k]
+                    count += 1
+
             stats: _Stats = {
                 "gpu": raw_stats["utilization"],
-                "memoryAllocated": raw_stats["mem_used"],
-                "temp": raw_stats["temperature"],
-                "powerWatts": raw_stats["power"],
-                "powerPercent": (raw_stats["power"] / self.MAX_POWER_WATTS) * 100,
+                "memoryAllocated": (
+                    raw_stats["inUseSystemMemory"]
+                    / raw_stats["allocatedSystemMemory"]
+                    * 100
+                ),
+                "powerWatts": raw_stats["systemPower"],
+                "powerPercent": (raw_stats["systemPower"] / self.MAX_POWER_WATTS) * 100,
+                "temp": temp / count if count > 0 else 0,
                 # TODO: this stat could be useful eventually, it was consistently
                 #  0 in my experimentation and requires a frontend change
                 #  so leaving it out for now.
                 # "cpuWaitMs": raw_stats["cpu_wait_ms"],
             }
-
             self.samples.append(stats)
 
         except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
-            logger.exception(f"GPU stats error: {e}")
+            logger.exception("GPU stats error: %s", e)
 
     def clear(self) -> None:
         self.samples.clear()
@@ -116,6 +145,7 @@ class GPUApple:
         telemetry_record = telemetry.TelemetryRecord()
         telemetry_record.env.m1_gpu = True
         interface._publish_telemetry(telemetry_record)
+        self.binary_path = get_apple_gpu_path()
 
     @classmethod
     def is_available(cls) -> bool:
@@ -128,5 +158,20 @@ class GPUApple:
         self.metrics_monitor.finish()
 
     def probe(self) -> dict:
-        # todo: make this actually meaningful
-        return {self.name: {"type": "arm", "vendor": "Apple"}}
+        try:
+            command = [str(self.binary_path), "--json"]
+            output = (
+                subprocess.check_output(command, universal_newlines=True)
+                .strip()
+                .split("\n")
+            )[0]
+            raw_stats = json.loads(output)
+            return {
+                self.name: {
+                    "type": raw_stats["name"],
+                    "vendor": raw_stats["vendor"],
+                }
+            }
+        except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
+            logger.exception("GPU stats error: %s", e)
+            return {self.name: {"type": "arm", "vendor": "Apple"}}
