@@ -70,7 +70,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	peeker api.Peeker,
-) *filestream.FileStream {
+) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
 	if settings.Proto.GetXShared().GetValue() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"

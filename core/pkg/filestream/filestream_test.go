@@ -130,21 +130,20 @@ func (ts *testServer) close() {
 }
 
 type filestreamTest struct {
-	fs      *filestream.FileStream
+	fs      filestream.FileStream
 	capture *captureState
 	path    string
 	mux     *http.ServeMux
 	tserver *testServer
 }
 
-func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filestreamTest {
+func NewFilestreamTest(tName string, fn func(fs filestream.FileStream)) *filestreamTest {
 	tserver := NewTestServer()
 	m := make(map[string]interface{})
 	capture := captureState{m: m}
 	fstreamPath := "/test/" + tName
 	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
 	fs := filestream.NewFileStream(
-		filestream.WithPath(fstreamPath),
 		filestream.WithSettings(tserver.settings),
 		filestream.WithLogger(tserver.logger),
 		filestream.WithAPIClient(apitest.TestingClient(
@@ -152,6 +151,7 @@ func NewFilestreamTest(tName string, fn func(fs *filestream.FileStream)) *filest
 			api.ClientOptions{},
 		)),
 	)
+	fs.SetPath(fstreamPath)
 	fs.Start()
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
 	defer fsTest.finish()
@@ -180,7 +180,7 @@ func TestSendHistory(t *testing.T) {
 	num := 10
 	delay := 5 * time.Millisecond
 	tst := NewFilestreamTest(t.Name(),
-		func(fs *filestream.FileStream) {
+		func(fs filestream.FileStream) {
 			msg := NewHistoryRecord()
 			for i := 0; i < num; i++ {
 				time.Sleep(delay)
@@ -193,7 +193,7 @@ func TestSendHistory(t *testing.T) {
 func BenchmarkHistory(b *testing.B) {
 	num := 10_000
 	tst := NewFilestreamTest(b.Name(),
-		func(fs *filestream.FileStream) {
+		func(fs filestream.FileStream) {
 			msg := NewHistoryRecord()
 			b.ResetTimer()
 			for i := 0; i < num; i++ {
