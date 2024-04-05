@@ -13,4 +13,3 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :wandb:artifacts[my-art-name][type]: my-art-type
   - :wandb:portfolio_links[test_portfolio_public_link_test][num]: 1
-  
