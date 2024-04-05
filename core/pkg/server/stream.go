@@ -149,7 +149,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	var graphqlClientOrNil graphql.Client
-	var fileStreamOrNil *filestream.FileStream
+	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
@@ -163,6 +163,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.logger,
 			settings,
+			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)

@@ -11,6 +11,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -52,6 +53,7 @@ func NewUploader(params UploaderParams) Uploader {
 type UploaderParams struct {
 	Logger       *observability.CoreLogger
 	Settings     *settings.Settings
+	FileStream   filestream.FileStream
 	FileTransfer filetransfer.FileTransferManager
 	GraphQL      graphql.Client
 

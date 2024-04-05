@@ -95,6 +95,16 @@ def _build_wandb_core_artifacts(
             )
 
 
+@build.command(name="wandb-artifacts")
+def build_wandb_artifacts():
+    """Builds some generated files used in the wandb package."""
+    if workspace.target_os() == workspace.OS.DARWIN:
+        pathlib.Path("wandb", "bin").mkdir(exist_ok=True)
+        build_applestats.build_applestats(
+            output_path=pathlib.PurePath("wandb", "bin", "apple_gpu_stats")
+        )
+
+
 @wini.group()
 def package():
     """Commands to produce packages for testing and distribution."""

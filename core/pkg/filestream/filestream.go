@@ -62,8 +62,31 @@ const (
 	SummaryChunk
 )
 
-// FileStream is a stream of data to the server
-type FileStream struct {
+type FileStream interface {
+	// Start creates internal goroutines without blocking.
+	Start()
+
+	// Close waits for all work to be completed.
+	Close()
+
+	// StreamRecord adds data to be sent to the filestream API.
+	StreamRecord(rec *service.Record)
+
+	// SignalFileUploaded tells the backend that a run file has been uploaded.
+	//
+	// This is used in some deployments where the backend is not notified when
+	// files finish uploading.
+	SignalFileUploaded(path string)
+
+	// SetPath sets the path portion of the URL to which to send HTTP requests.
+	SetPath(path string)
+
+	// SetOffsets sets the per-chunk offsets to stream to.
+	SetOffsets(offsetMap FileStreamOffsetMap)
+}
+
+// fileStream is a stream of data to the server
+type fileStream struct {
 	// The relative path on the server to which to make requests.
 	//
 	// This must not include the schema and hostname prefix.
@@ -96,41 +119,35 @@ type FileStream struct {
 	clientId string
 }
 
-type FileStreamOption func(fs *FileStream)
+type FileStreamOption func(fs *fileStream)
 
 func WithSettings(settings *service.Settings) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.settings = settings
 	}
 }
 
 func WithLogger(logger *observability.CoreLogger) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.logger = logger
 	}
 }
 
-func WithPath(path string) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.path = path
-	}
-}
-
 func WithAPIClient(client api.Client) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.apiClient = client
 	}
 }
 
 func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.maxItemsPerPush = maxItemsPerPush
 	}
 }
 
 func WithClientId(clientId string) FileStreamOption {
 	// TODO: this should be the default behavior in the future
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		if fs.settings.GetXShared().GetValue() {
 			fs.clientId = clientId
 		}
@@ -138,34 +155,19 @@ func WithClientId(clientId string) FileStreamOption {
 }
 
 func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.delayProcess = delayProcess
 	}
 }
 
 func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
-	return func(fs *FileStream) {
+	return func(fs *fileStream) {
 		fs.heartbeatTime = heartbeatTime
 	}
 }
 
-func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
-	return func(fs *FileStream) {
-		for k, v := range offsetMap {
-			fs.offsetMap[k] = v
-		}
-	}
-}
-
-// func GetCheckRetryFunc() func(context.Context, *http.Response, error) (bool, error) {
-// 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-//      // Implement a custom retry function here
-// 		return false, nil
-//	}
-// }
-
-func NewFileStream(opts ...FileStreamOption) *FileStream {
-	fs := &FileStream{
+func NewFileStream(opts ...FileStreamOption) FileStream {
+	fs := &fileStream{
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
@@ -183,8 +185,17 @@ func NewFileStream(opts ...FileStreamOption) *FileStream {
 	return fs
 }
 
-// Start creates process, transmit, and feedback goroutines
-func (fs *FileStream) Start() {
+func (fs *fileStream) SetPath(path string) {
+	fs.path = path
+}
+
+func (fs *fileStream) SetOffsets(offsetMap FileStreamOffsetMap) {
+	for k, v := range offsetMap {
+		fs.offsetMap[k] = v
+	}
+}
+
+func (fs *fileStream) Start() {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
 	fs.processWait.Add(1)
@@ -206,20 +217,16 @@ func (fs *FileStream) Start() {
 	}()
 }
 
-// StreamRecord is the main entry point for callers to add data to be sent
-func (fs *FileStream) StreamRecord(rec *service.Record) {
-	if fs == nil {
-		return
-	}
+func (fs *fileStream) StreamRecord(rec *service.Record) {
 	fs.logger.Debug("filestream: stream record", "record", rec)
-	fs.addProcess(rec)
+	fs.addProcess(processTask{Record: rec})
 }
 
-// Close gracefully shuts down the goroutines created by Start
-func (fs *FileStream) Close() {
-	if fs == nil {
-		return
-	}
+func (fs *fileStream) SignalFileUploaded(path string) {
+	fs.addProcess(processTask{UploadedFile: path})
+}
+
+func (fs *fileStream) Close() {
 	close(fs.processChan)
 	fs.processWait.Wait()
 	close(fs.transmitChan)
