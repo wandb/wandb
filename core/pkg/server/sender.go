@@ -78,7 +78,7 @@ type Sender struct {
 	graphqlClient graphql.Client
 
 	// fileStream is the file stream
-	fileStream *fs.FileStream
+	fileStream fs.FileStream
 
 	// filetransfer is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
@@ -131,7 +131,7 @@ func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	backendOrNil *api.Backend,
-	fileStreamOrNil *fs.FileStream,
+	fileStreamOrNil fs.FileStream,
 	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	runfilesUploaderOrNil runfiles.Uploader,
@@ -329,8 +329,8 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 		s.RunRecord.RunId,
 	)
 
-	fs.WithPath(fsPath)(s.fileStream)
-	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+	s.fileStream.SetPath(fsPath)
+	s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
 
 	s.updateSettings()
 	s.fileStream.Start()
