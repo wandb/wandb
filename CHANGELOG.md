@@ -12,6 +12,9 @@ Starting with the 0.16.4 release on March 5, 2024, the format is based on
 We follow https://keepachangelog.com/en/1.1.0/. Please add to relevant subsections
 here on every PR where this is applicable.
 
+### Fixed
+
+* Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 
 ## [0.16.6] - 2024-04-03
 
