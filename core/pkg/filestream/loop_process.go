@@ -64,12 +64,12 @@ func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
 
-		// TODO: add streamFilesUploaded support
-		if message.Record != nil {
+		switch {
+		case message.Record != nil:
 			fs.processRecord(message.Record)
-		} else if message.UploadedFile != "" {
+		case message.UploadedFile != "":
 			fs.streamFilesUploaded(message.UploadedFile)
-		} else {
+		default:
 			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
 		}
 	}
