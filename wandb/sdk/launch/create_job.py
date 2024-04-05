@@ -178,6 +178,8 @@ def _create_job(
         aliases += ["latest"]
 
     artifact.metadata = metadata
+    if description:
+        artifact.description = description
 
     action = "No changes detected for"
     try:
@@ -192,8 +194,8 @@ def _create_job(
         else:
             raise e
 
-    run.log_artifact(artifact, aliases=aliases)  # type: ignore
-    artifact.wait()
+    returned_artifact = run.log_artifact(artifact, aliases=aliases)  # type: ignore
+    returned_artifact.wait()
     run.finish()  # type: ignore
 
     # fetch, then delete hidden run
@@ -436,19 +438,19 @@ def _make_code_artifact(
             pass
     code_artifact.metadata = {"entrypoint": entrypoint_file}
     code_artifact.description = "Code artifact for job"
-    run.use_artifact(code_artifact)
-    code_artifact.wait()
+    ret_code_artifact = run.use_artifact(code_artifact)
+    ret_code_artifact.wait()
     assert code_artifact.id is not None
     job_builder._logged_code_artifact = ArtifactInfoForJob(
         {
-            "id": code_artifact.id,
+            "id": ret_code_artifact.id,
             "name": artifact_name,
         }
     )
 
     # code artifacts have "code" prefix, remove it and alias
     if not name:
-        name = code_artifact.name.replace("code", "job").split(":")[0]
+        name = ret_code_artifact.name.replace("code", "job").split(":")[0]
 
     return name
 
