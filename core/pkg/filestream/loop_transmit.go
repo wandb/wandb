@@ -24,11 +24,11 @@ type fsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-func (fs *FileStream) addTransmit(chunk processedChunk) {
+func (fs *fileStream) addTransmit(chunk processedChunk) {
 	fs.transmitChan <- chunk
 }
 
-func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
+func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 	collector := chunkCollector{
 		input:           inChan,
 		heartbeatTime:   fs.heartbeatTime,
@@ -46,7 +46,7 @@ func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
 	}
 }
 
-func (fs *FileStream) send(data interface{}) {
+func (fs *fileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("filestream: json marshal error", err)

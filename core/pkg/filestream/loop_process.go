@@ -15,6 +15,11 @@ var boolTrue bool = true
 type processTask struct {
 	// A record type supported by filestream.
 	Record *service.Record
+
+	// A path to one of a run's files that has been uploaded.
+	//
+	// The path is relative to the run's files directory.
+	UploadedFile string
 }
 
 type processedChunk struct {
@@ -26,11 +31,11 @@ type processedChunk struct {
 	Uploaded   []string
 }
 
-func (fs *FileStream) addProcess(rec *service.Record) {
-	fs.processChan <- processTask{Record: rec}
+func (fs *fileStream) addProcess(task processTask) {
+	fs.processChan <- task
 }
 
-func (fs *FileStream) processRecord(record *service.Record) {
+func (fs *fileStream) processRecord(record *service.Record) {
 	switch x := record.RecordType.(type) {
 	case *service.Record_History:
 		fs.streamHistory(x.History)
@@ -43,7 +48,7 @@ func (fs *FileStream) processRecord(record *service.Record) {
 	case *service.Record_Exit:
 		fs.streamFinish(x.Exit)
 	case *service.Record_Preempting:
-		fs.streamPreempting(x.Preempting)
+		fs.streamPreempting()
 	case nil:
 		err := fmt.Errorf("filestream: field not set")
 		fs.logger.CaptureFatalAndPanic("filestream error:", err)
@@ -53,7 +58,7 @@ func (fs *FileStream) processRecord(record *service.Record) {
 	}
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan processTask) {
+func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
 	for message := range inChan {
@@ -62,13 +67,15 @@ func (fs *FileStream) loopProcess(inChan <-chan processTask) {
 		// TODO: add streamFilesUploaded support
 		if message.Record != nil {
 			fs.processRecord(message.Record)
+		} else if message.UploadedFile != "" {
+			fs.streamFilesUploaded(message.UploadedFile)
 		} else {
 			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
 		}
 	}
 }
 
-func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
+func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 	// when logging to the same run with multiple writers, we need to
 	// add a client id to the history record
 	if fs.clientId != "" {
@@ -88,7 +95,7 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 	})
 }
 
-func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
+func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
 	line, err := corelib.JsonifyItems(msg.Update)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
@@ -99,14 +106,14 @@ func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
 	})
 }
 
-func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
+func (fs *fileStream) streamOutputRaw(msg *service.OutputRawRecord) {
 	fs.addTransmit(processedChunk{
 		fileType: OutputChunk,
 		fileLine: msg.Line,
 	})
 }
 
-func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
+func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	// todo: there is a lot of unnecessary overhead here,
 	//  we should prepare all the data in the system monitor
 	//  and then send it in one record
@@ -141,13 +148,19 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	})
 }
 
-func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
+func (fs *fileStream) streamFilesUploaded(path string) {
+	fs.addTransmit(processedChunk{
+		Uploaded: []string{path},
+	})
+}
+
+func (fs *fileStream) streamPreempting() {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
 	})
 }
 
-func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
+func (fs *fileStream) streamFinish(exitRecord *service.RunExitRecord) {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,

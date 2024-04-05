@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"golang.org/x/sync/errgroup"
@@ -26,6 +27,7 @@ const (
 type uploader struct {
 	logger            *observability.CoreLogger
 	settings          *settings.Settings
+	fileStream        filestream.FileStream
 	debouncedTransfer *debouncedTransfer
 	graphQL           graphql.Client
 	uploadBatcher     *uploadBatcher
@@ -57,8 +59,9 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
-		logger:   params.Logger,
-		settings: params.Settings,
+		logger:     params.Logger,
+		settings:   params.Settings,
+		fileStream: params.FileStream,
 		debouncedTransfer: newDebouncedTransfer(
 			params.FileTransfer,
 			params.Logger,
@@ -442,6 +445,10 @@ func (u *uploader) scheduleUploadTask(
 	}
 
 	task.SetCompletionCallback(func(t *filetransfer.Task) {
+		if t.Err == nil {
+			u.fileStream.SignalFileUploaded(t.Name)
+		}
+
 		u.uploadWG.Done()
 	})
 
