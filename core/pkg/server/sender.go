@@ -255,8 +255,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
-	case *service.Record_WandbConfigParameters:
-		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -287,6 +285,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendRequestSenderRead(record, x.SenderRead)
 	case *service.Request_StopStatus:
 		s.sendRequestStopStatus(record, x.StopStatus)
+	case *service.Request_JobInput:
+		s.sendRequestJobInput(x.JobInput)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -322,6 +322,8 @@ func (s *Sender) updateSettings() {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
+	s.updateSettings()
+
 	fsPath := fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		s.RunRecord.Entity,
@@ -329,12 +331,15 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 		s.RunRecord.RunId,
 	)
 
-	s.fileStream.SetPath(fsPath)
-	s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
+	if s.fileStream != nil {
+		s.fileStream.SetPath(fsPath)
+		s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
+		s.fileStream.Start()
+	}
 
-	s.updateSettings()
-	s.fileStream.Start()
-	s.fileTransferManager.Start()
+	if s.fileTransferManager != nil {
+		s.fileTransferManager.Start()
+	}
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -447,7 +452,9 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		s.fileStream.Close()
+		if s.fileStream != nil {
+			s.fileStream.Close()
+		}
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -483,6 +490,10 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
@@ -715,10 +726,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
 	// TODO(compat): handle deletes, nested keys
 	// TODO(compat): write summary file
@@ -729,22 +745,24 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		s.summaryMap[item.Key] = item
 	}
 
-	// build list of summary items from the map
-	var summaryItems []*service.SummaryItem
-	for _, v := range s.summaryMap {
-		summaryItems = append(summaryItems, v)
-	}
+	if s.fileStream != nil {
+		// build list of summary items from the map
+		var summaryItems []*service.SummaryItem
+		for _, v := range s.summaryMap {
+			summaryItems = append(summaryItems, v)
+		}
 
-	// build a full summary record to send
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: summaryItems,
+		// build a full summary record to send
+		record := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{
+					Update: summaryItems,
+				},
 			},
-		},
-	}
+		}
 
-	s.fileStream.StreamRecord(record)
+		s.fileStream.StreamRecord(record)
+	}
 }
 
 func (s *Sender) upsertConfig() {
@@ -820,6 +838,10 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
@@ -854,6 +876,10 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 	// append line to file
 	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
 		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
+	}
+
+	if s.fileStream == nil {
+		return
 	}
 
 	// generate compatible timestamp to python iso-format (microseconds without Z)
@@ -934,7 +960,9 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	s.fileStream.StreamRecord(record)
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -1238,6 +1266,10 @@ func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.Server
 	s.outChan <- result
 }
 
-func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
+func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
+	if s.jobBuilder == nil {
+		s.logger.Warn("sender: sendJobInput: job builder disabled, skipping")
+		return
+	}
+	s.jobBuilder.HandleJobInputRequest(request)
 }
