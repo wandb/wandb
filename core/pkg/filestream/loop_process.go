@@ -147,12 +147,6 @@ func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) 
 	})
 }
 
-func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploaded) {
-	fs.addTransmit(processedChunk{
-		Uploaded: msg.Files,
-	})
-}
-
 func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
