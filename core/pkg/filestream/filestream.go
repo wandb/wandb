@@ -217,10 +217,6 @@ func (fs *FileStream) StreamRecord(rec *service.Record) {
 	fs.addProcess(rec)
 }
 
-func (fs *FileStream) GetInputChan() chan protoreflect.ProtoMessage {
-	return fs.processChan
-}
-
 // Close gracefully shuts down the goroutines created by Start
 func (fs *FileStream) Close() {
 	if fs == nil {
