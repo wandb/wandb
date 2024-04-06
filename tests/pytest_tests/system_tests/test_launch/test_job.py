@@ -121,9 +121,6 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert str(job._input_types) == "{'input1': Number}"
 
 
-@pytest.mark.skip(
-    reason="This test is failing because it uploads an empty to file in an artifact"
-)
 def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     proj = "test-p99999"
     settings = test_settings({"project": proj})

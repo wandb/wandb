@@ -1535,6 +1535,18 @@ def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     assert cache.cleanup(0) == 2**20
 
 
+def test_artifact_with_empty_file_ok(wandb_init, tmp_path):
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    path = tmp_path / "empty.txt"
+    path.touch()
+    artifact.add_file(path)
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    assert artifact.digest == "555f3aae5f5deeec705ad5e62f515bd5"
+
+
 def test_artifact_ttl_setter_getter():
     art = wandb.Artifact("test", type="test")
     with pytest.raises(ArtifactNotLoggedError):
