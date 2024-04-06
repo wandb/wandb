@@ -1896,7 +1896,7 @@ def get_core_path() -> str:
 
     Raises:
         Error: If the system is not supported by wandb-core, or if the installed wandb-core version is not
-                compatible with the wandb version, or if wandb-core is not installed.s
+                compatible with the wandb version, or if wandb-core is not installed, but required.
     """
     # check if the user has requesst to use wandb-core
     if not wandb.env.is_require_core():
@@ -1914,13 +1914,13 @@ def get_core_path() -> str:
         return core_path
 
     required_core_version = wandb.__core_version__
-    try:
-        import wandb_core  # type: ignore
-    except ImportError:
-        raise wandb.Error(
+    wandb_core = get_module(
+        "wandb_core",
+        required=(
             "`wandb-core` is required to run the core service. "
             f"Please install it with `pip install wandb-core=={required_core_version}`."
-        )
+        ),
+    )
 
     installed_core_version = wandb_core.__version__
     # Check if the installed wandb-core version is compatible with the wandb version.
@@ -1933,6 +1933,7 @@ def get_core_path() -> str:
     core_path = wandb_core.get_core_path()
     if not core_path:
         raise wandb.Error(
-            "Your system is not supported by `wandb-core`. Please contact support."
+            "Looks like `wandb-core` is not compiled for your system. "
+            "Please open an issue at https://github.com/wandb/wandb/issues to request support for your system."
         )
     return core_path
