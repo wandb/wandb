@@ -58,6 +58,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	runfilesUploader := server.NewRunfilesUploader(
 		logger,
 		settings,
+		fileStream,
 		fileTransferManager,
 		client,
 	)
