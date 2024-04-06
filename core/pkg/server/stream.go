@@ -125,7 +125,7 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, streamId string) *Stream {
+func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stream {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
@@ -138,7 +138,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
-	watcher := watcher.New(watcher.Params{
+	w := watcher.New(watcher.Params{
 		Logger:   s.logger,
 		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
 	})
@@ -175,7 +175,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerRunfilesUploader(runfilesUploaderOrNil),
-		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
+		WithHandlerTBHandler(NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),

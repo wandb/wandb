@@ -371,11 +371,11 @@ func (h *Handler) handleRequestStatus(record *service.Record) {
 	h.respond(record, &service.Response{})
 }
 
-func (h *Handler) handleRequestSenderMark(record *service.Record) {
+func (h *Handler) handleRequestSenderMark(_ *service.Record) {
 	// TODO(flow-control): implement sender mark
 }
 
-func (h *Handler) handleRequestStatusReport(record *service.Record) {
+func (h *Handler) handleRequestStatusReport(_ *service.Record) {
 	// TODO(flow-control): implement status report
 }
 
@@ -661,7 +661,12 @@ func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *servic
 		h.logger.Error("error creating requirements file", "error", err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			h.logger.Error("error closing requirements file", "error", err)
+		}
+	}(file)
 
 	for _, pkg := range request.Package {
 		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
@@ -735,7 +740,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	files := []*service.FilesItem{}
+	var files []*service.FilesItem
 
 	filesDirPath := h.settings.GetFilesDir().GetValue()
 	file := filepath.Join(filesDirPath, DiffFileName)
@@ -820,7 +825,7 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestCancel(record *service.Record) {
+func (h *Handler) handleRequestCancel(_ *service.Record) {
 	// TODO(flow-control): implement cancel
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-var boolTrue bool = true
+var boolTrue = true
 
 // processTask is an input for the filestream.
 type processTask struct {
