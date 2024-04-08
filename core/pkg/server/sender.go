@@ -845,7 +845,7 @@ func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecor
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord) {
+func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
 	// TODO: implement me
 }
 

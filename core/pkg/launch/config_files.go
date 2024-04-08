@@ -55,7 +55,7 @@ func (j *JobBuilder) generateConfigFileSchema(
 		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
 		return data_types.TypeRepresentation{}
 	}
-	return data_types.ResolveTypes((config.filterTree(
+	return data_types.ResolveTypes(config.filterTree(
 		configFile.includePaths, configFile.excludePaths,
-	)))
+	))
 }
