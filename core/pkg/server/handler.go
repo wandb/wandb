@@ -11,6 +11,7 @@ import (
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -705,7 +706,7 @@ func (h *Handler) handleCodeSave() {
 	}
 	savedProgram := filepath.Join(codeDir, programRelative)
 	if _, err := os.Stat(savedProgram); err != nil {
-		if err = copyFile(programAbsolute, savedProgram); err != nil {
+		if err = utils.CopyFile(programAbsolute, savedProgram); err != nil {
 			return
 		}
 	}
