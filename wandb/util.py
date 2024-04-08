@@ -1934,6 +1934,6 @@ def get_core_path() -> str:
     if not core_path:
         raise wandb.Error(
             "Looks like `wandb-core` is not compiled for your system. "
-            "Please open an issue at https://github.com/wandb/wandb/issues to request support for your system."
+            "Please contact support at support@wandb.com to request `wandb-core` support for your system."
         )
     return core_path
