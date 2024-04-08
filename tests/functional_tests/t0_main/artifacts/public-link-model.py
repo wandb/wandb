@@ -45,7 +45,7 @@ def main():
         artifact.add_file("my-dataset.txt")
         artifact = run.log_artifact(artifact)
         artifact.wait()
-    artifact.link("project/test_portfolio", aliases="best")
+    artifact.link("project/test_portfolio_public_link_test", aliases="best")
     run.finish()
 
 

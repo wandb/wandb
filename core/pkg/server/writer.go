@@ -96,7 +96,7 @@ func (w *Writer) startStore() {
 	}()
 }
 
-// do is the main loop of the writer to process incoming messages
+// Do is the main loop of the writer to process incoming messages
 func (w *Writer) Do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: Do: started", "stream_id", w.settings.RunId)

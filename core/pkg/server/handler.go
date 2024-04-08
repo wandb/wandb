@@ -261,8 +261,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
-	case *service.Record_WandbConfigParameters:
-		h.handleWandbConfigParameters(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -342,6 +340,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRequestSync(record)
 	case *service.Request_SenderRead:
 		h.handleRequestSenderRead(record)
+	case *service.Request_JobInput:
+		h.handleRequestJobInput(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRequest: request type is nil")
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -372,11 +372,11 @@ func (h *Handler) handleRequestStatus(record *service.Record) {
 	h.respond(record, &service.Response{})
 }
 
-func (h *Handler) handleRequestSenderMark(record *service.Record) {
+func (h *Handler) handleRequestSenderMark(_ *service.Record) {
 	// TODO(flow-control): implement sender mark
 }
 
-func (h *Handler) handleRequestStatusReport(record *service.Record) {
+func (h *Handler) handleRequestStatusReport(_ *service.Record) {
 	// TODO(flow-control): implement status report
 }
 
@@ -662,7 +662,12 @@ func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *servic
 		h.logger.Error("error creating requirements file", "error", err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			h.logger.Error("error closing requirements file", "error", err)
+		}
+	}(file)
 
 	for _, pkg := range request.Package {
 		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
@@ -736,7 +741,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	files := []*service.FilesItem{}
+	var files []*service.FilesItem
 
 	filesDirPath := h.settings.GetFilesDir().GetValue()
 	file := filepath.Join(filesDirPath, DiffFileName)
@@ -821,7 +826,7 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestCancel(record *service.Record) {
+func (h *Handler) handleRequestCancel(_ *service.Record) {
 	// TODO(flow-control): implement cancel
 }
 
@@ -974,6 +979,10 @@ func (h *Handler) handleTelemetry(record *service.Record) {
 }
 
 func (h *Handler) handleUseArtifact(record *service.Record) {
+	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
@@ -1354,10 +1363,6 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
 	h.summaryHandler.updateSummaryDelta(summary)
-}
-
-func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	h.fwdRecord(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
