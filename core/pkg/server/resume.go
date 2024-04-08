@@ -12,10 +12,38 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+type Bucket = gql.RunResumeStatusModelProjectBucketRun
+
+type ResumeMode uint8
+
+const (
+	None ResumeMode = iota
+	Must
+	Allow
+	Never
+)
+
 type ResumeState struct {
-	ResumeMode       string // must, allow, never
+	resume           ResumeMode
 	FileStreamOffset fs.FileStreamOffsetMap
 	logger           *observability.CoreLogger
+}
+
+func resumeMode(mode string) ResumeMode {
+	switch mode {
+	case "must":
+		return Must
+	case "allow":
+		return Allow
+	case "never":
+		return Never
+	default:
+		return None
+	}
+}
+
+func NewResumeState(logger *observability.CoreLogger, mode string) *ResumeState {
+	return &ResumeState{logger: logger, resume: resumeMode(mode)}
 }
 
 func (r *ResumeState) GetFileStreamOffset() fs.FileStreamOffsetMap {
@@ -32,39 +60,38 @@ func (r *ResumeState) AddOffset(key fs.ChunkTypeEnum, offset int) {
 	r.FileStreamOffset[key] = offset
 }
 
-func NewResumeState(logger *observability.CoreLogger, mode string) *ResumeState {
-	return &ResumeState{logger: logger, ResumeMode: mode}
-}
-
-type Bucket = gql.RunResumeStatusModelProjectBucketRun
-
 func (r *ResumeState) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
 	config *runconfig.RunConfig,
 ) (*service.RunUpdateResult, error) {
+
+	var bucket *Bucket
+	if data.GetModel() != nil && data.GetModel().GetBucket() != nil {
+		bucket = data.GetModel().GetBucket()
+	}
+
 	// If we get that the run is not a resume run, we should fail if resume is set to must
 	// for any other case of resume status, it is fine to ignore it
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
-	var err error
-	if data.GetModel() == nil || data.GetModel().GetBucket() == nil {
-		if r.ResumeMode == "must" {
-			err = fmt.Errorf("You provided an invalid value for the `resume` argument. "+
-				"The value 'must' is not a valid option for resuming a run (%s/%s) that does not exist. "+
-				"Please check your inputs and try again with a valid run ID. "+
-				"If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.\n", run.Project, run.RunId)
-			result := &service.RunUpdateResult{
-				Error: &service.ErrorInfo{
-					Message: err.Error(),
-					Code:    service.ErrorInfo_USAGE,
-				}}
-
-			return result, err
-		}
+	switch {
+	case bucket == nil && r.resume != Must:
 		return nil, nil
-	} else if r.ResumeMode == "never" {
-		err = fmt.Errorf("You provided an invalid value for the `resume` argument. "+
+	case bucket == nil && r.resume == Must:
+		err := fmt.Errorf(("You provided an invalid value for the `resume` argument. " +
+			"The value 'must' is not a valid option for resuming a run (%s/%s) that does not exist. " +
+			"Please check your inputs and try again with a valid value for the `resume` argument.\n" +
+			"If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`"),
+			run.Project, run.RunId)
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Message: err.Error(),
+				Code:    service.ErrorInfo_USAGE,
+			}}
+		return result, err
+	case bucket != nil && r.resume == Never:
+		err := fmt.Errorf("You provided an invalid value for the `resume` argument. "+
 			"The value 'never' is not a valid option for resuming a run (%s/%s) that already exists. "+
 			"Please check your inputs and try again with a valid value for the `resume` argument.\n", run.Project, run.RunId)
 		result := &service.RunUpdateResult{
@@ -73,66 +100,68 @@ func (r *ResumeState) Update(
 				Code:    service.ErrorInfo_USAGE,
 			}}
 		return result, err
+	default:
+		if err := r.update(bucket, run, config); err != nil && r.resume == Must {
+			result := &service.RunUpdateResult{
+				Error: &service.ErrorInfo{
+					Message: err.Error(),
+					Code:    service.ErrorInfo_UNKNOWN,
+				},
+			}
+			return result, err
+		}
+		run.Resumed = true
+		return nil, nil
 	}
+}
 
-	bucket := data.GetModel().GetBucket()
-	run.Resumed = true
+func (r *ResumeState) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
 
 	r.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
-	if result, err := r.updateHistory(run, bucket); err != nil {
-		return result, err
+	if err := r.updateHistory(run, bucket); err != nil {
+		return err
 	}
 
 	r.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
-	if result, err := r.updateSummary(run, bucket); err != nil {
-		return result, err
+	if err := r.updateSummary(run, bucket); err != nil {
+		return err
 	}
 
 	r.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
-	if result, err := r.updateConfig(bucket, config); err != nil {
-		return result, err
+	if err := r.updateConfig(bucket, config); err != nil {
+		return err
 	}
 
 	r.updateTags(run, bucket)
 
-	return nil, nil
+	return nil
 }
 
-func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
-	var historyTail []string
-	var historyTailMap map[string]interface{}
+func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 
-	if err := json.Unmarshal([]byte(*bucket.GetHistoryTail()), &historyTail); err != nil {
+	resumed := bucket.GetHistoryTail()
+	// TODO: should we error on empty historyTail response?
+	if resumed == nil {
+		return nil
+	}
+
+	var history []string
+	if err := json.Unmarshal([]byte(*resumed), &history); err != nil {
 		err = fmt.Errorf("failed to unmarshal history tail: %s", err)
-		if r.ResumeMode == "must" {
-			result := &service.RunUpdateResult{
-				Error: &service.ErrorInfo{
-					Message: err.Error(),
-					Code:    service.ErrorInfo_UNKNOWN,
-				},
-			}
-			return result, err
-		}
+		return err
 	}
 
-	if len(historyTail) == 0 {
-		return nil, nil
+	if len(history) == 0 {
+		return nil
 	}
 
-	if err := json.Unmarshal([]byte(historyTail[0]), &historyTailMap); err != nil {
+	var historyTail map[string]interface{}
+	if err := json.Unmarshal([]byte(history[0]), &historyTail); err != nil {
 		err = fmt.Errorf("failed to unmarshal history tail map: %s", err)
-		if r.ResumeMode == "must" {
-			result := &service.RunUpdateResult{
-				Error: &service.ErrorInfo{
-					Message: err.Error(),
-					Code:    service.ErrorInfo_UNKNOWN,
-				},
-			}
-			return result, err
-		}
+		return err
 	}
 
-	if step, ok := historyTailMap["_step"].(float64); ok {
+	if step, ok := historyTail["_step"].(float64); ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
 		if step > 0 || r.GetFileStreamOffset()[fs.HistoryChunk] > 0 {
@@ -140,59 +169,63 @@ func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) (*se
 		}
 	}
 
-	if runtime, ok := historyTailMap["_runtime"].(float64); ok {
+	if runtime, ok := historyTail["_runtime"].(float64); ok {
 		run.Runtime = int32(runtime)
 	}
-	return nil, nil
+	return nil
 }
 
-func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) (*service.RunUpdateResult, error) {
-	// If we are unable to parse the config, we should fail if resume is set to must
-	// for any other case of resume status, it is fine to ignore it
-	var summary map[string]interface{}
-	if err := json.Unmarshal([]byte(*bucket.GetSummaryMetrics()), &summary); err != nil {
-		err = fmt.Errorf("failed to unmarshal summary metrics: %s", err)
-		if r.ResumeMode == "must" {
-			result := &service.RunUpdateResult{
-				Error: &service.ErrorInfo{
-					Message: err.Error(),
-					Code:    service.ErrorInfo_UNKNOWN,
-				},
-			}
-			return result, err
-		}
+func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) error {
+
+	resumed := bucket.GetSummaryMetrics()
+	// TODO: should we error on empty summaryMetrics response?
+	if resumed == nil {
+		return nil
 	}
 
-	summaryRecord := service.SummaryRecord{}
+	// If we are unable to parse the summary, we should fail if resume is set to
+	// must for any other case of resume status, it is fine to ignore it
+	// TODO: potential issue with unsupported types like NaN/Inf
+	var summary map[string]interface{}
+	if err := json.Unmarshal([]byte(*resumed), &summary); err != nil {
+		err = fmt.Errorf("failed to unmarshal summary metrics: %s", err)
+		return err
+	}
+
+	record := service.SummaryRecord{}
 	for key, value := range summary {
-		jsonValue, _ := json.Marshal(value)
-		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
+		valueJson, _ := json.Marshal(value)
+		record.Update = append(record.Update, &service.SummaryItem{
 			Key:       key,
-			ValueJson: string(jsonValue),
+			ValueJson: string(valueJson),
 		})
 	}
-	run.Summary = &summaryRecord
-
-	return nil, nil
+	run.Summary = &record
+	return nil
 }
 
 // Merges the original run's config into the current config.
 func (r *ResumeState) updateConfig(
 	bucket *Bucket,
 	config *runconfig.RunConfig,
-) (*service.RunUpdateResult, error) {
+) error {
+
+	resumed := bucket.GetConfig()
+	// TODO: should we error on empty config response?
+	if resumed == nil {
+		return nil
+	}
+
+	// If we are unable to parse the config, we should fail if resume is set to
+	// must for any other case of resume status, it is fine to ignore it
+	// TODO: potential issue with unsupported types like NaN/Inf
 	var cfg map[string]interface{}
-	if err := json.Unmarshal([]byte(*bucket.GetConfig()), &cfg); err != nil {
-		err = fmt.Errorf("sender: checkAndUpdateResumeState: failed to unmarshal config: %s", err)
-		if r.ResumeMode == "must" {
-			result := &service.RunUpdateResult{
-				Error: &service.ErrorInfo{
-					Message: err.Error(),
-					Code:    service.ErrorInfo_UNKNOWN,
-				},
-			}
-			return result, err
-		}
+
+	if err := json.Unmarshal([]byte(*resumed), &cfg); err != nil {
+		err = fmt.Errorf(
+			"sender: checkAndUpdateResumeState: failed to"+
+				" unmarshal config: %s", err)
+		return err
 	}
 
 	deserializedConfig := make(runconfig.RunConfigDict)
@@ -213,16 +246,30 @@ func (r *ResumeState) updateConfig(
 	}
 
 	err := config.MergeResumedConfig(deserializedConfig)
-	return nil, err
+	if err != nil {
+		r.logger.Error(
+			fmt.Sprintf(
+				"sender: updateResumeState: failed to merge"+
+					" resumed config: %s",
+				err,
+			),
+		)
+	}
+	return nil
 }
 
 func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) {
+	resumed := bucket.GetTags()
+	// TODO: should we error on empty tags response?
+	if resumed == nil {
+		return
+	}
 	// handle tags
 	// - when resuming a run, its tags will be overwritten by the tags
 	//   passed to `wandb.init()`.
 	// - to add tags to a resumed run without overwriting its existing tags
 	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
 	if run.Tags == nil {
-		run.Tags = append(run.Tags, bucket.GetTags()...)
+		run.Tags = append(run.Tags, resumed...)
 	}
 }
