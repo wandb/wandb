@@ -172,6 +172,7 @@ type JobBuilder struct {
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
 	wandbConfigParameters *launchWandbConfigParameters
+	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
 }
 
@@ -734,15 +735,23 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 // Makes job input schema into a json string to be stored as artifact metdata.
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
+	input_types := make(map[string]interface{})
+	if len(j.configFiles) > 0 {
+		files := make(map[string]interface{})
+		for _, configFile := range j.configFiles {
+			files[configFile.relpath] = j.generateConfigFileSchema(configFile)
+		}
+		input_types["files"] = files
+	}
 	if j.runConfig != nil {
 		runConfigTypes, err := j.inferRunConfigTypes()
 		if err == nil {
-			metadata[WandbConfigKey] = runConfigTypes
+			input_types[WandbConfigKey] = runConfigTypes
 		} else {
 			j.logger.Debug("jobBuilder: error inferring run config types", err)
 		}
 	}
-	metadata = map[string]interface{}{"input_types": metadata}
+	metadata["input_types"] = input_types
 	if output != nil {
 		metadata["output_types"] = data_types.ResolveTypes(*output)
 	}
@@ -766,5 +775,41 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 			ID:   response.ArtifactId,
 			Name: record.Name,
 		}
+	}
+}
+
+// Configure a new job input for the job builder.
+//
+// This method is called when a user declares a new variable input for their
+// job. The request specifies the source of the input (a file or the run config)
+// and sets of keys in that config to include or exclude from the input. The
+// key sets are expressed as path prefixes in the config.
+func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
+	// If job builder is disabled. This happens if run is created from a job.
+	if j == nil {
+		return
+	}
+	j.saveShapeToMetadata = true
+	j.logger.Debug("jobBuilder: handling job input request")
+	if request == nil {
+		j.logger.Error("jobBuilder: job input request is nil")
+		return
+	}
+	source := request.GetInputSource()
+	switch source := source.GetSource().(type) {
+	case *service.JobInputSource_File:
+		newInput, err := newFileInputFromProto(
+			source,
+			request.GetIncludePaths(),
+			request.GetExcludePaths(),
+		)
+		if err != nil {
+			j.logger.Error("jobBuilder: error creating file input from request", err)
+			return
+		}
+		j.configFiles = append(j.configFiles, newInput)
+	case *service.JobInputSource_RunConfig:
+		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
+		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
 	}
 }
