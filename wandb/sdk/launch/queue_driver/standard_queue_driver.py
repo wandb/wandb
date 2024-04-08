@@ -3,6 +3,7 @@ from typing import List, Optional
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.jobset import JobSet
+from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import PRIORITIZATION_MODE
 
 from ..agent2.jobset import Job
@@ -31,13 +32,14 @@ class StandardQueueDriver(AbstractQueueDriver):
         self.logger.debug(f"Attempting to lease job {job_id}")
         lease_result = await self.jobset.lease_job(job_id)
         if not lease_result:
-            self.logger.debug(f"Error leasing job {job_id}")
-            return None
+            msg = f"Error leasing job {job_id}"
+            self.logger.error(msg)
+            raise LaunchError(msg)
 
         # confirm the item was removed from the job set
         await self.jobset.wait_for_update()
         if job_id in self.jobset.jobs:
-            self.logger.debug("Job was not removed from job set")
+            self.logger.warn("Job was not removed from job set")
             return None
 
         # if lease successful, return job from jobset
