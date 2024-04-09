@@ -36,7 +36,15 @@ try:
     import pandas as pd
 
     @typedispatch  # noqa: F811
-    def _wandb_use(name: str, data: pd.DataFrame, datasets=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    def _wandb_use(
+        name: str,
+        data: pd.DataFrame,
+        datasets=False,
+        run=None,
+        testing=False,
+        *args,
+        **kwargs,
+    ):  # type: ignore
         if testing:
             return "datasets" if datasets else None
 
@@ -74,7 +82,15 @@ try:
     import torch.nn as nn
 
     @typedispatch  # noqa: F811
-    def _wandb_use(name: str, data: nn.Module, models=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    def _wandb_use(
+        name: str,
+        data: nn.Module,
+        models=False,
+        run=None,
+        testing=False,
+        *args,
+        **kwargs,
+    ):  # type: ignore
         if testing:
             return "models" if models else None
 
@@ -111,7 +127,15 @@ try:
     from sklearn.base import BaseEstimator
 
     @typedispatch  # noqa: F811
-    def _wandb_use(name: str, data: BaseEstimator, models=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    def _wandb_use(
+        name: str,
+        data: BaseEstimator,
+        models=False,
+        run=None,
+        testing=False,
+        *args,
+        **kwargs,
+    ):  # type: ignore
         if testing:
             return "models" if models else None
 
@@ -169,7 +193,14 @@ class ArtifactProxy:
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: (dict, list, set, str, int, float, bool), run=None, testing=False, *args, **kwargs):  # type: ignore
+def wandb_track(
+    name: str,
+    data: (dict, list, set, str, int, float, bool),
+    run=None,
+    testing=False,
+    *args,
+    **kwargs,
+):  # type: ignore
     if testing:
         return "scalar"
 
@@ -222,12 +253,16 @@ def wandb_use(name: str, data, *args, **kwargs):
 
 
 @typedispatch  # noqa: F811
-def wandb_use(name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs):  # type: ignore
+def wandb_use(
+    name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs
+):  # type: ignore
     pass  # do nothing for these types
 
 
 @typedispatch  # noqa: F811
-def _wandb_use(name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+def _wandb_use(
+    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
+):  # type: ignore
     if testing:
         return "datasets" if datasets else None
 

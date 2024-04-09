@@ -1,4 +1,5 @@
 """Abstract base class for environments."""
+
 from abc import ABC, abstractmethod
 
 

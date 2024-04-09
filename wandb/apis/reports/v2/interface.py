@@ -1,4 +1,5 @@
 """Public interfaces for the Report API."""
+
 import os
 from datetime import datetime
 from typing import Dict, Iterable, Optional, Tuple, Union
@@ -100,8 +101,7 @@ class Layout(Base):
 
 
 @dataclass(config=dataclass_config)
-class Block(Base):
-    ...
+class Block(Base): ...
 
 
 @dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
@@ -706,8 +706,7 @@ class Twitter(Block):
 
 
 @dataclass(config=dataclass_config)
-class WeaveBlock(Block):
-    ...
+class WeaveBlock(Block): ...
 
 
 BlockTypes = Union[

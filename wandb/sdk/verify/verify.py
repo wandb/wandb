@@ -1,4 +1,5 @@
 """Utilities for wandb verify."""
+
 import getpass
 import os
 import time
@@ -20,7 +21,7 @@ PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
 CHECKMARK = "\u2705"
-RED_X = "\u274C"
+RED_X = "\u274c"
 ID_PREFIX = runid.generate_id()
 
 

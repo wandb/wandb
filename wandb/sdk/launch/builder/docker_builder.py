@@ -1,4 +1,5 @@
 """Implementation of the docker builder."""
+
 import logging
 import os
 from typing import Any, Dict, Optional
