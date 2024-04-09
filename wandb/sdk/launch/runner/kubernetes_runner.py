@@ -1,4 +1,5 @@
 """Implementation of KubernetesRunner class for wandb launch."""
+
 import asyncio
 import base64
 import datetime
@@ -539,9 +540,9 @@ class KubernetesRunner(AbstractRunner):
                     WANDB_K8S_LABEL_MONITOR,
                     LaunchAgent.name(),
                 )
-                resource_args["metadata"]["labels"][
-                    WANDB_K8S_LABEL_AGENT
-                ] = LaunchAgent.name()
+                resource_args["metadata"]["labels"][WANDB_K8S_LABEL_AGENT] = (
+                    LaunchAgent.name()
+                )
 
             overrides = {}
             if launch_project.override_args:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Tests for the `wandb.GitRepo` module."""
+
 from typing import Generator, Optional
 
 import git

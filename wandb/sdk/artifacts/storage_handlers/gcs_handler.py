@@ -1,4 +1,5 @@
 """GCS storage handler."""
+
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
