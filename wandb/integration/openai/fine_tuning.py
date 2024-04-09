@@ -310,9 +310,9 @@ class WandbLogger:
         try:
             hyperparams["n_epochs"] = hyperparameters.n_epochs
             hyperparams["batch_size"] = hyperparameters.batch_size
-            hyperparams[
-                "learning_rate_multiplier"
-            ] = hyperparameters.learning_rate_multiplier
+            hyperparams["learning_rate_multiplier"] = (
+                hyperparameters.learning_rate_multiplier
+            )
         except Exception:
             # If unpacking fails, return the object to be logged as config
             return None

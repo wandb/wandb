@@ -197,9 +197,7 @@ class NeuronCoreStats:
                 entry["report"]
                 for entry in raw_stats["neuron_runtime_data"]
                 if self._is_matching_entry(entry)
-            ][
-                0
-            ]  # there should be only one entry with the pid
+            ][0]  # there should be only one entry with the pid
 
             neuroncores_in_use = neuron_runtime_data["neuroncore_counters"][
                 "neuroncores_in_use"

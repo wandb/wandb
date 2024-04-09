@@ -1,4 +1,5 @@
 """Define plots for classification models built with scikit-learn."""
+
 from warnings import simplefilter
 
 import numpy as np
