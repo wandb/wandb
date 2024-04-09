@@ -327,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1866,15 +1865,18 @@ class Run:
         # => Saves files in an "are/myfiles/" folder in the run.
 
         wandb.save("/User/username/Documents/run123/*.txt")
-        # => Saves files in a "run123/" folder in the run.
+        # => Saves files in a "run123/" folder in the run. See note below.
 
         wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         wandb.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
-        # of "files/".
+        #    of "files/".
         ```
+
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
 
         Arguments:
             glob_str: A relative or absolute path or Unix glob.
@@ -3304,8 +3306,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3397,8 +3399,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type

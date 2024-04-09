@@ -12,6 +12,7 @@ assert:
   - :wandb:runs[0][config][bad]: {"22": 4}
   - :wandb:runs[0][exitcode]: 0
 """
+
 import numpy as np
 import wandb
 

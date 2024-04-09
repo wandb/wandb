@@ -296,7 +296,7 @@ def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
 
 
 def get_previous_args(
-    run_spec: Dict[str, Any]
+    run_spec: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Parse through previous scheduler run_spec.
 

@@ -1,4 +1,5 @@
 """Implementation of the SageMakerRunner class."""
+
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
@@ -324,16 +325,16 @@ def build_sagemaker_args(
     sagemaker_args["TrainingJobName"] = training_job_name
     entry_cmd = entry_point.command if entry_point else []
 
-    sagemaker_args[
-        "AlgorithmSpecification"
-    ] = merge_image_uri_with_algorithm_specification(
-        given_sagemaker_args.get(
-            "AlgorithmSpecification",
-            given_sagemaker_args.get("algorithm_specification"),
-        ),
-        image_uri,
-        entry_cmd,
-        args,
+    sagemaker_args["AlgorithmSpecification"] = (
+        merge_image_uri_with_algorithm_specification(
+            given_sagemaker_args.get(
+                "AlgorithmSpecification",
+                given_sagemaker_args.get("algorithm_specification"),
+            ),
+            image_uri,
+            entry_cmd,
+            args,
+        )
     )
 
     sagemaker_args["RoleArn"] = role_arn

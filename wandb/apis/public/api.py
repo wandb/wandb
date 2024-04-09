@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+
 import json
 import logging
 import os

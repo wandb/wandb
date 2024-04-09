@@ -95,6 +95,7 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
         project.sweep_id = "sweeeeep"
         project.override_config = {}
         project.override_entrypoint = entrypoint
+        project.override_files = {}
         project.get_single_entry_point.return_value = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
         project.docker_image = "testimage"
@@ -130,5 +131,6 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
             {"name": "WANDB_DOCKER", "value": "testimage"},
             {"name": "WANDB_SWEEP_ID", "value": "sweeeeep"},
             {"name": "WANDB_CONFIG", "value": "{}"},
+            {"name": "WANDB_LAUNCH_FILE_OVERRIDES", "value": "{}"},
             {"name": "WANDB_ARTIFACTS", "value": '{"_wandb_job": "testjob"}'},
         ]

@@ -60,9 +60,9 @@ func NewGraphQLClient(
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
 	})
-	url := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
+	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
-	return graphql.NewClient(url, httpClient)
+	return graphql.NewClient(endpoint, httpClient)
 }
 
 func NewFileStream(

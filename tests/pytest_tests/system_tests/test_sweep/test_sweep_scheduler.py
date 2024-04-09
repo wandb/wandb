@@ -1,4 +1,5 @@
 """Sweep tests."""
+
 import asyncio
 from typing import Dict
 from unittest.mock import Mock, patch

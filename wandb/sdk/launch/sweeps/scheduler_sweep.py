@@ -1,4 +1,5 @@
 """Scheduler for classic wandb Sweeps."""
+
 import logging
 from pprint import pformat as pf
 from typing import Any, Dict, List, Optional

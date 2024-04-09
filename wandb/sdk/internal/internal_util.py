@@ -4,7 +4,6 @@ Collection of classes to support the internal process.
 
 """
 
-
 import logging
 import queue
 import sys
