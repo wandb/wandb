@@ -206,18 +206,15 @@ def _kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 @pytest.fixture
-def mssql_backend():
-    ...
+def mssql_backend(): ...
 
 
 @pytest.fixture
-def mysql_backend():
-    ...
+def mysql_backend(): ...
 
 
 @pytest.fixture
-def postgres_backend():
-    ...
+def postgres_backend(): ...
 
 
 @pytest.fixture

@@ -1,4 +1,5 @@
 """Implementation of launch agent."""
+
 import asyncio
 import logging
 import os
