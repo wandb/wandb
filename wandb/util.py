@@ -1901,8 +1901,9 @@ def get_core_path() -> str:
         str: The path to the wandb-core package.
 
     Raises:
-        Error: If the system is not supported by wandb-core, or if the installed wandb-core version is not
-                compatible with the wandb version, or if wandb-core is not installed, but required.
+        Error: If the wandb-core package is not installed.
+        ImportError: If the installed wandb-core version is incompatible with the wandb version.
+        WandbCoreNotAvailableError: If wandb-core is not available for the current system.
     """
     # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
     #       to assist in running the core service from a live development directory.
