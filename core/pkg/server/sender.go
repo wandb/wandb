@@ -573,6 +573,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		return nil
 	}
 	resume := runresume.ResumeMode(s.settings.GetResume().GetValue())
+
 	// There was no resume status set, so we don't need to do anything
 	if resume == runresume.None {
 		return nil
@@ -585,7 +586,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
 		err = fmt.Errorf("failed to get run resume status: %s", err)
-		s.logger.Error("sender:", "error", err)
+		s.logger.Error("sender: checkAndUpdateResumeState", "error", err)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: err.Error(),

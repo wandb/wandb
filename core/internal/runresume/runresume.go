@@ -78,34 +78,47 @@ func (r *State) Update(
 	case bucket == nil && r.resume != Must:
 		return nil, nil
 	case bucket == nil && r.resume == Must:
-		err := fmt.Errorf(("You provided an invalid value for the `resume` argument. " +
-			"The value 'must' is not a valid option for resuming a run (%s/%s) that does not exist. " +
-			"Please check your inputs and try again with a valid value for the `resume` argument.\n" +
-			"If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`"),
+		message := fmt.Sprintf(
+			"You provided an invalid value for the `resume` argument."+
+				" The value 'must' is not a valid option for resuming a run"+
+				" (%s/%s) that does not exist. Please check your inputs and"+
+				" try again with a valid value for the `resume` argument.\n"+
+				"If you are trying to start a new run, please omit the"+
+				" `resume` argument or use `resume='allow'`",
 			run.Project, run.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
-				Message: err.Error(),
+				Message: message,
 				Code:    service.ErrorInfo_USAGE,
 			}}
+		err := fmt.Errorf(
+			"sender: Update: resume is 'must' for a run that does not exist")
 		return result, err
 	case bucket != nil && r.resume == Never:
-		err := fmt.Errorf("You provided an invalid value for the `resume` argument. "+
-			"The value 'never' is not a valid option for resuming a run (%s/%s) that already exists. "+
-			"Please check your inputs and try again with a valid value for the `resume` argument.\n", run.Project, run.RunId)
+		message := fmt.Sprintf(
+			"You provided an invalid value for the `resume` argument."+
+				" The value 'never' is not a valid option for resuming a"+
+				" run (%s/%s) that already exists. Please check your inputs"+
+				" and try again with a valid value for the `resume` argument.\n",
+			run.Project, run.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
-				Message: err.Error(),
+				Message: message,
 				Code:    service.ErrorInfo_USAGE,
 			}}
+		err := fmt.Errorf(
+			"sender: Update: resume is 'never' for a run that already exists")
 		return result, err
 	default:
 		if err := r.update(bucket, run, config); err != nil && r.resume == Must {
-			err := fmt.Errorf("The run (%s/%s) failed to resume, and the `resume` argument was set to 'must'. "+
-				"Please check your inputs and try again with a valid value for the `resume` argument.\n", run.Project, run.RunId)
+			message := fmt.Sprintf(
+				"The run (%s/%s) failed to resume, and the `resume` argument"+
+					" was set to 'must'. Please check your inputs and try again"+
+					" with a valid value for the `resume` argument.\n",
+				run.Project, run.RunId)
 			result := &service.RunUpdateResult{
 				Error: &service.ErrorInfo{
-					Message: err.Error(),
+					Message: message,
 					Code:    service.ErrorInfo_UNKNOWN,
 				},
 			}
@@ -144,7 +157,7 @@ func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig
 	}
 
 	if isErr {
-		err := fmt.Errorf("sender: checkAndUpdateResumeState: failed to update resume state")
+		err := fmt.Errorf("sender: update: failed to update resume state")
 		return err
 	}
 
@@ -155,13 +168,15 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetHistoryTail()
 	if resumed == nil {
-		err := fmt.Errorf("sender: checkAndUpdateResumeState: no history tail found in resume response")
+		err := fmt.Errorf(
+			"sender: updateHistory: no history tail found in resume response")
 		return err
 	}
 
 	var history []string
 	if err := json.Unmarshal([]byte(*resumed), &history); err != nil {
-		err = fmt.Errorf("failed to unmarshal history tail: %s", err)
+		err = fmt.Errorf(
+			"sender: updateHistory:failed to unmarshal history tail: %s", err)
 		return err
 	}
 
@@ -171,7 +186,9 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 
 	var historyTail map[string]any
 	if err := json.Unmarshal([]byte(history[0]), &historyTail); err != nil {
-		err = fmt.Errorf("failed to unmarshal history tail map: %s", err)
+		err = fmt.Errorf(
+			"sender: updateHistory: failed to unmarshal history tail map: %s",
+			err)
 		return err
 	}
 
@@ -194,7 +211,8 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
 	if resumed == nil {
-		err := fmt.Errorf("sender: checkAndUpdateResumeState: no summary metrics found in resume response")
+		err := fmt.Errorf(
+			"sender: updateSummary: no summary metrics found in resume response")
 		r.logger.Error(err.Error())
 		return err
 	}
@@ -204,7 +222,9 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 	// TODO: potential issue with unsupported types like NaN/Inf
 	var summary map[string]interface{}
 	if err := json.Unmarshal([]byte(*resumed), &summary); err != nil {
-		err = fmt.Errorf("failed to unmarshal summary metrics: %s", err)
+		err = fmt.Errorf(
+			"sender: updateSummary: failed to unmarshal summary metrics: %s",
+			err)
 		return err
 	}
 
@@ -228,7 +248,7 @@ func (r *State) updateConfig(
 
 	resumed := bucket.GetConfig()
 	if resumed == nil {
-		err := fmt.Errorf("sender: checkAndUpdateResumeState: no config found in resume response")
+		err := fmt.Errorf("sender: updateConfig: no config found in resume response")
 		return err
 	}
 
@@ -239,8 +259,7 @@ func (r *State) updateConfig(
 
 	if err := json.Unmarshal([]byte(*resumed), &cfg); err != nil {
 		err = fmt.Errorf(
-			"sender: checkAndUpdateResumeState: failed to"+
-				" unmarshal config: %s", err)
+			"sender: updateConfig: failed to unmarshal config: %s", err)
 		return err
 	}
 
@@ -251,7 +270,7 @@ func (r *State) updateConfig(
 		if !ok {
 			r.logger.Error(
 				fmt.Sprintf(
-					"sender: updateResumeState: config value for '%v'"+
+					"sender: updateConfig: config value for '%v'"+
 						" is not a map[string]interface{}",
 					key,
 				),
@@ -265,7 +284,7 @@ func (r *State) updateConfig(
 	if err != nil {
 		r.logger.Error(
 			fmt.Sprintf(
-				"sender: updateResumeState: failed to merge"+
+				"sender: updateConfig: failed to merge"+
 					" resumed config: %s",
 				err,
 			),

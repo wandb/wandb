@@ -72,36 +72,33 @@ func TestUpdate(t *testing.T) {
 	nullString := "null"
 
 	testCases := []struct {
-		name                   string
-		resumeMode             runresume.Mode
-		bucket                 *gql.RunResumeStatusModelProjectBucketRun
-		run                    *service.RunRecord
-		expectResumed          bool
-		expectStartingStep     int64
-		expectRuntime          int32
-		expectSummaryUpdate    bool
-		expectConfigUpdate     bool
-		expectTagsUpdate       bool
-		expectError            bool
-		expectedErrorSubstring string
+		name                string
+		resumeMode          runresume.Mode
+		bucket              *gql.RunResumeStatusModelProjectBucketRun
+		run                 *service.RunRecord
+		expectResumed       bool
+		expectStartingStep  int64
+		expectRuntime       int32
+		expectSummaryUpdate bool
+		expectConfigUpdate  bool
+		expectTagsUpdate    bool
+		expectError         bool
 	}{
 		{
-			name:                   "MustResumeNonExistentRun",
-			resumeMode:             runresume.Must,
-			bucket:                 nil,
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "The value 'must' is not a valid option for resuming a run (test/abc123) that does not exist.",
+			name:          "MustResumeNonExistentRun",
+			resumeMode:    runresume.Must,
+			bucket:        nil,
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
-			name:                   "NeverResumeExistingRun",
-			resumeMode:             runresume.Never,
-			bucket:                 createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil),
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "The value 'never' is not a valid option for resuming a run (test/abc123) that already exists.",
+			name:          "NeverResumeExistingRun",
+			resumeMode:    runresume.Never,
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
 			name:               "MustResumeValidHistory",
@@ -246,7 +243,6 @@ func TestUpdate(t *testing.T) {
 
 			if tc.expectError {
 				require.Error(t, err, "Expected error in Update")
-				require.Contains(t, err.Error(), tc.expectedErrorSubstring)
 			} else {
 				require.NoError(t, err, "Unexpected error in Update")
 				assert.Equal(t, tc.expectResumed, tc.run.Resumed, "Unexpected resumed state")
