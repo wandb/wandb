@@ -1866,15 +1866,18 @@ class Run:
         # => Saves files in an "are/myfiles/" folder in the run.
 
         wandb.save("/User/username/Documents/run123/*.txt")
-        # => Saves files in a "run123/" folder in the run.
+        # => Saves files in a "run123/" folder in the run. See note below.
 
         wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         wandb.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
-        # of "files/".
+        #    of "files/".
         ```
+
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
 
         Arguments:
             glob_str: A relative or absolute path or Unix glob.
