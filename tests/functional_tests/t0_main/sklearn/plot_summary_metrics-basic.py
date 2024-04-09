@@ -18,6 +18,7 @@ assert:
     - :wandb:runs[0][summary][summary_metrics][ncols]: 3
     - :wandb:runs[0][summary][summary_metrics][nrows]: 4
 """
+
 import wandb
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier

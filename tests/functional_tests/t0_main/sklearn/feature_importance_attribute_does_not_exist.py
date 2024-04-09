@@ -18,6 +18,7 @@ assert:
       - :wandb:runs[0][output][stderr]
       - Cannot plot feature importances
 """
+
 import wandb
 from sklearn import datasets
 from sklearn.model_selection import train_test_split

@@ -47,7 +47,6 @@ Example:
             tuner.stop_runs(runs)
 """
 
-
 import json
 import os
 import random

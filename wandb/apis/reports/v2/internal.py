@@ -1,4 +1,5 @@
 """JSONSchema for internal types.  Hopefully this is auto-generated one day!"""
+
 import json
 import random
 from copy import deepcopy
@@ -102,16 +103,13 @@ class TextLikeMixin:
         return obj
 
 
-class Sentinel(BaseModel):
-    ...
+class Sentinel(BaseModel): ...
 
 
-class ReportEntity(Sentinel):
-    ...
+class ReportEntity(Sentinel): ...
 
 
-class ReportProject(Sentinel):
-    ...
+class ReportProject(Sentinel): ...
 
 
 class ReportAPIBaseModel(BaseModel):
@@ -271,8 +269,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     # )
 
 
-class Block(ReportAPIBaseModel):
-    ...
+class Block(ReportAPIBaseModel): ...
 
 
 class PanelGrid(Block):
