@@ -1,4 +1,5 @@
 """Artifact saver."""
+
 import concurrent.futures
 import json
 import os
@@ -172,14 +173,16 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_sync(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
                 step_prepare,
                 progress_callback=progress_callback,
             ),
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,

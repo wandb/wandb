@@ -1,4 +1,5 @@
 """Abstract plugin class defining the interface needed to build container images for W&B Launch."""
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Optional
 

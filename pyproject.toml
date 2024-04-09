@@ -171,8 +171,7 @@ wandb/vendor/
 '''
 
 [tool.ruff]
-exclude = ["wandb/__init__.py"]
-extend-exclude = ["wandb/vendor/**", "wandb/proto/**"]
+extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
 target-version = "py37"
 
 [tool.ruff.lint]

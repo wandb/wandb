@@ -1,4 +1,5 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
+
 import base64
 import logging
 from typing import Dict, Optional, Tuple
