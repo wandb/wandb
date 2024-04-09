@@ -1,4 +1,5 @@
 """job builder."""
+
 import json
 import logging
 import os
@@ -105,9 +106,9 @@ class JobBuilder:
         self._disable = settings.disable_job_creation
         self._partial_source = None
         self._aliases = []
-        self._source_type: Optional[
-            Literal["repo", "artifact", "image"]
-        ] = settings.job_source  # type: ignore[assignment]
+        self._source_type: Optional[Literal["repo", "artifact", "image"]] = (
+            settings.job_source
+        )  # type: ignore[assignment]
         self._is_notebook_run = self._get_is_notebook_run()
         self._verbose = verbose
 

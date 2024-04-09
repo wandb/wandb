@@ -49,9 +49,9 @@ def test_file_counts_by_category(
 
 def test_file_counts_by_category_adds_counts():
     s = stats.Stats()
-    s.init_file("foo", 10),
-    s.init_file("bar", 10),
-    s.init_file("wandb/bar", 10),
+    s.init_file("foo", 10)
+    s.init_file("bar", 10)
+    s.init_file("wandb/bar", 10)
     assert s.file_counts_by_category() == stats.FileCountsByCategory(
         artifact=0, wandb=1, media=0, other=2
     )

@@ -228,7 +228,7 @@ func uploadToServerWithHandler(
 
 func impatientClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
-	client.RetryWaitMin = 1 * time.Millisecond
 	client.RetryMax = 1
+	client.RetryWaitMin = 1 * time.Millisecond
 	return client
 }

@@ -2,6 +2,7 @@
 
 Arguments can come from a launch spec or call to wandb launch.
 """
+
 import enum
 import logging
 import os
@@ -129,9 +130,9 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
-        self._entry_point: Optional[
-            EntryPoint
-        ] = None  # todo: keep multiple entrypoint support?
+        self._entry_point: Optional[EntryPoint] = (
+            None  # todo: keep multiple entrypoint support?
+        )
 
         override_entrypoint = overrides.get("entry_point")
         if override_entrypoint:

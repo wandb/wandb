@@ -29,7 +29,7 @@ def _assign_end_offset(record: "pb.Record", end_offset: int) -> None:
 
 
 def proto_encode_to_dict(
-    pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"]
+    pb_obj: Union["tpb.TelemetryRecord", "pb.MetricRecord"],
 ) -> Dict[int, Any]:
     data: Dict[int, Any] = dict()
     fields = pb_obj.ListFields()
