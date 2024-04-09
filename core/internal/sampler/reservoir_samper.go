@@ -39,7 +39,7 @@ func NewReservoirSampler[T comparable](k int, delta float64) *ReservoirSampler[T
 func (rs *ReservoirSampler[T]) Add(value T) {
 	seen := rs.seen + 1
 
-	// hurestic to calculate q for the probability of adding an item to the reservoir
+	// heuristic to calculate q for the probability of adding an item to the reservoir
 	gamma := -math.Log(rs.delta) / float64(seen)
 	ratio := float64(rs.k) / float64(seen)
 	q := math.Min(1, ratio+gamma+math.Sqrt(math.Pow(gamma, 2)+2*gamma*ratio))
