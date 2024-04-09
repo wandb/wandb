@@ -177,6 +177,7 @@ class Settings(google.protobuf.message.Message):
     FILES_DIR_FIELD_NUMBER: builtins.int
     IGNORE_GLOBS_FIELD_NUMBER: builtins.int
     _DISABLE_UPDATE_CHECK_FIELD_NUMBER: builtins.int
+    _REQUIRE_CORE_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _ASYNC_UPLOAD_CONCURRENCY_LIMIT_FIELD_NUMBER: builtins.int
@@ -211,7 +212,6 @@ class Settings(google.protobuf.message.Message):
     _PLATFORM_FIELD_NUMBER: builtins.int
     _PYTHON_FIELD_NUMBER: builtins.int
     _RUNQUEUE_ITEM_ID_FIELD_NUMBER: builtins.int
-    _REQUIRE_CORE_FIELD_NUMBER: builtins.int
     _SAVE_REQUIREMENTS_FIELD_NUMBER: builtins.int
     _SERVICE_TRANSPORT_FIELD_NUMBER: builtins.int
     _SERVICE_WAIT_FIELD_NUMBER: builtins.int
@@ -368,6 +368,11 @@ class Settings(google.protobuf.message.Message):
     def _disable_update_check(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Disable check for latest version of wandb, from pypi."""
     @property
+    def _require_core(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Indicate whether wandb-core is required, to use wandb-core the package
+        must be installed.
+        """
+    @property
     def _args(self) -> global___ListStringValue: ...
     @property
     def _aws_lambda(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
@@ -435,8 +440,6 @@ class Settings(google.protobuf.message.Message):
     def _python(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def _runqueue_item_id(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def _require_core(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def _save_requirements(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -689,6 +692,7 @@ class Settings(google.protobuf.message.Message):
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ignore_globs: global___ListStringValue | None = ...,
         _disable_update_check: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _require_core: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _async_upload_concurrency_limit: google.protobuf.wrappers_pb2.Int32Value | None = ...,
@@ -723,7 +727,6 @@ class Settings(google.protobuf.message.Message):
         _platform: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _python: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _runqueue_item_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _require_core: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _save_requirements: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _service_transport: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _service_wait: google.protobuf.wrappers_pb2.DoubleValue | None = ...,

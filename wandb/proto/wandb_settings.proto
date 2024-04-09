@@ -77,6 +77,9 @@ message Settings {
 
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
+  // Indicate whether wandb-core is required, to use wandb-core the package
+  // must be installed.
+  google.protobuf.BoolValue _require_core = 36;
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
@@ -112,7 +115,6 @@ message Settings {
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue _runqueue_item_id = 35;
-  google.protobuf.BoolValue _require_core = 36;
   google.protobuf.BoolValue _save_requirements = 37;
   google.protobuf.StringValue _service_transport = 38;
   google.protobuf.DoubleValue _service_wait = 39;
