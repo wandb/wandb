@@ -19,7 +19,7 @@ func newWandbConfigParameters() *launchWandbConfigParameters {
 }
 
 func (p *launchWandbConfigParameters) appendIncludePaths(
-	includePaths []*service.ConfigFilterPath,
+	includePaths []*service.JobInputPath,
 ) {
 	for _, path := range includePaths {
 		p.includePaths = append(p.includePaths, path.Path)
@@ -27,7 +27,7 @@ func (p *launchWandbConfigParameters) appendIncludePaths(
 }
 
 func (p *launchWandbConfigParameters) appendExcludePaths(
-	excludePaths []*service.ConfigFilterPath,
+	excludePaths []*service.JobInputPath,
 ) {
 	for _, path := range excludePaths {
 		p.excludePaths = append(p.excludePaths, path.Path)
@@ -58,25 +58,10 @@ func (j *JobBuilder) inferRunConfigTypes() (*data_types.TypeRepresentation, erro
 
 	config := NewConfigFrom(tree)
 	typeInfo := data_types.ResolveTypes(
-		config.FilterTree(
+		config.filterTree(
 			j.wandbConfigParameters.include(),
 			j.wandbConfigParameters.exclude(),
 		),
 	)
 	return &typeInfo, nil
-}
-
-// Handle a LaunchWandbConfigParametersRecord published to the internal process.
-//
-// If a record is received, the job builder captures the includePaths and
-// excludePaths from the record and sets a flag to save the shape of the job
-// inputs to the job metadata. The includePaths and excludePaths are used to
-// filter down the run config before it is converted to a schema and saved as
-// part of the job inputs.
-func (j *JobBuilder) HandleLaunchWandbConfigParametersRecord(
-	wandbConfigParameters *service.LaunchWandbConfigParametersRecord,
-) {
-	j.saveShapeToMetadata = true
-	j.wandbConfigParameters.appendIncludePaths(wandbConfigParameters.IncludePaths)
-	j.wandbConfigParameters.appendExcludePaths(wandbConfigParameters.ExcludePaths)
 }

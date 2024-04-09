@@ -32,7 +32,7 @@ func (p *Printer[T]) Read() []T {
 	return polledMessages
 }
 
-// A peeker is a type that can be used to inspect the response of an HTTP request.
+// Peeker is a type that can be used to inspect the response of an HTTP request.
 // It is used to communicate back to the user about the http responses.
 //
 // Note: this is a temporary implementation, until we redo our communication of

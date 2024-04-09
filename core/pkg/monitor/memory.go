@@ -46,7 +46,7 @@ func (m *Memory) SampleMetrics() {
 	}
 
 	// process-related metrics
-	proc := process.Process{Pid: int32(m.settings.XStatsPid.GetValue())}
+	proc := process.Process{Pid: m.settings.XStatsPid.GetValue()}
 	procMem, err := proc.MemoryInfo()
 	if err == nil {
 		// process memory usage in MB
