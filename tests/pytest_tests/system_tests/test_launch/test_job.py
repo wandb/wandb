@@ -74,7 +74,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         description="This is a description",
         entrypoint="python test.py",
         name="test-job-9999",
-        runtime="3.8.9",  # micro will get stripped
+        runtime="3.8",  # micro will get stripped
     )
 
     assert isinstance(artifact, Artifact)
