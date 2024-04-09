@@ -2297,9 +2297,9 @@ class Artifact:
         return None
 
 
-def is_require_core() -> bool:
+def is_require_core() -> str:
     if env.is_require_core():
-        return get_core_path() != ""
+        return get_core_path()
     return False
 
 
