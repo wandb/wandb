@@ -1,10 +1,9 @@
-package launch_test
+package launch
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	. "github.com/wandb/wandb/core/pkg/launch"
 )
 
 func TestFilterDoesntMutateConfig(t *testing.T) {
@@ -22,7 +21,7 @@ func TestFilterDoesntMutateConfig(t *testing.T) {
 		{"nested", "text"},
 	}
 
-	config.FilterTree(include_paths, exclude_paths)
+	config.filterTree(include_paths, exclude_paths)
 
 	assert.Equal(t,
 		NewConfigFrom(ConfigDict{
@@ -49,7 +48,7 @@ func TestFilterTree_Include(t *testing.T) {
 		{"nested", "list"},
 	}
 
-	include_tree := config.FilterTree(paths, nil)
+	include_tree := config.filterTree(paths, nil)
 
 	assert.Equal(t,
 		ConfigDict{
@@ -75,7 +74,7 @@ func TestFilterTree_Exclude(t *testing.T) {
 		{"nested", "list"},
 	}
 
-	exclude_tree := config.FilterTree(nil, paths)
+	exclude_tree := config.filterTree(nil, paths)
 
 	assert.Equal(t,
 		ConfigDict{
@@ -102,7 +101,7 @@ func TestFilterTree_IncludeAndExclude(t *testing.T) {
 		{"nested", "text"},
 	}
 
-	include_exclude_tree := config.FilterTree(include_paths, exclude_paths)
+	include_exclude_tree := config.filterTree(include_paths, exclude_paths)
 
 	assert.Equal(t,
 		ConfigDict{

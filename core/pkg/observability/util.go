@@ -34,7 +34,7 @@ func GetLoggerPath() (*os.File, error) {
 	return file.(*os.File), err
 }
 
-// GetLoggerPath function with FileSystem parameter
+// GetLoggerPathFS function with FileSystem parameter
 func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	// TODO: replace with a setting during client rewrite
 	dir := os.Getenv("WANDB_CACHE_DIR")

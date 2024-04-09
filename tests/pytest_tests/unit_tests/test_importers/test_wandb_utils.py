@@ -192,8 +192,7 @@ if sys.version_info >= (3, 8):
             assert any(p in problem for problem in problems_set)
 
     def test_make_metadata_file_even_if_not_importing_files():
-        class TestingRun(ImporterRun):
-            ...
+        class TestingRun(ImporterRun): ...
 
         run = TestingRun()
         rm = RecordMaker(run)

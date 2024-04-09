@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"net/url"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -59,9 +60,9 @@ func NewGraphQLClient(
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
 	})
-	url := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
+	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
-	return graphql.NewClient(url, httpClient)
+	return graphql.NewClient(endpoint, httpClient)
 }
 
 func NewFileStream(
@@ -69,7 +70,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	peeker api.Peeker,
-) *filestream.FileStream {
+) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
 	if settings.Proto.GetXShared().GetValue() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
@@ -93,7 +94,6 @@ func NewFileStream(
 }
 
 func NewFileTransferManager(
-	fileStream *filestream.FileStream,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
@@ -117,20 +117,22 @@ func NewFileTransferManager(
 		filetransfer.WithSettings(settings.Proto),
 		filetransfer.WithFileTransfer(defaultFileTransfer),
 		filetransfer.WithFileTransferStats(fileTransferStats),
-		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
 }
 
 func NewRunfilesUploader(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
+	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
 		Logger:       logger,
 		Settings:     settings,
+		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
+		BatchWindow:  50 * time.Millisecond,
 	})
 }

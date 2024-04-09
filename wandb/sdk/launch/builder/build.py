@@ -311,6 +311,11 @@ def get_env_vars_dict(
     _inject_wandb_config_env_vars(
         launch_project.override_config, env_vars, max_env_length
     )
+
+    _inject_file_overrides_env_vars(
+        launch_project.override_files, env_vars, max_env_length
+    )
+
     artifacts = {}
     # if we're spinning up a launch process from a job
     # we should tell the run to use that artifact
@@ -677,3 +682,21 @@ def _inject_wandb_config_env_vars(
     ]
     config_chunks_dict = {f"WANDB_CONFIG_{i}": chunk for i, chunk in enumerate(chunks)}
     env_dict.update(config_chunks_dict)
+
+
+def _inject_file_overrides_env_vars(
+    overrides: Dict[str, Any], env_dict: Dict[str, Any], maximum_env_length: int
+) -> None:
+    str_overrides = json.dumps(overrides)
+    if len(str_overrides) <= maximum_env_length:
+        env_dict["WANDB_LAUNCH_FILE_OVERRIDES"] = str_overrides
+        return
+
+    chunks = [
+        str_overrides[i : i + maximum_env_length]
+        for i in range(0, len(str_overrides), maximum_env_length)
+    ]
+    overrides_chunks_dict = {
+        f"WANDB_LAUNCH_FILE_OVERRIDES_{i}": chunk for i, chunk in enumerate(chunks)
+    }
+    env_dict.update(overrides_chunks_dict)

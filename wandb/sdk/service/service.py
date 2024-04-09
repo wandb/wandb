@@ -15,8 +15,8 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import core_debug, core_error_reporting
-from wandb.errors import Error
+from wandb.env import core_debug, error_reporting_enabled, is_require_core
+from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module, is_core_dev
 
@@ -162,13 +162,13 @@ class _Service:
                 exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
-            # NOTE: "wandb-core" is the name of the package that will be distributed
-            #       as the stable version of the wandb core library.
-            #
-            #       Environment variable _WANDB_CORE_PATH is a temporary development feature
-            #       to assist in running the core service from a live development directory.
-            core_path = get_core_path()
-            if core_path:
+
+            if is_require_core():
+                try:
+                    core_path = get_core_path()
+                except WandbCoreNotAvailableError as e:
+                    _sentry.reraise(e)
+
                 service_args.extend([core_path])
                 # if core in dev mode we disable error reporting, unless it's explicitly set
                 report_errors = "False" if is_core_dev() else "True"

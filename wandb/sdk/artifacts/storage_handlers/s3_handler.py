@@ -1,4 +1,5 @@
 """S3 storage handler."""
+
 import os
 import time
 from pathlib import PurePosixPath
@@ -182,9 +183,10 @@ class S3Handler(StorageHandler):
                     multi = True
                 else:
                     raise CommError(
-                        "Unable to connect to S3 ({}): {}".format(
-                            e.response["Error"]["Code"], e.response["Error"]["Message"]
-                        )
+                        f"Unable to connect to S3 ({e.response['Error']['Code']}): "
+                        f"{e.response['Error']['Message']}. Check that your "
+                        "authentication credentials are valid and that your region is "
+                        "set correctly."
                     )
         else:
             multi = True

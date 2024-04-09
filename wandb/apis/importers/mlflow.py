@@ -96,35 +96,26 @@ class MlflowRun:
     def used_artifacts(self) -> Optional[Iterable[Artifact]]:  # type: ignore
         ...  # pragma: no cover
 
-    def os_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def os_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def python_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def python_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def cuda_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def cuda_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def program(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def program(self) -> Optional[str]: ...  # pragma: no cover
 
-    def host(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def host(self) -> Optional[str]: ...  # pragma: no cover
 
-    def username(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def username(self) -> Optional[str]: ...  # pragma: no cover
 
-    def executable(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def executable(self) -> Optional[str]: ...  # pragma: no cover
 
-    def gpus_used(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def gpus_used(self) -> Optional[str]: ...  # pragma: no cover
 
     def cpus_used(self) -> Optional[int]:  # can we get the model?
         ...  # pragma: no cover
 
-    def memory_used(self) -> Optional[int]:
-        ...  # pragma: no cover
+    def memory_used(self) -> Optional[int]: ...  # pragma: no cover
 
     def runtime(self) -> Optional[int]:
         end_time = (
@@ -137,17 +128,13 @@ class MlflowRun:
     def start_time(self) -> Optional[int]:
         return self.run.info.start_time // 1000
 
-    def code_path(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def code_path(self) -> Optional[str]: ...  # pragma: no cover
 
-    def cli_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def cli_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def files(self) -> Optional[Iterable[Tuple[str, str]]]:
-        ...  # pragma: no cover
+    def files(self) -> Optional[Iterable[Tuple[str, str]]]: ...  # pragma: no cover
 
-    def logs(self) -> Optional[Iterable[str]]:
-        ...  # pragma: no cover
+    def logs(self) -> Optional[Iterable[str]]: ...  # pragma: no cover
 
     @staticmethod
     def _handle_incompatible_strings(s: str) -> str:
