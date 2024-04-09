@@ -81,7 +81,7 @@ def _checkpoint_artifact(
 
 
 def _log_feature_importance(
-    model: Union[CatBoostClassifier, CatBoostRegressor]
+    model: Union[CatBoostClassifier, CatBoostRegressor],
 ) -> None:
     """Log feature importance with default settings."""
     if wandb.run is None:

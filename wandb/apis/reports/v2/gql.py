@@ -1,4 +1,5 @@
 """GraphQL queries and mutations."""
+
 from wandb_gql import gql
 
 view_report = gql(
