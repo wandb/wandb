@@ -61,7 +61,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b10`.
+Below is an overview of the feature support status in the `wandb-core` version `0.17.0b11.dev1`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
