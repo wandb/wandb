@@ -10,6 +10,7 @@ import pytest
 import wandb
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -174,6 +175,16 @@ def test_check_write_parallel(artifact_file_cache):
         if f.is_file()
     ]
     assert len(files) == 1
+
+
+def test_artifact_file_cache_is_writeable(tmp_path):
+    illegal_path = tmp_path / "illegal"
+    illegal_path.mkdir(parents=True)
+    # Ensure the path is not writeable
+    illegal_path.chmod(0o000)
+    with pytest.raises(PermissionError, match="Unable to write to"):
+        _ = ArtifactFileCache(illegal_path)
+    illegal_path.chmod(0o700)
 
 
 def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
