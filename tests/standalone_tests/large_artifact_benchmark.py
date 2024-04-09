@@ -94,6 +94,10 @@ def cli(
     print(f"python version: {sys.version}")
     print(f"wandb version: {version}{f'@{git_sha}' if git_sha else ''}")
 
+    with contextlib.suppress(ImportError):
+        import wandb_core
+        print(f"using wandb_core version: {wandb_core.__version__}")
+
     ctx.obj["count"] = count
     ctx.obj["size"] = size
     ctx.obj["entity"] = entity
