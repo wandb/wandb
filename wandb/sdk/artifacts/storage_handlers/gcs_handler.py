@@ -52,8 +52,8 @@ class GCSHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
+        assert manifest_entry.ref is not None
         if not local:
-            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
