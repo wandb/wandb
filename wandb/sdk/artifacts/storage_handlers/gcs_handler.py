@@ -1,4 +1,5 @@
 """GCS storage handler."""
+
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
@@ -55,9 +56,10 @@ class GCSHandler(StorageHandler):
             assert manifest_entry.ref is not None
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+        path, hit, cache_open = self._cache.check_etag_obj_path(
+            url=manifest_entry.ref,
+            etag=B64MD5(manifest_entry.digest),
+            size=manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
             return path
