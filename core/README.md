@@ -25,7 +25,7 @@ import wandb
 wandb.require("core")
 ```
 
-Note: ensure you have `wandb>=0.16.6`.
+Note: ensure you have `wandb>0.16.6`.
 
 ### Platform Compatibility
 
