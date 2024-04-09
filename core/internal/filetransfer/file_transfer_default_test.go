@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
@@ -227,6 +228,7 @@ func uploadToServerWithHandler(
 
 func impatientClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
+	client.RetryWaitMin = 1 * time.Millisecond
 	client.RetryMax = 1
 	return client
 }
