@@ -44,7 +44,6 @@ class BaseManager(ABC):
     async def reconcile(self) -> None:
         assert self.queue_driver is not None
         raw_items = list(self.jobset.jobs.values())
-        print(raw_items)
         # Dump all raw items
         self.logger.info(
             f"====== Raw items ======\n{raw_items}\n======================"
