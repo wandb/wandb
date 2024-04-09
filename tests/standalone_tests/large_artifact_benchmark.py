@@ -73,7 +73,7 @@ def duration(end: float, start: float = 0) -> str:
 @click.option("--cache/--no-cache", default=False, help="use the artifact cache")
 @click.option("--stage/--no-stage", default=False, help="copy files to staging area")
 @click.option("--project", default="artifact-benchmark")
-@click.option("--entity", default="wandb")
+@click.option("--entity", default="wandb-artifacts-dev")
 def cli(
     ctx: click.Context,
     *,
@@ -96,6 +96,7 @@ def cli(
 
     with contextlib.suppress(ImportError):
         import wandb_core
+
         print(f"using wandb_core version: {wandb_core.__version__}")
 
     ctx.obj["count"] = count
