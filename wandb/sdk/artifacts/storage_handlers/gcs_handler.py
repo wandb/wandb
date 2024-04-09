@@ -10,7 +10,7 @@ from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5
+from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -57,8 +57,8 @@ class GCSHandler(StorageHandler):
             return manifest_entry.ref
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            url=manifest_entry.ref,
-            etag=B64MD5(manifest_entry.digest),
+            url=URIStr(manifest_entry.ref),
+            etag=ETag(manifest_entry.digest),
             size=manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:

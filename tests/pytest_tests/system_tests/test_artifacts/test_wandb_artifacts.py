@@ -103,10 +103,10 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     return mock
 
 
-def mock_gcs(artifact, path=False):
+def mock_gcs(artifact, path=False, hash=True):
     class Blob:
         def __init__(self, name="my_object.pb", metadata=None, generation=None):
-            self.md5_hash = "1234567890abcde"
+            self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
             self.generation = generation or "1"
             self.name = name
@@ -673,7 +673,7 @@ def test_add_gs_reference_object():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"md5": "1234567890abcde", "versionID": "1"},
         "size": 10,
     }
 
@@ -688,7 +688,7 @@ def test_add_gs_reference_object_with_version():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "2"},
+        "extra": {"md5": "1234567890abcde", "versionID": "2"},
         "size": 10,
     }
 
@@ -703,7 +703,7 @@ def test_add_gs_reference_object_with_name():
     assert manifest["contents"]["renamed.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"md5": "1234567890abcde", "versionID": "1"},
         "size": 10,
     }
 
@@ -719,11 +719,26 @@ def test_add_gs_reference_path(runner, capsys):
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "extra": {"md5": "1234567890abcde", "versionID": "1"},
             "size": 10,
         }
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
+
+
+def test_add_gs_reference_object_no_md5():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact, hash=False)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "gs://my-bucket/my_object.pb",
+        "extra": {"versionID": "1"},
+        "size": 10,
+    }
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):
