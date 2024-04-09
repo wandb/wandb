@@ -57,10 +57,7 @@ bumpversion-from-dev:
 	tox -e bumpversion -- --from-dev
 
 code-check:
-	tox -e isort-check,ruff-check,pyupgrade-check,black-check,mypy,flake8-base,flake8-docstrings -p all
-
-format:
-	tox -e black
+	tox -e isort-check,pyupgrade-check,mypy,flake8-base,flake8-docstrings -p all
 
 proto:
 	nox -s proto-python
