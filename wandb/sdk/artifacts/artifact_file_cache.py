@@ -1,4 +1,5 @@
 """Artifact cache."""
+
 import contextlib
 import errno
 import hashlib

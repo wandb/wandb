@@ -347,7 +347,10 @@ type Settings struct {
 	// Unix glob patterns relative to `files_dir` to not upload.
 	IgnoreGlobs *ListStringValue `protobuf:"bytes,78,opt,name=ignore_globs,json=ignoreGlobs,proto3" json:"ignore_globs,omitempty"`
 	// Disable check for latest version of wandb, from pypi.
-	XDisableUpdateCheck              *wrapperspb.BoolValue    `protobuf:"bytes,165,opt,name=_disable_update_check,json=DisableUpdateCheck,proto3" json:"_disable_update_check,omitempty"`
+	XDisableUpdateCheck *wrapperspb.BoolValue `protobuf:"bytes,165,opt,name=_disable_update_check,json=DisableUpdateCheck,proto3" json:"_disable_update_check,omitempty"`
+	// Indicate whether wandb-core is required, to use wandb-core the package
+	// must be installed.
+	XRequireCore                     *wrapperspb.BoolValue    `protobuf:"bytes,36,opt,name=_require_core,json=RequireCore,proto3" json:"_require_core,omitempty"`
 	XArgs                            *ListStringValue         `protobuf:"bytes,1,opt,name=_args,json=Args,proto3" json:"_args,omitempty"`
 	XAwsLambda                       *wrapperspb.BoolValue    `protobuf:"bytes,2,opt,name=_aws_lambda,json=AwsLambda,proto3" json:"_aws_lambda,omitempty"`
 	XAsyncUploadConcurrencyLimit     *wrapperspb.Int32Value   `protobuf:"bytes,3,opt,name=_async_upload_concurrency_limit,json=AsyncUploadConcurrencyLimit,proto3" json:"_async_upload_concurrency_limit,omitempty"`
@@ -382,7 +385,6 @@ type Settings struct {
 	XPlatform                        *wrapperspb.StringValue  `protobuf:"bytes,33,opt,name=_platform,json=Platform,proto3" json:"_platform,omitempty"`
 	XPython                          *wrapperspb.StringValue  `protobuf:"bytes,34,opt,name=_python,json=Python,proto3" json:"_python,omitempty"`
 	XRunqueueItemId                  *wrapperspb.StringValue  `protobuf:"bytes,35,opt,name=_runqueue_item_id,json=RunqueueItemId,proto3" json:"_runqueue_item_id,omitempty"`
-	XRequireCore                     *wrapperspb.BoolValue    `protobuf:"bytes,36,opt,name=_require_core,json=RequireCore,proto3" json:"_require_core,omitempty"`
 	XSaveRequirements                *wrapperspb.BoolValue    `protobuf:"bytes,37,opt,name=_save_requirements,json=SaveRequirements,proto3" json:"_save_requirements,omitempty"`
 	XServiceTransport                *wrapperspb.StringValue  `protobuf:"bytes,38,opt,name=_service_transport,json=ServiceTransport,proto3" json:"_service_transport,omitempty"`
 	XServiceWait                     *wrapperspb.DoubleValue  `protobuf:"bytes,39,opt,name=_service_wait,json=ServiceWait,proto3" json:"_service_wait,omitempty"`
@@ -609,6 +611,13 @@ func (x *Settings) GetIgnoreGlobs() *ListStringValue {
 func (x *Settings) GetXDisableUpdateCheck() *wrapperspb.BoolValue {
 	if x != nil {
 		return x.XDisableUpdateCheck
+	}
+	return nil
+}
+
+func (x *Settings) GetXRequireCore() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.XRequireCore
 	}
 	return nil
 }
@@ -847,13 +856,6 @@ func (x *Settings) GetXPython() *wrapperspb.StringValue {
 func (x *Settings) GetXRunqueueItemId() *wrapperspb.StringValue {
 	if x != nil {
 		return x.XRunqueueItemId
-	}
-	return nil
-}
-
-func (x *Settings) GetXRequireCore() *wrapperspb.BoolValue {
-	if x != nil {
-		return x.XRequireCore
 	}
 	return nil
 }
@@ -1783,7 +1785,11 @@ var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
 	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70,
 	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75,
 	0x65, 0x52, 0x12, 0x44, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x43, 0x68, 0x65, 0x63, 0x6b, 0x12, 0x34, 0x0a, 0x05, 0x5f, 0x61, 0x72, 0x67, 0x73, 0x18, 0x01,
+	0x43, 0x68, 0x65, 0x63, 0x6b, 0x12, 0x3e, 0x0a, 0x0d, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x69, 0x72,
+	0x65, 0x5f, 0x63, 0x6f, 0x72, 0x65, 0x18, 0x24, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67,
+	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x42,
+	0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0b, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72,
+	0x65, 0x43, 0x6f, 0x72, 0x65, 0x12, 0x34, 0x0a, 0x05, 0x5f, 0x61, 0x72, 0x67, 0x73, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x77, 0x61, 0x6e, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x74,
 	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67,
 	0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x04, 0x41, 0x72, 0x67, 0x73, 0x12, 0x3a, 0x0a, 0x0b, 0x5f,
@@ -1925,11 +1931,7 @@ var file_wandb_proto_wandb_settings_proto_rawDesc = []byte{
 	0x69, 0x64, 0x18, 0x23, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
 	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x53, 0x74, 0x72, 0x69, 0x6e,
 	0x67, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0e, 0x52, 0x75, 0x6e, 0x71, 0x75, 0x65, 0x75, 0x65,
-	0x49, 0x74, 0x65, 0x6d, 0x49, 0x64, 0x12, 0x3e, 0x0a, 0x0d, 0x5f, 0x72, 0x65, 0x71, 0x75, 0x69,
-	0x72, 0x65, 0x5f, 0x63, 0x6f, 0x72, 0x65, 0x18, 0x24, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e,
-	0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e,
-	0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0b, 0x52, 0x65, 0x71, 0x75, 0x69,
-	0x72, 0x65, 0x43, 0x6f, 0x72, 0x65, 0x12, 0x48, 0x0a, 0x12, 0x5f, 0x73, 0x61, 0x76, 0x65, 0x5f,
+	0x49, 0x74, 0x65, 0x6d, 0x49, 0x64, 0x12, 0x48, 0x0a, 0x12, 0x5f, 0x73, 0x61, 0x76, 0x65, 0x5f,
 	0x72, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x25, 0x20, 0x01,
 	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
 	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x10,
@@ -2483,41 +2485,41 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	8,   // 12: wandb_internal.Settings.files_dir:type_name -> google.protobuf.StringValue
 	0,   // 13: wandb_internal.Settings.ignore_globs:type_name -> wandb_internal.ListStringValue
 	9,   // 14: wandb_internal.Settings._disable_update_check:type_name -> google.protobuf.BoolValue
-	0,   // 15: wandb_internal.Settings._args:type_name -> wandb_internal.ListStringValue
-	9,   // 16: wandb_internal.Settings._aws_lambda:type_name -> google.protobuf.BoolValue
-	10,  // 17: wandb_internal.Settings._async_upload_concurrency_limit:type_name -> google.protobuf.Int32Value
-	9,   // 18: wandb_internal.Settings._cli_only_mode:type_name -> google.protobuf.BoolValue
-	9,   // 19: wandb_internal.Settings._colab:type_name -> google.protobuf.BoolValue
-	8,   // 20: wandb_internal.Settings._cuda:type_name -> google.protobuf.StringValue
-	9,   // 21: wandb_internal.Settings._disable_meta:type_name -> google.protobuf.BoolValue
-	9,   // 22: wandb_internal.Settings._disable_service:type_name -> google.protobuf.BoolValue
-	9,   // 23: wandb_internal.Settings._disable_setproctitle:type_name -> google.protobuf.BoolValue
-	9,   // 24: wandb_internal.Settings._disable_stats:type_name -> google.protobuf.BoolValue
-	9,   // 25: wandb_internal.Settings._disable_viewer:type_name -> google.protobuf.BoolValue
-	9,   // 26: wandb_internal.Settings._except_exit:type_name -> google.protobuf.BoolValue
-	8,   // 27: wandb_internal.Settings._executable:type_name -> google.protobuf.StringValue
-	1,   // 28: wandb_internal.Settings._extra_http_headers:type_name -> wandb_internal.MapStringKeyStringValue
-	11,  // 29: wandb_internal.Settings._file_stream_timeout_seconds:type_name -> google.protobuf.DoubleValue
-	9,   // 30: wandb_internal.Settings._flow_control_custom:type_name -> google.protobuf.BoolValue
-	9,   // 31: wandb_internal.Settings._flow_control_disabled:type_name -> google.protobuf.BoolValue
-	11,  // 32: wandb_internal.Settings._internal_check_process:type_name -> google.protobuf.DoubleValue
-	11,  // 33: wandb_internal.Settings._internal_queue_timeout:type_name -> google.protobuf.DoubleValue
-	9,   // 34: wandb_internal.Settings._ipython:type_name -> google.protobuf.BoolValue
-	9,   // 35: wandb_internal.Settings._jupyter:type_name -> google.protobuf.BoolValue
-	8,   // 36: wandb_internal.Settings._jupyter_root:type_name -> google.protobuf.StringValue
-	9,   // 37: wandb_internal.Settings._kaggle:type_name -> google.protobuf.BoolValue
-	10,  // 38: wandb_internal.Settings._live_policy_rate_limit:type_name -> google.protobuf.Int32Value
-	10,  // 39: wandb_internal.Settings._live_policy_wait_time:type_name -> google.protobuf.Int32Value
-	10,  // 40: wandb_internal.Settings._log_level:type_name -> google.protobuf.Int32Value
-	10,  // 41: wandb_internal.Settings._network_buffer:type_name -> google.protobuf.Int32Value
-	9,   // 42: wandb_internal.Settings._noop:type_name -> google.protobuf.BoolValue
-	9,   // 43: wandb_internal.Settings._notebook:type_name -> google.protobuf.BoolValue
-	9,   // 44: wandb_internal.Settings._sync:type_name -> google.protobuf.BoolValue
-	8,   // 45: wandb_internal.Settings._os:type_name -> google.protobuf.StringValue
-	8,   // 46: wandb_internal.Settings._platform:type_name -> google.protobuf.StringValue
-	8,   // 47: wandb_internal.Settings._python:type_name -> google.protobuf.StringValue
-	8,   // 48: wandb_internal.Settings._runqueue_item_id:type_name -> google.protobuf.StringValue
-	9,   // 49: wandb_internal.Settings._require_core:type_name -> google.protobuf.BoolValue
+	9,   // 15: wandb_internal.Settings._require_core:type_name -> google.protobuf.BoolValue
+	0,   // 16: wandb_internal.Settings._args:type_name -> wandb_internal.ListStringValue
+	9,   // 17: wandb_internal.Settings._aws_lambda:type_name -> google.protobuf.BoolValue
+	10,  // 18: wandb_internal.Settings._async_upload_concurrency_limit:type_name -> google.protobuf.Int32Value
+	9,   // 19: wandb_internal.Settings._cli_only_mode:type_name -> google.protobuf.BoolValue
+	9,   // 20: wandb_internal.Settings._colab:type_name -> google.protobuf.BoolValue
+	8,   // 21: wandb_internal.Settings._cuda:type_name -> google.protobuf.StringValue
+	9,   // 22: wandb_internal.Settings._disable_meta:type_name -> google.protobuf.BoolValue
+	9,   // 23: wandb_internal.Settings._disable_service:type_name -> google.protobuf.BoolValue
+	9,   // 24: wandb_internal.Settings._disable_setproctitle:type_name -> google.protobuf.BoolValue
+	9,   // 25: wandb_internal.Settings._disable_stats:type_name -> google.protobuf.BoolValue
+	9,   // 26: wandb_internal.Settings._disable_viewer:type_name -> google.protobuf.BoolValue
+	9,   // 27: wandb_internal.Settings._except_exit:type_name -> google.protobuf.BoolValue
+	8,   // 28: wandb_internal.Settings._executable:type_name -> google.protobuf.StringValue
+	1,   // 29: wandb_internal.Settings._extra_http_headers:type_name -> wandb_internal.MapStringKeyStringValue
+	11,  // 30: wandb_internal.Settings._file_stream_timeout_seconds:type_name -> google.protobuf.DoubleValue
+	9,   // 31: wandb_internal.Settings._flow_control_custom:type_name -> google.protobuf.BoolValue
+	9,   // 32: wandb_internal.Settings._flow_control_disabled:type_name -> google.protobuf.BoolValue
+	11,  // 33: wandb_internal.Settings._internal_check_process:type_name -> google.protobuf.DoubleValue
+	11,  // 34: wandb_internal.Settings._internal_queue_timeout:type_name -> google.protobuf.DoubleValue
+	9,   // 35: wandb_internal.Settings._ipython:type_name -> google.protobuf.BoolValue
+	9,   // 36: wandb_internal.Settings._jupyter:type_name -> google.protobuf.BoolValue
+	8,   // 37: wandb_internal.Settings._jupyter_root:type_name -> google.protobuf.StringValue
+	9,   // 38: wandb_internal.Settings._kaggle:type_name -> google.protobuf.BoolValue
+	10,  // 39: wandb_internal.Settings._live_policy_rate_limit:type_name -> google.protobuf.Int32Value
+	10,  // 40: wandb_internal.Settings._live_policy_wait_time:type_name -> google.protobuf.Int32Value
+	10,  // 41: wandb_internal.Settings._log_level:type_name -> google.protobuf.Int32Value
+	10,  // 42: wandb_internal.Settings._network_buffer:type_name -> google.protobuf.Int32Value
+	9,   // 43: wandb_internal.Settings._noop:type_name -> google.protobuf.BoolValue
+	9,   // 44: wandb_internal.Settings._notebook:type_name -> google.protobuf.BoolValue
+	9,   // 45: wandb_internal.Settings._sync:type_name -> google.protobuf.BoolValue
+	8,   // 46: wandb_internal.Settings._os:type_name -> google.protobuf.StringValue
+	8,   // 47: wandb_internal.Settings._platform:type_name -> google.protobuf.StringValue
+	8,   // 48: wandb_internal.Settings._python:type_name -> google.protobuf.StringValue
+	8,   // 49: wandb_internal.Settings._runqueue_item_id:type_name -> google.protobuf.StringValue
 	9,   // 50: wandb_internal.Settings._save_requirements:type_name -> google.protobuf.BoolValue
 	8,   // 51: wandb_internal.Settings._service_transport:type_name -> google.protobuf.StringValue
 	11,  // 52: wandb_internal.Settings._service_wait:type_name -> google.protobuf.DoubleValue

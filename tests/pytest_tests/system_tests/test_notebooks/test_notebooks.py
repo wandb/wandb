@@ -156,11 +156,6 @@ def test_notebook_not_exists(mocked_ipython, wandb_init, capsys):
 
 def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
     # test for WB-5264
-
-    # make the test think we are running in a databricks notebook
-    dbutils = mocked_module("dbutils")
-    dbutils.shell.sc.appName = "Databricks Shell"
-
     # when we try to call wandb.login(), should fail with no-tty
     with mock.patch.object(
         wandb.sdk.lib.apikey,

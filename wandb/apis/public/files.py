@@ -1,4 +1,5 @@
 """Public API: files."""
+
 import io
 import os
 from typing import Optional
