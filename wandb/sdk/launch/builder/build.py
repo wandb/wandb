@@ -543,6 +543,41 @@ def _create_docker_build_ctx(
                     entrypoint.update_entrypoint_path(new_path)
             return directory
 
+    # If an override Dockerfile is provided, use it and use its directory as
+    # the build context.
+    if launch_project.override_dockerfile:
+        dockerfile_dir, dockerfile_name = os.path.split(
+            launch_project.override_dockerfile
+        )
+        dockerfile_abspath = os.path.join(launch_project.project_dir, dockerfile_name)
+        if os.path.exists(dockerfile_abspath):
+            shutil.copytree(
+                os.path.dirname(dockerfile_abspath),
+                directory,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
+            )
+            # Copy the Dockerfile to _WANDB_DOCKERFILE_NAME
+            os.rename(
+                dockerfile_abspath, os.path.join(directory, _WANDB_DOCKERFILE_NAME)
+            )
+
+            # If entrypoint is provided, update the entrypoint path to be relative
+            # to the Dockerfile directory.
+            if entrypoint is not None:
+                entrypoint_dir, entrypoint_name = os.path.split(entrypoint.name)
+                # If entrypoint dir is not prefixed by dockerfile dir, error.
+                if not entrypoint_dir.startswith(dockerfile_dir):
+                    raise LaunchError(
+                        "Entrypoint directory must be located beneath the "
+                        "Dockerfile and build context."
+                    )
+                if entrypoint_dir:
+                    new_path = entrypoint_dir[len(dockerfile_dir) :] + entrypoint_name
+                    entrypoint.update_entrypoint_path(new_path)
+            return directory
+
     dst_path = os.path.join(directory, "src")
     assert launch_project.project_dir is not None
     shutil.copytree(
