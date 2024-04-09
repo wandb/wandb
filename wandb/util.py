@@ -1847,7 +1847,7 @@ def sample_with_exponential_decay_weights(
 
     return sampled_xs, sampled_ys, sampled_keys
 
- 
+
 @dataclasses.dataclass(frozen=True)
 class InstalledDistribution:
     """An installed distribution.
@@ -1888,8 +1888,8 @@ def parse_version(version: str) -> "packaging.version.Version":
         from pkg_resources import parse_version
 
     return parse_version(version)
-  
- 
+
+
 # check if wandb_core is installed and if it is a dev version
 def is_core_dev() -> bool:
     wandb_core = get_module("wandb_core")
