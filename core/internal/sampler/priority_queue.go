@@ -1,6 +1,7 @@
 package sampler
 
 import (
+	"container/heap"
 	"fmt"
 )
 
@@ -22,37 +23,61 @@ func (item Item[T]) String() string {
 	return fmt.Sprintf("%v", item.value)
 }
 
-// PriorityQueue represents a queue of Items, ordered by their priority.
-type PriorityQueue[T comparable] []*Item[T]
-
-// Len returns the number of elements in the queue.
-func (pq PriorityQueue[T]) Len() int {
-	return len(pq)
-}
+// priorityQueueData represents the underlying data structure of the priority queue.
+// It implements the heap.Interface interface.
+type priorityQueueData[T comparable] []*Item[T]
 
 // Compare the priority of the items at indices i and j,
 // returning true if the item at i has lower priority than the item at j.
-func (pq PriorityQueue[T]) Less(i, j int) bool {
-	return pq[i].priority < pq[j].priority
+func (d priorityQueueData[T]) Less(i, j int) bool {
+	return d[i].priority < d[j].priority
 }
 
 // Swap swaps the items at indices i and j.
-func (pq PriorityQueue[T]) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
+func (d priorityQueueData[T]) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }
 
 // Push adds an item to the queue with the given value.
-func (pq *PriorityQueue[T]) Push(x any) {
+func (d *priorityQueueData[T]) Push(x any) {
 	item := x.(*Item[T])
-	*pq = append(*pq, item)
+	*d = append(*d, item)
 }
 
 // Pop removes and returns the item with the highest priority from the queue.
-func (pq *PriorityQueue[T]) Pop() interface{} {
-	old := *pq
+func (d *priorityQueueData[T]) Pop() interface{} {
+	old := *d
 	n := len(old)
 	item := old[n-1]
 	old[n-1] = nil // avoid memory leak
-	*pq = old[0 : n-1]
+	*d = old[0 : n-1]
 	return item
+}
+
+// Len returns the number of elements in the queue.
+func (d *priorityQueueData[T]) Len() int {
+	return len(*d)
+}
+
+// PriorityQueue represents a queue of Items, ordered by their priority.
+type PriorityQueue[T comparable] struct {
+	data *priorityQueueData[T]
+}
+
+// NewPriorityQueue creates a new priority queue.
+func NewPriorityQueue[T comparable]() *PriorityQueue[T] {
+	pq := make(priorityQueueData[T], 0)
+	return &PriorityQueue[T]{data: &pq}
+}
+
+func (pq PriorityQueue[T]) Push(item *Item[T]) {
+	heap.Push(pq.data, item)
+}
+
+func (pq PriorityQueue[T]) Pop() *Item[T] {
+	return heap.Pop(pq.data).(*Item[T])
+}
+
+func (pq PriorityQueue[T]) Len() int {
+	return pq.data.Len()
 }
