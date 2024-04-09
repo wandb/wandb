@@ -1,35 +1,34 @@
-package server
+package runresume
 
 import (
+	"encoding/json"
 	"fmt"
-
-	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	fs "github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type Bucket = gql.RunResumeStatusModelProjectBucketRun
 
-type ResumeMode uint8
+type Mode uint8
 
 const (
-	None ResumeMode = iota
+	None Mode = iota
 	Must
 	Allow
 	Never
 )
 
-type ResumeState struct {
-	resume           ResumeMode
-	FileStreamOffset fs.FileStreamOffsetMap
+type State struct {
+	resume           Mode
+	FileStreamOffset filestream.FileStreamOffsetMap
 	logger           *observability.CoreLogger
 }
 
-func resumeMode(mode string) ResumeMode {
+func ResumeMode(mode string) Mode {
 	switch mode {
 	case "must":
 		return Must
@@ -42,25 +41,25 @@ func resumeMode(mode string) ResumeMode {
 	}
 }
 
-func NewResumeState(logger *observability.CoreLogger, mode string) *ResumeState {
-	return &ResumeState{logger: logger, resume: resumeMode(mode)}
+func NewResumeState(logger *observability.CoreLogger, mode Mode) *State {
+	return &State{logger: logger, resume: mode}
 }
 
-func (r *ResumeState) GetFileStreamOffset() fs.FileStreamOffsetMap {
+func (r *State) GetFileStreamOffset() filestream.FileStreamOffsetMap {
 	if r == nil {
 		return nil
 	}
 	return r.FileStreamOffset
 }
 
-func (r *ResumeState) AddOffset(key fs.ChunkTypeEnum, offset int) {
+func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 	if r.FileStreamOffset == nil {
-		r.FileStreamOffset = make(fs.FileStreamOffsetMap)
+		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 	}
 	r.FileStreamOffset[key] = offset
 }
 
-func (r *ResumeState) Update(
+func (r *State) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
 	config *runconfig.RunConfig,
@@ -102,6 +101,8 @@ func (r *ResumeState) Update(
 		return result, err
 	default:
 		if err := r.update(bucket, run, config); err != nil && r.resume == Must {
+			err := fmt.Errorf("The run (%s/%s) failed to resume, and the `resume` argument was set to 'must'. "+
+				"Please check your inputs and try again with a valid value for the `resume` argument.\n", run.Project, run.RunId)
 			result := &service.RunUpdateResult{
 				Error: &service.ErrorInfo{
 					Message: err.Error(),
@@ -115,34 +116,47 @@ func (r *ResumeState) Update(
 	}
 }
 
-func (r *ResumeState) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
+func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
+	var isErr bool
 
-	r.AddOffset(fs.HistoryChunk, *bucket.GetHistoryLineCount())
+	r.AddOffset(filestream.HistoryChunk, *bucket.GetHistoryLineCount())
 	if err := r.updateHistory(run, bucket); err != nil {
-		return err
+		r.logger.Error(err.Error())
+		isErr = true
 	}
 
-	r.AddOffset(fs.EventsChunk, *bucket.GetEventsLineCount())
+	r.AddOffset(filestream.EventsChunk, *bucket.GetEventsLineCount())
+
 	if err := r.updateSummary(run, bucket); err != nil {
-		return err
+		r.logger.Error(err.Error())
+		isErr = true
 	}
 
-	r.AddOffset(fs.OutputChunk, *bucket.GetLogLineCount())
+	r.AddOffset(filestream.OutputChunk, *bucket.GetLogLineCount())
 	if err := r.updateConfig(bucket, config); err != nil {
-		return err
+		r.logger.Error(err.Error())
+		isErr = true
 	}
 
-	r.updateTags(run, bucket)
+	if err := r.updateTags(run, bucket); err != nil {
+		r.logger.Error(err.Error())
+		isErr = true
+	}
+
+	if isErr {
+		err := fmt.Errorf("sender: checkAndUpdateResumeState: failed to update resume state")
+		return err
+	}
 
 	return nil
 }
 
-func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) error {
+func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetHistoryTail()
-	// TODO: should we error on empty historyTail response?
 	if resumed == nil {
-		return nil
+		err := fmt.Errorf("sender: checkAndUpdateResumeState: no history tail found in resume response")
+		return err
 	}
 
 	var history []string
@@ -155,7 +169,7 @@ func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) erro
 		return nil
 	}
 
-	var historyTail map[string]interface{}
+	var historyTail map[string]any
 	if err := json.Unmarshal([]byte(history[0]), &historyTail); err != nil {
 		err = fmt.Errorf("failed to unmarshal history tail map: %s", err)
 		return err
@@ -164,7 +178,7 @@ func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) erro
 	if step, ok := historyTail["_step"].(float64); ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
-		if step > 0 || r.GetFileStreamOffset()[fs.HistoryChunk] > 0 {
+		if step > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
 			run.StartingStep = int64(step) + 1
 		}
 	}
@@ -172,15 +186,17 @@ func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) erro
 	if runtime, ok := historyTail["_runtime"].(float64); ok {
 		run.Runtime = int32(runtime)
 	}
+
 	return nil
 }
 
-func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) error {
+func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
-	// TODO: should we error on empty summaryMetrics response?
 	if resumed == nil {
-		return nil
+		err := fmt.Errorf("sender: checkAndUpdateResumeState: no summary metrics found in resume response")
+		r.logger.Error(err.Error())
+		return err
 	}
 
 	// If we are unable to parse the summary, we should fail if resume is set to
@@ -205,15 +221,15 @@ func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) erro
 }
 
 // Merges the original run's config into the current config.
-func (r *ResumeState) updateConfig(
+func (r *State) updateConfig(
 	bucket *Bucket,
 	config *runconfig.RunConfig,
 ) error {
 
 	resumed := bucket.GetConfig()
-	// TODO: should we error on empty config response?
 	if resumed == nil {
-		return nil
+		err := fmt.Errorf("sender: checkAndUpdateResumeState: no config found in resume response")
+		return err
 	}
 
 	// If we are unable to parse the config, we should fail if resume is set to
@@ -258,11 +274,10 @@ func (r *ResumeState) updateConfig(
 	return nil
 }
 
-func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) {
+func (r *State) updateTags(run *service.RunRecord, bucket *Bucket) error {
 	resumed := bucket.GetTags()
-	// TODO: should we error on empty tags response?
 	if resumed == nil {
-		return
+		return nil
 	}
 	// handle tags
 	// - when resuming a run, its tags will be overwritten by the tags
@@ -272,4 +287,5 @@ func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) {
 	if run.Tags == nil {
 		run.Tags = append(run.Tags, resumed...)
 	}
+	return nil
 }

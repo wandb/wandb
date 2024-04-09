@@ -1,4 +1,4 @@
-package server_test
+package runresume_test
 
 import (
 	"testing"
@@ -7,25 +7,25 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/pkg/observability"
-	server "github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestGetFileStreamOffset_NilReceiver(t *testing.T) {
-	var resumeState *server.ResumeState
+	var resumeState *runresume.State
 	assert.Nil(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return nil when receiver is nil")
 }
 
 func TestGetFileStreamOffset_Empty(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := server.NewResumeState(logger, "")
+	resumeState := runresume.NewResumeState(logger, runresume.None)
 	assert.Empty(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return an empty map when no offsets are set")
 }
 
 func TestGetFileStreamOffset_WithOffsets(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := server.NewResumeState(logger, "")
+	resumeState := runresume.NewResumeState(logger, runresume.None)
 	resumeState.AddOffset(1, 100)
 	offsets := resumeState.GetFileStreamOffset()
 	assert.Equal(t, 100, offsets[1], "GetFileStreamOffset should return correct offset for a given key")
@@ -33,40 +33,30 @@ func TestGetFileStreamOffset_WithOffsets(t *testing.T) {
 
 func TestAddOffset_InitializeMap(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := server.NewResumeState(logger, "")
+	resumeState := runresume.NewResumeState(logger, runresume.None)
 	resumeState.AddOffset(1, 100)
 	assert.Equal(t, 100, resumeState.FileStreamOffset[1], "AddOffset should initialize map and add offset correctly")
 }
 
 func TestAddOffset_UpdateExistingMap(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := server.NewResumeState(logger, "")
+	resumeState := runresume.NewResumeState(logger, runresume.None)
 	resumeState.AddOffset(1, 100) // First add
 	resumeState.AddOffset(1, 200) // Update
 	assert.Equal(t, 200, resumeState.FileStreamOffset[1], "AddOffset should update existing offset correctly")
 }
 
-func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, history, config, summaryMetrics *string, tags []string) *gql.RunResumeStatusModelProjectBucketRun {
-	summaryMetricsData := appender(summaryMetrics, "null")
-	historyData := appender(history, "null")
-	configData := appender(config, "null")
+func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, history, config, summary *string, tags []string) *gql.RunResumeStatusModelProjectBucketRun {
 
 	return &gql.RunResumeStatusModelProjectBucketRun{
 		HistoryLineCount: &historyLineCount,
 		EventsLineCount:  &eventsLineCount,
 		LogLineCount:     &logLineCount,
-		HistoryTail:      historyData,
-		Config:           configData,
-		SummaryMetrics:   summaryMetricsData,
+		HistoryTail:      history,
+		Config:           config,
+		SummaryMetrics:   summary,
 		Tags:             tags,
 	}
-}
-
-func appender(target *string, defaultVal string) *string {
-	if target == nil {
-		return &defaultVal
-	}
-	return target
 }
 
 func TestUpdate(t *testing.T) {
@@ -79,10 +69,11 @@ func TestUpdate(t *testing.T) {
 	invalidHistoryOrConfig := `{"_step":0}`
 	invalidHistory := `["invalid_history"]`
 	invalidConfig := `{"_step": {"other": 2}}`
+	nullString := "null"
 
 	testCases := []struct {
 		name                   string
-		resumeMode             string
+		resumeMode             runresume.Mode
 		bucket                 *gql.RunResumeStatusModelProjectBucketRun
 		run                    *service.RunRecord
 		expectResumed          bool
@@ -95,8 +86,8 @@ func TestUpdate(t *testing.T) {
 		expectedErrorSubstring string
 	}{
 		{
-			name:                   "nonexistent_run_must_resume",
-			resumeMode:             "must",
+			name:                   "MustResumeNonExistentRun",
+			resumeMode:             runresume.Must,
 			bucket:                 nil,
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
@@ -104,18 +95,18 @@ func TestUpdate(t *testing.T) {
 			expectedErrorSubstring: "The value 'must' is not a valid option for resuming a run (test/abc123) that does not exist.",
 		},
 		{
-			name:                   "existing_run_never_resume",
-			resumeMode:             "never",
-			bucket:                 createBucketRawData(0, 0, 0, nil, nil, nil, nil),
+			name:                   "NeverResumeExistingRun",
+			resumeMode:             runresume.Never,
+			bucket:                 createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil),
 			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:          false,
 			expectError:            true,
 			expectedErrorSubstring: "The value 'never' is not a valid option for resuming a run (test/abc123) that already exists.",
 		},
 		{
-			name:               "valid_resume_history",
-			resumeMode:         "must",
-			bucket:             createBucketRawData(1, 0, 0, &validHistory, nil, nil, nil),
+			name:               "MustResumeValidHistory",
+			resumeMode:         runresume.Must,
+			bucket:             createBucketRawData(1, 0, 0, &validHistory, &nullString, &nullString, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 2,
@@ -123,107 +114,127 @@ func TestUpdate(t *testing.T) {
 			expectError:        false,
 		},
 		{
-			name:               "valid_resume_history_step_0",
-			resumeMode:         "must",
-			bucket:             createBucketRawData(0, 0, 0, nil, nil, nil, nil),
+			name:               "MustResumeValidHistoryStep0",
+			resumeMode:         runresume.Must,
+			bucket:             createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 0,
 			expectError:        false,
 		},
 		{
-			name:               "valid_resume_history_step_0_line_count_1",
-			resumeMode:         "must",
-			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, nil, nil, nil),
+			name:               "MustResumeValidHistoryStep0WithOneLine",
+			resumeMode:         runresume.Must,
+			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, &nullString, &nullString, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 1,
 			expectError:        false,
 		},
 		{
-			name:                "valid_resume_summary",
-			resumeMode:          "must",
-			bucket:              createBucketRawData(0, 0, 0, nil, nil, &validSummary, nil),
+			name:                "MustResumeValidSummary",
+			resumeMode:          runresume.Must,
+			bucket:              createBucketRawData(0, 0, 0, &nullString, &nullString, &validSummary, nil),
 			run:                 &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:       true,
 			expectSummaryUpdate: true,
 			expectError:         false,
 		},
 		{
-			name:               "valid_resume_config",
-			resumeMode:         "must",
-			bucket:             createBucketRawData(0, 0, 0, nil, &validConfig, nil, nil),
+			name:               "MustResumeValidConfig",
+			resumeMode:         runresume.Must,
+			bucket:             createBucketRawData(0, 0, 0, &nullString, &validConfig, &nullString, nil),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectConfigUpdate: true,
 			expectError:        false,
 		},
 		{
-			name:             "valid_resume_tags",
-			resumeMode:       "must",
-			bucket:           createBucketRawData(0, 0, 0, nil, nil, nil, []string{"tag1", "tag2"}),
+			name:             "MustResumeValidTags",
+			resumeMode:       runresume.Must,
+			bucket:           createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, []string{"tag1", "tag2"}),
 			run:              &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:    true,
 			expectTagsUpdate: true,
 			expectError:      false,
 		},
 		{
-			name:                   "invalid_resume_history_tail",
-			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, nil, nil, nil),
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "failed to unmarshal history tail",
+			name:          "MustResumeInvalidHistoryResponse",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, &nullString, &nullString, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
-			name:                   "invalid_resume_history_tail_map",
-			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, &invalidHistory, nil, nil, nil),
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "failed to unmarshal history tail map",
+			name:          "MustResumeInvalidHistoryContent",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &invalidHistory, &nullString, &nullString, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
-			name:                   "invalid_resume_summary",
-			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, nil, nil, &invalidHistory, nil),
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "failed to unmarshal summary metrics",
+			name:          "MustResumeInvalidSummaryMetrics",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &invalidHistory, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
-			name:                   "invalid_resume_config",
-			resumeMode:             "must",
-			bucket:                 createBucketRawData(0, 0, 0, nil, &invalidHistory, nil, nil),
-			run:                    &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:          false,
-			expectError:            true,
-			expectedErrorSubstring: "failed to unmarshal config",
+			name:          "MustResumeInvalidConfig",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistory, &nullString, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 		{
-			name:          "invalid_resume_config_value",
-			resumeMode:    "must",
-			bucket:        createBucketRawData(0, 0, 0, nil, &invalidHistoryOrConfig, nil, nil),
+			name:          "MustResumeInvalidConfigContent",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistoryOrConfig, &nullString, nil),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
 		},
 		{
-			name:          "invalid_resume_config_no_value",
-			resumeMode:    "must",
-			bucket:        createBucketRawData(0, 0, 0, nil, &invalidConfig, nil, nil),
+			name:          "MustResumeInvalidConfigNoContent",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidConfig, &nullString, nil),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
+		},
+		{
+			name:          "MustResumeNullHistory",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, nil, &nullString, &nullString, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
+		},
+		{
+			name:          "MustResumeNullConfig",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &validHistory, nil, nil, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
+		},
+		{
+			name:          "MustResumeNullSummary",
+			resumeMode:    runresume.Must,
+			bucket:        createBucketRawData(0, 0, 0, &validHistory, &validConfig, nil, nil),
+			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
+			expectResumed: false,
+			expectError:   true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			rs := server.NewResumeState(logger, tc.resumeMode)
+			rs := runresume.NewResumeState(logger, tc.resumeMode)
 			fakeResp := &gql.RunResumeStatusResponse{
 				Model: &gql.RunResumeStatusModelProject{
 					Bucket: tc.bucket,
