@@ -15,8 +15,8 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import error_reporting_enabled
-from wandb.errors import Error
+from wandb.env import error_reporting_enabled, is_require_core
+from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
@@ -163,12 +163,12 @@ class _Service:
 
             service_args = []
 
-            try:
-                core_path = get_core_path()
-            except Exception as e:
-                _sentry.reraise(e)
+            if is_require_core():
+                try:
+                    core_path = get_core_path()
+                except WandbCoreNotAvailableError as e:
+                    _sentry.reraise(e)
 
-            if core_path:
                 service_args.extend([core_path])
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")

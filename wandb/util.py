@@ -55,7 +55,13 @@ import yaml
 
 import wandb
 import wandb.env
-from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.errors import (
+    AuthenticationError,
+    CommError,
+    UsageError,
+    WandbCoreNotAvailableError,
+    term,
+)
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
@@ -1898,10 +1904,6 @@ def get_core_path() -> str:
         Error: If the system is not supported by wandb-core, or if the installed wandb-core version is not
                 compatible with the wandb version, or if wandb-core is not installed, but required.
     """
-    # check if the user has requesst to use wandb-core
-    if not wandb.env.is_require_core():
-        return ""
-
     # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
     #       to assist in running the core service from a live development directory.
     core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
@@ -1925,15 +1927,18 @@ def get_core_path() -> str:
     installed_core_version = wandb_core.__version__
     # Check if the installed wandb-core version is compatible with the wandb version.
     if parse_version(required_core_version) != parse_version(installed_core_version):
-        raise wandb.Error(
+        raise ImportError(
             f"Requires `wandb-core` version {required_core_version}."
-            f"but you have {installed_core_version}. Please run `pip install wandb-core=={required_core_version}`."
+            f"but you have {installed_core_version}."
+            f" Please run `pip install wandb-core=={required_core_version}`."
         )
 
     core_path = wandb_core.get_core_path()
     if not core_path:
-        raise wandb.Error(
-            "Looks like `wandb-core` is not compiled for your system. "
-            "Please contact support at support@wandb.com to request `wandb-core` support for your system."
+        raise WandbCoreNotAvailableError(
+            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
+            "your installed `wandb-core` package is using the no-op wheel."
+            " Please contact support at support@wandb.com to request `wandb-core`"
+            " support for your system."
         )
     return core_path
