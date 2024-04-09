@@ -16,6 +16,10 @@ here on every PR where this is applicable.
 
 * Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 
+### Changed
+
+* Use ETags instead of MD5 hashes for GCS reference artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7337
+
 ## [0.16.6] - 2024-04-03
 
 ### Added
