@@ -539,6 +539,26 @@ def _create_docker_build_ctx(
                     entrypoint.update_entrypoint_path(new_path)
             return directory
 
+    # If an override Dockerfile is provided, use it and use its directory as
+    # the build context.
+    if launch_project.override_dockerfile:
+        dockerfile_abspath = os.path.join(
+            launch_project.project_dir, launch_project.override_dockerfile
+        )
+        if os.path.exists(dockerfile_abspath):
+            shutil.copytree(
+                os.path.dirname(dockerfile_abspath),
+                directory,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
+            )
+            # Copy the Dockerfile to _WANDB_DOCKERFILE_NAME
+            os.rename(
+                dockerfile_abspath, os.path.join(directory, _WANDB_DOCKERFILE_NAME)
+            )
+            return directory
+
     dst_path = os.path.join(directory, "src")
     assert launch_project.project_dir is not None
     shutil.copytree(

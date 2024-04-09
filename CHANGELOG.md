@@ -14,6 +14,7 @@ here on every PR where this is applicable.
 
 ### Fixed
 
+* Set launch container build context to location of override Dockerfile, if provided by @bcsherma in https://github.com/wandb/wandb/pull/7339
 * Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 
 ### Changed
