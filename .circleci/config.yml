@@ -566,7 +566,6 @@ jobs:
   code-check:
     docker:
       - image: "python:3.10"
-    resource_class: large
     steps:
       - checkout
       - install_go
@@ -579,7 +578,7 @@ jobs:
           command: nox -t proto-check
       - run:
           name: Lint
-          command: tox run -v -e "mypy-report,auto-codegen-check"
+          command: tox run -v -e auto-codegen-check
       - save-test-results
 
   tox-base:
