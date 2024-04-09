@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -92,7 +93,7 @@ type Sender struct {
 	RunRecord *service.RunRecord
 
 	// resumeState is the resume state
-	resumeState *ResumeState
+	resumeState *runresume.State
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -571,19 +572,21 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
 	}
+	resume := runresume.ResumeMode(s.settings.GetResume().GetValue())
+
 	// There was no resume status set, so we don't need to do anything
-	if s.settings.GetResume().GetValue() == "" {
+	if resume == runresume.None {
 		return nil
 	}
 
 	// init resume state if it doesn't exist
-	s.resumeState = NewResumeState(s.logger, s.settings.GetResume().GetValue())
+	s.resumeState = runresume.NewResumeState(s.logger, resume)
 	run := s.RunRecord
 	// If we couldn't get the resume status, we should fail if resume is set
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
 		err = fmt.Errorf("failed to get run resume status: %s", err)
-		s.logger.Error("sender:", "error", err)
+		s.logger.Error("sender: checkAndUpdateResumeState", "error", err)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: err.Error(),
