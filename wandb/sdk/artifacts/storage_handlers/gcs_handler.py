@@ -83,10 +83,11 @@ class GCSHandler(StorageHandler):
                 raise ValueError(
                     f"Unable to download object {manifest_entry.ref} with generation {version}"
                 )
-            md5 = obj.md5_hash
-            if md5 != manifest_entry.digest:
+            etag = obj.etag
+            if etag != manifest_entry.digest:
                 raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
+                    f"Digest mismatch for object {manifest_entry.ref}: "
+                    f"expected {manifest_entry.digest} but found {etag}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -189,14 +190,14 @@ class GCSHandler(StorageHandler):
         return ArtifactManifestEntry(
             path=posix_name,
             ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
-            digest=obj.md5_hash,
+            digest=obj.etag,
             size=obj.size,
             extra=self._extra_from_obj(obj),
         )
 
     @staticmethod
     def _extra_from_obj(obj: "gcs_module.blob.Blob") -> Dict[str, str]:
-        return {
-            "etag": obj.etag,
-            "versionID": obj.generation,
-        }
+        extra = {"versionID": obj.generation}
+        if obj.md5_hash:
+            extra["md5"] = obj.md5_hash
+        return extra
