@@ -1,4 +1,5 @@
 """WB local artifact storage handler."""
+
 import os
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 

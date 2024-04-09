@@ -1,4 +1,5 @@
 """WB artifact storage handler."""
+
 import os
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 from urllib.parse import urlparse

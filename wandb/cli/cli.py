@@ -2188,7 +2188,7 @@ def docker(
         if cmd:
             command.extend(["-e", "WANDB_COMMAND=%s" % cmd])
         command.extend(["-it", image, shell])
-        wandb.termlog("Launching docker container \U0001F6A2")
+        wandb.termlog("Launching docker container \U0001f6a2")
     subprocess.call(command)
 
 
@@ -2306,7 +2306,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             )
             exit(1)
         else:
-            wandb.termlog("W&B server started at http://localhost:%s \U0001F680" % port)
+            wandb.termlog("W&B server started at http://localhost:%s \U0001f680" % port)
             wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser

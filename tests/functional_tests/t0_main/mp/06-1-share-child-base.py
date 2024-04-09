@@ -3,6 +3,7 @@
 
 Compare to a run in a single process, base usage of `run.log`.
 """
+
 import multiprocessing as mp
 
 import wandb

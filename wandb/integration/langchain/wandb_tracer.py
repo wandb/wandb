@@ -14,6 +14,7 @@ integration will not break user code. The one exception to the rule is at import
 LangChain is not installed, or the symbols are not in the same place, the appropriate error
 will be raised when importing this module.
 """
+
 from packaging import version
 
 import wandb.util

@@ -195,9 +195,7 @@ def dict_factory():
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
-        extra_settings: Union[
-            dict, wandb.sdk.wandb_settings.Settings
-        ] = dict_factory(),  # noqa: B008
+        extra_settings: Union[dict, wandb.sdk.wandb_settings.Settings] = dict_factory(),  # noqa: B008
     ):
         settings = wandb.Settings(
             console="off",
