@@ -17,7 +17,6 @@ async def vertex_controller(
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
 ) -> None:
-    iter = 0
     max_concurrency = parse_max_concurrency(config, 1000)
 
     logger.debug(
@@ -31,7 +30,6 @@ async def vertex_controller(
         await asyncio.sleep(
             5
         )  # TODO(np): Ideally waits for job set or target resource events
-        iter += 1
 
     return None
 
