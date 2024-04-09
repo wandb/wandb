@@ -18,7 +18,7 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.lib.hashutil import ETag, md5_string
 
 example_digest = md5_string("example")
 
@@ -304,9 +304,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
 def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
     uri = "gs://some-bucket/path/to/file.json"
-    digest = md5_string("a" * 123)
+    digest = ETag(md5_string("a" * 123))
 
-    path, _, opener = artifact_file_cache.check_md5_obj_path(digest, 123)
+    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, digest, 123)
     with opener() as f:
         f.write(123 * "a")
 
