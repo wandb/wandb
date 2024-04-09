@@ -15,7 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import core_debug, error_reporting_enabled, is_require_core
+from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module, is_core_dev
@@ -172,7 +172,7 @@ class _Service:
                 service_args.extend([core_path])
                 # if core in dev mode we disable error reporting, unless it's explicitly set
                 report_errors = "False" if is_core_dev() else "True"
-                if not core_error_reporting(default=report_errors):
+                if not core_error_reporting_enabled(default=report_errors):
                     service_args.append("--no-observability")
                 if core_debug(default="False"):
                     service_args.append("--debug")

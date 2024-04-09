@@ -161,7 +161,7 @@ def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
 
 
-def core_error_reporting(default: Optional[str] = None) -> bool:
+def core_error_reporting_enabled(default: Optional[str] = None) -> bool:
     return _env_as_bool(CORE_ERROR_REPORTING, default=default)
 
 
