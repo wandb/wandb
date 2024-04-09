@@ -53,6 +53,7 @@ async def test_kubernetes_run_clean_generate_name(
         project.target_project = project_name
         project.override_config = {}
         project.override_args = ["-a", "2"]
+        project.override_files = {}
         project.run_id = "testname"
         project.docker_image = "hello-world"
         project.job = "testjob"
@@ -132,6 +133,7 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
         project.target_project = project_name
         project.override_config = {}
         project.override_args = ["-a", "2"]
+        project.override_files = {}
         project.override_entrypoint.command = None
         project.run_id = "testname"
         project.docker_image = "hello-world"
@@ -193,6 +195,7 @@ async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
         project.target_project = project_name
         project.override_config = {}
         project.override_args = ["-a", "2"]
+        project.override_files = {}
         project.run_id = "testname"
         project.docker_image = "hello-world"
         project.job = "testjob"
