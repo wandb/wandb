@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -120,9 +121,12 @@ type Handler struct {
 	// current active history record for the stream
 	activeHistory *ActiveHistory
 
-	// sampledHistory is the sampled history for the stream
-	// TODO fix this to be generic type
-	sampledHistory map[string]*ReservoirSampling[float32]
+	// samplers is the map of samplers for all the history metrics that are
+	// being tracked, the result of the samplers will be used to display the
+	// the sparkline in the terminal
+	//
+	// TODO: currently only values that can be cast to float32 are supported
+	samplers map[string]*sampler.ReservoirSampler[float32]
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *MetricHandler
@@ -1277,10 +1281,10 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
 	response := &service.Response{}
 
-	if h.sampledHistory != nil {
+	if h.samplers != nil {
 		var items []*service.SampledHistoryItem
-		for key, sampler := range h.sampledHistory {
-			values := sampler.GetSample()
+		for key, sampler := range h.samplers {
+			values := sampler.Sample()
 			item := &service.SampledHistoryItem{
 				Key:         key,
 				ValuesFloat: values,
@@ -1296,6 +1300,31 @@ func (h *Handler) handleRequestSampledHistory(record *service.Record) {
 	}
 
 	h.respond(record, response)
+}
+
+// sample history items and update the samplers map before flushing the history
+// record as these values are finalized for the current step
+func (h *Handler) sampleHistory(history *service.HistoryRecord) {
+	// initialize the samplers map if it doesn't exist
+	if h.samplers == nil {
+		h.samplers = make(map[string]*sampler.ReservoirSampler[float32])
+	}
+
+	for _, item := range history.GetItem() {
+		var value float32
+		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
+			// ignore items that cannot be parsed as float32
+			continue
+		}
+
+		// create a new sampler if it doesn't exist
+		if _, ok := h.samplers[item.Key]; !ok {
+			h.samplers[item.Key] = sampler.NewReservoirSampler[float32](48, 0.0005)
+		}
+
+		// add the new value to the sampler
+		h.samplers[item.Key].Add(value)
+	}
 }
 
 // flush history record to the writer and update the summary
