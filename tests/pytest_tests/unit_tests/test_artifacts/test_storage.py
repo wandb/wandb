@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import random
+import tempfile
 from multiprocessing import Pool
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -177,14 +178,14 @@ def test_check_write_parallel(artifact_file_cache):
     assert len(files) == 1
 
 
-def test_artifact_file_cache_is_writeable(tmp_path):
-    illegal_path = tmp_path / "illegal"
-    illegal_path.mkdir(parents=True)
-    # Ensure the path is not writeable
-    illegal_path.chmod(0o000)
+def test_artifact_file_cache_is_writeable(tmp_path, monkeypatch):
+    # Patch NamedTemporaryFile to raise a PermissionError
+    def not_allowed(*args, **kwargs):
+        raise PermissionError
+
+    monkeypatch.setattr(tempfile, "_mkstemp_inner", not_allowed)
     with pytest.raises(PermissionError, match="Unable to write to"):
-        _ = ArtifactFileCache(illegal_path)
-    illegal_path.chmod(0o700)
+        _ = ArtifactFileCache(tmp_path)
 
 
 def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
