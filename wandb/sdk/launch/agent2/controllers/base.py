@@ -129,7 +129,7 @@ class BaseManager(ABC):
         self.logger.info(f"Releasing item: {item_id}")
         del self.active_runs[item_id]
 
-    async def _construct_jobset_discoverability_label(self) -> str:
+    def _construct_jobset_discoverability_label(self) -> str:
         # TODO: replace with queue_id
         return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
 
@@ -147,9 +147,7 @@ class BaseManager(ABC):
             except Exception as e:
                 self.logger.error(f"Error stopping run {run.id}: {e}")
 
-    async def _get_resource_block(
-        self, project: LaunchProject
-    ) -> Optional[Dict[str, Any]]:
+    def _get_resource_block(self, project: LaunchProject) -> Optional[Dict[str, Any]]:
         return project.resource_args.get(self.resource_type, None)
 
     @abstractmethod

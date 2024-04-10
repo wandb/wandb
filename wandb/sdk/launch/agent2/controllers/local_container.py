@@ -72,24 +72,23 @@ class LocalContainerManager(BaseManager):
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
 
-    async def label_job(self, project: LaunchProject) -> None:
-        lc_block = await self._get_resource_block(project)
-        if lc_block is None:
+    def label_job(self, project: LaunchProject) -> None:
+        resource_block = self._get_resource_block(project)
+        if resource_block is None:
             return
-
         jobset_label = self._construct_jobset_discoverability_label()
         label_value = f"{WANDB_JOBSET_DISCOVERABILITY_LABEL}={jobset_label}"
 
-        self._update_or_set_labels(lc_block, label_value)
+        self._update_or_set_labels(resource_block, label_value)
 
-    def _update_or_set_labels(self, lc_block, label_value):
-        label_key = "l" if "l" in lc_block or "label" not in lc_block else "label"
-
-        if isinstance(lc_block.get(label_key), list):
-            lc_block[label_key].append(label_value)
+    def _update_or_set_labels(self, resource_block, label_value):
+        label_key = (
+            "l" if "l" in resource_block or "label" not in resource_block else "label"
+        )
+        if isinstance(resource_block.get(label_key), list):
+            resource_block[label_key].append(label_value)
         else:
-            lc_block[label_key] = (
-                [lc_block.get(label_key, []), label_value]
-                if lc_block.get(label_key)
-                else [label_value]
-            )
+            if resource_block.get(label_key) is not None:
+                resource_block[label_key] = [resource_block[label_key], label_value]
+            else:
+                resource_block[label_key] = [label_value]
