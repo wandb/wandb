@@ -49,7 +49,6 @@ class Job:
 
 
 def run_queue_item_to_job(run_queue_item: Dict[str, Any]) -> Job:
-    print(run_queue_item)
     return Job(
         id=run_queue_item["id"],
         run_spec=run_queue_item["runSpec"],
