@@ -49,14 +49,16 @@ class KubernetesManager(BaseManager):
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.queue_driver = StandardQueueDriver(jobset.api, jobset)
+        self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)
         super().__init__(config, jobset, logger, legacy, max_concurrency)
         # TODO: handle orphaned jobs in resource and assign to self (can do
         # this because we will tell users they can only have one to one
         # relationships of agents and jobs to queues in a cluster)
 
     async def find_orphaned_jobs(self) -> List[Dict[str, Any]]:
-        raise NotImplementedError
+        raise NotImplementedError(
+            "KubernetesManager.find_orphaned_jobs not implemented"
+        )
 
     def label_job(self, project: LaunchProject) -> None:
         k8s_block = self._get_resource_block(project)
