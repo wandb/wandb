@@ -114,13 +114,13 @@ func TestSendRun(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 2) // First is ServerInfo
+	assert.Len(t, requests, 1)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("project", gomock.Eq("testProject")),
 			gqlmock.GQLVar("entity", gomock.Eq("testEntity")),
 		),
-		requests[1])
+		requests[0])
 }
 
 // Verify that arguments are properly passed through to graphql
