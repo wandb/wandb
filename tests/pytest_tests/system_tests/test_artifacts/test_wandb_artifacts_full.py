@@ -214,6 +214,34 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
+def test_download_after_upload_uses_cache(wandb_init, tmp_path, monkeypatch):
+    # Setup cache dir
+    cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    file_path = Path(tmp_path / "text.txt")
+    with open(file_path, "w") as f:
+        f.write("test 123")
+    entry = artifact.add_file(file_path, policy="immutable")
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # Ensure the uploaded file is in the cache.
+    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    assert hit
+
+    # In order to test that the core process uses the cached file, we're going to
+    # intentionally corrupt the cache. This might break something later if we add
+    # integrity checking to the cache.
+    with open(cache_path, "w") as f:
+        f.write("corrupt")
+    download_root = artifact.download(tmp_path / "download_root")
+    assert download_root.read_text() == "corrupt"
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))

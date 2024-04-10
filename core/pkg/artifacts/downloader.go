@@ -9,7 +9,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const BATCH_SIZE int = 10000
@@ -75,6 +74,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	// retrieve from "WANDB_ARTIFACT_FETCH_FILE_URL_BATCH_SIZE"?
 	batchSize := BATCH_SIZE
 
+	fileCache := NewFileCache()
+
 	type TaskResult struct {
 		Task *filetransfer.Task
 		Name string
@@ -135,20 +136,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
-					// Skip downloading the file if it already exists and has the same digest.
-					exists, err := utils.FileExists(downloadLocalPath)
-					if err != nil {
-						return err
-					}
-					if exists {
-						existingDigest, err := utils.ComputeFileB64MD5(downloadLocalPath)
-						if err != nil {
-							return err
-						}
-						if existingDigest == entry.Digest {
-							numDone++
-							continue
-						}
+					if ok := fileCache.RestoreTo(entry, downloadLocalPath); ok {
+						numDone++
+						continue
 					}
 					task := &filetransfer.Task{
 						FileKind: filetransfer.RunFileKindArtifact,
@@ -179,6 +169,14 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				numDone++
+				cacheKey, err := fileCache.CopyFrom(result.Task.Path)
+				if err != nil {
+					return err
+				}
+				entry := manifestEntries[result.Name]
+				if entry.Digest != cacheKey {
+					return fmt.Errorf("Downloaded file has digest %s, expected %s", cacheKey, entry.Digest)
+				}
 			}
 		}
 	}
