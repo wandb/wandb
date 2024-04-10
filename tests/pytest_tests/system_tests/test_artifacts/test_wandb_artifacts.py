@@ -15,6 +15,7 @@ import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -676,6 +677,19 @@ def test_add_gs_reference_object():
         "extra": {"md5": "1234567890abcde", "versionID": "1"},
         "size": 10,
     }
+
+
+def test_load_gs_reference_object_without_generation_and_mismatched_etag():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+    artifact._state = ArtifactState.COMMITTED
+    entry = artifact.get_entry("my_object.pb")
+    entry.extra = {}
+    entry.digest = "abad0"
+
+    with pytest.raises(ValueError, match="Digest mismatch"):
+        entry.download()
 
 
 def test_add_gs_reference_object_with_version():

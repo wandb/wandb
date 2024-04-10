@@ -83,11 +83,10 @@ class GCSHandler(StorageHandler):
                 raise ValueError(
                     f"Unable to download object {manifest_entry.ref} with generation {version}"
                 )
-            etag = obj.etag
-            if etag != manifest_entry.digest:
+            if obj.etag != manifest_entry.digest:
                 raise ValueError(
                     f"Digest mismatch for object {manifest_entry.ref}: "
-                    f"expected {manifest_entry.digest} but found {etag}"
+                    f"expected {manifest_entry.digest} but found {obj.etag}"
                 )
 
         with cache_open(mode="wb") as f:
