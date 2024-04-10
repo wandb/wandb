@@ -16,6 +16,7 @@ import (
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watcher2test"
 	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -58,6 +59,7 @@ func TestUploader(t *testing.T) {
 	var fakeFileStream *filestreamtest.FakeFileStream
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
+	var fakeFileWatcher *watcher2test.FakeWatcher
 	var uploader Uploader
 
 	// Optional channel that's returned by the uploader's BatchDelayFunc.
@@ -96,6 +98,8 @@ func TestUploader(t *testing.T) {
 
 		mockGQLClient = gqlmock.NewMockClient()
 
+		fakeFileWatcher = watcher2test.NewFakeWatcher()
+
 		var batchDelayFunc func() <-chan struct{}
 		if batchChan != nil {
 			batchDelayFunc = func() <-chan struct{} {
@@ -107,6 +111,7 @@ func TestUploader(t *testing.T) {
 			GraphQL:        mockGQLClient,
 			FileStream:     fakeFileStream,
 			FileTransfer:   fakeFileTransfer,
+			FileWatcher:    fakeFileWatcher,
 			BatchDelayFunc: batchDelayFunc,
 			Settings: settings.From(&service.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
@@ -140,6 +145,22 @@ func TestUploader(t *testing.T) {
 				assert.Len(t, fakeFileTransfer.Tasks(), 1)
 			})
 	}
+
+	runTest("Process with 'live' policy watches file",
+		func() {},
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "test.txt", Policy: service.FilesItem_LIVE},
+				},
+			})
+			uploader.Finish()
+
+			assert.True(t,
+				fakeFileWatcher.IsWatching(filepath.Join(filesDir, "test.txt")))
+		})
 
 	runTest("Process with 'now' policy during sync is no-op",
 		func() { isSync = true },
