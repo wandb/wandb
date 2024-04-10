@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
@@ -76,6 +77,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		client,
 		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
 		server.WithSenderOutChannel(resultChan),
+		server.WithSenderMailbox(mailbox.NewMailbox()),
 	)
 	return sender
 }
