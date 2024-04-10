@@ -151,7 +151,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 2) // First is ServerInfo
+	assert.Len(t, requests, 1)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -160,7 +160,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
 			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
 		),
-		requests[1])
+		requests[0])
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
@@ -185,7 +185,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests = mockGQL.AllRequests()
-	assert.Len(t, requests, 3)
+	assert.Len(t, requests, 2)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -194,7 +194,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
 			gqlmock.GQLVar("artifactId", gomock.Eq(nil)),
 		),
-		requests[2])
+		requests[1])
 
 	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
@@ -219,7 +219,7 @@ func TestSendLinkArtifact(t *testing.T) {
 	<-sender.GetOutboundChannel()
 
 	requests = mockGQL.AllRequests()
-	assert.Len(t, requests, 4)
+	assert.Len(t, requests, 3)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
@@ -228,7 +228,7 @@ func TestSendLinkArtifact(t *testing.T) {
 			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
 			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
 		),
-		requests[3])
+		requests[2])
 }
 
 func TestSendUseArtifact(t *testing.T) {
@@ -315,10 +315,10 @@ func TestSendArtifact(t *testing.T) {
 	sender.SendRecord(artifact)
 
 	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 2) // First is ServerInfo
+	assert.Len(t, requests, 1)
 	gqlmock.AssertRequest(t,
 		gqlmock.WithVariables(
 			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
 		),
-		requests[1])
+		requests[0])
 }
