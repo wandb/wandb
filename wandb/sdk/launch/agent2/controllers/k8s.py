@@ -6,7 +6,7 @@ from ..._project_spec import LaunchProject
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import JobSet
-from .base import WANDB_JOBSET_DISCOVERABILITY_LABEL, BaseManager
+from .base import BaseManager
 from .util import parse_max_concurrency
 
 
@@ -58,11 +58,12 @@ class KubernetesManager(BaseManager):
     async def find_orphaned_jobs(self) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
-    async def label_job(self, project: LaunchProject) -> None:
-        k8s_block = await self._get_resource_block(project)
+    def label_job(self, project: LaunchProject) -> None:
+        k8s_block = self._get_resource_block(project)
         if k8s_block is None:
             return
-        jobset_label = await self._construct_jobset_discoverability_label()
-        k8s_block.get("metadata", {}).get("labels", {})[
-            WANDB_JOBSET_DISCOVERABILITY_LABEL
-        ] = jobset_label
+        metadata = k8s_block.setdefault("metadata", {})
+        labels = metadata.setdefault("labels", {})
+
+        # Always set or update the '_wandb-jobset' label
+        labels["_wandb-jobset"] = "test-entity/test"

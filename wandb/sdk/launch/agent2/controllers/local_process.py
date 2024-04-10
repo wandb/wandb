@@ -120,5 +120,5 @@ class LocalProcessesManager(BaseManager):
     async def find_orphaned_jobs(self) -> List[Any]:
         raise NotImplementedError
 
-    async def label_job(self, project: LaunchProject) -> None:
+    def label_job(self, project: LaunchProject) -> None:
         pass

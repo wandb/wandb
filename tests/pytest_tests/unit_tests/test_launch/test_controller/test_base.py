@@ -13,8 +13,8 @@ class TestBaseManager(BaseManager):
         self.queue_driver = AsyncMock(spec=AbstractQueueDriver)
         super().__init__(config, jobset, logger, legacy, max_concurrency)
 
-    async def label_job(self, project):
-        project.label_job()
+    def label_job(self, project):
+        project.mock_label_job()
 
     async def find_orphaned_jobs(self):
         pass
@@ -129,6 +129,6 @@ async def test_launch_item(mocked_test_manager, mocker):
     assert mocked_test_manager.legacy.job_tracker_factory.call_count == 1
     assert mocked_test_manager.jobset.api.ack_jobset_item.call_count == 1
     assert mocked_test_manager.legacy.builder.build_image.call_count == 1
-    assert mock_launch_project_instance.label_job.call_count == 1
+    assert mock_launch_project_instance.mock_label_job.call_count == 1
     assert mocked_test_manager.legacy.runner.run.call_count == 1
     assert mocked_test_manager.active_runs.get("test-id") is not None

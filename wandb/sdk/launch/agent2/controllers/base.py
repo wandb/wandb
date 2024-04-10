@@ -113,7 +113,7 @@ class BaseManager(ABC):
             image_uri = project.docker_image
 
         assert image_uri is not None
-        await self.label_job(project)
+        self.label_job(project)
         run = await self.legacy.runner.run(project, image_uri)
         if not run:
             job_tracker.failed_to_start = True
@@ -155,5 +155,5 @@ class BaseManager(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def label_job(self, project: LaunchProject) -> None:
+    def label_job(self, project: LaunchProject) -> None:
         raise NotImplementedError
