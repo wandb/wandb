@@ -2,7 +2,7 @@
 
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
 from wandb import util
@@ -191,12 +191,5 @@ class GCSHandler(StorageHandler):
             ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
             digest=obj.etag,
             size=obj.size,
-            extra=self._extra_from_obj(obj),
+            extra={"versionID": obj.generation},
         )
-
-    @staticmethod
-    def _extra_from_obj(obj: "gcs_module.blob.Blob") -> Dict[str, str]:
-        extra = {"versionID": obj.generation}
-        if obj.md5_hash:
-            extra["md5"] = obj.md5_hash
-        return extra

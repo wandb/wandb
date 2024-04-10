@@ -674,7 +674,7 @@ def test_add_gs_reference_object():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"md5": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
 
@@ -702,7 +702,7 @@ def test_add_gs_reference_object_with_version():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"md5": "1234567890abcde", "versionID": "2"},
+        "extra": {"versionID": "2"},
         "size": 10,
     }
 
@@ -717,7 +717,7 @@ def test_add_gs_reference_object_with_name():
     assert manifest["contents"]["renamed.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"md5": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
 
@@ -733,7 +733,7 @@ def test_add_gs_reference_path(runner, capsys):
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"md5": "1234567890abcde", "versionID": "1"},
+            "extra": {"versionID": "1"},
             "size": 10,
         }
         _, err = capsys.readouterr()
