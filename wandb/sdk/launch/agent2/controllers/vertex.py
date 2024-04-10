@@ -30,9 +30,7 @@ async def vertex_controller(
 ) -> None:
     max_concurrency = parse_max_concurrency(config, 1000)
 
-    logger.debug(
-        f"Starting vertex controller with max concurrency {max_concurrency}"
-    )
+    logger.debug(f"Starting vertex controller with max concurrency {max_concurrency}")
 
     mgr = VertexManager(config, jobset, logger, legacy, max_concurrency)
 
@@ -72,14 +70,20 @@ class VertexManager(BaseManager):
         jobset_label = self._construct_jobset_discoverability_label()
         self.logger.debug(f"Jobset label: {jobset_label}")
         list = event_loop_thread_exec(aiplatform.CustomJob.list)
-        jobs = await list(filter=f'labels.{WANDB_VERTEX_JOBSET_DISCOVERABILITY_LABEL}={jobset_label}')
+        jobs = await list(
+            filter=f"labels.{WANDB_VERTEX_JOBSET_DISCOVERABILITY_LABEL}={jobset_label}"
+        )
         self.logger.debug(f"Found orphaned jobs: {jobs}")
 
         # TODO convert returned CustomJobs to dicts or Jobs
         raise NotImplementedError
 
     def _construct_jobset_discoverability_label(self) -> str:
-        return b64_to_hex_id(md5_string(f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"))
+        return b64_to_hex_id(
+            md5_string(
+                f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+            )
+        )
 
     def label_job(self, project: LaunchProject) -> None:
         vertex_block = self._get_resource_block(project)

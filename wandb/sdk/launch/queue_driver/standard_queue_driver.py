@@ -20,7 +20,9 @@ class StandardQueueDriver(AbstractQueueDriver):
         self.logger.debug("Calling pop_from_run_queue")
 
         # List of tuples in the format (job_id: str, job: Job)
-        pending_jobs: List[Tuple[str, Job]] = list(filter(lambda j: j[1].state == "PENDING", self.jobset.jobs.items()))
+        pending_jobs: List[Tuple[str, Job]] = list(
+            filter(lambda j: j[1].state == "PENDING", self.jobset.jobs.items())
+        )
         if len(pending_jobs) == 0:
             return None
         # get highest prio job
