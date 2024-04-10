@@ -1864,6 +1864,47 @@ class Api:
         return result
 
     @normalize_exceptions
+    def get_run_queue_item(
+        self, entity_name: str, queue_name: str, run_queue_item_id: str
+    ) -> Optional[Dict[str, Any]]:
+        query = gql(
+            """
+        query RunQueueItem($entityName: String!, $queueName: String!, $itemId: ID!) {
+            project(name: "model-registry", entityName: $entityName) {
+                id
+                runQueue(name: $queueName) {
+                    id
+                    runQueueItem(id: $itemId) {
+                        id
+                        createdAt
+                        runSpec
+                        state
+                        priority
+                        associatedRunId
+                        launchAgentId
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity_name,
+                "queueName": queue_name,
+                "itemId": run_queue_item_id,
+            },
+        )
+        print("========")
+        print(response)
+        print("========")
+        result: Optional[Dict[str, Any]] = (
+            response.get("project", {}).get("runQueue", {}).get("runQueueItem")
+        )
+        return result
+
+    @normalize_exceptions
     def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
         mutation = gql(
             """

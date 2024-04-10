@@ -8,10 +8,13 @@ from wandb.sdk.launch.utils import event_loop_thread_exec
 
 
 @dataclass
-class JobSetSpec:  # (TypedDict):
+class JobSetSpec:
     name: str
     entity_name: str
     project_name: Optional[str]
+    # TODO: set queue_id to be used when labelling launched jobs
+    # blocked on launch agent query returning queues instead of raw ids
+    # queue_id: str
 
 
 @dataclass
@@ -36,7 +39,6 @@ def create_jobset(spec: JobSetSpec, api: Api, agent_id: str, logger: logging.Log
 @dataclass
 class Job:
     id: str
-    name: str = field(init=False)
     run_spec: Dict[str, Any]
     state: str
     priority: int

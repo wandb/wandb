@@ -188,6 +188,9 @@ class Api:
     def push_to_run_queue(self, *args, **kwargs):
         return self.api.push_to_run_queue(*args, **kwargs)
 
+    def get_run_queue_item(self, *args, **kwargs):
+        return self.api.get_run_queue_item(*args, **kwargs)
+
     def pop_from_run_queue(self, *args, **kwargs):
         return self.api.pop_from_run_queue(*args, **kwargs)
 

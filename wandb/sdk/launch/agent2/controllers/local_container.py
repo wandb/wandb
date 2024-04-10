@@ -1,15 +1,13 @@
 import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 
-from wandb.sdk.launch._project_spec import LaunchProject
-from wandb.sdk.launch.runner.abstract import AbstractRun
-
+from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import JobSet
+from .base import WANDB_JOBSET_DISCOVERABILITY_LABEL, BaseManager
 
 
 async def local_container_controller(
@@ -47,8 +45,10 @@ async def local_container_controller(
         iter += 1
 
 
-class LocalContainerManager:
+class LocalContainerManager(BaseManager):
     """Maintains state for multiple docker containers."""
+
+    resource_type = "local-container"
 
     def __init__(
         self,
@@ -58,14 +58,6 @@ class LocalContainerManager:
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.config = config
-        self.logger = logger
-        self.legacy = legacy
-        self.max_concurrency = max_concurrency
-
-        self.id = config["jobset_spec"].name
-        self.active_runs: Dict[str, AbstractRun] = {}
-
         self.queue_driver = passthrough.PassthroughQueueDriver(
             api=jobset.api,
             queue_name=config["jobset_spec"].name,
@@ -74,72 +66,29 @@ class LocalContainerManager:
             agent_id=config["agent_id"],
         )
 
-        # TODO: handle orphaned runs
+        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
 
-    async def pop_next_item(self) -> Optional[Job]:
-        next_item = await self.queue_driver.pop_from_run_queue()
-        self.logger.info(f"Popped item: {json.dumps(next_item, indent=2)}")
-        return next_item
+    async def find_orphaned_jobs(self) -> List[Any]:
+        raise NotImplementedError
 
-    async def reconcile(self) -> None:
-        new_items: List[Job] = []
-        num_runs_needed = self.max_concurrency - len(self.active_runs)
-        if num_runs_needed > 0:
-            for _ in range(num_runs_needed):
-                # we own fewer items than our max concurrency, and there are other items waiting to be run
-                # let's pop the next item
-                item_to_run = await self.pop_next_item()
-                if item_to_run is None:
-                    break
+    def label_job(self, project: LaunchProject) -> None:
+        resource_block = self._get_resource_block(project)
+        if resource_block is None:
+            return
+        jobset_label = self._construct_jobset_discoverability_label()
+        label_value = f"{WANDB_JOBSET_DISCOVERABILITY_LABEL}={jobset_label}"
 
-                new_items.append(item_to_run)
+        self._update_or_set_labels(resource_block, label_value)
 
-        for item in new_items:
-            # launch it
-            await self.launch_item(item)
-
-        # TODO: clean up orphaned items
-
-    async def launch_item(self, item: Job) -> Optional[str]:
-        self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
-
-        project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
-        project.queue_name = self.config["jobset_spec"].name
-        project.queue_entity = self.config["jobset_spec"].entity_name
-        project.run_queue_item_id = item.id
-        project.fetch_and_validate_project()
-        run_id = project.run_id
-        job_tracker = self.legacy.job_tracker_factory(run_id)
-        job_tracker.update_run_info(project)
-
-        ack_result = await self.queue_driver.ack_run_queue_item(item.id, run_id)
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
-
-        image_uri = None
-        if not project.docker_image:
-            entrypoint = project.get_single_entry_point()
-            assert entrypoint is not None
-            image_uri = await self.legacy.builder.build_image(
-                project, entrypoint, job_tracker
-            )
+    def _update_or_set_labels(self, resource_block, label_value):
+        label_key = (
+            "l" if "l" in resource_block or "label" not in resource_block else "label"
+        )
+        if isinstance(resource_block.get(label_key), list):
+            resource_block[label_key].append(label_value)
         else:
-            assert project.docker_image is not None
-            image_uri = project.docker_image
-
-        assert image_uri is not None
-        run = await self.legacy.runner.run(project, image_uri)
-        if not run:
-            job_tracker.failed_to_start = True
-            self.logger.error(f"Failed to start run for item {item.id}")
-            raise NotImplementedError("TODO: handle this case")
-
-        self.active_runs[item.id] = run
-        self.logger.info(f"Inside launch_item, project.run_id = {run_id}")
-
-        run_id = project.run_id
-        self.logger.info(f"Launched item got run_id: {run_id}")
-        return run_id
-
-    async def release_item(self, item: Any) -> Any:
-        self.logger.info(f"Releasing item: {json.dumps(item, indent=2)}")
-        del self.active_runs[item["runQueueItemId"]]
+            if resource_block.get(label_key) is not None:
+                resource_block[label_key] = [resource_block[label_key], label_value]
+            else:
+                resource_block[label_key] = [label_value]

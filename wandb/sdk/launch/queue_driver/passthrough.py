@@ -3,7 +3,7 @@ from typing import List, Optional
 from wandb.apis.internal import Api
 from wandb.sdk.launch.utils import event_loop_thread_exec
 
-from ..agent2.jobset import Job
+from ..agent2.jobset import Job, run_queue_item_to_job
 from .abstract import AbstractQueueDriver
 
 
@@ -34,9 +34,19 @@ class PassthroughQueueDriver(AbstractQueueDriver):
 
     async def pop_from_run_queue(self) -> Optional[Job]:
         def _rq_pop():
-            return self.api.pop_from_run_queue(
+            res = self.api.pop_from_run_queue(
                 self.queue_name, self.entity, self.project, self.agent_id
             )
+            if res is not None:
+                rqi = self.api.get_run_queue_item(
+                    self.entity, self.queue_name, res["runQueueItemId"]
+                )
+                if rqi is None:
+                    raise ValueError(
+                        f"Failed to get run queue item {res['runQueueItemId']}"
+                    )
+                return run_queue_item_to_job(rqi)
+            return None
 
         return await event_loop_thread_exec(_rq_pop)()
 
