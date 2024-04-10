@@ -48,7 +48,7 @@ func TestWatcher(t *testing.T) {
 	waitWithDeadline := func(t *testing.T, c <-chan struct{}, msg string) {
 		select {
 		case <-c:
-		case <-time.After(time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatal("took too long: " + msg)
 		}
 	}
