@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -133,6 +134,7 @@ func NewRunfilesUploader(
 		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
+		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
 		BatchWindow:  50 * time.Millisecond,
 	})
 }
