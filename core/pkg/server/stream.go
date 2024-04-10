@@ -161,6 +161,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
+			s.ctx,
 			s.logger,
 			settings,
 			fileStreamOrNil,
@@ -216,7 +217,6 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-
 	// forward records from the inChan and loopBackChan to the handler
 	fwdChan := make(chan *service.Record, BufferSize)
 	s.wg.Add(1)
