@@ -124,6 +124,8 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
+	fileCache := NewFileCache()
+
 	type TaskResult struct {
 		Task *filetransfer.Task
 		Name string
@@ -221,6 +223,14 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				continue
 			}
 			numDone++
+			entry := manifest.Contents[result.Name]
+			if entry.SkipCache {
+				continue
+			}
+			go func() {
+				// Copy in the background and errors, failure to cache isn't critical.
+				_, _ = fileCache.CopyFrom(result.Task.Path)
+			}()
 		}
 	}
 	return nil

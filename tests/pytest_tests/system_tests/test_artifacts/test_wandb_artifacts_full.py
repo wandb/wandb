@@ -237,7 +237,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))

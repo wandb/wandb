@@ -30,6 +30,7 @@ type ManifestEntry struct {
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
 	DownloadURL     *string                `json:"-"`
+	SkipCache       bool                   `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -58,6 +59,7 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 			Size:            entry.Size,
 			Extra:           extra,
 			LocalPath:       utils.NilIfZero(entry.LocalPath),
+			SkipCache:       entry.SkipCache,
 		}
 	}
 	return manifest, nil
