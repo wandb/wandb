@@ -12,11 +12,6 @@ type ContextKey string
 const CtxRetryPolicyKey ContextKey = "retryFunc"
 
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// do not retry on context.Canceled or context.DeadlineExceeded
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
-
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
@@ -39,11 +34,6 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 }
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// do not retry on context.Canceled or context.DeadlineExceeded
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
-
 	statusCode := resp.StatusCode
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone

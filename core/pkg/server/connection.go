@@ -10,7 +10,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -245,12 +244,6 @@ func (nc *Connection) handleServerRequest() {
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	// cancel context after settings.GetInitTimeout()
-	timeout := time.Duration(settings.GetInitTimeout() * float64(time.Second))
-	ctx, cancel := context.WithTimeout(nc.ctx, timeout)
-	// nc.ctx = ctx
-	defer cancel()
-
 	err := settings.EnsureAPIKey()
 	if err != nil {
 		slog.Error(
@@ -265,9 +258,10 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 	// TODO: redo this function, to only init the stream and have the stream
 	//       handle the rest of the startup
-	nc.stream = NewStream(ctx, settings, streamId)
+	nc.stream = NewStream(nc.ctx, settings, streamId)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
+	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)

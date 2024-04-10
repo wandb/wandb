@@ -16,6 +16,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -89,6 +90,12 @@ func WithHandlerSummaryHandler(handler *SummaryHandler) HandlerOption {
 	}
 }
 
+func WithHandlerMailbox(mailbox *mailbox.Mailbox) HandlerOption {
+	return func(h *Handler) {
+		h.mailbox = mailbox
+	}
+}
+
 // Handler is the handler for a stream it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
@@ -143,6 +150,8 @@ type Handler struct {
 
 	// internalPrinter is the internal messages handler for the stream
 	internalPrinter *observability.Printer[string]
+
+	mailbox *mailbox.Mailbox
 }
 
 // NewHandler creates a new handler
@@ -330,7 +339,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Resume:
 		h.handleRequestResume()
 	case *service.Request_Cancel:
-		h.handleRequestCancel(record)
+		h.handleRequestCancel(x.Cancel)
 	case *service.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
 	case *service.Request_InternalMessages:
@@ -825,8 +834,12 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestCancel(_ *service.Record) {
+func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 	// TODO(flow-control): implement cancel
+	cancelSlot := request.GetCancelSlot()
+	if cancelSlot != "" {
+		h.mailbox.Cancel(cancelSlot)
+	}
 }
 
 func (h *Handler) handleRequestPause() {

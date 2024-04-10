@@ -11,6 +11,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
@@ -170,6 +171,8 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		)
 	}
 
+	mailbox := mailbox.NewMailbox()
+
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
 		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
@@ -180,6 +183,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
+		WithHandlerMailbox(mailbox),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
@@ -200,6 +204,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		graphqlClientOrNil,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+		WithSenderMailbox(mailbox),
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
