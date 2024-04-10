@@ -72,6 +72,6 @@ class SageMakerManager(BaseManager):
             return
         jobset_label = self._construct_jobset_discoverability_label()
         # add to tags for job
-        resource_block["Tags"] = resource_block.get("Tags", []).append(
-            {WANDB_JOBSET_DISCOVERABILITY_LABEL: jobset_label}
-        )
+        _tags = resource_block.get("Tags", [])
+        _tags.append({"Key": WANDB_JOBSET_DISCOVERABILITY_LABEL, "Value": jobset_label})
+        resource_block["Tags"] = _tags
