@@ -980,6 +980,8 @@ message DownloadArtifactRequest {
   string artifact_id = 1;
   string download_root = 2;
   bool allow_missing_references = 4;
+  bool skip_cache = 5;
+  string path_prefix = 6;
   _RequestInfo _info = 200;
 }
 
