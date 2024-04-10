@@ -230,7 +230,5 @@ func impatientClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
 	client.RetryMax = 1
 	client.RetryWaitMin = 1 * time.Millisecond
-	client.RetryWaitMax = 5 * time.Millisecond
-	client.HTTPClient.Timeout = 20 * time.Millisecond
 	return client
 }
