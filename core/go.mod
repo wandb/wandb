@@ -9,6 +9,7 @@ require (
 	github.com/go-git/go-git/v5 v5.11.0
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.5
+	github.com/natefinch/atomic v1.0.1
 	github.com/radovskyb/watcher v1.0.7
 	github.com/segmentio/encoding v0.4.0
 	github.com/shirou/gopsutil/v3 v3.24.2

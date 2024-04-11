@@ -2,17 +2,14 @@ package artifacts
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const BATCH_SIZE int = 10000
@@ -191,24 +188,24 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				numDone++
-				if ad.FileCache != nil {
-					// Write to the cache in the background.
-					digest := manifest.Contents[result.Name].Digest
-					path := result.Task.Path
-					go func() {
-						b64md5, err := ad.FileCache.AddFile(path)
-						if err != nil {
-							slog.Error("Unable to add file to cache", "err", err)
-						}
-						if b64md5 != digest {
-							slog.Error("File cache mismatch", "path", path, "expected", digest, "actual", b64md5)
-						}
-					}()
-				}
+				go ad.addFileToCache(result.Task.Path, manifest.Contents[result.Name].Digest)
 			}
 		}
 	}
 	return nil
+}
+
+func (ad *ArtifactDownloader) addFileToCache(path string, expectedDigest string) {
+	if ad.FileCache == nil {
+		return
+	}
+	b64md5, err := ad.FileCache.AddFile(path)
+	if err != nil {
+		slog.Error("Unable to add file to cache", "err", err)
+	}
+	if b64md5 != expectedDigest {
+		slog.Error("File cache mismatch", "path", path, "expected", expectedDigest, "actual", b64md5)
+	}
 }
 
 func (ad *ArtifactDownloader) Download() (rerr error) {
