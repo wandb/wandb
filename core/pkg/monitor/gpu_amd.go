@@ -81,7 +81,7 @@ func (g *GPUAMD) IsAvailable() bool {
 	canReadRocmSmi := false
 	if stats, err := getROCMSMIStats(); err == nil {
 		// check if stats is not nil or empty
-		if stats != nil && len(stats) > 0 {
+		if len(stats) > 0 {
 			canReadRocmSmi = true
 		}
 	}
