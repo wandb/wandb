@@ -1,6 +1,7 @@
 package watcher2_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -63,24 +64,27 @@ func TestWatcher(t *testing.T) {
 		waitWithDeadline(t, finished, "expected Finish() to complete")
 	}
 
-	t.Run("runs callback on file write", func(t *testing.T) {
-		t.Parallel()
+	// TODO: DO NOT MERGE!!! Just testing CI flakiness.
+	for i := range 10 {
+		t.Run(fmt.Sprintf("runs callback on file write (%d)", i), func(t *testing.T) {
+			t.Parallel()
 
-		onChangeChan := make(chan struct{})
-		file := filepath.Join(t.TempDir(), "file.txt")
-		writeFile(t, file, "")
+			onChangeChan := make(chan struct{})
+			file := filepath.Join(t.TempDir(), "file.txt")
+			writeFile(t, file, "")
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
-		require.NoError(t,
-			watcher.Watch(file, func() {
-				onChangeChan <- struct{}{}
-			}))
-		writeFile(t, file, "xyz")
+			watcher := newTestWatcher()
+			defer finishWithDeadline(t, watcher)
+			require.NoError(t,
+				watcher.Watch(file, func() {
+					onChangeChan <- struct{}{}
+				}))
+			writeFile(t, file, "xyz")
 
-		waitWithDeadline(t, onChangeChan,
-			"expected file callback to be called")
-	})
+			waitWithDeadline(t, onChangeChan,
+				"expected file callback to be called")
+		})
+	}
 
 	t.Run("fails if file does not exist", func(t *testing.T) {
 		t.Parallel()

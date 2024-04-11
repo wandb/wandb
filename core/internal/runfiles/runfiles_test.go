@@ -1,6 +1,7 @@
 package runfiles_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -108,6 +109,7 @@ func TestUploader(t *testing.T) {
 		}
 
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
+			Ctx:            context.Background(),
 			GraphQL:        mockGQLClient,
 			FileStream:     fakeFileStream,
 			FileTransfer:   fakeFileTransfer,

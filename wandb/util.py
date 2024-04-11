@@ -1890,6 +1890,15 @@ def parse_version(version: str) -> "packaging.version.Version":
     return parse_version(version)
 
 
+# check if wandb_core is installed and if it is a dev version
+def is_core_dev() -> bool:
+    wandb_core = get_module("wandb_core")
+    # if wandb_core is not installed, we don't care
+    if not wandb_core:
+        return False
+    return "dev" in wandb_core.__version__
+
+
 def get_core_path() -> str:
     """Get the path to the wandb-core package. This is used to run the core service.
 
