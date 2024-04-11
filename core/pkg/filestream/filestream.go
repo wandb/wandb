@@ -128,55 +128,23 @@ type fileStream struct {
 	clientId string
 }
 
-type FileStreamOption func(fs *fileStream)
-
-func WithSettings(settings *service.Settings) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.settings = settings
-	}
+type FileStreamParams struct {
+	Settings          *service.Settings
+	Logger            *observability.CoreLogger
+	ApiClient         api.Client
+	MaxItemsPerPush   int
+	ClientId          string
+	DelayProcess      time.Duration
+	PollInterval      time.Duration
+	LastTransmitTime  time.Time
+	HeartbeatInterval time.Duration
 }
 
-func WithLogger(logger *observability.CoreLogger) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.logger = logger
-	}
-}
-
-func WithAPIClient(client api.Client) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.apiClient = client
-	}
-}
-
-func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.maxItemsPerPush = maxItemsPerPush
-	}
-}
-
-func WithClientId(clientId string) FileStreamOption {
-	// TODO: this should be the default behavior in the future
-	return func(fs *fileStream) {
-		if fs.settings.GetXShared().GetValue() {
-			fs.clientId = clientId
-		}
-	}
-}
-
-func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.delayProcess = delayProcess
-	}
-}
-
-func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.pollInterval = heartbeatTime
-	}
-}
-
-func NewFileStream(opts ...FileStreamOption) FileStream {
+func NewFileStream(params FileStreamParams) FileStream {
 	fs := &fileStream{
+		settings:          params.Settings,
+		logger:            params.Logger,
+		apiClient:         params.ApiClient,
 		processWait:       &sync.WaitGroup{},
 		transmitWait:      &sync.WaitGroup{},
 		feedbackWait:      &sync.WaitGroup{},
@@ -190,9 +158,27 @@ func NewFileStream(opts ...FileStreamOption) FileStream {
 		lastTransmitTime:  time.Now(),
 		heartbeatInterval: defaultHeartbeatInterval,
 	}
-	for _, opt := range opts {
-		opt(fs)
+
+	if params.MaxItemsPerPush > 0 {
+		fs.maxItemsPerPush = params.MaxItemsPerPush
 	}
+	if params.DelayProcess > 0 {
+		fs.delayProcess = params.DelayProcess
+	}
+	if params.PollInterval > 0 {
+		fs.pollInterval = params.PollInterval
+	}
+	if params.HeartbeatInterval > 0 {
+		fs.heartbeatInterval = params.HeartbeatInterval
+	}
+	if !params.LastTransmitTime.IsZero() {
+		fs.lastTransmitTime = params.LastTransmitTime
+	}
+	// TODO: this should become the default
+	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
+		fs.clientId = params.ClientId
+	}
+
 	return fs
 }
 
