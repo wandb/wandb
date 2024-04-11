@@ -101,7 +101,3 @@ func (s *Settings) GetFilesDir() string {
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
 }
-
-func (s *Settings) GetInitTimeout() float64 {
-	return s.Proto.GetInitTimeout().GetValue()
-}
