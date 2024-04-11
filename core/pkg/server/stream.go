@@ -11,6 +11,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
@@ -161,6 +162,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
+			s.ctx,
 			s.logger,
 			settings,
 			fileStreamOrNil,
@@ -168,6 +170,8 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			graphqlClientOrNil,
 		)
 	}
+
+	mailbox := mailbox.NewMailbox()
 
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
@@ -179,6 +183,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
+		WithHandlerMailbox(mailbox),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
@@ -199,6 +204,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		graphqlClientOrNil,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+		WithSenderMailbox(mailbox),
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
@@ -216,7 +222,6 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-
 	// forward records from the inChan and loopBackChan to the handler
 	fwdChan := make(chan *service.Record, BufferSize)
 	s.wg.Add(1)

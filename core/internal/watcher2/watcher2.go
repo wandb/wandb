@@ -16,11 +16,6 @@ type Watcher interface {
 	// `onChange` is invoked whenever the contents of the file change.
 	//
 	// The file must exist, or an error is returned.
-	//
-	// NOTE: If the file is deleted later, it is still watched,
-	// and the callback is invoked when it is created. Do not rely on
-	// this behavior---it is a workaround for a race condition in the
-	// library we use.
 	Watch(path string, onChange func()) error
 
 	// Finish stops the watcher from emitting any more change events.

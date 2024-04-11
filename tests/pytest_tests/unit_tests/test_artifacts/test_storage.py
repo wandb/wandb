@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import random
+import tempfile
 from multiprocessing import Pool
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -10,6 +11,7 @@ import pytest
 import wandb
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -18,7 +20,7 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.lib.hashutil import ETag, md5_string
 
 example_digest = md5_string("example")
 
@@ -176,6 +178,16 @@ def test_check_write_parallel(artifact_file_cache):
     assert len(files) == 1
 
 
+def test_artifact_file_cache_is_writeable(tmp_path, monkeypatch):
+    # Patch NamedTemporaryFile to raise a PermissionError
+    def not_allowed(*args, **kwargs):
+        raise PermissionError
+
+    monkeypatch.setattr(tempfile, "_mkstemp_inner", not_allowed)
+    with pytest.raises(PermissionError, match="Unable to write to"):
+        _ = ArtifactFileCache(tmp_path)
+
+
 def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
     reclaimed_bytes = artifact_file_cache.cleanup(100000)
     assert reclaimed_bytes == 0
@@ -304,9 +316,9 @@ def test_gcs_storage_handler_load_path_nonlocal():
 
 def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
     uri = "gs://some-bucket/path/to/file.json"
-    digest = md5_string("a" * 123)
+    digest = ETag(md5_string("a" * 123))
 
-    path, _, opener = artifact_file_cache.check_md5_obj_path(digest, 123)
+    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, digest, 123)
     with opener() as f:
         f.write(123 * "a")
 
