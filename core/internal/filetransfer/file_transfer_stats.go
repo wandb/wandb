@@ -18,12 +18,17 @@ type FileTransferStats interface {
 	// IsDone returns whether all uploads finished.
 	IsDone() bool
 
+	// SetDone marks all uploads as finished.
+	SetDone()
+
 	// UpdateUploadStats updates the tr
 	UpdateUploadStats(newInfo FileUploadInfo)
 }
 
 type fileTransferStats struct {
 	*sync.Mutex
+
+	done bool
 
 	statsByPath map[string]FileUploadInfo
 	filesStats  *service.FilePusherStats
@@ -40,21 +45,19 @@ func NewFileTransferStats() FileTransferStats {
 }
 
 func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
-	fts.Lock()
-	defer fts.Unlock()
 	return proto.Clone(fts.filesStats).(*service.FilePusherStats)
 }
 
 func (fts *fileTransferStats) GetFileCounts() *service.FileCounts {
-	fts.Lock()
-	defer fts.Unlock()
 	return proto.Clone(fts.fileCounts).(*service.FileCounts)
 }
 
 func (fts *fileTransferStats) IsDone() bool {
-	fts.Lock()
-	defer fts.Unlock()
-	return fts.filesStats.TotalBytes == fts.filesStats.UploadedBytes
+	return fts.done
+}
+
+func (fts *fileTransferStats) SetDone() {
+	fts.done = true
 }
 
 // FileUploadInfo is information about an in-progress file upload.
