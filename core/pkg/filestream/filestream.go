@@ -84,6 +84,9 @@ type FileStream interface {
 
 	// SetOffsets sets the per-chunk offsets to stream to.
 	SetOffsets(offsetMap FileStreamOffsetMap)
+
+	// GetLastTransmitTime returns the last time we sent data to the server.
+	GetLastTransmitTime() time.Time
 }
 
 // fileStream is a stream of data to the server
@@ -190,6 +193,10 @@ func (fs *fileStream) SetOffsets(offsetMap FileStreamOffsetMap) {
 	for k, v := range offsetMap {
 		fs.offsetMap[k] = v
 	}
+}
+
+func (fs *fileStream) GetLastTransmitTime() time.Time {
+	return fs.lastTransmitTime
 }
 
 func (fs *fileStream) Start() {

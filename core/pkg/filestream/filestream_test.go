@@ -204,15 +204,33 @@ func TestSendHistory(t *testing.T) {
 	assert.Equal(t, num, tst.capture.m["total"].(int))
 }
 
-// func TestHeartbeat(t *testing.T) {
-// 	// num := 10
-// 	// delay := 5 * time.Millisecond
-// 	tst := NewFilestreamTest(t.Name(),
-// 		func(fs filestream.FileStream) {
-// 			fs.SetHeartbeatInterval(10 * time.Millisecond)
-// 		})
-// 	// assert.Equal(t, num, tst.capture.m["total"].(int))
-// }
+func TestHeartbeat(t *testing.T) {
+	// num := 10
+	lastTransmitTime := time.Now()
+	heartbeatInterval := 1 * time.Millisecond
+
+	tServer := NewTestServer()
+	fsParams := filestream.FileStreamParams{
+		Settings: tServer.settings,
+		Logger:   tServer.logger,
+		ApiClient: apitest.TestingClient(
+			tServer.hserver.URL,
+			api.ClientOptions{},
+		),
+		LastTransmitTime:  lastTransmitTime,
+		HeartbeatInterval: heartbeatInterval,
+	}
+
+	tst := NewFilestreamTest(
+		t.Name(),
+		tServer,
+		fsParams,
+		func(fs filestream.FileStream) {
+			time.Sleep(10 * time.Millisecond)
+		},
+	)
+	assert.NotEqual(t, lastTransmitTime, tst.fs.GetLastTransmitTime())
+}
 
 func BenchmarkHistory(b *testing.B) {
 	num := 10_000
