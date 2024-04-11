@@ -1,7 +1,6 @@
 package watcher2_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -12,7 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher2"
 )
 
-func writeFile(t *testing.T, path string, content string) {
+func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
 	require.NoError(t,
 		os.MkdirAll(
 			filepath.Dir(path),
@@ -21,6 +20,15 @@ func writeFile(t *testing.T, path string, content string) {
 
 	require.NoError(t,
 		os.WriteFile(path, []byte(content), syscall.S_IRUSR|syscall.S_IWUSR))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	return info.ModTime()
+}
+
+func writeFile(t *testing.T, path string, content string) {
+	_ = writeFileAndGetModTime(t, path, content)
 }
 
 func TestWatcher(t *testing.T) {
@@ -64,27 +72,37 @@ func TestWatcher(t *testing.T) {
 		waitWithDeadline(t, finished, "expected Finish() to complete")
 	}
 
-	// TODO: DO NOT MERGE!!! Just testing CI flakiness.
-	for i := range 10 {
-		t.Run(fmt.Sprintf("runs callback on file write (%d)", i), func(t *testing.T) {
-			t.Parallel()
+	t.Run("runs callback on file write", func(t *testing.T) {
+		t.Parallel()
 
-			onChangeChan := make(chan struct{})
-			file := filepath.Join(t.TempDir(), "file.txt")
-			writeFile(t, file, "")
+		onChangeChan := make(chan struct{})
+		file := filepath.Join(t.TempDir(), "file.txt")
+		t1 := writeFileAndGetModTime(t, file, "")
 
-			watcher := newTestWatcher()
-			defer finishWithDeadline(t, watcher)
-			require.NoError(t,
-				watcher.Watch(file, func() {
-					onChangeChan <- struct{}{}
-				}))
-			writeFile(t, file, "xyz")
+		watcher := newTestWatcher()
+		defer finishWithDeadline(t, watcher)
+		require.NoError(t,
+			watcher.Watch(file, func() {
+				onChangeChan <- struct{}{}
+			}))
+		time.Sleep(100 * time.Millisecond) // see below
+		t2 := writeFileAndGetModTime(t, file, "xyz")
 
-			waitWithDeadline(t, onChangeChan,
-				"expected file callback to be called")
-		})
-	}
+		if t1 == t2 {
+			// We sleep before updating the file to try to increase the
+			// likelihood of the second write updating the file's ModTime.
+			//
+			// The ModTime (mtime) is sometimes not very precise, causing
+			// the file to look unchanged to the poll-based watcher that
+			// we use.
+			//
+			// Great blog post about it: https://apenwarr.ca/log/20181113
+			t.Skip("test ran too fast and mtime didn't change")
+		}
+
+		waitWithDeadline(t, onChangeChan,
+			"expected file callback to be called")
+	})
 
 	t.Run("fails if file does not exist", func(t *testing.T) {
 		t.Parallel()
