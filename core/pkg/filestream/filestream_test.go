@@ -205,7 +205,6 @@ func TestSendHistory(t *testing.T) {
 }
 
 func TestHeartbeat(t *testing.T) {
-	// num := 10
 	lastTransmitTime := time.Now()
 	heartbeatInterval := 1 * time.Millisecond
 
