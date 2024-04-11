@@ -15,6 +15,7 @@ here on every PR where this is applicable.
 ### Fixed
 
 * Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
+* Implemented a stricter check for AMD GPU availability by @dmitryduev in https://github.com/wandb/wandb/pull/7322
 
 ### Changed
 
