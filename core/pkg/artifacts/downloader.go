@@ -2,7 +2,10 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -20,6 +23,7 @@ type ArtifactDownloader struct {
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
 	DownloadManager filetransfer.FileTransferManager
+	FileCache       *FileCache
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
@@ -38,6 +42,10 @@ func NewArtifactDownloader(
 	skipCache bool,
 	pathPrefix string,
 ) *ArtifactDownloader {
+	var fileCache *FileCache
+	if !skipCache {
+		fileCache = NewFileCache()
+	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
@@ -47,6 +55,7 @@ func NewArtifactDownloader(
 		AllowMissingReferences: allowMissingReferences,
 		SkipCache:              skipCache,
 		PathPrefix:             pathPrefix,
+		FileCache:              fileCache,
 	}
 }
 
@@ -141,20 +150,17 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
-					// Skip downloading the file if it already exists and has the same digest.
-					exists, err := utils.FileExists(downloadLocalPath)
+					exists, err := DeleteInvalid(downloadLocalPath, entry.Digest)
 					if err != nil {
 						return err
 					}
 					if exists {
-						existingDigest, err := utils.ComputeFileB64MD5(downloadLocalPath)
-						if err != nil {
-							return err
-						}
-						if existingDigest == entry.Digest {
-							numDone++
-							continue
-						}
+						numDone++
+						continue
+					}
+					if ad.FileCache != nil && ad.FileCache.RestoreTo(entry, downloadLocalPath) {
+						numDone++
+						continue
 					}
 					task := &filetransfer.Task{
 						FileKind: filetransfer.RunFileKindArtifact,
@@ -185,6 +191,20 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				numDone++
+				if ad.FileCache != nil {
+					// Write to the cache in the background.
+					digest := manifest.Contents[result.Name].Digest
+					path := result.Task.Path
+					go func() {
+						b64md5, err := ad.FileCache.AddFile(path)
+						if err != nil {
+							slog.Error("Unable to add file to cache", "err", err)
+						}
+						if b64md5 != digest {
+							slog.Error("File cache mismatch", "path", path, "expected", digest, "actual", b64md5)
+						}
+					}()
+				}
 			}
 		}
 	}
