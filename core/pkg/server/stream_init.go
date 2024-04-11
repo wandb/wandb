@@ -3,6 +3,7 @@ package server
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/url"
@@ -122,6 +123,7 @@ func NewFileTransferManager(
 }
 
 func NewRunfilesUploader(
+	ctx context.Context,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
@@ -129,6 +131,7 @@ func NewRunfilesUploader(
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
+		Ctx:          ctx,
 		Logger:       logger,
 		Settings:     settings,
 		FileStream:   fileStream,

@@ -21,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
@@ -51,6 +52,12 @@ func WithSenderFwdChannel(fwd chan *service.Record) SenderOption {
 func WithSenderOutChannel(out chan *service.Result) SenderOption {
 	return func(s *Sender) {
 		s.outChan = out
+	}
+}
+
+func WithSenderMailbox(mailbox *mailbox.Mailbox) SenderOption {
+	return func(s *Sender) {
+		s.mailbox = mailbox
 	}
 }
 
@@ -125,6 +132,8 @@ type Sender struct {
 	wgFileTransfer sync.WaitGroup
 
 	networkPeeker *observability.Peeker
+
+	mailbox *mailbox.Mailbox
 }
 
 // NewSender creates a new Sender with the given settings
@@ -158,12 +167,8 @@ func NewSender(
 		graphqlClient:       graphqlClient,
 	}
 
-	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
-		sender.getServerInfo()
-
-		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
-		}
+	if !settings.GetXOffline().GetValue() && backendOrNil != nil && !settings.GetDisableJobCreation().GetValue() {
+		sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
@@ -648,9 +653,24 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
 		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
+
+		// if the record has a mailbox slot, create a new cancelable context
+		// and store the cancel function in the message registry so that
+		// the context can be canceled if requested by the client
+		mailboxSlot := record.GetControl().GetMailboxSlot()
+		if mailboxSlot != "" {
+			// if this times out, we cancel the global context
+			// as there is no need to proceed with the run
+			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
+		} else {
+			// this should never happen
+			s.logger.CaptureError("sender: sendRun: no mailbox slot", nil)
+		}
+
 		data, err := gql.UpsertBucket(
 			ctx,                              // ctx
 			s.graphqlClient,                  // client
@@ -1244,6 +1264,9 @@ func (s *Sender) getServerInfo() {
 // }
 
 func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+	if !s.settings.GetXOffline().GetValue() && s.serverInfo == nil {
+		s.getServerInfo()
+	}
 
 	localInfo := &service.LocalInfo{}
 	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
