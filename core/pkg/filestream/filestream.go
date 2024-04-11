@@ -41,14 +41,15 @@ import (
 )
 
 const (
-	BufferSize             = 32
-	EventsFileName         = "wandb-events.jsonl"
-	HistoryFileName        = "wandb-history.jsonl"
-	SummaryFileName        = "wandb-summary.json"
-	OutputFileName         = "output.log"
-	defaultMaxItemsPerPush = 5_000
-	defaultDelayProcess    = 20 * time.Millisecond
-	defaultHeartbeatTime   = 2 * time.Second
+	BufferSize               = 32
+	EventsFileName           = "wandb-events.jsonl"
+	HistoryFileName          = "wandb-history.jsonl"
+	SummaryFileName          = "wandb-summary.json"
+	OutputFileName           = "output.log"
+	defaultMaxItemsPerPush   = 5_000
+	defaultDelayProcess      = 20 * time.Millisecond
+	defaultPollInterval      = 2 * time.Second
+	defaultHeartbeatInterval = 3 * time.Second // TODO: make me 30s
 )
 
 type ChunkTypeEnum int8
@@ -114,7 +115,15 @@ type fileStream struct {
 
 	maxItemsPerPush int
 	delayProcess    time.Duration
-	heartbeatTime   time.Duration
+	pollInterval    time.Duration
+
+	// lastTransmitTime is the last time we sent data to the server
+	// used to determine if we should send a heartbeat, so the server
+	// doesn't erroneously mark this run as crashed.
+	// Note: we initialize this to time.Now() to ensure we send a heartbeat
+	// even if we haven't sent any data during the first heartbeat interval.
+	lastTransmitTime  time.Time
+	heartbeatInterval time.Duration
 
 	clientId string
 }
@@ -162,22 +171,24 @@ func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
 
 func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
 	return func(fs *fileStream) {
-		fs.heartbeatTime = heartbeatTime
+		fs.pollInterval = heartbeatTime
 	}
 }
 
 func NewFileStream(opts ...FileStreamOption) FileStream {
 	fs := &fileStream{
-		processWait:     &sync.WaitGroup{},
-		transmitWait:    &sync.WaitGroup{},
-		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan processTask, BufferSize),
-		transmitChan:    make(chan processedChunk, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
-		offsetMap:       make(FileStreamOffsetMap),
-		maxItemsPerPush: defaultMaxItemsPerPush,
-		delayProcess:    defaultDelayProcess,
-		heartbeatTime:   defaultHeartbeatTime,
+		processWait:       &sync.WaitGroup{},
+		transmitWait:      &sync.WaitGroup{},
+		feedbackWait:      &sync.WaitGroup{},
+		processChan:       make(chan processTask, BufferSize),
+		transmitChan:      make(chan processedChunk, BufferSize),
+		feedbackChan:      make(chan map[string]interface{}, BufferSize),
+		offsetMap:         make(FileStreamOffsetMap),
+		maxItemsPerPush:   defaultMaxItemsPerPush,
+		delayProcess:      defaultDelayProcess,
+		pollInterval:      defaultPollInterval,
+		lastTransmitTime:  time.Now(),
+		heartbeatInterval: defaultHeartbeatInterval,
 	}
 	for _, opt := range opts {
 		opt(fs)
