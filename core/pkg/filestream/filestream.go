@@ -41,14 +41,15 @@ import (
 )
 
 const (
-	BufferSize             = 32
-	EventsFileName         = "wandb-events.jsonl"
-	HistoryFileName        = "wandb-history.jsonl"
-	SummaryFileName        = "wandb-summary.json"
-	OutputFileName         = "output.log"
-	defaultMaxItemsPerPush = 5_000
-	defaultDelayProcess    = 20 * time.Millisecond
-	defaultHeartbeatTime   = 2 * time.Second
+	BufferSize               = 32
+	EventsFileName           = "wandb-events.jsonl"
+	HistoryFileName          = "wandb-history.jsonl"
+	SummaryFileName          = "wandb-summary.json"
+	OutputFileName           = "output.log"
+	defaultMaxItemsPerPush   = 5_000
+	defaultDelayProcess      = 20 * time.Millisecond
+	defaultPollInterval      = 2 * time.Second
+	defaultHeartbeatInterval = 30 * time.Second
 )
 
 type ChunkTypeEnum int8
@@ -83,6 +84,9 @@ type FileStream interface {
 
 	// SetOffsets sets the per-chunk offsets to stream to.
 	SetOffsets(offsetMap FileStreamOffsetMap)
+
+	// GetLastTransmitTime returns the last time we sent data to the server.
+	GetLastTransmitTime() time.Time
 }
 
 // fileStream is a stream of data to the server
@@ -114,74 +118,70 @@ type fileStream struct {
 
 	maxItemsPerPush int
 	delayProcess    time.Duration
-	heartbeatTime   time.Duration
+	pollInterval    time.Duration
+
+	// lastTransmitTime is the last time we sent data to the server
+	// used to determine if we should send a heartbeat, so the server
+	// doesn't erroneously mark this run as crashed.
+	// Note: we initialize this to time.Now() to ensure we send a heartbeat
+	// even if we haven't sent any data during the first heartbeat interval.
+	lastTransmitTime  time.Time
+	heartbeatInterval time.Duration
 
 	clientId string
 }
 
-type FileStreamOption func(fs *fileStream)
-
-func WithSettings(settings *service.Settings) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.settings = settings
-	}
+type FileStreamParams struct {
+	Settings          *service.Settings
+	Logger            *observability.CoreLogger
+	ApiClient         api.Client
+	MaxItemsPerPush   int
+	ClientId          string
+	DelayProcess      time.Duration
+	PollInterval      time.Duration
+	LastTransmitTime  time.Time
+	HeartbeatInterval time.Duration
 }
 
-func WithLogger(logger *observability.CoreLogger) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.logger = logger
-	}
-}
-
-func WithAPIClient(client api.Client) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.apiClient = client
-	}
-}
-
-func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.maxItemsPerPush = maxItemsPerPush
-	}
-}
-
-func WithClientId(clientId string) FileStreamOption {
-	// TODO: this should be the default behavior in the future
-	return func(fs *fileStream) {
-		if fs.settings.GetXShared().GetValue() {
-			fs.clientId = clientId
-		}
-	}
-}
-
-func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.delayProcess = delayProcess
-	}
-}
-
-func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
-	return func(fs *fileStream) {
-		fs.heartbeatTime = heartbeatTime
-	}
-}
-
-func NewFileStream(opts ...FileStreamOption) FileStream {
+func NewFileStream(params FileStreamParams) FileStream {
 	fs := &fileStream{
-		processWait:     &sync.WaitGroup{},
-		transmitWait:    &sync.WaitGroup{},
-		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan processTask, BufferSize),
-		transmitChan:    make(chan processedChunk, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
-		offsetMap:       make(FileStreamOffsetMap),
-		maxItemsPerPush: defaultMaxItemsPerPush,
-		delayProcess:    defaultDelayProcess,
-		heartbeatTime:   defaultHeartbeatTime,
+		settings:          params.Settings,
+		logger:            params.Logger,
+		apiClient:         params.ApiClient,
+		processWait:       &sync.WaitGroup{},
+		transmitWait:      &sync.WaitGroup{},
+		feedbackWait:      &sync.WaitGroup{},
+		processChan:       make(chan processTask, BufferSize),
+		transmitChan:      make(chan processedChunk, BufferSize),
+		feedbackChan:      make(chan map[string]interface{}, BufferSize),
+		offsetMap:         make(FileStreamOffsetMap),
+		maxItemsPerPush:   defaultMaxItemsPerPush,
+		delayProcess:      defaultDelayProcess,
+		pollInterval:      defaultPollInterval,
+		lastTransmitTime:  time.Now(),
+		heartbeatInterval: defaultHeartbeatInterval,
 	}
-	for _, opt := range opts {
-		opt(fs)
+
+	if params.MaxItemsPerPush > 0 {
+		fs.maxItemsPerPush = params.MaxItemsPerPush
 	}
+	if params.DelayProcess > 0 {
+		fs.delayProcess = params.DelayProcess
+	}
+	if params.PollInterval > 0 {
+		fs.pollInterval = params.PollInterval
+	}
+	if params.HeartbeatInterval > 0 {
+		fs.heartbeatInterval = params.HeartbeatInterval
+	}
+	if !params.LastTransmitTime.IsZero() {
+		fs.lastTransmitTime = params.LastTransmitTime
+	}
+	// TODO: this should become the default
+	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
+		fs.clientId = params.ClientId
+	}
+
 	return fs
 }
 
@@ -193,6 +193,10 @@ func (fs *fileStream) SetOffsets(offsetMap FileStreamOffsetMap) {
 	for k, v := range offsetMap {
 		fs.offsetMap[k] = v
 	}
+}
+
+func (fs *fileStream) GetLastTransmitTime() time.Time {
+	return fs.lastTransmitTime
 }
 
 func (fs *fileStream) Start() {
