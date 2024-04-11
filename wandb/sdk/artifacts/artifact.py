@@ -1678,6 +1678,8 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: bool = False,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         import pathlib
 
@@ -1718,11 +1720,15 @@ class Artifact:
             self.id,  # type: ignore
             root,
             allow_missing_references,
+            skip_cache,
+            path_prefix,
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
+            path_prefix=path_prefix,
         )
         result = handle.wait(timeout=-1)
 
