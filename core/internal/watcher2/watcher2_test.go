@@ -79,6 +79,8 @@ func TestWatcher(t *testing.T) {
 				watcher.Watch(file, func() {
 					onChangeChan <- struct{}{}
 				}))
+			// DO NOT MERGE!!! Sleep should be unnecessary here.
+			time.Sleep(100 * time.Millisecond)
 			writeFile(t, file, "xyz")
 
 			waitWithDeadline(t, onChangeChan,
