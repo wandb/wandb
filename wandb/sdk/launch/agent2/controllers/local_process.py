@@ -7,7 +7,7 @@ from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
-from .base import BaseManager
+from .base import BaseManager, RunWithTracker
 
 
 async def local_process_controller(
@@ -111,7 +111,7 @@ class LocalProcessesManager(BaseManager):
             self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
 
-        self.active_runs[item.id] = run
+        self.active_runs[item.id] = RunWithTracker(run, job_tracker)
 
         run_id = project.run_id
         self.logger.info(f"Launched item got run_id: {run_id}")

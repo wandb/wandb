@@ -1,17 +1,33 @@
+import asyncio
 import json
 import logging
+import time
+import traceback
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
+import wandb
+from wandb.apis.internal import Api
+from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.runner.abstract import AbstractRun
+from wandb.sdk.launch.runner.abstract import AbstractRun, Status
 
+from ...agent.agent import RUN_INFO_GRACE_PERIOD
 from ...queue_driver.abstract import AbstractQueueDriver
+from ...utils import event_loop_thread_exec
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
 
 WANDB_JOBSET_DISCOVERABILITY_LABEL = "_wandb-jobset"
+
+
+@dataclass
+class RunWithTracker:
+    run: AbstractRun
+    tracker: JobAndRunStatusTracker
 
 
 class BaseManager(ABC):
@@ -35,7 +51,7 @@ class BaseManager(ABC):
         self.max_concurrency = max_concurrency
 
         self.id = config["jobset_spec"].name
-        self.active_runs: Dict[str, AbstractRun] = {}
+        self.active_runs: Dict[str, RunWithTracker] = {}
         if self.queue_driver is None:
             raise LaunchError(
                 "queue_driver is not set, set queue driver in subclass constructor"
@@ -77,6 +93,16 @@ class BaseManager(ABC):
                 await self.cancel_job(item)
                 await self.release_item(item)
 
+        # now check for active runs that are no longer
+        # actually running
+        for item_id, run_with_tracker in list(self.active_runs.items()):
+            run = run_with_tracker.run
+            status = await run.get_status()
+            if status not in ["running", "pending"]:
+                # run is no longer running
+                await self.finish_launched_run(run_with_tracker, status)
+                await self.release_item(item_id)
+
     async def pop_next_item(self) -> Optional[Job]:
         assert self.queue_driver is not None
         next_item = await self.queue_driver.pop_from_run_queue()
@@ -86,41 +112,51 @@ class BaseManager(ABC):
     async def launch_item(self, item: Job) -> Optional[str]:
         self.logger.info(f"Launching item: {item}")
         assert self.queue_driver is not None
-
-        project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
-        project.queue_name = self.config["jobset_spec"].name
-        project.queue_entity = self.config["jobset_spec"].entity_name
-        project.run_queue_item_id = item.id
-        project.fetch_and_validate_project()
-        run_id = project.run_id
-        job_tracker = self.legacy.job_tracker_factory(run_id)
-        job_tracker.update_run_info(project)
-
-        ack_result = await self.jobset.ack_job(item.id, run_id)
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
-        if not ack_result:
-            self.logger.error(f"Failed to ack item: {item.id}")
-            return None
-        image_uri = None
-        if not project.docker_image:
-            entrypoint = project.get_single_entry_point()
-            assert entrypoint is not None
-            image_uri = await self.legacy.builder.build_image(
-                project, entrypoint, job_tracker
+        try:
+            project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
+            run_id = project.run_id
+            job_tracker = self.legacy.job_tracker_factory(run_id)
+            job_tracker.update_run_info(project)
+        except Exception as e:
+            self.logger.error(
+                f"Error parsing run spec, and initializing job tracker {item.id}: {e}"
             )
-        else:
-            assert project.docker_image is not None
-            image_uri = project.docker_image
+            await self.fail_run_with_exception(item.id, e)
+            return None
+        try:
+            project.queue_name = self.config["jobset_spec"].name
+            project.queue_entity = self.config["jobset_spec"].entity_name
+            project.run_queue_item_id = item.id
+            project.fetch_and_validate_project()
 
-        assert image_uri is not None
-        self.label_job(project)
-        run = await self.legacy.runner.run(project, image_uri)
-        if not run:
-            job_tracker.failed_to_start = True
-            await self.release_item(item.id)
-            self.logger.error(f"Failed to start run for item {item.id}")
-            raise NotImplementedError("TODO: handle this case")
-        self.active_runs[item.id] = run
+            ack_result = await self.jobset.ack_job(item.id, run_id)
+            self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+            if not ack_result:
+                self.logger.error(f"Failed to ack item: {item.id}")
+                return None
+            image_uri = None
+            if not project.docker_image:
+                entrypoint = project.get_single_entry_point()
+                assert entrypoint is not None
+                image_uri = await self.legacy.builder.build_image(
+                    project, entrypoint, job_tracker
+                )
+            else:
+                assert project.docker_image is not None
+                image_uri = project.docker_image
+
+            assert image_uri is not None
+            self.label_job(project)
+            run = await self.legacy.runner.run(project, image_uri)
+            if not run:
+                self.logger.error(f"Failed to start run for item {item.id}")
+                await self.fail_unsubmitted_run(item.id)
+                return None
+        except Exception as e:
+            self.logger.error(f"Error launching item {item.id}: {e}")
+            await self.fail_run_with_exception(item.id, e, job_tracker)
+            return None
+        self.active_runs[item.id] = RunWithTracker(run, job_tracker)
 
         self.logger.info(f"Inside launch_item, project.run_id = {run_id}")
         return project.run_id
@@ -134,7 +170,7 @@ class BaseManager(ABC):
         return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
 
     async def cancel_job(self, item: str) -> None:
-        run = self.active_runs[item]
+        run = self.active_runs[item].run
         status = None
         try:
             status = await run.get_status()
@@ -157,3 +193,145 @@ class BaseManager(ABC):
     @abstractmethod
     def label_job(self, project: LaunchProject) -> None:
         raise NotImplementedError
+
+    async def finish_launched_run(
+        self, run_with_tracker: RunWithTracker, status: Status
+    ) -> None:
+        run = run_with_tracker.run
+        tracker = run_with_tracker.tracker
+        item_id = tracker.run_queue_item_id
+        entity = tracker.entity
+        project = tracker.project
+        run_id = tracker.run_id
+
+        if entity is None or project is None or run_id is None:
+            self.logger.error(
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueuetemID: {item_id}"
+            )
+            await event_loop_thread_exec(
+                self.jobset.api.fail_run_queue_item(
+                    item_id,
+                    "submitted job was finished without assigned project or run id",
+                    "agent",
+                )
+            )
+            return
+        run_called_init, logs = await check_run_called_init(
+            self.jobset.api, run, entity, project, run_id, item_id
+        )
+
+        if not run_called_init:
+            fnames = None
+            if logs:
+                fnames = tracker.saver.save_contents(logs, "error.log", "error")
+            if status == "finished":
+                await event_loop_thread_exec(
+                    self.jobset.api.fail_run_queue_item(
+                        item_id,
+                        "The submitted job exited successfully but failed to call wandb.init",
+                        "run",
+                        fnames,
+                    )
+                )
+            else:
+                await event_loop_thread_exec(
+                    self.jobset.api.fail_run_queue_item(
+                        item_id,
+                        f"The submitted job failed to call wandb.init exited with status: {status}",
+                        "run",
+                        fnames,
+                    )
+                )
+
+    async def fail_run_with_exception(
+        self,
+        item_id: str,
+        exception: Exception,
+        tracker: Optional[JobAndRunStatusTracker] = None,
+    ) -> None:
+        tb_str = traceback.format_exception(
+            type(exception), value=exception, tb=exception.__traceback__
+        )
+        fnames = None
+        phase = None
+        if tracker is not None:
+            phase = tracker.err_stage
+            fnames = tracker.saver.save_contents("".join(tb_str), "error.log", "error")
+        else:
+            phase = "agent"
+
+        await event_loop_thread_exec(
+            self.jobset.api.fail_run_queue_item(item_id, str(exception), phase, fnames)
+        )
+        return
+
+    async def fail_unsubmitted_run(self, item_id: str) -> None:
+        await event_loop_thread_exec(
+            self.jobset.api.fail_run_queue_item(
+                item_id,
+                "The job was not submitted successfully",
+                "agent",
+            )
+        )
+        return
+
+
+async def check_run_called_init(
+    api: Api,
+    run: AbstractRun,
+    entity: str,
+    project: str,
+    run_id: str,
+    run_queue_item_id: str,
+) -> Tuple[bool, Optional[str]]:
+    called_init = False
+    # We do some weird stuff here getting run info to check for a
+    # created in run in W&B.
+    #
+    # We retry for 60 seconds with an exponential backoff in case
+    # upsert run is taking a while.
+    logs = None
+    start_time = time.time()
+    interval = 1
+    while True:
+        called_init = await _check_run_exists_and_inited(
+            api,
+            entity,
+            project,
+            run_id,
+            run_queue_item_id,
+        )
+        if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
+            break
+        if not called_init:
+            # Fetch the logs now if we don't get run info on the
+            # first try, in case the logs are cleaned from the runner
+            # environment (e.g. k8s) during the run info grace period.
+            if interval == 1:
+                logs = await run.get_logs()
+            await asyncio.sleep(interval)
+            interval *= 2
+    return called_init, logs
+
+
+async def _check_run_exists_and_inited(
+    api: Api, entity: str, project: str, run_id: str, rqi_id: str
+) -> bool:
+    """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
+    # Checks the _wandb key in the run config for the run queue item id. If it exists, the
+    # submitted run definitely called init. Falls back to checking state of run.
+    # TODO: handle resuming runs
+
+    # Sweep runs exist but are in pending state, normal launch runs won't exist
+    # so will raise a CommError.
+    try:
+        run_state = await event_loop_thread_exec(
+            api.get_run_state(entity, project, run_id)
+        )
+        if run_state.lower() != "pending":
+            return True
+    except CommError:
+        wandb.termwarn(
+            f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run"
+        )
+    return False
