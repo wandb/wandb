@@ -19,6 +19,7 @@ here on every PR where this is applicable.
 ### Changed
 
 * When using `wandb-core` need to specify a required flag (`wandb.require("core")`) to enable it, before it was picked up automatically by @kptkin in  https://github.com/wandb/wandb/pull/7228
+* Use ETags instead of MD5 hashes for GCS reference artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7337
 
 ## [0.16.6] - 2024-04-03
 
