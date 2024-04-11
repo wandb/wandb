@@ -49,7 +49,7 @@ class KubernetesManager(BaseManager):
         legacy: LegacyResources,
         max_concurrency: int,
     ):
-        self.queue_driver = StandardQueueDriver(jobset.api, jobset)
+        self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)
         super().__init__(config, jobset, logger, legacy, max_concurrency)
         # TODO: handle orphaned jobs in resource and assign to self (can do
         # this because we will tell users they can only have one to one

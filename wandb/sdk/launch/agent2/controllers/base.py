@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun
+from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
 from ...queue_driver.abstract import AbstractQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
@@ -130,8 +131,11 @@ class BaseManager(ABC):
         del self.active_runs[item_id]
 
     def _construct_jobset_discoverability_label(self) -> str:
-        # TODO: replace with queue_id
-        return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+        return b64_to_hex_id(
+            md5_string(
+                f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+            )
+        )
 
     async def cancel_job(self, item: str) -> None:
         run = self.active_runs[item]
