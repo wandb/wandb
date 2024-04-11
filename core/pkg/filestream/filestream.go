@@ -49,7 +49,7 @@ const (
 	defaultMaxItemsPerPush   = 5_000
 	defaultDelayProcess      = 20 * time.Millisecond
 	defaultPollInterval      = 2 * time.Second
-	defaultHeartbeatInterval = 3 * time.Second // TODO: make me 30s
+	defaultHeartbeatInterval = 30 * time.Second
 )
 
 type ChunkTypeEnum int8

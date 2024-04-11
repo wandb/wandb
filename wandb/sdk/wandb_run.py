@@ -2394,7 +2394,7 @@ class Run:
             self._run_status_checker = RunStatusChecker(
                 interface=self._backend.interface,
             )
-            self._run_status_checker.start()
+            # self._run_status_checker.start()
 
         self._console_start()
         self._on_ready()

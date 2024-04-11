@@ -1,7 +1,6 @@
 package filestream
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -43,13 +42,10 @@ func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 		}
 		data := collector.dump(fs.offsetMap)
 		timeNow := time.Now()
-		fmt.Println(timeNow, data)
-
 		if data != nil {
 			fs.send(data)
 			fs.lastTransmitTime = time.Now()
 		} else if timeNow.Sub(fs.lastTransmitTime) > fs.heartbeatInterval {
-			fmt.Println("+++++Sending heartbeat")
 			fs.send(&FsTransmitData{})
 			fs.lastTransmitTime = timeNow
 		}
