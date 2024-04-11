@@ -479,6 +479,7 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		h.handleFinal()
 		h.handleFooter()
 	case service.DeferRequest_END:
+		h.fileTransferStats.SetDone()
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
