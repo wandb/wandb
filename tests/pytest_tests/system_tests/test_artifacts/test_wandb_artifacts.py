@@ -1533,10 +1533,8 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
-    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
-    assert cache == artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:
