@@ -44,6 +44,7 @@ def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, ap
 
     # Setup cache dir
     cache_dir = Path(tmp_path / "test_artifact_put_with_cache_enabled/cache")
+    cache
     monkeypatch.setenv("WANDB_CACHE_DIR", str(cache_dir))
     cache = artifact_file_cache.ArtifactFileCache(str(cache_dir / "artifacts"))
     monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
