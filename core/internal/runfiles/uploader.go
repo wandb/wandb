@@ -25,6 +25,7 @@ const (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
+	ctx               context.Context
 	logger            *observability.CoreLogger
 	settings          *settings.Settings
 	fileStream        filestream.FileStream
@@ -59,6 +60,7 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
+		ctx:        params.Ctx,
 		logger:     params.Logger,
 		settings:   params.Settings,
 		fileStream: params.FileStream,
@@ -251,7 +253,7 @@ func (u *uploader) startWatcher() error {
 	u.watcherOrNil = watcher.New()
 	u.watcherOrNil.FilterOps(watcher.Write)
 
-	grp, ctx := errgroup.WithContext(context.Background())
+	grp, ctx := errgroup.WithContext(u.ctx)
 	u.watcherWG.Add(2)
 
 	grp.Go(func() error {
@@ -342,7 +344,7 @@ func (u *uploader) upload(relativePaths []string) {
 
 	go func() {
 		createRunFilesResponse, err := gql.CreateRunFiles(
-			context.Background(),
+			u.ctx,
 			u.graphQL,
 			u.settings.GetEntity(),
 			u.settings.GetProject(),

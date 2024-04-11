@@ -261,6 +261,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	nc.stream = NewStream(nc.ctx, settings, streamId)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
+	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)

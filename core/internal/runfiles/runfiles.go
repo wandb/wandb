@@ -6,6 +6,7 @@
 package runfiles
 
 import (
+	"context"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -51,6 +52,7 @@ func NewUploader(params UploaderParams) Uploader {
 }
 
 type UploaderParams struct {
+	Ctx          context.Context
 	Logger       *observability.CoreLogger
 	Settings     *settings.Settings
 	FileStream   filestream.FileStream
