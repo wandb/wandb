@@ -20,19 +20,16 @@ import (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	ctx               context.Context
-	logger            *observability.CoreLogger
-	settings          *settings.Settings
-	fileStream        filestream.FileStream
-	debouncedTransfer *debouncedTransfer
-	graphQL           graphql.Client
-	uploadBatcher     *uploadBatcher
+	ctx           context.Context
+	logger        *observability.CoreLogger
+	fs            filestream.FileStream
+	ftm           filetransfer.FileTransferManager
+	settings      *settings.Settings
+	graphQL       graphql.Client
+	uploadBatcher *uploadBatcher
 
-	// A mapping from files to their category, if set.
-	//
-	// The default category is OTHER. The keys are paths relative to
-	// the files directory.
-	category map[string]filetransfer.RunFileKind
+	// Files in the run's files directory that we know.
+	knownFiles map[string]*savedFile
 
 	// Files explicitly requested to be uploaded at the end of the run.
 	uploadAtEnd map[string]struct{}
@@ -40,7 +37,7 @@ type uploader struct {
 	// Whether 'Finish' was called.
 	isFinished bool
 
-	// Wait group for file uploads.
+	// Wait group for scheduling file uploads.
 	uploadWG *sync.WaitGroup
 
 	// Mutex that's locked whenever any state is being read or modified.
@@ -52,17 +49,14 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
-		ctx:        params.Ctx,
-		logger:     params.Logger,
-		settings:   params.Settings,
-		fileStream: params.FileStream,
-		debouncedTransfer: newDebouncedTransfer(
-			params.FileTransfer,
-			params.Logger,
-		),
-		graphQL: params.GraphQL,
+		ctx:      params.Ctx,
+		logger:   params.Logger,
+		fs:       params.FileStream,
+		ftm:      params.FileTransfer,
+		settings: params.Settings,
+		graphQL:  params.GraphQL,
 
-		category:    make(map[string]filetransfer.RunFileKind),
+		knownFiles:  make(map[string]*savedFile),
 		uploadAtEnd: make(map[string]struct{}),
 
 		uploadWG: &sync.WaitGroup{},
@@ -104,8 +98,8 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	nowFiles := make([]string, 0)
 
 	for _, file := range record.GetFiles() {
-		u.category[file.GetPath()] =
-			filetransfer.RunFileKindFromProto(file.GetType())
+		u.knownFile(file.GetPath()).
+			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
 
 		switch file.GetPolicy() {
 		case service.FilesItem_NOW:
@@ -146,15 +140,6 @@ func (u *uploader) toRealPath(path string) string {
 	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
-func (u *uploader) SetCategory(path string, category filetransfer.RunFileKind) {
-	if !u.lockForOperation("SetCategory") {
-		return
-	}
-	defer u.stateMu.Unlock()
-
-	u.category[path] = category
-}
-
 func (u *uploader) UploadNow(path string) {
 	if !u.lockForOperation("UploadNow") {
 		return
@@ -188,26 +173,49 @@ func (u *uploader) UploadRemaining() {
 }
 
 func (u *uploader) Finish() {
-	// Update the isFinished state separately. Don't hold mutex while also
-	// waiting for the wait group!
-	func() {
-		u.stateMu.Lock()
-		defer u.stateMu.Unlock()
-
-		if u.isFinished {
-			return
-		}
-		u.isFinished = true
-	}()
+	// Mark as isFinished to prevent new operations.
+	u.stateMu.Lock()
+	if u.isFinished {
+		return
+	}
+	u.isFinished = true
+	u.stateMu.Unlock()
 
 	// Stop watching live files.
 	u.watcher.Finish()
 
 	// Flush any remaining upload batches.
-	u.uploadBatcher.Finish()
+	u.uploadBatcher.Wait()
 
-	// Finish for all upload tasks to complete.
+	// Wait for all upload tasks to get scheduled.
 	u.uploadWG.Wait()
+
+	// Wait for all file uploads to complete.
+	u.stateMu.Lock()
+	defer u.stateMu.Unlock()
+	for _, file := range u.knownFiles {
+		file.Finish()
+	}
+}
+
+func (u *uploader) FlushSchedulingForTest() {
+	u.uploadBatcher.Wait()
+	u.uploadWG.Wait()
+}
+
+// knownFile returns a savedFile or creates it if necessary.
+func (u *uploader) knownFile(runPath string) *savedFile {
+	if u.knownFiles[runPath] == nil {
+		u.knownFiles[runPath] = newSavedFile(
+			u.fs,
+			u.ftm,
+			u.logger,
+			u.toRealPath(runPath),
+			runPath,
+		)
+	}
+
+	return u.knownFiles[runPath]
 }
 
 // Acquires the stateMu mutex if Finish() has not been called.
@@ -341,23 +349,6 @@ func (u *uploader) scheduleUploadTask(
 	u.stateMu.Lock()
 	defer u.stateMu.Unlock()
 
-	localPath := u.toRealPath(relativePath)
-	task := &filetransfer.Task{
-		FileKind: u.category[relativePath],
-		Type:     filetransfer.UploadTask,
-		Path:     localPath,
-		Name:     relativePath,
-		Url:      uploadURL,
-		Headers:  headers,
-	}
-
-	task.SetCompletionCallback(func(t *filetransfer.Task) {
-		if t.Err == nil {
-			u.fileStream.SignalFileUploaded(t.Name)
-		}
-
-		u.uploadWG.Done()
-	})
-
-	u.debouncedTransfer.AddTask(task)
+	u.knownFile(relativePath).Upload(uploadURL, headers)
+	u.uploadWG.Done()
 }

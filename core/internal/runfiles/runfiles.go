@@ -23,11 +23,6 @@ type Uploader interface {
 	// Process handles a file save record from a client.
 	Process(record *service.FilesRecord)
 
-	// Sets a file's category for statistics reporting.
-	//
-	// The path is relative to the run's file directory.
-	SetCategory(path string, category filetransfer.RunFileKind)
-
 	// UploadNow asynchronously uploads a run file.
 	//
 	// The path is relative to the run's file directory.
@@ -50,6 +45,15 @@ type Uploader interface {
 
 func NewUploader(params UploaderParams) Uploader {
 	return newUploader(params)
+}
+
+// UploaderTesting has additional test-only Uploader methods.
+type UploaderTesting interface {
+	// FlushSchedulingForTest blocks until all requested uploads are scheduled.
+	//
+	// If no more Process / Upload methods are invoked and no upload tasks
+	// complete after this method, then no more upload tasks will be created.
+	FlushSchedulingForTest()
 }
 
 type UploaderParams struct {
