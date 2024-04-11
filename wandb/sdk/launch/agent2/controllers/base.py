@@ -208,13 +208,16 @@ class BaseManager(ABC):
             self.logger.error(
                 f"called finish_thread_id on thread whose tracker has no project or run id. RunQueuetemID: {item_id}"
             )
-            await event_loop_thread_exec(
-                self.jobset.api.fail_run_queue_item(
-                    item_id,
-                    "submitted job was finished without assigned project or run id",
-                    "agent",
-                )
+
+            fail_run_queue_item = event_loop_thread_exec(
+                self.jobset.api.fail_run_queue_item
             )
+            await fail_run_queue_item(
+                item_id,
+                "The submitted job was finished without assigned project or run id",
+                "agent",
+            )
+
             return
         run_called_init, logs = await check_run_called_init(
             self.jobset.api, run, entity, project, run_id, item_id
@@ -225,23 +228,19 @@ class BaseManager(ABC):
             if logs:
                 fnames = tracker.saver.save_contents(logs, "error.log", "error")
             if status == "finished":
-                await event_loop_thread_exec(
-                    self.jobset.api.fail_run_queue_item(
-                        item_id,
-                        "The submitted job exited successfully but failed to call wandb.init",
-                        "run",
-                        fnames,
-                    )
-                )
+                _msg = "The submitted job exited successfully but failed to call wandb.init"
             else:
-                await event_loop_thread_exec(
-                    self.jobset.api.fail_run_queue_item(
-                        item_id,
-                        f"The submitted job failed to call wandb.init exited with status: {status}",
-                        "run",
-                        fnames,
-                    )
-                )
+                _msg = f"The submitted job failed to call wandb.init exited with status: {status}"
+
+            fail_run_queue_item = event_loop_thread_exec(
+                self.jobset.api.fail_run_queue_item
+            )
+            await fail_run_queue_item(
+                item_id,
+                _msg,
+                "run",
+                fnames,
+            )
 
     async def fail_run_with_exception(
         self,
@@ -260,9 +259,11 @@ class BaseManager(ABC):
         else:
             phase = "agent"
 
-        await event_loop_thread_exec(
-            self.jobset.api.fail_run_queue_item(item_id, str(exception), phase, fnames)
+        fail_run_queue_item = event_loop_thread_exec(
+            self.jobset.api.fail_run_queue_item
         )
+        await fail_run_queue_item(item_id, str(exception), phase, fnames)
+
         return
 
     async def fail_unsubmitted_run(self, item_id: str) -> None:

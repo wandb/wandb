@@ -1,7 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from wandb.sdk.launch.agent2.controllers.base import BaseManager
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
+from wandb.sdk.launch.agent2.controllers.base import BaseManager, RunWithTracker
 from wandb.sdk.launch.agent2.jobset import Job
 from wandb.sdk.launch.queue_driver.abstract import AbstractQueueDriver
 
@@ -18,6 +19,25 @@ class TestBaseManager(BaseManager):
 
     async def find_orphaned_jobs(self):
         pass
+
+
+@pytest.fixture
+def mock_tracker():
+    return JobAndRunStatusTracker(
+        run_queue_item_id="test-rqi-id",
+        queue="test-queue",
+        saver=AsyncMock(),
+        entity="entity",
+        project="project",
+        run_id="test-id",
+        run=AsyncMock(),
+    )
+
+
+@pytest.fixture
+def mock_run_with_tracker(mock_tracker):
+    run = AsyncMock()
+    return RunWithTracker(run, mock_tracker)
 
 
 @pytest.fixture
@@ -52,11 +72,14 @@ async def test_reconcile_max_concurrency(mocked_test_manager_reconile):
 
 
 @pytest.mark.asyncio
-async def test_reconcile_clear_unowned_item(mocked_test_manager_reconile):
+async def test_reconcile_clear_unowned_item(
+    mocked_test_manager_reconile, mock_run_with_tracker
+):
     mocked_test_manager_reconile.max_concurrency = 0
-    mocked_test_manager_reconile.active_runs = {"not-test-id": MagicMock()}
+    mock_run_with_tracker.run.get_status.return_value = "running"
+    mocked_test_manager_reconile.active_runs = {"not-test-id": mock_run_with_tracker}
     await mocked_test_manager_reconile.reconcile()
-    assert mocked_test_manager_reconile.release_item.called_once_with("not-test-id")
+    assert mocked_test_manager_reconile.cancel_job.called_once_with("not-test-id")
     assert mocked_test_manager_reconile.release_item.called_once_with("not-test-id")
 
 
@@ -70,13 +93,12 @@ def mocked_test_manager(controller_config, jobset) -> "TestBaseManager":
 
 
 @pytest.mark.asyncio
-async def test_cancel_job(mocked_test_manager):
-    mock_abstract_run = AsyncMock()
-    mock_abstract_run.get_status.return_value = "running"
-    mocked_test_manager.active_runs = {"test-id": mock_abstract_run}
+async def test_cancel_job(mocked_test_manager, mock_run_with_tracker):
+    mock_run_with_tracker.run.get_status.return_value = "running"
+    mocked_test_manager.active_runs = {"test-id": mock_run_with_tracker}
     await mocked_test_manager.cancel_job("test-id")
-    assert mock_abstract_run.get_status.call_count == 1
-    assert mock_abstract_run.cancel.call_count == 1
+    assert mock_run_with_tracker.run.get_status.call_count == 1
+    assert mock_run_with_tracker.run.cancel.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -132,3 +154,104 @@ async def test_launch_item(mocked_test_manager, mocker):
     assert mock_launch_project_instance.mock_label_job.call_count == 1
     assert mocked_test_manager.legacy.runner.run.call_count == 1
     assert mocked_test_manager.active_runs.get("test-id") is not None
+
+
+@pytest.mark.parametrize(
+    "called_init_value, run_id, status, check_init_count, failed_args",
+    [
+        (True, "test-id", "finished", 1, None),
+        (
+            False,
+            "test-id",
+            "finished",
+            1,
+            (
+                "test-rqi-id",
+                "The submitted job exited successfully but failed to call wandb.init",
+                "run",
+                None,
+            ),
+        ),
+        (
+            False,
+            "test-id",
+            "stopped",
+            1,
+            (
+                "test-rqi-id",
+                "The submitted job failed to call wandb.init exited with status: stopped",
+                "run",
+                None,
+            ),
+        ),
+        (
+            False,
+            None,
+            "finished",
+            0,
+            (
+                "test-rqi-id",
+                "The submitted job was finished without assigned project or run id",
+                "agent",
+            ),
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_finish_launched_run(
+    mocked_test_manager,
+    mock_run_with_tracker,
+    mocker,
+    called_init_value,
+    run_id,
+    status,
+    check_init_count,
+    failed_args,
+):
+    mock_api = AsyncMock()
+    mock_fail_run_queue_item = AsyncMock()
+    mock_api.fail_run_queue_item = mock_fail_run_queue_item
+    mocked_test_manager.jobset.api = mock_api
+
+    mock_run_called_init = AsyncMock()
+    mock_run_called_init.return_value = (called_init_value, None)
+    mocker.patch(
+        "wandb.sdk.launch.agent2.controllers.base.check_run_called_init",
+        mock_run_called_init,
+    )
+
+    mock_run_with_tracker.tracker.run_id = run_id
+
+    await mocked_test_manager.finish_launched_run(mock_run_with_tracker, status)
+
+    assert mock_run_called_init.call_count == check_init_count
+    if failed_args is None:
+        assert mock_api.fail_run_queue_item.call_count == 0
+    else:
+        assert mock_api.fail_run_queue_item.call_count == 1
+        # index 0 because args
+        assert len(mock_api.fail_run_queue_item.call_args[0]) == len(failed_args)
+        for i, arg in enumerate(failed_args):
+            assert mock_api.fail_run_queue_item.call_args[0][i] == arg
+
+
+@pytest.mark.parametrize("use_tracker, phase", [(False, "agent"), (True, "run")])
+@pytest.mark.asyncio
+async def test_fail_run_with_exception(
+    mocked_test_manager, use_tracker, mock_tracker, phase
+):
+    mock_api = AsyncMock()
+    mock_fail_run_queue_item = AsyncMock()
+    mock_api.fail_run_queue_item = mock_fail_run_queue_item
+    mocked_test_manager.jobset.api = mock_api
+    tracker = None
+    if use_tracker:
+        tracker = mock_tracker
+        tracker.err_stage = "run"
+
+    e = Exception("This is my exception")
+    await mocked_test_manager.fail_run_with_exception("test-rqi-id", e, tracker)
+    assert mock_api.fail_run_queue_item.call_count == 1
+    assert mock_api.fail_run_queue_item.call_args[0][0] == "test-rqi-id"
+    assert mock_api.fail_run_queue_item.call_args[0][1] == "This is my exception"
+    assert mock_api.fail_run_queue_item.call_args[0][2] == phase
