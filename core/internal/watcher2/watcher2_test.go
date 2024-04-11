@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/watcher2"
 )
 
-func writeFile(t *testing.T, path string, content string) {
+func writeFile(t *testing.T, path string, content string) time.Time {
 	require.NoError(t,
 		os.MkdirAll(
 			filepath.Dir(path),
@@ -21,6 +22,11 @@ func writeFile(t *testing.T, path string, content string) {
 
 	require.NoError(t,
 		os.WriteFile(path, []byte(content), syscall.S_IRUSR|syscall.S_IWUSR))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	return info.ModTime()
 }
 
 func TestWatcher(t *testing.T) {
@@ -71,7 +77,7 @@ func TestWatcher(t *testing.T) {
 
 			onChangeChan := make(chan struct{})
 			file := filepath.Join(t.TempDir(), "file.txt")
-			writeFile(t, file, "")
+			t1 := writeFile(t, file, "")
 
 			watcher := newTestWatcher()
 			defer finishWithDeadline(t, watcher)
@@ -79,9 +85,10 @@ func TestWatcher(t *testing.T) {
 				watcher.Watch(file, func() {
 					onChangeChan <- struct{}{}
 				}))
-			// DO NOT MERGE!!! Sleep should be unnecessary here.
-			time.Sleep(100 * time.Millisecond)
-			writeFile(t, file, "xyz")
+			t2 := writeFile(t, file, "xyz")
+
+			// DO NOT MERGE: Testing mtime precision.
+			assert.NotEqual(t, t2, t1)
 
 			waitWithDeadline(t, onChangeChan,
 				"expected file callback to be called")
