@@ -695,7 +695,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			nil,                              // summaryMetrics
 		)
 		if err != nil {
-			// s.cancel()
 			err = fmt.Errorf("failed to upsert bucket: %s", err)
 			s.logger.Error("sender: sendRun:", "error", err)
 			// TODO(run update): handle error communication back to the client
