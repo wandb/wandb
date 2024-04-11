@@ -13,7 +13,12 @@ import (
 type Watcher interface {
 	// Watch begins watching the file at the specified path.
 	//
-	// `onChange` is invoked whenever the contents of the file change.
+	// `onChange` is **usually** invoked after the contents of the file may
+	// have changed.
+	//
+	// In some cases, like if the file is modified too quickly, `onChange` may
+	// not run because the file's mtime is unchanged. There is no guarantee
+	// that `onChange` will be invoked after the final change to a file!
 	//
 	// The file must exist, or an error is returned.
 	Watch(path string, onChange func()) error
