@@ -28,14 +28,6 @@ logger = logging.getLogger(__name__)
 ROCM_SMI_CMD: Final[str] = shutil.which("rocm-smi") or "/usr/bin/rocm-smi"
 
 
-def get_rocm_smi_stats() -> Dict[str, Any]:
-    command = [str(ROCM_SMI_CMD), "-a", "--json"]
-    output = subprocess.check_output(command, universal_newlines=True).strip()
-    if "No AMD GPUs specified" in output:
-        return {}
-    return json.loads(output.split("\n")[0])  # type: ignore
-
-
 _StatsKeys = Literal[
     "gpu",
     "memoryAllocated",
@@ -49,6 +41,48 @@ _Stats = Dict[_StatsKeys, float]
 _InfoDict = Dict[str, Union[int, List[Dict[str, Any]]]]
 
 
+def get_rocm_smi_stats() -> Dict[str, Any]:
+    command = [str(ROCM_SMI_CMD), "-a", "--json"]
+    output = subprocess.check_output(command, universal_newlines=True).strip()
+    if "No AMD GPUs specified" in output:
+        return {}
+    return json.loads(output.split("\n")[0])  # type: ignore
+
+
+def parse_stats(stats: Dict[str, str]) -> _Stats:
+    """Parse stats from rocm-smi output."""
+    parsed_stats: _Stats = {}
+
+    try:
+        parsed_stats["gpu"] = float(stats.get("GPU use (%)"))  # type: ignore
+    except (TypeError, ValueError):
+        logger.warning("Could not parse GPU usage as float")
+    try:
+        parsed_stats["memoryAllocated"] = float(stats.get("GPU memory use (%)"))  # type: ignore
+    except (TypeError, ValueError):
+        logger.warning("Could not parse GPU memory allocation as float")
+    try:
+        parsed_stats["temp"] = float(stats.get("Temperature (Sensor memory) (C)"))  # type: ignore
+    except (TypeError, ValueError):
+        logger.warning("Could not parse GPU temperature as float")
+    try:
+        parsed_stats["powerWatts"] = float(
+            stats.get("Average Graphics Package Power (W)")  # type: ignore
+        )
+    except (TypeError, ValueError):
+        logger.warning("Could not parse GPU power as float")
+    try:
+        parsed_stats["powerPercent"] = (
+            float(stats.get("Average Graphics Package Power (W)"))  # type: ignore
+            / float(stats.get("Max Graphics Package Power (W)"))  # type: ignore
+            * 100
+        )
+    except (TypeError, ValueError):
+        logger.warning("Could not parse GPU average/max power as float")
+
+    return parsed_stats
+
+
 class GPUAMDStats:
     """Stats for AMD GPU devices."""
 
@@ -57,40 +91,6 @@ class GPUAMDStats:
 
     def __init__(self) -> None:
         self.samples = deque()
-
-    @staticmethod
-    def parse_stats(stats: Dict[str, str]) -> _Stats:
-        """Parse stats from rocm-smi output."""
-        parsed_stats: _Stats = {}
-
-        try:
-            parsed_stats["gpu"] = float(stats.get("GPU use (%)"))  # type: ignore
-        except (TypeError, ValueError):
-            logger.warning("Could not parse GPU usage as float")
-        try:
-            parsed_stats["memoryAllocated"] = float(stats.get("GPU memory use (%)"))  # type: ignore
-        except (TypeError, ValueError):
-            logger.warning("Could not parse GPU memory allocation as float")
-        try:
-            parsed_stats["temp"] = float(stats.get("Temperature (Sensor memory) (C)"))  # type: ignore
-        except (TypeError, ValueError):
-            logger.warning("Could not parse GPU temperature as float")
-        try:
-            parsed_stats["powerWatts"] = float(
-                stats.get("Average Graphics Package Power (W)")  # type: ignore
-            )
-        except (TypeError, ValueError):
-            logger.warning("Could not parse GPU power as float")
-        try:
-            parsed_stats["powerPercent"] = (
-                float(stats.get("Average Graphics Package Power (W)"))  # type: ignore
-                / float(stats.get("Max Graphics Package Power (W)"))  # type: ignore
-                * 100
-            )
-        except (TypeError, ValueError):
-            logger.warning("Could not parse GPU average/max power as float")
-
-        return parsed_stats
 
     def sample(self) -> None:
         try:
@@ -103,7 +103,7 @@ class GPUAMDStats:
 
             for card_key in card_keys:
                 card_stats = raw_stats[card_key]
-                stats = self.parse_stats(card_stats)
+                stats = parse_stats(card_stats)
                 if stats:
                     cards.append(stats)
 
@@ -183,7 +183,7 @@ class GPUAMD:
 
         can_read_rocm_smi = False
         try:
-            if get_rocm_smi_stats():
+            if parse_stats(get_rocm_smi_stats()):
                 can_read_rocm_smi = True
         except Exception:
             pass
