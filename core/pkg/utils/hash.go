@@ -17,6 +17,14 @@ func ComputeB64MD5(data []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
 
+func VerifyDataHash(data []byte, b64md5 string) bool {
+	actual, err := ComputeB64MD5(data)
+	if err != nil {
+		return false
+	}
+	return actual == b64md5
+}
+
 func ComputeFileB64MD5(path string) (string, error) {
 	hasher := md5.New()
 	f, err := os.Open(path)
@@ -29,6 +37,14 @@ func ComputeFileB64MD5(path string) (string, error) {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func VerifyFileHash(path string, b64md5 string) bool {
+	actual, err := ComputeFileB64MD5(path)
+	if err != nil {
+		return false
+	}
+	return actual == b64md5
 }
 
 func B64ToHex(data string) (string, error) {
