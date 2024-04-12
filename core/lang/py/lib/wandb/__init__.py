@@ -10,8 +10,8 @@ class Session:
         import os
         import pathlib
         lib_path = pathlib.Path(__file__).parent / "lib" / "libwandb_core.so"
-        lib = ctypes.cdll.LoadLibrary(lib_path)
-        lib.pbSessionSetup()
+        self._lib = ctypes.cdll.LoadLibrary(lib_path)
+        self._lib.pbSessionSetup()
 
 class Run:
     def __init__(self):
@@ -21,10 +21,14 @@ class Run:
         pass
 
     def _start(self):
-        print("Starting run...")
+        global _session
+        if _session:
+            setup()
+        self._session = _session
+        self._run_nexus_id = self._session._lib.pbRunStart()
 
     def finish(self):
-        print("Finishing run...")
+        self._session._lib.pbRunFinish(self._run_nexus_id)
 
 
 # global session

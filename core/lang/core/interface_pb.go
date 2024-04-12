@@ -1,31 +1,38 @@
 package main
 
 import (
-   "C"
-   "fmt"
+	"C"
+	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
 )
 
 //export pbSessionSetup
 func pbSessionSetup() {
-    fmt.Println("setup")
+	wandbcoreSetup()
 }
 
 //export pbSessionTeardown
 func pbSessionTeardown() {
-    fmt.Println("teardown")
 }
 
 //export pbRunStart
-func pbRunStart() {
-    fmt.Println("run start")
+func pbRunStart() int {
+	options := []runopts.RunOption{}
+	wandbcoreSetup()
+	run, err := wandbSession.NewRun(options...)
+	if err != nil {
+		panic(err)
+	}
+	num := wandbRuns.Add(run)
+	return num
 }
 
 //export pbRunLog
 func pbRunLog() {
-    fmt.Println("run log")
 }
 
 //export pbRunFinish
-func pbRunFinish() {
-    fmt.Println("run finish")
+func pbRunFinish(num int) {
+	run := wandbRuns.Get(num)
+	run.Finish()
+	wandbRuns.Remove(num)
 }
