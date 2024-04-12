@@ -516,11 +516,15 @@ class InterfaceBase:
         artifact_id: str,
         download_root: str,
         allow_missing_references: bool,
+        skip_cache: bool,
+        path_prefix: Optional[str],
     ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.artifact_id = artifact_id
         download_artifact.download_root = download_root
         download_artifact.allow_missing_references = allow_missing_references
+        download_artifact.skip_cache = skip_cache
+        download_artifact.path_prefix = path_prefix or ""
         resp = self._deliver_download_artifact(download_artifact)
         return resp
 

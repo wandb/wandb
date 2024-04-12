@@ -137,23 +137,22 @@ type filestreamTest struct {
 	tserver *testServer
 }
 
-func NewFilestreamTest(tName string, fn func(fs filestream.FileStream)) *filestreamTest {
-	tserver := NewTestServer()
+func NewFilestreamTest(
+	tName string,
+	tServer *testServer,
+	params filestream.FileStreamParams,
+	fn func(fs filestream.FileStream),
+) *filestreamTest {
 	m := make(map[string]interface{})
 	capture := captureState{m: m}
 	fstreamPath := "/test/" + tName
-	tserver.mux.Handle(fstreamPath, apiHandler{&capture})
-	fs := filestream.NewFileStream(
-		filestream.WithSettings(tserver.settings),
-		filestream.WithLogger(tserver.logger),
-		filestream.WithAPIClient(apitest.TestingClient(
-			tserver.hserver.URL,
-			api.ClientOptions{},
-		)),
-	)
+	tServer.mux.Handle(fstreamPath, apiHandler{&capture})
+
+	fs := filestream.NewFileStream(params)
 	fs.SetPath(fstreamPath)
 	fs.Start()
-	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tserver.mux, fs: fs, tserver: tserver}
+
+	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tServer.mux, fs: fs, tserver: tServer}
 	defer fsTest.finish()
 	fn(fsTest.fs)
 	return &fsTest
@@ -179,20 +178,76 @@ func NewHistoryRecord() *service.Record {
 func TestSendHistory(t *testing.T) {
 	num := 10
 	delay := 5 * time.Millisecond
-	tst := NewFilestreamTest(t.Name(),
+
+	tServer := NewTestServer()
+	fsParams := filestream.FileStreamParams{
+		Settings: tServer.settings,
+		Logger:   tServer.logger,
+		ApiClient: apitest.TestingClient(
+			tServer.hserver.URL,
+			api.ClientOptions{},
+		),
+	}
+
+	tst := NewFilestreamTest(
+		t.Name(),
+		tServer,
+		fsParams,
 		func(fs filestream.FileStream) {
 			msg := NewHistoryRecord()
 			for i := 0; i < num; i++ {
 				time.Sleep(delay)
 				fs.StreamRecord(msg)
 			}
-		})
+		},
+	)
 	assert.Equal(t, num, tst.capture.m["total"].(int))
+}
+
+func TestHeartbeat(t *testing.T) {
+	lastTransmitTime := time.Now()
+	heartbeatInterval := 1 * time.Millisecond
+
+	tServer := NewTestServer()
+	fsParams := filestream.FileStreamParams{
+		Settings: tServer.settings,
+		Logger:   tServer.logger,
+		ApiClient: apitest.TestingClient(
+			tServer.hserver.URL,
+			api.ClientOptions{},
+		),
+		LastTransmitTime:  lastTransmitTime,
+		HeartbeatInterval: heartbeatInterval,
+	}
+
+	tst := NewFilestreamTest(
+		t.Name(),
+		tServer,
+		fsParams,
+		func(fs filestream.FileStream) {
+			time.Sleep(10 * time.Millisecond)
+		},
+	)
+	assert.NotEqual(t, lastTransmitTime, tst.fs.GetLastTransmitTime())
 }
 
 func BenchmarkHistory(b *testing.B) {
 	num := 10_000
-	tst := NewFilestreamTest(b.Name(),
+
+	tServer := NewTestServer()
+	fsParams := filestream.FileStreamParams{
+		Settings: tServer.settings,
+		Logger:   tServer.logger,
+		ApiClient: apitest.TestingClient(
+			tServer.hserver.URL,
+			api.ClientOptions{},
+		),
+	}
+
+	tst := NewFilestreamTest(
+		b.Name(),
+		tServer,
+		fsParams,
 		func(fs filestream.FileStream) {
 			msg := NewHistoryRecord()
 			b.ResetTimer()
