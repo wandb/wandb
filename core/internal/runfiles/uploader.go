@@ -68,8 +68,7 @@ func newUploader(params UploaderParams) *uploader {
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
 
-		// TODO: Inject this instead and write tests.
-		watcher: watcher2.New(watcher2.Params{Logger: params.Logger}),
+		watcher: params.FileWatcher,
 	}
 
 	if params.BatchWindow != 0 {
@@ -117,8 +116,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			nowFiles = append(nowFiles, file.GetPath())
 			u.uploadAtEnd[file.GetPath()] = struct{}{}
 
-			// TODO: watch the absolute path
-			if err := u.watcher.Watch(file.GetPath(), func() {
+			if err := u.watcher.Watch(u.toRealPath(file.GetPath()), func() {
 				u.uploadBatcher.Add([]string{file.GetPath()})
 			}); err != nil {
 				u.logger.CaptureError(
@@ -135,6 +133,17 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	}
 
 	u.uploadBatcher.Add(nowFiles)
+}
+
+// toRealPath takes a path relative to the run's files directory and returns
+// either an absolute path to that file or a path that's relative to the
+// current working directory.
+func (u *uploader) toRealPath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
 func (u *uploader) SetCategory(path string, category filetransfer.RunFileKind) {
@@ -291,7 +300,7 @@ func (u *uploader) filterNonExistingAndWarn(relativePaths []string) []string {
 	existingRelativePaths := make([]string, 0)
 
 	for _, relativePath := range relativePaths {
-		localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
+		localPath := u.toRealPath(relativePath)
 
 		if _, err := os.Stat(localPath); os.IsNotExist(err) {
 			u.logger.Warn("runfiles: upload: file does not exist", "path", localPath)
@@ -332,7 +341,7 @@ func (u *uploader) scheduleUploadTask(
 	u.stateMu.Lock()
 	defer u.stateMu.Unlock()
 
-	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
+	localPath := u.toRealPath(relativePath)
 	task := &filetransfer.Task{
 		FileKind: u.category[relativePath],
 		Type:     filetransfer.UploadTask,
