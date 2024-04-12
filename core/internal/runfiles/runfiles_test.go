@@ -265,18 +265,29 @@ func TestUploader(t *testing.T) {
 				fakeFileStream.GetFilesUploaded())
 		})
 
-	runTest("upload does not reupload same file if unchanged",
+	runTest("upload serializes uploads of the same file",
 		func() {},
 		func(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+			fakeFileTransfer.ShouldCompleteImmediately = false
 
+			// Act 1: trigger two uploads.
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			uploader.UploadNow("test.txt")
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			uploader.UploadNow("test.txt")
-			uploader.Finish()
+			uploader.(UploaderTesting).FlushSchedulingForTest()
 
+			// Assert 1: only one upload task should happen at a time.
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+
+			// Act 2: complete the first upload task.
+			firstUpload := fakeFileTransfer.Tasks()[0]
+			firstUpload.CompletionCallback(firstUpload)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// Assert 2: the second upload task should get scheduled.
+			assert.Len(t, fakeFileTransfer.Tasks(), 2)
 		})
 
 	runTest("upload batches and deduplicates CreateRunFiles calls",
