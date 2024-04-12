@@ -1077,7 +1077,9 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 	s.fileTransferManager.Start()
 
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
+	downloader := artifacts.NewArtifactDownloader(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
+		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
 	err := downloader.Download()
 	if err != nil {
 		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
