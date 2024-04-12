@@ -3,7 +3,7 @@ from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b11"
+CORE_VERSION = "0.17.0b12.dev1"
 
 
 @nox.session(python=False, name="build-rust")

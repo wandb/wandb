@@ -8,7 +8,7 @@ __all__ = (
 
 from pathlib import Path
 
-__version__ = "0.17.0b11"
+__version__ = "0.17.0b12.dev1"
 
 
 _cached_core_path = None
