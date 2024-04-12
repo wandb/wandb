@@ -1,4 +1,5 @@
 recursive-include wandb *.py
 recursive-include wandb *.sh
+recursive-include wandb *.so
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]

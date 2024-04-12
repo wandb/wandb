@@ -6,7 +6,12 @@ __version__ = "0.0.1"
 
 class Session:
     def __init__(self):
-        pass
+        import ctypes
+        import os
+        import pathlib
+        lib_path = pathlib.Path(__file__).parent / "lib" / "libwandb_core.so"
+        lib = ctypes.cdll.LoadLibrary(lib_path)
+        lib.pbSessionSetup()
 
 class Run:
     def __init__(self):

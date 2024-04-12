@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -e
 BASE=../../../..
 DEST=core/lang/py/lib/
 # cp $BASE/wandb/proto/*.proto wandb/proto/
