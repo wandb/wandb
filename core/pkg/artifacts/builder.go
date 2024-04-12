@@ -76,10 +76,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 	if err != nil {
 		return err
 	}
-	digest, err := utils.ComputeB64MD5(data)
-	if err != nil {
-		return err
-	}
+	digest := utils.ComputeB64MD5(data)
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
 		&service.ArtifactManifestEntry{
 			Path:      name,

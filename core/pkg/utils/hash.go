@@ -8,21 +8,13 @@ import (
 	"os"
 )
 
-func ComputeB64MD5(data []byte) (string, error) {
+// ComputeB64MD5 computes the MD5 hash of the given data and returns the result as a
+// base64 encoded string.
+func ComputeB64MD5(data []byte) string {
 	hasher := md5.New()
-	_, err := hasher.Write(data)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
-}
-
-func VerifyDataHash(data []byte, b64md5 string) bool {
-	actual, err := ComputeB64MD5(data)
-	if err != nil {
-		return false
-	}
-	return actual == b64md5
+	// hasher.Write can't fail; the returned values are just to implement io.Writer
+	_, _ = hasher.Write(data)
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
 
 func ComputeFileB64MD5(path string) (string, error) {

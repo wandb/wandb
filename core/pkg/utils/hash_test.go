@@ -13,8 +13,7 @@ func TestEncode(t *testing.T) {
 }
 
 func TestHexB64RoundTrip(t *testing.T) {
-	b64hash, err := ComputeB64MD5([]byte(`some data`))
-	assert.NoError(t, err)
+	b64hash := ComputeB64MD5([]byte(`some data`))
 
 	hexHash, err := B64ToHex(b64hash)
 	assert.NoError(t, err)
@@ -25,25 +24,13 @@ func TestHexB64RoundTrip(t *testing.T) {
 }
 
 func TestHashValidity(t *testing.T) {
-	b64hash, err := ComputeB64MD5([]byte(`test`))
-	assert.NoError(t, err)
+	b64hash := ComputeB64MD5([]byte(`test`))
 
 	hexHash, err := B64ToHex(b64hash)
 	assert.NoError(t, err)
 
 	// Hash according to Python's hashlib.md5(b"test").hexdigest()
 	assert.Equal(t, "098f6bcd4621d373cade4e832627b4f6", hexHash)
-}
-
-func TestVerifyDataHash(t *testing.T) {
-	b64md5, err := ComputeB64MD5([]byte(`foobar`))
-	assert.NoError(t, err)
-
-	assert.True(t, VerifyDataHash([]byte(`foobar`), b64md5))
-
-	otherB64md5, err := ComputeB64MD5([]byte(`foobar\0`))
-	assert.NoError(t, err)
-	assert.False(t, VerifyDataHash([]byte(`foobar`), otherB64md5))
 }
 
 func TestVerifyFileHash(t *testing.T) {
@@ -53,8 +40,6 @@ func TestVerifyFileHash(t *testing.T) {
 	_, err = testFile.Write([]byte(`foobar`))
 	assert.NoError(t, err)
 
-	b64md5, err := ComputeB64MD5([]byte(`foobar`))
-	assert.NoError(t, err)
-
+	b64md5 := ComputeB64MD5([]byte(`foobar`))
 	assert.True(t, VerifyFileHash(testFile.Name(), b64md5))
 }
