@@ -45,6 +45,7 @@ from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
+from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
@@ -158,6 +159,14 @@ def _get_program() -> Optional[str]:
         return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
+
+
+def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
+    if isinstance(val, RunMoment) or val is None:
+        return val
+    elif isinstance(val, str):
+        return RunMoment.from_uri(val)
+    raise UsageError(f"Could not parse value {val} as a RunMoment.")
 
 
 def _get_program_relpath(
@@ -301,6 +310,7 @@ class SettingsData:
     )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
+    _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
     _except_exit: bool
@@ -391,6 +401,7 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
+    fork_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -646,6 +657,7 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_bool,
                 "hook": lambda x: self._disable_machine_info or x,
             },
+            _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
@@ -803,6 +815,10 @@ class Settings(SettingsData):
                 ),
             },
             force={"preprocessor": _str_as_bool},
+            fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             ignore_globs={
@@ -1573,6 +1589,14 @@ class Settings(SettingsData):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
+                    )
+                )
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.
@@ -1651,7 +1675,6 @@ class Settings(SettingsData):
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
-            "WANDB_REQUIRE_CORE": "_require_core",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",

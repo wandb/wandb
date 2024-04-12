@@ -1,4 +1,5 @@
 """Storage policy."""
+
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
 
 from wandb.sdk.internal.internal_api import Api as InternalApi

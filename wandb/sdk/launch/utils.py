@@ -57,15 +57,15 @@ API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+    r"^(?:https://)?([\w]+)\.azurecr\.io/(?P<repository>[\w\-]+):?(?P<tag>.*)"
 )
 
 ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$"
+    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\w-]+):?(?P<tag>.*)$"
 )
 
 GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+    r"^(?:https://)?(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/?(?P<image_name>[\w-]+)?(?P<tag>:.*)?$",
     re.IGNORECASE,
 )
 
@@ -846,3 +846,21 @@ def fetch_and_validate_template_variables(
             raise LaunchError(f"Value for {key} must be of type {field_type}.")
         template_variables[key] = val
     return template_variables
+
+
+def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+    """Get the entrypoint file from the given command.
+
+    Args:
+        entrypoint (List[str]): List of command and arguments.
+
+    Returns:
+        Optional[str]: The entrypoint file if found, otherwise None.
+    """
+    if not entrypoint:
+        return None
+    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+        return entrypoint[0]
+    if len(entrypoint) < 2:
+        return None
+    return entrypoint[1]

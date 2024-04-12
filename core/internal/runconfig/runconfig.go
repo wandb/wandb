@@ -84,7 +84,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 		); err != nil {
 			onError(
 				fmt.Errorf(
-					"config: failed to unmarshall JSON for config key %v: %v",
+					"config: failed to unmarshal JSON for config key %v: %v",
 					path,
 					err,
 				),

@@ -1,4 +1,5 @@
 """Artifact saver."""
+
 import concurrent.futures
 import json
 import os
@@ -75,25 +76,22 @@ class ArtifactSaver:
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        try:
-            return self._save_internal(
-                type,
-                name,
-                client_id,
-                sequence_client_id,
-                distributed_id,
-                finalize,
-                metadata,
-                ttl_duration_seconds,
-                description,
-                aliases,
-                use_after_commit,
-                incremental,
-                history_step,
-                base_id,
-            )
-        finally:
-            pass
+        return self._save_internal(
+            type,
+            name,
+            client_id,
+            sequence_client_id,
+            distributed_id,
+            finalize,
+            metadata,
+            ttl_duration_seconds,
+            description,
+            aliases,
+            use_after_commit,
+            incremental,
+            history_step,
+            base_id,
+        )
 
     def _save_internal(
         self,
@@ -175,14 +173,16 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_sync(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
                 step_prepare,
                 progress_callback=progress_callback,
             ),
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,

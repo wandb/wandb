@@ -1,4 +1,5 @@
 """Tooling for the W&B Importer."""
+
 import itertools
 import json
 import logging
@@ -201,35 +202,28 @@ class WandbRun:
 
         yield from self._used_artifacts
 
-    def os_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def os_version(self) -> Optional[str]: ...  # pragma: no cover
 
     def python_version(self) -> Optional[str]:
         return self._metadata_file().get("python")
 
-    def cuda_version(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def cuda_version(self) -> Optional[str]: ...  # pragma: no cover
 
-    def program(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def program(self) -> Optional[str]: ...  # pragma: no cover
 
     def host(self) -> Optional[str]:
         return self._metadata_file().get("host")
 
-    def username(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def username(self) -> Optional[str]: ...  # pragma: no cover
 
-    def executable(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def executable(self) -> Optional[str]: ...  # pragma: no cover
 
-    def gpus_used(self) -> Optional[str]:
-        ...  # pragma: no cover
+    def gpus_used(self) -> Optional[str]: ...  # pragma: no cover
 
     def cpus_used(self) -> Optional[int]:  # can we get the model?
         ...  # pragma: no cover
 
-    def memory_used(self) -> Optional[int]:
-        ...  # pragma: no cover
+    def memory_used(self) -> Optional[int]: ...  # pragma: no cover
 
     def runtime(self) -> Optional[int]:
         wandb_runtime = self.run.summary.get("_wandb", {}).get("runtime")

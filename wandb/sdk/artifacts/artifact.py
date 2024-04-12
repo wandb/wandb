@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import stat
+import sys
 import tempfile
 import time
 from copy import copy
@@ -22,7 +23,6 @@ from typing import (
     Dict,
     Generator,
     List,
-    Literal,
     Optional,
     Sequence,
     Set,
@@ -31,6 +31,12 @@ from typing import (
     Union,
     cast,
 )
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 from urllib.parse import urlparse
 
 import requests
@@ -219,10 +225,14 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        entity = attrs["artifactSequence"]["project"]["entityName"]
-        project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        entity_name = ""
+        project_name = ""
+        if attr_project:
+            entity_name = attr_project["entityName"]
+            project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
     def _from_name(
@@ -278,7 +288,9 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == entity
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
@@ -287,8 +299,12 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        artifact._source_entity = ""
+        artifact._source_project = ""
+        if attr_project:
+            artifact._source_entity = attr_project["entityName"]
+            artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -855,8 +871,12 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        self._entity = attrs["artifactSequence"]["project"]["entityName"]
-        self._project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        self._entity = ""
+        self._project = ""
+        if attr_project:
+            self._entity = attr_project["entityName"]
+            self._project = attr_project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -875,7 +895,9 @@ class Artifact:
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
@@ -1623,7 +1645,7 @@ class Artifact:
         root = root or self._default_root()
         self._add_download_root(root)
 
-        if get_core_path() != "":
+        if is_require_core():
             return self._download_using_core(
                 root=root,
                 allow_missing_references=allow_missing_references,
@@ -1656,6 +1678,8 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: bool = False,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         import pathlib
 
@@ -1696,11 +1720,15 @@ class Artifact:
             self.id,  # type: ignore
             root,
             allow_missing_references,
+            skip_cache,
+            path_prefix,
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
+            path_prefix=path_prefix,
         )
         result = handle.wait(timeout=-1)
 
@@ -1726,7 +1754,7 @@ class Artifact:
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
-        require_core = get_core_path() != ""
+        require_core = is_require_core()
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -2273,6 +2301,12 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
+
+
+def is_require_core() -> bool:
+    if env.is_require_core():
+        return bool(get_core_path())
+    return False
 
 
 class _ArtifactVersionType(WBType):

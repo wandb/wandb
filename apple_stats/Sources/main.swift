@@ -45,10 +45,33 @@ public func getGPUStats() -> [String: Any] {
         let m2Gpu1 = SMC.shared.getValue("Tg0f")
         let m2Gpu2 = SMC.shared.getValue("Tg0j")
 
+        // M3 GPU temperature
+        // platforms: [.m3, .m3Pro, .m3Max, .m3Ultra]
+        let m3Gpu1 = SMC.shared.getValue("Tf14")
+        let m3Gpu2 = SMC.shared.getValue("Tf18")
+        let m3Gpu3 = SMC.shared.getValue("Tf19")
+        let m3Gpu4 = SMC.shared.getValue("Tf1A")
+        let m3Gpu5 = SMC.shared.getValue("Tf24")
+        let m3Gpu6 = SMC.shared.getValue("Tf28")
+        let m3Gpu7 = SMC.shared.getValue("Tf29")
+        let m3Gpu8 = SMC.shared.getValue("Tf2A")
+
         // TODO: add M3 GPU temperature
 
         // GPU / Neural Engine Total Power
-        let gpuPower = SMC.shared.getValue("PMVR")
+        let gpuPowerPMVR = SMC.shared.getValue("PMVR")
+        let gpuPowerPGTR = SMC.shared.getValue("PGTR")
+        let gpuPowerPG0R = SMC.shared.getValue("PG0R")
+
+        let gpuVoltage = SMC.shared.getValue("VG0C")
+        let gpuCurrent = SMC.shared.getValue("IG0C")
+        let gpuPower = SMC.shared.getValue("PG0C")
+
+        let PC10 = SMC.shared.getValue("PC10")
+        let PC12 = SMC.shared.getValue("PC12")
+        let PC20 = SMC.shared.getValue("PC20")
+        let PC22 = SMC.shared.getValue("PC22")
+        let PC40 = SMC.shared.getValue("PC40")
 
         // System total power
         let systemPower = SMC.shared.getValue("PSTR")
@@ -65,8 +88,27 @@ public func getGPUStats() -> [String: Any] {
         GPUStats["m1Gpu4"] = m1Gpu4 ?? 0
         GPUStats["m2Gpu1"] = m2Gpu1 ?? 0
         GPUStats["m2Gpu2"] = m2Gpu2 ?? 0
+        GPUStats["m3Gpu1"] = m3Gpu1 ?? 0
+        GPUStats["m3Gpu2"] = m3Gpu2 ?? 0
+        GPUStats["m3Gpu3"] = m3Gpu3 ?? 0
+        GPUStats["m3Gpu4"] = m3Gpu4 ?? 0
+        GPUStats["m3Gpu5"] = m3Gpu5 ?? 0
+        GPUStats["m3Gpu6"] = m3Gpu6 ?? 0
+        GPUStats["m3Gpu7"] = m3Gpu7 ?? 0
+        GPUStats["m3Gpu8"] = m3Gpu8 ?? 0
+        GPUStats["gpuPowerPMVR"] = gpuPowerPMVR ?? 0
+        GPUStats["gpuPowerPGTR"] = gpuPowerPGTR ?? 0
+        GPUStats["gpuPowerPG0R"] = gpuPowerPG0R ?? 0
+        GPUStats["gpuVoltage"] = gpuVoltage ?? 0
+        GPUStats["gpuCurrent"] = gpuCurrent ?? 0
         GPUStats["gpuPower"] = gpuPower ?? 0
         GPUStats["systemPower"] = systemPower ?? 0
+
+        GPUStats["PC10"] = PC10 ?? 0
+        GPUStats["PC12"] = PC12 ?? 0
+        GPUStats["PC20"] = PC20 ?? 0
+        GPUStats["PC22"] = PC22 ?? 0
+        GPUStats["PC40"] = PC40 ?? 0
     }
 
     return GPUStats

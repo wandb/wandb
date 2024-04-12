@@ -195,12 +195,6 @@ class _WandbInit:
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
 
-        # when using launch, we don't want to reuse the same run id from the singleton
-        # since users might launch multiple runs in the same process
-        # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
-            settings.update({"run_id": None}, source=Source.INIT)
-
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
@@ -962,6 +956,7 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
+    fork_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
     r"""Start a new run to track and log to W&B.
@@ -1123,6 +1118,10 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
+        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to fork a new run from. Creates a new run that picks up
+            logging history from the specified run at the specified moment. The target run must
+            be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
 
     Examples:
     ### Set where the run is logged
@@ -1168,6 +1167,11 @@ def init(
     error_seen = None
     except_exit = None
     run: Optional[Union[Run, RunDisabled]] = None
+
+    # convert fork_from into a version that can be passed to settings
+    if fork_from is not None and resume is not None:
+        raise ValueError("Cannot specify both `fork_from` and `resume`")
+
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
