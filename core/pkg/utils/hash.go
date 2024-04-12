@@ -47,10 +47,8 @@ func B64ToHex(data string) (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-func EncodeBytesAsHex(contents []byte) string {
-	return hex.EncodeToString(contents)
-}
-
+// HexToB64 converts a hexadecimal string to a base64 encoded string.
+// It returns an error if the string provided is not valid hexadecimal.
 func HexToB64(data string) (string, error) {
 	buf, err := hex.DecodeString(data)
 	if err != nil {

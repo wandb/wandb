@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -130,5 +131,5 @@ func computeManifestDigest(manifest *Manifest) string {
 		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
 	}
 
-	return utils.EncodeBytesAsHex(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
 }
