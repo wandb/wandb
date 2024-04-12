@@ -237,7 +237,11 @@ def get_base_setup(
 
     CPU version is built on python, Accelerator version is built on user provided.
     """
-    python_base_image = f"python:{py_version}-buster"
+    minor = int(py_version.split(".")[1])
+    if minor < 12:
+        python_base_image = f"python:{py_version}-buster"
+    else:
+        python_base_image = f"python:{py_version}-bookworm"
     if launch_project.accelerator_base_image:
         _logger.info(
             f"Using accelerator base image: {launch_project.accelerator_base_image}"
