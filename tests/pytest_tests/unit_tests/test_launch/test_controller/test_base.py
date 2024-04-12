@@ -85,8 +85,12 @@ async def test_reconcile_clear_unowned_item(
     mock_run_with_tracker.run.get_status.return_value = "running"
     mocked_test_manager_reconile.active_runs = {"not-test-id": mock_run_with_tracker}
     await mocked_test_manager_reconile.reconcile()
-    assert mocked_test_manager_reconile.cancel_job.called_once_with("not-test-id")
-    assert mocked_test_manager_reconile.release_item.called_once_with("not-test-id")
+    assert mocked_test_manager_reconile.cancel_job.assert_called_once_with(
+        "not-test-id"
+    )
+    assert mocked_test_manager_reconile.release_item.assert_called_once_with(
+        "not-test-id"
+    )
 
 
 @pytest.fixture
