@@ -23,7 +23,9 @@ type ArtifactDownloader struct {
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
-	AllowMissingReferences *bool
+	AllowMissingReferences bool   // Currently unused
+	SkipCache              bool   // Currently unused
+	PathPrefix             string // Currently unused
 }
 
 func NewArtifactDownloader(
@@ -32,7 +34,9 @@ func NewArtifactDownloader(
 	downloadManager filetransfer.FileTransferManager,
 	artifactID string,
 	downloadRoot string,
-	allowMissingReferences *bool,
+	allowMissingReferences bool,
+	skipCache bool,
+	pathPrefix string,
 ) *ArtifactDownloader {
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
@@ -41,6 +45,8 @@ func NewArtifactDownloader(
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		AllowMissingReferences: allowMissingReferences,
+		SkipCache:              skipCache,
+		PathPrefix:             pathPrefix,
 	}
 }
 

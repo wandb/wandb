@@ -87,12 +87,14 @@ func NewFileStream(
 		NetworkPeeker:   peeker,
 	})
 
-	return filestream.NewFileStream(
-		filestream.WithSettings(settings.Proto),
-		filestream.WithLogger(logger),
-		filestream.WithAPIClient(fileStreamRetryClient),
-		filestream.WithClientId(shared.ShortID(32)),
-	)
+	params := filestream.FileStreamParams{
+		Settings:  settings.Proto,
+		Logger:    logger,
+		ApiClient: fileStreamRetryClient,
+		ClientId:  shared.ShortID(32),
+	}
+
+	return filestream.NewFileStream(params)
 }
 
 func NewFileTransferManager(

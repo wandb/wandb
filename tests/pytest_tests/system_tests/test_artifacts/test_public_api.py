@@ -174,13 +174,13 @@ def test_log_with_wrong_type_entity_project(wandb_init, logged_artifact):
 
     draft = logged_artifact.new_draft()
     draft._source_entity = "mistaken"
-    with pytest.raises(ValueError, match="can't be moved to 'mistaken'"):
+    with pytest.raises(ValueError, match="owned by entity 'mistaken'"):
         with wandb_init(entity=entity, project=project) as run:
             run.log_artifact(draft)
 
     draft = logged_artifact.new_draft()
     draft._source_project = "wrong"
-    with pytest.raises(ValueError, match="can't be moved to 'wrong'"):
+    with pytest.raises(ValueError, match="exists in project 'wrong'"):
         with wandb_init(entity=entity, project=project) as run:
             run.log_artifact(draft)
 
