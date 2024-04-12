@@ -1217,4 +1217,8 @@ def init(
                 wandb.termerror("Abnormal program exit")
                 os._exit(1)
             raise Error("An unexpected error occurred") from error_seen
+    from wandb.sdk.launch.inputs.internal import StagedLaunchInputs
+
+    staged_inputs = StagedLaunchInputs()
+    staged_inputs.apply(run)
     return run
