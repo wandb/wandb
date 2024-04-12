@@ -267,12 +267,13 @@ class BaseManager(ABC):
         return
 
     async def fail_unsubmitted_run(self, item_id: str) -> None:
-        await event_loop_thread_exec(
-            self.jobset.api.fail_run_queue_item(
-                item_id,
-                "The job was not submitted successfully",
-                "agent",
-            )
+        fail_run_queue_item = event_loop_thread_exec(
+            self.jobset.api.fail_run_queue_item
+        )
+        await fail_run_queue_item(
+            item_id,
+            "The job was not submitted successfully",
+            "agent",
         )
         return
 
@@ -295,7 +296,7 @@ async def check_run_called_init(
     start_time = time.time()
     interval = 1
     while True:
-        called_init = await _check_run_exists_and_inited(
+        called_init = await check_run_exists_and_inited(
             api,
             entity,
             project,
@@ -315,10 +316,10 @@ async def check_run_called_init(
     return called_init, logs
 
 
-async def _check_run_exists_and_inited(
+async def check_run_exists_and_inited(
     api: Api, entity: str, project: str, run_id: str, rqi_id: str
 ) -> bool:
-    """Checks the stateof the run to ensure it has been inited. Note this will not behave well with resuming."""
+    """Checks the state of the run to ensure it has been inited. Note this will not behave well with resuming."""
     # Checks the _wandb key in the run config for the run queue item id. If it exists, the
     # submitted run definitely called init. Falls back to checking state of run.
     # TODO: handle resuming runs
@@ -326,9 +327,8 @@ async def _check_run_exists_and_inited(
     # Sweep runs exist but are in pending state, normal launch runs won't exist
     # so will raise a CommError.
     try:
-        run_state = await event_loop_thread_exec(
-            api.get_run_state(entity, project, run_id)
-        )
+        get_run_state = event_loop_thread_exec(api.get_run_state)
+        run_state = await get_run_state(entity, project, run_id)
         if run_state.lower() != "pending":
             return True
     except CommError:

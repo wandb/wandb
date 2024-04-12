@@ -1,8 +1,14 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from wandb.errors import CommError
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.agent2.controllers.base import BaseManager, RunWithTracker
+from wandb.sdk.launch.agent2.controllers.base import (
+    BaseManager,
+    RunWithTracker,
+    check_run_called_init,
+    check_run_exists_and_inited,
+)
 from wandb.sdk.launch.agent2.jobset import Job
 from wandb.sdk.launch.queue_driver.abstract import AbstractQueueDriver
 
@@ -238,10 +244,10 @@ async def test_finish_launched_run(
 @pytest.mark.parametrize("use_tracker, phase", [(False, "agent"), (True, "run")])
 @pytest.mark.asyncio
 async def test_fail_run_with_exception(
-    mocked_test_manager, use_tracker, mock_tracker, phase
+    mocked_test_manager, mock_tracker, use_tracker, phase
 ):
-    mock_api = AsyncMock()
-    mock_fail_run_queue_item = AsyncMock()
+    mock_api = MagicMock()
+    mock_fail_run_queue_item = MagicMock()
     mock_api.fail_run_queue_item = mock_fail_run_queue_item
     mocked_test_manager.jobset.api = mock_api
     tracker = None
@@ -255,3 +261,67 @@ async def test_fail_run_with_exception(
     assert mock_api.fail_run_queue_item.call_args[0][0] == "test-rqi-id"
     assert mock_api.fail_run_queue_item.call_args[0][1] == "This is my exception"
     assert mock_api.fail_run_queue_item.call_args[0][2] == phase
+
+
+@pytest.mark.asyncio
+async def test_fail_unsubmitted_run(mocked_test_manager):
+    mock_api = MagicMock()
+    mock_fail_run_queue_item = MagicMock()
+    mock_api.fail_run_queue_item = mock_fail_run_queue_item
+    mocked_test_manager.jobset.api = mock_api
+    await mocked_test_manager.fail_unsubmitted_run("test-rqi-id")
+    assert mock_api.fail_run_queue_item.call_count == 1
+    assert mock_api.fail_run_queue_item.call_args[0][0] == "test-rqi-id"
+    assert (
+        mock_api.fail_run_queue_item.call_args[0][1]
+        == "The job was not submitted successfully"
+    )
+    assert mock_api.fail_run_queue_item.call_args[0][2] == "agent"
+
+
+@pytest.mark.asyncio
+async def test_check_run_called_init(mocker):
+    run = AsyncMock()
+    count = 0
+
+    async def mock_check_run_exists_and_inited(*args, **kwargs):
+        nonlocal count
+        count += 1
+        if count == 1:
+            return False
+        return True
+
+    mocker.patch(
+        "wandb.sdk.launch.agent2.controllers.base.check_run_exists_and_inited",
+        mock_check_run_exists_and_inited,
+    )
+    res, _ = await check_run_called_init(
+        AsyncMock(), run, "test-entity", "test-proj", "test-id", "test-rqi-id"
+    )
+    assert res is True
+    assert count == 2
+    assert run.get_logs.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "state, expected",
+    [("running", True), ("pending", False)],
+)
+@pytest.mark.asyncio
+async def test_check_run_exists_and_inited(state, expected):
+    api = MagicMock()
+    api.get_run_state.return_value = state
+    res = await check_run_exists_and_inited(
+        api, "test-entity", "test-proj", "test-id", "test-rqi-id"
+    )
+    assert res is expected
+
+
+@pytest.mark.asyncio
+async def test_check_run_exists_and_inited_exception():
+    api = MagicMock()
+    api.get_run_state.side_effect = CommError("This is my exception")
+    res = await check_run_exists_and_inited(
+        api, "test-entity", "test-proj", "test-id", "test-rqi-id"
+    )
+    assert res is False
