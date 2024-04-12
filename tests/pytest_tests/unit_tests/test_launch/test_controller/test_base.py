@@ -51,7 +51,7 @@ def mocked_test_manager_reconile(controller_config, jobset) -> "TestBaseManager"
     mgr = TestBaseManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
     mgr.launch_item = AsyncMock()
     mgr.pop_next_item = AsyncMock()
-    mgr.cancel_job = AsyncMock()
+    mgr.cancel_item = AsyncMock()
     mgr.release_item = AsyncMock()
     return mgr
 
@@ -173,18 +173,6 @@ async def test_launch_item(mocked_test_manager, mocker):
         (
             False,
             "test-id",
-            "finished",
-            1,
-            (
-                "test-rqi-id",
-                "The submitted job exited successfully but failed to call wandb.init",
-                "run",
-                None,
-            ),
-        ),
-        (
-            False,
-            "test-id",
             "stopped",
             1,
             (
@@ -240,9 +228,7 @@ async def test_finish_launched_run(
     else:
         assert mock_api.fail_run_queue_item.call_count == 1
         # index 0 because args
-        assert len(mock_api.fail_run_queue_item.call_args[0]) == len(failed_args)
-        for i, arg in enumerate(failed_args):
-            assert mock_api.fail_run_queue_item.call_args[0][i] == arg
+        assert mock_api.fail_run_queue_item.call_args[0] == failed_args
 
 
 @pytest.mark.parametrize("use_tracker, phase", [(False, "agent"), (True, "run")])

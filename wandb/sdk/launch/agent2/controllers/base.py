@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import time
 import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -58,6 +57,16 @@ class BaseManager(ABC):
             )
 
     async def reconcile(self) -> None:
+        """Reconcile the current set of active runs with the jobset.
+
+        Performs the following checks to ensure the controller is in a consistent state with the jobset:
+        - Determining the items in the current job set
+        - Determining items owned by the current controller
+        - Checking whether there is capacity for the controller to own more items
+        - Leasing and launching the next item if there is capacity
+        - Clearing items from the active runs that are no longer in the job set
+        - Checking the status of active runs and releasing them if they are no longer running
+        """
         assert self.queue_driver is not None
         raw_items = list(self.jobset.jobs.values())
         # Dump all raw items
@@ -90,7 +99,7 @@ class BaseManager(ABC):
         for item in list(self.active_runs):
             if item not in owned_items:
                 # we don't own this item anymore
-                await self.cancel_job(item)
+                await self.cancel_item(item)
                 await self.release_item(item)
 
         # now check for active runs that are no longer
@@ -104,35 +113,37 @@ class BaseManager(ABC):
                 await self.release_item(item_id)
 
     async def pop_next_item(self) -> Optional[Job]:
+        """Pop the next item from the run queue."""
         assert self.queue_driver is not None
         next_item = await self.queue_driver.pop_from_run_queue()
         self.logger.info(f"Leased item: {next_item}")
         return next_item
 
-    async def launch_item(self, item: Job) -> Optional[str]:
-        self.logger.info(f"Launching item: {item}")
+    async def launch_item(self, job: Job) -> Optional[str]:
+        """Launch a new job on the resource."""
+        self.logger.info(f"Launching item: {job}")
         assert self.queue_driver is not None
         try:
-            project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
+            project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
             run_id = project.run_id
             job_tracker = self.legacy.job_tracker_factory(run_id)
             job_tracker.update_run_info(project)
         except Exception as e:
             self.logger.error(
-                f"Error parsing run spec, and initializing job tracker {item.id}: {e}"
+                f"Error parsing run spec, and initializing job tracker {job.id}: {e}"
             )
-            await self.fail_run_with_exception(item.id, e)
+            await self.fail_run_with_exception(job.id, e)
             return None
         try:
             project.queue_name = self.config["jobset_spec"].name
             project.queue_entity = self.config["jobset_spec"].entity_name
-            project.run_queue_item_id = item.id
+            project.run_queue_item_id = job.id
             project.fetch_and_validate_project()
 
-            ack_result = await self.jobset.ack_job(item.id, run_id)
+            ack_result = await self.jobset.ack_job(job.id, run_id)
             self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
             if not ack_result:
-                self.logger.error(f"Failed to ack item: {item.id}")
+                self.logger.error(f"Failed to ack item: {job.id}")
                 return None
             image_uri = None
             if not project.docker_image:
@@ -149,19 +160,20 @@ class BaseManager(ABC):
             self.label_job(project)
             run = await self.legacy.runner.run(project, image_uri)
             if not run:
-                self.logger.error(f"Failed to start run for item {item.id}")
-                await self.fail_unsubmitted_run(item.id)
+                self.logger.error(f"Failed to start run for item {job.id}")
+                await self.fail_unsubmitted_run(job.id)
                 return None
         except Exception as e:
-            self.logger.error(f"Error launching item {item.id}: {e}")
-            await self.fail_run_with_exception(item.id, e, job_tracker)
+            self.logger.error(f"Error launching item {job.id}: {e}")
+            await self.fail_run_with_exception(job.id, e, job_tracker)
             return None
-        self.active_runs[item.id] = RunWithTracker(run, job_tracker)
+        self.active_runs[job.id] = RunWithTracker(run, job_tracker)
 
         self.logger.info(f"Inside launch_item, project.run_id = {run_id}")
         return project.run_id
 
     async def release_item(self, item_id: str) -> None:
+        """Clear the active run for the given item."""
         self.logger.info(f"Releasing item: {item_id}")
         del self.active_runs[item_id]
 
@@ -169,7 +181,8 @@ class BaseManager(ABC):
         # TODO: replace with queue_id
         return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
 
-    async def cancel_job(self, item: str) -> None:
+    async def cancel_item(self, item: str) -> None:
+        """Cancel a running job currently managed by the controller."""
         run = self.active_runs[item].run
         status = None
         try:
@@ -188,15 +201,18 @@ class BaseManager(ABC):
 
     @abstractmethod
     async def find_orphaned_jobs(self) -> List[Any]:
+        """Find existing jobs on the resource tagged with discoverability label that are not actively being managed by the controller and return them."""
         raise NotImplementedError
 
     @abstractmethod
     def label_job(self, project: LaunchProject) -> None:
+        """Updates the resource block of the project with the discoverability label."""
         raise NotImplementedError
 
     async def finish_launched_run(
         self, run_with_tracker: RunWithTracker, status: Status
     ) -> None:
+        """Check the status of a submitted run in a terminal state and mark the item failed if the run did not call wandb.init."""
         run = run_with_tracker.run
         tracker = run_with_tracker.tracker
         item_id = tracker.run_queue_item_id
@@ -206,7 +222,7 @@ class BaseManager(ABC):
 
         if entity is None or project is None or run_id is None:
             self.logger.error(
-                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueuetemID: {item_id}"
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {item_id}"
             )
 
             fail_run_queue_item = event_loop_thread_exec(
@@ -227,17 +243,13 @@ class BaseManager(ABC):
             fnames = None
             if logs:
                 fnames = tracker.saver.save_contents(logs, "error.log", "error")
-            if status == "finished":
-                _msg = "The submitted job exited successfully but failed to call wandb.init"
-            else:
-                _msg = f"The submitted job failed to call wandb.init exited with status: {status}"
 
             fail_run_queue_item = event_loop_thread_exec(
                 self.jobset.api.fail_run_queue_item
             )
             await fail_run_queue_item(
                 item_id,
-                _msg,
+                f"The submitted job failed to call wandb.init, exited with status: {status}",
                 "run",
                 fnames,
             )
@@ -248,6 +260,7 @@ class BaseManager(ABC):
         exception: Exception,
         tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> None:
+        """Mark a run queue item failed with an exception."""
         tb_str = traceback.format_exception(
             type(exception), value=exception, tb=exception.__traceback__
         )
@@ -267,6 +280,7 @@ class BaseManager(ABC):
         return
 
     async def fail_unsubmitted_run(self, item_id: str) -> None:
+        """Mark a run queue item that failed to be submitted as failed."""
         fail_run_queue_item = event_loop_thread_exec(
             self.jobset.api.fail_run_queue_item
         )
@@ -293,7 +307,6 @@ async def check_run_called_init(
     # We retry for 60 seconds with an exponential backoff in case
     # upsert run is taking a while.
     logs = None
-    start_time = time.time()
     interval = 1
     while True:
         called_init = await check_run_exists_and_inited(
@@ -303,7 +316,7 @@ async def check_run_called_init(
             run_id,
             run_queue_item_id,
         )
-        if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
+        if called_init or interval > RUN_INFO_GRACE_PERIOD:
             break
         if not called_init:
             # Fetch the logs now if we don't get run info on the
