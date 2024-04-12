@@ -3,6 +3,7 @@ package filestream
 import (
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
@@ -31,7 +32,7 @@ func (fs *fileStream) addTransmit(chunk processedChunk) {
 func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 	collector := chunkCollector{
 		input:           inChan,
-		heartbeatTime:   fs.heartbeatTime,
+		heartbeatTime:   fs.pollInterval,
 		delayProcess:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
@@ -40,8 +41,13 @@ func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 			collector.readMore()
 		}
 		data := collector.dump(fs.offsetMap)
+		timeNow := time.Now()
 		if data != nil {
 			fs.send(data)
+			fs.lastTransmitTime = time.Now()
+		} else if timeNow.Sub(fs.lastTransmitTime) > fs.heartbeatInterval {
+			fs.send(&FsTransmitData{})
+			fs.lastTransmitTime = timeNow
 		}
 	}
 }

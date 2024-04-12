@@ -218,11 +218,12 @@ class ArtifactFileCache:
             ) from e
 
 
-_artifact_file_cache = None
+_artifact_file_cache: Optional[ArtifactFileCache] = None
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:
     global _artifact_file_cache
-    if _artifact_file_cache is None:
-        _artifact_file_cache = ArtifactFileCache(env.get_cache_dir() / "artifacts")
+    cache_dir = env.get_cache_dir() / "artifacts"
+    if _artifact_file_cache is None or _artifact_file_cache._cache_dir != cache_dir:
+        _artifact_file_cache = ArtifactFileCache(cache_dir)
     return _artifact_file_cache

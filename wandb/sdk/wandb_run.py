@@ -3173,13 +3173,13 @@ class Run:
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
-                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
-                f"moved to '{artifact._source_entity}'"
+                f"Artifact {artifact.name} is owned by entity "
+                f"'{artifact._source_entity}'; it can't be moved to '{entity}'"
             )
         if project and artifact._source_project and project != artifact._source_project:
             raise ValueError(
-                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
-                f"moved to '{artifact._source_project}'"
+                f"Artifact {artifact.name} exists in project "
+                f"'{artifact._source_project}'; it can't be moved to '{project}'"
             )
 
     def _prepare_artifact(
