@@ -31,7 +31,9 @@ class StandardQueueDriver(AbstractQueueDriver):
                 pending_jobs, key=lambda j: (j[1].priority, j[1].created_at)
             )[0]
         else:
-            job_id, job = sorted(pending_jobs, key=lambda j: j[1].created_at)[0]
+            job_id, job = sorted(
+                self.jobset.jobs.items(), key=lambda j: j[1].created_at
+            )[0]
 
         # attempt to acquire lease
         self.logger.debug(f"Attempting to lease job {job_id}")
