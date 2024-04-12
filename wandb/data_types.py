@@ -513,9 +513,9 @@ class Table(Media):
                     deserialized = np.load(
                         source_artifact.get_entry(serialization_path["path"]).download()
                     )
-                    np_deserialized_columns[
-                        json_obj["columns"].index(col_name)
-                    ] = deserialized[serialization_path["key"]]
+                    np_deserialized_columns[json_obj["columns"].index(col_name)] = (
+                        deserialized[serialization_path["key"]]
+                    )
                     ndarray_type._clear_serialization_path()
 
         for r_ndx, row in enumerate(json_obj["data"]):

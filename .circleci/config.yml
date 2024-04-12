@@ -49,7 +49,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.22.0"
+    default: "1.22.2"
   container_registry:
     type: string
     default: "us-central1-docker.pkg.dev"
@@ -416,6 +416,9 @@ jobs:
 
     executor: <<parameters.executor>>
 
+    environment:
+      WANDB__REQUIRE_CORE: <<parameters.with_core>>
+
     # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
     # https://circleci.com/docs/parallelism-faster-jobs/
     parallelism: 2
@@ -449,6 +452,7 @@ jobs:
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
                     tests/pytest_tests/unit_tests/ \
+                    --ignore tests/pytest_tests/unit_tests/test_artifacts/ \
                     --ignore tests/pytest_tests/unit_tests/test_launch/ \
                     --ignore tests/pytest_tests/unit_tests/test_reports/ \
                     --ignore tests/pytest_tests/unit_tests/test_importers/
@@ -467,6 +471,7 @@ jobs:
                     -e <<#parameters.with_core>>core-<</parameters.with_core
                       >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
                     -- \
+                    tests/pytest_tests/unit_tests/test_artifacts/ \
                     tests/pytest_tests/unit_tests/test_launch/ \
                     tests/pytest_tests/unit_tests/test_reports/ \
                     tests/pytest_tests/unit_tests/test_importers/
@@ -486,6 +491,9 @@ jobs:
         enum: [sdk, notebooks, other]
 
     executor: <<parameters.executor>>
+
+    environment:
+      WANDB__REQUIRE_CORE: <<parameters.with_core>>
 
     parallelism: 4
 
@@ -564,7 +572,6 @@ jobs:
   code-check:
     docker:
       - image: "python:3.10"
-    resource_class: large
     steps:
       - checkout
       - install_go
@@ -577,7 +584,7 @@ jobs:
           command: nox -t proto-check
       - run:
           name: Lint
-          command: tox run -v -e "black-check,ruff-check,mypy,mypy-report,auto-codegen-check"
+          command: tox run -v -e auto-codegen-check
       - save-test-results
 
   tox-base:
@@ -622,6 +629,7 @@ jobs:
     environment:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
+      WANDB__REQUIRE_CORE: << parameters.with_core >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk

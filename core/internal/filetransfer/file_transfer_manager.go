@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -32,9 +31,6 @@ type FileTransferManager interface {
 
 	// Schedules a file upload operation.
 	AddTask(task *Task)
-
-	// Generates a FilesUploaded record.
-	FileStreamCallback(task *Task)
 }
 
 // FileTransferManager handles the upload/download of files
@@ -42,12 +38,12 @@ type fileTransferManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *Task
 
-	// fsChan is the channel for messages outgoing to the filestream
-	fsChan chan protoreflect.ProtoMessage
-
 	// fileTransfer is the uploader/downloader
 	// todo: make this a map of uploaders for different destination storage types
 	fileTransfer FileTransfer
+
+	// fileTransferStats keeps track of upload/download statistics
+	fileTransferStats FileTransferStats
 
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
@@ -85,9 +81,9 @@ func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
 	}
 }
 
-func WithFSCChan(fsChan chan protoreflect.ProtoMessage) FileTransferManagerOption {
+func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
-		fm.fsChan = fsChan
+		fm.fileTransferStats = fileTransferStats
 	}
 }
 
@@ -124,6 +120,7 @@ func (fm *fileTransferManager) Start() {
 				task.Err = fm.transfer(task)
 				// Release the semaphore
 				<-fm.semaphore
+
 				if task.Err != nil {
 					fm.logger.CaptureError(
 						"filetransfer: uploader: error uploading",
@@ -131,8 +128,10 @@ func (fm *fileTransferManager) Start() {
 						"path", task.Path, "url", task.Url,
 					)
 				}
+
 				// Execute the callback.
-				task.CompletionCallback(task)
+				fm.completeTask(task)
+
 				// mark the task as done
 				fm.wg.Done()
 			}(task)
@@ -141,20 +140,23 @@ func (fm *fileTransferManager) Start() {
 	}()
 }
 
+// completeTask runs the completion callback and updates statistics.
+func (fm *fileTransferManager) completeTask(task *Task) {
+	task.CompletionCallback(task)
+
+	if task.Type == UploadTask {
+		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+			FileKind:      task.FileKind,
+			Path:          task.Path,
+			UploadedBytes: task.Size,
+			TotalBytes:    task.Size,
+		})
+	}
+}
+
 func (fm *fileTransferManager) AddTask(task *Task) {
 	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
 	fm.inChan <- task
-}
-
-func (fm *fileTransferManager) FileStreamCallback(task *Task) {
-	fm.logger.Debug("uploader: filestream callback", "task", task)
-	if task.Err != nil {
-		return
-	}
-	record := &service.FilesUploaded{
-		Files: []string{task.Name},
-	}
-	fm.fsChan <- record
 }
 
 func (fm *fileTransferManager) Close() {

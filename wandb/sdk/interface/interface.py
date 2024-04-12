@@ -25,6 +25,7 @@ from typing import (
     Union,
 )
 
+from wandb import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -447,16 +448,27 @@ class InterfaceBase:
                 path = artifact.get_entry("wandb-job.json").download()
                 with open(path) as f:
                     job_info = json.load(f)
+
             except Exception as e:
                 logger.warning(
                     f"Failed to download partial job info from artifact {artifact}, : {e}"
                 )
-            use_artifact = self._make_proto_use_artifact(
-                use_artifact=use_artifact,
-                job_name=artifact.name,
-                job_info=job_info,
-                metadata=artifact.metadata,
-            )
+                termwarn(
+                    f"Failed to download partial job info from artifact {artifact}, : {e}"
+                )
+                return
+
+            try:
+                use_artifact = self._make_proto_use_artifact(
+                    use_artifact=use_artifact,
+                    job_name=artifact.name,
+                    job_info=job_info,
+                    metadata=artifact.metadata,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to construct use artifact proto: {e}")
+                termwarn(f"Failed to construct use artifact proto: {e}")
+                return
 
         self._publish_use_artifact(use_artifact)
 
@@ -504,11 +516,15 @@ class InterfaceBase:
         artifact_id: str,
         download_root: str,
         allow_missing_references: bool,
+        skip_cache: bool,
+        path_prefix: Optional[str],
     ) -> MailboxHandle:
         download_artifact = pb.DownloadArtifactRequest()
         download_artifact.artifact_id = artifact_id
         download_artifact.download_root = download_root
         download_artifact.allow_missing_references = allow_missing_references
+        download_artifact.skip_cache = skip_cache
+        download_artifact.path_prefix = path_prefix or ""
         resp = self._deliver_download_artifact(download_artifact)
         return resp
 
@@ -717,6 +733,55 @@ class InterfaceBase:
     def _publish_keepalive(self, keepalive: pb.KeepaliveRequest) -> None:
         raise NotImplementedError
 
+    def publish_job_input(
+        self,
+        include_paths: List[List[str]],
+        exclude_paths: List[List[str]],
+        run_config: bool = False,
+        file_path: str = "",
+    ):
+        """Publishes a request to add inputs to the job.
+
+        If run_config is True, the wandb.config will be added as a job input.
+        If file_path is provided, the file at file_path will be added as a job
+        input.
+
+        The paths provided as arguments are sequences of dictionary keys that
+        specify a path within the wandb.config. If a path is included, the
+        corresponding field will be treated as a job input. If a path is
+        excluded, the corresponding field will not be treated as a job input.
+
+        Args:
+            include_paths: paths within config to include as job inputs.
+            exclude_paths: paths within config to exclude as job inputs.
+            run_config: bool indicating whether wandb.config is the input source.
+            file_path: path to file to include as a job input.
+        """
+        if run_config and file_path:
+            raise ValueError(
+                "run_config and file_path are mutually exclusive arguments."
+            )
+        request = pb.JobInputRequest()
+        include_records = [pb.JobInputPath(path=path) for path in include_paths]
+        exclude_records = [pb.JobInputPath(path=path) for path in exclude_paths]
+        request.include_paths.extend(include_records)
+        request.exclude_paths.extend(exclude_records)
+        source = pb.JobInputSource(
+            run_config=pb.JobInputSource.RunConfigSource(),
+        )
+        if run_config:
+            source.run_config.CopyFrom(pb.JobInputSource.RunConfigSource())
+        else:
+            source.file.CopyFrom(
+                pb.JobInputSource.ConfigFileSource(path=file_path),
+            )
+
+        return self._publish_job_input(request)
+
+    @abstractmethod
+    def _publish_job_input(self, request: pb.JobInputRequest) -> MailboxHandle:
+        raise NotImplementedError
+
     def join(self) -> None:
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
@@ -766,36 +831,6 @@ class InterfaceBase:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
         return self._deliver_run_start(run_start)
-
-    def publish_launch_wandb_config_parameters(
-        self, include_paths: List[List[str]], exclude_paths: List[List[str]]
-    ):
-        """Tells the internal process to treat wandb.config fields as job inputs.
-
-        The paths provided as arguments are sequences of dictionary keys that
-        specify a path within the wandb.config. If a path is included, the
-        corresponding field will be treated as a job input. If a path is
-        excluded, the corresponding field will not be treated as a job input.
-
-        Args:
-            include_paths: paths within config to include as job inputs.
-            exclude_paths: paths within config to exclude as job inputs.
-
-        Returns:
-            None
-        """
-        config_parameters = pb.LaunchWandbConfigParametersRecord()
-        include_records = [pb.ConfigFilterPath(path=path) for path in include_paths]
-        exclude_records = [pb.ConfigFilterPath(path=path) for path in exclude_paths]
-        config_parameters.include_paths.extend(include_records)
-        config_parameters.exclude_paths.extend(exclude_records)
-        return self._publish_launch_wandb_config_parameters(config_parameters)
-
-    @abstractmethod
-    def _publish_launch_wandb_config_parameters(
-        self, config_parameters: pb.LaunchWandbConfigParametersRecord
-    ) -> None:
-        raise NotImplementedError
 
     @abstractmethod
     def _deliver_run_start(self, run_start: pb.RunStartRequest) -> MailboxHandle:

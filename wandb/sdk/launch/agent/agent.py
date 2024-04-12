@@ -1,4 +1,5 @@
 """Implementation of launch agent."""
+
 import asyncio
 import logging
 import os
@@ -45,7 +46,10 @@ MAX_RESUME_COUNT = 5
 
 RUN_INFO_GRACE_PERIOD = 60
 
-MAX_WAIT_RUN_STOPPED = 60
+DEFAULT_STOPPED_RUN_TIMEOUT = 60
+
+DEFAULT_PRINT_INTERVAL = 5 * 60
+VERBOSE_PRINT_INTERVAL = 20
 
 _env_timeout = os.environ.get("WANDB_LAUNCH_START_TIMEOUT")
 if _env_timeout:
@@ -105,30 +109,29 @@ def _max_from_config(
     return max_from_config
 
 
-def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
-    """Determine whether a job/runSpec is a sweep scheduler."""
-    if not run_spec:
-        _logger.debug("Recieved runSpec in _is_scheduler_job that was empty")
+class InternalAgentLogger:
+    def __init__(self, verbosity=0):
+        self._print_to_terminal = verbosity >= 2
 
-    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
-        return False
+    def error(self, message: str):
+        if self._print_to_terminal:
+            wandb.termerror(f"{LOG_PREFIX}{message}")
+        _logger.error(f"{LOG_PREFIX}{message}")
 
-    if run_spec.get("resource") == "local-process":
-        # Any job pushed to a run queue that has a scheduler uri is
-        # allowed to use local-process
-        if run_spec.get("job"):
-            return True
+    def warn(self, message: str):
+        if self._print_to_terminal:
+            wandb.termwarn(f"{LOG_PREFIX}{message}")
+        _logger.warn(f"{LOG_PREFIX}{message}")
 
-        # If a scheduler is local-process and run through CLI, also
-        #    confirm command is in format: [wandb scheduler <sweep>]
-        cmd = run_spec.get("overrides", {}).get("entry_point", [])
-        if len(cmd) < 3:
-            return False
+    def info(self, message: str):
+        if self._print_to_terminal:
+            wandb.termlog(f"{LOG_PREFIX}{message}")
+        _logger.info(f"{LOG_PREFIX}{message}")
 
-        if cmd[:2] != ["wandb", "scheduler"]:
-            return False
-
-    return True
+    def debug(self, message: str):
+        if self._print_to_terminal:
+            wandb.termlog(f"{LOG_PREFIX}{message}")
+        _logger.debug(f"{LOG_PREFIX}{message}")
 
 
 class LaunchAgent:
@@ -184,7 +187,13 @@ class LaunchAgent:
         self._max_jobs = _max_from_config(config, "max_jobs")
         self._max_schedulers = _max_from_config(config, "max_schedulers")
         self._secure_mode = config.get("secure_mode", False)
+        self._verbosity = config.get("verbosity", 0)
+        self._internal_logger = InternalAgentLogger(verbosity=self._verbosity)
+        self._last_status_print_time = 0.0
         self.default_config: Dict[str, Any] = config
+        self._stopped_run_timeout = config.get(
+            "stopped_run_timeout", DEFAULT_STOPPED_RUN_TIMEOUT
+        )
 
         # Get agent version from env var if present, otherwise wandb version
         self.version: str = "wandb@" + wandb.__version__
@@ -227,6 +236,33 @@ class LaunchAgent:
         )
         self._name = agent_response["name"]
         self._init_agent_run()
+
+    def _is_scheduler_job(self, run_spec: Dict[str, Any]) -> bool:
+        """Determine whether a job/runSpec is a sweep scheduler."""
+        if not run_spec:
+            self._internal_logger.debug(
+                "Recieved runSpec in _is_scheduler_job that was empty"
+            )
+
+        if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
+            return False
+
+        if run_spec.get("resource") == "local-process":
+            # Any job pushed to a run queue that has a scheduler uri is
+            # allowed to use local-process
+            if run_spec.get("job"):
+                return True
+
+            # If a scheduler is local-process and run through CLI, also
+            #    confirm command is in format: [wandb scheduler <sweep>]
+            cmd = run_spec.get("overrides", {}).get("entry_point", [])
+            if len(cmd) < 3:
+                return False
+
+            if cmd[:2] != ["wandb", "scheduler"]:
+                return False
+
+        return True
 
     async def fail_run_queue_item(
         self,
@@ -298,6 +334,7 @@ class LaunchAgent:
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
+        self._last_status_print_time = time.time()
         output_str = "agent "
         if self._name:
             output_str += f"{self._name} "
@@ -344,8 +381,8 @@ class LaunchAgent:
             if run_state.lower() != "pending":
                 return True
         except CommError:
-            _logger.info(
-                f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run"
+            self._internal_logger.info(
+                f"Run {entity}/{project}/{run_id} with rqi id: {rqi_id} did not have associated run",
             )
         return False
 
@@ -361,8 +398,8 @@ class LaunchAgent:
             job_and_run_status.entity is not None
             and job_and_run_status.entity != self._entity
         ):
-            _logger.info(
-                "Skipping check for completed run status because run is on a different entity than agent"
+            self._internal_logger.info(
+                "Skipping check for completed run status because run is on a different entity than agent",
             )
         elif exception is not None:
             tb_str = traceback.format_exception(
@@ -378,8 +415,8 @@ class LaunchAgent:
                 fnames,
             )
         elif job_and_run_status.project is None or job_and_run_status.run_id is None:
-            _logger.error(
-                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}"
+            self._internal_logger.info(
+                f"called finish_thread_id on thread whose tracker has no project or run id. RunQueueItemID: {job_and_run_status.run_queue_item_id}",
             )
             wandb.termerror(
                 "Missing project or run id on thread called finish thread id"
@@ -430,7 +467,9 @@ class LaunchAgent:
                     job_and_run_status.run_queue_item_id, _msg, "run", fnames
                 )
         else:
-            _logger.info(f"Finish thread id {thread_id} had no exception and no run")
+            self._internal_logger.info(
+                f"Finish thread id {thread_id} had no exception and no run"
+            )
             wandb._sentry.exception(
                 "launch agent called finish thread id on thread without run or exception"
             )
@@ -458,7 +497,7 @@ class LaunchAgent:
         await self.update_status(AGENT_RUNNING)
 
         # parse job
-        _logger.info("Parsing launch spec")
+        self._internal_logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
 
         # Abort if this job attempts to override secure mode
@@ -511,6 +550,10 @@ class LaunchAgent:
             KeyboardInterrupt: if the agent is requested to stop.
         """
         self.print_status()
+        if self._verbosity == 0:
+            print_interval = DEFAULT_PRINT_INTERVAL
+        else:
+            print_interval = VERBOSE_PRINT_INTERVAL
         try:
             while True:
                 job = None
@@ -532,7 +575,7 @@ class LaunchAgent:
                             file_saver = RunQueueItemFileSaver(
                                 self._wandb_run, job["runQueueItemId"]
                             )
-                            if _is_scheduler_job(job.get("runSpec", {})):
+                            if self._is_scheduler_job(job.get("runSpec", {})):
                                 # If job is a scheduler, and we are already at the cap, ignore,
                                 #    don't ack, and it will be pushed back onto the queue in 1 min
                                 if self.num_running_schedulers >= self._max_schedulers:
@@ -567,6 +610,7 @@ class LaunchAgent:
                         await self.update_status(AGENT_POLLING)
                     else:
                         await self.update_status(AGENT_RUNNING)
+                if time.time() - self._last_status_print_time > print_interval:
                     self.print_status()
 
                 if self.num_running_jobs == self._max_jobs or job is None:
@@ -634,14 +678,14 @@ class LaunchAgent:
         await self.check_sweep_state(launch_spec, api)
 
         job_tracker.update_run_info(project)
-        _logger.info("Fetching and validating project...")
+        self._internal_logger.info("Fetching and validating project...")
         project.fetch_and_validate_project()
-        _logger.info("Fetching resource...")
+        self._internal_logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
-        _logger.info("Loading backend")
+        self._internal_logger.info("Loading backend")
         override_build_config = launch_spec.get("builder")
 
         _, build_config, registry_config = construct_agent_configs(
@@ -661,13 +705,13 @@ class LaunchAgent:
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
-        _logger.info("Backend loaded...")
+        self._internal_logger.info("Backend loaded...")
         if isinstance(backend, LocalProcessRunner):
             run = await backend.run(project, image_uri)
         else:
             assert image_uri
             run = await backend.run(project, image_uri)
-        if _is_scheduler_job(launch_spec):
+        if self._is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
             wandb.termlog(
@@ -700,7 +744,7 @@ class LaunchAgent:
                 if stopped_time is None:
                     stopped_time = time.time()
                 else:
-                    if time.time() - stopped_time > MAX_WAIT_RUN_STOPPED:
+                    if time.time() - stopped_time > self._stopped_run_timeout:
                         await run.cancel()
             await asyncio.sleep(AGENT_POLLING_INTERVAL)
 
@@ -720,7 +764,7 @@ class LaunchAgent:
                     project=launch_spec["project"],
                 )
             except Exception as e:
-                _logger.debug(f"Fetch sweep state error: {e}")
+                self._internal_logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
             if state != "RUNNING" and state != "PAUSED":

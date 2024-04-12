@@ -1,4 +1,5 @@
 """Implementation of AzureContainerRegistry class."""
+
 import re
 from typing import TYPE_CHECKING, Optional, Tuple
 

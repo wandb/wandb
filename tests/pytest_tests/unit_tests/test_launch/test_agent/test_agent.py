@@ -4,8 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
-from wandb.sdk.launch.agent.agent import JobAndRunStatusTracker, LaunchAgent
+from wandb.sdk.launch.agent.agent import (
+    InternalAgentLogger,
+    JobAndRunStatusTracker,
+    LaunchAgent,
+)
 from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
+from wandb.sdk.launch.utils import LOG_PREFIX
 
 
 class AsyncMock(MagicMock):
@@ -33,6 +38,8 @@ def _setup(mocker):
     mocker.patch("wandb.termwarn", mocker.termwarn)
     mocker.patch("wandb.termerror", mocker.termerror)
     mocker.patch("wandb.init", mocker.wandb_init)
+    mocker.logger = MagicMock()
+    mocker.patch("wandb.sdk.launch.agent.agent._logger", mocker.logger)
 
     mocker.status = MagicMock()
     mocker.status.state = "running"
@@ -587,7 +594,7 @@ async def test_thread_run_job_calls_finish_thread_id(mocker, exception, clean_ag
 @pytest.mark.asyncio
 async def test_inner_thread_run_job(mocker, clean_agent):
     _setup(mocker)
-    mocker.patch("wandb.sdk.launch.agent.agent.MAX_WAIT_RUN_STOPPED", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.DEFAULT_STOPPED_RUN_TIMEOUT", new=0)
     mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
     mock_config = {
         "entity": "test-entity",
@@ -653,3 +660,37 @@ def test_get_agent_name(mocker, clean_agent):
     LaunchAgent(api=mocker.api, config=mock_config)
 
     assert LaunchAgent.name() == "test-name"
+
+
+def test_agent_logger(mocker):
+    _setup(mocker)
+
+    # Normal logger
+    logger = InternalAgentLogger()
+    logger.error("test 1")
+    mocker.termerror.assert_not_called()
+    mocker.logger.error.assert_called_once_with(f"{LOG_PREFIX}test 1")
+    logger.warn("test 2")
+    mocker.termwarn.assert_not_called()
+    mocker.logger.warn.assert_called_once_with(f"{LOG_PREFIX}test 2")
+    logger.info("test 3")
+    mocker.termlog.assert_not_called()
+    mocker.logger.info.assert_called_once_with(f"{LOG_PREFIX}test 3")
+    logger.debug("test 4")
+    mocker.termlog.assert_not_called()
+    mocker.logger.debug.assert_called_once_with(f"{LOG_PREFIX}test 4")
+
+    # Verbose logger
+    logger = InternalAgentLogger(verbosity=2)
+    logger.error("test 5")
+    mocker.termerror.assert_called_with(f"{LOG_PREFIX}test 5")
+    mocker.logger.error.assert_called_with(f"{LOG_PREFIX}test 5")
+    logger.warn("test 6")
+    mocker.termwarn.assert_called_with(f"{LOG_PREFIX}test 6")
+    mocker.logger.warn.assert_called_with(f"{LOG_PREFIX}test 6")
+    logger.info("test 7")
+    mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 7")
+    mocker.logger.info.assert_called_with(f"{LOG_PREFIX}test 7")
+    logger.debug("test 8")
+    mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 8")
+    mocker.logger.debug.assert_called_with(f"{LOG_PREFIX}test 8")

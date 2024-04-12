@@ -7,6 +7,7 @@ Todo:
     - deprecate ones that were public but we want to remove
 
 """
+
 import inspect
 
 import wandb
@@ -299,6 +300,7 @@ SYMBOLS_WANDB_INIT = {
     "notes",
     "job_type",
     "reinit",
+    "fork_from",
 }
 
 

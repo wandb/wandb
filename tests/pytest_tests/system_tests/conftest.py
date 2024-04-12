@@ -10,7 +10,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import pytest
 import requests
@@ -867,26 +867,32 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 @pytest.fixture(scope="function")
 def relay_server(base_url, wandb_verbose):
-    """Create a new relay server."""
+    """A context manager in which the backend is a RelayServer.
+
+    This returns a context manager that creates a RelayServer and monkey-patches
+    WANDB_BASE_URL to point to it.
+    """
 
     @contextmanager
-    def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
+    def relay_server_context(
+        inject: Optional[List[InjectedResponse]] = None,
+    ) -> Iterator[RelayServer]:
         _relay_server = RelayServer(
             base_url=base_url,
             inject=inject,
             verbose=wandb_verbose,
         )
-        try:
-            _relay_server.start()
-            print(f"Relay server started at {_relay_server.relay_url}")
-            with unittest.mock.patch.dict(
-                os.environ,
-                {"WANDB_BASE_URL": _relay_server.relay_url},
-            ):
-                yield _relay_server
-            print(f"Stopping relay server at {_relay_server.relay_url}")
-        finally:
-            del _relay_server
+
+        _relay_server.start()
+        print(f"Relay server started at {_relay_server.relay_url}")
+
+        with unittest.mock.patch.dict(
+            os.environ,
+            {"WANDB_BASE_URL": _relay_server.relay_url},
+        ):
+            yield _relay_server
+
+        print(f"Stopping relay server at {_relay_server.relay_url}")
 
     return relay_server_context
 
@@ -918,6 +924,7 @@ def wandb_init(user, test_settings, request):
         monitor_gym: Optional[bool] = None,
         save_code: Optional[bool] = None,
         id: Optional[str] = None,
+        fork_from: Optional[str] = None,
         settings: Union[
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,

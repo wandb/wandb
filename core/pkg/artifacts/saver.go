@@ -49,7 +49,7 @@ func (as *ArtifactSaver) createArtifact() (
 	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
 	rerr error,
 ) {
-	aliases := []gql.ArtifactAliasInput{}
+	var aliases []gql.ArtifactAliasInput
 	for _, alias := range as.Artifact.Aliases {
 		aliases = append(aliases,
 			gql.ArtifactAliasInput{
@@ -120,7 +120,7 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, outChan chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record) error {
 	const batchSize int = 10000
 	const maxBacklog int = 10000
 
@@ -130,7 +130,7 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 	}
 
 	// Prepare all file specs.
-	fileSpecs := []gql.CreateArtifactFileSpecInput{}
+	var fileSpecs []gql.CreateArtifactFileSpecInput
 	for name, entry := range manifest.Contents {
 		if entry.LocalPath == nil {
 			continue
@@ -193,57 +193,15 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				}
 				numInProgress++
 				task := &filetransfer.Task{
-					Type:    filetransfer.UploadTask,
-					Path:    *entry.LocalPath,
-					Url:     *edge.Node.UploadUrl,
-					Headers: edge.Node.UploadHeaders,
+					FileKind: filetransfer.RunFileKindArtifact,
+					Type:     filetransfer.UploadTask,
+					Path:     *entry.LocalPath,
+					Url:      *edge.Node.UploadUrl,
+					Headers:  edge.Node.UploadHeaders,
 				}
-				task.SetProgressCallback(
-					func(processed, total int) {
-						if processed == 0 {
-							return
-						}
-						record := &service.Record{
-							RecordType: &service.Record_Request{
-								Request: &service.Request{
-									RequestType: &service.Request_FileTransferInfo{
-										FileTransferInfo: &service.FileTransferInfoRequest{
-											Type:      service.FileTransferInfoRequest_Upload,
-											Path:      task.Path,
-											Size:      int64(total),
-											Processed: int64(processed),
-											FileCounts: &service.FileCounts{
-												ArtifactCount: 1,
-											},
-										},
-									},
-								},
-							},
-						}
-						outChan <- record
-					},
-				)
 				task.SetCompletionCallback(
 					func(t *filetransfer.Task) {
 						taskResultsChan <- TaskResult{t, name}
-						record := &service.Record{
-							RecordType: &service.Record_Request{
-								Request: &service.Request{
-									RequestType: &service.Request_FileTransferInfo{
-										FileTransferInfo: &service.FileTransferInfoRequest{
-											Type:      service.FileTransferInfoRequest_Upload,
-											Path:      t.Path,
-											Size:      t.Size,
-											Processed: t.Size,
-											FileCounts: &service.FileCounts{
-												ArtifactCount: 1,
-											},
-										},
-									},
-								},
-							},
-						}
-						outChan <- record
 					},
 				)
 				as.FileTransferManager.AddTask(task)
@@ -301,33 +259,18 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, outChan chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, _ chan<- *service.Record) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
-		Type:    filetransfer.UploadTask,
-		Path:    manifestFile,
-		Url:     *uploadUrl,
-		Headers: uploadHeaders,
+		FileKind: filetransfer.RunFileKindArtifact,
+		Type:     filetransfer.UploadTask,
+		Path:     manifestFile,
+		Url:      *uploadUrl,
+		Headers:  uploadHeaders,
 	}
 	task.SetCompletionCallback(
 		func(t *filetransfer.Task) {
 			resultChan <- t
-			record := &service.Record{
-				RecordType: &service.Record_Request{
-					Request: &service.Request{
-						RequestType: &service.Request_FileTransferInfo{
-							FileTransferInfo: &service.FileTransferInfoRequest{
-								Type:       service.FileTransferInfoRequest_Upload,
-								Path:       t.Path,
-								Size:       t.Size,
-								Processed:  t.Size,
-								FileCounts: &service.FileCounts{ArtifactCount: 1},
-							},
-						},
-					},
-				},
-			}
-			outChan <- record
 		},
 	)
 
