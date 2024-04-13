@@ -51,7 +51,7 @@ func (as *ArtifactSaver) createArtifact() (
 	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
 	rerr error,
 ) {
-	var aliases []gql.ArtifactAliasInput
+	aliases := []gql.ArtifactAliasInput{}
 	for _, alias := range as.Artifact.Aliases {
 		aliases = append(aliases,
 			gql.ArtifactAliasInput{
@@ -120,19 +120,6 @@ func (as *ArtifactSaver) createManifest(
 		return gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest{}, err
 	}
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
-}
-
-func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record) error {
-	const batchSize int = 10000
-	const maxBacklog int = 10000
-
-type uploadFileInfo struct {
-	fileSpec        gql.CreateArtifactFileSpecInput
-	localPath       *string
-	readyAt         *time.Time
-	uploadUrl       *string
-	uploadHeaders   []string
-	birthArtifactID *string
 }
 
 type fileUploadResult struct {
@@ -222,8 +209,63 @@ func (as *ArtifactSaver) uploadFiles(
 		}()
 	}
 
-	// Prepare all file specs.
-	var fileSpecs []gql.CreateArtifactFileSpecInput
+	// Assemble and send batches.
+	// Run in the background in order to start processing results as they come in.
+	go func() {
+		batchInfo := make(map[string]gql.CreateArtifactFileSpecInput)
+		for localPath, fileSpec := range uploadInfo {
+			batchInfo[localPath] = fileSpec
+			if len(batchInfo) >= batchSize {
+				batchUploadChan <- batchInfo
+				batchInfo = make(map[string]gql.CreateArtifactFileSpecInput)
+			}
+		}
+		if len(batchInfo) > 0 {
+			batchUploadChan <- batchInfo
+		}
+
+		// Close the result channel once all batches are done.
+		close(batchUploadChan)
+		batchWg.Wait()
+		close(uploadResultChan)
+	}()
+
+	numDone := 0
+	retryFiles := make(map[string]gql.CreateArtifactFileSpecInput)
+	for result := range uploadResultChan {
+		if result.localPath == nil {
+			return result.err
+		}
+		atomic.AddInt32(&numInProgress, -1)
+		name := uploadInfo[*result.localPath].Name
+		entry := manifest.Contents[name]
+
+		if result.err != nil {
+			if result.lagTime > 1*time.Hour {
+				// We can't tell the difference between an expired signed URL and an upload
+				// that fails due to a real authentication problem. So if the upload happens
+				// more than an hour after the signed URL was fetched, we retry.
+				retryFiles[*result.localPath] = uploadInfo[*result.localPath]
+				continue
+			} else {
+				return result.err
+			}
+		}
+		// Update the manifest entry to reflect the actual birth artifact ID.
+		entry.BirthArtifactID = result.birthArtifactID
+		manifest.Contents[name] = entry
+		numDone++
+	}
+
+	// If there are failed uploads that should be retried, do so.
+	if len(retryFiles) > 0 {
+		return as.uploadFiles(retryFiles, manifest)
+	}
+	return nil
+}
+
+func (as *ArtifactSaver) uploadAllFiles(artifactID string, manifest *Manifest, manifestID string) error {
+	uploadInfo := make(map[string]gql.CreateArtifactFileSpecInput)
 	for name, entry := range manifest.Contents {
 		if entry.LocalPath == nil {
 			continue
@@ -271,7 +313,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, _ chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, outChan chan<- *service.Record) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
 		FileKind: filetransfer.RunFileKindArtifact,
