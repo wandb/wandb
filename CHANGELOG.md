@@ -24,6 +24,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
+- Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
 
 ### Deprecated
 
