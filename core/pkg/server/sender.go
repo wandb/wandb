@@ -451,7 +451,7 @@ func (s *Sender) sendJobFlush() {
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
-	if _, err = saver.Save(s.fwdChan); err != nil {
+	if _, err = saver.Save(); err != nil {
 		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
 	}
 }
@@ -1078,7 +1078,7 @@ func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
 	)
-	artifactID, err := saver.Save(s.fwdChan)
+	artifactID, err := saver.Save()
 	if err != nil {
 		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
 		s.logger.Error("sender: sendArtifact:", "error", err)
@@ -1091,7 +1091,7 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 	saver := artifacts.NewArtifactSaver(
 		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
-	artifactID, err := saver.Save(s.fwdChan)
+	artifactID, err := saver.Save()
 	if err != nil {
 		response.ErrorMessage = err.Error()
 	} else {
