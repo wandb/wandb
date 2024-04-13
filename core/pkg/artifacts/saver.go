@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -180,25 +182,31 @@ func (as *ArtifactSaver) processFiles(
 	fileSpecs map[string]gql.CreateArtifactFileSpecInput,
 ) (map[string]gql.CreateArtifactFileSpecInput, error) {
 
-	// By setting the channel size to 2 * batchSize, we allow for 2-3 batches *worth* of
-	// files to be in flight at once. We process items as they complete, so single long-
-	// running uploads won't prevent the next batch from starting.
-	readyChan := make(chan serverFileResponse, 2*as.batchSize)
+	// The sender side of these channels are workers in their own gorountines, so they
+	// don't need to be buffered.
+	readyChan := make(chan serverFileResponse)
 	errorChan := make(chan error)
-	// Prepare tasks will get upload URLs in batches, but will block on us processing
-	// results. It doesn't handle individual file uploads.
-	go as.prepareTasks(fileSpecs, readyChan, errorChan)
 
-	// We need to record the name of the file in case we need to retry the upload.
-	type uploadTaskResult struct {
-		Task *filetransfer.Task
-		Name string
-	}
+	// Add upload and ancestry info to the file specs in the background.
+	go func() {
+		as.getFileDataFromServer(fileSpecs, readyChan, errorChan)
+		close(readyChan)
+	}()
 
 	// We don't need to buffer doneChan: each callback is executed in its own goroutine.
-	doneChan := make(chan uploadTaskResult)
+	doneChan := make(chan *filetransfer.Task)
 	mustRetry := map[string]gql.CreateArtifactFileSpecInput{}
 	wg := sync.WaitGroup{}
+
+	numDone := int32(0)
+	numInProgress := int32(0)
+	check := make(chan struct{})
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+			check <- struct{}{}
+		}
+	}()
 
 	// Concurrently schedule uploads and process results until an error is signaled or
 	// we finish scheduling all files.
@@ -207,8 +215,10 @@ func (as *ArtifactSaver) processFiles(
 		select {
 		case err := <-errorChan:
 			return nil, err
+		case <-check:
+			fmt.Printf("In progress: %v; Done: %v/%v\n", numInProgress, numDone, len(fileSpecs))
 		case result := <-doneChan:
-			if result.Task.Err != nil {
+			if result.Err != nil {
 				mustRetry[result.Name] = fileSpecs[result.Name]
 			}
 		case fileInfo, ok := <-readyChan:
@@ -217,10 +227,9 @@ func (as *ArtifactSaver) processFiles(
 				notDone = false
 				break
 			}
-			name := fileInfo.Name
-			entry := manifest.Contents[name]
+			entry := manifest.Contents[fileInfo.Name]
 			entry.BirthArtifactID = &fileInfo.BirthArtifactID
-			manifest.Contents[name] = entry
+			manifest.Contents[fileInfo.Name] = entry
 			if fileInfo.UploadUrl == nil {
 				// The server already has this file.
 				continue
@@ -229,19 +238,23 @@ func (as *ArtifactSaver) processFiles(
 				FileKind: filetransfer.RunFileKindArtifact,
 				Type:     filetransfer.UploadTask,
 				Path:     *entry.LocalPath,
+				Name:     fileInfo.Name,
 				Url:      *fileInfo.UploadUrl,
 				Headers:  fileInfo.UploadHeaders,
 			}
 			task.SetCompletionCallback(
 				func(t *filetransfer.Task) {
-					doneChan <- uploadTaskResult{t, name}
+					doneChan <- t
+					atomic.AddInt32(&numInProgress, -1)
+					atomic.AddInt32(&numDone, 1)
 					wg.Done()
 				},
 			)
-			// Schedule the file for upload. Internally this has 32 max item queue and
-			// upload is the slowest part, so we will generally sit here waiting for the
-			// transfer manager to start the next item.
+			// Schedule the file for upload. The transfer manager will run up to 128
+			// concurrent uploads, accepts any number of tasks and launches a goroutine
+			// for each. In order to avoid ballooning
 			wg.Add(1)
+			atomic.AddInt32(&numInProgress, 1)
 			as.FileTransferManager.AddTask(task)
 		}
 	}
@@ -254,68 +267,79 @@ func (as *ArtifactSaver) processFiles(
 
 	// Process all remaining results.
 	for result := range doneChan {
-		if result.Task.Err != nil {
+		if result.Err != nil {
 			mustRetry[result.Name] = fileSpecs[result.Name]
 		}
 	}
 	return mustRetry, nil
 }
 
-func (as *ArtifactSaver) prepareTasks(
+// getFileDataFromServer takes a map of file specs and uses a worker pool that processes
+// batches to add upload URLs and BirthArtifactIDs to ready them for individual upload.
+func (as *ArtifactSaver) getFileDataFromServer(
 	fileSpecs map[string]gql.CreateArtifactFileSpecInput,
 	resultChan chan<- serverFileResponse,
 	errorChan chan<- error,
 ) {
-	defer close(resultChan)
-	// Group file specs into batches.
+	batchChan := make(chan []gql.CreateArtifactFileSpecInput)
+
+	// Start three batch url retrievers.
+	wg := sync.WaitGroup{}
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			as.batchFileDataRetriever(batchChan, resultChan, errorChan)
+			wg.Done()
+		}()
+	}
+
+	// Group file specs into batches and send to the workers.
 	batch := []gql.CreateArtifactFileSpecInput{}
 	for _, fileSpec := range fileSpecs {
 		batch = append(batch, fileSpec)
 		if len(batch) >= as.batchSize {
-			if err := as.registerBatch(batch, resultChan); err != nil {
-				errorChan <- err
-				return
-			}
+			batchChan <- batch
 			batch = nil
 		}
 	}
-	if err := as.registerBatch(batch, resultChan); err != nil {
-		errorChan <- err
+	if len(batch) > 0 {
+		batchChan <- batch
 	}
+	close(batchChan) // Signal the workers to stop.
+	wg.Wait()
 }
 
-// registerBatch takes a batch of file specs, requests upload URLs for each, assembles
-// all the file info needed for the next step, and feeds them into an output channel.
-func (as *ArtifactSaver) registerBatch(
-	batch []gql.CreateArtifactFileSpecInput, resultChan chan<- serverFileResponse,
-) error {
-	if len(batch) == 0 {
-		return nil
-	}
-	response, err := gql.CreateArtifactFiles(
-		as.Ctx,
-		as.GraphqlClient,
-		batch,
-		gql.ArtifactStorageLayoutV2,
-	)
-	if err != nil {
-		return fmt.Errorf("requesting upload URLs failed: %v", err)
-	}
-	batchDetails := response.CreateArtifactFiles.Files.Edges
-	if len(batch) != len(batchDetails) {
-		return fmt.Errorf("expected %v upload URLs, got %v", len(batch), len(batchDetails))
-	}
-	for i, edge := range batchDetails {
-		// We block on this channel, so we won't request data on more batches until the
-		// next step has handled these responses.
-		resultChan <- serverFileResponse{
-			Name:            batch[i].Name,
-			BirthArtifactID: edge.Node.Artifact.Id,
-			UploadUrl:       edge.Node.UploadUrl,
-			UploadHeaders:   edge.Node.UploadHeaders,
+// batchFileDataRetriever takes batches of file specs, requests upload URLs for each file,
+// assembles the info needed for the next step, and feeds them into an output channel.
+func (as *ArtifactSaver) batchFileDataRetriever(
+	batchChan <-chan []gql.CreateArtifactFileSpecInput,
+	resultChan chan<- serverFileResponse,
+	errorChan chan<- error,
+) {
+	for batch := range batchChan {
+		response, err := gql.CreateArtifactFiles(
+			as.Ctx, as.GraphqlClient, batch, gql.ArtifactStorageLayoutV2,
+		)
+		if err != nil {
+			errorChan <- fmt.Errorf("requesting upload URLs failed: %v", err)
+			return
+		}
+		batchDetails := response.CreateArtifactFiles.Files.Edges
+		if len(batch) != len(batchDetails) {
+			errorChan <- fmt.Errorf("expected %v upload URLs, got %v", len(batch), len(batchDetails))
+			return
+		}
+		for i, edge := range batchDetails {
+			// We block on this channel, so we won't request data on more batches until
+			// the next step has handled these responses.
+			resultChan <- serverFileResponse{
+				Name:            batch[i].Name,
+				BirthArtifactID: edge.Node.Artifact.Id,
+				UploadUrl:       edge.Node.UploadUrl,
+				UploadHeaders:   edge.Node.UploadHeaders,
+			}
 		}
 	}
-	return nil
 }
 
 func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {

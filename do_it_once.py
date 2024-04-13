@@ -10,7 +10,7 @@ wandb.require("core")
 
 
 with TemporaryDirectory() as tmp_dir:
-    for i in range(30000):
+    for i in range(100000):
         f = Path(tmp_dir) / f"file_{i:03}.txt"
         f.write_bytes(hashlib.sha256(str(i).encode()).digest())
 
