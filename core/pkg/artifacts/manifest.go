@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -77,8 +78,8 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 func loadManifestFromURL(url string) (Manifest, error) {
-	// TODO: this should use a retryable HTTP client from internal/clients
-	resp, err := http.Get(url)
+	resp, err := retryablehttp.NewClient().Get(url)
+
 	if err != nil {
 		return Manifest{}, err
 	}
