@@ -63,7 +63,7 @@ class CustomBuildHook(BuildHookInterface):
         self.app.display_waiting("Building apple_gpu_stats...")
         hatch_apple_stats.build_applestats(output_path=output)
 
-        return [str(output)]
+        return [output.as_posix()]
 
     def _build_wandb_core(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "wandb-core")
@@ -77,9 +77,9 @@ class CustomBuildHook(BuildHookInterface):
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT),
         )
 
-        # TODO: DO NOT MERGE: Trying this out for Windows
-        # return [str(output)]
-        return ["wandb/bin/wandb-core"]
+        # NOTE: as_posix() is used intentionally. Hatch expects forward slashes
+        # even on Windows.
+        return [output.as_posix()]
 
 
 def _get_env_bool(name: str, default: bool) -> bool:
