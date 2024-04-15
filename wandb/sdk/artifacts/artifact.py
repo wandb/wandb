@@ -15,7 +15,7 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -48,6 +48,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient,
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -143,6 +144,7 @@ class Artifact:
 
         # Internal.
         self._client: Optional[RetryingClient] = None
+        self._cache = get_artifact_file_cache()
 
         storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
         layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
@@ -191,7 +193,7 @@ class Artifact:
         self._updated_at: Optional[str] = None
         self._final: bool = False
 
-        # Cache.
+        # Add ourselves to the cache.
         artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
@@ -633,6 +635,7 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
+    
         if self._manifest is None:
             query = gql(
                 """
@@ -2230,11 +2233,18 @@ class Artifact:
         )
 
     def _load_manifest(self, url: str) -> None:
+        cached_path, hit, opener = self._cache.check_manifest_obj_path(self.id)
+        if hit:
+            content = Path(cached_path).read_text()
+            self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
+            return
         with requests.get(url) as request:
             request.raise_for_status()
             self._manifest = ArtifactManifest.from_manifest_json(
                 json.loads(util.ensure_text(request.content))
             )
+        with cached_path.open("w") as f:
+            json.dump(self._manifest.to_manifest_json(), f)
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
