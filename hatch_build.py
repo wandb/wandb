@@ -77,7 +77,9 @@ class CustomBuildHook(BuildHookInterface):
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT),
         )
 
-        return [str(output)]
+        # TODO: DO NOT MERGE: Trying this out for Windows
+        # return [str(output)]
+        return ["wandb/bin/wandb-core"]
 
 
 def _get_env_bool(name: str, default: bool) -> bool:

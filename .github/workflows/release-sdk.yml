@@ -88,8 +88,8 @@ jobs:
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
-            echo "Downloaded Go to $(which go)" 1>&2 &&
-            export PATH=$PATH:/usr/local/go/bin
+            export PATH=$PATH:/usr/local/go/bin &&
+            echo "Downloaded Go to $(which go)" >&2
 
       - uses: actions/upload-artifact@v3
         with:
