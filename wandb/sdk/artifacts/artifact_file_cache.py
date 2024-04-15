@@ -72,11 +72,18 @@ class ArtifactFileCache:
             path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
         return self._check_or_create(path, size)
 
+    def check_manifest_obj_path(self, artifact_id: str) -> Tuple[FilePathStr, bool, "Opener"]:
+        if self._override_cache_path is not None:
+            path = Path(self._override_cache_path)
+        else:
+            path = self._obj_dir / "manifest" / artifact_id
+        return self._check_or_create(path)
+
     def _check_or_create(
-        self, path: Path, size: int
+        self, path: Path, size: Optional[int] = None
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         opener = self._cache_opener(path, size)
-        hit = path.is_file() and path.stat().st_size == size
+        hit = path.is_file() and (size is None or path.stat().st_size == size)
         return FilePathStr(str(path)), hit, opener
 
     def cleanup(
