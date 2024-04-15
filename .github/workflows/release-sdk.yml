@@ -108,7 +108,7 @@ jobs:
 
       # Note: this will create wheels for dependencies as well!
       - name: Build wheel
-        run: pip wheel -w wheelhouse
+        run: pip wheel -w wheelhouse .
         env:
           WANDB_BUILD_UNIVERSAL: True
 
