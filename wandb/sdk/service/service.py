@@ -18,7 +18,7 @@ from wandb import _sentry, termlog
 from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
-from wandb.util import get_core_path, get_module, is_core_dev
+from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface

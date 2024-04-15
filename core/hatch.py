@@ -53,7 +53,7 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
         f"main.commit={wandb_commit_sha or ''}",
     ]
 
-    if platform.system().lower() == "linux" and platform.machine.lower() in (
+    if platform.system().lower() == "linux" and platform.machine().lower() in (
         "x86_64",
         "amd64",
     ):
