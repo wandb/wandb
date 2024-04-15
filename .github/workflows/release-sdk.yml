@@ -13,7 +13,7 @@ jobs:
   build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -88,6 +88,7 @@ jobs:
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
             tar -C /usr/local/ -xzf go.tar.gz &&
+            echo "Downloaded Go to $(which go)" 1>&2 &&
             export PATH=$PATH:/usr/local/go/bin
 
       - uses: actions/upload-artifact@v3
@@ -106,9 +107,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      # Note: this will create wheels for dependencies as well!
       - name: Build wheel
-        run: pip wheel -w wheelhouse .
+        run: pip wheel -w wheelhouse --no-deps .
         env:
           WANDB_BUILD_UNIVERSAL: True
 
