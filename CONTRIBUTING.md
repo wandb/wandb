@@ -20,19 +20,18 @@ Please make sure to update the ToC when you update this page!
     + [Scopes](#scopes)
     + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
-  * [Mac with the Apple M1 chip](#mac-with-the-apple-m1-chip)
-- [Building protocol buffers](#building-protocol-buffers)
 - [Linting the code](#linting-the-code)
 - [Testing](#testing)
-  * [Live development](#live-development)
-  * [Editable mode:](#editable-mode-)
-  * [Code Coverage](#code-coverage)
-- [Other auto generated code](#other-auto-generated-code)
+  * [Using pytest](#using-pytest)
+- [Auto-Generating Code](#auto-generating-code)
+  * [Building protocol buffers](#building-protocol-buffers)
   * [Arguments/environment variables impacting wandb functions are merged with Settings](#arguments-environment-variables-impacting-wandb-functions-are-merged-with-settings)
     + [wandb.Settings internals](#wandbsettings-internals)
     + [Adding a new setting](#adding-a-new-setting)
   * [Deprecating features](#deprecating-features)
     + [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
+  * [Adding URLs](#adding-urls)
+- [Editable mode:](#editable-mode-)
   * [Adding URLs](#adding-urls)
 
 ## Development workflow
@@ -220,62 +219,6 @@ pyenv install 3.7.17
 
 Note: to switch the default python version, edit the `.python-version` file in the repository root.
 
-
-### Mac with the Apple M1 chip
-
-- The `tensorflow-macos` package that is installed on Macs with the Apple M1 chip, requires
-the `h5py` package to be installed, which in turn requires `hdf5` to be installed in the system.
-You can install `hdf5` and `h5py` into a `pyenv` environment with the following commands
-using [homebrew](https://brew.sh/):
-
-```shell
-$ brew install hdf5
-$ export HDF5_DIR="$(brew --prefix hdf5)"
-$ pip install --no-binary=h5py h5py
-```
-
-- The `soundfile` package requires the `libsndfile` package to be installed in the system.
-Note that a pre-release version of `soundfile` will be installed.
-You can install `libsndfile` with the following command using [homebrew](https://brew.sh/):
-
-```shell
-$ brew install libsndfile
-```
-
-- The `moviepy` package requires the `ffmpeg` package to be installed in the system.
-You can install `ffmpeg` with the following command using [homebrew](https://brew.sh/):
-
-```shell
-$ brew install ffmpeg
-```
-
-- The `lightgbm` package might require build packages `cmake` and `libomp` to be installed.
-You can install `cmake` and `libomp` with the following command using [homebrew](https://brew.sh/):
-
-```shell
-$ brew install cmake libomp
-```
-
-
-## Building protocol buffers
-
-We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
-from the user process to the `wandb` backend process.
-
-If you update any of the `.proto` files in `wandb/proto`, you'll need to:
-
-- First install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
-```shell
-pip install nox
-```
-
-- Now you can run the proto action to build the protocol buffer files.
-```shell
-nox -t proto
-```
-
-Note: you only need to do that if you change any of our protocol buffer files.
-
 ## Linting the code
 
 We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
@@ -297,89 +240,48 @@ pre-commit run ruff --all-files --hook-stage pre-push
 
 ## Testing
 
+### Using pytest
+
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
-
-To run specific tests in a specific environment:
-
-```shell
-tox -e py37 -- tests/test_some_code.py -k substring_of_test
-```
-
-To run all tests in a specific environment:
+So you could run test using pytest directly first install, all testing development found in this requirements file:
 
 ```shell
-tox -e py38
+pip install -r requirements_test.txt
 ```
 
-If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
+Next, you can install the test depedencies for all test, that are found in this requirements file:
+```shell
+pip install -r requirements_dev.txt
+```
+Or, just install the dependencies you need for a test.
+
+After that you can run your test using the standard `pytest` commands. For example:
 
 ```shell
-tox -e py37 --recreate
+pytest tests/path-to-tests/test_file.py
 ```
 
-Sometimes, `pytest` will swallow or shorten important print messages or stack traces sent to stdout and stderr (particularly when they are coming from background processes).
-This will manifest as a test failure with no/shortened associated output.
-In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
+## Auto-Generating Code
 
+### Building protocol buffers
+
+We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
+from the user process to the `wandb` backend process.
+
+If you update any of the `.proto` files in `wandb/proto`, you'll need to:
+
+- First install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
 ```shell
-tox -e py37 -- tests/test_some_code.py -k substring_of_test -vvvv --showlocals
+pip install nox
 ```
 
-If a test fails, you can use the `--pdb -n0` flags to get the
-[pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
-
+- Now you can run the proto action to build the protocol buffer files.
 ```shell
-tox -e py37 -- tests/test_some_code.py -k failing_test -vvvv --showlocals --pdb -n0
+nox -t proto
 ```
 
-You can also manually set breakpoints in the test code (`breakpoint()`)
-to inspect the test failures.
+Note: you only need to do that if you change any of our protocol buffer files.
 
-
-### Live development
-
-You can enter any of the tox environments and install a live dev build with:
-
-```shell
-source .tox/py37/bin/activate
-pip install -e .
-```
-
-There's also a tox dev environment using Python 3, more info [here](https://tox.readthedocs.io/en/latest/example/devenv.html).
-
-TODO: There are lots of cool things we could do with this, currently it just puts us in iPython.
-
-```shell
-tox -e dev
-```
-
-### Editable mode:
-
-When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
-
-- During installation, provide the following flags:
-
-  ```shell
-  pip install -e . --config-settings editable_mode=strict
-  ```
-  By doing so, editable mode will correctly identify the relevant files.
-
-
-- Alternatively, you can configure it once using the following command:
-  ```shell
-  pip config set global.config-settings editable_mode=strict
-  ```
-  Once the configuration is in place, you can use the command:
-  ```shell
-  pip install -e .
-  ```
-  without any additional flags, and the strict editable mode will be applied consistently.
-
-### Code Coverage
-
-TODO
-
-## Other auto generated code
 
 ### Arguments/environment variables impacting wandb functions are merged with Settings
 
@@ -533,3 +435,25 @@ Once you add the URL to that file you will need to run:
 ```shell
 python tools/generate-tool.py --generate
 ```
+
+## Editable mode:
+
+When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+
+- During installation, provide the following flags:
+
+  ```shell
+  pip install -e . --config-settings editable_mode=strict
+  ```
+  By doing so, editable mode will correctly identify the relevant files.
+
+
+- Alternatively, you can configure it once using the following command:
+  ```shell
+  pip config set global.config-settings editable_mode=strict
+  ```
+  Once the configuration is in place, you can use the command:
+  ```shell
+  pip install -e .
+  ```
+  without any additional flags, and the strict editable mode will be applied consistently.
