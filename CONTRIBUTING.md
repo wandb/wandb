@@ -14,7 +14,6 @@ This guide discusses the development workflow and the internals of the `wandb` l
 ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
 Please make sure to update the ToC when you update this page!
 -->
-
 - [Development workflow](#development-workflow)
   * [Conventional Commits](#conventional-commits)
     + [Types](#types)
@@ -22,30 +21,19 @@ Please make sure to update the ToC when you update this page!
     + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
   * [Mac with the Apple M1 chip](#mac-with-the-apple-m1-chip)
-- [Code organization](#code-organization)
 - [Building protocol buffers](#building-protocol-buffers)
 - [Linting the code](#linting-the-code)
 - [Testing](#testing)
-  * [Overview](#overview)
-  * [Finding good test points](#finding-good-test-points)
-  * [Global Pytest Fixtures](#global-pytest-fixtures)
+  * [Live development](#live-development)
+  * [Editable mode:](#editable-mode-)
   * [Code Coverage](#code-coverage)
-  * [Test parallelism](#test-parallelism)
-  * [Functional Testing](#functional-testing)
-  * [Regression Testing](#regression-testing)
-- [Live development](#live-development)
-- [Library Objectives](#library-objectives)
-  * [Supported user interface](#supported-user-interface)
+- [Other auto generated code](#other-auto-generated-code)
   * [Arguments/environment variables impacting wandb functions are merged with Settings](#arguments-environment-variables-impacting-wandb-functions-are-merged-with-settings)
     + [wandb.Settings internals](#wandbsettings-internals)
     + [Adding a new setting](#adding-a-new-setting)
-  * [Data to be synced to server is fully validated](#data-to-be-synced-to-server-is-fully-validated)
-  * [All changes to objects are reflected in sync data](#all-changes-to-objects-are-reflected-in-sync-data)
-  * [Library can be disabled](#library-can-be-disabled)
-- [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
-- [Server introspection](#server-introspection)
-- [Deprecating features](#deprecating-features)
-- [Adding URLs](#adding-urls)
+  * [Deprecating features](#deprecating-features)
+    + [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
+  * [Adding URLs](#adding-urls)
 
 ## Development workflow
 
@@ -57,7 +45,7 @@ Please make sure to update the ToC when you update this page!
       effort is not duplicated.
 
 2.  If you are a first-time contributor, please go to
-    [`https://github.com/wandb/client`](https://github.com/wandb/wandb)
+    [`https://github.com/wandb/wandb`](https://github.com/wandb/wandb)
     and click the "Fork" button in the top-right corner of the page.
     This will create your personal copy of the repository that you will use for development.
 
@@ -80,7 +68,7 @@ Please make sure to update the ToC when you update this page!
     - Create a `git` branch where you will develop your contribution.
       Use a sensible name for the branch, for example:
     ```shell
-    git checkout -b new-awesome-feature
+    git checkout -b <username>/<short-dash-seperated-feature-description>
     ```
     - Hack! As you make progress, commit your changes locally, e.g.:
     ```shell
@@ -97,7 +85,7 @@ Please make sure to update the ToC when you update this page!
     - When your contribution is ready and the tests all pass, push your branch to GitHub:
 
       ```shell
-      git push origin new-awesome-feature
+      git push origin <username>/<short-dash-seperated-feature-description>
       ```
 
     - Once the branch is uploaded, `GitHub` will print a URL for submitting your contribution as a pull request.
@@ -115,10 +103,10 @@ Please make sure to update the ToC when you update this page!
       ```shell
       git add tests/test-changed-file.py
       git commit -m "test(sdk): Add a test case to address reviewer feedback"
-      git push origin new-awesome-feature
+      git push origin <username>/<short-dash-seperated-feature-description>
       ```
 
-    - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
+    - Once your pull request is approved by the reviewers, it will be merged into the main branch in the repository.
 
 ### Conventional Commits
 
@@ -218,22 +206,13 @@ If the feature or fix does not directly impact users, consider using a different
 We test the library code against multiple `python` versions
 and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenv` by running
 
-```shell
-curl -L https://github.com/pyenv/pyenv-installer/raw/master/bin/pyenv-installer | bash
-```
+following the instruction in [here](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
 
-To load `pyenv` automatically, add the following lines to your shell's startup script,
-such as `~/.bashrc` or `~/.zshrc`
-(and then either restart the shell, run `exec $SHELL`, or `source` the changed script):
+You would also likely want to setup pyenv-virtualenv to manage multiple environement.
+For more details see: [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv)
 
-```shell
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$HOME/.pyenv/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv virtualenv-init -)"
-```
-
-For example to install python 3.7.17, you should run the following command:
+Once you have everything installed, you can add additional python version, for example python 3.7.17, you could run the
+following commmand:
 
 ```
 pyenv install 3.7.17
@@ -241,7 +220,6 @@ pyenv install 3.7.17
 
 Note: to switch the default python version, edit the `.python-version` file in the repository root.
 
-You would also likely want to setup pyenv-virtualenv to manage multiple environement. For more details see: [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv)
 
 ### Mac with the Apple M1 chip
 
@@ -284,31 +262,42 @@ $ brew install cmake libomp
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
-If you update any of the `.proto` files in `wandb/proto`, you'll need to run:
+If you update any of the `.proto` files in `wandb/proto`, you'll need to:
 
+- First install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
 ```shell
-make proto
+pip install nox
 ```
+
+- Now you can run the proto action to build the protocol buffer files.
+```shell
+nox -t proto
+```
+
+Note: you only need to do that if you change any of our protocol buffer files.
 
 ## Linting the code
 
-We use [`black`](https://black.readthedocs.io/), [`flake8`](https://flake8.pycqa.org/),
-and [`mypy`](http://mypy-lang.org/) for code formatting and checks (including static type checks).
+We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
 
-To reformat the code, run:
-
+To install `pre-commit` run the following:
 ```shell
-tox -e format
+pip install pre-commit
 ```
-TODO: fix this section
 
+To install all of our pre-commit hooks run:
+```shell
+pre-commit install
+```
+
+If you just want to run a specific hook, like formating your code, you could run the following:
+```shell
+pre-commit run ruff --all-files --hook-stage pre-push
+```
 
 ## Testing
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
-
-By default, tests are run in parallel with 4 processes. This can be changed by setting the
-`CI_PYTEST_PARALLEL` environment variable to a different value.
 
 To run specific tests in a specific environment:
 
@@ -346,180 +335,8 @@ tox -e py37 -- tests/test_some_code.py -k failing_test -vvvv --showlocals --pdb 
 You can also manually set breakpoints in the test code (`breakpoint()`)
 to inspect the test failures.
 
-### Overview
 
-Testing `wandb` is tricky for a few reasons:
-
-1. `wandb.init` launches a separate process, this adds overhead and makes it difficult to assert logic happening in the backend process.
-2. The library makes lots of requests to a W&B server as well as other services. We don't want to make requests to an actual server, so we need to mock one out.
-3. The library has many integrations with 3rd party libraries and frameworks. We need to assert we never break compatibility with these libraries as they evolve.
-4. wandb writes files to the local file system. When we're testing we need to make sure each test is isolated.
-5. wandb reads configuration state from global directories such as `~/.netrc` and `~/.config/wandb/settings` we need to override these in tests.
-6. The library needs to support jupyter notebook environments as well.
-
-To make our lives easier we've created lots of tooling to help with the above challenges. Most of this tooling comes in the form of [Pytest Fixtures](https://docs.pytest.org/en/stable/fixture.html). There are detailed descriptions of our fixtures in the section below. What follows is a general overview of writing good tests for wandb.
-
-### Finding good test points
-
-The wandb system can be viewed as 3 distinct services:
-
-1. The user process where `wandb.init()` is called
-2. The internal process where work is done to format data to be synced to the server
-3. The backend server which listens to graphql endpoints and populates a database
-
-The interfaces are described here:
-
-```
-  Users   .  Shared  .  Internal .  Mock
-  Process .  Queues  .  Process  .  Server
-          .          .           .
-  +----+  .  +----+  .  +----+   .  +----+
-  | Up |  .  | Sq |  .  | Ip |   .  | Ms |
-  +----+  .  +----+  .  +----+   .  +----+
-    |     .    |     .    |      .    |
-    | ------>  | -------> | --------> |    1
-    |     .    |     .    |      .    |
-    |     .    | -------> | --------> |    2
-    |     .    |     .    |      .    |
-    | ------>  |     .    |      .    |    3
-    |     .    |     .    |      .    |
-
-1. Full codepath from wandb.init() to mock_server
-   Note: coverage only counts for the User Process and interface code
-   Example: [wandb_integration_test.py](tests/pytest_tests/system_tests/test_wandb_integration.py)
-2. Inject into the Shared Queues to mock_server
-   Note: coverage only counts for the interface code and internal process code
-   Example: [test_sender.py](tests/pytest_tests/system_tests/test_sender.py)
-3. From wandb.Run object to Shared Queues
-   Note: coverage counts for User Process
-   Example: [wandb_run_test.py](tests/pytest_tests/unit_tests/test_wandb_run.py)
-```
-
-Good examples of tests for each level of testing can be found at:
-
-- [test_system_metrics_*.py](tests/pytest_tests/unit_tests/test_system_metrics/test_system_metrics_*.py): User process tests
-- [test_metric_internal.py](tests/pytest_tests/system_tests/test_metric_internal.py): Internal process tests
-- [test_metric_full.py](tests/pytest_tests/system_tests/test_metric_full.py): Full stack tests
-
-### Global Pytest Fixtures
-
-Global fixtures are defined in `tests/**/conftest.py`, separated into [unit test fixtures](tests/pytest_tests/unit_tests/conftest.py), [system test fixtures](tests/pytest_tests/system_tests/conftest.py), as well as [shared fixtures](tests/pytest_tests/conftest.py).
-
-- `local_netrc` - used automatically for all tests and patches the netrc logic to avoid interacting with your system .netrc
-- `local_settings` - used automatically for all tests and patches the global settings path to an isolated directory.
-- `test_settings` - returns a `wandb.Settings` object that can be used to initialize runs against the `live_mock_server`. See `tests/wandb_integration_test.py`
-- `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
-- `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
-- `git_repo` — places the test context into an isolated git repository
-- `test_dir` - places the test into `tests/logs/NAME_OF_TEST` this is useful for looking at debug logs. This is used by `test_settings`
-- `notebook` — gives you a context manager for reading a notebook providing `execute_cell`. See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`.
-- `mocked_ipython` - to get credit for codecov you may need to pretend you're in a jupyter notebook when you aren't, this fixture enables that.
-
-### Code Coverage
-
-We use codecov to ensure we're executing all branches of logic in our tests. Below are some JHR Protips™
-
-1. If you want to see the lines not covered you click on the “Diff” tab. then look for any “+” lines that have a red block for the line number
-2. If you want more context about the files, go to the “Files” tab, it will highlight diffs, but you have to do even more searching for the lines you might care about
-3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from main)
-
-We currently have 8 categories of test coverage:
-
-1. `project`: main coverage numbers, I don't think it can drop by more than a few percent, or you will get a failure
-2. `patch/tests`: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
-3. `patch/tests-utils`: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
-4. `patch/sdk`: anything that matches `wandb/sdk/*.py` (so top level sdk files). These have lots of ways to test, so it should be high coverage. Currently, target is ~80% (but it is dynamic)
-5. `patch/sdk-internal`: should be covered very high target is around 80% (also dynamic)
-6. `patch/sdk-other`: will be a "catch all" for other stuff in `wandb/sdk/` target around 75% (dynamic)
-7. `patch/apis`: we have no good fixtures for this, so until we do, this will get a waiver
-8. `patch/other`: everything else, we have lots of stuff that isn't easy to test, so it is in this category, currently the requirement is ~60%
-
-### Test parallelism
-
-The circleci uses pytest-split to balance unittest load on multiple nodes. In order to do this efficiently every once in a while the test timing file (`.test_durations`) needs to be updated with:
-
-```shell
-CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
-```
-
-### Functional Testing
-
-TODO: overview of how to write and run functional tests with [yea](https://github.com/wandb/yea)
-and the [yea-wandb](https://github.com/wandb/yea-wandb) plugin.
-
-The `yea-wandb` plugin for `yea` uses copies of several components from `tests/utils`
-(`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`)
-to provide a test environment for functional tests. Currently, we maintain a copy of those components in
-`yea-wandb/src/yea_wandb`, so they need to be in sync.
-
-If you update one of those files, you need to:
-
-- While working on your contribution:
-  - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
-    Make sure to update the `yea-wandb` version.
-  - Point the `wandb/wandb` branch you are working on to this `wandb/yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and replace the entire line with
-    `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
-- Once you are happy with your changes:
-  - Bump to a new version by first running `make bumpversion-to-dev`, committing, and then running `make bumpversion-from-dev`.
-  - Release `yea-wandb` (with `make release`) from your `shiny-new-branch` branch.
-  - If you have changes made to any file in (`artifact_emu.py`, `mock_requests.py`, or `mock_server.py`) in your `wandb/yea-wandb` branch, make sure to update these files in `tests/utils` in a `wandb/wandb` branch. We have a Github Action that verifies that these files are equal (between the `wandb/wandb` and `wandb/yea-wandb`). **If you have changes in these files and you merge then in the wandb/yea-wandb repo and do not sync them to the wandb/wandb repo, all wandb/wandb PRs will fail this Github Action.**
-  - Once your `wandb/wandb` PR and `wandb/yea-wandb` PR are ready to be merged, you can merge first the `wandb/yea-wandb` PR, make sure that your `wandb/wandb` PR is green and merge it next.
-
-
-### Regression Testing
-
-<!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
-
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing).
-The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found
-[here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py).
-Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`),
-can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
-
-#### Example usage:
-
-```bash
-git clone git@github.com:wandb/wandb-testing.git
-
-cd wandb-testing/regression && python regression.py tests/main/huggingface/ --dryrun
-```
-
-The above script will print all of the `huggingface-transformers` test configurations.
-The expected output should look something like this:
-
-```
-########################################
-# huggingface-transformers init py37-pt
-########################################
-########################################
-# huggingface-transformers init py37-pt1.4
-########################################
-########################################
-# huggingface-transformers init py37-ptn
-########################################
-
-------------------
-
-Good runs:
-Failed runs:
-```
-
-In the names of the tests you can see the configurations of the tests:
-
-- `init` is the configuration specified in the test [config file](https://github.com/wandb/wandb-testing/blob/master/regression/tests/main/huggingface/regression.yaml#L49).
-
-Some details include:
-
-- All the tests are using `py37`: [python-3.7](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L25).
-- Each test uses a different version `PyTorch`:
-  - `pt`: [Latests PyTorch release](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L54)
-  - `pt1.4`: [Version 1.4 of PyTorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L60)
-  - `ptn`: [Nightly version of Pytorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L73)
-
-For more details about general usage and how to add new tests see this [README](https://github.com/wandb/wandb-testing/tree/master/regression#readme).
-
-## Live development
+### Live development
 
 You can enter any of the tox environments and install a live dev build with:
 
@@ -558,15 +375,11 @@ When using editable mode outside of the wandb directory, it is necessary to appl
   ```
   without any additional flags, and the strict editable mode will be applied consistently.
 
-## Library Objectives
+### Code Coverage
 
-### Supported user interface
+TODO
 
-All objects and methods that users are intended to interact with are in the `wandb/sdk` directory. Any
-method on an object that is not prefixed with an underscore is part of the supported interface and should
-be documented.
-
-User interface should be typed using python 3.6+ type annotations. Older versions will use untyped interface.
+## Other auto generated code
 
 ### Arguments/environment variables impacting wandb functions are merged with Settings
 
@@ -667,7 +480,7 @@ The `Settings` object:
 
 - Add a new type-annotated `SettingsData` class attribute.
 - Add the new field to `wandb/proto/wandb_settings.proto` following the existing pattern.
-  - Run `make proto` to re-generate the python stubs.
+  - Run `nox -t proto` to re-generate the python stubs.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
@@ -680,106 +493,7 @@ The `Settings` object:
   modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
-### Data to be synced to server is fully validated
-
-Calls to `wandb.log()` result in the dictionary being serialized into a schema'ed data structure.
-Any non supported element should result in an immediate exception.
-
-### All changes to objects are reflected in sync data
-
-When changing properties of objects, those objects should serialize the changes into a schema'ed data
-structure. There should be no need for `.save()` methods on objects.
-
-### Library can be disabled
-
-When running in disabled mode, all objects act as in memory stores of attribute information, but they do
-not perform any serialization to sync data.
-
-## Detailed walk through of a simple program
-
-### Program
-
-```python
-import wandb
-
-run = wandb.init(config=dict(param1=1))
-run.config.param2 = 2
-run.log(dict(this=3))
-```
-
-#### import wandb [line 1]
-
-- minimal code should be run on import
-
-#### wandb.init(...) [line 2]
-
-- User Process:
-
-  - Calls internal `wandb.setup()` in case the user has not yet initialized the global wandb state.
-    `wandb.setup()` is similar to `wandb.init()` but it impacts the entire process or session.
-    This allows multiple `wandb.init()` calls to share some common setup.
-  - Sets up notification and request queues for communicating with internal process
-  - Spawns internal process used for syncing passing queues and the settings object
-  - Creates a Run object `RunManaged`
-  - Encodes passed config dictionary into `RunManaged` object
-  - Sends synchronous protocol buffer request message `RunData` to internal process
-  - Wait for response for configurable amount of time. Populate run object with response data
-  - Terminal (`sys.stdout`, `sys.stderr`) is wrapped which sends output to internal process with `RunOutput` message
-  - Sets a global `Run` object for users who use `wandb.log()` syntax
-  - `Run.on_start()` is called to display initial information about the run
-  - Returns `Run` object
-
-- Internal Process:
-  - Process initialization
-  - Wait on notify queue for work
-  - When RunData message is seen, queue this message to be written to disk `wandb_write` and sent to cloud `wandb_send`
-  - wandb_send thread sends upsert_run graphql http request
-  - response is populated into a response message
-  - Spin up internal threads which monitor system metrics
-  - Queue response message to the user process context
-
-#### run.config attribute setter [line 3]
-
-- User Process:
-
-  - Callback on the `Run` object is called with the changed config item
-  - `Run` object callback generates `ConfigData` message and asynchronously sends to internal process
-
-- Internal Process:
-  - When `ConfigData` message is seen, queue message to `wandb_write` and `wandb_send`
-  - `wandb_send` thread sends `upsert_run` graphql http request
-
-#### wandb.log(...) [line 4]
-
-- User process:
-
-  - Log dictionary is serialized and sent asynchronously as HistoryData message to internal process
-
-- Internal Process:
-  - When `HistoryData` message is seen, queue message to `wandb_write` and `wandb_send`
-  - `wandb_send` thread sends `file_stream` data to cloud server
-
-#### end of program or wandb.finish()
-
-- User process:
-  - Terminal wrapper is shutdown and flushed to internal process
-  - Exit code of program is captured and sent synchronously to internal process as `ExitData`
-  - `Run.on_final()` is called to display final information about the run
-
-
-## Server introspection
-
-Some features may depend on a minimum version of the W&B backend service, but this library may be communicating with an outdated backend.  We use the GraphQL introspection schema to determine which features are supported.  See the `*_introspection` methods in [internal_api.py](/wandb/sdk/internal/internal_api.py) for examples.  Depending on the nature of your feature, you may need to introspect:
-
-- If one or more fields on the root `Query` or `Mutation` types exist: [example](/wandb/sdk/internal/internal_api.py#L477)
-- If an input type includes a specific field: [example](/wandb/sdk/internal/internal_api.py#L546)
-
-You should reuse the generic introspection methods if possible, and cache the introspection result.
-
-The entire introspection schema is available.  For more info see the [official GraphQL docs](https://graphql.org/learn/introspection/)
-
-
-## Deprecating features
+### Deprecating features
 
 Starting with version 1.0.0, `wandb` will be using [Semantic Versioning](https://semver.org/).
 The major version of the library will be incremented for all backwards-incompatible changes,
@@ -792,7 +506,7 @@ It is safe to depend on `wandb` like this: `wandb >=x.y, <(x+1)`,
 where `x.y` is the first version that includes all features you need.
 -->
 
-### Marking a feature as deprecated
+#### Marking a feature as deprecated
 
 To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
 
@@ -810,7 +524,7 @@ deprecate.deprecate(
 )
 ```
 
-## Adding URLs
+### Adding URLs
 
 All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
 ensure that URLs do not lead to broken links.
