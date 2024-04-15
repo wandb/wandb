@@ -5,5 +5,4 @@ bump2version
 twine
 wheel>=0.38.0
 build
-setuptools>=64
 nox

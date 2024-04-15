@@ -1,6 +1,6 @@
 [build-system]
-requires = ['setuptools>61']
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "wandb"
@@ -23,7 +23,6 @@ dependencies = [
     "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
-    "setuptools",
     "appdirs>=1.4.3",
     "typing_extensions; python_version < '3.10'",
 ]
@@ -101,16 +100,6 @@ async = ["httpx>=0.23.0"]
 perf = ["orjson"]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
-
-[tool.setuptools]
-zip-safe = false
-include-package-data = true
-packages = ["wandb"]
-package-dir = { "wandb" = "wandb" }
-package-data = { "wandb" = ["py.typed"] }
-
-[tool.setuptools.dynamic]
-version = { attr = "wandb.__version__" }
 
 
 [tool.pytest.ini_options]
