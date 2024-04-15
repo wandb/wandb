@@ -14,6 +14,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
@@ -609,3 +610,16 @@ def test_artifact_manifest_length():
     testpath.write_text("also a test")
     artifact.add_reference(testpath.resolve().as_uri(), "test2.txt")
     assert len(artifact.manifest) == 2
+
+
+def test_download_with_pathlib_root(monkeypatch):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    monkeypatch.setattr(artifact, "_download", lambda *args, **kwargs: "")
+    monkeypatch.setattr(artifact, "_download_using_core", lambda *args, **kwargs: "")
+    custom_path = Path("some/relative/path")
+    artifact.download(custom_path)
+    assert len(artifact._download_roots) == 1
+    root = list(artifact._download_roots)[0]
+    path_parts = custom_path.parts
+    assert Path(root).parts[-len(path_parts) :] == path_parts
