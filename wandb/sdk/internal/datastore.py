@@ -52,7 +52,7 @@ try:
     bytes("", "ascii")
 
     def strtobytes(x):
-        """strtobytes."""
+        """Strtobytes."""
         return bytes(x, "iso8859-1")
 
     # def bytestostr(x):
