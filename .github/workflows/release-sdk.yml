@@ -106,10 +106,16 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Note: this will create wheels for dependencies as well!
       - name: Build wheel
-        run: python -m build -wn
+        run: pip wheel -w wheelhouse
         env:
           WANDB_BUILD_UNIVERSAL: True
+
+      - name: Copy wheel to ./dist
+        run: |
+          mkdir dist/
+          cp wheelhouse/wandb-*-py3-none-any.whl dist/
 
       - uses: actions/upload-artifact@v3
         with:
