@@ -392,8 +392,18 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e auto-codegen` -- it will also automatically
+  modification order list with `nox -s auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
+
+### Adding URLs
+
+All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
+ensure that URLs do not lead to broken links.
+
+Once you add the URL to that file you will need to run:
+```shell
+nox -s auto-codegen
+```
 
 ### Deprecating features
 
@@ -414,7 +424,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 
 - Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
   which will be used to track the to-be-deprecated feature usage.
-- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `make proto`.
+- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -s proto`.
 - Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
 
 ```python
@@ -426,15 +436,6 @@ deprecate.deprecate(
 )
 ```
 
-### Adding URLs
-
-All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
-ensure that URLs do not lead to broken links.
-
-Once you add the URL to that file you will need to run:
-```shell
-python tools/generate-tool.py --generate
-```
 
 ## Editable mode:
 
