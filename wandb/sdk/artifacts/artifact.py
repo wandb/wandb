@@ -1616,7 +1616,7 @@ class Artifact:
 
     def download(
         self,
-        root: Optional[str] = None,
+        root: Optional[StrPath] = None,
         allow_missing_references: bool = False,
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
@@ -1642,7 +1642,7 @@ class Artifact:
         """
         self._ensure_logged("download")
 
-        root = root or self._default_root()
+        root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
         if is_require_core():
