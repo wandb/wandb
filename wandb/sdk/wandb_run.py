@@ -1,3 +1,4 @@
+import signal
 import _thread as thread
 import atexit
 import functools
@@ -201,6 +202,8 @@ class RunStatusChecker:
             name="IntMsgThr",
             daemon=True,
         )
+        
+        os.setpgrp()
 
     def start(self) -> None:
         self._stop_thread.start()
@@ -280,7 +283,8 @@ class RunStatusChecker:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
-                    thread.interrupt_main()
+                    # thread.interrupt_main()
+                    os.killpg(os.getpgrp(), signal.SIGINT)
                     return
 
         self._loop_check_status(
