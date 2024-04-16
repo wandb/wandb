@@ -35,14 +35,29 @@ fe_name_map = {
 }
 fe_name_map_reversed = {v: k for k, v in fe_name_map.items()}
 
+op_map = {
+    ast.Gt: ">",
+    ast.Lt: "<",
+    ast.Eq: "==",
+    ast.NotEq: "!=",
+    ast.GtE: ">=",
+    ast.LtE: "<=",
+    ast.In: "IN",
+    ast.NotIn: "NIN",
+    #
+    ast.Add: "+",
+    ast.Sub: "-",
+    ast.Mult: "*",
+    ast.Div: "/",
+    ast.FloorDiv: "//",
+}
+
 
 def expr_to_filters(expr: str) -> Filters:
-    if not expr:
-        filters = []
-    else:
+    filters = []
+    if expr:
         parsed_expr = ast.parse(expr, mode="eval")
         filters = [_parse_node(parsed_expr.body)]
-
     return Filters(op="OR", filters=[Filters(op="AND", filters=filters)])
 
 
@@ -56,7 +71,7 @@ def _parse_node(node) -> Filters:
                 section = section_map.get(func_call_data["type"], "default_section")
                 key = Key(section=section, name=func_call_data["value"])
                 # Construct the Filters object
-                op = _map_op(node.ops[0])
+                op = _op_to_str(node.ops[0])
                 right_operand = _extract_value(node.comparators[0])
                 return Filters(op=op, key=key, value=right_operand, disabled=False)
         else:
@@ -68,40 +83,21 @@ def _parse_node(node) -> Filters:
         raise ValueError(f"Unsupported expression type: {type(node)}")
 
 
-def _map_op(op_node) -> str:
-    # Map the AST operation node to a string repr
-    op_map = {
-        ast.Gt: ">",
-        ast.Lt: "<",
-        ast.Eq: "==",
-        ast.NotEq: "!=",
-        ast.GtE: ">=",
-        ast.LtE: "<=",
-        ast.In: "IN",
-        ast.NotIn: "NIN",
-    }
-    return op_map[type(op_node)]
+def _op_to_str(op):
+    op_type = type(op)
+    if (op_str := op_map.get(op_type)) is None:
+        raise ValueError(f"Unsupported {op_type=}")
+    return op_str
 
 
 def _handle_comparison(node) -> Filters:
-    op_map = {
-        "Gt": ">",
-        "Lt": "<",
-        "Eq": "==",
-        "NotEq": "!=",
-        "GtE": ">=",
-        "LtE": "<=",
-        "In": "IN",
-        "NotIn": "NIN",
-    }
-
     left_operand = node.left.id if isinstance(node.left, ast.Name) else None
     left_operand_mapped = to_frontend_name(left_operand)
     right_operand = _extract_value(node.comparators[0])
-    operation = type(node.ops[0]).__name__
+    op_str = _op_to_str(node.ops[0])
 
     return Filters(
-        op=op_map.get(operation),
+        op=op_str,
         key=_server_path_to_key(left_operand) if left_operand_mapped else None,
         value=right_operand,
         disabled=False,
@@ -130,6 +126,9 @@ def _extract_value(node) -> Any:
         return [_extract_value(element) for element in node.elts]
     if isinstance(node, ast.Name):
         return node.id
+    if isinstance(node, ast.BinOp):
+        op_str = _op_to_str(node.op)
+        return ast.unparse(node.left) + op_str + ast.unparse(node.right)
     raise ValueError(f"Unsupported value type: {type(node)}")
 
 
@@ -207,8 +206,7 @@ def _key_to_server_path(key: Key):
         return f"tags.{name}"
     elif section == "runs":
         return name
-    raise ValueError(f"Invalid key ({key})")
-    # raise ValueError(f"Invalid {key=}")
+    raise ValueError(f"Invalid {key=}")
 
 
 def _server_path_to_key(path):

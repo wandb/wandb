@@ -780,7 +780,7 @@ class WandbImporter:
         )
 
         logger.debug(f"Upserting {dst_report=}")
-        dst_report._save(name=report.to_model().name)
+        dst_report._unsafe_save(name=report.to_model().name)
 
     def _use_artifact_sequence(
         self,

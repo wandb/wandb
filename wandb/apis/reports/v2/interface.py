@@ -1437,7 +1437,9 @@ class Report(Base):
         default_factory=lambda: None, init=False, repr=False
     )
 
-    _api: wandb.Api = Field(default_factory=_get_api, repr=False, kw_only=True)
+    _api: wandb.Api = Field(
+        default_factory=_get_api, init=False, repr=False, kw_only=True
+    )
 
     def to_model(self):
         blocks = self.blocks
@@ -1513,9 +1515,9 @@ class Report(Base):
         return urlunparse((scheme, netloc, path, params, query, fragment))
 
     def save(self, draft: bool = False, clone: bool = False):
-        return self._save(draft=draft, clone=clone)
+        return self._unsafe_save(draft=draft, clone=clone)
 
-    def _save(
+    def _unsafe_save(
         self, draft: bool = False, clone: bool = False, *, name: Optional[str] = None
     ):
         model = self.to_model()
@@ -1562,7 +1564,8 @@ class Report(Base):
     def from_url(cls, url, *, as_model: bool = False, api: Optional[wandb.Api] = None):
         if api is None:
             api = wandb.Api()
-        vs = _url_to_viewspec(url)
+        vs = _url_to_viewspec(url, api=api)
+        print(f"{vs=}")
         model = internal.ReportViewspec.model_validate(vs)
         if as_model:
             return model
@@ -1589,23 +1592,31 @@ def _url_to_viewspec(url: str, *, api: Optional[wandb.Api] = None) -> dict:
     if api is None:
         api = _get_api()
     report_id = _url_to_report_id(url)
+    print(f"{report_id=}")
     r = api.client.execute(gql.view_report, variable_values={"reportId": report_id})
+    print(f"{r=}")
     viewspec = r["view"]
     return viewspec
 
 
 def _url_to_report_id(url: str) -> str:
-    view_str = "Vmlldzo2"
+    view_str = "Vmlldzo"
+
+    if url.endswith("/edit"):
+        url = url[:-5]
 
     parse_result = urlparse(url)
     path = parse_result.path
+
+    print(path)
 
     _, entity, project, _, name = path.split("/")
 
     # This covers cases where the split is more than "--"
     *title, report_id = name.split(f"--{view_str}")
+    print(title, report_id)
     report_id = view_str + report_id
-
+    print(report_id)
     return report_id
 
 
