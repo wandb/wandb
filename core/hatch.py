@@ -8,6 +8,7 @@ from typing import Mapping, Optional
 
 
 def build_wandb_core(
+    go_binary: pathlib.Path,
     output_path: pathlib.PurePath,
     with_code_coverage: bool,
     wandb_commit_sha: Optional[str],
@@ -31,12 +32,12 @@ def build_wandb_core(
     # paths relative to ./core
     subprocess.check_call(
         [
-            "go",
+            go_binary,
             "build",
             *coverage_flags,
             *ld_flags,
             *output_flags,
-            "cmd/wandb-core/main.go",
+            pathlib.Path("cmd", "wandb-core", "main.go"),
         ],
         cwd="./core",
         env=_go_env(),

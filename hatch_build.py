@@ -2,6 +2,8 @@ import os
 import pathlib
 import platform
 import re
+import shutil
+import subprocess
 import sys
 import sysconfig
 from typing import Any, Dict, List
@@ -72,6 +74,7 @@ class CustomBuildHook(BuildHookInterface):
 
         self.app.display_waiting("Building wandb-core Go binary...")
         hatch_core.build_wandb_core(
+            go_binary=self._get_and_require_go_binary(),
             output_path=output,
             with_code_coverage=with_coverage,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT),
@@ -80,6 +83,17 @@ class CustomBuildHook(BuildHookInterface):
         # NOTE: as_posix() is used intentionally. Hatch expects forward slashes
         # even on Windows.
         return [output.as_posix()]
+
+    def _get_and_require_go_binary(self) -> pathlib.Path:
+        go = shutil.which("go")
+
+        if not go:
+            self.app.abort(
+                "Did not find the 'go' binary. You need Go to build wandb"
+                " from source. See https://go.dev/doc/install.",
+            )
+
+        return pathlib.Path(go)
 
 
 def _get_env_bool(name: str, default: bool) -> bool:
