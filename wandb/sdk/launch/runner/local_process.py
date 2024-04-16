@@ -4,8 +4,7 @@ from typing import Any, List, Optional
 
 import wandb
 
-from .._project_spec import LaunchProject, get_entry_point_command
-from ..builder.build import get_env_vars_dict
+from .._project_spec import LaunchProject
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
@@ -47,8 +46,7 @@ class LocalProcessRunner(AbstractRunner):
 
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         entry_point = (
-            launch_project.override_entrypoint
-            or launch_project.get_single_entry_point()
+            launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
 
         cmd: List[Any] = []
@@ -81,14 +79,14 @@ class LocalProcessRunner(AbstractRunner):
                 )
             except Exception:
                 wandb.termwarn("Unable to validate python dependencies")
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
-
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        cmd += entry_cmd
+        if entry_point is not None:
+            cmd += entry_point.command
+        cmd += launch_project.override_args
 
         command_str = " ".join(cmd).strip()
         _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"

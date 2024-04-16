@@ -12,7 +12,6 @@ from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
-from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
@@ -133,8 +132,8 @@ class LocalContainerRunner(AbstractRunner):
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
 
         # When running against local port, need to swap to local docker host
