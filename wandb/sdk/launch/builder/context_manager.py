@@ -83,8 +83,8 @@ class BuildContextManager:
             py_version, py_major = get_current_python_version()
 
         python_build_image = (
-            f"python:{py_version}"  # use full python image for package installation
-        )
+            f"python:{py_version}"
+        )  # use full python image for package installation
         requirements_section = get_requirements_section(
             launch_project, self._directory, builder_type
         )
