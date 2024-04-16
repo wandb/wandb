@@ -262,7 +262,7 @@ def bump_core_version(session: nox.Session) -> None:
         )
 
 
-@nox.session(python=False, name="proto-go")
+@nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
     _generate_proto_go(session)
@@ -272,7 +272,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python")
+@nox.session(name="proto-python", tags=["proto"])
 @nox.parametrize("pb", [3, 4])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
