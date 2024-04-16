@@ -10,6 +10,7 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import logging
 import os
+from pathlib import Path
 import sys
 import time
 from abc import abstractmethod
@@ -322,7 +323,14 @@ class InterfaceBase:
         if ttl_duration_input:
             proto_artifact.ttl_duration_seconds = ttl_duration_input
         proto_artifact.incremental_beta1 = artifact.incremental
-        self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
+        if len(artifact.manifest.entries) < 1000:
+            self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
+        else:
+            digest = artifact.manifest.digest()
+            manifest_path = Path(get_staging_dir()) / digest / "wandb_manifest.json"
+            with open(manifest_path, "w") as f:
+                json.dump(artifact.manifest.to_manifest_json(), f)
+            proto_artifact.manifest_file = str(manifest_path)
         return proto_artifact
 
     def _make_artifact_manifest(
