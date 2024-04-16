@@ -117,7 +117,7 @@ timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
 testpaths = "tests"
-filterwarnings = "ignore::DeprecationWarning"
+filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
 open_files_ignore = "*.ttf"
 norecursedirs = [
     "vendor",
