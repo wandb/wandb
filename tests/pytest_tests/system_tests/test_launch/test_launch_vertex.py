@@ -105,6 +105,17 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
         project.queue_entity = None
         project.run_queue_item_id = None
         project.launch_spec = {}
+        project.get_env_vars_dict.return_value = {
+            "WANDB_PROJECT": project_name,
+            "WANDB_ENTITY": entity_name,
+            "WANDB_LAUNCH": "True",
+            "WANDB_RUN_ID": "asdasd",
+            "WANDB_DOCKER": "testimage",
+            "WANDB_SWEEP_ID": "sweeeeep",
+            "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
+            "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
+        }
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -122,7 +133,6 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
         env = req["worker_pool_specs"][0]["container_spec"]["env"]
         # Pop api key and base url - these are hard to control because our
         # sdk will autopopulate them from a million places.
-        env = env[2:]
         assert env == [
             {"name": "WANDB_PROJECT", "value": "test_project"},
             {"name": "WANDB_ENTITY", "value": "test_entity"},
