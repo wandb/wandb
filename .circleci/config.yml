@@ -584,7 +584,7 @@ jobs:
           command: nox -t proto-check
       - run:
           name: Lint
-          command: nox -v -s auto-codegen -- --check
+          command: tox run -v -e auto-codegen-check
       - save-test-results
 
   tox-base:

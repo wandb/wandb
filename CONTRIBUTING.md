@@ -203,9 +203,7 @@ If the feature or fix does not directly impact users, consider using a different
 ## Setting up your development environment
 
 We test the library code against multiple `python` versions
-and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenv` by running
-
-following the instruction in [here](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
+and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those.Install `pyenv` by following the instructions at [pyenv](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
 
 You would also likely want to setup pyenv-virtualenv to manage multiple environement.
 For more details see: [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv)
@@ -243,17 +241,12 @@ pre-commit run ruff --all-files --hook-stage pre-push
 ### Using pytest
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
-So you could run test using pytest directly first install, all testing development found in this requirements file:
+All test dependencies should be in `requirements_dev.txt` so you could just run:
+`
 
 ```shell
-pip install -r requirements_test.txt
+`pip install -r requirements_dev.txt`
 ```
-
-Next, you can install the test depedencies for all test, that are found in this requirements file:
-```shell
-pip install -r requirements_dev.txt
-```
-Or, just install the dependencies you need for a test.
 
 After that you can run your test using the standard `pytest` commands. For example:
 
@@ -263,6 +256,12 @@ pytest tests/path-to-tests/test_file.py
 
 ## Auto-Generating Code
 
+For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation)
+and [`tox`](https://tox.wiki/en/latest/installation.html). You could just run:
+```shell
+pip install nox tox
+```
+
 ### Building protocol buffers
 
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
@@ -270,10 +269,7 @@ from the user process to the `wandb` backend process.
 
 If you update any of the `.proto` files in `wandb/proto`, you'll need to:
 
-- First install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
-```shell
-pip install nox
-```
+
 
 - Now you can run the proto action to build the protocol buffer files.
 ```shell
@@ -392,7 +388,7 @@ The `Settings` object:
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `nox -s auto-codegen` -- it will also automatically
+  modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 ### Adding URLs
@@ -402,7 +398,7 @@ ensure that URLs do not lead to broken links.
 
 Once you add the URL to that file you will need to run:
 ```shell
-nox -s auto-codegen
+tox -e auto-codegen
 ```
 
 ### Deprecating features

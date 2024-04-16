@@ -338,13 +338,3 @@ def proto_check_go(session: nox.Session) -> None:
         after=lambda: _generate_proto_go(session),
         in_directory="core/pkg/service/.",
     )
-
-
-@nox.session(python=False, name="auto-codegen")
-def auto_generate_code(session: nox.Session, check: bool = False) -> None:
-    session.run("pip", "install", "ruff")
-    if not session.posargs:
-        posargs = ["--generate"]
-    else:
-        posargs = session.posargs
-    session.run("python", "tools/generate-tool.py", *posargs)
