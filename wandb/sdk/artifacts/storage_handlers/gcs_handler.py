@@ -1,7 +1,8 @@
 """GCS storage handler."""
+
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult, urlparse
 
 from wandb import util
@@ -9,7 +10,7 @@ from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5
+from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
@@ -51,13 +52,14 @@ class GCSHandler(StorageHandler):
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
     ) -> Union[URIStr, FilePathStr]:
+        assert manifest_entry.ref is not None
         if not local:
-            assert manifest_entry.ref is not None
             return manifest_entry.ref
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
-            manifest_entry.size if manifest_entry.size is not None else 0,
+        path, hit, cache_open = self._cache.check_etag_obj_path(
+            url=URIStr(manifest_entry.ref),
+            etag=ETag(manifest_entry.digest),
+            size=manifest_entry.size if manifest_entry.size is not None else 0,
         )
         if hit:
             return path
@@ -81,10 +83,10 @@ class GCSHandler(StorageHandler):
                 raise ValueError(
                     f"Unable to download object {manifest_entry.ref} with generation {version}"
                 )
-            md5 = obj.md5_hash
-            if md5 != manifest_entry.digest:
+            if obj.etag != manifest_entry.digest:
                 raise ValueError(
-                    f"Digest mismatch for object {manifest_entry.ref}: expected {manifest_entry.digest} but found {md5}"
+                    f"Digest mismatch for object {manifest_entry.ref}: "
+                    f"expected {manifest_entry.digest} but found {obj.etag}"
                 )
 
         with cache_open(mode="wb") as f:
@@ -187,14 +189,7 @@ class GCSHandler(StorageHandler):
         return ArtifactManifestEntry(
             path=posix_name,
             ref=URIStr(f"{self._scheme}://{str(posix_ref)}"),
-            digest=obj.md5_hash,
+            digest=obj.etag,
             size=obj.size,
-            extra=self._extra_from_obj(obj),
+            extra={"versionID": obj.generation},
         )
-
-    @staticmethod
-    def _extra_from_obj(obj: "gcs_module.blob.Blob") -> Dict[str, str]:
-        return {
-            "etag": obj.etag,
-            "versionID": obj.generation,
-        }

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,6 +18,9 @@ from wandb.util import make_artifact_name_safe
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
+
+
+CODE_ARTIFACT_EXCLUDE_PATHS = ["wandb", ".git"]
 
 
 def create_job(
@@ -107,6 +111,13 @@ def _create_job(
         )
         return None, "", []
 
+    if runtime is not None:
+        if not re.match(r"^3\.\d+$", runtime):
+            wandb.termerror(
+                f"Runtime (-r, --runtime) must be a minor version of Python 3, "
+                f"e.g. 3.9 or 3.10, received {runtime}"
+            )
+            return None, "", []
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     try:
@@ -435,6 +446,13 @@ def _make_code_artifact(
             )
         wandb.termerror(f"Error adding to code artifact: {e}")
         return None
+
+    # Remove paths we don't want to include, if present
+    for item in CODE_ARTIFACT_EXCLUDE_PATHS:
+        try:
+            code_artifact.remove(item)
+        except FileNotFoundError:
+            pass
 
     res, _ = api.create_artifact(
         artifact_type_name="code",

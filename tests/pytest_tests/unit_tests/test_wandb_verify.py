@@ -13,8 +13,8 @@ def test_print_results(capsys):
     wandb_verify.print_results(failed_test_or_tests, warning=False)
     captured = capsys.readouterr().out
     assert "\u2705" in captured
-    assert "\u274C" in captured
-    assert captured.count("\u274C") == 2
+    assert "\u274c" in captured
+    assert captured.count("\u274c") == 2
 
 
 def test_check_host():
@@ -35,7 +35,7 @@ def test_check_secure_requests(capsys):
     )
     captured = capsys.readouterr().out
     assert "\u2705" in captured
-    assert "\u274C" in captured
+    assert "\u274c" in captured
 
 
 def test_retry_fn():
@@ -72,7 +72,7 @@ def test_check_cors_configuration(test_settings, capsys):
         "localhost",
     )
     captured = capsys.readouterr().out
-    assert "\u274C" in captured
+    assert "\u274c" in captured
 
 
 def test_check_wandb_version(capsys):
@@ -83,4 +83,4 @@ def test_check_wandb_version(capsys):
         with unittest.mock.patch.object(wandb, "__version__", version):
             wandb_verify.check_wandb_version(api)
             captured = capsys.readouterr().out
-            assert "\u274C" in captured
+            assert "\u274c" in captured

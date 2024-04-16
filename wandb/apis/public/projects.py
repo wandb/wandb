@@ -1,4 +1,5 @@
 """Public API: projects."""
+
 from wandb_gql import gql
 
 from wandb.apis import public

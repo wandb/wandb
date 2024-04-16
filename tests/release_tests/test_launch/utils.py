@@ -139,9 +139,9 @@ def create_config_files(api_key: str, agent_image: Optional[str]):
         )
     )
     if agent_image:
-        launch_agent_patch["spec"]["template"]["spec"]["containers"][0][
-            "image"
-        ] = agent_image
+        launch_agent_patch["spec"]["template"]["spec"]["containers"][0]["image"] = (
+            agent_image
+        )
     launch_agent_dict = dict(launch_agent)
     update_dict(launch_agent_dict, launch_agent_patch)
     yaml.dump(

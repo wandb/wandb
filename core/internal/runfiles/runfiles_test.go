@@ -1,12 +1,14 @@
 package runfiles_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -15,6 +17,8 @@ import (
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watcher2test"
+	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -53,9 +57,14 @@ func writeEmptyFile(t *testing.T, path string) {
 }
 
 func TestUploader(t *testing.T) {
+	var fakeFileStream *filestreamtest.FakeFileStream
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
+	var fakeFileWatcher *watcher2test.FakeWatcher
 	var uploader Uploader
+
+	// Optional channel that's returned by the uploader's BatchDelayFunc.
+	var batchChan chan struct{}
 
 	// The files_dir to set on Settings.
 	var filesDir string
@@ -76,20 +85,36 @@ func TestUploader(t *testing.T) {
 		test func(t *testing.T),
 	) {
 		// Set a default and allow tests to override it.
+		batchChan = nil
 		filesDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
 		isSync = false
 		configure()
 
+		fakeFileStream = filestreamtest.NewFakeFileStream()
+
 		fakeFileTransfer = filetransfertest.NewFakeFileTransferManager()
 		fakeFileTransfer.ShouldCompleteImmediately = true
 
 		mockGQLClient = gqlmock.NewMockClient()
 
+		fakeFileWatcher = watcher2test.NewFakeWatcher()
+
+		var batchDelayFunc func() <-chan struct{}
+		if batchChan != nil {
+			batchDelayFunc = func() <-chan struct{} {
+				return batchChan
+			}
+		}
+
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			GraphQL:      mockGQLClient,
-			FileTransfer: fakeFileTransfer,
+			Ctx:            context.Background(),
+			GraphQL:        mockGQLClient,
+			FileStream:     fakeFileStream,
+			FileTransfer:   fakeFileTransfer,
+			FileWatcher:    fakeFileWatcher,
+			BatchDelayFunc: batchDelayFunc,
 			Settings: settings.From(&service.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
 				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
@@ -122,6 +147,22 @@ func TestUploader(t *testing.T) {
 				assert.Len(t, fakeFileTransfer.Tasks(), 1)
 			})
 	}
+
+	runTest("Process with 'live' policy watches file",
+		func() {},
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+
+			uploader.Process(&service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Path: "test.txt", Policy: service.FilesItem_LIVE},
+				},
+			})
+			uploader.Finish()
+
+			assert.True(t,
+				fakeFileWatcher.IsWatching(filepath.Join(filesDir, "test.txt")))
+		})
 
 	runTest("Process with 'now' policy during sync is no-op",
 		func() { isSync = true },
@@ -210,6 +251,84 @@ func TestUploader(t *testing.T) {
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
 		})
 
+	runTest("upload signals filestream on success",
+		func() {},
+		func(t *testing.T) {
+			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
+			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
+
+			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.Finish()
+
+			assert.Equal(t,
+				[]string{filepath.Join("subdir", "test.txt")},
+				fakeFileStream.GetFilesUploaded())
+		})
+
+	runTest("upload serializes uploads of the same file",
+		func() {},
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
+			fakeFileTransfer.ShouldCompleteImmediately = false
+
+			// Act 1: trigger two uploads.
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			uploader.UploadNow("test.txt")
+			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
+			uploader.UploadNow("test.txt")
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// Assert 1: only one upload task should happen at a time.
+			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+
+			// Act 2: complete the first upload task.
+			firstUpload := fakeFileTransfer.Tasks()[0]
+			firstUpload.CompletionCallback(firstUpload)
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+
+			// Assert 2: the second upload task should get scheduled.
+			assert.Len(t, fakeFileTransfer.Tasks(), 2)
+		})
+
+	runTest("upload batches and deduplicates CreateRunFiles calls",
+		func() { batchChan = make(chan struct{}) },
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "test1.txt"))
+			writeEmptyFile(t, filepath.Join(filesDir, "test2.txt"))
+			mockGQLClient.StubMatchOnce(
+				gomock.All(
+					gqlmock.WithOpName("CreateRunFiles"),
+					gqlmock.WithVariables(
+						gqlmock.GQLVar("files", gomock.Len(2)),
+					),
+				),
+				`{
+					"createRunFiles": {
+						"runID": "test-run",
+						"uploadHeaders": [],
+						"files": [
+							{
+								"name": "test1.txt",
+								"uploadURL": ""
+							},
+							{
+								"name": "test2.txt",
+								"uploadURL": ""
+							}
+						]
+					}
+				}`,
+			)
+
+			uploader.UploadNow("test1.txt")
+			uploader.UploadNow("test2.txt")
+			uploader.UploadNow("test2.txt")
+			batchChan <- struct{}{}
+			uploader.Finish()
+
+			assert.True(t, mockGQLClient.AllStubsUsed())
+		})
+
 	runTest("upload is no-op if GraphQL returns wrong number of files",
 		func() {},
 		func(t *testing.T) {
@@ -218,6 +337,8 @@ func TestUploader(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "file2.txt"))
 
 			// This tries to upload 2 files, but GraphQL returns 1 file.
+			uploader.UploadAtEnd("file1.txt")
+			uploader.UploadAtEnd("file2.txt")
 			uploader.UploadRemaining()
 			uploader.Finish()
 
@@ -249,6 +370,8 @@ func TestUploader(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test-file1"))
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test-file2"))
 
+			uploader.UploadAtEnd("test-file1")
+			uploader.UploadAtEnd(filepath.Join("subdir", "test-file2"))
 			uploader.UploadRemaining()
 			uploader.Finish()
 

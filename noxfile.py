@@ -1,10 +1,9 @@
 import os
-import platform
 from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b10"
+CORE_VERSION = "0.17.0b12.dev1"
 
 
 @nox.session(python=False, name="build-rust")
@@ -91,31 +90,6 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
         ],
         plugins=[my_plugin],
     )
-
-
-@nox.session(python=False, name="build-apple-stats-monitor")
-def build_apple_stats_monitor(session: nox.Session) -> None:
-    """Builds the apple stats monitor binary for the current platform.
-
-    The binary will be located in
-    core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
-    """
-    with session.chdir("core/pkg/monitor/apple"):
-        session.run(
-            "swift",
-            "build",
-            "--configuration",
-            "release",
-            "-Xswiftc",
-            "-cross-module-optimization",
-            external=True,
-        )
-        # copy the binary to core/pkg/monitor/apple/AppleStats
-        session.run(
-            "cp",
-            f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
-            "AppleStats",
-        )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -288,7 +262,7 @@ def bump_core_version(session: nox.Session) -> None:
         )
 
 
-@nox.session(python=False, name="proto-go")
+@nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
     _generate_proto_go(session)
@@ -298,7 +272,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python")
+@nox.session(name="proto-python", tags=["proto"])
 @nox.parametrize("pb", [3, 4])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.

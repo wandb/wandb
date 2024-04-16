@@ -2,6 +2,7 @@
 package execbin
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,7 +37,8 @@ func ForkExecCommand(command string, args []string) (*ForkExecCmd, error) {
 
 func waitcmd(waitFunc WaitFunc) error {
 	if err := waitFunc(); err != nil {
-		if exiterr, ok := err.(*exec.ExitError); ok {
+		var exiterr *exec.ExitError
+		if errors.As(err, &exiterr) {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				fmt.Printf("Exit Status: %+v\n", status.ExitStatus())
 				return err

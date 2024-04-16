@@ -61,6 +61,8 @@ SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
 ERROR_REPORTING = "WANDB_ERROR_REPORTING"
+CORE_ERROR_REPORTING = "WANDB_CORE_ERROR_REPORTING"
+CORE_DEBUG = "WANDB_CORE_DEBUG"
 DOCKER = "WANDB_DOCKER"
 AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
 AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
@@ -87,6 +89,7 @@ _EXECUTABLE = "WANDB_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
+_REQUIRE_CORE = "WANDB__REQUIRE_CORE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -146,12 +149,24 @@ def _env_as_bool(
     return val if isinstance(val, bool) else False
 
 
+def is_require_core(env: Optional[Env] = None) -> bool:
+    return _env_as_bool(_REQUIRE_CORE, default="False", env=env)
+
+
 def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
 def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
+
+
+def core_error_reporting_enabled(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_ERROR_REPORTING, default=default)
+
+
+def core_debug(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_DEBUG, default=default)
 
 
 def ssl_disabled() -> bool:

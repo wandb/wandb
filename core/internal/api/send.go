@@ -77,6 +77,9 @@ func (client *clientImpl) send(
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("api: no response")
+	}
 
 	client.backend.logFinalResponseOnError(req, resp)
 	return resp, nil

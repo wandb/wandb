@@ -327,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1866,15 +1865,18 @@ class Run:
         # => Saves files in an "are/myfiles/" folder in the run.
 
         wandb.save("/User/username/Documents/run123/*.txt")
-        # => Saves files in a "run123/" folder in the run.
+        # => Saves files in a "run123/" folder in the run. See note below.
 
         wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         wandb.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
-        # of "files/".
+        #    of "files/".
         ```
+
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
 
         Arguments:
             glob_str: A relative or absolute path or Unix glob.
@@ -1963,7 +1965,7 @@ class Run:
 
         # Files in the files directory matched by the glob, including old and
         # new ones.
-        globbed_files = list(
+        globbed_files = set(
             pathlib.Path(
                 self._settings.files_dir,
             ).glob(relative_glob_str)
@@ -1975,25 +1977,29 @@ class Run:
         # The base_path may itself be a glob, so we can't do
         #     base_path.glob(relative_glob_str)
         for path_str in glob.glob(str(base_path / relative_glob_str)):
-            path = pathlib.Path(path_str).absolute()
+            source_path = pathlib.Path(path_str).absolute()
 
             # We can't use relative_to() because base_path may be a glob.
-            saved_path = pathlib.Path(*path.parts[len(base_path.parts) :])
+            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
 
-            wandb_path = pathlib.Path(self._settings.files_dir, saved_path)
-            globbed_files.append(wandb_path)
+            target_path = pathlib.Path(self._settings.files_dir, relative_path)
+            globbed_files.add(target_path)
 
-            wandb_path.parent.mkdir(parents=True, exist_ok=True)
+            # If the file is already where it needs to be, don't create a symlink.
+            if source_path.resolve() == target_path.resolve():
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Delete the symlink if it exists.
             try:
-                wandb_path.unlink()
+                target_path.unlink()
             except FileNotFoundError:
                 # In Python 3.8, we would pass missing_ok=True, but as of now
                 # we support down to Python 3.7.
                 pass
 
-            wandb_path.symlink_to(path)
+            target_path.symlink_to(source_path)
 
         # Inform users that new files aren't detected automatically.
         if not had_symlinked_files and is_star_glob:
@@ -2349,16 +2355,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3166,13 +3173,13 @@ class Run:
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
-                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
-                f"moved to '{artifact._source_entity}'"
+                f"Artifact {artifact.name} is owned by entity "
+                f"'{artifact._source_entity}'; it can't be moved to '{entity}'"
             )
         if project and artifact._source_project and project != artifact._source_project:
             raise ValueError(
-                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
-                f"moved to '{artifact._source_project}'"
+                f"Artifact {artifact.name} exists in project "
+                f"'{artifact._source_project}'; it can't be moved to '{project}'"
             )
 
     def _prepare_artifact(
@@ -3299,8 +3306,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3392,8 +3399,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
@@ -3593,7 +3600,7 @@ class Run:
         if settings._offline or settings.silent:
             return
 
-        workspace_url = f"{settings.run_url}/workspace"
+        run_url = settings.run_url
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
@@ -3604,7 +3611,7 @@ class Run:
 
         if printer._html:
             if not wandb.jupyter.maybe_display():
-                run_line = f"<strong>{printer.link(workspace_url, run_name)}</strong>"
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
@@ -3636,7 +3643,7 @@ class Run:
                     f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
                 )
         printer.display(
-            f'{printer.emoji("rocket")} View run at {printer.link(workspace_url)}',
+            f'{printer.emoji("rocket")} View run at {printer.link(run_url)}',
         )
 
         # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
@@ -3879,10 +3886,13 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                run_workspace = f"{settings.run_url}/workspace"
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(run_workspace)}"
-                ]
+                info.append(
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
+                )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
                 file_counts = poll_exit_response.file_counts

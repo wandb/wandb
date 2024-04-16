@@ -21,8 +21,10 @@ import (
 	"github.com/wandb/wandb/core/internal/debounce"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -53,6 +55,12 @@ func WithSenderOutChannel(out chan *service.Result) SenderOption {
 	}
 }
 
+func WithSenderMailbox(mailbox *mailbox.Mailbox) SenderOption {
+	return func(s *Sender) {
+		s.mailbox = mailbox
+	}
+}
+
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
@@ -78,7 +86,7 @@ type Sender struct {
 	graphqlClient graphql.Client
 
 	// fileStream is the file stream
-	fileStream *fs.FileStream
+	fileStream fs.FileStream
 
 	// filetransfer is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
@@ -92,7 +100,7 @@ type Sender struct {
 	RunRecord *service.RunRecord
 
 	// resumeState is the resume state
-	resumeState *ResumeState
+	resumeState *runresume.State
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -124,6 +132,8 @@ type Sender struct {
 	wgFileTransfer sync.WaitGroup
 
 	networkPeeker *observability.Peeker
+
+	mailbox *mailbox.Mailbox
 }
 
 // NewSender creates a new Sender with the given settings
@@ -131,7 +141,7 @@ func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	backendOrNil *api.Backend,
-	fileStreamOrNil *fs.FileStream,
+	fileStreamOrNil fs.FileStream,
 	fileTransferManagerOrNil filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	runfilesUploaderOrNil runfiles.Uploader,
@@ -157,12 +167,8 @@ func NewSender(
 		graphqlClient:       graphqlClient,
 	}
 
-	if !settings.GetXOffline().GetValue() && backendOrNil != nil {
-		sender.getServerInfo()
-
-		if !settings.GetDisableJobCreation().GetValue() {
-			sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
-		}
+	if !settings.GetXOffline().GetValue() && backendOrNil != nil && !settings.GetDisableJobCreation().GetValue() {
+		sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
 	}
 	sender.configDebouncer = debounce.NewDebouncer(
 		configDebouncerRateLimit,
@@ -255,8 +261,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
-	case *service.Record_WandbConfigParameters:
-		s.sendWandbConfigParameters(record, x.WandbConfigParameters)
 	case nil:
 		err := fmt.Errorf("sender: sendRecord: nil RecordType")
 		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
@@ -287,6 +291,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendRequestSenderRead(record, x.SenderRead)
 	case *service.Request_StopStatus:
 		s.sendRequestStopStatus(record, x.StopStatus)
+	case *service.Request_JobInput:
+		s.sendRequestJobInput(x.JobInput)
 	case nil:
 		err := fmt.Errorf("sender: sendRequest: nil RequestType")
 		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
@@ -322,6 +328,8 @@ func (s *Sender) updateSettings() {
 
 // sendRun starts up all the resources for a run
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
+	s.updateSettings()
+
 	fsPath := fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		s.RunRecord.Entity,
@@ -329,12 +337,15 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 		s.RunRecord.RunId,
 	)
 
-	fs.WithPath(fsPath)(s.fileStream)
-	fs.WithOffsets(s.resumeState.GetFileStreamOffset())(s.fileStream)
+	if s.fileStream != nil {
+		s.fileStream.SetPath(fsPath)
+		s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
+		s.fileStream.Start()
+	}
 
-	s.updateSettings()
-	s.fileStream.Start()
-	s.fileTransferManager.Start()
+	if s.fileTransferManager != nil {
+		s.fileTransferManager.Start()
+	}
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -447,7 +458,9 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
-		s.fileStream.Close()
+		if s.fileStream != nil {
+			s.fileStream.Close()
+		}
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FINAL:
@@ -483,6 +496,10 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
@@ -560,19 +577,21 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
 	}
+	resume := runresume.ResumeMode(s.settings.GetResume().GetValue())
+
 	// There was no resume status set, so we don't need to do anything
-	if s.settings.GetResume().GetValue() == "" {
+	if resume == runresume.None {
 		return nil
 	}
 
 	// init resume state if it doesn't exist
-	s.resumeState = NewResumeState(s.logger, s.settings.GetResume().GetValue())
+	s.resumeState = runresume.NewResumeState(s.logger, resume)
 	run := s.RunRecord
 	// If we couldn't get the resume status, we should fail if resume is set
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
 		err = fmt.Errorf("failed to get run resume status: %s", err)
-		s.logger.Error("sender:", "error", err)
+		s.logger.Error("sender: checkAndUpdateResumeState", "error", err)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: err.Error(),
@@ -634,9 +653,24 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		program := s.settings.GetProgram().GetValue()
+
 		// start a new context with an additional argument from the parent context
 		// this is used to pass the retry function to the graphql client
 		ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
+
+		// if the record has a mailbox slot, create a new cancelable context
+		// and store the cancel function in the message registry so that
+		// the context can be canceled if requested by the client
+		mailboxSlot := record.GetControl().GetMailboxSlot()
+		if mailboxSlot != "" {
+			// if this times out, we cancel the global context
+			// as there is no need to proceed with the run
+			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
+		} else {
+			// this should never happen
+			s.logger.CaptureError("sender: sendRun: no mailbox slot", nil)
+		}
+
 		data, err := gql.UpsertBucket(
 			ctx,                              // ctx
 			s.graphqlClient,                  // client
@@ -715,10 +749,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
 	// TODO(compat): handle deletes, nested keys
 	// TODO(compat): write summary file
@@ -729,22 +768,24 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 		s.summaryMap[item.Key] = item
 	}
 
-	// build list of summary items from the map
-	var summaryItems []*service.SummaryItem
-	for _, v := range s.summaryMap {
-		summaryItems = append(summaryItems, v)
-	}
+	if s.fileStream != nil {
+		// build list of summary items from the map
+		var summaryItems []*service.SummaryItem
+		for _, v := range s.summaryMap {
+			summaryItems = append(summaryItems, v)
+		}
 
-	// build a full summary record to send
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: summaryItems,
+		// build a full summary record to send
+		record := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{
+					Update: summaryItems,
+				},
 			},
-		},
-	}
+		}
 
-	s.fileStream.StreamRecord(record)
+		s.fileStream.StreamRecord(record)
+	}
 }
 
 func (s *Sender) upsertConfig() {
@@ -820,10 +861,14 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
+	if s.fileStream == nil {
+		return
+	}
+
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendOutput(record *service.Record, output *service.OutputRecord) {
+func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
 	// TODO: implement me
 }
 
@@ -854,6 +899,10 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 	// append line to file
 	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
 		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
+	}
+
+	if s.fileStream == nil {
+		return
 	}
 
 	// generate compatible timestamp to python iso-format (microseconds without Z)
@@ -934,7 +983,9 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 	// response is done by respondExit() and called when defer state machine is complete
 	s.exitRecord = record
 
-	s.fileStream.StreamRecord(record)
+	if s.fileStream != nil {
+		s.fileStream.StreamRecord(record)
+	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -1026,7 +1077,9 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 	s.fileTransferManager.Start()
 
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot, &msg.AllowMissingReferences)
+	downloader := artifacts.NewArtifactDownloader(
+		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
+		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
 	err := downloader.Download()
 	if err != nil {
 		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
@@ -1213,6 +1266,9 @@ func (s *Sender) getServerInfo() {
 // }
 
 func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
+	if !s.settings.GetXOffline().GetValue() && s.serverInfo == nil {
+		s.getServerInfo()
+	}
 
 	localInfo := &service.LocalInfo{}
 	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
@@ -1238,6 +1294,10 @@ func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.Server
 	s.outChan <- result
 }
 
-func (s *Sender) sendWandbConfigParameters(_ *service.Record, wandbConfigParameters *service.LaunchWandbConfigParametersRecord) {
-	s.jobBuilder.HandleLaunchWandbConfigParametersRecord(wandbConfigParameters)
+func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
+	if s.jobBuilder == nil {
+		s.logger.Warn("sender: sendJobInput: job builder disabled, skipping")
+		return
+	}
+	s.jobBuilder.HandleJobInputRequest(request)
 }

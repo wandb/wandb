@@ -25,6 +25,7 @@ assert:
     - :wandb:runs[0][summary][summary_metrics][ncols]: 3
     - :wandb:runs[0][summary][summary_metrics][nrows]: 3
 """
+
 import pandas as pd
 import wandb
 from sklearn import datasets

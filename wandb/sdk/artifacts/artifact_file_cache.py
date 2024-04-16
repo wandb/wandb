@@ -1,4 +1,5 @@
 """Artifact cache."""
+
 import contextlib
 import errno
 import hashlib
@@ -33,7 +34,7 @@ class ArtifactFileCache:
         self._cache_dir = Path(cache_dir)
         self._obj_dir = self._cache_dir / "obj"
         self._temp_dir = self._cache_dir / "tmp"
-        self._temp_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_write_permissions()
 
         # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
@@ -204,12 +205,25 @@ class ArtifactFileCache:
 
         return helper
 
+    def _ensure_write_permissions(self) -> None:
+        """Raise an error if we cannot write to the cache directory."""
+        try:
+            self._temp_dir.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(dir=self._temp_dir) as f:
+                f.write(b"wandb")
+        except PermissionError as e:
+            raise PermissionError(
+                f"Unable to write to {self._cache_dir}. "
+                "Ensure that the current user has write permissions."
+            ) from e
 
-_artifact_file_cache = None
+
+_artifact_file_cache: Optional[ArtifactFileCache] = None
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:
     global _artifact_file_cache
-    if _artifact_file_cache is None:
-        _artifact_file_cache = ArtifactFileCache(env.get_cache_dir() / "artifacts")
+    cache_dir = env.get_cache_dir() / "artifacts"
+    if _artifact_file_cache is None or _artifact_file_cache._cache_dir != cache_dir:
+        _artifact_file_cache = ArtifactFileCache(cache_dir)
     return _artifact_file_cache

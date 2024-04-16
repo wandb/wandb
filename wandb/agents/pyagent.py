@@ -4,7 +4,6 @@ Manage wandb agent.
 
 """
 
-
 import ctypes
 import logging
 import os

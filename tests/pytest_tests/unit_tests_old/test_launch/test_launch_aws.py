@@ -271,9 +271,9 @@ async def test_sagemaker_specified_image(
     kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
-    kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
-        "TrainingImage"
-    ] = "my-test-image:latest"
+    kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"]["TrainingImage"] = (
+        "my-test-image:latest"
+    )
     kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
         "TrainingInputMode"
     ] = "File"

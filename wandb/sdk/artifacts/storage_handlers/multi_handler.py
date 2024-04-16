@@ -1,4 +1,5 @@
 """Multi storage handler."""
+
 from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 from urllib.parse import urlparse
 
