@@ -26,6 +26,27 @@ def wini():
 
 
 @wini.group()
+def info():
+    """Commands that help with automation by printing info to stdout."""
+
+
+@info.command(name="wandb-core-wheel")
+def info_wandb_core_wheel():
+    """Prints out the path to the built wandb-core wheel."""
+    try:
+        for file in _CORE_WHEEL_DIR.iterdir():
+            if file.name.endswith(".whl"):
+                sys.stdout.write(str(file))
+                return
+    except FileNotFoundError:
+        # Fall through to below.
+        pass
+
+    print.error("No wandb-core wheel found.")
+    sys.exit(1)
+
+
+@wini.group()
 def build():
     """Commands to build parts of the application."""
 
@@ -39,8 +60,7 @@ def build():
     default=[],
 )
 @click.option("--coverage", "with_coverage", is_flag=True, default=False)
-@click.option("--skip-swift-build", is_flag=True, default=False)
-def build_wandb_core_artifacts(archs, with_coverage, skip_swift_build):
+def build_wandb_core_artifacts(archs, with_coverage):
     """Builds artifacts to include in the wandb-core wheel.
 
     The artifacts are stored in ./core/wandb_core_artifacts/<arch> to be included
@@ -49,7 +69,6 @@ def build_wandb_core_artifacts(archs, with_coverage, skip_swift_build):
     _build_wandb_core_artifacts(
         archs=[arch.parse(a) for a in archs],
         with_coverage=with_coverage,
-        skip_swift_build=skip_swift_build,
     )
 
 
@@ -57,13 +76,12 @@ def _build_wandb_core_artifacts(
     *,
     archs: Sequence[arch.Arch] = [],
     with_coverage: bool,
-    skip_swift_build: bool = False,
 ):
     if not archs:
         archs = [arch.current()]
 
     for architecture in archs:
-        outdir = pathlib.PurePath(f"core/wandb_core_artifacts/{architecture.name}")
+        outdir = pathlib.PurePath("core", "wandb_core_artifacts", architecture.name)
 
         build_core.build_wandb_core(
             architecture=architecture,
@@ -71,11 +89,20 @@ def _build_wandb_core_artifacts(
             with_code_coverage=with_coverage,
         )
 
-        if workspace.target_os() == workspace.OS.DARWIN and not skip_swift_build:
+        if workspace.target_os() == workspace.OS.DARWIN:
             build_applestats.build_applestats(
-                architecture=architecture,
                 output_path=outdir / "AppleStats",
             )
+
+
+@build.command(name="wandb-artifacts")
+def build_wandb_artifacts():
+    """Builds some generated files used in the wandb package."""
+    if workspace.target_os() == workspace.OS.DARWIN:
+        pathlib.Path("wandb", "bin").mkdir(exist_ok=True)
+        build_applestats.build_applestats(
+            output_path=pathlib.PurePath("wandb", "bin", "apple_gpu_stats")
+        )
 
 
 @wini.group()
@@ -98,9 +125,16 @@ def package():
     is_flag=True,
     default=False,
 )
-def package_wandb_core(should_install, with_coverage):
+@click.option(
+    "--noop",
+    help="Builds a wandb-core package that does nothing.",
+    is_flag=True,
+    default=False,
+)
+def package_wandb_core(should_install, with_coverage, noop):
     """Creates the wandb-core wheel, optionally installing it."""
-    _build_wandb_core_artifacts(with_coverage=with_coverage)
+    if not noop:
+        _build_wandb_core_artifacts(with_coverage=with_coverage)
 
     if _CORE_WHEEL_DIR.exists():
         # Remove old wheel files to prevent ambiguity issues when installing.
@@ -119,7 +153,8 @@ def package_wandb_core(should_install, with_coverage):
             "--outdir",
             _CORE_WHEEL_DIR,
             "./core",
-        ]
+        ],
+        extra_env={"WANDB_CORE_BUILD_NOOP": "1"} if noop else {},
     )
 
     if should_install:

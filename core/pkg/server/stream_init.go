@@ -3,9 +3,11 @@ package server
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/url"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/hashicorp/go-retryablehttp"
@@ -15,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -59,9 +62,9 @@ func NewGraphQLClient(
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
 	})
-	url := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
+	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
-	return graphql.NewClient(url, httpClient)
+	return graphql.NewClient(endpoint, httpClient)
 }
 
 func NewFileStream(
@@ -69,7 +72,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	peeker api.Peeker,
-) *filestream.FileStream {
+) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
 	if settings.Proto.GetXShared().GetValue() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
@@ -84,16 +87,17 @@ func NewFileStream(
 		NetworkPeeker:   peeker,
 	})
 
-	return filestream.NewFileStream(
-		filestream.WithSettings(settings.Proto),
-		filestream.WithLogger(logger),
-		filestream.WithAPIClient(fileStreamRetryClient),
-		filestream.WithClientId(shared.ShortID(32)),
-	)
+	params := filestream.FileStreamParams{
+		Settings:  settings.Proto,
+		Logger:    logger,
+		ApiClient: fileStreamRetryClient,
+		ClientId:  shared.ShortID(32),
+	}
+
+	return filestream.NewFileStream(params)
 }
 
 func NewFileTransferManager(
-	fileStream *filestream.FileStream,
 	fileTransferStats filetransfer.FileTransferStats,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
@@ -117,20 +121,25 @@ func NewFileTransferManager(
 		filetransfer.WithSettings(settings.Proto),
 		filetransfer.WithFileTransfer(defaultFileTransfer),
 		filetransfer.WithFileTransferStats(fileTransferStats),
-		filetransfer.WithFSCChan(fileStream.GetInputChan()),
 	)
 }
 
 func NewRunfilesUploader(
+	ctx context.Context,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
+	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
+		Ctx:          ctx,
 		Logger:       logger,
 		Settings:     settings,
+		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
+		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
+		BatchWindow:  50 * time.Millisecond,
 	})
 }

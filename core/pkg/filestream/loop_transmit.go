@@ -3,6 +3,7 @@ package filestream
 import (
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
@@ -24,14 +25,14 @@ type fsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-func (fs *FileStream) addTransmit(chunk processedChunk) {
+func (fs *fileStream) addTransmit(chunk processedChunk) {
 	fs.transmitChan <- chunk
 }
 
-func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
+func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 	collector := chunkCollector{
 		input:           inChan,
-		heartbeatTime:   fs.heartbeatTime,
+		heartbeatTime:   fs.pollInterval,
 		delayProcess:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
@@ -40,13 +41,18 @@ func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
 			collector.readMore()
 		}
 		data := collector.dump(fs.offsetMap)
+		timeNow := time.Now()
 		if data != nil {
 			fs.send(data)
+			fs.lastTransmitTime = time.Now()
+		} else if timeNow.Sub(fs.lastTransmitTime) > fs.heartbeatInterval {
+			fs.send(&FsTransmitData{})
+			fs.lastTransmitTime = timeNow
 		}
 	}
 }
 
-func (fs *FileStream) send(data interface{}) {
+func (fs *fileStream) send(data interface{}) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("filestream: json marshal error", err)

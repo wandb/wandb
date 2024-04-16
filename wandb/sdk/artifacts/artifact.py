@@ -1616,7 +1616,7 @@ class Artifact:
 
     def download(
         self,
-        root: Optional[str] = None,
+        root: Optional[StrPath] = None,
         allow_missing_references: bool = False,
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
@@ -1642,10 +1642,10 @@ class Artifact:
         """
         self._ensure_logged("download")
 
-        root = root or self._default_root()
+        root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
-        if get_core_path() != "":
+        if is_require_core():
             return self._download_using_core(
                 root=root,
                 allow_missing_references=allow_missing_references,
@@ -1678,6 +1678,8 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: bool = False,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         import pathlib
 
@@ -1718,11 +1720,15 @@ class Artifact:
             self.id,  # type: ignore
             root,
             allow_missing_references,
+            skip_cache,
+            path_prefix,
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
+            path_prefix=path_prefix,
         )
         result = handle.wait(timeout=-1)
 
@@ -1748,7 +1754,7 @@ class Artifact:
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
-        require_core = get_core_path() != ""
+        require_core = is_require_core()
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -2295,6 +2301,12 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
+
+
+def is_require_core() -> bool:
+    if env.is_require_core():
+        return bool(get_core_path())
+    return False
 
 
 class _ArtifactVersionType(WBType):

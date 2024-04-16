@@ -2,7 +2,10 @@ package utils
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/segmentio/encoding/json"
 )
@@ -16,6 +19,37 @@ func FileExists(path string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// CopyFile copies the contents of `src` into `dst`.
+//
+// If the source doesn't exist this is a no-op and an error is returned.
+//
+// If the destination exists, it will be overwritten.
+//
+// This operation is not atomic: if either the source or destination files are modified
+// during the copy, the destination file's contents may be corrupted.
+func CopyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+	defer source.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination folder: %v", err)
+	}
+	destination, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %v", err)
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, digest string, size int64, rerr error) {
@@ -39,6 +73,6 @@ func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, diges
 		size = stat.Size()
 	}
 
-	digest, rerr = ComputeB64MD5(data)
+	digest = ComputeB64MD5(data)
 	return
 }

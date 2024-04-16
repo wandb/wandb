@@ -1,4 +1,5 @@
 """Artifact exceptions."""
+
 from typing import TYPE_CHECKING, Optional
 
 from wandb import errors

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
@@ -125,7 +126,7 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, streamId string) *Stream {
+func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stream {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
@@ -138,7 +139,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
-	watcher := watcher.New(watcher.Params{
+	w := watcher.New(watcher.Params{
 		Logger:   s.logger,
 		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
 	})
@@ -149,25 +150,28 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	var graphqlClientOrNil graphql.Client
-	var fileStreamOrNil *filestream.FileStream
+	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
 		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
 		fileTransferManagerOrNil = NewFileTransferManager(
-			fileStreamOrNil,
 			fileTransferStats,
 			s.logger,
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
+			s.ctx,
 			s.logger,
 			settings,
+			fileStreamOrNil,
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
 	}
+
+	mailbox := mailbox.NewMailbox()
 
 	s.handler = NewHandler(s.ctx, s.logger,
 		WithHandlerSettings(s.settings.Proto),
@@ -175,10 +179,11 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
 		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerRunfilesUploader(runfilesUploaderOrNil),
-		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
+		WithHandlerTBHandler(NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan)),
 		WithHandlerFileTransferStats(fileTransferStats),
 		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
 		WithHandlerMetricHandler(NewMetricHandler()),
+		WithHandlerMailbox(mailbox),
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,
@@ -199,6 +204,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		graphqlClientOrNil,
 		WithSenderFwdChannel(s.loopBackChan),
 		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+		WithSenderMailbox(mailbox),
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
@@ -216,7 +222,6 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-
 	// forward records from the inChan and loopBackChan to the handler
 	fwdChan := make(chan *service.Record, BufferSize)
 	s.wg.Add(1)

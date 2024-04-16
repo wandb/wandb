@@ -94,6 +94,7 @@ async def test_sagemaker_resolved_submitted_job(
             project.override_entrypoint = None
         project._entrypoint = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
+        project.override_files = {}
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
@@ -133,5 +134,6 @@ async def test_sagemaker_resolved_submitted_job(
             "WANDB_DOCKER": "testimage",
             "WANDB_SWEEP_ID": "sweeeeep",
             "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
             "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
         }

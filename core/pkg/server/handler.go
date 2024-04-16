@@ -11,12 +11,15 @@ import (
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -89,6 +92,12 @@ func WithHandlerSummaryHandler(handler *SummaryHandler) HandlerOption {
 	}
 }
 
+func WithHandlerMailbox(mailbox *mailbox.Mailbox) HandlerOption {
+	return func(h *Handler) {
+		h.mailbox = mailbox
+	}
+}
+
 // Handler is the handler for a stream it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
@@ -120,9 +129,12 @@ type Handler struct {
 	// current active history record for the stream
 	activeHistory *ActiveHistory
 
-	// sampledHistory is the sampled history for the stream
-	// TODO fix this to be generic type
-	sampledHistory map[string]*ReservoirSampling[float32]
+	// samplers is the map of samplers for all the history metrics that are
+	// being tracked, the result of the samplers will be used to display the
+	// the sparkline in the terminal
+	//
+	// TODO: currently only values that can be cast to float32 are supported
+	samplers map[string]*sampler.ReservoirSampler[float32]
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *MetricHandler
@@ -143,6 +155,8 @@ type Handler struct {
 
 	// internalPrinter is the internal messages handler for the stream
 	internalPrinter *observability.Printer[string]
+
+	mailbox *mailbox.Mailbox
 }
 
 // NewHandler creates a new handler
@@ -260,8 +274,6 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
-	case *service.Record_WandbConfigParameters:
-		h.handleWandbConfigParameters(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRecord: record type is nil")
 		h.logger.CaptureFatalAndPanic("error handling record", err)
@@ -332,7 +344,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_Resume:
 		h.handleRequestResume()
 	case *service.Request_Cancel:
-		h.handleRequestCancel(record)
+		h.handleRequestCancel(x.Cancel)
 	case *service.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
 	case *service.Request_InternalMessages:
@@ -341,6 +353,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRequestSync(record)
 	case *service.Request_SenderRead:
 		h.handleRequestSenderRead(record)
+	case *service.Request_JobInput:
+		h.handleRequestJobInput(record)
 	case nil:
 		err := fmt.Errorf("handler: handleRequest: request type is nil")
 		h.logger.CaptureFatalAndPanic("error handling request", err)
@@ -371,11 +385,11 @@ func (h *Handler) handleRequestStatus(record *service.Record) {
 	h.respond(record, &service.Response{})
 }
 
-func (h *Handler) handleRequestSenderMark(record *service.Record) {
+func (h *Handler) handleRequestSenderMark(_ *service.Record) {
 	// TODO(flow-control): implement sender mark
 }
 
-func (h *Handler) handleRequestStatusReport(record *service.Record) {
+func (h *Handler) handleRequestStatusReport(_ *service.Record) {
 	// TODO(flow-control): implement status report
 }
 
@@ -465,6 +479,7 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		h.handleFinal()
 		h.handleFooter()
 	case service.DeferRequest_END:
+		h.fileTransferStats.SetDone()
 	default:
 		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
 		h.logger.CaptureError("unknown defer state", err)
@@ -661,7 +676,12 @@ func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *servic
 		h.logger.Error("error creating requirements file", "error", err)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			h.logger.Error("error closing requirements file", "error", err)
+		}
+	}(file)
 
 	for _, pkg := range request.Package {
 		line := fmt.Sprintf("%s==%s\n", pkg.Name, pkg.Version)
@@ -705,7 +725,7 @@ func (h *Handler) handleCodeSave() {
 	}
 	savedProgram := filepath.Join(codeDir, programRelative)
 	if _, err := os.Stat(savedProgram); err != nil {
-		if err = copyFile(programAbsolute, savedProgram); err != nil {
+		if err = utils.CopyFile(programAbsolute, savedProgram); err != nil {
 			return
 		}
 	}
@@ -735,7 +755,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	files := []*service.FilesItem{}
+	var files []*service.FilesItem
 
 	filesDirPath := h.settings.GetFilesDir().GetValue()
 	file := filepath.Join(filesDirPath, DiffFileName)
@@ -820,8 +840,12 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestCancel(record *service.Record) {
+func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 	// TODO(flow-control): implement cancel
+	cancelSlot := request.GetCancelSlot()
+	if cancelSlot != "" {
+		h.mailbox.Cancel(cancelSlot)
+	}
 }
 
 func (h *Handler) handleRequestPause() {
@@ -973,6 +997,10 @@ func (h *Handler) handleTelemetry(record *service.Record) {
 }
 
 func (h *Handler) handleUseArtifact(record *service.Record) {
+	h.fwdRecord(record)
+}
+
+func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
@@ -1268,10 +1296,10 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
 	response := &service.Response{}
 
-	if h.sampledHistory != nil {
+	if h.samplers != nil {
 		var items []*service.SampledHistoryItem
-		for key, sampler := range h.sampledHistory {
-			values := sampler.GetSample()
+		for key, sampler := range h.samplers {
+			values := sampler.Sample()
 			item := &service.SampledHistoryItem{
 				Key:         key,
 				ValuesFloat: values,
@@ -1287,6 +1315,31 @@ func (h *Handler) handleRequestSampledHistory(record *service.Record) {
 	}
 
 	h.respond(record, response)
+}
+
+// sample history items and update the samplers map before flushing the history
+// record as these values are finalized for the current step
+func (h *Handler) sampleHistory(history *service.HistoryRecord) {
+	// initialize the samplers map if it doesn't exist
+	if h.samplers == nil {
+		h.samplers = make(map[string]*sampler.ReservoirSampler[float32])
+	}
+
+	for _, item := range history.GetItem() {
+		var value float32
+		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
+			// ignore items that cannot be parsed as float32
+			continue
+		}
+
+		// create a new sampler if it doesn't exist
+		if _, ok := h.samplers[item.Key]; !ok {
+			h.samplers[item.Key] = sampler.NewReservoirSampler[float32](48, 0.0005)
+		}
+
+		// add the new value to the sampler
+		h.samplers[item.Key].Add(value)
+	}
 }
 
 // flush history record to the writer and update the summary
@@ -1353,10 +1406,6 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
 	h.summaryHandler.updateSummaryDelta(summary)
-}
-
-func (h *Handler) handleWandbConfigParameters(record *service.Record) {
-	h.fwdRecord(record)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

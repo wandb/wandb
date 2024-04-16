@@ -1,4 +1,5 @@
 """Artifact manifest entry."""
+
 import json
 import os
 from pathlib import Path

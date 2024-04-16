@@ -33,7 +33,7 @@ func (c *CPU) SampleMetrics() {
 	defer c.mutex.Unlock()
 
 	// process-related metrics
-	proc := process.Process{Pid: int32(c.settings.XStatsPid.GetValue())}
+	proc := process.Process{Pid: c.settings.XStatsPid.GetValue()}
 	// process CPU usage in percent
 	procCPU, err := proc.CPUPercent()
 	if err == nil {

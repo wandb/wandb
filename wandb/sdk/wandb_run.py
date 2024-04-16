@@ -327,8 +327,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1866,15 +1865,18 @@ class Run:
         # => Saves files in an "are/myfiles/" folder in the run.
 
         wandb.save("/User/username/Documents/run123/*.txt")
-        # => Saves files in a "run123/" folder in the run.
+        # => Saves files in a "run123/" folder in the run. See note below.
 
         wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
         # => Saves files in a "username/Documents/run123/" folder in the run.
 
         wandb.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
-        # of "files/".
+        #    of "files/".
         ```
+
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
 
         Arguments:
             glob_str: A relative or absolute path or Unix glob.
@@ -2353,16 +2355,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -3170,13 +3173,13 @@ class Run:
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
-                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
-                f"moved to '{artifact._source_entity}'"
+                f"Artifact {artifact.name} is owned by entity "
+                f"'{artifact._source_entity}'; it can't be moved to '{entity}'"
             )
         if project and artifact._source_project and project != artifact._source_project:
             raise ValueError(
-                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
-                f"moved to '{artifact._source_project}'"
+                f"Artifact {artifact.name} exists in project "
+                f"'{artifact._source_project}'; it can't be moved to '{project}'"
             )
 
     def _prepare_artifact(
@@ -3303,8 +3306,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3396,8 +3399,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
