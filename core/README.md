@@ -49,8 +49,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-<!--TODO: DO NOT MERGE: Use wandb version-->
-Below is an overview of the feature support status in the `wandb-core` version `TODO TODO TODO`.
+Below is an overview of the feature support status in `wandb-core`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
