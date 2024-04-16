@@ -297,6 +297,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     else:
         session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
 
+    session.install("packaging")
     session.install(".")
 
     with session.chdir("wandb/proto"):
