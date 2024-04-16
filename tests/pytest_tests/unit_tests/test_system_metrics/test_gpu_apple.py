@@ -1,8 +1,9 @@
+import platform
 import threading
 import time
 from unittest import mock
 
-# import pytest
+import pytest
 import wandb
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import GPUApple
@@ -21,6 +22,10 @@ def mock_gpu_apple_stats_sample(self) -> None:
     self.samples.append(stats)
 
 
+@pytest.mark.skipif(
+    platform.system() != "Darwin" and platform.processor() != "arm",
+    reason="Test only runs on Apple Silicon",
+)
 def test_gpu_apple(test_settings):
     with mock.patch.object(
         wandb.sdk.internal.system.assets.gpu_apple.GPUAppleStats,
