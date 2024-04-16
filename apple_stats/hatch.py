@@ -1,8 +1,7 @@
 """Builds the AppleStats Swift binary for monitoring system metrics."""
 
 import pathlib
-
-from tools.wini import subprocess
+import subprocess
 
 
 def build_applestats(output_path: pathlib.PurePath) -> None:

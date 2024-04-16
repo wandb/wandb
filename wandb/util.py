@@ -11,6 +11,7 @@ import logging
 import math
 import numbers
 import os
+import pathlib
 import platform
 import queue
 import random
@@ -1890,65 +1891,31 @@ def parse_version(version: str) -> "packaging.version.Version":
     return parse_version(version)
 
 
-# check if wandb_core is installed and if it is a dev version
-def is_core_dev() -> bool:
-    wandb_core = get_module("wandb_core")
-    # if wandb_core is not installed, we don't care
-    if not wandb_core:
-        return False
-    return "dev" in wandb_core.__version__
-
-
 def get_core_path() -> str:
-    """Get the path to the wandb-core package. This is used to run the core service.
+    """Returns the path to the wandb-core binary.
 
-    The core path can be set in the following ways:
-    The environment variable _WANDB_CORE_PATH will be used as the core path if it is set.
-    Otherwise, the wandb_core package will be imported and the core path will be retrieved from it.
+    The path can be set explicitly via the _WANDB_CORE_PATH environment
+    variable. Otherwise, the path to the binary in the current package
+    is returned.
 
     Returns:
         str: The path to the wandb-core package.
 
     Raises:
-        Error: If the wandb-core package is not installed.
-        ImportError: If the installed wandb-core version is incompatible with the wandb version.
-        WandbCoreNotAvailableError: If wandb-core is not available for the current system.
+        WandbCoreNotAvailableError: If wandb-core was not built for the current system.
     """
     # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
     #       to assist in running the core service from a live development directory.
-    core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
-    # TODO: should we check version compatibility here?
-    if core_path:
+    path_from_env: str = os.environ.get("_WANDB_CORE_PATH", "")
+    if path_from_env:
         wandb.termwarn(
-            f"Using wandb-core from path `_WANDB_CORE_PATH={core_path}`. "
+            f"Using wandb-core from path `_WANDB_CORE_PATH={path_from_env}`. "
             "This is a development feature and may not work as expected."
         )
-        return core_path
+        return path_from_env
 
-    required_core_version = wandb.__core_version__
-    wandb_core = get_module(
-        "wandb_core",
-        required=(
-            "`wandb-core` is required to run the core service. "
-            f"Please install it with `pip install wandb-core=={required_core_version}`."
-        ),
-    )
+    bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
+    if not bin_path.exists():
+        raise WandbCoreNotAvailableError()
 
-    installed_core_version = wandb_core.__version__
-    # Check if the installed wandb-core version is compatible with the wandb version.
-    if parse_version(required_core_version) != parse_version(installed_core_version):
-        raise ImportError(
-            f"Requires `wandb-core` version {required_core_version}."
-            f"but you have {installed_core_version}."
-            f" Please run `pip install wandb-core=={required_core_version}`."
-        )
-
-    core_path = wandb_core.get_core_path()
-    if not core_path:
-        raise WandbCoreNotAvailableError(
-            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
-            "your installed `wandb-core` package is using the no-op wheel."
-            " Please contact support at support@wandb.com to request `wandb-core`"
-            " support for your system."
-        )
-    return core_path
+    return str(bin_path)

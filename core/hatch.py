@@ -1,56 +1,64 @@
 """Builds wandb-core."""
 
+import os
 import pathlib
-from typing import Mapping
-
-from tools.wini import arch, subprocess, workspace
+import platform
+import subprocess
+from typing import Mapping, Optional
 
 
 def build_wandb_core(
-    architecture: arch.Arch,
+    go_binary: pathlib.Path,
     output_path: pathlib.PurePath,
     with_code_coverage: bool,
+    wandb_commit_sha: Optional[str],
 ) -> None:
     """Builds the wandb-core Go module.
 
     Args:
-        architecture: The machine achitecture to target.
+        go_binary: Path to the Go binary, which must exist.
         output_path: The path where to output the binary, relative to the
             workspace root.
         with_code_coverage: Whether to build the binary with code coverage
             support, using `go build -cover`.
+        wandb_commit_sha: The Git commit hash we're building from, if this
+            is the https://github.com/wandb/wandb repository. Otherwise, an
+            empty string.
     """
     coverage_flags = ["-cover"] if with_code_coverage else []
     output_flags = ["-o", str(".." / output_path)]
-    ld_flags = [f"-ldflags={_go_linker_flags()}"]
+    ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
     subprocess.check_call(
         [
-            "go",
+            go_binary,
             "build",
             *coverage_flags,
             *ld_flags,
             *output_flags,
-            "cmd/wandb-core/main.go",
+            pathlib.Path("cmd", "wandb-core", "main.go"),
         ],
         cwd="./core",
-        extra_env=_go_env(architecture),
+        env=_go_env(),
     )
 
 
-def _go_linker_flags() -> str:
+def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
         "-s",  # Omit the symbol table and debug info.
         "-w",  # Omit the DWARF symbol table.
         # Set the Git commit variable in the main package.
         "-X",
-        f"main.commit={workspace.git_commit_sha()}",
+        f"main.commit={wandb_commit_sha or ''}",
     ]
 
-    if workspace.target_osarch() == (workspace.OS.LINUX, workspace.Arch.AMD64):
+    if platform.system().lower() == "linux" and platform.machine().lower() in (
+        "x86_64",
+        "amd64",
+    ):
         ext_ld_flags = " ".join(
             [
                 # Use https://en.wikipedia.org/wiki/Gold_(linker)
@@ -67,15 +75,20 @@ def _go_linker_flags() -> str:
     return " ".join(flags)
 
 
-def _go_env(architecture: arch.Arch) -> Mapping[str, str]:
-    env = {"GOARCH": architecture.go_name}
+def _go_env() -> Mapping[str, str]:
+    env = os.environ.copy()
 
-    if workspace.target_osarch() in [
+    system = platform.system().lower()
+    arch = platform.machine().lower()
+
+    if (system, arch) in [
         # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        (workspace.OS.LINUX, workspace.Arch.AMD64),
-        # Use cgo on ARM64 Mac for the gopsutil dependency, otherwise
-        # several system metrics are unavailable.
-        (workspace.OS.DARWIN, workspace.Arch.ARM64),
+        ("linux", "amd64"),
+        ("linux", "x86_64"),
+        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
+        # system metrics are unavailable.
+        ("darwin", "arm64"),
+        ("darwin", "aarch64"),
     ]:
         env["CGO_ENABLED"] = "1"
 
