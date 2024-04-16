@@ -14,6 +14,10 @@ class ArtifactManifest:
     entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
+    def from_manifest(cls, manifest: "ArtifactManifest") -> "ArtifactManifest":
+        return cls.from_manifest_json(manifest.to_manifest_json())
+
+    @classmethod
     def from_manifest_json(
         cls, manifest_json: Dict, api: Optional[InternalApi] = None
     ) -> "ArtifactManifest":

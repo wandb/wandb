@@ -371,9 +371,7 @@ class Artifact:
         artifact._client = self._client
         artifact._description = self.description
         artifact._metadata = self.metadata
-        artifact._manifest = ArtifactManifest.from_manifest_json(
-            self.manifest.to_manifest_json()
-        )
+        artifact._manifest = ArtifactManifest.from_manifest(self.manifest)
         return artifact
 
     # Properties (Python Class managed attributes).
