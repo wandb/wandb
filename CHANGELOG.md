@@ -7,10 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Starting with the 0.16.4 release on March 5, 2024, the format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## Unreleased (next release should be 0.17 at least)
 
 We follow https://keepachangelog.com/en/1.1.0/. Please add to relevant subsections
 here on every PR where this is applicable.
+
+### Added
+
+* The `wandb` package now includes the `wandb-core` binary to prepare for rolling it out by @timoffex in https://github.com/wandb/wandb/pull/7381
+  * `wandb-core` is a Go rewrite of some of the Python portions of the SDK, written with a focus on performance
+  * The binary can be activated using `wandb.require("core")` at the start of a script
+  * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
+  * Please report any issues with `pip install wandb`!
 
 ### Fixed
 
