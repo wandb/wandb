@@ -224,6 +224,28 @@ message HistoryItem {
 message HistoryResult {}
 
 /*
+ * DataRecord:
+ */
+message DataRecord {
+  map<string, DataValue> item = 1;
+  _RecordInfo _info = 200;
+}
+
+message TensorData {
+  bytes tensor = 1;
+  string meta_string = 2;
+}
+
+message DataValue {
+  oneof data_type {
+    int64 value_int = 1;
+    double value_double = 2;
+    string value_string = 3;
+    TensorData value_tensor = 4;
+  }
+}
+
+/*
  * OutputRecord: console output
  */
 message OutputRecord {

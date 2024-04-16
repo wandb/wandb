@@ -2,6 +2,9 @@ package main
 
 import (
 	"C"
+        "unsafe"
+	"google.golang.org/protobuf/proto"
+	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
 )
 
@@ -12,6 +15,8 @@ func pbSessionSetup() {
 
 //export pbSessionTeardown
 func pbSessionTeardown() {
+        // prob dont want this, we could share nexus across "sessions"
+	wandbcoreTeardown()
 }
 
 //export pbRunStart
@@ -27,7 +32,15 @@ func pbRunStart() int {
 }
 
 //export pbRunLog
-func pbRunLog() {
+func pbRunLog(num int, cBuffer *C.char, cLength C.int) {
+        data := C.GoBytes(unsafe.Pointer(cBuffer), cLength)
+        // Unmarshal protobuf
+        msg := &service.DataRecord{}
+        if err := proto.Unmarshal(data, msg); err != nil {
+                return
+        }
+        // Process data (here simply prepending a string)
+        // fmt.Printf("PROTO %+v\n", msg)
 }
 
 //export pbRunFinish

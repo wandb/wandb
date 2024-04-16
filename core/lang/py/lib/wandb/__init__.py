@@ -1,6 +1,6 @@
 """wandb library."""
 
-# from wandb.proto import wandb_internal_pb2
+from wandb.proto import wandb_internal_pb2 as pb2
 
 class _Library:
     def __init__(self):
@@ -76,7 +76,12 @@ class Run:
         return self._session._lib
 
     def log(self, data):
-        pass
+        data_msg = pb2.DataRecord()
+        for k, v in data.items():
+            data_msg.item[k].value_string = "1"
+        data_bytes = data_msg.SerializeToString()
+        # input_buffer = create_string_buffer(data_bytes)
+        self._lib.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 
     def _start(self):
         self._run_nexus_id = self._lib.pbRunStart()
