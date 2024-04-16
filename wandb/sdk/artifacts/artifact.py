@@ -2238,11 +2238,10 @@ class Artifact:
             return
         with requests.get(url) as request:
             request.raise_for_status()
-            self._manifest = ArtifactManifest.from_manifest_json(
-                json.loads(util.ensure_text(request.content))
-            )
-        with cached_path.open("w") as f:
-            json.dump(self._manifest.to_manifest_json(), f)
+            content = util.ensure_text(request.content)
+            self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
+        with opener() as f:
+            f.write(content)
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
