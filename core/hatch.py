@@ -16,6 +16,7 @@ def build_wandb_core(
     """Builds the wandb-core Go module.
 
     Args:
+        go_binary: Path to the Go binary, which must exist.
         output_path: The path where to output the binary, relative to the
             workspace root.
         with_code_coverage: Whether to build the binary with code coverage

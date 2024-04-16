@@ -171,8 +171,6 @@ class _Service:
 
                 service_args.extend([core_path])
 
-                # TODO: DO NOT MERGE. Just use the same setting as wandb.
-                # if core in dev mode we disable error reporting, unless it's explicitly set
                 if not core_error_reporting_enabled(default="True"):
                     service_args.append("--no-observability")
 

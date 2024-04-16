@@ -3,8 +3,6 @@ from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b12.dev1"
-
 
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
@@ -25,7 +23,7 @@ def install(session: nox.Session) -> None:
     wheel_file = [
         f
         for f in os.listdir("./client/target/wheels/")
-        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
+        if f.startswith("wandb_core-") and f.endswith(".whl")
     ][0]
     session.run(
         "pip",
@@ -299,7 +297,6 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     else:
         session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
 
-    session.install("-r", "requirements_build.txt")
     session.install(".")
 
     with session.chdir("wandb/proto"):
