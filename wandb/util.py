@@ -1914,7 +1914,7 @@ def get_core_path() -> str:
         )
         return path_from_env
 
-    bin_path = pathlib.Path(sys.modules["wandb"].__path__[0]) / "bin" / "wandb-core"
+    bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
         raise WandbCoreNotAvailableError()
 
