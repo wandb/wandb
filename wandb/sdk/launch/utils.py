@@ -864,3 +864,10 @@ def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
     if len(entrypoint) < 2:
         return None
     return entrypoint[1]
+
+
+def get_current_python_version() -> Tuple[str, str]:
+    full_version = sys.version.split()[0].split(".")
+    major = full_version[0]
+    version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
+    return version, major

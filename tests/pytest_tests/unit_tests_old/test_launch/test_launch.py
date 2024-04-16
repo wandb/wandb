@@ -8,11 +8,14 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 import wandb.sdk.launch._launch as _launch
-import wandb.sdk.launch._project_spec as _project_spec
 import yaml
-from wandb.apis import PublicApi
+from wandb.sdk.launch._project_spec import (
+    LaunchError,
+    LaunchProject,
+    LaunchSource,
+    _inject_wandb_config_env_vars,
+)
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.builder.build import _inject_wandb_config_env_vars
 from wandb.sdk.launch.builder.docker_builder import DockerBuilder
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -297,7 +300,7 @@ def check_project_spec(
         assert {(k, v) for k, v in resource_args.items()} == {
             (k, v) for k, v in project_spec.resource_args.items()
         }
-    if project_spec.source == _project_spec.LaunchSource.WANDB:
+    if project_spec.source == LaunchSource.WANDB:
         with open(os.path.join(project_spec.project_dir, "patch.txt")) as fp:
             contents = fp.read()
             assert contents == "testing"
@@ -311,12 +314,12 @@ def check_backend_config(config, expected_backend_config):
 
 def check_mock_run_info(mock_with_run_info, expected_backend_config, kwargs):
     for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.LaunchProject):
+        if isinstance(arg, LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
             check_backend_config(arg, expected_backend_config)
     for arg in mock_with_run_info.kwargs.items():
-        if isinstance(arg, _project_spec.LaunchProject):
+        if isinstance(arg, LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
             check_backend_config(arg, expected_backend_config)
@@ -899,8 +902,8 @@ def test_launch_entrypoint(test_settings):
         {},
         None,  # run_id
     )
-    launch_project.set_entry_point(entry_point)
-    calced_ep = launch_project.get_single_entry_point().compute_command(["--blah", "2"])
+    launch_project.set_job_entry_point(entry_point)
+    calced_ep = launch_project.get_job_entry_point().compute_command(["--blah", "2"])
     assert calced_ep == ["python", "main.py", "--blah", "2"]
 
 
