@@ -182,7 +182,6 @@ def get_project_from_job(job: str) -> Optional[str]:
 
 
 def set_project_entity_defaults(
-    uri: Optional[str],
     job: Optional[str],
     api: Api,
     project: Optional[str],
@@ -190,13 +189,7 @@ def set_project_entity_defaults(
     launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[Optional[str], str]:
     # set the target project and entity if not provided
-    source_uri = None
-    if uri is not None:
-        if _is_wandb_uri(uri):
-            _, source_uri, _ = parse_wandb_uri(uri)
-        elif _is_git_uri(uri):
-            source_uri = os.path.splitext(os.path.basename(uri))[0]
-    elif job is not None:
+    if job is not None:
         source_uri = get_project_from_job(job)
     if project is None:
         config_project = None
@@ -233,7 +226,6 @@ def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
 
 
 def construct_launch_spec(
-    uri: Optional[str],
     job: Optional[str],
     api: Api,
     name: Optional[str],
@@ -253,12 +245,9 @@ def construct_launch_spec(
     """Construct the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
-    if uri is not None:
-        launch_spec["uri"] = uri
     if job is not None:
         launch_spec["job"] = job
     project, entity = set_project_entity_defaults(
-        uri,
         job,
         api,
         project,
@@ -316,16 +305,12 @@ def construct_launch_spec(
 
 
 def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
-    uri = launch_spec.get("uri")
     job = launch_spec.get("job")
     docker_image = launch_spec.get("docker", {}).get("docker_image")
-
-    if not bool(uri) and not bool(job) and not bool(docker_image):
-        raise LaunchError("Must specify a uri, job or docker image")
-    elif bool(uri) and bool(docker_image):
-        raise LaunchError("Found both uri and docker-image, only one can be set")
-    elif sum(map(bool, [uri, job, docker_image])) > 1:
-        raise LaunchError("Must specify exactly one of uri, job or image")
+    if bool(job) == bool(docker_image):
+        raise LaunchError(
+            "Exactly one of job or docker_image must be specified in the launch spec"
+        )
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
@@ -334,18 +319,6 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     if not ref or not ref.entity or not ref.project or not ref.run_id:
         raise LaunchError(f"Trouble parsing wandb uri {uri}")
     return (ref.entity, ref.project, ref.run_id)
-
-
-def is_bare_wandb_uri(uri: str) -> bool:
-    """Check that a wandb uri is valid.
-
-    URI must be in the format
-    `/<entity>/<project>/runs/<run_name>[other stuff]`
-    or
-    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
-    """
-    _logger.info(f"Checking if uri {uri} is bare...")
-    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
 
 
 def fetch_wandb_project_run_info(
@@ -864,3 +837,10 @@ def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
     if len(entrypoint) < 2:
         return None
     return entrypoint[1]
+
+
+def get_current_python_version() -> Tuple[str, str]:
+    full_version = sys.version.split()[0].split(".")
+    major = full_version[0]
+    version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
+    return version, major

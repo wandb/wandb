@@ -1307,7 +1307,15 @@ def launch_sweep(
 
 
 @cli.command(help=f"Launch or queue a W&B Job. See {wburls.get('cli_launch')}")
-@click.option("--uri", "-u", metavar="(str)", default=None, hidden=True)
+@click.option(
+    "--uri",
+    "-u",
+    metavar="(str)",
+    default=None,
+    hidden=True,
+    help="Local path or git repo uri to launch. If provided this command will "
+    "create a job from the specified uri.",
+)
 @click.option(
     "--job",
     "-j",
@@ -1328,9 +1336,14 @@ def launch_sweep(
 @click.option(
     "--git-version",
     "-g",
-    metavar="GIT-VERSION",
     hidden=True,
     help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--build-context",
+    metavar="(str)",
+    help="Path to the build context within the source code. Defaults to the "
+    "root of the source code. Compatible only with -u.",
 )
 @click.option(
     "--name",
@@ -1450,12 +1463,14 @@ def launch_sweep(
     help="""When --queue is passed, set the priority of the job. Launch jobs with higher priority
     are served first.  The order, from highest to lowest priority, is: critical, high, medium, low""",
 )
+@click.option("--job-name", "-J", metavar="(str)", default=None, hidden=True)
 @display_error
 def launch(
     uri,
     job,
     entry_point,
     git_version,
+    build_context,
     name,
     resource,
     entity,
@@ -1471,6 +1486,7 @@ def launch(
     project_queue,
     dockerfile,
     priority,
+    job_name,
 ):
     """Start a W&B run from the given URI.
 
@@ -1486,6 +1502,8 @@ def launch(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
     )
     from wandb.sdk.launch._launch import _launch
+    from wandb.sdk.launch.create_job import _create_job
+    from wandb.sdk.launch.utils import _is_git_uri
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
@@ -1532,6 +1550,34 @@ def launch(
 
     run_id = config.get("run_id")
 
+    # If URI was provided, we need to create a job from it.
+    if uri:
+        if project is None:
+            raise LaunchError("Cannot provide a uri without a project")
+        if job is not None:
+            raise LaunchError("Cannot provide both a uri and a job name")
+        job_type = (
+            "git" if _is_git_uri(uri) else "code"
+        )  # TODO: Add support for local URIs with git.
+        if entity is None:
+            entity = launch_utils.get_default_entity(api, config)
+        artifact, _, _ = _create_job(
+            api,
+            job_type,
+            uri,
+            entrypoint=entry_point,
+            git_hash=git_version,
+            name=job_name,
+            project=project,
+            build_context=build_context,
+            dockerfile=dockerfile,
+            entity=entity,
+            runtime=resource,
+        )
+        if artifact is None:
+            raise LaunchError(f"Failed to create job from uri: {uri}")
+        job = f"{entity}/{project}/{artifact.name}"
+
     if dockerfile:
         if "overrides" in config:
             config["overrides"]["dockerfile"] = dockerfile
@@ -1565,7 +1611,6 @@ def launch(
             run = asyncio.run(
                 _launch(
                     api,
-                    uri,
                     job,
                     project=project,
                     entity=entity,
@@ -1907,20 +1952,35 @@ def describe(job):
     "--entry-point",
     "-E",
     "entrypoint",
-    help="Entrypoint to the script, including an executable and an entrypoint file. Required for code or repo jobs",
+    help="Entrypoint to the script, including an executable and an entrypoint "
+    "file. Required for code or repo jobs. If --build-context is provided, "
+    "paths in the entrypoint command will be relative to the build context.",
 )
 @click.option(
     "--git-hash",
     "-g",
     "git_hash",
     type=str,
-    help="Hash to a specific git commit.",
+    help="Hash to a specific git commit.",  # TODO: Clarify the ref/hash/commit language here.
 )
 @click.option(
     "--runtime",
     "-r",
     type=str,
     help="Python runtime to execute the job",
+)
+@click.option(
+    "--build-context",
+    "-b",
+    type=str,
+    help="Path to the build context for the job",
+)
+@click.option(
+    "--dockerfile",
+    "-D",
+    type=str,
+    help="Path to the Dockerfile for the job. If --build-context is provided, "
+    "the Dockerfile path will be relative to the build context.",
 )
 @click.argument(
     "job_type",
@@ -1938,6 +1998,8 @@ def create(
     entrypoint,
     git_hash,
     runtime,
+    build_context,
+    dockerfile,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1980,6 +2042,8 @@ def create(
         entrypoint=entrypoint,
         git_hash=git_hash,
         runtime=runtime,
+        build_context=build_context,
+        dockerfile=dockerfile,
     )
     if not artifact:
         wandb.termerror("Job creation failed")

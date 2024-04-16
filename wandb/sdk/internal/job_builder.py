@@ -41,12 +41,16 @@ class GitSourceDict(TypedDict):
     git: GitInfo
     entrypoint: List[str]
     notebook: bool
+    dockerfile: Optional[str]
+    build_context: Optional[str]
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
     entrypoint: List[str]
     notebook: bool
+    dockerfile: Optional[str]
+    build_context: Optional[str]
 
 
 class ImageSourceDict(TypedDict):
@@ -152,7 +156,7 @@ class JobBuilder:
 
     def _build_repo_job_source(
         self,
-        program_relpath: str,
+        program_relpath: Optional[str],
         metadata: Dict[str, Any],
     ) -> Tuple[Optional[GitSourceDict], Optional[str]]:
         git_info: Dict[str, str] = metadata.get("git", {})
@@ -161,7 +165,9 @@ class JobBuilder:
         root = metadata.get("root")
         assert remote is not None
         assert commit is not None
+        full_program_path: Optional[str] = None
         if self._is_notebook_run:
+            assert program_relpath is not None
             if not os.path.exists(
                 os.path.join(os.getcwd(), os.path.basename(program_relpath))
             ):
@@ -284,7 +290,7 @@ class JobBuilder:
 
     def _get_entrypoint(
         self,
-        program_relpath: str,
+        program_relpath: Optional[str],
         metadata: Dict[str, Any],
     ) -> List[str]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
@@ -293,18 +299,8 @@ class JobBuilder:
             if metadata.get("entrypoint"):
                 entrypoint: List[str] = metadata["entrypoint"]
                 return entrypoint
-
-            # if entrypoint is not in metadata, then construct from python
-            assert metadata.get("python")
-
-            python = metadata["python"]
-            if python.count(".") > 1:
-                python = ".".join(python.split(".")[:2])
-
-            entrypoint = [f"python{python}", program_relpath]
-            return entrypoint
-
         # job is being built from a run
+        assert program_relpath is not None
         entrypoint = [os.path.basename(sys.executable), program_relpath]
 
         return entrypoint
@@ -315,7 +311,24 @@ class JobBuilder:
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
 
-    def build(self) -> Optional[Artifact]:
+    def build(
+        self,
+        build_context: Optional[str] = None,
+        dockerfile: Optional[str] = None,
+    ) -> Optional[Artifact]:
+        """Build a job artifact from the current run.
+
+        Arguments:
+            build_context (Optional[str]): Path within the job source code to
+                the image build context. Saved as part of the job for future
+                builds.
+            dockerfile (Optional[str]): Path within the build context the
+                Dockerfile. Saved as part of the job for future builds.
+
+        Returns:
+            Optional[Artifact]: The job artifact if it was successfully built,
+            otherwise None.
+        """
         _logger.info("Attempting to build job artifact")
         if not os.path.exists(
             os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
@@ -332,6 +345,8 @@ class JobBuilder:
                 "warn",
             )
             return None
+        metadata["dockerfile"] = dockerfile
+        metadata["build_context"] = build_context
 
         runtime: Optional[str] = metadata.get("python")
         # can't build a job without a python version
@@ -375,7 +390,11 @@ class JobBuilder:
                 return None
 
             program_relpath = self._get_program_relpath(source_type, metadata)
-            if source_type != "image" and not program_relpath:
+            if (
+                not metadata.get("_partial")
+                and source_type != "image"
+                and not program_relpath
+            ):
                 self._log_if_verbose(
                     "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
                     "warn",
@@ -390,7 +409,6 @@ class JobBuilder:
 
             # make source dict
             if source_type == "repo":
-                assert program_relpath
                 source, name = self._build_repo_job_source(program_relpath, metadata)
             elif source_type == "artifact":
                 assert program_relpath
@@ -411,6 +429,11 @@ class JobBuilder:
                         "warn",
                     )
                 return None
+
+            if build_context:
+                source["build_context"] = build_context
+            if dockerfile:
+                source["dockerfile"] = dockerfile
 
             source_info = {
                 "_version": "v0",

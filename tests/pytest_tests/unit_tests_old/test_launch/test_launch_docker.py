@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import wandb
 from wandb.docker import DockerError
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
-from wandb.sdk.launch.builder.build import generate_dockerfile, get_base_setup
+from wandb.sdk.launch.builder.context_manager import get_base_setup
 from wandb.sdk.launch.utils import docker_image_exists
 
 from .test_launch import (

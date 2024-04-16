@@ -188,7 +188,6 @@ def create_and_run_agent(
 
 async def _launch(
     api: Api,
-    uri: Optional[str] = None,
     job: Optional[str] = None,
     name: Optional[str] = None,
     project: Optional[str] = None,
@@ -209,7 +208,6 @@ async def _launch(
     if resource is None:
         resource = "local-container"
     launch_spec = construct_launch_spec(
-        uri,
         job,
         api,
         name,
@@ -228,7 +226,7 @@ async def _launch(
     validate_launch_spec_source(launch_spec)
     launch_project = LaunchProject.from_spec(launch_spec, api)
     launch_project.fetch_and_validate_project()
-    entrypoint = launch_project.get_single_entry_point()
+    entrypoint = launch_project.get_job_entry_point()
     image_uri = launch_project.docker_image  # Either set by user or None.
 
     # construct runner config.
@@ -327,7 +325,6 @@ def launch(
     submitted_run_obj = asyncio.run(
         _launch(
             # TODO: fully deprecate URI path
-            uri=None,
             job=job,
             name=name,
             project=project,
