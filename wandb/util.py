@@ -1885,7 +1885,7 @@ def parse_version(version: str) -> "packaging.version.Version":
     try:
         from packaging.version import parse as parse_version  # type: ignore
     except ImportError:
-        from pkg_resources import parse_version
+        from pkg_resources import parse_version  # type: ignore[assignment]
 
     return parse_version(version)
 
