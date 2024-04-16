@@ -20,19 +20,16 @@ Please make sure to update the ToC when you update this page!
     + [Scopes](#scopes)
     + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
-- [Linting the code](#linting-the-code)
+  * [Linting the code](#linting-the-code)
+  * [Auto-Generating Code](#auto-generating-code)
+    + [Building protocol buffers](#building-protocol-buffers)
+    + [Adding a new setting](#adding-a-new-setting)
+    + [Adding URLs](#adding-urls)
+    + [Deprecating features](#deprecating-features)
+      - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
+    + [Editable mode](#editable-mode)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
-- [Auto-Generating Code](#auto-generating-code)
-  * [Building protocol buffers](#building-protocol-buffers)
-  * [Arguments/environment variables impacting wandb functions are merged with Settings](#arguments-environment-variables-impacting-wandb-functions-are-merged-with-settings)
-    + [wandb.Settings internals](#wandbsettings-internals)
-    + [Adding a new setting](#adding-a-new-setting)
-  * [Deprecating features](#deprecating-features)
-    + [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Adding URLs](#adding-urls)
-- [Editable mode:](#editable-mode-)
-  * [Adding URLs](#adding-urls)
 
 ## Development workflow
 
@@ -217,7 +214,7 @@ pyenv install 3.7.17
 
 Note: to switch the default python version, edit the `.python-version` file in the repository root.
 
-## Linting the code
+### Linting the code
 
 We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
 
@@ -236,25 +233,7 @@ If you just want to run a specific hook, like formating your code, you could run
 pre-commit run ruff --all-files --hook-stage pre-push
 ```
 
-## Testing
-
-### Using pytest
-
-We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
-All test dependencies should be in `requirements_dev.txt` so you could just run:
-`
-
-```shell
-`pip install -r requirements_dev.txt`
-```
-
-After that you can run your test using the standard `pytest` commands. For example:
-
-```shell
-pytest tests/path-to-tests/test_file.py
-```
-
-## Auto-Generating Code
+### Auto-Generating Code
 
 For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation)
 and [`tox`](https://tox.wiki/en/latest/installation.html). You could just run:
@@ -262,7 +241,7 @@ and [`tox`](https://tox.wiki/en/latest/installation.html). You could just run:
 pip install nox tox
 ```
 
-### Building protocol buffers
+#### Building protocol buffers
 
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
@@ -277,102 +256,6 @@ nox -t proto
 ```
 
 Note: you only need to do that if you change any of our protocol buffer files.
-
-
-### Arguments/environment variables impacting wandb functions are merged with Settings
-
-`wandb.Settings` is the main settings object that is passed explicitly or implicitly to all `wandb` functions.
-
-The primary objective of the design principle is that behavior of code can be impacted by multiple sources.
-These sources need to be merged consistently and information given to the user when settings are overwritten
-to inform the user. Examples of sources of settings:
-
-- Enforced settings from organization, team, user, project
-- Settings set by environment variables prefixed with `WANDB_`, e.g. `WANDB_PROJECT=`
-- Settings passed to the `wandb.init` function: `wandb.init(project=)`
-- Default settings from organization, team, project
-- Settings in global settings file: `~/.config/wandb/settings`
-- Settings in local settings file: `./wandb/settings`
-
-Source priorities are defined in `wandb.sdk.wandb_settings.Source`.
-Each individual setting of the Settings object is either a default or priority setting.
-In the latter case, reverse priority is used to determine the source of the setting.
-
-#### wandb.Settings internals
-
-Under the hood in `wandb.Settings`, individual settings are represented as `wandb.sdk.wandb_settings.Property` objects
-that:
-
-- Encapsulate the logic of how to preprocess and validate values of settings throughout the lifetime of a class instance.
-- Allows for runtime modification of settings with hooks, e.g. in the case when a setting depends on another setting.
-- Use the `update()` method to update the value of a setting. Source priority logic is enforced when updating values.
-- Determine the source priority using the `is_policy` attribute when updating the property value. E.g. if `is_policy` is
-  `True`, the smallest `Source` value takes precedence.
-- Have the ability to freeze/unfreeze.
-
-Here's a basic example (for more examples, see `tests/wandb_settings_test.py`)
-
-```python
-from wandb.sdk.wandb_settings import Property, Source
-
-
-def uses_https(x):
-    if not x.startswith("https"):
-        raise ValueError("Must use https")
-    return True
-
-
-base_url = Property(
-    name="base_url",
-    value="https://wandb.com/",
-    preprocessor=lambda x: x.rstrip("/"),
-    validator=[lambda x: isinstance(x, str), uses_https],
-    source=Source.BASE,
-)
-
-endpoint = Property(
-    name="endpoint",
-    value="site",
-    validator=lambda x: isinstance(x, str),
-    hook=lambda x: "/".join([base_url.value, x]),
-    source=Source.BASE,
-)
-```
-
-```ipython
->>> print(base_url)  # note the stripped "/"
-'https://wandb.com'
->>> print(endpoint)  # note the runtime hook
-'https://wandb.com/site'
->>> print(endpoint._value)  # raw value
-'site'
->>> base_url.update(value="https://wandb.ai/", source=Source.INIT)
->>> print(endpoint)  # valid update with a higher priority source
-'https://wandb.ai/site'
->>> base_url.update(value="http://wandb.ai/")  # invalid value - second validator will raise exception
-ValueError: Must use https
->>> base_url.update(value="https://wandb.dev", source=Source.USER)
->>> print(endpoint)  # valid value from a lower priority source has no effect
-'https://wandb.ai/site'
-```
-
-The `Settings` object:
-
-- The code is supposed to be self-documented -- see `wandb/sdk/wandb_settings.py` :)
-- Uses `Property` objects to represent configurable settings.
-- Clearly and compactly defines all individual settings, their default values, preprocessors, validators,
-  and runtime hooks as well as whether they are treated as policies.
-  - To leverage both static and runtime validation, the `validator` attribute is a list of functions
-    (or a single function) that are applied in order. The first function is automatically generated
-    from type annotations of class attributes.
-- Provides a mechanism to update settings specifying the source (which abides the corresponding Property source logic)
-  via `Settings.update()`. Direct attribute assignment is not allowed.
-- Careful Settings object copying.
-- Mapping interface.
-- Exposes `attribute.value` if attribute is a `Property`.
-- Has ability to freeze/unfreeze the object.
-- `Settings.make_static()` method that we can use to replace `StaticSettings`.
-- Adapted/reworked convenience methods to apply settings originating from different source.
 
 #### Adding a new setting
 
@@ -391,7 +274,7 @@ The `Settings` object:
   modification order list with `tox -e auto-codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
-### Adding URLs
+#### Adding URLs
 
 All URLs displayed to the user should be added to `wandb/sdk/lib/wburls.py`.  This will better
 ensure that URLs do not lead to broken links.
@@ -401,7 +284,7 @@ Once you add the URL to that file you will need to run:
 tox -e auto-codegen
 ```
 
-### Deprecating features
+#### Deprecating features
 
 Starting with version 1.0.0, `wandb` will be using [Semantic Versioning](https://semver.org/).
 The major version of the library will be incremented for all backwards-incompatible changes,
@@ -414,7 +297,7 @@ It is safe to depend on `wandb` like this: `wandb >=x.y, <(x+1)`,
 where `x.y` is the first version that includes all features you need.
 -->
 
-#### Marking a feature as deprecated
+##### Marking a feature as deprecated
 
 To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
 
@@ -432,8 +315,7 @@ deprecate.deprecate(
 )
 ```
 
-
-## Editable mode:
+#### Editable mode
 
 When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
 
@@ -454,3 +336,21 @@ When using editable mode outside of the wandb directory, it is necessary to appl
   pip install -e .
   ```
   without any additional flags, and the strict editable mode will be applied consistently.
+
+## Testing
+
+### Using pytest
+
+We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
+All test dependencies should be in `requirements_dev.txt` so you could just run:
+`
+
+```shell
+`pip install -r requirements_dev.txt`
+```
+
+After that you can run your test using the standard `pytest` commands. For example:
+
+```shell
+pytest tests/path-to-tests/test_file.py
+```
