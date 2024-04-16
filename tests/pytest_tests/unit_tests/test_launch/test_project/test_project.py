@@ -4,54 +4,6 @@ from unittest.mock import MagicMock
 from wandb.sdk.launch._project_spec import LaunchProject
 
 
-def test_project_fetch_and_validate_pip(monkeypatch, tmp_path):
-    mock_args = {
-        "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
-        "api": MagicMock(),
-        "launch_spec": {},
-        "target_entity": "mock-test-entity",
-        "target_project": "mock-test-project",
-        "docker_config": {},
-        "overrides": {},
-        "git_info": {},
-        "resource": "local-container",
-        "resource_args": {},
-        "uri": None,
-        "name": None,
-        "run_id": None,
-    }
-    project = LaunchProject(**mock_args)
-    monkeypatch.setattr(project, "_fetch_job", lambda: None)
-    project.project_dir = tmp_path
-    (tmp_path / "requirements.txt").write_text("wandb\nnumpy\npandas")
-    project.fetch_and_validate_project()
-    assert project.deps_type == "pip"
-
-
-def test_project_fetch_and_validate_conda(monkeypatch, tmp_path):
-    mock_args = {
-        "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
-        "api": MagicMock(),
-        "launch_spec": {},
-        "target_entity": "mock-test-entity",
-        "target_project": "mock-test-project",
-        "docker_config": {},
-        "overrides": {},
-        "git_info": {},
-        "resource": "local-container",
-        "resource_args": {},
-        "uri": None,
-        "name": None,
-        "run_id": None,
-    }
-    project = LaunchProject(**mock_args)
-    monkeypatch.setattr(project, "_fetch_job", lambda: None)
-    project.project_dir = tmp_path
-    (tmp_path / "environment.yml").write_text("stuff")
-    project.fetch_and_validate_project()
-    assert project.deps_type == "conda"
-
-
 def test_project_build_required():
     mock_args = {
         "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
@@ -73,7 +25,7 @@ def test_project_build_required():
     assert project.build_required() is False
 
     mock_args.update(
-        {"job": None, "uri": "https://wandb.ai/test-entity/test-project/runs/abcdefgh"}
+        {"job": None, "docker_config": {"docker_image": "mock-test-image:v0"}}
     )
     project = LaunchProject(**mock_args)
     assert project.build_required() is True

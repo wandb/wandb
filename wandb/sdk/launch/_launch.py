@@ -228,7 +228,7 @@ async def _launch(
     validate_launch_spec_source(launch_spec)
     launch_project = LaunchProject.from_spec(launch_spec, api)
     launch_project.fetch_and_validate_project()
-    entrypoint = launch_project.get_single_entry_point()
+    entrypoint = launch_project.get_job_entry_point()
     image_uri = launch_project.docker_image  # Either set by user or None.
 
     # construct runner config.

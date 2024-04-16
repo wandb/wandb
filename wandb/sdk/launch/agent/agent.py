@@ -691,7 +691,7 @@ class LaunchAgent:
             default_config, override_build_config
         )
         image_uri = project.docker_image
-        entrypoint = project.get_single_entry_point()
+        entrypoint = project.get_job_entry_point()
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )

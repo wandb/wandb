@@ -336,18 +336,6 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return (ref.entity, ref.project, ref.run_id)
 
 
-def is_bare_wandb_uri(uri: str) -> bool:
-    """Check that a wandb uri is valid.
-
-    URI must be in the format
-    `/<entity>/<project>/runs/<run_name>[other stuff]`
-    or
-    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
-    """
-    _logger.info(f"Checking if uri {uri} is bare...")
-    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
-
-
 def fetch_wandb_project_run_info(
     entity: str, project: str, run_name: str, api: Api
 ) -> Any:
@@ -864,3 +852,10 @@ def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
     if len(entrypoint) < 2:
         return None
     return entrypoint[1]
+
+
+def get_current_python_version() -> Tuple[str, str]:
+    full_version = sys.version.split()[0].split(".")
+    major = full_version[0]
+    version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
+    return version, major

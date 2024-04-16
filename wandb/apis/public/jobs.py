@@ -123,7 +123,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.set_entry_point(self._entrypoint)
+            launch_project.set_job_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
