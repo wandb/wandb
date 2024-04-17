@@ -328,6 +328,9 @@ commands:
 
   restore_cache_tox:
     steps:
+      - run:
+          name: Store current date
+          command: date "+%F" > tox-cache-date.txt
       - restore_cache:
           name: Restore .tox cache
           keys:
@@ -337,7 +340,8 @@ commands:
             - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "requirements_dev.txt" }}-{{
                 checksum "requirements_test.txt" }}-{{
-                checksum "tox.ini" }}
+                checksum "tox.ini" }}-{{
+                checksum "tox-cache-date.txt" }}
             - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
   save_cache_tox:
     steps:
