@@ -33,7 +33,7 @@ def build_wandb_core(
     # paths relative to ./core
     subprocess.check_call(
         [
-            go_binary,
+            str(go_binary),
             "build",
             *coverage_flags,
             *ld_flags,
