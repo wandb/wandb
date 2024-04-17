@@ -383,7 +383,7 @@ jobs:
             - run:
                 name: Install requirements
                 command: |
-                  pip install -U pip tox
+                  pip install -U pip tox-uv
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -430,7 +430,7 @@ jobs:
 
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox-uv nox pip
           no_output_timeout: 5m
 
       # For now, this step needs to be duplicated because there's no way
@@ -507,7 +507,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox-uv nox pip
           no_output_timeout: 5m
 
       # TODO: replace tests with pytest markers and remove the conditional
@@ -577,7 +577,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox-uv nox pip
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -645,7 +645,7 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  pip install -U tox nox pip
+                  pip install -U tox-uv nox pip
                 no_output_timeout: 5m
             - install_go
             - run:
@@ -703,7 +703,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox-uv nox pip
           no_output_timeout: 5m
       - run:
           name: Run tests
@@ -807,7 +807,7 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  python -m pip install -U tox nox pip
+                  python -m pip install -U tox-uv nox pip
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -873,7 +873,7 @@ jobs:
       - run:
           name: Install python dependencies
           command: |
-            pip3 install -U tox nox pip
+            pip3 install -U tox-uv nox pip
             brew install ffmpeg
       - install_go
       - run:
@@ -927,7 +927,7 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip3 install tox nox chardet iso8601
+            pip3 install tox-uv nox chardet iso8601
       - run:
           name: pull base docker images
           command: |
