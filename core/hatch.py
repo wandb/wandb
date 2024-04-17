@@ -38,7 +38,7 @@ def build_wandb_core(
             *coverage_flags,
             *ld_flags,
             *output_flags,
-            pathlib.Path("cmd", "wandb-core", "main.go"),
+            str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
         env=_go_env(),
