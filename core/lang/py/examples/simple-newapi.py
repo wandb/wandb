@@ -28,7 +28,7 @@ Run:
 """
 
 api = wandb.new_api()
-session = wandb.new_session()
+session = api.new_session()
 run = session.get_run()
 for row in run.history():
   pass
