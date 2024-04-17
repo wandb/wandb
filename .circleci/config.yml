@@ -352,7 +352,7 @@ commands:
       - restore_cache:
           name: Restore .venv
           keys:
-            - &python-venv-cache v1-venv-<<parameters.py>>-<<parameters.machine>>-{{ checksum requirements_dev.txt }}-{{ checksum requirements_test.txt }}
+            - &python-venv-cache v1-venv-<<parameters.py>>-<<parameters.machine>>-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
             - v1-venv-<<parameters.py>>-<<parameters.machine>>-
       - run:
           name: Set up and activate venv
