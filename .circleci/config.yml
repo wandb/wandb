@@ -326,35 +326,22 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
-  # Sets up a Python virtualenv with requirements_dev.txt installed.
-  #
-  # This modifies $BASH_ENV such that all shells in the job use the virtual
-  # environment afterward.
-  python_venv:
+  restore_cache_tox:
     steps:
       - restore_cache:
-          name: Restore .venv
+          name: Restore .tox cache
           keys:
             # Note that virtualenvs are not portable! We include the job name
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
-            - &python-venv-cache v1-venv-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
+            - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
             - v1-venv-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
-      - run:
-          name: Set up and activate venv
-          # https://discuss.circleci.com/t/activate-python-virtualenv-for-whole-job/14434
-          command: |
-            python -m venv .venv
-            echo "source .venv/bin/activate" >> $BASH_ENV
-      - run:
-          name: pip install requirements
-          command:
-            pip install -U tox nox pip
-            pip install -r requirements_dev.txt
+  save_cache_tox:
+    steps:
       - save_cache:
-          name: Save .venv
-          key: *python-venv-cache
-          paths: [.venv]
+          name: Upload .tox cache
+          key: *tox-cache
+          paths: [.tox]
 
 
 jobs:
@@ -458,7 +445,12 @@ jobs:
       - checkout
       - <<parameters.install_deps>>
       - install_go
-      - python_venv
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+
+      - restore_cache_tox
 
       # For now, this step needs to be duplicated because there's no way
       # in YAML or CircleCI's config to change just the final argument to
@@ -503,6 +495,8 @@ jobs:
                     tests/pytest_tests/unit_tests/test_reports/ \
                     tests/pytest_tests/unit_tests/test_importers/
 
+      - save_cache_tox
+
       - codecov/upload: { flags: unit, validate: false }
 
       - save-test-results
@@ -532,7 +526,12 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
-      - python_venv
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+
+      - restore_cache_tox
 
       # TODO: replace tests with pytest markers and remove the conditional
       - when:
@@ -588,6 +587,8 @@ jobs:
                     tests/pytest_tests/system_tests/test_launch \
                     tests/pytest_tests/system_tests/test_sweep \
                     tests/pytest_tests/system_tests/test_artifacts
+
+      - save_cache_tox
 
       - codecov/upload: { flags: system, validate: false }
 
@@ -667,13 +668,18 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
             - install_go
-            - python_venv
+            - run:
+                name: Install Python dependencies
+                command: pip install -U tox nox pip
+                no_output_timeout: 5m
+            - restore_cache_tox
             - run:
                 name: Run tests
                 no_output_timeout: 15m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            - save_cache_tox
             - when:
                 condition:
                   not:
@@ -721,7 +727,11 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
-      - python_venv
+      - run:
+          name: Install Python dependencies
+          command: pip install -U tox nox pip
+          no_output_timeout: 5m
+      - restore_cache_tox
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -731,6 +741,7 @@ jobs:
               -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
               -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
+      - save_cache_tox
       - codecov/upload: { flags: system, validate: false }
       - save-test-results
 
