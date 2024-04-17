@@ -21,8 +21,12 @@ def _md5(data: bytes = b"") -> "hashlib._Hash":
         return hashlib.md5(data)
 
 
+def md5_bytes(data: bytes) -> B64MD5:
+    return _b64_from_hasher(_md5(data))
+
+
 def md5_string(string: str) -> B64MD5:
-    return _b64_from_hasher(_md5(string.encode("utf-8")))
+    return md5_bytes(string.encode("utf-8"))
 
 
 def _b64_from_hasher(hasher: "hashlib._Hash") -> B64MD5:
