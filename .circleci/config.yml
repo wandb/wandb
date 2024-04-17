@@ -331,29 +331,15 @@ commands:
   # This modifies $BASH_ENV such that all shells in the job use the virtual
   # environment afterward.
   python_venv:
-    parameters:
-      py:
-        description: |
-          A string without spaces describing the Python version.
-
-          Concatenating the major and minor version is a reasonable choice.
-          Virtualenvs are not portable across versions, so this is used to
-          create different cache keys.
-        type: string
-      machine:
-        description: |
-          A string without spaces describing the platform we're running on.
-
-          The executor name or the concatenation of the OS and architecture
-          works. Virtualenvs are not portable across machines, so this is
-          used to create different cache keys.
-        type: string
     steps:
       - restore_cache:
           name: Restore .venv
           keys:
-            - &python-venv-cache v1-venv-<<parameters.py>>-<<parameters.machine>>-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
-            - v1-venv-<<parameters.py>>-<<parameters.machine>>-
+            # Note that virtualenvs are not portable! We include the job name
+            # in the key in the hopes that it encapsulates the Python version.
+            # We include the architecture (OS + processor) as well to be safe.
+            - &python-venv-cache v1-venv-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
+            - v1-venv-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
       - run:
           name: Set up and activate venv
           # https://discuss.circleci.com/t/activate-python-virtualenv-for-whole-job/14434
@@ -472,9 +458,7 @@ jobs:
       - checkout
       - <<parameters.install_deps>>
       - install_go
-      - python_venv:
-          py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>.name
+      - python_venv
 
       # For now, this step needs to be duplicated because there's no way
       # in YAML or CircleCI's config to change just the final argument to
@@ -548,9 +532,7 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
-      - python_venv:
-          py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>.name
+      - python_venv
 
       # TODO: replace tests with pytest markers and remove the conditional
       - when:
@@ -685,9 +667,7 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
             - install_go
-            - python_venv:
-                py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-                machine: tox-base
+            - python_venv
             - run:
                 name: Run tests
                 no_output_timeout: 15m
@@ -741,9 +721,7 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
-      - python_venv:
-          py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>.name
+      - python_venv
       - run:
           name: Run tests
           no_output_timeout: 10m
