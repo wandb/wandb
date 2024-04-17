@@ -340,6 +340,7 @@ def mypy(session: nox.Session) -> None:
     session.install("httpx")
     session.install("types-click")
     session.install("pycobertura")
+    session.install("lxml")
 
     path = "mypy-results"
 
