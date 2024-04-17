@@ -7,7 +7,7 @@ new_api() -> API (? or sdk or library or core..or not)
 default_api
 default_session
 default_run
-(promote mothods from default_sdk, default_session - and maybe default_run to top level namespace?)
+(promote mothods from default_api, default_session - and maybe default_run to top level namespace?)
 
 API:
   new_session -> Session
