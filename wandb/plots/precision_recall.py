@@ -25,7 +25,7 @@ def precision_recall(
     Arguments:
     y_true (arr): Test set labels.
     y_probas (arr): Test set predicted probabilities.
-    labels (list): Named labels for target varible (y). Makes plots easier to
+    labels (list): Named labels for target variable (y). Makes plots easier to
       read by replacing target values with corresponding index.
       For example labels= ['dog', 'cat', 'owl'] all 0s are
       replaced by 'dog', 1s by 'cat'.

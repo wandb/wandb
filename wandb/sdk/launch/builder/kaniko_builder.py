@@ -286,7 +286,7 @@ class KanikoBuilder(AbstractBuilder):
         _, api_client = await get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
-        # TODO: use same client as kuberentes_runner.py
+        # TODO: use same client as kubernetes_runner.py
         batch_v1 = client.BatchV1Api(api_client)
         core_v1 = client.CoreV1Api(api_client)
 
@@ -522,7 +522,7 @@ class KanikoBuilder(AbstractBuilder):
             volume_mounts.append(
                 {"name": "docker-config", "mountPath": "/kaniko/.docker/"}
             )
-        # Kaniko doesn't want https:// at the begining of the image tag.
+        # Kaniko doesn't want https:// at the beginning of the image tag.
         destination = image_tag
         if destination.startswith("https://"):
             destination = destination.replace("https://", "")

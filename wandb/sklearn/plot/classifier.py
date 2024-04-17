@@ -33,9 +33,9 @@ def classifier(
 
     The following plots are generated:
         feature importances, confusion matrix, summary metrics,
-        class propotions, calibration curve, roc curve, precision-recall curve.
+        class proportions, calibration curve, roc curve, precision-recall curve.
 
-    Should only be called with a fitted classifer (otherwise an error is thrown).
+    Should only be called with a fitted classifier (otherwise an error is thrown).
 
     Arguments:
         model: (classifier) Takes in a fitted classifier.
@@ -45,7 +45,7 @@ def classifier(
         y_test: (arr) Test set labels.
         y_pred: (arr) Test set predictions by the model passed.
         y_probas: (arr) Test set predicted probabilities by the model passed.
-        labels: (list) Named labels for target varible (y). Makes plots easier to
+        labels: (list) Named labels for target variable (y). Makes plots easier to
                         read by replacing target values with corresponding index.
                         For example if `labels=['dog', 'cat', 'owl']` all 0s are
                         replaced by dog, 1s by cat.
@@ -225,7 +225,7 @@ def feature_importances(
 ):
     """Log a plot depicting the relative importance of each feature for a classifier's decisions.
 
-    Should only be called with a fitted classifer (otherwise an error is thrown).
+    Should only be called with a fitted classifier (otherwise an error is thrown).
     Only works with classifiers that have a feature_importances_ attribute, like trees.
 
     Arguments:
@@ -252,7 +252,7 @@ def feature_importances(
 
 
 def class_proportions(y_train=None, y_test=None, labels=None):
-    """Plot the distribution of target classses in training and test sets.
+    """Plot the distribution of target classes in training and test sets.
 
     Useful for detecting imbalanced classes.
 
@@ -296,7 +296,7 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
     if so which calibration (sigmoid or isotonic) might help fix this.
     For more details, see https://scikit-learn.org/stable/auto_examples/calibration/plot_calibration_curve.html.
 
-    Should only be called with a fitted classifer (otherwise an error is thrown).
+    Should only be called with a fitted classifier (otherwise an error is thrown).
 
     Please note this function fits variations of the model on the training set when called.
 
