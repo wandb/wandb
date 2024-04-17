@@ -218,6 +218,7 @@ commands:
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
 
             $HOME/go/bin/go version
+            $HOME/go/bin/go env -w GOCACHE=$HOME/.cache/go-build
           no_output_timeout: 1m
 
   setup_docker_buildx:
@@ -719,7 +720,7 @@ jobs:
 
   unit-tests-go:
     docker:
-      - image: cimg/go:1.21
+      - image: cimg/go:<<pipeline.parameters.go_version>>
     steps:
       - checkout
       - run:
