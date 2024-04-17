@@ -335,7 +335,7 @@ commands:
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
             - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{ checksum "requirements_dev.txt" }}-{{ checksum "requirements_test.txt" }}
-            - v1-venv-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
+            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
   save_cache_tox:
     steps:
       - save_cache:
