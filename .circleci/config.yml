@@ -584,7 +584,7 @@ jobs:
           command: nox -t proto-check
       - run:
           name: Lint
-          command: tox run -v -e auto-codegen-check
+          command: tox run -v -e "auto-codegen-check, mypy, mypy-report"
       - save-test-results
 
   tox-base:

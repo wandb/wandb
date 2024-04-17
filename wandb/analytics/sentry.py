@@ -137,7 +137,8 @@ class Sentry:
         self.mark_session(status=status)
 
         client, _ = self.hub._stack[-1]  # type: ignore
-        client.flush()
+        if client is not None:
+            client.flush()
 
         return None
 
