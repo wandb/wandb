@@ -474,7 +474,7 @@ jobs:
       - install_go
       - python_venv:
           py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>
+          machine: <<parameters.executor.name>>
 
       # For now, this step needs to be duplicated because there's no way
       # in YAML or CircleCI's config to change just the final argument to
@@ -550,7 +550,7 @@ jobs:
       - install_go
       - python_venv:
           py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>
+          machine: <<parameters.executor.name>>
 
       # TODO: replace tests with pytest markers and remove the conditional
       - when:
@@ -743,7 +743,7 @@ jobs:
       - install_go
       - python_venv:
           py: <<parameters.python_version_major>><<parameters.python_version_minor>>
-          machine: <<parameters.executor>>
+          machine: <<parameters.executor.name>>
       - run:
           name: Run tests
           no_output_timeout: 10m
