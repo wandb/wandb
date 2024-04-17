@@ -1,17 +1,16 @@
 """Artifact saver."""
 
 import concurrent.futures
+import io
 import json
-import os
 import sys
-import tempfile
 from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_bytes
 from wandb.sdk.lib.paths import URIStr
 
 if TYPE_CHECKING:
@@ -193,10 +192,10 @@ class ArtifactSaver:
 
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
-            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
-                path = os.path.abspath(fp.name)
-                json.dump(self._manifest.to_manifest_json(), fp, indent=4)
-            digest = md5_file_b64(path)
+            encoded_json = json.dumps(
+                self._manifest.to_manifest_json(), indent=4
+            ).encode("utf-8")
+            digest = md5_bytes(encoded_json)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
@@ -224,12 +223,11 @@ class ArtifactSaver:
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp2:
-                self._api.upload_file_retry(
-                    upload_url,
-                    fp2,
-                    extra_headers=extra_headers,
-                )
+            self._api.upload_file_retry(
+                upload_url,
+                io.BytesIO(encoded_json),
+                extra_headers=extra_headers,
+            )
 
         commit_result: concurrent.futures.Future[None] = concurrent.futures.Future()
 
