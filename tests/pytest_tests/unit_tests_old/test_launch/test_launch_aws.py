@@ -393,7 +393,7 @@ async def test_no_sagemaker_resource_args(
 
 
 @pytest.mark.asyncio
-async def test_no_OuputDataConfig(
+async def test_no_OutputDataConfig(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     mock_env = MagicMock(spec=AwsEnvironment)
@@ -416,7 +416,7 @@ async def test_no_OuputDataConfig(
         lambda *args: None,
     )
     monkeypatch.setattr(
-        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE", "./random-nonexistant-file.yaml"
+        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE", "./random-nonexistent-file.yaml"
     )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"

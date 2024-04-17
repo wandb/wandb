@@ -24,7 +24,7 @@ def main():
         "relative quantities of the main ingredients, notably the amount of cream. "
         "Products that do not meet the criteria to be called ice cream are sometimes labelled "
         '"frozen dairy dessert" instead. In other countries, such as Italy and Argentina, '
-        "one word is used fo\r all variants. Analogues made from dairy alternatives, "
+        "one word is used for all variants. Analogues made from dairy alternatives, "
         "such as goat's or sheep's milk, or milk substitutes "
         "(e.g., soy, cashew, coconut, almond milk or tofu), are available for those who are "
         "lactose intolerant, allergic to dairy protein or vegan."
