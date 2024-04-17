@@ -1886,7 +1886,7 @@ def parse_version(version: str) -> "packaging.version.Version":
     try:
         from packaging.version import parse as parse_version  # type: ignore
     except ImportError:
-        from pkg_resources import parse_version
+        from pkg_resources import parse_version  # type: ignore[assignment]
 
     return parse_version(version)
 
@@ -1916,6 +1916,10 @@ def get_core_path() -> str:
 
     bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
     if not bin_path.exists():
-        raise WandbCoreNotAvailableError()
+        raise WandbCoreNotAvailableError(
+            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
+            " Please contact support at support@wandb.com to request `wandb-core`"
+            " support for your system."
+        )
 
     return str(bin_path)
