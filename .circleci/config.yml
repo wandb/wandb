@@ -338,11 +338,12 @@ commands:
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
             - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+                checksum "tox-cache-date.txt" }}-{{
                 checksum "requirements_dev.txt" }}-{{
                 checksum "requirements_test.txt" }}-{{
-                checksum "tox.ini" }}-{{
+                checksum "tox.ini" }}
+            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "tox-cache-date.txt" }}
-            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-
   save_cache_tox:
     steps:
       - save_cache:
