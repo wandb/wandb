@@ -368,6 +368,6 @@ def mypy(session: nox.Session) -> None:
         "pycobertura",
         "show",
         "--format",
-        "text",
+        "github-annotation",
         f"{path}/cobertura.xml",
     )
