@@ -1,10 +1,11 @@
 """Artifact saver."""
 
 import concurrent.futures
+import gzip
 import json
 import os
 import sys
-import tempfile
+from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
 
 import wandb
@@ -148,13 +149,13 @@ class ArtifactSaver:
             )
 
         manifest_type = "FULL"
-        manifest_filename = "wandb_manifest.json"
+        manifest_filename = "wandb_manifest.json.gz"
         if incremental:
             manifest_type = "INCREMENTAL"
-            manifest_filename = "wandb_manifest.incremental.json"
+            manifest_filename = "wandb_manifest.incremental.json.gz"
         elif distributed_id:
             manifest_type = "PATCH"
-            manifest_filename = "wandb_manifest.patch.json"
+            manifest_filename = "wandb_manifest.patch.json.gz"
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
             manifest_filename,
             "",
@@ -193,9 +194,11 @@ class ArtifactSaver:
 
         def before_commit() -> None:
             self._resolve_client_id_manifest_references()
-            with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
+            json_body = json.dumps(self._manifest.to_manifest_json(), indent=4)
+            with NamedTemporaryFile("wb", suffix=".json.gz", delete=False) as fp:
+                with gzip.open(fp, compresslevel=1) as gzipped_fp:
+                    gzipped_fp.write(json_body.encode("utf-8"))
                 path = os.path.abspath(fp.name)
-                json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = md5_file_b64(path)
             if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
@@ -217,13 +220,12 @@ class ArtifactSaver:
                     base_artifact_id=base_id,
                 )
 
-            # We're duplicating the file upload logic a little, which isn't great.
             upload_url = resp["uploadUrl"]
-            upload_headers = resp["uploadHeaders"]
-            extra_headers = {}
-            for upload_header in upload_headers:
-                key, val = upload_header.split(":", 1)
-                extra_headers[key] = val
+            headers = [h.split(":", 1) for h in resp["uploadHeaders"]]
+            extra_headers = {key.strip(): val.strip() for key, val in headers}
+            extra_headers.update(
+                {"Content-Type": "application/json", "Content-Encoding": "gzip"}
+            )
             with open(path, "rb") as fp2:
                 self._api.upload_file_retry(
                     upload_url,
