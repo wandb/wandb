@@ -347,6 +347,7 @@ commands:
           The executor name or the concatenation of the OS and architecture
           works. Virtualenvs are not portable across machines, so this is
           used to create different cache keys.
+        type: string
     steps:
       - restore_cache:
           name: Restore .venv
