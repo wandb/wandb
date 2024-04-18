@@ -329,7 +329,7 @@ def codegen(session: nox.Session) -> None:
 
 
 @nox.session(name="mypy-report")
-def mypy(session: nox.Session) -> None:
+def mypy_report(session: nox.Session) -> None:
     """Type-check the code with mypy.
 
     This session will install the package and run mypy with the --install-types flag.
