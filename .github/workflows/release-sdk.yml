@@ -238,6 +238,7 @@ jobs:
           - ubuntu-20.04
           - windows-2019
           - macos-14
+        use_core: [false, true]
     steps:
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -251,8 +252,10 @@ jobs:
           # python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
       - name: Smoke-test wandb TestPyPI install
         run: |
+          if [ "${{ matrix.use_core }}" == "true" ]; then
+            WANDB__REQUIRE_CORE=true
+          fi
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
-          python -c "import wandb; wandb.require('core'); run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
   # pypi-publish:
   #   name: Publish to PyPI
