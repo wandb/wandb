@@ -76,7 +76,6 @@ jobs:
           git archive --format=tar.gz --output=wandb-${{ github.event.inputs.version }}.tar.gz HEAD
       - name: Extract release notes and set output
         id: release_notes
-        if: ${{ inputs.update-changelog }}
         run: |
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
       - name: Draft Release
