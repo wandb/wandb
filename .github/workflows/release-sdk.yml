@@ -40,15 +40,13 @@ jobs:
 
       - name: Bump Version
         run: |
-          bump2version patch --no-tag --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
         if: ${{ github.event.inputs.update-changelog }}
         run: |
           DATE=$(date +'%Y-%m-%d')
           sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
-          git add CHANGELOG.md
-          git commit -m "Update CHANGELOG for release ${{ github.event.inputs.version }}"
 
       - name: Extract release notes
         id: release_notes
@@ -57,12 +55,12 @@ jobs:
           RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
           echo "::set-output name=release_notes::$RELEASE_NOTES"
 
-      - name: Lint
+      - name: Lint and commit changes
         run: |
           pip install pre-commit
           pre-commit install
           pre-commit run ruff-format --all-files --hook-stage pre-push
-          git commit -a -m "Lint sources"
+          git commit -m "Update CHANGELOG for release ${{ github.event.inputs.version }}"
 
       - name: Push changes
         run: |
