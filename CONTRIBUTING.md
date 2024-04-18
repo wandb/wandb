@@ -280,7 +280,7 @@ ensure that URLs do not lead to broken links.
 
 Once you add the URL to that file you will need to run:
 ```shell
-nox -s codegens
+nox -s codegen
 ```
 
 #### Deprecating features

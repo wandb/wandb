@@ -336,7 +336,6 @@ def mypy(session: nox.Session) -> None:
     If the report parameter is set to True, it will also generate an html report.
     """
     session.install("mypy")
-    session.install(".")
     session.install("httpx")
     session.install("types-click")
     session.install("pycobertura")
@@ -369,6 +368,6 @@ def mypy(session: nox.Session) -> None:
         "pycobertura",
         "show",
         "--format",
-        "github-annotation",
+        "text",
         f"{path}/cobertura.xml",
     )
