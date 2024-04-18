@@ -61,6 +61,14 @@ jobs:
           RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
           echo "::set-output name=release_notes::$RELEASE_NOTES"
 
+      - name: Lint
+        run: |
+          pip install -r pre-commit
+          pre-commit install
+          pre-commit run ruff --all-files
+          git add .
+          git commit -m "Lint sources"
+
       - name: Push changes
         run: |
           git push -f origin release-${{ github.event.inputs.version }}
