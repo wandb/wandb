@@ -24,6 +24,7 @@ jobs:
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
 
       - name: Install bump2version
         run: pip install bump2version
@@ -53,10 +54,9 @@ jobs:
           RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
           echo "::set-output name=release_notes::$RELEASE_NOTES"
 
-      - name: Print notes
+      - name: Push changes
         run: |
-          echo "Please verify the following release notes and cancel if incorrect:"
-          echo "${{ steps.release_notes.outputs.release_notes }}"
+          git push -f origin release-${{ github.event.inputs.version }}
 
   # build-platform-wheels:
   #   name: Build wheels on ${{ matrix.os }}
