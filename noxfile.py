@@ -239,27 +239,6 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
-@nox.session(python=False, name="bump-core-version")
-def bump_core_version(session: nox.Session) -> None:
-    args = session.posargs
-    if not args:
-        session.log("Usage: nox -s bump-core-version -- <args>\n")
-        # Examples:
-        session.log(
-            "For example, to bump from 0.17.0b8/0.17.0-beta.8 to 0.17.0b9/0.17.0-beta.9:"
-        )
-        session.log("nox -s bump-core-version -- pre")
-        return
-
-    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
-        session.run(
-            "bump2version",
-            "--config-file",
-            cfg,
-            *args,
-        )
-
-
 @nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
@@ -335,4 +314,60 @@ def proto_check_go(session: nox.Session) -> None:
         session,
         after=lambda: _generate_proto_go(session),
         in_directory="core/pkg/service/.",
+    )
+
+
+@nox.session(name="codegen")
+def codegen(session: nox.Session) -> None:
+    session.install("ruff")
+    session.install(".")
+
+    args = session.posargs
+    if not args:
+        args = ["--generate"]
+    session.run("python", "tools/generate-tool.py", *args)
+
+
+@nox.session(name="mypy-report")
+def mypy_report(session: nox.Session) -> None:
+    """Type-check the code with mypy.
+
+    This session will install the package and run mypy with the --install-types flag.
+    If the report parameter is set to True, it will also generate an html report.
+    """
+    session.install("mypy")
+    session.install("httpx")
+    session.install("types-click")
+    session.install("pycobertura")
+    session.install("lxml")
+
+    path = "mypy-results"
+
+    session.run(
+        "mkdir",
+        path,
+        external=True,
+    )
+
+    session.run(
+        "mypy",
+        "--install-types",
+        "--non-interactive",
+        "--show-error-codes",
+        "-p",
+        "wandb",
+        "--html-report",
+        path,
+        "--cobertura-xml-report",
+        path,
+        "--lineprecision-report",
+        path,
+    )
+
+    session.run(
+        "pycobertura",
+        "show",
+        "--format",
+        "text",
+        f"{path}/cobertura.xml",
     )

@@ -52,7 +52,7 @@ def mock_gcp_artifact_registry_client(monkeypatch):
             "us-central1",
             "us-central1-docker.pkg.dev/wandb-ml/vertex-ai/wandb-ml",
         ),
-        # Fails becaues no region.
+        # Fails because no region.
         (
             None,
             "vertex-ai",

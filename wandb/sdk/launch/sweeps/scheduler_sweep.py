@@ -59,7 +59,7 @@ class SweepScheduler(Scheduler):
         return None
 
     def _get_sweep_commands(self, worker_id: int) -> List[Dict[str, Any]]:
-        """Helper to recieve sweep command from backend."""
+        """Helper to receive sweep command from backend."""
         # AgentHeartbeat wants a Dict of runs which are running or queued
         _run_states: Dict[str, bool] = {}
         for run_id, run in self._yield_runs():

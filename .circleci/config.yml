@@ -218,6 +218,7 @@ commands:
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
 
             $HOME/go/bin/go version
+            $HOME/go/bin/go env -w GOCACHE=$HOME/.cache/go-build
           no_output_timeout: 1m
 
   setup_docker_buildx:
@@ -532,10 +533,13 @@ jobs:
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
-          command: nox -t proto-check
+          command: nox -vt proto-check
       - run:
-          name: Lint
-          command: tox run -v -e "auto-codegen-check, mypy, mypy-report"
+          name: Automatically generate code and check for changes
+          command: nox -vs codegen -- --check
+      - run:
+          name: Run mypy and report results
+          command: nox -vs mypy-report
       - save-test-results
 
   tox-base:
@@ -673,7 +677,7 @@ jobs:
 
   unit-tests-go:
     docker:
-      - image: cimg/go:1.21
+      - image: cimg/go:<<pipeline.parameters.go_version>>
     steps:
       - checkout
       - run:

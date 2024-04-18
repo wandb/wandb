@@ -13,7 +13,7 @@ assert:
     - :wandb:runs_len: 1
     - :wandb:artifacts[model-lovely-dawn-32][type]: model
     # Test doesnt always save 2 models since it might not improve
-    # on second epoch.  When test is made more determinstic, this
+    # on second epoch.  When test is made more deterministic, this
     # should be changed back to a stricter check
     - :op:>=:
       - :wandb:artifacts[model-lovely-dawn-32][num]

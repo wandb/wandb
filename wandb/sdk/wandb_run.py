@@ -1853,7 +1853,7 @@ class Run:
         picked up automatically.
 
         A `base_path` may be provided to control the directory structure of
-        uploaded files. It should be a prefix of `glob_str`, and the direcotry
+        uploaded files. It should be a prefix of `glob_str`, and the directory
         structure beneath it is preserved. It's best understood through
         examples:
 
@@ -3658,7 +3658,7 @@ class Run:
     # FOOTER
     # ------------------------------------------------------------------------------
     # Note: All the footer methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
