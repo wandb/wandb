@@ -1,4 +1,4 @@
-# This file is seperated from the main test file in
+# This file is separated from the main test file in
 # order to simulate models defined in external modules.
 import pytest
 
