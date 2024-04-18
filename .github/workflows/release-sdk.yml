@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Setup git config
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
       - name: Install bump2version
         run: pip install bump2version
 
