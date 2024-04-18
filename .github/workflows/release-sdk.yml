@@ -252,6 +252,7 @@ jobs:
       - name: Smoke-test wandb TestPyPI install
         run: |
           python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+          python -c "import wandb; wandb.require('core'); run = wandb.init(settings={'mode': 'offline'}); run.finish()"
 
   # pypi-publish:
   #   name: Publish to PyPI
