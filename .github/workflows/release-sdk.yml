@@ -72,7 +72,8 @@ jobs:
           ref: release-${{ github.event.inputs.version }}
       - name: Create Source Archives
         run: |
-          zip -r v${{ github.event.inputs.version }}.zip .
+          zip -r wandb-${{ github.event.inputs.version }}.zip .
+          tar -czf wandb-${{ github.event.inputs.version }}.tar.gz .
       - name: Extract release notes and set output
         id: release_notes
         if: ${{ github.event.inputs.update-changelog }}
@@ -85,7 +86,8 @@ jobs:
           tag_name: v${{ github.event.inputs.version }}
           body_path: release_notes.md
           files: |
-            v${{ github.event.inputs.version }}.zip
+            wandb-${{ github.event.inputs.version }}.zip
+            wandb-${{ github.event.inputs.version }}.tar.gz
           draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
