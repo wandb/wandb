@@ -70,17 +70,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: release-${{ github.event.inputs.version }}
-      - name: Extract release notes and set output
-        id: release_notes
-        if: ${{ github.event.inputs.update-changelog }}
-        run: |
-          RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
       - name: Draft Release
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
-          body: $RELEASE_NOTES
+          body: $(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
           draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
