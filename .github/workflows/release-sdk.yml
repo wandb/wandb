@@ -59,7 +59,7 @@ jobs:
 
       - name: Lint
         run: |
-          pip install -r pre-commit
+          pip install pre-commit
           pre-commit install
           pre-commit run ruff --all-files
           git add .
