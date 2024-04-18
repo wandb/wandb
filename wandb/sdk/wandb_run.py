@@ -1911,6 +1911,9 @@ class Run:
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
+        # NOTE: We use PurePath instead of Path because WindowsPath doesn't
+        # like asterisks and errors out in resolve(). It also makes logical
+        # sense: globs aren't real paths, they're just path-like strings.
         glob_path = pathlib.PurePath(glob_str)
         resolved_glob_path = pathlib.PurePath(os.path.abspath(glob_path))
 
