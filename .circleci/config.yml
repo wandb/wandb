@@ -1561,7 +1561,7 @@ workflows:
       #
       # Store latest local-testcontainer
       #
-      - store-local-testcontainer
+      - store-local-testcontainer:
           filters:
             branches:
               only:
