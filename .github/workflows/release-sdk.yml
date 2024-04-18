@@ -60,7 +60,7 @@ jobs:
           pip install pre-commit
           pre-commit install
           # if there are linting errors, this will fix them and proceed
-          sh -c 'pre-commit run ruff-format trailing-whitespace --all-files --hook-stage pre-push' || exit 0
+          sh -c 'pre-commit run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
 
       - name: Commit and push changes
         run: |
