@@ -61,7 +61,7 @@ jobs:
         run: |
           pip install pre-commit
           pre-commit install
-          pre-commit run ruff --all-files
+          pre-commit run ruff --all-files --hook-stage pre-push
           git add .
           git commit -m "Lint sources"
 
