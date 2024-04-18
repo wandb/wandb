@@ -1681,8 +1681,10 @@ workflows:
               with_core: [true, false]
             exclude:
               - with_core: true
+                python_version_major: 3
                 python_version_minor: 9
               - with_core: true
+                python_version_major: 3
                 python_version_minor: 12
 
 
