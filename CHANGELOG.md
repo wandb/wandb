@@ -7,10 +7,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Starting with the 0.16.4 release on March 5, 2024, the format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased (next release should be 0.17 at least)
+Please add to the relevant subsections under Unreleased below on every PR where this is applicable.
 
-We follow https://keepachangelog.com/en/1.1.0/. Please add to relevant subsections
-here on every PR where this is applicable.
+## Unreleased
 
 ### Added
 

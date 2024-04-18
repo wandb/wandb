@@ -228,9 +228,9 @@ To install all of our pre-commit hooks run:
 pre-commit install
 ```
 
-If you just want to run a specific hook, like formating your code, you could run the following:
+If you just want to run a specific hook, for example formating your code, you could run the following:
 ```shell
-pre-commit run ruff --all-files --hook-stage pre-push
+pre-commit run ruff-format --all-files --hook-stage pre-push
 ```
 
 ### Auto-Generating Code
