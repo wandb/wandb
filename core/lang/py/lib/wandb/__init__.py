@@ -78,7 +78,12 @@ class Run:
     def log(self, data):
         data_msg = pb2.DataRecord()
         for k, v in data.items():
-            data_msg.item[k].value_string = "1"
+            if type(v) == int:
+                data_msg.item[k].value_int = v
+            elif type(v) == float:
+                data_msg.item[k].value_double = v
+            elif type(v) == str:
+                data_msg.item[k].value_string = v
         data_bytes = data_msg.SerializeToString()
         # input_buffer = create_string_buffer(data_bytes)
         self._lib.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))

@@ -40,7 +40,21 @@ func pbRunLog(num int, cBuffer *C.char, cLength C.int) {
                 return
         }
         // Process data (here simply prepending a string)
-        // fmt.Printf("PROTO %+v\n", msg)
+	run := wandbRuns.Get(num)
+
+        dict := make(map[string]interface{})
+        for k, v := range msg.Item {
+                switch value := v.DataType.(type) {
+                case *service.DataValue_ValueInt:
+                        dict[k] = value.ValueInt
+                case *service.DataValue_ValueDouble:
+                        dict[k] = value.ValueDouble
+                case *service.DataValue_ValueString:
+                        dict[k] = value.ValueString
+                }
+        }
+
+	run.Log(dict)
 }
 
 //export pbRunFinish
