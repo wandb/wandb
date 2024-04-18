@@ -73,7 +73,6 @@ jobs:
       - name: Create Source Archives
         run: |
           zip -r v${{ github.event.inputs.version }}.zip .
-          tar czvf v${{ github.event.inputs.version }}.tar.gz .
       - name: Extract release notes and set output
         id: release_notes
         if: ${{ github.event.inputs.update-changelog }}
