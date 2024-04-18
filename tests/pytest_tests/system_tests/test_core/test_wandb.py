@@ -365,7 +365,7 @@ def test_log_multiple_cases_example(relay_server, wandb_init):
     assert relay.context.history["_step"].tolist() == [0, 1, 100, 101, 102]
 
 
-def test_log_step_uncommited(relay_server, wandb_init):
+def test_log_step_uncommitted(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         run.log(dict(cool=2), step=2, commit=False)

@@ -276,7 +276,7 @@ class JobBuilder:
         return source, name
 
     def _make_job_name(self, input_str: str) -> str:
-        """Use job name from settings if provided, else use programatic name."""
+        """Use job name from settings if provided, else use programmatic name."""
         if self._settings.job_name:
             return self._settings.job_name
 

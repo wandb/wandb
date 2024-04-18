@@ -241,7 +241,7 @@ class LaunchAgent:
         """Determine whether a job/runSpec is a sweep scheduler."""
         if not run_spec:
             self._internal_logger.debug(
-                "Recieved runSpec in _is_scheduler_job that was empty"
+                "Received runSpec in _is_scheduler_job that was empty"
             )
 
         if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
