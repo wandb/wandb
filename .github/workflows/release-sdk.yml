@@ -36,11 +36,7 @@ jobs:
 
       - name: Create and Switch to Release Branch
         run: |
-          if git ls-remote --heads origin release-${{ github.event.inputs.version }} | grep release-${{ github.event.inputs.version }}; then
-            git checkout release-${{ github.event.inputs.version }}
-          else
-            git checkout -b release-${{ github.event.inputs.version }}
-          fi
+          git checkout -b release-${{ github.event.inputs.version }}
 
       - name: Bump Version
         run: |
