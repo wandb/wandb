@@ -9,7 +9,7 @@ on:
         required: true
       update-changelog:
         type: boolean
-        description: "whether to update the changelog and release notes"
+        description: "update the changelog and release notes"
         required: false
         default: false
 
