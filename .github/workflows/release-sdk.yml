@@ -228,7 +228,8 @@ jobs:
 
   verify-test-pypi:
     # needs: test-pypi-publish
-    name: Verify TestPyPI upload on ${{ matrix.os }}
+    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
@@ -239,9 +240,9 @@ jobs:
           - windows-2019
           - macos-14
         use_core: [false, true]
-        # exclude:
-        #   - os: windows-2019
-        #     use_core: true
+        exclude:
+          - os: windows-2019
+            use_core: true
     steps:
       - name: Setup Python
         uses: actions/setup-python@v4
