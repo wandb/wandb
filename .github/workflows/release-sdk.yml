@@ -59,7 +59,8 @@ jobs:
         run: |
           pip install pre-commit
           pre-commit install
-          pre-commit run ruff-format --all-files --hook-stage pre-push
+          # if there are linting errors, this will fix them and proceed
+          sh -c 'pre-commit run ruff-format --all-files --hook-stage pre-push' || true
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
 
       - name: Push changes
