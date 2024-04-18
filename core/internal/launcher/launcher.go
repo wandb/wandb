@@ -31,6 +31,7 @@ func readLines(path string) ([]string, error) {
 
 type Launcher struct {
 	portFilename string
+        pidParent int
 }
 
 func (l *Launcher) tryport() (int, error) {
@@ -80,7 +81,7 @@ func (l *Launcher) prepTempfile() {
 
 func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
 	l.prepTempfile()
-	args := []string{"--port-filename", l.portFilename}
+	args := []string{"--port-filename", l.portFilename, "--pid", string(l.pidParent)}
 	cmd, err := execbin.ForkExecCommand(command, args)
 	if err != nil {
 		panic(err)
@@ -91,7 +92,7 @@ func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
 func (l *Launcher) LaunchBinary(filePayload []byte) (*execbin.ForkExecCmd, error) {
 	l.prepTempfile()
 
-	args := []string{"--port-filename", l.portFilename}
+	args := []string{"--port-filename", l.portFilename, "--pid", strconv.Itoa(l.pidParent)}
 	cmd, err := execbin.ForkExec(filePayload, args)
 	if err != nil {
 		panic(err)
@@ -99,6 +100,6 @@ func (l *Launcher) LaunchBinary(filePayload []byte) (*execbin.ForkExecCmd, error
 	return cmd, err
 }
 
-func NewLauncher() *Launcher {
-	return &Launcher{}
+func NewLauncher(pidParent int) *Launcher {
+        return &Launcher{pidParent: pidParent}
 }

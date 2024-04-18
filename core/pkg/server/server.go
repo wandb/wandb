@@ -4,8 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"net"
+        "os"
 	"sync"
 	"sync/atomic"
+        "time"
 )
 
 const BufferSize = 32
@@ -28,10 +30,13 @@ type Server struct {
 
 	// shutdownChan is the channel for signaling shutdown
 	shutdownChan chan struct{}
+
+	// pidwatchChan is the channel for signaling shutdown of pid watcher
+	pidwatchChan chan struct{}
 }
 
 // NewServer creates a new server
-func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
+func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -43,13 +48,34 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 		wg:           sync.WaitGroup{},
 		teardownChan: make(chan struct{}),
 		shutdownChan: make(chan struct{}),
+		pidwatchChan: make(chan struct{}),
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
 	writePortFile(portFile, port)
 	s.wg.Add(1)
 	go s.Serve()
+        if pid != 0 {
+                s.wg.Add(1)
+                go s.WatchParentPid(pid)
+        }
 	return s, nil
+}
+
+func (s *Server) WatchParentPid(pid int) {
+	defer s.wg.Done()
+        outer:
+        for {
+                select {
+                case <-s.pidwatchChan:
+                    break outer
+                case <-time.After(100 * time.Millisecond):
+                }
+                parentpid := os.Getppid()
+                if parentpid != pid {
+                        os.Exit(2)
+                }
+        }
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
@@ -87,6 +113,7 @@ func (s *Server) Serve() {
 
 // Close closes the server
 func (s *Server) Close() {
+	<-s.pidwatchChan
 	<-s.teardownChan
 	close(s.shutdownChan)
 	if err := s.listener.Close(); err != nil {

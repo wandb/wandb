@@ -10,6 +10,7 @@ typedef enum {
 import "C"
 
 import (
+        "os"
 	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/gowandb/internal_runopts"
@@ -31,8 +32,10 @@ func wandbcoreSetup() {
 		return
 	}
 	var err error
+        currentPid := os.Getpid()
 	wandbSession, err = gowandb.NewSession(
 		sessionopts.WithCoreBinary(coreBinary),
+		sessionopts.WithPidParent(currentPid),
 	)
 	if err != nil {
 		panic(err)
