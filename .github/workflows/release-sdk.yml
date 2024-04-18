@@ -77,7 +77,7 @@ jobs:
       - name: Extract release notes and set output
         id: release_notes
         run: |
-          echo "## What's Changed\n" > release_notes.md
+          echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
       - name: Draft Release
         uses: softprops/action-gh-release@v2
