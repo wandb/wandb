@@ -205,7 +205,7 @@ async def test_vertex_runner_works(vertex_runner, mock_aiplatform):
     assert submitted_spec[0]["container_spec"]["image_uri"] == "test-image"
     assert submitted_spec[1]["machine_spec"]["machine_type"] == "n1-standard-8"
     assert submitted_spec[1]["replica_count"] == 1
-    # This assertion tests macro substituion of the image uri.
+    # This assertion tests macro substitution of the image uri.
     assert submitted_spec[1]["container_spec"]["image_uri"] == "test-image"
 
     submitted_run._job = MockCustomJob(["PENDING", "RUNNING", "SUCCEEDED"])

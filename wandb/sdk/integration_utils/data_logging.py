@@ -78,7 +78,7 @@ class ValidationDataLogger:
                 Defaults to `"wb_validation_data"`.
             artifact_type: The artifact type to use for the validation data.
                 Defaults to `"validation_dataset"`.
-            class_labels: Optional list of lables to use in the inferred
+            class_labels: Optional list of labels to use in the inferred
                 processors. If the model's `target` or `output` is inferred to be a class,
                 we will attempt to map the class to these labels. Defaults to `None`.
             infer_missing_processors: Determines if processors are inferred if
@@ -262,7 +262,7 @@ def _infer_single_example_keyed_processor(
     ):
         np = wandb.util.get_module(
             "numpy",
-            required="Infering processors require numpy",
+            required="Inferring processors require numpy",
         )
         # Assume these are logits
         class_names = class_labels_table.get_column("label")
@@ -301,7 +301,7 @@ def _infer_single_example_keyed_processor(
     elif len(shape) == 1:
         np = wandb.util.get_module(
             "numpy",
-            required="Infering processors require numpy",
+            required="Inferring processors require numpy",
         )
         # This could be anything
         if shape[0] <= 10:
@@ -354,7 +354,7 @@ def _infer_validation_row_processor(
     input_col_name: str = "input",
     target_col_name: str = "target",
 ) -> Callable:
-    """Infers the composit processor for the validation data."""
+    """Infers the composite processor for the validation data."""
     single_processors = {}
     if isinstance(example_input, dict):
         for key in example_input:
@@ -431,7 +431,7 @@ def _infer_prediction_row_processor(
     input_col_name: str = "input",
     output_col_name: str = "output",
 ) -> Callable:
-    """Infers the composit processor for the prediction output data."""
+    """Infers the composite processor for the prediction output data."""
     single_processors = {}
 
     if isinstance(example_prediction, dict):

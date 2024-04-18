@@ -404,7 +404,9 @@ class LaunchProject:
             _logger.debug("")
             return self.docker_image
         else:
-            raise LaunchError("Unknown source type when determing image source string")
+            raise LaunchError(
+                "Unknown source type when determining image source string"
+            )
 
     def _ensure_not_docker_image_and_local_process(self) -> None:
         """Ensure that docker image is not specified with local-process resource runner.
