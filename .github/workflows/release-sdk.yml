@@ -60,9 +60,201 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
+  build-platform-wheels:
+    name: Build wheels on ${{ matrix.os }}
+    needs: prepare-release
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - windows-2019
+          - macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      ##################################################
+      # Linux only: get QEMU, required by cibuildwheel
+      ##################################################
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      ##################################################
+      # Non-Linux: install Go
+      #
+      # See comment above CIBW_BEFORE_ALL_LINUX.
+      ##################################################
+      - name: Set up Go
+        if: runner.os != 'Linux'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      ##################################################
+      # All platforms: create wheels
+      ##################################################
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.17.0
+        with:
+           package-dir: .
+           output-dir: dist
+        env:
+          # In cp36-*, the wheel name sometimes includes additional dashes that
+          # make it invalid, breaking the job.
+          #
+          # Not sure why we skip PyPy and musllinux builds.
+          #
+          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+          CIBW_SKIP: cp36-* pp* *musllinux*
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+
+          # Work around https://github.com/matthew-brett/delocate/issues/204
+          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
+          # repair wheel command.
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-wheel \
+              --require-archs {delocate_archs} \
+              --ignore-missing-dependencies \
+              -w {dest_dir} \
+              -v {wheel}
+
+          # Linux is special because it's built in a container using qemu,
+          # so we must download Go manually rather than using actions/setup-go.
+          #
+          # It may be possible to use the GitHub action if we are smart
+          # about it.
+          CIBW_BEFORE_ALL_LINUX: >
+            case $(uname -m) in
+              aarch64) export DOWNLOAD_GOARCH=arm64;;
+              x86_64) export DOWNLOAD_GOARCH=amd64;;
+            esac &&
+            export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
+            curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
+            tar -C /usr/local/ -xzf go.tar.gz
+          CIBW_ENVIRONMENT_LINUX:
+            PATH=$PATH:/usr/local/go/bin
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: ./dist
+
+  build-universal-wheel:
+    name: Build universal wheel (no wandb-core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Build wheel
+        run: pip wheel -w wheelhouse --no-deps .
+        env:
+          WANDB_BUILD_UNIVERSAL: True
+
+      - name: Copy wheel to ./dist
+        run: |
+          mkdir dist/
+          cp wheelhouse/wandb-*-py3-none-any.whl dist/
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: ./dist
+
+  test-pypi-publish:
+    name: Publish to TestPyPI
+    needs: [build-platform-wheels, build-universal-wheel]
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://test.pypi.org/p/wandb
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - name: Download distribution
+        uses: actions/download-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: dist/
+      - name: List distribution
+        run: ls dist/
+      - name: Publish distribution to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  verify-test-pypi:
+    needs: test-pypi-publish
+    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - windows-2019
+          - macos-14
+        use_core: [false, true]
+        exclude:
+          - os: windows-2019
+            use_core: true
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install wandb from TestPyPI
+        run: |
+          sleep 30
+          python -m pip install --upgrade pip
+          python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
+      - name: Smoke-test wandb TestPyPI install
+        run: |
+          WANDB__REQUIRE_CORE=${{ matrix.use_core }} python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+        shell: bash
+
+  pypi-publish:
+    name: Publish to PyPI
+    needs: test-pypi-publish
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/p/wandb
+    steps:
+      - name: Download distribution
+        uses: actions/download-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: dist/
+      - name: List distribution
+        run: ls dist/
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+
   publish-release-notes:
     name: Publish Release Notes
-    needs: prepare-release
+    needs: pypi-publish
     runs-on: ubuntu-latest
     if: ${{ inputs.update-changelog }}
     steps:
@@ -91,214 +283,26 @@ jobs:
           draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # build-platform-wheels:
-  #   name: Build wheels on ${{ matrix.os }}
-  #   runs-on: ${{ matrix.os }}
-  #   timeout-minutes: 20
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os:
-  #         - ubuntu-20.04
-  #         - windows-2019
-  #         - macos-14
-
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     ##################################################
-  #     # Linux only: get QEMU, required by cibuildwheel
-  #     ##################################################
-  #     - name: Set up QEMU
-  #       if: runner.os == 'Linux'
-  #       uses: docker/setup-qemu-action@v2
-  #       with:
-  #         platforms: all
-
-  #     ##################################################
-  #     # Non-Linux: install Go
-  #     #
-  #     # See comment above CIBW_BEFORE_ALL_LINUX.
-  #     ##################################################
-  #     - name: Set up Go
-  #       if: runner.os != 'Linux'
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: core/go.mod
-  #         cache-dependency-path: core/go.sum
-
-  #     ##################################################
-  #     # All platforms: create wheels
-  #     ##################################################
-  #     - name: Build wheels
-  #       uses: pypa/cibuildwheel@v2.17.0
-  #       with:
-  #          package-dir: .
-  #          output-dir: dist
-  #       env:
-  #         # In cp36-*, the wheel name sometimes includes additional dashes that
-  #         # make it invalid, breaking the job.
-  #         #
-  #         # Not sure why we skip PyPy and musllinux builds.
-  #         #
-  #         # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-  #         CIBW_SKIP: cp36-* pp* *musllinux*
-  #         CIBW_ARCHS_LINUX: x86_64 aarch64
-  #         CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
-
-  #         # Work around https://github.com/matthew-brett/delocate/issues/204
-  #         # by adding `--ignore-missing-dependencies` to cibuildwheel's default
-  #         # repair wheel command.
-  #         CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
-  #           delocate-wheel \
-  #             --require-archs {delocate_archs} \
-  #             --ignore-missing-dependencies \
-  #             -w {dest_dir} \
-  #             -v {wheel}
-
-  #         # Linux is special because it's built in a container using qemu,
-  #         # so we must download Go manually rather than using actions/setup-go.
-  #         #
-  #         # It may be possible to use the GitHub action if we are smart
-  #         # about it.
-  #         CIBW_BEFORE_ALL_LINUX: >
-  #           case $(uname -m) in
-  #             aarch64) export DOWNLOAD_GOARCH=arm64;;
-  #             x86_64) export DOWNLOAD_GOARCH=amd64;;
-  #           esac &&
-  #           export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
-  #           curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
-  #           tar -C /usr/local/ -xzf go.tar.gz
-  #         CIBW_ENVIRONMENT_LINUX:
-  #           PATH=$PATH:/usr/local/go/bin
-
-  #     - uses: actions/upload-artifact@v3
-  #       with:
-  #         name: wandb-sdk-distributions
-  #         path: ./dist
-
-  # build-universal-wheel:
-  #   name: Build universal wheel (no wandb-core)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.10'
-
-  #     - name: Build wheel
-  #       run: pip wheel -w wheelhouse --no-deps .
-  #       env:
-  #         WANDB_BUILD_UNIVERSAL: True
-
-  #     - name: Copy wheel to ./dist
-  #       run: |
-  #         mkdir dist/
-  #         cp wheelhouse/wandb-*-py3-none-any.whl dist/
-
-  #     - uses: actions/upload-artifact@v3
-  #       with:
-  #         name: wandb-sdk-distributions
-  #         path: ./dist
-
-  # test-pypi-publish:
-  #   name: Publish to TestPyPI
-  #   needs: [build-platform-wheels, build-universal-wheel]
-  #   continue-on-error: true
-  #   runs-on: ubuntu-latest
-  #   environment:
-  #     name: release
-  #     url: https://test.pypi.org/p/wandb
-  #   permissions:
-  #     id-token: write  # trusted publishing
-  #   steps:
-  #     - name: Download distribution
-  #       uses: actions/download-artifact@v3
-  #       with:
-  #         name: wandb-sdk-distributions
-  #         path: dist/
-  #     - name: List distribution
-  #       run: ls dist/
-  #     - name: Publish distribution to TestPyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         repository-url: https://test.pypi.org/legacy/
-
-  verify-test-pypi:
-    # needs: test-pypi-publish
-    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
-
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-20.04
-          - windows-2019
-          - macos-14
-        use_core: [false, true]
-        exclude:
-          - os: windows-2019
-            use_core: true
+  slack:
+    name: Post to Slack
+    needs: publish-release-notes
+    runs-on: ubuntu-latest
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-      - name: Install wandb from TestPyPI
+      - name: Install from PyPI and get version
+        id: get_version
         run: |
-          sleep 5
+          sleep 60
           python -m pip install --upgrade pip
-          python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
-          # python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
-      - name: Smoke-test wandb TestPyPI install
-        run: |
-          WANDB__REQUIRE_CORE=${{ matrix.use_core }} python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
-        shell: bash
-
-  # pypi-publish:
-  #   name: Publish to PyPI
-  #   needs: test-pypi-publish
-  #   runs-on: ubuntu-latest
-  #   environment:
-  #     name: release
-  #     url: https://pypi.org/p/wandb
-  #   steps:
-  #     - name: Download distribution
-  #       uses: actions/download-artifact@v3
-  #       with:
-  #         name: wandb-sdk-distributions
-  #         path: dist/
-  #     - name: List distribution
-  #       run: ls dist/
-  #     - name: Publish distribution to PyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         password: ${{ secrets.PYPI_TOKEN }}
-
-  # slack:
-  #   name: Post to Slack
-  #   needs: pypi-publish
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Install from PyPI and get version
-  #       id: get_version
-  #       run: |
-  #         sleep 60
-  #         python -m pip install --upgrade pip
-  #         python -m pip install wandb==${{ github.event.inputs.version }}
-  #     - name: Post to Slack
-  #       id: slack
-  #       uses: slackapi/slack-github-action@v1.24.0
-  #       with:
-  #         # Slack channel id, channel name, or user id to post message.
-  #         # See also: https://api.slack.com/methods/chat.postMessage#channels
-  #         # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
-  #         channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
-  #         # For posting a simple plain text message
-  #         slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
-  #       env:
-  #         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          python -m pip install wandb==${{ github.event.inputs.version }}
+      - name: Post to Slack
+        id: slack
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          # Slack channel id, channel name, or user id to post message.
+          # See also: https://api.slack.com/methods/chat.postMessage#channels
+          # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
+          channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
+          # For posting a simple plain text message
+          slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
