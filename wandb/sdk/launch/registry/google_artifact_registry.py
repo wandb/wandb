@@ -211,7 +211,7 @@ class GoogleArtifactRegistry(AbstractRegistry):
             for image in await list_images(request={"parent": parent}):
                 if tag in image.tags:
                     return True
-        except google.api_core.exceptions.NotFound as e:
+        except google.api_core.exceptions.NotFound as e:  # type: ignore[attr-defined]
             raise LaunchError(
                 f"The Google Artifact Registry repository {self.repository} "
                 f"does not exist. Please create it or modify your registry configuration."

@@ -50,7 +50,7 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
 def test_ecr_init(uri, account_id, region, repo_name, expected_uri):
     """This tests how we initialize the ElasticContainerRegistry.
 
-    It basically just checks that we alway set the arguments correctly.
+    It basically just checks that we always set the arguments correctly.
     """
     if expected_uri is None:
         with pytest.raises(LaunchError):
