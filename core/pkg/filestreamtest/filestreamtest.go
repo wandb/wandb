@@ -45,10 +45,15 @@ func (fs *FakeFileStream) GetLastTransmitTime() time.Time {
 // Prove that we implement the interface.
 var _ filestream.FileStream = &FakeFileStream{}
 
-func (fs *FakeFileStream) Start()                                              {}
-func (fs *FakeFileStream) Close()                                              {}
-func (fs *FakeFileStream) SetPath(path string)                                 {}
-func (fs *FakeFileStream) SetOffsets(offsetMap filestream.FileStreamOffsetMap) {}
+func (fs *FakeFileStream) Start(
+	entity string,
+	project string,
+	runID string,
+	offsetMap filestream.FileStreamOffsetMap,
+) {
+}
+
+func (fs *FakeFileStream) Close() {}
 
 func (fs *FakeFileStream) StreamRecord(rec *service.Record) {
 	fs.Lock()

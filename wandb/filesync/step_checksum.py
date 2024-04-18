@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from wandb.filesync import stats
     from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-    from wandb.sdk.artifacts.artifact_saver import SaveFn, SaveFnAsync
+    from wandb.sdk.artifacts.artifact_saver import SaveFn
     from wandb.sdk.internal import internal_api
 
 
@@ -31,7 +31,6 @@ class RequestStoreManifestFiles(NamedTuple):
     manifest: "ArtifactManifest"
     artifact_id: str
     save_fn: "SaveFn"
-    save_fn_async: "SaveFnAsync"
 
 
 class RequestCommitArtifact(NamedTuple):
@@ -96,7 +95,6 @@ class StepChecksum:
                         req.copy,
                         None,
                         None,
-                        None,
                     )
                 )
             elif isinstance(req, RequestStoreManifestFiles):
@@ -115,7 +113,6 @@ class StepChecksum:
                                 entry.digest,
                                 False,
                                 functools.partial(req.save_fn, entry),
-                                functools.partial(req.save_fn_async, entry),
                                 entry.digest,
                             )
                         )

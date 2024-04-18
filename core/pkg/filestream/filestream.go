@@ -32,6 +32,7 @@
 package filestream
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -64,8 +65,18 @@ const (
 )
 
 type FileStream interface {
-	// Start creates internal goroutines without blocking.
-	Start()
+	// Start asynchronously begins to upload to the backend.
+	//
+	// All operations are associated with the specified run (defined by
+	// `entity`, `project` and `runID`). In case we are resuming a run,
+	// the `offsetMap` specifies the initial file offsets for each file
+	// type (history, output logs, events, summary).
+	Start(
+		entity string,
+		project string,
+		runID string,
+		offsetMap FileStreamOffsetMap,
+	)
 
 	// Close waits for all work to be completed.
 	Close()
@@ -78,12 +89,6 @@ type FileStream interface {
 	// This is used in some deployments where the backend is not notified when
 	// files finish uploading.
 	SignalFileUploaded(path string)
-
-	// SetPath sets the path portion of the URL to which to send HTTP requests.
-	SetPath(path string)
-
-	// SetOffsets sets the per-chunk offsets to stream to.
-	SetOffsets(offsetMap FileStreamOffsetMap)
 
 	// GetLastTransmitTime returns the last time we sent data to the server.
 	GetLastTransmitTime() time.Time
@@ -185,22 +190,28 @@ func NewFileStream(params FileStreamParams) FileStream {
 	return fs
 }
 
-func (fs *fileStream) SetPath(path string) {
-	fs.path = path
-}
-
-func (fs *fileStream) SetOffsets(offsetMap FileStreamOffsetMap) {
-	for k, v := range offsetMap {
-		fs.offsetMap[k] = v
-	}
-}
-
 func (fs *fileStream) GetLastTransmitTime() time.Time {
 	return fs.lastTransmitTime
 }
 
-func (fs *fileStream) Start() {
+func (fs *fileStream) Start(
+	entity string,
+	project string,
+	runID string,
+	offsetMap FileStreamOffsetMap,
+) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
+
+	fs.path = fmt.Sprintf(
+		"files/%s/%s/%s/file_stream",
+		entity,
+		project,
+		runID,
+	)
+
+	for k, v := range offsetMap {
+		fs.offsetMap[k] = v
+	}
 
 	fs.processWait.Add(1)
 	go func() {

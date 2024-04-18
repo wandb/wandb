@@ -43,7 +43,7 @@ class StoragePolicy:
     ) -> FilePathStr:
         raise NotImplementedError
 
-    def store_file_sync(
+    def store_file(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -51,17 +51,6 @@ class StoragePolicy:
         preparer: "StepPrepare",
         progress_callback: Optional["ProgressFn"] = None,
     ) -> bool:
-        raise NotImplementedError
-
-    async def store_file_async(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: "ArtifactManifestEntry",
-        preparer: "StepPrepare",
-        progress_callback: Optional["ProgressFn"] = None,
-    ) -> bool:
-        """Async equivalent to `store_file_sync`."""
         raise NotImplementedError
 
     def store_reference(
