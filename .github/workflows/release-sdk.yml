@@ -60,11 +60,11 @@ jobs:
           pip install pre-commit
           pre-commit install
           # if there are linting errors, this will fix them and proceed
-          sh -c 'pre-commit run ruff-format --all-files --hook-stage pre-push' || true
-          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
+          sh -c 'pre-commit run ruff-format --all-files --hook-stage pre-push' || exit 0
 
-      - name: Push changes
+      - name: Commit and push changes
         run: |
+          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push -f origin release-${{ github.event.inputs.version }}
 
   # build-platform-wheels:
