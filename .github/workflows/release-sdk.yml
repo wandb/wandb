@@ -60,7 +60,7 @@ jobs:
           pip install pre-commit
           pre-commit install
           pre-commit run ruff-format --all-files --hook-stage pre-push
-          git commit -m "Update CHANGELOG for release ${{ github.event.inputs.version }}"
+          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
 
       - name: Push changes
         run: |
