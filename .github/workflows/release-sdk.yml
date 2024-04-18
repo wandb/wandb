@@ -86,7 +86,6 @@ jobs:
           body_path: release_notes.md
           files: |
             v${{ github.event.inputs.version }}.zip
-            v${{ github.event.inputs.version }}.tar.gz
           draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
