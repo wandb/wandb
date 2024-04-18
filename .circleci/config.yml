@@ -1559,6 +1559,15 @@ workflows:
       - code-check
 
       #
+      # Store latest local-testcontainer
+      #
+      - store-local-testcontainer
+          filters:
+            branches:
+              only:
+                - main
+
+      #
       # Prep jobs
       #
       # TODO: pre-create toxenvs for all python versions,
