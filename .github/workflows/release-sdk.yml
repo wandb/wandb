@@ -73,6 +73,7 @@ jobs:
     name: Publish Release Notes
     needs: prepare-release
     runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.update-changelog }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
