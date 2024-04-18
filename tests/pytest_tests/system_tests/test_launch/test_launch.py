@@ -6,7 +6,6 @@ import wandb
 from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch._launch import _launch
-from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
 
 
