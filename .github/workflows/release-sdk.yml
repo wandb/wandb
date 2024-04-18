@@ -55,7 +55,7 @@ jobs:
           RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
           echo "::set-output name=release_notes::$RELEASE_NOTES"
 
-      - name: Lint and commit changes
+      - name: Lint changes
         run: |
           pip install pre-commit
           pre-commit install
@@ -65,7 +65,7 @@ jobs:
       - name: Commit and push changes
         run: |
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
-          git push -f origin release-${{ github.event.inputs.version }}
+          git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
   # build-platform-wheels:
   #   name: Build wheels on ${{ matrix.os }}
