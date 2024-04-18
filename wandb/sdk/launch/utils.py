@@ -336,18 +336,6 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return (ref.entity, ref.project, ref.run_id)
 
 
-def is_bare_wandb_uri(uri: str) -> bool:
-    """Check that a wandb uri is valid.
-
-    URI must be in the format
-    `/<entity>/<project>/runs/<run_name>[other stuff]`
-    or
-    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
-    """
-    _logger.info(f"Checking if uri {uri} is bare...")
-    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
-
-
 def fetch_wandb_project_run_info(
     entity: str, project: str, run_name: str, api: Api
 ) -> Any:

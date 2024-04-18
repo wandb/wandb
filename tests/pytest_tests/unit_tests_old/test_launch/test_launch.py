@@ -663,30 +663,6 @@ def test_fail_pull_docker_image():
         assert "Docker server returned error" in str(e)
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5),
-    reason="wandb launch is not available for python versions < 3.5",
-)
-@pytest.mark.asyncio
-async def test_bare_wandb_uri(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
-):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    uri = "/mock_server_entity/test/runs/12345678"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "entity": "mock_server_entity",
-        "project": "test",
-    }
-
-    mock_with_run_info = await _launch._launch(**kwargs)
-    kwargs["uri"] = live_mock_server.base_url + uri
-    check_mock_run_info(mock_with_run_info, EMPTY_BACKEND_CONFIG, kwargs)
-
-
 @pytest.mark.asyncio
 async def test_launch_project_spec_docker_image(
     live_mock_server, test_settings, mock_load_backend

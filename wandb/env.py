@@ -141,11 +141,12 @@ def _env_as_bool(
     if env is None:
         env = os.environ
     val = env.get(var, default)
+    if not isinstance(val, str):
+        return False
     try:
-        val = strtobool(val)
-    except (AttributeError, ValueError):
-        pass
-    return val if isinstance(val, bool) else False
+        return strtobool(val)
+    except ValueError:
+        return False
 
 
 def is_require_core(env: Optional[Env] = None) -> bool:
