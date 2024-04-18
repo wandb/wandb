@@ -43,7 +43,7 @@ jobs:
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
 
       - name: Update CHANGELOG.md
-        if: ${{ github.event.inputs.update-changelog }}
+        if: ${{ inputs.update-changelog }}
         run: |
           DATE=$(date +'%Y-%m-%d')
           sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
@@ -64,7 +64,7 @@ jobs:
     name: Publish Release Notes
     needs: prepare-release
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.update-changelog }}
+    if: ${{ inputs.update-changelog }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
           git archive --format=tar.gz --output=wandb-${{ github.event.inputs.version }}.tar.gz HEAD
       - name: Extract release notes and set output
         id: release_notes
-        if: ${{ github.event.inputs.update-changelog }}
+        if: ${{ inputs.update-changelog }}
         run: |
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
       - name: Draft Release
