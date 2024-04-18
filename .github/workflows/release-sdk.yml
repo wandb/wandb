@@ -17,6 +17,8 @@ jobs:
   prepare-release:
     name: Prepare Release
     runs-on: ubuntu-20.04
+    outputs:
+      release_notes: ${{ steps.release_notes.outputs.release_notes }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,12 +50,12 @@ jobs:
           DATE=$(date +'%Y-%m-%d')
           sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
 
-      - name: Extract release notes
+      - name: Extract release notes and set output
         id: release_notes
         if: ${{ github.event.inputs.update-changelog }}
         run: |
           RELEASE_NOTES=$(awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md)
-          echo "::set-output name=release_notes::$RELEASE_NOTES"
+          echo "release_notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
 
       - name: Lint changes
         run: |
@@ -66,6 +68,25 @@ jobs:
         run: |
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
+
+  publish-release-notes:
+    name: Publish Release Notes
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+      - name: Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ github.event.inputs.version }}
+          tag_name: v${{ github.event.inputs.version }}
+          body: |
+            ${{ needs.prepare-release.outputs.release_notes }}
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   # build-platform-wheels:
   #   name: Build wheels on ${{ matrix.os }}
