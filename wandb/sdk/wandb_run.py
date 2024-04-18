@@ -1911,7 +1911,8 @@ class Run:
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
-        glob_path = pathlib.Path(glob_str)
+        glob_path = pathlib.PurePath(glob_str)
+        resolved_glob_path = pathlib.PurePath(os.path.abspath(glob_path))
 
         if base_path is not None:
             base_path = pathlib.Path(base_path)
@@ -1925,15 +1926,14 @@ class Run:
                 'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
                 repeat=False,
             )
-            base_path = glob_path.resolve().parent.parent
+            base_path = resolved_glob_path.parent.parent
 
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live", "end" and "now" policies are currently supported.'
             )
 
-        resolved_glob_path = glob_path.resolve()
-        resolved_base_path = base_path.resolve()
+        resolved_base_path = pathlib.PurePath(os.path.abspath(base_path))
 
         return self._save(
             resolved_glob_path,
@@ -1943,8 +1943,8 @@ class Run:
 
     def _save(
         self,
-        glob_path: pathlib.Path,
-        base_path: pathlib.Path,
+        glob_path: pathlib.PurePath,
+        base_path: pathlib.PurePath,
         policy: "PolicyName",
     ) -> List[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
