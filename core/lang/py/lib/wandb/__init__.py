@@ -2,12 +2,12 @@
 
 from wandb.proto import wandb_internal_pb2 as pb2
 
-class _Library:
+class Api:
     def __init__(self):
         self._obj = None
 
     @property
-    def _lib(self):
+    def _api(self):
         if not self._obj:
             import ctypes
             import os
@@ -17,30 +17,39 @@ class _Library:
         return self._obj
 
     def new_session(self) -> "Session":
-        return Session(_library=self)
+        return Session(_api=self)
 
     def teardown(self):
         pass
 
 
+def new_api():
+    return Api()
+
+
 # global library object
-_library = _Library()
+default_api = new_api()
+default_session = None
+default_entity = None
+default_project = None
+default_group = None
+default_run = None
 
 
 class Session:
-    def __init__(self, _library):
-        self._library = _library
+    def __init__(self, _api):
+        self.__api = _api
         self._loaded = False
         self._last_run = None
 
     @property
-    def _lib(self):
-        return self._library._lib
+    def _api(self):
+        return self.__api._api
 
     def _ensure_loaded(self):
         if self._loaded:
             return
-        self._lib.pbSessionSetup()
+        self._api.pbSessionSetup()
         self._loaded = True
 
     def configure_auth(self):
@@ -63,7 +72,7 @@ class Session:
 
 
 def new_session() -> Session:
-    return _library.new_session()
+    return default_api.new_session()
 
 
 class Run:
@@ -72,8 +81,8 @@ class Run:
         self._run_nexus_id = None
 
     @property
-    def _lib(self):
-        return self._session._lib
+    def _api(self):
+        return self._session._api
 
     def log(self, data):
         data_msg = pb2.DataRecord()
@@ -85,14 +94,17 @@ class Run:
             elif type(v) == str:
                 data_msg.item[k].value_string = v
         data_bytes = data_msg.SerializeToString()
-        # input_buffer = create_string_buffer(data_bytes)
-        self._lib.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
+        self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 
     def _start(self):
-        self._run_nexus_id = self._lib.pbRunStart()
+        self._run_nexus_id = self._api.pbRunStart()
 
     def finish(self):
-        self._lib.pbRunFinish(self._run_nexus_id)
+        self._api.pbRunFinish(self._run_nexus_id)
+
+    @property
+    def id(self):
+        pass
 
 
 # global default session object
@@ -110,8 +122,10 @@ def setup():
 def init(*args, **kwargs):
     return default_session.new_run()
 
+
 def log(*args, **kwargs):
     default_session._last_run.log(data)
+
 
 def teardown():
     global _session

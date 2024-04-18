@@ -29,6 +29,12 @@ Run:
 
 api = wandb.new_api()
 session = api.new_session()
-run = session.get_run()
+
+run = session.new_run()
+run_id = run.id
+run.log({"a": 1})
+run.finish()
+
+run = session.get_run(run_id)
 for row in run.history():
-  pass
+    pass
