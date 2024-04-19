@@ -721,7 +721,10 @@ class Run(Attrs):
 
         artifact_collection_name = artifact.source_name.split(":")[0]
         api.create_artifact(
-            artifact.type, artifact_collection_name, artifact.digest, aliases=aliases,
+            artifact.type,
+            artifact_collection_name,
+            artifact.digest,
+            aliases=aliases,
         )
         return artifact
 

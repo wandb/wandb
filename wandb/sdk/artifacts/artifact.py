@@ -633,7 +633,6 @@ class Artifact:
         The manifest lists all of its contents, and can't be changed once the artifact
         has been logged.
         """
-    
         if self._manifest is None:
             query = gql(
                 """

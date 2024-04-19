@@ -10,10 +10,10 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 import logging
 import os
-from pathlib import Path
 import sys
 import time
 from abc import abstractmethod
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
