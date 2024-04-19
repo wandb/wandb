@@ -97,6 +97,7 @@ def test_project_fill_macros():
     assert resource_args["kubernetes"]["gpus"] == "0,1,2,3"
     assert resource_args["kubernetes"]["image"] == "my-custom-image"
 
+
 def test_project_fetch_and_validate_project_job():
     mock_args = {
         "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
@@ -118,6 +119,7 @@ def test_project_fetch_and_validate_project_job():
     project.fetch_and_validate_project()
     assert project._fetch_job.called
 
+
 def test_project_fetch_and_validate_project_docker_image():
     mock_args = {
         "job": None,
@@ -137,5 +139,5 @@ def test_project_fetch_and_validate_project_docker_image():
     project = LaunchProject(**mock_args)
     project._fetch_job = MagicMock()
     project.fetch_and_validate_project()
-    
+
     project._fetch_job.assert_not_called()

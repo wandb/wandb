@@ -1,8 +1,8 @@
 import os
 from unittest.mock import MagicMock
-import yaml
 
 import pytest
+import yaml
 from wandb.sdk.launch._launch import create_and_run_agent, resolve_agent_config
 from wandb.sdk.launch.agent.config import validate_registry_uri
 from wandb.sdk.launch.errors import LaunchError
@@ -112,6 +112,7 @@ def test_validate_registry_uri(registry_uri, valid):
             validate_registry_uri(registry_uri)
     else:
         validate_registry_uri(registry_uri)
+
 
 def test_resolve_agent_config(monkeypatch, runner):
     monkeypatch.setattr(

@@ -121,4 +121,3 @@ def test_make_job_name(test_settings):
     name = builder._make_job_name("testing*123")
 
     assert name == "custom-name"
-

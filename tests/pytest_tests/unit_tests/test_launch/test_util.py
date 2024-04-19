@@ -1,9 +1,16 @@
-import pytest
 import random
 from typing import List
 
+import pytest
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.utils import diff_pip_requirements, load_wandb_config, macro_sub, parse_wandb_uri, pull_docker_image, recursive_macro_sub
+from wandb.sdk.launch.utils import (
+    diff_pip_requirements,
+    load_wandb_config,
+    macro_sub,
+    parse_wandb_uri,
+    pull_docker_image,
+    recursive_macro_sub,
+)
 
 
 @pytest.mark.parametrize(
@@ -106,6 +113,7 @@ def test_recursive_macro_sub():
     }
     assert result == desired
 
+
 REQUIREMENT_FILE_BASIC: List[str] = [
     "package-one==1.0.0",
     "# This is a comment in requirements.txt",
@@ -154,6 +162,7 @@ def test_diff_pip_requirements():
 def test_parse_wandb_uri_invalid_uri():
     with pytest.raises(LaunchError):
         parse_wandb_uri("invalid_uri")
+
 
 def test_fail_pull_docker_image():
     try:
