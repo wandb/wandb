@@ -450,14 +450,14 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
           name: Run all unit tests
           no_output_timeout: 10m
           command: "\
-            nox -s 'unit_tests-\
+            nox -db uv -s 'unit_tests-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
