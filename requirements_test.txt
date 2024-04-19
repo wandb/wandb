@@ -5,7 +5,6 @@ pytest-xdist
 pytest-split
 pytest-mock
 pytest-timeout
-pytest-openfiles
 pytest-flakefinder
 parameterized
 

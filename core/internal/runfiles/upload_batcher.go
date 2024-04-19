@@ -60,8 +60,8 @@ func (b *uploadBatcher) Add(files []string) {
 	}
 }
 
-// Finish blocks until all files from previous Add calls are uploaded.
-func (b *uploadBatcher) Finish() {
+// Wait blocks until all files from previous Add calls are uploaded.
+func (b *uploadBatcher) Wait() {
 	b.addWG.Wait()
 }
 

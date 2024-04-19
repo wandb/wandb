@@ -13,7 +13,6 @@ these values in many cases.
 import json
 import os
 import sys
-from distutils.util import strtobool
 from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
@@ -142,11 +141,12 @@ def _env_as_bool(
     if env is None:
         env = os.environ
     val = env.get(var, default)
+    if not isinstance(val, str):
+        return False
     try:
-        val = bool(strtobool(val))  # type: ignore
-    except (AttributeError, ValueError):
-        pass
-    return val if isinstance(val, bool) else False
+        return strtobool(val)
+    except ValueError:
+        return False
 
 
 def is_require_core(env: Optional[Env] = None) -> bool:
@@ -479,3 +479,18 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
+
+
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to true or false.
+
+    Copied from distutils. distutils was removed in Python 3.12.
+    """
+    val = val.lower()
+
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    elif val in ("n", "no", "f", "false", "off", "0"):
+        return False
+    else:
+        raise ValueError(f"invalid truth value {val!r}")

@@ -107,8 +107,8 @@ class JobBuilder:
         self._partial_source = None
         self._aliases = []
         self._source_type: Optional[Literal["repo", "artifact", "image"]] = (
-            settings.job_source
-        )  # type: ignore[assignment]
+            settings.job_source  # type: ignore[assignment]
+        )
         self._is_notebook_run = self._get_is_notebook_run()
         self._verbose = verbose
 
@@ -276,7 +276,7 @@ class JobBuilder:
         return source, name
 
     def _make_job_name(self, input_str: str) -> str:
-        """Use job name from settings if provided, else use programatic name."""
+        """Use job name from settings if provided, else use programmatic name."""
         if self._settings.job_name:
             return self._settings.job_name
 

@@ -289,7 +289,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
 
 
 def image_id(image_name: str) -> Optional[str]:
-    """Retreve the image id from the local docker daemon or remote registry."""
+    """Retrieve the image id from the local docker daemon or remote registry."""
     if "@sha256:" in image_name:
         return image_name
     else:

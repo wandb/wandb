@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -76,10 +77,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 	if err != nil {
 		return err
 	}
-	digest, err := utils.ComputeB64MD5(data)
-	if err != nil {
-		return err
-	}
+	digest := utils.ComputeB64MD5(data)
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
 		&service.ArtifactManifestEntry{
 			Path:      name,
@@ -133,5 +131,5 @@ func computeManifestDigest(manifest *Manifest) string {
 		hasher.Write([]byte(fmt.Sprintf("%s:%s\n", entry.name, entry.digest)))
 	}
 
-	return utils.EncodeBytesAsHex(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
 }

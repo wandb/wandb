@@ -17,7 +17,7 @@ func getExecPath() (string, error) {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "AppleStats")
+	exPath := filepath.Join(exDirPath, "apple_gpu_stats")
 
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err

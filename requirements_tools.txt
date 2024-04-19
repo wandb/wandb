@@ -1,4 +1,0 @@
-# Requirements necessary to run the local Python tools.
-
-click >=8.1.7, <9
-rich >= 13.7.0, <14
