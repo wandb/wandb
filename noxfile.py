@@ -77,9 +77,10 @@ def run_pytest(
         "WANDB__REQUIRE_CORE": str(require_core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
+        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": os.getenv("USERNAME"),
         "PATH": os.getenv("PATH"),
-        "PYTHONPATH": os.getenv("PYTHONPATH"),
+        "USERPROFILE": os.getenv("USERPROFILE"),
     }
 
     # When running with core, skip tests that we know fail with it.

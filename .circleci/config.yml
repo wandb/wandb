@@ -440,6 +440,9 @@ jobs:
       python_version_minor: { type: integer }
       core: { type: string }
       codecov_flags: { type: string }
+      nox_backend:  # DO NOT MERGE
+        type: string
+        default: uv
 
     executor: <<parameters.executor>>
 
@@ -458,7 +461,7 @@ jobs:
           name: "Run nox tests: <<parameters.session_base>>"
           no_output_timeout: 10m
           command: "\
-            nox -db uv -s '<<parameters.session_base>>-\
+            nox -db <<parameters.nox_backend>> -s '<<parameters.session_base>>-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
@@ -1631,6 +1634,7 @@ workflows:
               python_version_minor: [8, 12]
               core: ["True", "False"]
 
+          nox_backend: virtualenv  # DO NOT MERGE
           parallelism: 12
           executor:
             name: local-testcontainer
