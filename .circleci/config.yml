@@ -733,6 +733,9 @@ jobs:
 
     executor: << parameters.executor >>
 
+    environment:
+      CGO_ENABLED: '1'
+
     steps:
       - checkout
       - install_go
@@ -1622,8 +1625,6 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-win"
-          environment:
-            CGO_ENABLED: "1"
 
           executor:
             name: win/server-2019
