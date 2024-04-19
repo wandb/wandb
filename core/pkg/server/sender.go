@@ -1176,13 +1176,18 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 	} else {
 		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
 		// if there is an error, we don't know if the run should stop
-		if err != nil {
+		switch {
+		case err != nil:
 			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
 			s.logger.CaptureError("sender received error", err)
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: false,
 			}
-		} else {
+		case response == nil || response.GetProject() == nil || response.GetProject().GetRun() == nil:
+			stopResponse = &service.StopStatusResponse{
+				RunShouldStop: false,
+			}
+		default:
 			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: stopped,
