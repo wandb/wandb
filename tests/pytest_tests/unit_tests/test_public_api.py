@@ -9,9 +9,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 
 
 def test_api_auto_login_no_tty():
-    with mock.patch.object(sys, "stdin", None), mock.patch.dict(
-        "os.environ", {"NETRC": ""}
-    ):
+    with mock.patch.object(sys, "stdin", None):
         with pytest.raises(wandb.UsageError):
             Api()
 
@@ -145,9 +143,7 @@ def test_report_to_html():
 
 def test_override_base_url_passed_to_login():
     base_url = "https://wandb.space"
-    with mock.patch.object(
-        wandb, "login", mock.MagicMock()
-    ) as mock_login, mock.patch.dict("os.environ", {"NETRC": ""}):
+    with mock.patch.object(wandb, "login", mock.MagicMock()) as mock_login:
         api = wandb.Api(api_key=None, overrides={"base_url": base_url})
         assert mock_login.call_args[1]["host"] == base_url
         assert api.settings["base_url"] == base_url

@@ -327,33 +327,6 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
-  restore_cache_nox:
-    steps:
-      - run:
-          name: Store current date
-          command: date "+%F" > nox-cache-date.txt
-      - restore_cache:
-          name: Restore .nox cache
-          keys:
-            # Note that virtualenvs are not portable! We include the job name
-            # in the key in the hopes that it encapsulates the Python version.
-            # We include the architecture (OS + processor) as well to be safe.
-            - &nox-cache v1-nox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-                checksum "nox-cache-date.txt" }}-{{
-                checksum "requirements_dev.txt" }}-{{
-                checksum "requirements_test.txt" }}-{{
-                checksum "noxfile.py" }}-{{
-                checksum "pyproject.toml" }}
-            - v1-nox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-                checksum "nox-cache-date.txt" }}
-  save_cache_nox:
-    steps:
-      - save_cache:
-          name: Upload .nox cache
-          key: *nox-cache
-          paths: [.nox]
-
-  # Same as restore_cache_nox, but for tox. Will be removed soon!
   restore_cache_tox:
     steps:
       - run:
@@ -477,10 +450,8 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U nox pip
           no_output_timeout: 5m
-
-      - restore_cache_nox
 
       - run:
           name: Run all unit tests
@@ -490,8 +461,6 @@ jobs:
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
-
-      - save_cache_nox
 
       - codecov/upload: { flags: unit, validate: false }
 
