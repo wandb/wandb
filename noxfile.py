@@ -158,7 +158,12 @@ def system_tests(session: nox.Session, core: bool) -> None:
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
-    install_timed(session, "-r", "requirements_dev.txt")
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",  # for test_reports
+        "annotated-types",
+    )
 
     with go_code_coverage(session) as gocoverdir:
         run_pytest(
