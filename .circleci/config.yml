@@ -732,7 +732,7 @@ jobs:
       executor: { type: executor }
       extra_install:
         type: steps
-        default: {}
+        default: []
 
     executor: << parameters.executor >>
 
