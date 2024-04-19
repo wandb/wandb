@@ -3,6 +3,79 @@ from typing import Callable, List
 
 import nox
 
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def unit_tests(session: nox.Session, core: bool) -> None:
+    session.install("-r", "requirements_dev.txt")
+
+    # For test_reports:
+    session.install(".[reports]")
+    session.install("polyfactory")
+
+    # The package itself:
+    session.install(
+        ".",
+        env={
+            "WANDB_BUILD_COVERAGE": "true",
+            "WANDB_BUILD_UNIVERSAL": "false",
+        },
+    )
+
+    tmpdir = session.create_tmp()
+    coverage_dir = os.path.join(tmpdir, "coverage")
+
+    pytest_opts = []
+    pytest_env = {
+        "GOCOVERDIR": coverage_dir,
+        "WANDB__REQUIRE_CORE": str(core),
+        "WANDB__NETWORK_BUFFER": "1000",
+        "WANDB_ERROR_REPORTING": "false",
+    }
+
+    # Print 20 slowest tests.
+    pytest_opts.append("--durations=20")
+
+    # Output test results for tooling.
+    pytest_opts.append("--junitxml=test-results/junit.xml")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    # (pytest-xdist) Run tests in parallel.
+    pytest_opts.append("-n=8")
+
+    # (pytest-split) Run a subset of tests only (for external parallelism).
+    # These environment variables come from CircleCI.
+    circle_node_total = os.getenv("CIRCLE_NODE_TOTAL")
+    circle_node_index = os.getenv("CIRCLE_NODE_INDEX")
+    if circle_node_total and circle_node_index:
+        pytest_opts.append(f"--splits={circle_node_total}")
+        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+
+    # (pytest-cov) Enable code coverage reporting.
+    pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
+    pytest_env["COVERAGE_FILE"] = coverage_dir
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        "tests/pytest_tests/unit_tests/",
+        env=pytest_env,
+    )
+
+    if core:
+        session.run(
+            "go",
+            "tool",
+            "covdata",
+            "textfmt",
+            f"-i={coverage_dir}",
+            "-o=coverage.txt",
+        )
+
 
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
