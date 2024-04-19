@@ -1,7 +1,119 @@
 import os
+import pathlib
+import shutil
+import time
+from contextlib import contextmanager
 from typing import Callable, List
 
 import nox
+
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+
+@contextmanager
+def report_time(session: nox.Session):
+    t = time.time()
+    yield
+    session.log(f"Took {time.time() - t:.2f} seconds.")
+
+
+def install_timed(session: nox.Session, *args, **kwargs):
+    with report_time(session):
+        session.install(*args, **kwargs)
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def unit_tests(session: nox.Session, core: bool) -> None:
+    """Runs Python unit tests.
+
+    By default this runs all unit tests, but specific tests can be selected
+    by passing them via positional arguments.
+    """
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    if session.venv_backend == "uv":
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+    else:
+        install_timed(session, "--force-reinstall", ".")
+
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        # For test_reports:
+        ".[reports]",
+        "polyfactory",
+    )
+
+    tmpdir = pathlib.Path(session.create_tmp())
+
+    # Using an absolute path is critical. We can't assume that the working
+    # directory of the wandb-core binary will match the working directory
+    # of the Nox session!
+    gocoverdir = (tmpdir / "gocoverage").absolute()
+    if gocoverdir.exists():
+        shutil.rmtree(gocoverdir)
+    gocoverdir.mkdir()
+
+    pytest_opts = []
+    pytest_env = {
+        "GOCOVERDIR": str(gocoverdir),
+        "WANDB__REQUIRE_CORE": str(core),
+        "WANDB__NETWORK_BUFFER": "1000",
+        "WANDB_ERROR_REPORTING": "false",
+        "USERNAME": os.getenv("USERNAME"),
+        "PATH": os.getenv("PATH"),
+    }
+
+    # Print 20 slowest tests.
+    pytest_opts.append("--durations=20")
+
+    # Output test results for tooling.
+    pytest_opts.append("--junitxml=test-results/junit.xml")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    # (pytest-xdist) Run tests in parallel.
+    pytest_opts.append("-n=8")
+
+    # (pytest-split) Run a subset of tests only (for external parallelism).
+    # These environment variables come from CircleCI.
+    circle_node_total = os.getenv("CIRCLE_NODE_TOTAL")
+    circle_node_index = os.getenv("CIRCLE_NODE_INDEX")
+    if circle_node_total and circle_node_index:
+        pytest_opts.append(f"--splits={circle_node_total}")
+        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+
+    # (pytest-cov) Enable code coverage reporting.
+    pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
+    pytest_env["COVERAGE_FILE"] = ".coverage"
+
+    if session.posargs:
+        tests = session.posargs
+    else:
+        tests = ["tests/pytest_tests/unit_tests"]
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        *tests,
+        env=pytest_env,
+        include_outer_env=False,
+    )
+
+    if core:
+        session.run(
+            "go",
+            "tool",
+            "covdata",
+            "textfmt",
+            f"-i={gocoverdir}",
+            "-o=coverage.txt",
+            external=True,
+        )
 
 
 @nox.session(python=False, name="build-rust")

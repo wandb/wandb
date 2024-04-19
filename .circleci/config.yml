@@ -436,12 +436,9 @@ jobs:
       install_deps: { type: steps }
       python_version_major: { type: integer }
       python_version_minor: { type: integer }
-      with_core: { type: boolean }
+      core: { type: string }
 
     executor: <<parameters.executor>>
-
-    environment:
-      WANDB__REQUIRE_CORE: <<parameters.with_core>>
 
     # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
     # https://circleci.com/docs/parallelism-faster-jobs/
@@ -453,23 +450,17 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
-
-      - restore_cache_tox
 
       - run:
           name: Run all unit tests
           no_output_timeout: 10m
-          command: |
-            CI_PYTEST_SPLIT_ARGS=" \
-              --splits $CIRCLE_NODE_TOTAL \
-              --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-            tox run -v \
-              -e unit-tests-<<#parameters.with_core>>core-<</parameters.with_core
-                >>py<<parameters.python_version_major>><<parameters.python_version_minor>>
-
-      - save_cache_tox
+          command: "\
+            nox -db uv -s 'unit_tests-\
+              <<parameters.python_version_major>>.\
+              <<parameters.python_version_minor>>\
+              (core=<<parameters.core>>)'"
 
       - codecov/upload: { flags: unit, validate: false }
 
@@ -1598,7 +1589,7 @@ workflows:
       - unit-tests:
           name: "\
             unit-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1606,7 +1597,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [8, 12]
-              with_core: [true, false]
+              core: ["True", "False"]
 
           executor:
             name: linux-python
@@ -1634,7 +1625,7 @@ workflows:
       - unit-tests:
           name: "\
             unit-tests-macos-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1642,7 +1633,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
+              core: ["True", "False"]
 
           executor: macos
 
@@ -1663,7 +1654,7 @@ workflows:
       - unit-tests:
           name: "\
             unit-tests-win-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1678,12 +1669,12 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
+              core: ["True", "False"]
             # exclude:
-            #   - with_core: true
+            #   - core: "True"
             #     python_version_major: 3
             #     python_version_minor: 9
-            #   - with_core: true
+            #   - core: "True"
             #     python_version_major: 3
             #     python_version_minor: 12
 
