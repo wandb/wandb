@@ -1613,12 +1613,6 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-linux"
-
-          extra_install:
-            - run:
-                name: Install GCC
-                command: apt-get update && apt-get install -y gcc
-
           executor: linux
 
       #
@@ -1633,7 +1627,7 @@ workflows:
       # Unit tests with Go on Windows
       #
       - unit-tests-go:
-          name: "unit-tests-go-win"
+          name: "unit-tests-go-windows"
 
           extra_install:
             - run:
