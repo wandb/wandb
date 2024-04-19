@@ -22,7 +22,7 @@ def install_timed(session: nox.Session, *args, **kwargs):
         session.install(*args, **kwargs)
 
 
-@nox.session(python=_SUPPORTED_PYTHONS, reuse_venv=True)
+@nox.session(python=_SUPPORTED_PYTHONS)
 @nox.parametrize("core", [True, False])
 def unit_tests(session: nox.Session, core: bool) -> None:
     """Runs Python unit tests.
@@ -60,8 +60,9 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         "WANDB__REQUIRE_CORE": str(core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
-        "USERNAME": os.getenv("USERNAME"),
-        "PATH": os.getenv("PATH"),
+        # Variables from the outer environment that can mess up tests.
+        # This is a bug in our tests that we should fix.
+        "NETRC": None,
     }
 
     # Print 20 slowest tests.
@@ -98,7 +99,6 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         *pytest_opts,
         *tests,
         env=pytest_env,
-        include_outer_env=False,
     )
 
     if core:
