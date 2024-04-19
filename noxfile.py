@@ -168,6 +168,48 @@ def system_tests(session: nox.Session, core: bool) -> None:
                 or [
                     "tests/pytest_tests/system_tests",
                     "--ignore=tests/pytest_tests/system_tests/test_importers",
+                    "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                ]
+            ),
+        )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def notebook_tests(session: nox.Session, core: bool) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "nbclient",
+        "nbconvert",
+        "nbformat",
+        "ipykernel",
+        "ipython<8.17.1",
+    )
+
+    session.run(
+        "ipython",
+        "kernel",
+        "install",
+        "--user",
+        "--name=wandb_python",
+        external=True,
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests/test_notebooks",
                 ]
             ),
         )
