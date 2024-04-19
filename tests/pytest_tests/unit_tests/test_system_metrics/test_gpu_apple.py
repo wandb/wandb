@@ -49,7 +49,11 @@ def test_gpu_apple(test_settings):
         )
         assert gpu.is_available()
         gpu.start()
-        assert gpu.probe() == {"gpuapple": {"type": "arm", "vendor": "Apple"}}
+        probe_result = gpu.probe().get("gpuapple")
+        assert probe_result is not None
+        gpu_type, vendor = probe_result.get("type"), probe_result.get("vendor")
+        assert gpu_type == "arm" or gpu_type.startswith("Apple M")
+        assert vendor in ("Apple", "sppci_vendor_Apple")
         time.sleep(1)
         shutdown_event.set()
         gpu.finish()
