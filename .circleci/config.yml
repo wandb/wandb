@@ -450,14 +450,14 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
-          name: Run all unit tests
+          name: Run unit tests
           no_output_timeout: 10m
           command: "\
-            nox -s 'unit_tests-\
+            nox -db uv -s 'unit_tests-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
@@ -471,17 +471,11 @@ jobs:
       executor: { type: executor }
       python_version_major: { type: integer }
       python_version_minor: { type: integer }
-      with_core: { type: boolean }
-      tests:
-        type: enum
-        enum: [sdk, notebooks, other]
+      core: { type: string }
 
     executor: <<parameters.executor>>
 
-    environment:
-      WANDB__REQUIRE_CORE: <<parameters.with_core>>
-
-    parallelism: 4
+    parallelism: 12
 
     steps:
       - checkout
@@ -493,67 +487,17 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U nox uv pip
           no_output_timeout: 5m
 
-      - restore_cache_tox
-
-      # TODO: replace tests with pytest markers and remove the conditional
-      - when:
-          condition: { equal: [<<parameters.tests>>, sdk] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_core \
-                    tests/pytest_tests/system_tests/test_system_metrics \
-                    tests/pytest_tests/system_tests/test_functional
-      - when:
-          condition: { equal: [<<parameters.tests>>, notebooks] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>notebooks-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_notebooks
-      - when:
-          condition: { equal: [<<parameters.tests>>, other] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_reports \
-                    tests/pytest_tests/system_tests/test_launch \
-                    tests/pytest_tests/system_tests/test_sweep \
-                    tests/pytest_tests/system_tests/test_artifacts
-
-      - save_cache_tox
+      - run:
+          name: Run system tests
+          no_output_timeout: 10m
+          command: "\
+            nox -db uv -s 'system_tests-\
+              <<parameters.python_version_major>>.\
+              <<parameters.python_version_minor>>\
+              (core=<<parameters.core>>)'"
 
       - codecov/upload: { flags: system, validate: false }
 
@@ -1654,7 +1598,7 @@ workflows:
       - unit-tests:
           name: "\
             unit-tests-win-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1669,12 +1613,12 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
+              core: ["True", "False"]
             exclude:
-              - with_core: true
+              - core: "True"
                 python_version_major: 3
                 python_version_minor: 9
-              - with_core: true
+              - core: "True"
                 python_version_major: 3
                 python_version_minor: 12
 
@@ -1697,7 +1641,7 @@ workflows:
       - system-tests:
           name: "\
             system-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1710,8 +1654,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [8, 12]
-              with_core: [true, false]
-              tests: [sdk, notebooks, other]
+              core: ["True", "False"]
 
           executor:
             name: local-testcontainer
