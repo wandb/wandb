@@ -215,9 +215,6 @@ jobs:
           - windows-2019
           - macos-14
         use_core: [false, true]
-        exclude:
-          - os: windows-2019
-            use_core: true
     steps:
       - name: Setup Python
         uses: actions/setup-python@v4
