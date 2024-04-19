@@ -730,7 +730,9 @@ jobs:
   unit-tests-go:
     parameters:
       executor: { type: executor }
-      extra_install: { type: steps }
+      extra_install:
+        type: steps
+        default: {}
 
     executor: << parameters.executor >>
 
@@ -1611,6 +1613,11 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-linux"
+
+          extra_install:
+            - run:
+                name: Install GCC
+                command: apt-get update && apt-get install -y gcc
 
           executor: linux
 
