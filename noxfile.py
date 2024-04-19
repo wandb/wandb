@@ -1,4 +1,6 @@
 import os
+import time
+from contextlib import contextmanager
 from typing import Callable, List
 
 import nox
@@ -6,17 +8,30 @@ import nox
 _SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
 
-@nox.session(python=_SUPPORTED_PYTHONS)
+@contextmanager
+def report_time(session: nox.Session):
+    t = time.time()
+    yield
+    session.log(f"Took {time.time() - t:.2f} seconds.")
+
+
+def install_timed(session: nox.Session, *args, **kwargs):
+    with report_time(session):
+        session.install(*args, **kwargs)
+
+
+@nox.session(python=_SUPPORTED_PYTHONS, reuse_venv=True)
 @nox.parametrize("core", [True, False])
 def unit_tests(session: nox.Session, core: bool) -> None:
-    session.install("-r", "requirements_dev.txt")
+    install_timed(session, "-r", "requirements_dev.txt")
 
     # For test_reports:
-    session.install(".[reports]")
-    session.install("polyfactory")
+    install_timed(session, ".[reports]")
+    install_timed(session, "polyfactory")
 
     # The package itself:
-    session.install(
+    install_timed(
+        session,
         ".",
         env={
             "WANDB_BUILD_COVERAGE": "true",

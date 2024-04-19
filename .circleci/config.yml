@@ -344,7 +344,7 @@ commands:
                 checksum "requirements_test.txt" }}-{{
                 checksum "noxfile.py" }}-{{
                 checksum "pyproject.toml" }}
-            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+            - v1-nox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "nox-cache-date.txt" }}
   save_cache_nox:
     steps:
