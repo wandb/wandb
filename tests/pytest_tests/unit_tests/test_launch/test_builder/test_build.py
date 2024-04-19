@@ -5,10 +5,8 @@ import pytest
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.builder import build
 from wandb.sdk.launch.builder.abstract import registry_from_uri
-from wandb.sdk.launch.builder.context_manager import (
-    PIP_TEMPLATE,
-    get_requirements_section,
-)
+from wandb.sdk.launch.builder.context_manager import get_requirements_section
+from wandb.sdk.launch.builder.templates.dockerfile import PIP_TEMPLATE
 
 
 @pytest.mark.parametrize(
@@ -75,7 +73,7 @@ def mock_launch_project(mocker):
         override_artifacts={},
         python_version="3.9.11",
     )
-    launch_project.get_single_entry_point = lambda: launch_project.entry_point
+    launch_project.get_job_entry_point = lambda: launch_project.entry_point
     return launch_project
 
 
@@ -113,7 +111,7 @@ def _setup(mocker):
 def no_buildx(mocker):
     """Patches wandb.docker.is_buildx_installed to always return False."""
     mocker.patch(
-        "wandb.sdk.launch.builder.context_manager.docker.is_buildx_installed",
+        "wandb.sdk.launch.builder.build.docker.is_buildx_installed",
         lambda: False,
     )
 

@@ -12,7 +12,7 @@ from wandb.apis.internal import Api
 from . import loader
 from ._project_spec import LaunchProject
 from .agent import LaunchAgent
-from .builder.build import construct_agent_configs
+from .agent.agent import construct_agent_configs
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun

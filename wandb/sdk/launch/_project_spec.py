@@ -116,7 +116,7 @@ class LaunchProject:
         self.docker_image: Optional[str] = docker_config.get(
             "docker_image"
         ) or launch_spec.get("image_uri")
-        self.init_docker(docker_config)
+        self.docker_user_id = docker_config.get("user_id", 1000)
         self.init_source()
         self.init_overrides(overrides)
         self.init_git(git_info)
@@ -129,10 +129,6 @@ class LaunchProject:
         self._entry_point: Optional[EntryPoint] = (
             None  # todo: keep multiple entrypoint support?
         )
-
-    def init_docker(self, docker_config: Dict[str, Any]) -> None:
-        self.docker_image = docker_config.get("docker_image")
-        self.docker_user_id = docker_config.get("user_id", 1000)
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -396,8 +392,6 @@ class LaunchProject:
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
 
-    # Make this a method of the launch project.
-
     def get_env_vars_dict(self, api: Api, max_env_length: int) -> Dict[str, str]:
         """Generate environment variables for the project.
 
@@ -488,12 +482,6 @@ class EntryPoint:
             self.command[0].startswith("python") or self.command[0] == "bash"
         ):
             self.command[1] = new_path
-
-
-class EntrypointDefaults(List[str]):
-    """Default entry point for code sourced jobs."""
-
-    PYTHON = ["python", "main.py"]
 
 
 def _inject_wandb_config_env_vars(

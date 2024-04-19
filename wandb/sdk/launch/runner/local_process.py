@@ -10,9 +10,6 @@ from ..utils import (
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
-    _is_wandb_uri,
-    download_wandb_python_deps,
-    parse_wandb_uri,
     sanitize_wandb_api_key,
     validate_wandb_python_deps,
 )
@@ -54,23 +51,7 @@ class LocalProcessRunner(AbstractRunner):
         if launch_project.project_dir is None:
             raise LaunchError("Launch LocalProcessRunner received empty project dir")
 
-        # Check to make sure local python dependencies match run's requirement.txt
-        if launch_project.uri and _is_wandb_uri(launch_project.uri):
-            source_entity, source_project, run_name = parse_wandb_uri(
-                launch_project.uri
-            )
-            run_requirements_file = download_wandb_python_deps(
-                source_entity,
-                source_project,
-                run_name,
-                self._api,
-                launch_project.project_dir,
-            )
-            validate_wandb_python_deps(
-                run_requirements_file,
-                launch_project.project_dir,
-            )
-        elif launch_project.job:
+        if launch_project.job:
             assert launch_project._job_artifact is not None
             try:
                 validate_wandb_python_deps(

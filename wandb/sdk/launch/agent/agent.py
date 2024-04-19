@@ -9,7 +9,9 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import yaml
 
 import wandb
 from wandb.apis.internal import Api
@@ -18,11 +20,11 @@ from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
+from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE, resolve_build_and_registry_config
 from wandb.sdk.lib import runid
 
 from .. import loader
 from .._project_spec import LaunchProject
-from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -132,6 +134,31 @@ class InternalAgentLogger:
         if self._print_to_terminal:
             wandb.termlog(f"{LOG_PREFIX}{message}")
         _logger.debug(f"{LOG_PREFIX}{message}")
+
+
+def construct_agent_configs(
+    launch_config: Optional[Dict] = None,
+    build_config: Optional[Dict] = None,
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    registry_config = None
+    environment_config = None
+    if launch_config is not None:
+        build_config = launch_config.get("builder")
+        registry_config = launch_config.get("registry")
+
+    default_launch_config = None
+    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+            default_launch_config = (
+                yaml.safe_load(f) or {}
+            )  # In case the config is empty, we want it to be {} instead of None.
+        environment_config = default_launch_config.get("environment")
+
+    build_config, registry_config = resolve_build_and_registry_config(
+        default_launch_config, build_config, registry_config
+    )
+
+    return environment_config, build_config, registry_config
 
 
 class LaunchAgent:

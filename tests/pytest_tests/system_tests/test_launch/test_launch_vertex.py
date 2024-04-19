@@ -96,7 +96,7 @@ async def test_vertex_resolved_submitted_job(relay_server, monkeypatch):
         project.override_config = {}
         project.override_entrypoint = entrypoint
         project.override_files = {}
-        project.get_single_entry_point.return_value = entrypoint
+        project.get_job_entry_point.return_value = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
         project.docker_image = "testimage"
         project.image_name = "testimage"

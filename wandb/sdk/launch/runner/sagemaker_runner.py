@@ -67,6 +67,7 @@ class SagemakerSubmittedRun(AbstractRun):
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamName=log_name,
             )
+            assert "events" in res
             return "\n".join(
                 [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
             )
@@ -348,12 +349,12 @@ def build_sagemaker_args(
 
     if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a ResourceConfig Sagemaker resource argument"
+            "Sagemaker launcher requires a ResourceConfig resource argument"
         )
 
     if sagemaker_args.get("StoppingCondition") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
+            "Sagemaker launcher requires a StoppingCondition resource argument"
         )
 
     given_env = given_sagemaker_args.get(
