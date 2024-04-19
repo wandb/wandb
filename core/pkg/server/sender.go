@@ -1183,7 +1183,10 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 				RunShouldStop: false,
 			}
 		} else {
-			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopped := false
+			if response != nil && response.GetProject() != nil && response.GetProject().GetRun() != nil {
+				stopped = utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			}
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: stopped,
 			}

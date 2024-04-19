@@ -327,7 +327,8 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy: ...
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1400,6 +1401,10 @@ class Run:
         # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if self._is_finished:
+            # TODO: fetch summary from backend and stage it before run is finished
+            wandb.termwarn("Summary data not available in finished run")
+            return {}
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
