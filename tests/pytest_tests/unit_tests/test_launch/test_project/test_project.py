@@ -96,3 +96,46 @@ def test_project_fill_macros():
     assert resource_args["kubernetes"]["jobName"] == "launch-job-my-run-id"
     assert resource_args["kubernetes"]["gpus"] == "0,1,2,3"
     assert resource_args["kubernetes"]["image"] == "my-custom-image"
+
+def test_project_fetch_and_validate_project_job():
+    mock_args = {
+        "job": "mock-test-entity/mock-test-project/mock-test-job:v0",
+        "api": MagicMock(),
+        "launch_spec": {},
+        "target_entity": "mock-test-entity",
+        "target_project": "mock-test-project",
+        "docker_config": {},
+        "overrides": {},
+        "git_info": {},
+        "resource": "local-container",
+        "resource_args": {},
+        "uri": None,
+        "name": None,
+        "run_id": None,
+    }
+    project = LaunchProject(**mock_args)
+    project._fetch_job = MagicMock()
+    project.fetch_and_validate_project()
+    assert project._fetch_job.called
+
+def test_project_fetch_and_validate_project_docker_image():
+    mock_args = {
+        "job": None,
+        "api": MagicMock(),
+        "launch_spec": {"image_uri": "mock-test-image:v0"},
+        "target_entity": "mock-test-entity",
+        "target_project": "mock-test-project",
+        "docker_config": {},
+        "overrides": {},
+        "git_info": {},
+        "resource": "local-container",
+        "resource_args": {},
+        "uri": None,
+        "name": None,
+        "run_id": None,
+    }
+    project = LaunchProject(**mock_args)
+    project._fetch_job = MagicMock()
+    project.fetch_and_validate_project()
+    
+    project._fetch_job.assert_not_called()

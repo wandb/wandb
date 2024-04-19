@@ -1,9 +1,12 @@
+import os
 from unittest.mock import MagicMock
+import yaml
 
 import pytest
-from wandb.sdk.launch._launch import create_and_run_agent
+from wandb.sdk.launch._launch import create_and_run_agent, resolve_agent_config
 from wandb.sdk.launch.agent.config import validate_registry_uri
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
 class MockAgent:
@@ -109,3 +112,34 @@ def test_validate_registry_uri(registry_uri, valid):
             validate_registry_uri(registry_uri)
     else:
         validate_registry_uri(registry_uri)
+
+def test_resolve_agent_config(monkeypatch, runner):
+    monkeypatch.setattr(
+        "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE",
+        "./config/wandb/launch-config.yaml",
+    )
+    monkeypatch.setenv("WANDB_ENTITY", "diffentity")
+    with runner.isolated_filesystem():
+        os.makedirs("./config/wandb")
+        with open("./config/wandb/launch-config.yaml", "w") as f:
+            yaml.dump(
+                {
+                    "entity": "different-entity",
+                    "max_jobs": 2,
+                    "registry": {"url": "test"},
+                },
+                f,
+            )
+        config, returned_api = resolve_agent_config(
+            entity=None,
+            project=None,
+            max_jobs=-1,
+            queues=["diff-queue"],
+            config=None,
+            verbosity=None,
+        )
+
+        assert config["registry"] == {"url": "test"}
+        assert config["entity"] == "diffentity"
+        assert config["max_jobs"] == -1
+        assert config.get("project") == LAUNCH_DEFAULT_PROJECT

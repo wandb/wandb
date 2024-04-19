@@ -694,3 +694,14 @@ def test_agent_logger(mocker):
     logger.debug("test 8")
     mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 8")
     mocker.logger.debug.assert_called_with(f"{LOG_PREFIX}test 8")
+
+def test_agent_inf_jobs(mocker):
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+        "max_jobs": -1,
+    }
+    mocker.patch("wandb.sdk.launch.agent.agent.LaunchAgent._init_agent_run", lambda x: None)
+    agent = LaunchAgent(MagicMock(), config)
+    assert agent._max_jobs == float("inf")
