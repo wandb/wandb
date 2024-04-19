@@ -1604,28 +1604,28 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-linux"
-          parameters:
-            executor:
-              docker: cimg/base
+
+          executor:
+            docker: cimg/base
 
       #
       # Unit tests with Go on MacOS
       #
       - unit-tests-go:
           name: "unit-tests-go-linux"
-          parameters:
-            executor: macos
+
+          executor: macos
 
       #
       # Unit tests with Go on Windows
       #
       - unit-tests-go:
           name: "unit-tests-go-win"
-          parameters:
-            executor:
-              name: win/server-2019
-              size: large
-              shell: bash.exe
+
+          executor:
+            name: win/server-2019
+            size: large
+            shell: bash.exe
 
 
       #
