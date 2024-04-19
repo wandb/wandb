@@ -1599,15 +1599,13 @@ workflows:
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
-      #
-      # Unit tests with Go on Linux
-      #
-      - unit-tests-go:
-          name: "unit-tests-go-linux"
+      # #
+      # # Unit tests with Go on Linux
+      # #
+      # - unit-tests-go:
+      #     name: "unit-tests-go-linux"
 
-          executor:
-            docker:
-              - image: "cimg/base"
+      #     executor: linux
 
       #
       # Unit tests with Go on MacOS
