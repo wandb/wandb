@@ -41,7 +41,7 @@ class AbstractBuilder(ABC):
             verify: Whether to verify the functionality of the builder.
 
         Raises:
-            LaunchError: If the builder cannot be intialized or verified.
+            LaunchError: If the builder cannot be initialized or verified.
         """
         raise NotImplementedError
 

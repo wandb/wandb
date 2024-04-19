@@ -19,7 +19,7 @@ point_cloud_1 = np.array([[0, 0, 0, 1], [0, 0, 1, 13], [0, 1, 0, 2], [0, 1, 0, 4
 
 point_cloud_2 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 0]])
 
-# Generate a symetric pattern
+# Generate a symmetric pattern
 POINT_COUNT = 20000
 
 # Choose a random sample

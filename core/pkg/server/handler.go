@@ -1097,7 +1097,7 @@ func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
 // The main entry point for partial history records.
 //
 // This collects partial history records until a full history record is
-// received. A full history record is recieved when the condition for flushing
+// received. A full history record is received when the condition for flushing
 // the history record is met. The condition for flushing the history record is
 // determined by the action in the partial history request and the step number.
 // Once a full history record is received, it is forwarded to the writer.
@@ -1291,7 +1291,7 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // samples history items and updates the history record with the sampled values
 //
 // This function samples history items and updates the history record with the
-// sampled values. It is used to diplay a subset of the history items in the
+// sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
 	response := &service.Response{}

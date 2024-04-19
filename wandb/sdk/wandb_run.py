@@ -1853,7 +1853,7 @@ class Run:
         picked up automatically.
 
         A `base_path` may be provided to control the directory structure of
-        uploaded files. It should be a prefix of `glob_str`, and the direcotry
+        uploaded files. It should be a prefix of `glob_str`, and the directory
         structure beneath it is preserved. It's best understood through
         examples:
 
@@ -1911,7 +1911,11 @@ class Run:
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
-        glob_path = pathlib.Path(glob_str)
+        # NOTE: We use PurePath instead of Path because WindowsPath doesn't
+        # like asterisks and errors out in resolve(). It also makes logical
+        # sense: globs aren't real paths, they're just path-like strings.
+        glob_path = pathlib.PurePath(glob_str)
+        resolved_glob_path = pathlib.PurePath(os.path.abspath(glob_path))
 
         if base_path is not None:
             base_path = pathlib.Path(base_path)
@@ -1925,15 +1929,14 @@ class Run:
                 'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
                 repeat=False,
             )
-            base_path = glob_path.resolve().parent.parent
+            base_path = resolved_glob_path.parent.parent
 
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live", "end" and "now" policies are currently supported.'
             )
 
-        resolved_glob_path = glob_path.resolve()
-        resolved_base_path = base_path.resolve()
+        resolved_base_path = pathlib.PurePath(os.path.abspath(base_path))
 
         return self._save(
             resolved_glob_path,
@@ -1943,8 +1946,8 @@ class Run:
 
     def _save(
         self,
-        glob_path: pathlib.Path,
-        base_path: pathlib.Path,
+        glob_path: pathlib.PurePath,
+        base_path: pathlib.PurePath,
         policy: "PolicyName",
     ) -> List[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
@@ -3658,7 +3661,7 @@ class Run:
     # FOOTER
     # ------------------------------------------------------------------------------
     # Note: All the footer methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
