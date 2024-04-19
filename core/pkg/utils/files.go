@@ -73,6 +73,6 @@ func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, diges
 		size = stat.Size()
 	}
 
-	digest, rerr = ComputeB64MD5(data)
+	digest = ComputeB64MD5(data)
 	return
 }

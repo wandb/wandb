@@ -43,7 +43,7 @@ class WandbMetricsLogger(callbacks.Callback):
             at the end of each epoch. If "batch", logs metrics at the end
             of each batch. If an integer, logs metrics at the end of that
             many batches. Defaults to "epoch".
-        initial_global_step: (int) Use this argument to correcly log the
+        initial_global_step: (int) Use this argument to correctly log the
             learning rate when you resume training from some `initial_epoch`,
             and a learning rate scheduler is used. This can be computed as
             `step_size * initial_step`. Defaults to 0.

@@ -1073,7 +1073,7 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service starup mechanism
+	// TODO: this should be handled by a separate service startup mechanism
 	s.fileTransferManager.Start()
 
 	var response service.DownloadArtifactResponse

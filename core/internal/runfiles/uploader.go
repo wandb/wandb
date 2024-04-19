@@ -9,35 +9,27 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/radovskyb/watcher"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
-	"golang.org/x/sync/errgroup"
-)
-
-const (
-	filePollingPeriod = 500 * time.Millisecond
 )
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	ctx               context.Context
-	logger            *observability.CoreLogger
-	settings          *settings.Settings
-	fileStream        filestream.FileStream
-	debouncedTransfer *debouncedTransfer
-	graphQL           graphql.Client
-	uploadBatcher     *uploadBatcher
+	ctx           context.Context
+	logger        *observability.CoreLogger
+	fs            filestream.FileStream
+	ftm           filetransfer.FileTransferManager
+	settings      *settings.Settings
+	graphQL       graphql.Client
+	uploadBatcher *uploadBatcher
 
-	// A mapping from files to their category, if set.
-	//
-	// The default category is OTHER. The keys are paths relative to
-	// the files directory.
-	category map[string]filetransfer.RunFileKind
+	// Files in the run's files directory that we know.
+	knownFiles map[string]*savedFile
 
 	// Files explicitly requested to be uploaded at the end of the run.
 	uploadAtEnd map[string]struct{}
@@ -45,38 +37,32 @@ type uploader struct {
 	// Whether 'Finish' was called.
 	isFinished bool
 
-	// Wait group for file uploads.
+	// Wait group for scheduling file uploads.
 	uploadWG *sync.WaitGroup
 
 	// Mutex that's locked whenever any state is being read or modified.
 	stateMu *sync.Mutex
 
 	// A watcher for 'live' mode files.
-	watcherOrNil *watcher.Watcher
-
-	// Wait group for the watcher.
-	watcherWG *sync.WaitGroup
+	watcher watcher2.Watcher
 }
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
-		ctx:        params.Ctx,
-		logger:     params.Logger,
-		settings:   params.Settings,
-		fileStream: params.FileStream,
-		debouncedTransfer: newDebouncedTransfer(
-			params.FileTransfer,
-			params.Logger,
-		),
-		graphQL: params.GraphQL,
+		ctx:      params.Ctx,
+		logger:   params.Logger,
+		fs:       params.FileStream,
+		ftm:      params.FileTransfer,
+		settings: params.Settings,
+		graphQL:  params.GraphQL,
 
-		category:    make(map[string]filetransfer.RunFileKind),
+		knownFiles:  make(map[string]*savedFile),
 		uploadAtEnd: make(map[string]struct{}),
 
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
 
-		watcherWG: &sync.WaitGroup{},
+		watcher: params.FileWatcher,
 	}
 
 	if params.BatchWindow != 0 {
@@ -112,8 +98,8 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	nowFiles := make([]string, 0)
 
 	for _, file := range record.GetFiles() {
-		u.category[file.GetPath()] =
-			filetransfer.RunFileKindFromProto(file.GetType())
+		u.knownFile(file.GetPath()).
+			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
 
 		switch file.GetPolicy() {
 		case service.FilesItem_NOW:
@@ -124,7 +110,9 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			nowFiles = append(nowFiles, file.GetPath())
 			u.uploadAtEnd[file.GetPath()] = struct{}{}
 
-			if err := u.watch(file.GetPath()); err != nil {
+			if err := u.watcher.Watch(u.toRealPath(file.GetPath()), func() {
+				u.uploadBatcher.Add([]string{file.GetPath()})
+			}); err != nil {
 				u.logger.CaptureError(
 					"runfiles: error watching file",
 					err,
@@ -141,13 +129,15 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	u.uploadBatcher.Add(nowFiles)
 }
 
-func (u *uploader) SetCategory(path string, category filetransfer.RunFileKind) {
-	if !u.lockForOperation("SetCategory") {
-		return
+// toRealPath takes a path relative to the run's files directory and returns
+// either an absolute path to that file or a path that's relative to the
+// current working directory.
+func (u *uploader) toRealPath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
 	}
-	defer u.stateMu.Unlock()
 
-	u.category[path] = category
+	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
 func (u *uploader) UploadNow(path string) {
@@ -183,25 +173,49 @@ func (u *uploader) UploadRemaining() {
 }
 
 func (u *uploader) Finish() {
-	// Update the isFinished state separately. Don't hold mutex while also
-	// waiting for the wait group!
-	func() {
-		u.stateMu.Lock()
-		defer u.stateMu.Unlock()
+	// Mark as isFinished to prevent new operations.
+	u.stateMu.Lock()
+	if u.isFinished {
+		return
+	}
+	u.isFinished = true
+	u.stateMu.Unlock()
 
-		if u.isFinished {
-			return
-		}
-		u.isFinished = true
-	}()
+	// Stop watching live files.
+	u.watcher.Finish()
 
-	u.uploadBatcher.Finish()
+	// Flush any remaining upload batches.
+	u.uploadBatcher.Wait()
+
+	// Wait for all upload tasks to get scheduled.
 	u.uploadWG.Wait()
 
-	if u.watcherOrNil != nil {
-		u.watcherOrNil.Close()
-		u.watcherWG.Wait()
+	// Wait for all file uploads to complete.
+	u.stateMu.Lock()
+	defer u.stateMu.Unlock()
+	for _, file := range u.knownFiles {
+		file.Finish()
 	}
+}
+
+func (u *uploader) FlushSchedulingForTest() {
+	u.uploadBatcher.Wait()
+	u.uploadWG.Wait()
+}
+
+// knownFile returns a savedFile or creates it if necessary.
+func (u *uploader) knownFile(runPath string) *savedFile {
+	if u.knownFiles[runPath] == nil {
+		u.knownFiles[runPath] = newSavedFile(
+			u.fs,
+			u.ftm,
+			u.logger,
+			u.toRealPath(runPath),
+			runPath,
+		)
+	}
+
+	return u.knownFiles[runPath]
 }
 
 // Acquires the stateMu mutex if Finish() has not been called.
@@ -224,107 +238,6 @@ func (u *uploader) lockForOperation(method string) bool {
 	}
 
 	return true
-}
-
-// Begins watching the given path and uploading when the file changes.
-func (u *uploader) watch(path string) error {
-	// Lazily start the watcher when we receive our first file to watch.
-	if u.watcherOrNil == nil {
-		if err := u.startWatcher(); err != nil {
-			return err
-		}
-	}
-
-	if err := u.watcherOrNil.Add(path); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Starts up the file watcher goroutine.
-func (u *uploader) startWatcher() error {
-	if u.watcherOrNil != nil {
-		return fmt.Errorf(
-			"runfiles: tried to start watcher, but it is already started",
-		)
-	}
-
-	u.watcherOrNil = watcher.New()
-	u.watcherOrNil.FilterOps(watcher.Write)
-
-	grp, ctx := errgroup.WithContext(u.ctx)
-	u.watcherWG.Add(2)
-
-	grp.Go(func() error {
-		defer u.watcherWG.Done()
-
-		u.loopWatchFiles(ctx)
-
-		return nil
-	})
-
-	grp.Go(func() error {
-		defer u.watcherWG.Done()
-
-		if err := u.watcherOrNil.Start(filePollingPeriod); err != nil {
-			u.logger.CaptureError(
-				"runfiles: failed to start file watcher",
-				err,
-			)
-
-			// Returning the error cancels the above loop.
-			return err
-		}
-
-		return nil
-	})
-
-	// We want to guarantee at this point that either:
-	//   1. Watcher.Start() is successfully looping
-	//   2. Watcher.Start() returned an error
-	// Until this, Watcher.Close() is a no-op! If Finish() is called too
-	// quickly, it will get stuck waiting on watcherWG because Watcher.Close()
-	// wouldn't have stopped the above goroutines.
-	watcherStarted := make(chan struct{})
-	go func() {
-		u.watcherOrNil.Wait()
-		watcherStarted <- struct{}{}
-	}()
-	select {
-	case <-watcherStarted:
-	case <-ctx.Done():
-	}
-
-	return nil
-}
-
-// Loops and processes file events.
-//
-// 'ctx' is used to break the loop in case the watcher fails to even
-// start, in which case none of its channels will ever receive a message.
-func (u *uploader) loopWatchFiles(ctx context.Context) {
-	for {
-		select {
-		case event := <-u.watcherOrNil.Event:
-			if event.Op != watcher.Write {
-				continue
-			}
-			u.UploadNow(event.Path)
-
-		case err := <-u.watcherOrNil.Error:
-			u.logger.CaptureError(
-				"runfiles: error in file watcher",
-				err,
-			)
-
-		case <-u.watcherOrNil.Closed:
-			return
-
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 // Uploads the given files unless we are offline.
@@ -395,7 +308,7 @@ func (u *uploader) filterNonExistingAndWarn(relativePaths []string) []string {
 	existingRelativePaths := make([]string, 0)
 
 	for _, relativePath := range relativePaths {
-		localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
+		localPath := u.toRealPath(relativePath)
 
 		if _, err := os.Stat(localPath); os.IsNotExist(err) {
 			u.logger.Warn("runfiles: upload: file does not exist", "path", localPath)
@@ -436,23 +349,6 @@ func (u *uploader) scheduleUploadTask(
 	u.stateMu.Lock()
 	defer u.stateMu.Unlock()
 
-	localPath := filepath.Join(u.settings.GetFilesDir(), relativePath)
-	task := &filetransfer.Task{
-		FileKind: u.category[relativePath],
-		Type:     filetransfer.UploadTask,
-		Path:     localPath,
-		Name:     relativePath,
-		Url:      uploadURL,
-		Headers:  headers,
-	}
-
-	task.SetCompletionCallback(func(t *filetransfer.Task) {
-		if t.Err == nil {
-			u.fileStream.SignalFileUploaded(t.Name)
-		}
-
-		u.uploadWG.Done()
-	})
-
-	u.debouncedTransfer.AddTask(task)
+	u.knownFile(relativePath).Upload(uploadURL, headers)
+	u.uploadWG.Done()
 }

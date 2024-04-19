@@ -65,7 +65,7 @@ def registry_from_uri(uri: str) -> AbstractRegistry:
     it as an AWS Elastic Container Registry. If the uri contains
     `-docker.pkg.dev`, we classify it as a Google Artifact Registry.
 
-    This function will attempt to load the approriate cloud helpers for the
+    This function will attempt to load the appropriate cloud helpers for the
 
     `https://` prefix is optional for all of the above.
 

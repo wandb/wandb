@@ -47,31 +47,6 @@ def get_pip_package_version(package_name: str) -> str:
     except importlib.metadata.PackageNotFoundError:
         raise ValueError(f"Package `{package_name}` not found")
 
-
-def get_min_required_version(requirements_file_name: str, package_name: str) -> str:
-    with open(requirements_file_name) as f:
-        lines = f.readlines()
-        for line in lines:
-            tokens = line.strip().split(">=")
-            if tokens[0] == package_name:
-                if len(tokens) == 2:
-                    return tokens[1]
-                else:
-                    raise ValueError(
-                        f"Minimum version not specified for package `{package_name}`"
-                    )
-    raise ValueError(f"Package `{package_name}` not found in requirements file")
-
-
-package: str = "grpcio-tools"
-package_version = get_pip_package_version(package)
-requirements_file: str = "../../requirements_build.txt"
-requirements_min_version = get_min_required_version(requirements_file, package)
-# check that the installed version of the package is at least the required version
-assert version.Version(package_version) >= version.Version(
-    requirements_min_version
-), f"Package {package} found={package_version} required>={requirements_min_version}"
-
 protobuf_version = version.Version(get_pip_package_version("protobuf"))
 
 proto_root = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
