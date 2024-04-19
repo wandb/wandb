@@ -39,17 +39,13 @@ def macos_user_cache_dir() -> Path:
 
 
 def unix_user_data_dir() -> Path:
-    data_home = os.environ.get("XDG_DATA_HOME", "")
-    if not data_home.strip():
-        data_home = Path.home() / ".local" / "share"
-    return data_home / "wandb"
+    xdg_data_home = os.environ.get("XDG_DATA_HOME", "").strip()
+    return Path(xdg_data_home or (Path.home() / ".local" / "share")) / "wandb"
 
 
 def unix_user_cache_dir() -> Path:
-    cache_home = os.environ.get("XDG_CACHE_HOME", "")
-    if not cache_home.strip():
-        cache_home = Path.home() / ".cache"
-    return cache_home / "wandb"
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME", "").strip()
+    return Path(xdg_cache_home or (Path.home() / ".cache")) / "wandb"
 
 
 class LocalAppData:
@@ -59,31 +55,33 @@ class LocalAppData:
 
 
 def windows_user_data_dir() -> Path:
-    return get_windows_local_appdata_dir() / "wandb" / "wandb"
+    return Path(get_windows_local_appdata_dir()) / "wandb" / "wandb"
 
 
 def windows_user_cache_dir() -> Path:
-    return get_windows_local_appdata_dir() / "wandb" / "wandb" / "Cache"
+    return Path(get_windows_local_appdata_dir()) / "wandb" / "wandb" / "Cache"
 
 
-def get_windows_local_appdata_dir() -> Path:
+def get_windows_local_appdata_dir() -> str:
     if hasattr(ctypes, "windll"):
         return get_win_folder_via_ctypes()
 
     try:
         import winreg  # noqa: PLC0415
 
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
+        key = winreg.OpenKey(  # type: ignore[attr-defined]
+            winreg.HKEY_CURRENT_USER,  # type: ignore[attr-defined]
             r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
         )
-        directory, _ = winreg.QueryValueEx(key, LocalAppData.REG_KEY)
-        return Path(directory)
+        directory, _ = winreg.QueryValueEx(  # type: ignore[attr-defined]
+            key, LocalAppData.REG_KEY
+        )
+        return directory
 
     except ImportError:
         environ = os.environ.get(LocalAppData.ENV_VAR)
         if environ:
-            return Path(environ)
+            return environ
 
     raise RuntimeError("Failed to determine Windows user data directory.")
 
