@@ -193,7 +193,7 @@ class Artifact:
         self._updated_at: Optional[str] = None
         self._final: bool = False
 
-        # Add ourselves to the cache.
+        # Cache.
         artifact_instance_cache[self._client_id] = self
 
     def __repr__(self) -> str:
@@ -371,7 +371,9 @@ class Artifact:
         artifact._client = self._client
         artifact._description = self.description
         artifact._metadata = self.metadata
-        artifact._manifest = ArtifactManifest.from_manifest(self.manifest)
+        artifact._manifest = ArtifactManifest.from_manifest_json(
+            self.manifest.to_manifest_json()
+        )
         return artifact
 
     # Properties (Python Class managed attributes).
@@ -1681,8 +1683,6 @@ class Artifact:
         skip_cache: bool = False,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        import pathlib
-
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
@@ -1694,7 +1694,7 @@ class Artifact:
 
             settings = wl.settings.to_proto()
             # TODO: remove this
-            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            tmp_dir = Path(tempfile.mkdtemp())
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
             settings.files_dir.value = str(tmp_dir / "files")

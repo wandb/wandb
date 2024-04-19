@@ -1478,17 +1478,11 @@ class SendManager:
     ) -> Optional[Dict]:
         from wandb.util import parse_version
 
-        if artifact.manifest_file:
-            with open(artifact.manifest_file) as f:
-                manifest_json = json.load(f)
-        else:
-            manifest_json = _manifest_json_from_proto(artifact.manifest)
-
         assert self._pusher
         saver = ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
-            manifest_json=manifest_json,
+            manifest_json=_manifest_json_from_proto(artifact.manifest),
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )

@@ -417,7 +417,6 @@ message ArtifactRecord {
   string sequence_client_id = 16;
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
-  string manifest_file = 19;  // Alternative to manifest; pass using filesystem instead.
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
