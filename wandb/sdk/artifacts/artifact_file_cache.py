@@ -182,7 +182,7 @@ class ArtifactFileCache:
             OSError: If there is not enough space to write `size` bytes, even after
                 removing cached items.
         """
-        if size <= self._free_space():
+        if not size or size <= self._free_space():
             return
 
         term.termwarn("Cache size exceeded. Attempting to reclaim space...")

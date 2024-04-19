@@ -3,6 +3,7 @@
 import atexit
 import concurrent.futures
 import contextlib
+import gzip
 import json
 import multiprocessing.dummy
 import os
@@ -2232,15 +2233,16 @@ class Artifact:
     def _load_manifest(self, url: str) -> None:
         cached_path, hit, opener = self._cache.check_manifest_obj_path(self.id)
         if hit:
-            content = Path(cached_path).read_text()
+            encoded = Path(cached_path).read_bytes()
+            content = gzip.decompress(encoded).decode("utf-8")
             self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
             return
         with requests.get(url) as request:
             request.raise_for_status()
             content = util.ensure_text(request.content)
             self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
-        with opener() as f:
-            f.write(content)
+        with opener("wb") as f:
+            f.write(gzip.compress(content.encode("utf-8"), compresslevel=1))
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
