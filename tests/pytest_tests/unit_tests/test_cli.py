@@ -218,7 +218,7 @@ def test_sync_gc(runner):
 
 
 def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key):
-    with runner.isolated_filesystem():
+    with runner.isolated_filesystem(), mock.patch.dict("os.environ", {"NETRC": ""}):
         mocker.patch("wandb.wandb_lib.apikey.getpass", input)
         # this first gives login an empty API key, which should cause
         # it to re-prompt.  this is what we are testing.  we then give

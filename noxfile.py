@@ -1,4 +1,6 @@
 import os
+import pathlib
+import shutil
 import time
 from contextlib import contextmanager
 from typing import Callable, List
@@ -23,28 +25,38 @@ def install_timed(session: nox.Session, *args, **kwargs):
 @nox.session(python=_SUPPORTED_PYTHONS, reuse_venv=True)
 @nox.parametrize("core", [True, False])
 def unit_tests(session: nox.Session, core: bool) -> None:
-    install_timed(session, "-r", "requirements_dev.txt")
+    """Runs Python unit tests.
 
-    # For test_reports:
-    install_timed(session, ".[reports]")
-    install_timed(session, "polyfactory")
+    By default this runs all unit tests, but specific tests can be selected
+    by passing them via positional arguments.
+    """
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     # The package itself:
     install_timed(
         session,
         ".",
-        env={
-            "WANDB_BUILD_COVERAGE": "true",
-            "WANDB_BUILD_UNIVERSAL": "false",
-        },
+        "-r",
+        "requirements_dev.txt",
+        # For test_reports:
+        ".[reports]",
+        "polyfactory",
     )
 
-    tmpdir = session.create_tmp()
-    coverage_dir = os.path.join(tmpdir, "coverage")
+    tmpdir = pathlib.Path(session.create_tmp())
+
+    # Using an absolute path is critical. We can't assume that the working
+    # directory of the wandb-core binary will match the working directory
+    # of the Nox session!
+    gocoverdir = (tmpdir / "gocoverage").absolute()
+    if gocoverdir.exists():
+        shutil.rmtree(gocoverdir)
+    gocoverdir.mkdir()
 
     pytest_opts = []
     pytest_env = {
-        "GOCOVERDIR": coverage_dir,
+        "GOCOVERDIR": str(gocoverdir),
         "WANDB__REQUIRE_CORE": str(core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
@@ -72,12 +84,17 @@ def unit_tests(session: nox.Session, core: bool) -> None:
 
     # (pytest-cov) Enable code coverage reporting.
     pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
-    pytest_env["COVERAGE_FILE"] = coverage_dir
+    pytest_env["COVERAGE_FILE"] = ".coverage"
+
+    if session.posargs:
+        tests = session.posargs
+    else:
+        tests = ["tests/pytest_tests/unit_tests"]
 
     session.run(
         "pytest",
         *pytest_opts,
-        "tests/pytest_tests/unit_tests/",
+        *tests,
         env=pytest_env,
     )
 
@@ -87,8 +104,9 @@ def unit_tests(session: nox.Session, core: bool) -> None:
             "tool",
             "covdata",
             "textfmt",
-            f"-i={coverage_dir}",
+            f"-i={gocoverdir}",
             "-o=coverage.txt",
+            external=True,
         )
 
 
