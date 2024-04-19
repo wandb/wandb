@@ -723,10 +723,22 @@ jobs:
       - save-test-results
 
   unit-tests-go:
-    docker:
-      - image: cimg/go:<<pipeline.parameters.go_version>>
+    parameters:
+      executor: { type: executor }
+
+    executor: << parameters.executor >>
+
     steps:
       - checkout
+      - install_go
+      - run:
+          name: Install Go dependencies
+          command: go mod download
+      - run:
+          name: Install Go dependencies
+          command: |
+            cd core
+            go mod download
       - run:
           name: Run wandb core's Go tests and collect coverage
           command: |
@@ -1590,7 +1602,31 @@ workflows:
       #
       # Unit tests with Go on Linux
       #
-      - unit-tests-go
+      - unit-tests-go:
+          name: "unit-tests-go-linux"
+          parameters:
+            executor:
+              docker: cimg/base
+
+      #
+      # Unit tests with Go on MacOS
+      #
+      - unit-tests-go:
+          name: "unit-tests-go-linux"
+          parameters:
+            executor: macos
+
+      #
+      # Unit tests with Go on Windows
+      #
+      - unit-tests-go:
+          name: "unit-tests-go-win"
+          parameters:
+            executor:
+              name: win/server-2019
+              size: large
+              shell: bash.exe
+
 
       #
       # Unit tests with pytest on Linux
