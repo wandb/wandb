@@ -88,24 +88,8 @@ class WandbMetricsLogger(Callback):
 
     def _get_lr(self) -> Union[float, None]:
         if version.parse(keras.__version__) > version.parse("3.0.0"):
-            if keras.backend.backend() == "tensorflow":
-                if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
-                    return float(self.model.optimizer.learning_rate.numpy().item())
-            elif keras.backend.backend() == "torch":
-                torch = get_module("torch")
-                if isinstance(self.model.optimizer.learning_rate, torch.Tensor):
-                    lr = self.model.optimizer.learning_rate.to("cpu")
-                    return float(lr.numpy().item())
-                else:
-                    wandb.termerror("Unable to log learning rate.", repeat=False)
-                    return None
-            elif keras.backend.backend() == "jax":
-                try:
-                    np = get_module("numpy")
-                    return float(np.array(self.model.optimizer.learning_rate).item())
-                except Exception:
-                    wandb.termerror("Unable to log learning rate.", repeat=False)
-                    return None
+            if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
+                return keras.ops.convert_to_numpy(self.model.optimizer.learning_rate)
         else:
             tf = get_module("tensorflow")
             if isinstance(self.model.optimizer.learning_rate, tf.Variable):
