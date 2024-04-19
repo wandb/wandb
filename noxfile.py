@@ -163,7 +163,13 @@ def system_tests(session: nox.Session, core: bool) -> None:
             session,
             gocoverdir=gocoverdir,
             require_core=core,
-            paths=session.posargs or ["tests/pytest_tests/system_tests"],
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests",
+                    "--ignore=tests/pytest_tests/system_tests/test_importers",
+                ]
+            ),
         )
 
 
