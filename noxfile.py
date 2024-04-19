@@ -83,7 +83,7 @@ def run_pytest(
 
     # When running with core, skip tests that we know fail with it.
     if require_core:
-        pytest_opts.extend(["-m", "'not wandb_core_failure'"])
+        pytest_opts.extend(["-m", "not wandb_core_failure"])
 
     # Print 20 slowest tests.
     pytest_opts.append("--durations=20")
