@@ -218,21 +218,17 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
+  DataValue value_data = 3;
   string value_json = 16;
 }
 
 message HistoryResult {}
 
 /*
- * DataRecord:
+ * DataValue:
  */
-message DataRecord {
-  map<string, DataValue> item = 1;
-  _RecordInfo _info = 200;
-}
-
 message TensorData {
-  bytes tensor = 1;
+  bytes tensor_content = 1;
   string meta_string = 2;
 }
 

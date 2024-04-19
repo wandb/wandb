@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+        "strconv"
 	"sync"
 	"time"
 
@@ -746,14 +747,54 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	}
 }
 
+// might want to move this info filestream... ideally we should do something like this:
+//   process during sendHistory,  schedule work to be done for the history data especially the media
+//   then at filestream process time / or fs transmit time, do final step coallescing data, for example
+//   it might be cool to sprite multiple steps of the same image key. kinda tricky to do
+func historyMediaProcess(hrecord *service.HistoryRecord) *service.HistoryRecord {
+        hrecordNew := &service.HistoryRecord{
+                Step: hrecord.Step,
+        }
+	for _, item := range hrecord.Item {
+                if item.ValueData != nil {
+                        hItem := &service.HistoryItem{Key: item.Key}
+                        switch value := item.ValueData.DataType.(type) {
+                                case *service.DataValue_ValueInt:
+                                        hItem.ValueJson = strconv.FormatInt(value.ValueInt, 10)
+                                case *service.DataValue_ValueDouble:
+                                        hItem.ValueJson = strconv.FormatFloat(value.ValueDouble, 'E', -1, 64)
+                                case *service.DataValue_ValueString:
+                                        hItem.ValueJson = fmt.Sprintf(`"%s"`, value.ValueString)
+                                case *service.DataValue_ValueTensor:
+                                        continue
+                                        // FIXME: implement me
+                        }
+		        hrecordNew.Item = append(hrecordNew.Item, hItem)
+                } else {
+		        hrecordNew.Item = append(hrecordNew.Item, item)
+                }
+        }
+        return hrecordNew
+}
+
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
+func (s *Sender) sendHistory(record *service.Record, hrecord *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
+        hrecordNew := historyMediaProcess(hrecord)
 
-	s.fileStream.StreamRecord(record)
+        // TODO: do this better?
+        recordNew := &service.Record{
+                RecordType: &service.Record_History{
+                        History: hrecordNew,
+                },
+                Control: record.Control,
+                Uuid: record.Uuid,
+        }
+
+	s.fileStream.StreamRecord(recordNew)
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
@@ -765,7 +806,11 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	// track each key in the in memory summary store
 	// TODO(memory): avoid keeping summary for all distinct keys
 	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
+                // TODO: this isnt really right.. could be an empty string, want to deal with Data values
+                if item.ValueJson == "" {
+                        continue
+                }
+	 	s.summaryMap[item.Key] = item
 	}
 
 	if s.fileStream != nil {

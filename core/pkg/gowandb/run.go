@@ -153,21 +153,37 @@ func (r *Run) start() {
 func (r *Run) logCommit(data map[string]interface{}) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
-		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
-		data, err := json.Marshal(value)
+                data, err := json.Marshal(value)
 		if err != nil {
-			panic(err)
+		        panic(err)
 		}
 		history.Item = append(history.Item, &service.HistoryItem{
-			Key:       key,
-			ValueJson: string(data),
-		})
+                                        Key:       key,
+                                        ValueJson: string(data),
+                })
 	}
 	request := service.Request{
 		RequestType: &service.Request_PartialHistory{PartialHistory: &history},
 	}
 	record := service.Record{
 		RecordType: &service.Record_Request{Request: &request},
+		Control:    &service.Control{Local: true},
+		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
+	}
+
+	serverRecord := service.ServerRequest{
+		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
+	}
+
+	err := r.conn.Send(&serverRecord)
+	if err != nil {
+		return
+	}
+}
+
+func (r *Run) logHistory(hproto *service.HistoryRecord) {
+	record := service.Record{
+		RecordType: &service.Record_History{History: hproto},
 		Control:    &service.Control{Local: true},
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
@@ -202,6 +218,11 @@ func (r *Run) LogPartialCommit() {
 
 func (r *Run) Log(data map[string]interface{}) {
 	r.LogPartial(data, true)
+}
+
+// TODO: might want to make this internal?
+func (r *Run) LogHistory(hproto *service.HistoryRecord) {
+        r.logHistory(hproto)
 }
 
 func (r *Run) sendExit() {

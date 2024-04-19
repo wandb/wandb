@@ -27,6 +27,11 @@ def new_api():
     return Api()
 
 
+class Image:
+    def __init__(self, data):
+        self._data = data
+
+
 # global library object
 default_api = new_api()
 default_session = None
@@ -85,14 +90,25 @@ class Run:
         return self._session._api
 
     def log(self, data):
-        data_msg = pb2.DataRecord()
+        data_msg = pb2.HistoryRecord()
         for k, v in data.items():
+            item = data_msg.item.add()
+            item.key = k
+            d = pb2.DataValue()
             if type(v) == int:
-                data_msg.item[k].value_int = v
+                d.value_int = v
             elif type(v) == float:
-                data_msg.item[k].value_double = v
+                d.value_double = v
             elif type(v) == str:
-                data_msg.item[k].value_string = v
+                d.value_string = v
+            elif isinstance(v, Image):
+                tensor_msg = pb2.TensorData()
+                tensor_msg.tensor_content = v._data.tobytes()
+                # TODO: see if we can do this without the CopyFrom
+                d.value_tensor.CopyFrom(tensor_msg)
+            # TODO: see if we can do this without the CopyFrom
+            item.value_data.CopyFrom(d)
+
         data_bytes = data_msg.SerializeToString()
         self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 

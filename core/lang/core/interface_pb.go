@@ -35,26 +35,15 @@ func pbRunStart() int {
 func pbRunLog(num int, cBuffer *C.char, cLength C.int) {
         data := C.GoBytes(unsafe.Pointer(cBuffer), cLength)
         // Unmarshal protobuf
-        msg := &service.DataRecord{}
+        msg := &service.HistoryRecord{}
         if err := proto.Unmarshal(data, msg); err != nil {
                 return
         }
         // Process data (here simply prepending a string)
 	run := wandbRuns.Get(num)
 
-        dict := make(map[string]interface{})
-        for k, v := range msg.Item {
-                switch value := v.DataType.(type) {
-                case *service.DataValue_ValueInt:
-                        dict[k] = value.ValueInt
-                case *service.DataValue_ValueDouble:
-                        dict[k] = value.ValueDouble
-                case *service.DataValue_ValueString:
-                        dict[k] = value.ValueString
-                }
-        }
-
-	run.Log(dict)
+        // TODO: this might need to be internal
+	run.LogHistory(msg)
 }
 
 //export pbRunFinish
