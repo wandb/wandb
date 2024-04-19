@@ -63,6 +63,7 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         "WANDB__REQUIRE_CORE": str(core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
+        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": os.getenv("USERNAME"),
         "PATH": os.getenv("PATH"),
         "USERPROFILE": os.getenv("USERPROFILE"),
