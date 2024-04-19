@@ -33,7 +33,11 @@ def unit_tests(session: nox.Session, core: bool) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
-    install_timed(session, "--force-reinstall", ".")
+    if session.venv_backend == "uv":
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+    else:
+        install_timed(session, "--force-reinstall", ".")
+
     install_timed(
         session,
         "-r",

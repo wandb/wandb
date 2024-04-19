@@ -450,14 +450,14 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
           name: Run all unit tests
           no_output_timeout: 10m
           command: "\
-            nox -s 'unit_tests-\
+            nox -db uv -s 'unit_tests-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
@@ -1654,7 +1654,7 @@ workflows:
       - unit-tests:
           name: "\
             unit-tests-win-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
 
@@ -1669,12 +1669,12 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
+              core: ["True", "False"]
             exclude:
-              - with_core: true
+              - core: "True"
                 python_version_major: 3
                 python_version_minor: 9
-              - with_core: true
+              - core: "True"
                 python_version_major: 3
                 python_version_minor: 12
 
