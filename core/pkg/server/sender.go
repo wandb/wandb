@@ -848,7 +848,12 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
                                         // fmt.Printf("GOT TENSOR %+v\n", value.ValueTensor)
                                         imageBase := fmt.Sprintf("%s_%d", item.Key, hrecord.Step)
 	                                imagePath := filepath.Join("media", "images", imageBase)
-                                        fname, hash, size, err := createPNG(value.ValueTensor.TensorContent, 8, 8, filesPath, imagePath)
+                                        shape := value.ValueTensor.Shape
+                                        height := int(shape[0])
+                                        width := int(shape[1])
+                                        // FIXME: make sure channels is 3 for now
+                                        // FIXME: we only handle dtype uint8 also
+                                        fname, hash, size, err := createPNG(value.ValueTensor.TensorContent, height, width, filesPath, imagePath)
                                         if err != nil {
                                                 fmt.Printf("GOT err %+v\n", err)
                                         }
@@ -856,8 +861,8 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
                                         media := Media{
                                                 Type: "image-file",
                                                 Format: "png",
-                                                Height: 8,
-                                                Width: 8,
+                                                Height: height,
+                                                Width: width,
                                                 Size: size,
                                                 Sha256: hash,
                                                 Path: fname,
