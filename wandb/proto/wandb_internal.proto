@@ -230,6 +230,7 @@ message HistoryResult {}
 message TensorData {
   bytes tensor_content = 1;
   string meta_string = 2;
+  repeated int32 shape = 3;
 }
 
 message DataValue {

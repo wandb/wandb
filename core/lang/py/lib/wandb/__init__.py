@@ -104,6 +104,7 @@ class Run:
             elif isinstance(v, Image):
                 tensor_msg = pb2.TensorData()
                 tensor_msg.tensor_content = v._data.tobytes()
+                tensor_msg.shape.extend(v._data.shape)
                 # TODO: see if we can do this without the CopyFrom
                 d.value_tensor.CopyFrom(tensor_msg)
             # TODO: see if we can do this without the CopyFrom
