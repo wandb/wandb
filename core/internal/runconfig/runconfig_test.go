@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -77,7 +78,7 @@ func TestConfigSerialize(t *testing.T) {
 		},
 	})
 
-	yaml, _ := runConfig.Serialize(runconfig.FormatYaml)
+	yaml, _ := runConfig.Serialize(pathtree.FormatYaml)
 
 	assert.Equal(t,
 		""+
