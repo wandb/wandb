@@ -79,6 +79,7 @@ def run_pytest(
         "WANDB_ERROR_REPORTING": "false",
         "USERNAME": os.getenv("USERNAME"),
         "PATH": os.getenv("PATH"),
+        "PYTHONPATH": os.getenv("PYTHONPATH"),
     }
 
     # When running with core, skip tests that we know fail with it.
