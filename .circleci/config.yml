@@ -730,6 +730,7 @@ jobs:
   unit-tests-go:
     parameters:
       executor: { type: executor }
+      extra_install: { type: steps }
 
     executor: << parameters.executor >>
 
@@ -739,6 +740,7 @@ jobs:
     steps:
       - checkout
       - install_go
+      - << parameters.extra_install >>
       - run:
           name: Install Go dependencies
           command: |
@@ -1625,6 +1627,11 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-win"
+
+          extra_install:
+            - run:
+                name: Install GCC
+                command: choco install -y mingw
 
           executor:
             name: win/server-2019
