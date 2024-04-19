@@ -35,6 +35,7 @@ class GCSHandler(StorageHandler):
         storage = util.get_module(
             "google.cloud.storage",
             required="gs:// references requires the google-cloud-storage library, run pip install wandb[gcp]",
+            lazy=False,
         )
         self._client = storage.Client()
         return self._client
