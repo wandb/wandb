@@ -457,7 +457,7 @@ jobs:
           name: Run all unit tests
           no_output_timeout: 10m
           command: "\
-            nox -db uv -s 'unit_tests-\
+            nox -s 'unit_tests-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
