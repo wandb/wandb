@@ -733,9 +733,6 @@ jobs:
       - install_go
       - run:
           name: Install Go dependencies
-          command: go mod download
-      - run:
-          name: Install Go dependencies
           command: |
             cd core
             go mod download
@@ -1611,7 +1608,7 @@ workflows:
       # Unit tests with Go on MacOS
       #
       - unit-tests-go:
-          name: "unit-tests-go-linux"
+          name: "unit-tests-go-macos"
 
           executor: macos
 
