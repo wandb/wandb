@@ -1,6 +1,6 @@
 """Platform-dependent directory paths.
 
-Adapted from the [platformdirs library](https://github.com/platformdirs/platformdirs/),
+Adapted from the [platformdirs](https://github.com/platformdirs/platformdirs/) library,
 simplified for the few directories we use and made specific to the wandb app.
 """
 
