@@ -97,7 +97,7 @@ class ArtifactManifestEntry:
         """Deprecated; use `path` instead."""
         deprecate(
             field_name=Deprecated.artifactmanifestentry__name,
-            message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
         )
         return self.path
 

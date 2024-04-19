@@ -1506,7 +1506,7 @@ class Artifact:
         """Deprecated. Use `get_entry(name)`."""
         deprecate(
             field_name=Deprecated.artifact__get_path,
-            message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
+            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 

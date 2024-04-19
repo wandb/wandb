@@ -22,7 +22,7 @@ DEPRECATED_FEATURES = Literal[
     "keras_callback__save_model",
     "langchain_tracer",
     "artifact__get_path",
-    "artifactmanifestentry__name"
+    "artifactmanifestentry__name",
 ]
 
 
