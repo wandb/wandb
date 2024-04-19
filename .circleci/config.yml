@@ -90,6 +90,11 @@ executors:
       xcode: 15.1.0
     resource_class: macos.m1.medium.gen1
 
+  linux:
+    docker:
+      - image: cimg/base:stable
+    resource_class: medium
+
   linux-python:
     parameters:
       python_version_major: { type: integer }
@@ -1596,13 +1601,13 @@ workflows:
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
 
-      # #
-      # # Unit tests with Go on Linux
-      # #
-      # - unit-tests-go:
-      #     name: "unit-tests-go-linux"
+      #
+      # Unit tests with Go on Linux
+      #
+      - unit-tests-go:
+          name: "unit-tests-go-linux"
 
-      #     executor: linux
+          executor: linux
 
       #
       # Unit tests with Go on MacOS
@@ -1617,6 +1622,8 @@ workflows:
       #
       - unit-tests-go:
           name: "unit-tests-go-win"
+          environment:
+            CGO_ENABLED: "1"
 
           executor:
             name: win/server-2019
