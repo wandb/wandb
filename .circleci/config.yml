@@ -1606,7 +1606,8 @@ workflows:
           name: "unit-tests-go-linux"
 
           executor:
-            docker: cimg/base
+            docker:
+              - image: "cimg/base"
 
       #
       # Unit tests with Go on MacOS
