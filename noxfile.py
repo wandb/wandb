@@ -33,10 +33,9 @@ def unit_tests(session: nox.Session, core: bool) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
-    # The package itself:
+    install_timed(session, "--force-reinstall", ".")
     install_timed(
         session,
-        ".",
         "-r",
         "requirements_dev.txt",
         # For test_reports:
@@ -60,9 +59,8 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         "WANDB__REQUIRE_CORE": str(core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
-        # Variables from the outer environment that can mess up tests.
-        # This is a bug in our tests that we should fix.
-        "NETRC": None,
+        "USERNAME": os.getenv("USERNAME"),
+        "PATH": os.getenv("PATH"),
     }
 
     # Print 20 slowest tests.
@@ -99,6 +97,7 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         *pytest_opts,
         *tests,
         env=pytest_env,
+        include_outer_env=False,
     )
 
     if core:
