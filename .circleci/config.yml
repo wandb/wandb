@@ -842,62 +842,6 @@ jobs:
                       { flags: <<parameters.codecov_flags>>, validate: false }
             - save-test-results
 
-  mac:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 7
-      toxenv:
-        type: string
-      coverage_dir:
-        type: string
-        default: ""
-      parallelism:
-        type: integer
-        default: 4
-      xdist:
-        type: integer
-        default: 3
-      tox_args:
-        type: string
-        default: ""
-      codecov_flags:
-        type: string
-        default: ""
-    macos:
-      xcode: 15.0.1
-    resource_class: macos.m1.medium.gen1
-    parallelism: << parameters.parallelism >>
-    environment:
-      COVERAGE_DIR: << parameters.coverage_dir >>
-    steps:
-      - checkout
-      - run:
-          name: Install python dependencies
-          command: |
-            pip3 install -U tox nox pip
-            brew install ffmpeg
-      - install_go
-      - run:
-          name: Run tests
-          # Tests failed with Too many open files, so added ulimit
-          command: |
-            ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-            python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
-          no_output_timeout: 10m
-      - when:
-          condition:
-            not:
-              equal: ["", << parameters.codecov_flags >>]
-          steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
-      - save-test-results
-
   launch:
     parameters:
       toxenv:
@@ -1709,21 +1653,52 @@ workflows:
                   brew install ffmpeg \
                     python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
 
-      - win:
+      #
+      # Unit tests with pytest on Windows
+      #
+      # This differs from the Linux tests above only in:
+      #   - executor
+      #   - install_deps
+      #
+      - unit-tests:
+          name: "\
+            unit-tests-win-\
+            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+
           filters:
             branches:
               only:
                 # - main
                 - /^release-.*/
                 - /^.*-ci-win$/
+
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: unit
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
+              python_version_minor: [9, 12]
+              with_core: [true, false]
+            exclude:
+              - with_core: true
+                python_version_major: 3
+                python_version_minor: 9
+              - with_core: true
+                python_version_major: 3
+                python_version_minor: 12
+
+
+          executor:
+            name: win/server-2019
+            size: large
+            shell: bash.exe
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  choco install -y ffmpeg \
+                    python<<matrix.python_version_major>><<matrix.python_version_minor>>
 
       #
       # System tests on Linux
