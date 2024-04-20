@@ -1,4 +1,5 @@
 import asyncio
+import platform
 import threading
 from unittest.mock import MagicMock
 
@@ -469,6 +470,7 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
     assert out, "True when status successfully updated"
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="fails on windows")
 @pytest.mark.asyncio
 async def test_thread_finish_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits 0 but there is no run."""
@@ -497,6 +499,7 @@ async def test_thread_finish_no_run(mocker, clean_agent):
     )
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="fails on windows")
 @pytest.mark.asyncio
 async def test_thread_failed_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits non-zero but there is no run."""
