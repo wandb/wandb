@@ -1670,13 +1670,6 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9, 12]
               core: ["True", "False"]
-            exclude:
-              - core: "True"
-                python_version_major: 3
-                python_version_minor: 9
-              - core: "True"
-                python_version_major: 3
-                python_version_minor: 12
 
 
           executor:
