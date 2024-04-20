@@ -78,9 +78,9 @@ def run_pytest(
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
         "WANDB_CORE_ERROR_REPORTING": "false",
-        "USERNAME": os.getenv("USERNAME"),
-        "PATH": os.getenv("PATH"),
-        "USERPROFILE": os.getenv("USERPROFILE"),
+        "USERNAME": session.env.get("USERNAME"),
+        "PATH": session.env.get("PATH"),
+        "USERPROFILE": session.env.get("USERPROFILE"),
     }
 
     # When running with core, skip tests that we know fail with it.
@@ -101,8 +101,8 @@ def run_pytest(
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     # These environment variables come from CircleCI.
-    circle_node_total = os.getenv("CIRCLE_NODE_TOTAL")
-    circle_node_index = os.getenv("CIRCLE_NODE_INDEX")
+    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
     if circle_node_total and circle_node_index:
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
@@ -161,8 +161,8 @@ def system_tests(session: nox.Session, core: bool) -> None:
     install_timed(
         session,
         "-r",
-        "requirements_dev.txt",  # for test_reports
-        "annotated-types",
+        "requirements_dev.txt",
+        "annotated-types",  # for test_reports
     )
 
     with go_code_coverage(session) as gocoverdir:

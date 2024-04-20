@@ -440,9 +440,6 @@ jobs:
       python_version_minor: { type: integer }
       core: { type: string }
       codecov_flags: { type: string }
-      nox_backend:  # DO NOT MERGE
-        type: string
-        default: uv
 
     executor: <<parameters.executor>>
 
@@ -1589,13 +1586,6 @@ workflows:
               python_version_major: [3]
               python_version_minor: [9, 12]
               core: ["True", "False"]
-            exclude:
-              - core: "True"
-                python_version_major: 3
-                python_version_minor: 9
-              - core: "True"
-                python_version_major: 3
-                python_version_minor: 12
 
 
           parallelism: 4
@@ -1634,7 +1624,6 @@ workflows:
               python_version_minor: [8, 12]
               core: ["True", "False"]
 
-          nox_backend: virtualenv  # DO NOT MERGE
           parallelism: 12
           executor:
             name: local-testcontainer
