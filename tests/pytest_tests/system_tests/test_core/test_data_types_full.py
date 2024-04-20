@@ -1,4 +1,3 @@
-import platform
 from unittest import mock
 
 import numpy as np
@@ -100,14 +99,7 @@ def test_log_with_dir_sep_windows(wandb_init):
 def test_log_with_back_slash_windows(wandb_init):
     run = wandb_init()
     wb_image = wandb.Image(np.zeros((28, 28)))
-
-    # windows doesnt allow a backslash in media keys right now
-    if platform.system() == "Windows":
-        with pytest.raises(ValueError):
-            run.log({r"train\image": wb_image})
-    else:
-        run.log({r"train\image": wb_image})
-
+    run.log({r"train\image": wb_image})
     run.finish()
 
 
@@ -134,6 +126,6 @@ def test_image_array_old_wandb_mp_warning(wandb_init, capsys, monkeypatch):
     run.finish()
     outerr = capsys.readouterr()
     assert (
-        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
-        in outerr.err
+        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. "
+        "Please upgrade your wandb server" in outerr.err
     )
