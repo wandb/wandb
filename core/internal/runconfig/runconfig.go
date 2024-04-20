@@ -32,15 +32,6 @@ func NewFrom(tree RunConfigDict) *RunConfig {
 	return &RunConfig{PathTree: pathtree.NewFrom[*service.ConfigItem](tree)}
 }
 
-// Makes and returns a deep copy of the underlying tree.
-func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
-	clone, err := pathtree.DeepCopy(runConfig.Tree())
-	if err != nil {
-		return nil, err
-	}
-	return clone, nil
-}
-
 // Updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
@@ -54,6 +45,21 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 
 	remove := configRecord.GetRemove()
 	runConfig.ApplyRemove(remove, onError)
+}
+
+// Returns the "_wandb" subtree of the config.
+// TODO: can we remove this? we dont want to use Tree() directly
+func (runConfig *RunConfig) internalSubtree() RunConfigDict {
+	node, found := runConfig.Tree()["_wandb"]
+
+	if !found {
+		wandbInternal := make(RunConfigDict)
+		runConfig.Tree()["_wandb"] = wandbInternal
+		return wandbInternal
+	}
+
+	// Panic if the type is wrong, which should never happen.
+	return node.(RunConfigDict)
 }
 
 // Inserts W&B-internal values into the run's configuration.
@@ -75,6 +81,19 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 	if metrics != nil {
 		wandbInternal["m"] = metrics
 	}
+}
+
+func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
+	return runConfig.PathTree.Serialize(format, func(tree pathtree.TreeData) pathtree.TreeData {
+		serialized := pathtree.TreeData{}
+		for treeKey, treeValue := range tree {
+			serialized[treeKey] = pathtree.TreeData{
+				"value": treeValue,
+				"desc":  nil,
+			}
+		}
+		return serialized
+	})
 }
 
 // Incorporates the config from a run that's being resumed.
@@ -105,18 +124,4 @@ func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 	}
 
 	return nil
-}
-
-// Returns the "_wandb" subtree of the config.
-func (runConfig *RunConfig) internalSubtree() RunConfigDict {
-	node, found := runConfig.Tree()["_wandb"]
-
-	if !found {
-		wandbInternal := make(RunConfigDict)
-		runConfig.Tree()["_wandb"] = wandbInternal
-		return wandbInternal
-	}
-
-	// Panic if the type is wrong, which should never happen.
-	return node.(RunConfigDict)
 }

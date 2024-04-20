@@ -25,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -106,8 +107,8 @@ type Sender struct {
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
-	// metricSender is a service for managing metrics
-	metricSender *MetricSender
+	// runMetric is the run metric handler
+	runMetric *runmetric.RunMetricSender
 
 	// debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -434,7 +435,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
-		s.writeAndSendConfigFile()
+		s.sendConfigFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -543,8 +544,8 @@ func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
 // Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
 	metrics := []map[int]interface{}(nil)
-	if s.metricSender != nil {
-		metrics = s.metricSender.configMetrics
+	if s.runMetric != nil {
+		metrics = s.runMetric.Config
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -824,7 +825,7 @@ func (s *Sender) upsertConfig() {
 	}
 }
 
-func (s *Sender) writeAndSendConfigFile() {
+func (s *Sender) sendConfigFile() {
 	if s.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
 		return
@@ -833,7 +834,8 @@ func (s *Sender) writeAndSendConfigFile() {
 	config := s.serializeConfig(pathtree.FormatYaml)
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		err = fmt.Errorf("failed to write config file: %s", err)
+		s.logger.Error("sender: sendConfigFile: ", "error", err)
 	}
 
 	record := &service.Record{
@@ -1007,17 +1009,15 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
-	if s.metricSender == nil {
-		s.metricSender = NewMetricSender()
+func (s *Sender) sendMetric(_ *service.Record, metric *service.MetricRecord) {
+	if s.runMetric == nil {
+		s.runMetric = runmetric.NewRunMetricSender()
 	}
 
-	if metric.GetGlobName() != "" {
-		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+	if err := s.runMetric.EncodeConfigHints(metric); err != nil {
+		s.logger.Error("sender: sendMetric: failed to encode config hints", "error", err)
 		return
 	}
-
-	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
 	s.sendConfig(nil, nil /*configRecord*/)
 }

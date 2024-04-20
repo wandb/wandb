@@ -173,17 +173,24 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	mailbox := mailbox.NewMailbox()
 
-	s.handler = NewHandler(s.ctx, s.logger,
-		WithHandlerSettings(s.settings.Proto),
-		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
-		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
-		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerRunfilesUploader(runfilesUploaderOrNil),
-		WithHandlerTBHandler(NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFileTransferStats(fileTransferStats),
-		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
-		WithHandlerMetricHandler(NewMetricHandler()),
-		WithHandlerMailbox(mailbox),
+	s.handler = NewHandler(s.ctx,
+		&HandlerParams{
+			Settings:   s.settings.Proto,
+			Logger:     s.logger,
+			FwdChannel: make(chan *service.Record, BufferSize),
+			OutChannel: make(chan *service.Result, BufferSize),
+			SystemMonitor: monitor.NewSystemMonitor(s.logger,
+				settings.Proto,
+				s.loopBackChan,
+			),
+			RunfilesUploader: runfilesUploaderOrNil,
+			TBHandler: NewTBHandler(w, s.logger,
+				s.settings.Proto,
+				s.loopBackChan,
+			),
+			FileTransferStats: fileTransferStats,
+			Mailbox:           mailbox,
+		},
 	)
 
 	s.writer = NewWriter(s.ctx, s.logger,

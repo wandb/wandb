@@ -20,8 +20,7 @@ type TreeData = map[string]interface{}
 // A key path determining a node in the tree.
 type TreePath []string
 
-// PathTree is used to represent a nested key-value pair object,
-// such as Run config or summary.
+// PathTree is used to represent a nested key-value pair object
 type PathTree[I item] struct {
 	// The underlying configuration tree.
 	//
@@ -105,20 +104,19 @@ func (pathTree *PathTree[I]) ApplyRemove(
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree[I]) Serialize(format Format) ([]byte, error) {
+func (pathTree *PathTree[I]) Serialize(format Format, preprocessFn func(TreeData) TreeData) ([]byte, error) {
+
 	// A configuration dict in the format expected by the backend.
-	serialized := make(map[string]map[string]interface{})
-	for treeKey, treeValue := range pathTree.tree {
-		serialized[treeKey] = map[string]interface{}{
-			"value": treeValue,
-		}
+	serialized := pathTree.tree
+	if preprocessFn != nil {
+		serialized = preprocessFn(pathTree.tree)
 	}
 
 	switch format {
 	case FormatYaml:
 		return yaml.Marshal(serialized)
 	case FormatJson:
-		return json.Marshal(serialized)
+		return json.MarshalIndent(serialized, "", " ")
 	}
 
 	return nil, fmt.Errorf("config: unknown format: %v", format)
