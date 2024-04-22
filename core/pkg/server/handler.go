@@ -36,66 +36,18 @@ const (
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
-type HandlerOption func(*Handler)
-
-func WithHandlerFwdChannel(fwd chan *service.Record) HandlerOption {
-	return func(h *Handler) {
-		h.fwdChan = fwd
-	}
-}
-
-func WithHandlerOutChannel(out chan *service.Result) HandlerOption {
-	return func(h *Handler) {
-		h.outChan = out
-	}
-}
-
-func WithHandlerSettings(settings *service.Settings) HandlerOption {
-	return func(h *Handler) {
-		h.settings = settings
-	}
-}
-
-func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
-	return func(h *Handler) {
-		h.systemMonitor = monitor
-	}
-}
-
-func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
-	return func(h *Handler) {
-		h.tbHandler = handler
-	}
-}
-
-func WithHandlerRunfilesUploader(uploaderOrNil runfiles.Uploader) HandlerOption {
-	return func(h *Handler) {
-		h.runfilesUploaderOrNil = uploaderOrNil
-	}
-}
-
-func WithHandlerFileTransferStats(stats filetransfer.FileTransferStats) HandlerOption {
-	return func(h *Handler) {
-		h.fileTransferStats = stats
-	}
-}
-
-func WithHandlerMetricHandler(handler *MetricHandler) HandlerOption {
-	return func(h *Handler) {
-		h.metricHandler = handler
-	}
-}
-
-func WithHandlerSummaryHandler(handler *SummaryHandler) HandlerOption {
-	return func(h *Handler) {
-		h.summaryHandler = handler
-	}
-}
-
-func WithHandlerMailbox(mailbox *mailbox.Mailbox) HandlerOption {
-	return func(h *Handler) {
-		h.mailbox = mailbox
-	}
+type HandlerParams struct {
+	Settings          *service.Settings
+	ForwardChan       chan *service.Record
+	OutChan           chan *service.Result
+	Logger            *observability.CoreLogger
+	Mailbox           *mailbox.Mailbox
+	SummaryHandler    *SummaryHandler
+	MetricHandler     *MetricHandler
+	FileTransferStats filetransfer.FileTransferStats
+	RunfilesUploader  runfiles.Uploader
+	TBHandler         *TBHandler
+	SystemMonitor     *monitor.SystemMonitor
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -162,16 +114,22 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	logger *observability.CoreLogger,
-	opts ...HandlerOption,
+	params *HandlerParams,
 ) *Handler {
 	h := &Handler{
-		ctx:             ctx,
-		logger:          logger,
-		internalPrinter: observability.NewPrinter[string](),
-	}
-	for _, opt := range opts {
-		opt(h)
+		ctx:                   ctx,
+		logger:                params.Logger,
+		settings:              params.Settings,
+		fwdChan:               params.ForwardChan,
+		outChan:               params.OutChan,
+		internalPrinter:       observability.NewPrinter[string](),
+		mailbox:               params.Mailbox,
+		summaryHandler:        params.SummaryHandler,
+		metricHandler:         params.MetricHandler,
+		fileTransferStats:     params.FileTransferStats,
+		runfilesUploaderOrNil: params.RunfilesUploader,
+		tbHandler:             params.TBHandler,
+		systemMonitor:         params.SystemMonitor,
 	}
 	return h
 }
