@@ -40,12 +40,10 @@ const (
 
 type HandlerParams struct {
 	Settings          *service.Settings
-	ForwardChan       chan *service.Record
+	FwdChan           chan *service.Record
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
-	SummaryHandler    *SummaryHandler
-	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
@@ -137,7 +135,7 @@ func NewHandler(
 		),
 		runMetric:             runmetric.NewMetricHandler(),
 		runTimer:              timer.New(),
-		fwdChan:               params.ForwardChan,
+		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		settings:              params.Settings,
 		systemMonitor:         params.SystemMonitor,

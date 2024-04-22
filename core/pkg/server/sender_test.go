@@ -74,7 +74,7 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 			FileStream:          fileStream,
 			FileTransferManager: fileTransferManager,
 			RunfilesUploader:    runfilesUploader,
-			ForwardChan:         make(chan *service.Record, 1),
+			FwdChan:             make(chan *service.Record, 1),
 			OutChan:             resultChan,
 			Mailbox:             mailbox.NewMailbox(),
 			GraphqlClient:       client,

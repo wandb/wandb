@@ -15,12 +15,6 @@ type WriterParams struct {
 	Logger   *observability.CoreLogger
 }
 
-type WriterParams struct {
-	Logger   *observability.CoreLogger
-	Settings *service.Settings
-	FwdChan  chan *service.Record
-}
-
 // Writer is responsible for writing messages to the append-only log.
 // It receives messages from the handler, processes them,
 // if the message is to be persisted it writes them to the log.

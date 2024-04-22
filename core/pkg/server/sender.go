@@ -53,7 +53,7 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
-	ForwardChan             chan *service.Record
+	FwdChan             chan *service.Record
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -154,7 +154,7 @@ func NewSender(
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
 		outChan:             params.OutChan,
-		fwdChan:             params.ForwardChan,
+		fwdChan:             params.FwdChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,

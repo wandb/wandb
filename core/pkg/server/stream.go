@@ -175,10 +175,10 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
-			Settings:   s.settings.Proto,
-			Logger:     s.logger,
-			ForwardChan: make(chan *service.Record, BufferSize),
-			OutChannel: make(chan *service.Result, BufferSize),
+			Settings: s.settings.Proto,
+			Logger:   s.logger,
+			FwdChan:  make(chan *service.Record, BufferSize),
+			OutChan:  make(chan *service.Result, BufferSize),
 			SystemMonitor: monitor.NewSystemMonitor(s.logger,
 				settings.Proto,
 				s.loopBackChan,
