@@ -1,12 +1,18 @@
 polyfactory # for test_reports
 
-pandas      # for test_dtypes.py
-pillow      # for test_dtypes.py
-rdkit       # for test_data_types.py
-plotly      # for test_util.py
+bokeh            # for test_data_types.py
+imageio[ffmpeg]  # for test_data_types.py
+moviepy          # for test_data_types.py
+numpy            # for test_data_types.py
+pandas           # for test_dtypes.py
+pillow           # for test_dtypes.py
+plotly           # for test_util.py
+rdkit            # for test_data_types.py
+soundfile        # for test_data_types.py
 
 # Additional test deps:
 httpx
 hypothesis
 parameterized
 responses
+respx
