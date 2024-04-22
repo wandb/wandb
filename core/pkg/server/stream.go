@@ -193,25 +193,30 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		},
 	)
 
-	s.writer = NewWriter(s.ctx, s.logger,
-		WithWriterSettings(s.settings.Proto),
-		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
+	s.writer = NewWriter(s.ctx,
+		&WriterParams{
+			FwdChan:  make(chan *service.Record, BufferSize),
+			Settings: s.settings.Proto,
+			Logger:   s.logger,
+		},
 	)
 
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
-		backendOrNil,
-		fileStreamOrNil,
-		fileTransferManagerOrNil,
-		s.logger,
-		runfilesUploaderOrNil,
-		s.settings.Proto,
-		peeker,
-		graphqlClientOrNil,
-		WithSenderFwdChannel(s.loopBackChan),
-		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
-		WithSenderMailbox(mailbox),
+		&SenderParams{
+			Backend:             backendOrNil,
+			FileStream:          fileStreamOrNil,
+			FileTransferManager: fileTransferManagerOrNil,
+			Logger:              s.logger,
+			RunfilesUploader:    runfilesUploaderOrNil,
+			Settings:            s.settings.Proto,
+			Peeker:              peeker,
+			GraphqlClient:       graphqlClientOrNil,
+			FwdChan:             s.loopBackChan,
+			OutChan:             make(chan *service.Result, BufferSize),
+			Mailbox:             mailbox,
+		},
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)

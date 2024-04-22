@@ -67,17 +67,18 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 	sender := server.NewSender(
 		ctx,
 		cancel,
-		backend,
-		fileStream,
-		fileTransferManager,
-		logger,
-		runfilesUploader,
-		settings.Proto,
-		nil, /* peeker */
-		client,
-		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
-		server.WithSenderOutChannel(resultChan),
-		server.WithSenderMailbox(mailbox.NewMailbox()),
+		&server.SenderParams{
+			Backend:             backend,
+			FileStream:          fileStream,
+			FileTransferManager: fileTransferManager,
+			RunfilesUploader:    runfilesUploader,
+			Logger:              logger,
+			Settings:            settings.Proto,
+			FwdChan:             make(chan *service.Record, 1),
+			OutChan:             resultChan,
+			Mailbox:             mailbox.NewMailbox(),
+			GraphqlClient:       client,
+		},
 	)
 	return sender
 }

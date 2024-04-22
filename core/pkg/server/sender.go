@@ -42,24 +42,18 @@ const (
 	configDebouncerBurstSize = 1        // todo: audit burst size
 )
 
-type SenderOption func(*Sender)
-
-func WithSenderFwdChannel(fwd chan *service.Record) SenderOption {
-	return func(s *Sender) {
-		s.fwdChan = fwd
-	}
-}
-
-func WithSenderOutChannel(out chan *service.Result) SenderOption {
-	return func(s *Sender) {
-		s.outChan = out
-	}
-}
-
-func WithSenderMailbox(mailbox *mailbox.Mailbox) SenderOption {
-	return func(s *Sender) {
-		s.mailbox = mailbox
-	}
+type SenderParams struct {
+	Backend             *api.Backend
+	Settings            *service.Settings
+	Logger              *observability.CoreLogger
+	FileStream          fs.FileStream
+	FileTransferManager filetransfer.FileTransferManager
+	GraphqlClient       graphql.Client
+	Peeker              *observability.Peeker
+	RunfilesUploader    runfiles.Uploader
+	Mailbox             *mailbox.Mailbox
+	OutChan             chan *service.Result
+	FwdChan             chan *service.Record
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -141,47 +135,47 @@ type Sender struct {
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	backendOrNil *api.Backend,
-	fileStreamOrNil fs.FileStream,
-	fileTransferManagerOrNil filetransfer.FileTransferManager,
-	logger *observability.CoreLogger,
-	runfilesUploaderOrNil runfiles.Uploader,
-	settings *service.Settings,
-	peeker *observability.Peeker,
-	graphqlClient graphql.Client,
-	opts ...SenderOption,
+	params *SenderParams,
+	// backendOrNil *api.Backend,
+	// fileStreamOrNil fs.FileStream,
+	// fileTransferManagerOrNil filetransfer.FileTransferManager,
+	// logger *observability.CoreLogger,
+	// runfilesUploaderOrNil runfiles.Uploader,
+	// settings *service.Settings,
+	// peeker *observability.Peeker,
+	// graphqlClient graphql.Client,
+	// opts ...SenderOption,
 ) *Sender {
 
-	sender := &Sender{
+	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
-		settings:            settings,
-		logger:              logger,
+		settings:            params.Settings,
+		logger:              params.Logger,
 		runSummary:          runsummary.New(),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
-		fileStream:          fileStreamOrNil,
-		fileTransferManager: fileTransferManagerOrNil,
-		runfilesUploader:    runfilesUploaderOrNil,
-		networkPeeker:       peeker,
-		graphqlClient:       graphqlClient,
+		fileStream:          params.FileStream,
+		fileTransferManager: params.FileTransferManager,
+		runfilesUploader:    params.RunfilesUploader,
+		networkPeeker:       params.Peeker,
+		graphqlClient:       params.GraphqlClient,
+		configDebouncer: debounce.NewDebouncer(
+			configDebouncerRateLimit,
+			configDebouncerBurstSize,
+			params.Logger,
+		),
+		mailbox: params.Mailbox,
+		outChan: params.OutChan,
+		fwdChan: params.FwdChan,
+	}
+	backendOrNil := params.Backend
+	if !s.settings.GetXOffline().GetValue() && backendOrNil != nil && !s.settings.GetDisableJobCreation().GetValue() {
+		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
 	}
 
-	if !settings.GetXOffline().GetValue() && backendOrNil != nil && !settings.GetDisableJobCreation().GetValue() {
-		sender.jobBuilder = launch.NewJobBuilder(settings, logger, false)
-	}
-	sender.configDebouncer = debounce.NewDebouncer(
-		configDebouncerRateLimit,
-		configDebouncerBurstSize,
-		logger,
-	)
-
-	for _, opt := range opts {
-		opt(sender)
-	}
-
-	return sender
+	return s
 }
 
 // do sending of messages to the server
