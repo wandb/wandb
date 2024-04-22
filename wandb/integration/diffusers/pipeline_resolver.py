@@ -587,6 +587,18 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
         ],
         "kwarg-actions": [None, None, None, None, wandb.Image],
     },
+    "StableCascadeCombinedPipeline": {
+        "table-schema": [
+            "Prompt",
+            "Negative-Prompt",
+            "Generated-Image",
+        ],
+        "kwarg-logging": [
+            "prompt",
+            "negative_prompt",
+        ],
+        "kwarg-actions": [None, None],
+    }
 }
 
 
