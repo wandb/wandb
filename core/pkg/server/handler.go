@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/sampler"
+	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -36,66 +37,18 @@ const (
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
-type HandlerOption func(*Handler)
-
-func WithHandlerFwdChannel(fwd chan *service.Record) HandlerOption {
-	return func(h *Handler) {
-		h.fwdChan = fwd
-	}
-}
-
-func WithHandlerOutChannel(out chan *service.Result) HandlerOption {
-	return func(h *Handler) {
-		h.outChan = out
-	}
-}
-
-func WithHandlerSettings(settings *service.Settings) HandlerOption {
-	return func(h *Handler) {
-		h.settings = settings
-	}
-}
-
-func WithHandlerSystemMonitor(monitor *monitor.SystemMonitor) HandlerOption {
-	return func(h *Handler) {
-		h.systemMonitor = monitor
-	}
-}
-
-func WithHandlerTBHandler(handler *TBHandler) HandlerOption {
-	return func(h *Handler) {
-		h.tbHandler = handler
-	}
-}
-
-func WithHandlerRunfilesUploader(uploaderOrNil runfiles.Uploader) HandlerOption {
-	return func(h *Handler) {
-		h.runfilesUploaderOrNil = uploaderOrNil
-	}
-}
-
-func WithHandlerFileTransferStats(stats filetransfer.FileTransferStats) HandlerOption {
-	return func(h *Handler) {
-		h.fileTransferStats = stats
-	}
-}
-
-func WithHandlerMetricHandler(handler *MetricHandler) HandlerOption {
-	return func(h *Handler) {
-		h.metricHandler = handler
-	}
-}
-
-func WithHandlerSummaryHandler(handler *SummaryHandler) HandlerOption {
-	return func(h *Handler) {
-		h.summaryHandler = handler
-	}
-}
-
-func WithHandlerMailbox(mailbox *mailbox.Mailbox) HandlerOption {
-	return func(h *Handler) {
-		h.mailbox = mailbox
-	}
+type HandlerParams struct {
+	Settings          *service.Settings
+	ForwardChan       chan *service.Record
+	OutChan           chan *service.Result
+	Logger            *observability.CoreLogger
+	Mailbox           *mailbox.Mailbox
+	SummaryHandler    *SummaryHandler
+	MetricHandler     *MetricHandler
+	FileTransferStats filetransfer.FileTransferStats
+	RunfilesUploader  runfiles.Uploader
+	TBHandler         *TBHandler
+	SystemMonitor     *monitor.SystemMonitor
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -116,8 +69,8 @@ type Handler struct {
 	// outChan is the channel for sending results to the client
 	outChan chan *service.Result
 
-	// timer is used to track the run start and execution times
-	timer Timer
+	// runTimer is used to track the run start and execution times
+	runTimer *timer.Timer
 
 	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
@@ -162,18 +115,24 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	logger *observability.CoreLogger,
-	opts ...HandlerOption,
+	params *HandlerParams,
 ) *Handler {
-	h := &Handler{
-		ctx:             ctx,
-		logger:          logger,
-		internalPrinter: observability.NewPrinter[string](),
+	return &Handler{
+		ctx:                   ctx,
+		runTimer:              timer.New(),
+		internalPrinter:       observability.NewPrinter[string](),
+		logger:                params.Logger,
+		settings:              params.Settings,
+		fwdChan:               params.ForwardChan,
+		outChan:               params.OutChan,
+		mailbox:               params.Mailbox,
+		summaryHandler:        params.SummaryHandler,
+		metricHandler:         params.MetricHandler,
+		fileTransferStats:     params.FileTransferStats,
+		runfilesUploaderOrNil: params.RunfilesUploader,
+		tbHandler:             params.TBHandler,
+		systemMonitor:         params.SystemMonitor,
 	}
-	for _, opt := range opts {
-		opt(h)
-	}
-	return h
 }
 
 // Do starts the handler
@@ -602,9 +561,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	run := request.Run
 
 	// start the run timer
-	h.timer = Timer{}
 	startTime := run.StartTime.AsTime()
-	h.timer.Start(&startTime)
+	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
 		err := fmt.Errorf("handleRunStart: failed to clone run")
@@ -849,12 +807,12 @@ func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.timer.Pause()
+	h.runTimer.Pause()
 	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.timer.Resume()
+	h.runTimer.Resume()
 	h.systemMonitor.Do()
 }
 
@@ -892,8 +850,8 @@ func (h *Handler) handleAlert(record *service.Record) {
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the run timer and set the runtime
-	h.timer.Pause()
-	runtime := int32(h.timer.Elapsed().Seconds())
+	h.runTimer.Pause()
+	runtime := int32(h.runTimer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
 	// update summary with runtime
@@ -1057,7 +1015,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 		return
 	}
 
-	runtime := int32(h.timer.Elapsed().Seconds())
+	runtime := int32(h.runTimer.Elapsed().Seconds())
 
 	// update summary with runtime
 	summary.Update = append(summary.Update, &service.SummaryItem{
@@ -1365,7 +1323,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 		if err != nil {
 			h.logger.CaptureError("error parsing timestamp", err)
 		} else {
-			runTime = val - h.timer.GetStartTimeMicro()
+			runTime = val - h.runTimer.GetStartTimeMicro()
 		}
 	}
 	history.Item = append(history.Item,

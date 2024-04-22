@@ -3,6 +3,7 @@ package server_test
 import (
 	"testing"
 
+	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -683,10 +684,11 @@ func TestHandlePartialHistory(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan, loopbackChan := makeInboundChannels()
-			fwdChan, outChan := makeOutboundChannels()
+			inChan := make(chan *service.Record, server.BufferSize)
+			fwdChan := make(chan *service.Record, server.BufferSize)
+			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, loopbackChan, fwdChan, outChan, false)
+			makeHandler(inChan, fwdChan, outChan)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -787,10 +789,11 @@ func TestHandleHistory(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan, loopbackChan := makeInboundChannels()
-			fwdChan, outChan := makeOutboundChannels()
+			inChan := make(chan *service.Record, server.BufferSize)
+			fwdChan := make(chan *service.Record, server.BufferSize)
+			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, loopbackChan, fwdChan, outChan, false)
+			makeHandler(inChan, fwdChan, outChan)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
