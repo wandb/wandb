@@ -177,7 +177,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		&HandlerParams{
 			Settings:   s.settings.Proto,
 			Logger:     s.logger,
-			FwdChannel: make(chan *service.Record, BufferSize),
+			ForwardChan: make(chan *service.Record, BufferSize),
 			OutChannel: make(chan *service.Result, BufferSize),
 			SystemMonitor: monitor.NewSystemMonitor(s.logger,
 				settings.Proto,
@@ -195,9 +195,9 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	s.writer = NewWriter(s.ctx,
 		&WriterParams{
-			FwdChan:  make(chan *service.Record, BufferSize),
-			Settings: s.settings.Proto,
 			Logger:   s.logger,
+			Settings: s.settings.Proto,
+			FwdChan:  make(chan *service.Record, BufferSize),
 		},
 	)
 

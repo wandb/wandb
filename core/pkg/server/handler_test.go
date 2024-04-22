@@ -17,8 +17,8 @@ func makeHandler(
 		&server.HandlerParams{
 			Logger:     observability.NewNoOpLogger(),
 			Settings:   &service.Settings{},
-			FwdChannel: fwdChan,
-			OutChannel: outChan,
+			ForwardChan: fwdChan,
+			OutChan: outChan,
 		},
 	)
 

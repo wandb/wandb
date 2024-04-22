@@ -53,7 +53,7 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
-	FwdChan             chan *service.Record
+	ForwardChan             chan *service.Record
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -136,15 +136,6 @@ func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	params *SenderParams,
-	// backendOrNil *api.Backend,
-	// fileStreamOrNil fs.FileStream,
-	// fileTransferManagerOrNil filetransfer.FileTransferManager,
-	// logger *observability.CoreLogger,
-	// runfilesUploaderOrNil runfiles.Uploader,
-	// settings *service.Settings,
-	// peeker *observability.Peeker,
-	// graphqlClient graphql.Client,
-	// opts ...SenderOption,
 ) *Sender {
 
 	s := &Sender{
@@ -161,15 +152,16 @@ func NewSender(
 		runfilesUploader:    params.RunfilesUploader,
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
+		mailbox:             params.Mailbox,
+		outChan:             params.OutChan,
+		fwdChan:             params.ForwardChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
 			params.Logger,
 		),
-		mailbox: params.Mailbox,
-		outChan: params.OutChan,
-		fwdChan: params.FwdChan,
 	}
+
 	backendOrNil := params.Backend
 	if !s.settings.GetXOffline().GetValue() && backendOrNil != nil && !s.settings.GetDisableJobCreation().GetValue() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)

@@ -40,14 +40,16 @@ const (
 
 type HandlerParams struct {
 	Settings          *service.Settings
+	ForwardChan       chan *service.Record
+	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
-	FwdChannel        chan *service.Record
-	OutChannel        chan *service.Result
-	SystemMonitor     *monitor.SystemMonitor
-	TBHandler         *TBHandler
-	RunfilesUploader  runfiles.Uploader
-	FileTransferStats filetransfer.FileTransferStats
 	Mailbox           *mailbox.Mailbox
+	SummaryHandler    *SummaryHandler
+	MetricHandler     *MetricHandler
+	FileTransferStats filetransfer.FileTransferStats
+	RunfilesUploader  runfiles.Uploader
+	TBHandler         *TBHandler
+	SystemMonitor     *monitor.SystemMonitor
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -135,8 +137,8 @@ func NewHandler(
 		),
 		runMetric:             runmetric.NewMetricHandler(),
 		runTimer:              timer.New(),
-		fwdChan:               params.FwdChannel,
-		outChan:               params.OutChannel,
+		fwdChan:               params.ForwardChan,
+		outChan:               params.OutChan,
 		settings:              params.Settings,
 		systemMonitor:         params.SystemMonitor,
 		tbHandler:             params.TBHandler,
