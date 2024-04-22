@@ -119,11 +119,12 @@ func NewHandler(
 ) *Handler {
 	h := &Handler{
 		ctx:                   ctx,
+		runTimer:              timer.New(),
+		internalPrinter:       observability.NewPrinter[string](),
 		logger:                params.Logger,
 		settings:              params.Settings,
 		fwdChan:               params.ForwardChan,
 		outChan:               params.OutChan,
-		internalPrinter:       observability.NewPrinter[string](),
 		mailbox:               params.Mailbox,
 		summaryHandler:        params.SummaryHandler,
 		metricHandler:         params.MetricHandler,
