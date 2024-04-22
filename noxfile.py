@@ -152,6 +152,9 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         "polyfactory",
         # For test_launch:
         ".[launch]",
+        # For test_dtypes.py:
+        "pandas",
+        "pillow",
     )
 
     with go_code_coverage(session) as gocoverdir:
