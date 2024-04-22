@@ -3,7 +3,7 @@ import pathlib
 import shutil
 import time
 from contextlib import contextmanager
-from typing import Callable, List
+from typing import Callable, Iterator, List
 
 import nox
 
@@ -22,52 +22,70 @@ def install_timed(session: nox.Session, *args, **kwargs):
         session.install(*args, **kwargs)
 
 
-@nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [True, False])
-def unit_tests(session: nox.Session, core: bool) -> None:
-    """Runs Python unit tests.
-
-    By default this runs all unit tests, but specific tests can be selected
-    by passing them via positional arguments.
-    """
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
+def install_wandb(session: nox.Session):
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
     else:
         install_timed(session, "--force-reinstall", ".")
 
-    install_timed(
-        session,
-        "-r",
-        "requirements_dev.txt",
-        # For test_reports:
-        ".[reports]",
-        "polyfactory",
+
+def run_go_covtool(
+    session: nox.Session,
+    input: pathlib.Path,
+    output: pathlib.Path,
+) -> None:
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "textfmt",
+        f"-i={input}",
+        f"-o={output}",
+        external=True,
     )
 
-    tmpdir = pathlib.Path(session.create_tmp())
 
+@contextmanager
+def go_code_coverage(session: nox.Session) -> Iterator[str]:
+    """Runs a command while collecting Go code coverage.
+
+    This provides a gocoverdir path that should be passed as the
+    GOCOVERDIR environment variable to the command.
+    """
     # Using an absolute path is critical. We can't assume that the working
     # directory of the wandb-core binary will match the working directory
     # of the Nox session!
-    gocoverdir = (tmpdir / "gocoverage").absolute()
+    gocoverdir = pathlib.Path(session.create_tmp(), "gocoverage").absolute()
     if gocoverdir.exists():
         shutil.rmtree(gocoverdir)
     gocoverdir.mkdir()
 
+    yield str(gocoverdir)
+
+    run_go_covtool(session, gocoverdir, pathlib.Path("coverage.txt"))
+
+
+def run_pytest(
+    session: nox.Session,
+    gocoverdir: str,
+    require_core: bool,
+    paths: List[str],
+) -> None:
     pytest_opts = []
     pytest_env = {
-        "GOCOVERDIR": str(gocoverdir),
-        "WANDB__REQUIRE_CORE": str(core),
+        "GOCOVERDIR": gocoverdir,
+        "WANDB__REQUIRE_CORE": str(require_core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
         "WANDB_CORE_ERROR_REPORTING": "false",
-        "USERNAME": os.getenv("USERNAME"),
-        "PATH": os.getenv("PATH"),
-        "USERPROFILE": os.getenv("USERPROFILE"),
+        "USERNAME": session.env.get("USERNAME"),
+        "PATH": session.env.get("PATH"),
+        "USERPROFILE": session.env.get("USERPROFILE"),
     }
+
+    # When running with core, skip tests that we know fail with it.
+    if require_core:
+        pytest_opts.extend(["-m", "not wandb_core_failure"])
 
     # Print 20 slowest tests.
     pytest_opts.append("--durations=20")
@@ -83,8 +101,8 @@ def unit_tests(session: nox.Session, core: bool) -> None:
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     # These environment variables come from CircleCI.
-    circle_node_total = os.getenv("CIRCLE_NODE_TOTAL")
-    circle_node_index = os.getenv("CIRCLE_NODE_INDEX")
+    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
     if circle_node_total and circle_node_index:
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
@@ -93,28 +111,114 @@ def unit_tests(session: nox.Session, core: bool) -> None:
     pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
     pytest_env["COVERAGE_FILE"] = ".coverage"
 
-    if session.posargs:
-        tests = session.posargs
-    else:
-        tests = ["tests/pytest_tests/unit_tests"]
-
     session.run(
         "pytest",
         *pytest_opts,
-        *tests,
+        *paths,
         env=pytest_env,
         include_outer_env=False,
     )
 
-    if core:
-        session.run(
-            "go",
-            "tool",
-            "covdata",
-            "textfmt",
-            f"-i={gocoverdir}",
-            "-o=coverage.txt",
-            external=True,
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def unit_tests(session: nox.Session, core: bool) -> None:
+    """Runs Python unit tests.
+
+    By default this runs all unit tests, but specific tests can be selected
+    by passing them via positional arguments.
+    """
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        # For test_reports:
+        ".[reports]",
+        "polyfactory",
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+        )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def system_tests(session: nox.Session, core: bool) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "annotated-types",  # for test_reports
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests",
+                    "--ignore=tests/pytest_tests/system_tests/test_importers",
+                    "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                ]
+            ),
+        )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def notebook_tests(session: nox.Session, core: bool) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "nbclient",
+        "nbconvert",
+        "nbformat",
+        "ipykernel",
+        "ipython<8.17.1",
+    )
+
+    session.run(
+        "ipython",
+        "kernel",
+        "install",
+        "--user",
+        "--name=wandb_python",
+        external=True,
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests/test_notebooks",
+                ]
+            ),
         )
 
 
