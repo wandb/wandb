@@ -1,0 +1,41 @@
+id: 0.diffusers.pixartalpha
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t6_stable_cascade_generation.py
+depend:
+    requirements:
+        - "diffusers>=0.27.0"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][workflow][0][params][width]: 512
+    - :wandb:runs[0][config][workflow][0][params][height]: 512
+    - :wandb:runs[0][config][workflow][0][params][num_images_per_prompt]: 1
+    - :wandb:runs[0][config][workflow][0][params][prior_num_inference_steps]: 60
+    - :wandb:runs[0][config][workflow][0][params][num_inference_steps]: 12
+    - :wandb:runs[0][config][workflow][0][params][prior_guidance_scale]: 4
+    - :wandb:runs[0][config][workflow][0][params][prompt]: "an image of a shiba inu, donning a spacesuit and helmet"
+    - :wandb:runs[0][config][workflow][0][params][return_dict]: true
+    - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "stabilityai/stable-cascade"
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "StableCascadeCombinedPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][1]: "DDPMWuerstchenScheduler"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][1]: "CLIPTextModelWithProjection"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][1]: "CLIPTokenizerFast"
+    - :wandb:runs[0][config][workflow][0][pipeline][vqgan][0]: "wuerstchen"
+    - :wandb:runs[0][config][workflow][0][pipeline][vqgan][1]: "PaellaVQModel"
+    - :wandb:runs[0][config][workflow][stage]: "Pipeline-Call-1"
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 1
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][_type]: image-file
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][caption]: "an image of a shiba inu, donning a spacesuit and helmet"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][format]: "png"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][height]: 512
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][width]: 512
+    - :wandb:runs[0][exitcode]: 0
