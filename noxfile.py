@@ -71,6 +71,18 @@ def run_pytest(
     require_core: bool,
     paths: List[str],
 ) -> None:
+    install_timed(
+        session,
+        "pytest",
+        "pytest-asyncio",
+        "pytest-cov",
+        "pytest-xdist",
+        "pytest-split",
+        "pytest-mock",
+        "pytest-timeout",
+        "pytest-flakefinder",
+    )
+
     pytest_opts = []
     pytest_env = {
         "GOCOVERDIR": gocoverdir,
@@ -135,11 +147,11 @@ def unit_tests(session: nox.Session, core: bool) -> None:
 
     install_timed(
         session,
-        "-r",
-        "requirements_dev.txt",
         # For test_reports:
         ".[reports]",
         "polyfactory",
+        # For test_launch:
+        ".[launch]",
     )
 
     with go_code_coverage(session) as gocoverdir:
