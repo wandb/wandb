@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
-
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -26,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -53,6 +52,7 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
+	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	ForwardChan         chan *service.Record
@@ -105,11 +105,14 @@ type Sender struct {
 	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
-	// debouncer for config updates
+	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
-	// Keep track of summary which is being updated incrementally
-	summaryMap map[string]*service.SummaryItem
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
+	// runSummary is the full summary for the run
+	runSummary *runsummary.RunSummary
 
 	// Keep track of config which is being updated incrementally
 	runConfig *runconfig.RunConfig
@@ -143,7 +146,6 @@ func NewSender(
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
-		summaryMap:          make(map[string]*service.SummaryItem),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
@@ -155,11 +157,17 @@ func NewSender(
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
+		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.ForwardChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
+			params.Logger,
+		),
+		summaryDebouncer: debounce.NewDebouncer(
+			summaryDebouncerRateLimit,
+			summaryDebouncerBurstSize,
 			params.Logger,
 		),
 	}
@@ -186,6 +194,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
+		s.summaryDebouncer.Debounce(s.streamSummary)
 	}
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
@@ -372,16 +381,17 @@ func (s *Sender) sendJobFlush() {
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 	output := make(map[string]interface{})
 
-	var out interface{}
-	for k, v := range s.summaryMap {
-		bytes := []byte(v.GetValueJson())
-		err := json.Unmarshal(bytes, &out)
-		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-			return
-		}
-		output[k] = out
-	}
+	// TODO: fix me
+	// var out interface{}
+	// for k, v := range s.summaryMap {
+	// 	bytes := []byte(v.GetValueJson())
+	// 	err := json.Unmarshal(bytes, &out)
+	// 	if err != nil {
+	// 		s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
+	// 		return
+	// 	}
+	// 	output[k] = out
+	// }
 
 	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
@@ -745,36 +755,34 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+func (s *Sender) streamSummary() {
+	if s.fileStream == nil {
+		return
+	}
+
+	data, _ := s.runSummary.Serialize(pathtree.FormatJson)
+	fmt.Println("+++streaming summary from sender", string(data))
+
+	// TODO: build a full summary record to send
+	// record := &service.Record{
+	// 	RecordType: &service.Record_Summary{
+	// 		Summary: &service.SummaryRecord{
+	// 			Update: runSummary,
+	// 		},
+	// 	},
+	// }
+
+	// s.fileStream.StreamRecord(record)
+
+}
+
+func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
 	// TODO(compat): handle deletes, nested keys
 	// TODO(compat): write summary file
 
-	// track each key in the in memory summary store
-	// TODO(memory): avoid keeping summary for all distinct keys
-	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
-	}
-
-	if s.fileStream != nil {
-		// build list of summary items from the map
-		var summaryItems []*service.SummaryItem
-		for _, v := range s.summaryMap {
-			summaryItems = append(summaryItems, v)
-		}
-
-		// build a full summary record to send
-		record := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: summaryItems,
-				},
-			},
-		}
-
-		s.fileStream.StreamRecord(record)
-	}
+	s.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) upsertConfig() {
