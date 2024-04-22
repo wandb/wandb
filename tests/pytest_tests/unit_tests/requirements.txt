@@ -1,0 +1,8 @@
+polyfactory # for test_reports
+
+pandas      # for test_dtypes.py
+pillow      # for test_dtypes.py
+
+# Additional test deps:
+httpx
+hypothesis

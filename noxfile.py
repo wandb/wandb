@@ -147,14 +147,10 @@ def unit_tests(session: nox.Session, core: bool) -> None:
 
     install_timed(
         session,
-        # For test_reports:
-        ".[reports]",
-        "polyfactory",
-        # For test_launch:
-        ".[launch]",
-        # For test_dtypes.py:
-        "pandas",
-        "pillow",
+        "-rtests/pytest_tests/unit_tests/requirements.txt",
+        ".[reports]",  # for test_reports
+        ".[launch]",  # for test_launch
+        ".[importers]",  # for test_importers
     )
 
     with go_code_coverage(session) as gocoverdir:

@@ -1,4 +1,5 @@
 -r requirements_test.txt
+-r tests/pytest_tests/unit_tests/requirements.txt
 
 pytest
 hypothesis
