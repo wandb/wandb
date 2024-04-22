@@ -1,4 +1,4 @@
-package server
+package timer
 
 import "time"
 
@@ -9,6 +9,10 @@ type Timer struct {
 	accumulated time.Duration
 	isStarted   bool
 	isPaused    bool
+}
+
+func New() *Timer {
+	return &Timer{}
 }
 
 func (t *Timer) GetStartTimeMicro() float64 {
