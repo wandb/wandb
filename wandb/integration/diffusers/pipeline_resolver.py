@@ -598,7 +598,7 @@ SUPPORTED_MULTIMODAL_PIPELINES = {
             "negative_prompt",
         ],
         "kwarg-actions": [None, None],
-    }
+    },
 }
 
 

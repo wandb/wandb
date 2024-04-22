@@ -3,7 +3,6 @@ import logging
 from .diffusers_autolog_api import DiffusersAutologAPI
 from .pipeline_resolver import DiffusersPipelineResolver
 
-
 logger = logging.getLogger(__name__)
 
 
