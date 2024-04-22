@@ -193,7 +193,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		&WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
-			FwdChan:  s.handler.fwdChan,
+			FwdChan:  make(chan *service.Record, BufferSize),
 		},
 	)
 

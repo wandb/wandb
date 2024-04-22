@@ -117,7 +117,7 @@ func NewHandler(
 	ctx context.Context,
 	params *HandlerParams,
 ) *Handler {
-	h := &Handler{
+	return &Handler{
 		ctx:                   ctx,
 		runTimer:              timer.New(),
 		internalPrinter:       observability.NewPrinter[string](),
@@ -133,7 +133,6 @@ func NewHandler(
 		tbHandler:             params.TBHandler,
 		systemMonitor:         params.SystemMonitor,
 	}
-	return h
 }
 
 // Do starts the handler
