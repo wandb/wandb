@@ -38,20 +38,18 @@ func (runSummary *RunSummary) Serialize(format pathtree.Format) ([]byte, error) 
 
 // TODO: fix this to build nested tree and include remove
 func (runSummary *RunSummary) FlattenTree() []*service.SummaryItem {
-	var update []*service.SummaryItem
-	for key, val := range runSummary.Tree() {
-
-		value, err := json.Marshal(val)
+	var items []*service.SummaryItem
+	for _, item := range runSummary.Flatten() {
+		val, err := json.Marshal(item.ValueJson)
 		if err != nil {
 			continue
 		}
-		update = append(update,
-			&service.SummaryItem{
-				Key:       key,
-				ValueJson: string(value),
-			},
-		)
+		summary := &service.SummaryItem{
+			Key:       item.Key,
+			NestedKey: item.NestedKey,
+			ValueJson: string(val),
+		}
+		items = append(items, summary)
 	}
-
-	return update
+	return items
 }

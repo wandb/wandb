@@ -14,6 +14,12 @@ type item interface {
 	GetValueJson() string
 }
 
+type ItemTree struct {
+	Key       string
+	NestedKey []string
+	ValueJson any
+}
+
 // TreeData is an internal representation for a nested key-value pair.
 type TreeData = map[string]interface{}
 
@@ -146,7 +152,7 @@ func (runConfig *PathTree[I]) AddUnsetKeysFromSubtree(
 	return nil
 }
 
-// Sets the value at the path in the config tree.
+// Sets the value at the path in the tree.
 func updateAtPath(
 	tree TreeData,
 	path []string,
@@ -154,7 +160,6 @@ func updateAtPath(
 ) error {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
-
 	subtree, err := getOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
@@ -179,7 +184,8 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 // Returns the key path referenced by the item.
 func keyPath(item item) TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return TreePath(item.GetNestedKey())
+		path := append([]string{item.GetKey()}, item.GetNestedKey()...)
+		return TreePath(path)
 	} else {
 		return TreePath{item.GetKey()}
 	}
@@ -234,6 +240,33 @@ func getOrMakeSubtree(
 	}
 
 	return tree, nil
+}
+
+// Flattens the tree into a list of items.
+//
+// The keys are concatenated with a dot separator.
+func (pathTree *PathTree[I]) Flatten() []ItemTree {
+	var items []ItemTree
+	for key, value := range pathTree.tree {
+		flatten([]string{key}, value, &items)
+	}
+	return items
+}
+
+func flatten(path []string, value interface{}, items *[]ItemTree) {
+	switch value := value.(type) {
+	case TreeData:
+		for key, val := range value {
+			flatten(append(path, key), val, items)
+		}
+	default:
+		val := ItemTree{
+			Key:       path[0],
+			NestedKey: path[1:],
+			ValueJson: value,
+		}
+		*items = append(*items, val)
+	}
 }
 
 // Returns a deep copy of the given tree.

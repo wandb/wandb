@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
-
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -27,6 +25,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -114,7 +113,7 @@ type Sender struct {
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
-	summaryMap map[string]*service.SummaryItem
+	runSummary *runsummary.RunSummary
 
 	// Keep track of config which is being updated incrementally
 	runConfig *runconfig.RunConfig
@@ -158,7 +157,7 @@ func NewSender(
 		cancel:              cancel,
 		settings:            settings,
 		logger:              logger,
-		summaryMap:          make(map[string]*service.SummaryItem),
+		runSummary:          runsummary.New(),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
@@ -383,18 +382,20 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
-	output := make(map[string]interface{})
+	// output := make(map[string]interface{})
 
-	var out interface{}
-	for k, v := range s.summaryMap {
-		bytes := []byte(v.GetValueJson())
-		err := json.Unmarshal(bytes, &out)
-		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-			return
-		}
-		output[k] = out
-	}
+	// var out interface{}
+	// for k, v := range s.summaryMap {
+	// 	bytes := []byte(v.GetValueJson())
+	// 	err := json.Unmarshal(bytes, &out)
+	// 	if err != nil {
+	// 		s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
+	// 		return
+	// 	}
+	// 	output[k] = out
+	// }
+	// TODO: this is a temporary solution to get the output
+	output := s.runSummary.Tree()
 
 	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
@@ -760,34 +761,27 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 
-	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	// TODO(compat): handle deletes, nested keys
-	// TODO(compat): write summary file
-
-	// track each key in the in memory summary store
+	// TODO(network): buffer summary sending for network efficiency until we
+	// can send only updates
 	// TODO(memory): avoid keeping summary for all distinct keys
-	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
+	s.runSummary.ApplyChangeRecord(summary, func(err error) {
+		s.logger.CaptureError("Error updating run summary", err)
+	})
+
+	if s.fileStream == nil {
+		return
 	}
 
-	if s.fileStream != nil {
-		// build list of summary items from the map
-		var summaryItems []*service.SummaryItem
-		for _, v := range s.summaryMap {
-			summaryItems = append(summaryItems, v)
-		}
-
-		// build a full summary record to send
-		record := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: summaryItems,
-				},
+	// build a full summary record to send
+	summaryItems := s.runSummary.FlattenTree()
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summaryItems,
 			},
-		}
-
-		s.fileStream.StreamRecord(record)
+		},
 	}
+	s.fileStream.StreamRecord(record)
 }
 
 func (s *Sender) upsertConfig() {

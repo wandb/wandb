@@ -25,23 +25,17 @@ func NewFrom(tree RunHistoryDict) *RunHistory {
 	return &RunHistory{PathTree: pathtree.NewFrom[*service.HistoryItem](tree)}
 }
 
-func (runHistory *RunHistory) ApplyChangeRecord(
-	items []*service.HistoryItem,
-	onError func(error),
-) {
-	runHistory.ApplyUpdate(items, onError)
-}
-
 // TODO: fix this to build nested tree
 func (runHistory *RunHistory) FlattenTree() []*service.HistoryItem {
-	var update []*service.HistoryItem
-	for key, val := range runHistory.Tree() {
-		value, _ := json.Marshal(val)
-		update = append(update, &service.HistoryItem{
-			Key:       key,
-			ValueJson: string(value),
-		})
+	var items []*service.HistoryItem
+	for _, item := range runHistory.Flatten() {
+		val, _ := json.Marshal(item.ValueJson)
+		history := &service.HistoryItem{
+			Key:       item.Key,
+			NestedKey: item.NestedKey,
+			ValueJson: string(val),
+		}
+		items = append(items, history)
 	}
-
-	return update
+	return items
 }

@@ -1115,7 +1115,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	if h.runHistory == nil {
 		h.runHistory = runhistory.New(nil)
 	}
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
+	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
 		h.logger.CaptureError("Error updating run history", err)
 	})
 
@@ -1201,7 +1201,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
+	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
 		h.logger.CaptureError("Error updating run history", err)
 	})
 
