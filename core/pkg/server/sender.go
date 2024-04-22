@@ -428,11 +428,13 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
+		s.configDebouncer.Flush(s.streamSummary)
+		s.uploadSummaryFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 		s.configDebouncer.Flush(s.upsertConfig)
-		s.writeAndSendConfigFile()
+		s.uploadConfigFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -549,15 +551,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format pathtree.Format) string {
+func (s *Sender) serializeConfig(format pathtree.Format) (string, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+		s.logger.Error("sender: serializeConfig", "error", err)
+		return "", err
 	}
 
-	return string(serializedConfig)
+	return string(serializedConfig), nil
 }
 
 func (s *Sender) sendRunResult(record *service.Record, runResult *service.RunUpdateResult) {
@@ -639,7 +642,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
-		config := s.serializeConfig(pathtree.FormatJson)
+		config, _ := s.serializeConfig(pathtree.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -789,10 +792,14 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig(pathtree.FormatJson)
+	config, err := s.serializeConfig(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
+		return
+	}
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-	_, err := gql.UpsertBucket(
+	_, err = gql.UpsertBucket(
 		ctx,                                  // ctx
 		s.graphqlClient,                      // client
 		nil,                                  // id
@@ -820,16 +827,53 @@ func (s *Sender) upsertConfig() {
 	}
 }
 
-func (s *Sender) writeAndSendConfigFile() {
+func (s *Sender) uploadSummaryFile() {
 	if s.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
 
-	config := s.serializeConfig(pathtree.FormatYaml)
+	summary, err := s.runSummary.Serialize(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: writeAndSendSummaryFile: failed to serialize summary", "error", err)
+		return
+	}
+	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
+	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
+		s.logger.Error("sender: writeAndSendSummaryFile: failed to write summary file", "error", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdChan <- record
+}
+
+func (s *Sender) uploadConfigFile() {
+	if s.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
+	config, err := s.serializeConfig(pathtree.FormatYaml)
+	if err != nil {
+		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
+		return
+	}
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		return
 	}
 
 	record := &service.Record{

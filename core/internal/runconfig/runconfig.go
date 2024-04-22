@@ -41,6 +41,12 @@ func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
 	return clone, nil
 }
 
+func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
+	return runConfig.PathTree.Serialize(format, func(value any) any {
+		return map[string]any{"value": value}
+	})
+}
+
 // Updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`

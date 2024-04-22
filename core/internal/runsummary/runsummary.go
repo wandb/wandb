@@ -27,3 +27,9 @@ func (runSummary *RunSummary) ApplyChangeRecord(
 	remove := summaryRecord.GetRemove()
 	runSummary.ApplyRemove(remove, onError)
 }
+
+func (runSummary *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
+	return runSummary.PathTree.Serialize(format, func(value any) any {
+		return value
+	})
+}

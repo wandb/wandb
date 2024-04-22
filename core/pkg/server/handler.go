@@ -421,8 +421,8 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_TB:
 		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
-		h.handleSummary(nil, &service.SummaryRecord{})
-		h.writeAndSendSummaryFile()
+		// h.handleSummary(nil, &service.SummaryRecord{})
+		// h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -853,15 +853,21 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	runtime := int32(h.runTimer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
-	// TODO: update summary with runtime
-	// if !h.settings.GetXSync().GetValue() {
-	// 	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, []*service.SummaryItem{
-	// 		{
-	// 			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-	// 		},
-	// 	})
-	// 	h.summaryHandler.updateSummaryDelta(summaryRecord)
-	// }
+	if !h.settings.GetXSync().GetValue() {
+		summaryRecord := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{
+					Update: []*service.SummaryItem{
+						{
+							Key:       "_wandb",
+							ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+						},
+					},
+				},
+			},
+		}
+		h.fwdRecord(summaryRecord)
+	}
 
 	// send the exit record
 	h.fwdRecordWithControl(record,
@@ -887,15 +893,18 @@ func (h *Handler) handleRequestGetSummary(record *service.Record) {
 
 	// TODO: use runSummary object
 
-	// var items []*service.SummaryItem
-	// for key, element := range h.summaryHandler.consolidatedSummary {
-	// 	items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
+	var items []*service.SummaryItem
+	// for key, value := range h.runSummary.Flatten() {
+	// 	items = append(items, &service.SummaryItem{
+	// 		Key: key,
+	// 		ValueJson: value,
+	// 	})
 	// }
-	// response.ResponseType = &service.Response_GetSummaryResponse{
-	// 	GetSummaryResponse: &service.GetSummaryResponse{
-	// 		Item: items,
-	// 	},
-	// }
+	response.ResponseType = &service.Response_GetSummaryResponse{
+		GetSummaryResponse: &service.GetSummaryResponse{
+			Item: items,
+		},
+	}
 	h.respond(record, response)
 }
 
@@ -962,55 +971,6 @@ func (h *Handler) handleUseArtifact(record *service.Record) {
 func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
-
-func (h *Handler) writeAndSendSummaryFile() {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-
-	// TODO: move to sender
-
-	// // write summary to file
-	// summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-
-	// jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
-	// if err != nil {
-	// 	h.logger.Error("handler: writeAndSendSummaryFile: error marshalling summary", "error", err)
-	// 	return
-	// }
-
-	// if err := os.WriteFile(summaryFile, []byte(jsonBytes), 0644); err != nil {
-	// 	h.logger.Error("handler: writeAndSendSummaryFile: failed to write config file", "error", err)
-	// }
-
-	// // send summary file
-	// if h.runfilesUploaderOrNil != nil {
-	// 	// TODO: mark as WANDB file
-	// 	h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
-	// }
-}
-
-// func (h *Handler) fwdSummary() {
-// 	summaryRecord := &service.SummaryRecord{
-// 		Update: []*service.SummaryItem{},
-// 	}
-
-// 	for key, value := range h.summaryHandler.summaryDelta {
-// 		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
-// 			Key: key, ValueJson: value,
-// 		})
-// 	}
-
-// 	record := &service.Record{
-// 		RecordType: &service.Record_Summary{
-// 			Summary: summaryRecord,
-// 		},
-// 	}
-// 	h.fwdRecord(record)
-// 	// reset delta summary
-// 	clear(h.summaryHandler.summaryDelta)
-// }
 
 func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
 	if !h.settings.GetXSync().GetValue() {
