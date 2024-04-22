@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/sampler"
+	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -116,8 +117,8 @@ type Handler struct {
 	// outChan is the channel for sending results to the client
 	outChan chan *service.Result
 
-	// timer is used to track the run start and execution times
-	timer Timer
+	// runTimer is used to track the run start and execution times
+	runTimer *timer.Timer
 
 	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
@@ -169,6 +170,7 @@ func NewHandler(
 		ctx:             ctx,
 		logger:          logger,
 		internalPrinter: observability.NewPrinter[string](),
+		runTimer:        timer.New(),
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -602,9 +604,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	run := request.Run
 
 	// start the run timer
-	h.timer = Timer{}
 	startTime := run.StartTime.AsTime()
-	h.timer.Start(&startTime)
+	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
 		err := fmt.Errorf("handleRunStart: failed to clone run")
@@ -849,12 +850,12 @@ func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.timer.Pause()
+	h.runTimer.Pause()
 	h.systemMonitor.Stop()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.timer.Resume()
+	h.runTimer.Resume()
 	h.systemMonitor.Do()
 }
 
@@ -892,8 +893,8 @@ func (h *Handler) handleAlert(record *service.Record) {
 
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the run timer and set the runtime
-	h.timer.Pause()
-	runtime := int32(h.timer.Elapsed().Seconds())
+	h.runTimer.Pause()
+	runtime := int32(h.runTimer.Elapsed().Seconds())
 	exit.Runtime = runtime
 
 	// update summary with runtime
@@ -1057,7 +1058,7 @@ func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecor
 		return
 	}
 
-	runtime := int32(h.timer.Elapsed().Seconds())
+	runtime := int32(h.runTimer.Elapsed().Seconds())
 
 	// update summary with runtime
 	summary.Update = append(summary.Update, &service.SummaryItem{
@@ -1365,7 +1366,7 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 		if err != nil {
 			h.logger.CaptureError("error parsing timestamp", err)
 		} else {
-			runTime = val - h.timer.GetStartTimeMicro()
+			runTime = val - h.runTimer.GetStartTimeMicro()
 		}
 	}
 	history.Item = append(history.Item,
