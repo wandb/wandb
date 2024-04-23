@@ -16,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
-    result = {}
+    result: Dict[str, Any] = {}
 
     for item in obj_list:
         # Start from the root of the result dict
