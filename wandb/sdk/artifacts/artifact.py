@@ -70,6 +70,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -1503,8 +1504,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        termwarn(
-            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        deprecate(
+            field_name=Deprecated.artifact__get_path,
+            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 
