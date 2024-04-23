@@ -379,19 +379,13 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
-	output := make(map[string]interface{})
 
-	// TODO: fix me
-	// var out interface{}
-	// for k, v := range s.summaryMap {
-	// 	bytes := []byte(v.GetValueJson())
-	// 	err := json.Unmarshal(bytes, &out)
-	// 	if err != nil {
-	// 		s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-	// 		return
-	// 	}
-	// 	output[k] = out
-	// }
+	// TODO: we should not be using Tree() here
+	output, err := pathtree.DeepCopy(s.runSummary.Tree())
+	if err != nil {
+		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		return
+	}
 
 	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
@@ -835,12 +829,12 @@ func (s *Sender) uploadSummaryFile() {
 
 	summary, err := s.runSummary.Serialize(pathtree.FormatJson)
 	if err != nil {
-		s.logger.Error("sender: writeAndSendSummaryFile: failed to serialize summary", "error", err)
+		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
 		return
 	}
 	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
 	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
-		s.logger.Error("sender: writeAndSendSummaryFile: failed to write summary file", "error", err)
+		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
 		return
 	}
 
