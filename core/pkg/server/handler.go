@@ -1329,7 +1329,6 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
-	// TODO: fix me
 	// TODO add an option to disable summary (this could be quite expensive)
 	if h.runSummary == nil {
 		return
