@@ -60,6 +60,8 @@ func NewFileTransferStats() FileTransferStats {
 }
 
 func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
+	// NOTE: We don't lock, so these could be out of sync. For instance,
+	// TotalBytes could be less than UploadedBytes!
 	return &service.FilePusherStats{
 		UploadedBytes: fts.uploadedBytes.Load(),
 		TotalBytes:    fts.totalBytes.Load(),
