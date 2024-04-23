@@ -434,7 +434,6 @@ class LaunchAgent:
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
             logs = None
-            start_time = time.time()
             interval = 1
             while True:
                 called_init = self._check_run_exists_and_inited(
