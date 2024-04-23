@@ -1,6 +1,5 @@
 import asyncio
 import platform
-import time
 import threading
 from unittest.mock import MagicMock
 
