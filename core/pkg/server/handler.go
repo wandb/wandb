@@ -181,9 +181,8 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 		record.Control = &service.Control{}
 	}
 
-	control := record.GetControl()
 	for _, opt := range controlOptions {
-		opt(control)
+		opt(record.Control)
 	}
 	h.fwdRecord(record)
 }
