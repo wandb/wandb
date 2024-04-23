@@ -434,7 +434,6 @@ class LaunchAgent:
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
             logs = None
-            start_time = time.time()
             interval = 1
             while True:
                 called_init = self._check_run_exists_and_inited(
@@ -443,7 +442,7 @@ class LaunchAgent:
                     job_and_run_status.run_id,
                     job_and_run_status.run_queue_item_id,
                 )
-                if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
+                if called_init or interval > RUN_INFO_GRACE_PERIOD:
                     break
                 if not called_init:
                     # Fetch the logs now if we don't get run info on the
