@@ -561,11 +561,12 @@ def mypy_report(session: nox.Session) -> None:
 
     path = "mypy-results"
 
-    session.run(
-        "mkdir",
-        path,
-        external=True,
-    )
+    if not pathlib.Path(path).exists():
+        session.run(
+            "mkdir",
+            path,
+            external=True,
+        )
 
     session.run(
         "mypy",
