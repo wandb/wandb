@@ -327,7 +327,8 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy: ...
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1414,7 +1415,6 @@ class Run:
         if not result:
             return {}
         get_summary_response = result.response.get_summary_response
-        print(get_summary_response)
         return proto_util.dict_from_proto_list(get_summary_response.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
@@ -3969,6 +3969,7 @@ class Run:
 
         # Render summary if available
         if summary:
+            # TODO: join nested keys
             final_summary = {
                 item.key: json.loads(item.value_json)
                 for item in summary.item
