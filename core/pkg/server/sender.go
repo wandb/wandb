@@ -824,9 +824,17 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
+	if s.RunRecord == nil {
+		s.logger.Error("sender: upsertConfig: RunRecord is nil")
+		return
+	}
+
 	config, err := s.serializeConfig(pathtree.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
+		return
+	}
+	if config == "" {
 		return
 	}
 
