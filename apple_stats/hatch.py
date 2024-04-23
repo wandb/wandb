@@ -4,6 +4,10 @@ import pathlib
 import subprocess
 
 
+class AppleStatsBuildError(Exception):
+    """Raised when building AppleStats fails."""
+
+
 def build_applestats(output_path: pathlib.PurePath) -> None:
     """Builds the AppleStats universal Swift binary.
 
@@ -38,8 +42,21 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
     cmd_x86_64 = base_cmd + ["--arch", "x86_64"]
     cmd_arm64 = base_cmd + ["--arch", "arm64"]
 
-    subprocess.check_call(cmd_x86_64, cwd=source_path)
-    subprocess.check_call(cmd_arm64, cwd=source_path)
+    try:
+        subprocess.check_call(cmd_x86_64, cwd=source_path)
+        subprocess.check_call(cmd_arm64, cwd=source_path)
+    except subprocess.CalledProcessError as e:
+        raise AppleStatsBuildError(
+            "Failed to build the `apple_stats` Swift binary. If you didn't"
+            " break the build, you may need to update your Xcode command line"
+            " tools; try running `softwareupdate --list` to see if a new Xcode"
+            " version is available, and then `softwareupdate --install` it"
+            " if so."
+            "\n\n"
+            "As a workaround, you can set the WANDB_BUILD_SKIP_APPLE"
+            " environment variable to true to skip this step and build a wandb"
+            " package that doesn't collect Apple system metrics."
+        ) from e
 
     subprocess.check_call(
         [
