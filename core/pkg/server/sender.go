@@ -422,11 +422,13 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
-		s.configDebouncer.Flush(s.streamSummary)
+		s.summaryDebouncer.SetNeedsDebounce()
+		s.summaryDebouncer.Flush(s.streamSummary)
 		s.uploadSummaryFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		s.configDebouncer.SetNeedsDebounce()
 		s.configDebouncer.Flush(s.upsertConfig)
 		s.uploadConfigFile()
 		request.State++
@@ -487,7 +489,7 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
@@ -1053,7 +1055,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 
 	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendFiles uploads files according to a FilesRecord
