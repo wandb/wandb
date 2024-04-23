@@ -55,7 +55,7 @@ func (pathTree *PathTree[I]) Tree() TreeData {
 
 // Makes and returns a deep copy of the underlying tree.
 func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
-	clone, err := DeepCopy(pathTree.tree)
+	clone, err := deepCopy(pathTree.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -125,29 +125,6 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 type Leaf struct {
 	Key   []string
 	Value any
-}
-
-func Flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
-	// Iterate over each key-value pair in the map
-	for treeKey, treeValue := range tree {
-		// Make a copy of the path slice and append the current key to the new slice
-		newPath := make([]string, len(path))
-		copy(newPath, path)
-		newPath = append(newPath, treeKey)
-
-		// Check if the value is another TreeData (map). If so, call Flatten recursively
-		if subTree, ok := treeValue.(TreeData); ok {
-			leaves = Flatten(subTree, leaves, newPath) // Use the copied and updated newPath
-		} else {
-			// If value is not a TreeData, add it to the leaves slice with the current path
-			leaves = append(leaves, Leaf{
-				Key:   newPath, // Use the copied and updated newPath
-				Value: treeValue,
-			})
-		}
-	}
-
-	return leaves
 }
 
 // Uses the given subtree for keys that aren't already set.
@@ -263,12 +240,12 @@ func getOrMakeSubtree(
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func DeepCopy(tree TreeData) (TreeData, error) {
+func deepCopy(tree TreeData) (TreeData, error) {
 	clone := make(TreeData)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
-			innerClone, err := DeepCopy(value)
+			innerClone, err := deepCopy(value)
 			if err != nil {
 				return nil, err
 			}
