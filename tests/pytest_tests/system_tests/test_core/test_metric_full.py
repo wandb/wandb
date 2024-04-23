@@ -21,6 +21,7 @@ def test_metric_default(relay_server, wandb_init):
     assert len(summary) == 3
 
 
+@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_copy(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
