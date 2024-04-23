@@ -13,6 +13,7 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun, Status
+from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
 from ...agent.agent import RUN_INFO_GRACE_PERIOD
 from ...queue_driver.abstract import AbstractQueueDriver
@@ -178,8 +179,11 @@ class BaseManager(ABC):
         del self.active_runs[item_id]
 
     def _construct_jobset_discoverability_label(self) -> str:
-        # TODO: replace with queue_id
-        return f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+        return b64_to_hex_id(
+            md5_string(
+                f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
+            )
+        )
 
     async def cancel_item(self, item: str) -> None:
         """Cancel a running job currently managed by the controller."""

@@ -2,8 +2,6 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
-from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
-
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
@@ -77,13 +75,6 @@ class VertexManager(BaseManager):
 
         # TODO convert returned CustomJobs to dicts or Jobs
         raise NotImplementedError
-
-    def _construct_jobset_discoverability_label(self) -> str:
-        return b64_to_hex_id(
-            md5_string(
-                f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
-            )
-        )
 
     def label_job(self, project: LaunchProject) -> None:
         vertex_block = self._get_resource_block(project)

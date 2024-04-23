@@ -1,13 +1,12 @@
 from unittest.mock import MagicMock
 
-import pytest
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.agent2.controllers.vertex import VertexManager
 from wandb.sdk.launch.agent2.jobset import JobSetSpec
+from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
 
-@pytest.mark.asyncio
-async def test_label_job(monkeypatch):
+def test_label_job(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.launch.agent2.controllers.vertex.StandardQueueDriver", MagicMock()
     )
@@ -25,18 +24,24 @@ async def test_label_job(monkeypatch):
         max_concurrency=1,
     )
     project_spec = {
-        "resource_args": {"vertex": {"labels": {"test-label": "test-value"}}},
+        "resource_args": {"vertex": {"spec": {"labels": {"test-label": "test-value"}}}},
         "entity": "test-entity",
         "project": "test-project",
     }
     project = LaunchProject.from_spec(project_spec, MagicMock())
 
-    await manager.label_job(project)
+    manager.label_job(project)
     assert project.resource_args == {
         "vertex": {
-            "labels": {
-                "_wandb-jobset": "test-entity/test-jobsetspec",
-                "test-label": "test-value",
+            "spec": {
+                "labels": {
+                    "wandb-jobset": b64_to_hex_id(
+                        md5_string(
+                            "test-entity/test-jobsetspec"
+                        )
+                    ),
+                    "test-label": "test-value",
+                }
             }
         }
     }
