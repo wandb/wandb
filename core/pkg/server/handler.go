@@ -848,23 +848,15 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the run timer and set the runtime
 	h.runTimer.Pause()
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-	exit.Runtime = runtime
+	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
 	if !h.settings.GetXSync().GetValue() {
 		summaryRecord := &service.Record{
 			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: []*service.SummaryItem{
-						{
-							Key:       "_wandb",
-							ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-						},
-					},
-				},
+				Summary: &service.SummaryRecord{},
 			},
 		}
-		h.fwdRecord(summaryRecord)
+		h.handleSummary(summaryRecord, summaryRecord.GetSummary())
 	}
 
 	// send the exit record
@@ -975,7 +967,9 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 
 		// update summary with runtime
 		summary.Update = append(summary.Update, &service.SummaryItem{
-			Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+			Key:       "_wandb",
+			NestedKey: []string{"runtime"},
+			ValueJson: fmt.Sprintf("%d", runtime),
 		})
 	}
 
