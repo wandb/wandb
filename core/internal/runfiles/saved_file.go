@@ -9,9 +9,9 @@ import (
 )
 
 // savedFile is a file in the run's files directory.
+//
+// Not thread-safe.
 type savedFile struct {
-	sync.Mutex
-
 	fs     filestream.FileStream
 	ftm    filetransfer.FileTransferManager
 	logger *observability.CoreLogger
@@ -63,8 +63,6 @@ func newSavedFile(
 }
 
 func (f *savedFile) SetCategory(category filetransfer.RunFileKind) {
-	f.Lock()
-	defer f.Unlock()
 	f.category = category
 }
 
@@ -76,9 +74,6 @@ func (f *savedFile) Upload(
 	url string,
 	headers []string,
 ) {
-	f.Lock()
-	defer f.Unlock()
-
 	if f.uploadURL != "" && f.uploadURL != url {
 		f.logger.CaptureError(
 			"runfiles: file upload URL changed, but we assumed it wouldn't",
@@ -104,8 +99,6 @@ func (f *savedFile) Upload(
 }
 
 // doUpload sends an upload Task to the FileTransferManager.
-//
-// It must be called while a lock is held.
 func (f *savedFile) doUpload() {
 	task := &filetransfer.Task{
 		FileKind: f.category,
@@ -120,9 +113,6 @@ func (f *savedFile) doUpload() {
 	f.wg.Add(1)
 	task.SetCompletionCallback(f.onFinishUpload)
 
-	// Temporarily unlock while we run arbitrary code.
-	f.Unlock()
-	defer f.Lock()
 	f.ftm.AddTask(task)
 }
 
@@ -132,22 +122,17 @@ func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
 		f.fs.SignalFileUploaded(f.runPath)
 	}
 
-	f.Lock()
 	f.isUploading = false
 	if f.reuploadScheduled {
 		f.reuploadScheduled = false
 		f.doUpload()
 	}
-	f.Unlock()
 
 	f.wg.Done()
 }
 
 // Finish waits for all scheduled uploads of the file to complete.
 func (f *savedFile) Finish() {
-	f.Lock()
 	f.isFinished = true
-	f.Unlock()
-
 	f.wg.Wait()
 }
