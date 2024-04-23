@@ -163,6 +163,8 @@ commands:
   # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
   upload_codecov:
     description: Upload code coverage to codecov.io
+    parameters:
+      flags: { type: string }
     steps:
       - run: mkdir -p ~/.gnupg
       - codecov/upload: { flags: <<parameters.flags>> }
