@@ -105,7 +105,23 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     run.log(dict(a="a"))
     run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     run.finish()
-    check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
+    check_output_fn(
+        exp_summary=[
+            "a",
+            "b",
+            "d",
+            "this-is-ignored._type",
+            "this-is-ignored.format",
+            "this-is-ignored.height",
+            "this-is-ignored.path",
+            "this-is-ignored.sha256",
+            "this-is-ignored.size",
+            "this-is-ignored.width",
+            "🚀",
+            "⭐️",
+        ],
+        exp_history=[],
+    )
 
 
 # todo(core): implement sparklines / run history
