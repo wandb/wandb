@@ -105,12 +105,9 @@ func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
 			fs.logger.CaptureError("filestream: failed to apply summary update", err)
 		},
 	)
-	fmt.Println(msg)
-	fmt.Println(summary.Tree())
 	bytes, err := summary.Serialize(pathtree.FormatJson)
 	line := string(bytes)
 
-	// line, err := corelib.JsonifyItems(msg.Update)
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}

@@ -784,8 +784,6 @@ func (s *Sender) streamSummary() {
 func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	// TODO(compat): handle deletes, nested keys
-	// TODO(compat): write summary file
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
