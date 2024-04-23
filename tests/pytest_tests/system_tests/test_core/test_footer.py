@@ -106,13 +106,7 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     run.finish()
     check_output_fn(
-        exp_summary=[
-            "a",
-            "b",
-            "d",
-            "🚀",
-            "⭐️",
-        ],
+        exp_summary=["a", "b", "d", "🚀", "⭐️"],
         exp_history=[],
     )
 
