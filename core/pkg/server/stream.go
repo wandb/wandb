@@ -209,7 +209,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
 			GraphqlClient:       graphqlClientOrNil,
-			ForwardChan:         s.loopBackChan,
+			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
 		},
