@@ -531,13 +531,9 @@ async def test_thread_failed_no_run(mocker, clean_agent):
     )
 
 
-@pytest.mark.timeout(90)
 @pytest.mark.asyncio
 async def test_thread_finish_run_info_backoff(mocker, clean_agent):
-    """Test that our retry + backoff logic for run info works.
-
-    This test should take at least 60 seconds.
-    """
+    """Test that our retry + backoff logic for run info works."""
     _setup_thread_finish(mocker)
     mock_config = {
         "entity": "test-entity",
