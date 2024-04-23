@@ -543,6 +543,8 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
+    mocker.patch("asyncio.sleep", AsyncMock())
+
     mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     submitted_run = MagicMock()
