@@ -12,6 +12,8 @@ import (
 //
 // Not thread-safe.
 type savedFile struct {
+	sync.Mutex
+
 	fs     filestream.FileStream
 	ftm    filetransfer.FileTransferManager
 	logger *observability.CoreLogger
@@ -118,6 +120,10 @@ func (f *savedFile) doUpload() {
 
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
+	// This callback may be called from an arbitrary goroutine.
+	f.Lock()
+	defer f.Unlock()
+
 	if task.Err == nil {
 		f.fs.SignalFileUploaded(f.runPath)
 	}
