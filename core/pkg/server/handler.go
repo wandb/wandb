@@ -891,15 +891,13 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	// TODO: use runSummary object
+	items, err := h.runSummary.Flatten()
+	if err != nil {
+		h.logger.CaptureError("Error flattening run summary", err)
+		h.respond(record, response)
+		return
+	}
 
-	var items []*service.SummaryItem
-	// for key, value := range h.runSummary.Flatten() {
-	// 	items = append(items, &service.SummaryItem{
-	// 		Key: key,
-	// 		ValueJson: value,
-	// 	})
-	// }
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,

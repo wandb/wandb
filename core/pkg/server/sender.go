@@ -763,19 +763,21 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	data, _ := s.runSummary.Serialize(pathtree.FormatJson)
-	fmt.Println("+++streaming summary from sender", string(data))
+	update, err := s.runSummary.Flatten()
+	if err != nil {
+		s.logger.CaptureError("Error flattening run summary", err)
+		return
+	}
 
-	// TODO: build a full summary record to send
-	// record := &service.Record{
-	// 	RecordType: &service.Record_Summary{
-	// 		Summary: &service.SummaryRecord{
-	// 			Update: runSummary,
-	// 		},
-	// 	},
-	// }
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: update,
+			},
+		},
+	}
 
-	// s.fileStream.StreamRecord(record)
+	s.fileStream.StreamRecord(record)
 
 }
 
