@@ -331,6 +331,7 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
     }
 
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -359,6 +360,7 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
@@ -391,6 +393,7 @@ async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
