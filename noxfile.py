@@ -106,29 +106,31 @@ def run_pytest(
     session.log(f"Storing Go coverage in {gocovdir}")
     session.notify("coverage")
 
-    session.run(
-        "pytest",
-        *pytest_opts,
-        *paths,
-        env=pytest_env,
-        include_outer_env=False,
-    )
-
-    # Store whether wandb-core was used as a test-suite property.
-    #
-    # NOTE: pytest's "record_testsuite_property" doesn't work
-    # with pytest-xdist! Otherwise we would just use that.
-    #
-    # * https://docs.pytest.org/en/7.2.x/how-to/output.html#record-testsuite-property
-    # * https://github.com/pytest-dev/pytest/issues/7767
-    install_timed(session, "junitparser")
-    session.run(
-        "python",
-        "tools/junit_add_property.py",
-        "--add",
-        f"used_wandb_core={require_core}",
-        junitxml,
-    )
+    try:
+        session.run(
+            "pytest",
+            *pytest_opts,
+            *paths,
+            env=pytest_env,
+            include_outer_env=False,
+        )
+    finally:
+        if junitxml.exists():
+            # Store whether wandb-core was used as a test-suite property.
+            #
+            # NOTE: pytest's "record_testsuite_property" doesn't work
+            # with pytest-xdist! Otherwise we would just use that.
+            #
+            # * https://docs.pytest.org/en/7.2.x/how-to/output.html#record-testsuite-property
+            # * https://github.com/pytest-dev/pytest/issues/7767
+            install_timed(session, "junitparser")
+            session.run(
+                "python",
+                "tools/junit_add_property.py",
+                "--add",
+                f"used_wandb_core={require_core}",
+                junitxml,
+            )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
