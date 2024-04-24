@@ -127,6 +127,29 @@ type Leaf struct {
 	Value any
 }
 
+func Flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
+	// Iterate over each key-value pair in the map
+	for treeKey, treeValue := range tree {
+		// Make a copy of the path slice and append the current key to the new slice
+		newPath := make([]string, len(path))
+		copy(newPath, path)
+		newPath = append(newPath, treeKey)
+
+		// Check if the value is another TreeData (map). If so, call Flatten recursively
+		if subTree, ok := treeValue.(TreeData); ok {
+			leaves = Flatten(subTree, leaves, newPath) // Use the copied and updated newPath
+		} else {
+			// If value is not a TreeData, add it to the leaves slice with the current path
+			leaves = append(leaves, Leaf{
+				Key:   newPath, // Use the copied and updated newPath
+				Value: treeValue,
+			})
+		}
+	}
+
+	return leaves
+}
+
 // Uses the given subtree for keys that aren't already set.
 func (runConfig *PathTree[I]) AddUnsetKeysFromSubtree(
 	tree TreeData,

@@ -26,13 +26,13 @@ func NewFrom(tree RunHistoryDict) *RunHistory {
 }
 
 // TODO: fix this to build nested tree
-func (runHistory *RunHistory) FlattenTree() []*service.HistoryItem {
+func (runHistory *RunHistory) Flatten() []*service.HistoryItem {
 	var items []*service.HistoryItem
-	for _, item := range runHistory.Flatten() {
-		val, _ := json.Marshal(item.ValueJson)
+	for _, item := range pathtree.Flatten(runHistory.Tree(), []pathtree.Leaf{}, []string{}) {
+		val, _ := json.Marshal(item.Value)
 		history := &service.HistoryItem{
-			Key:       item.Key,
-			NestedKey: item.NestedKey,
+			Key:       item.Key[0],
+			NestedKey: item.Key[1:],
 			ValueJson: string(val),
 		}
 		items = append(items, history)

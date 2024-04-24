@@ -1120,7 +1120,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
-		items := h.runHistory.FlattenTree()
+		items := h.runHistory.Flatten()
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
 		})
@@ -1180,7 +1180,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		step := request.Step.GetNum()
 		current := *h.runHistory.Step
 		if step > current {
-			items := h.runHistory.FlattenTree()
+			items := h.runHistory.Flatten()
 			history := &service.HistoryRecord{
 				Step: &service.HistoryStep{
 					Num: *h.runHistory.Step,
@@ -1207,7 +1207,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
-		items := h.runHistory.FlattenTree()
+		items := h.runHistory.Flatten()
 		history := &service.HistoryRecord{
 			Step: &service.HistoryStep{
 				Num: *h.runHistory.Step,
