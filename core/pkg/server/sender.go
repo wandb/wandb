@@ -799,7 +799,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	}
 
 	// build a full summary record to send
-	summaryItems := s.runSummary.FlattenTree()
+	summaryItems := s.runSummary.Flatten()
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
@@ -856,7 +856,6 @@ func (s *Sender) upsertConfig() {
 		s.logger.Error("sender: sendConfig:", "error", err)
 	}
 }
-
 
 func (s *Sender) uploadConfigFile() {
 	if s.settings.GetXSync().GetValue() {

@@ -1,8 +1,6 @@
 package runsummary
 
 import (
-	"encoding/json"
-
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -37,17 +35,13 @@ func (runSummary *RunSummary) Serialize(format pathtree.Format) ([]byte, error) 
 }
 
 // TODO: fix this to build nested tree and include remove
-func (runSummary *RunSummary) FlattenTree() []*service.SummaryItem {
+func (runSummary *RunSummary) Flatten() []*service.SummaryItem {
 	var items []*service.SummaryItem
-	for _, item := range pathtree.Flatten(runSummary.Tree(), []pathtree.Leaf{}, []string{}) {
-		val, err := json.Marshal(item.Value)
-		if err != nil {
-			continue
-		}
+	for _, item := range runSummary.PathTree.Flatten() {
 		summary := &service.SummaryItem{
 			Key:       item.Key[0],
 			NestedKey: item.Key[1:],
-			ValueJson: string(val),
+			ValueJson: item.Value,
 		}
 		items = append(items, summary)
 	}

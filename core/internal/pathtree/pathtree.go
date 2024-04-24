@@ -124,10 +124,14 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 
 type Leaf struct {
 	Key   []string
-	Value any
+	Value string
 }
 
-func Flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
+func (pathTree *PathTree[I]) Flatten() []Leaf {
+	return flatten(pathTree.tree, []Leaf{}, []string{})
+}
+
+func flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
 	// Iterate over each key-value pair in the map
 	for treeKey, treeValue := range tree {
 		// Make a copy of the path slice and append the current key to the new slice
@@ -137,12 +141,16 @@ func Flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
 
 		// Check if the value is another TreeData (map). If so, call Flatten recursively
 		if subTree, ok := treeValue.(TreeData); ok {
-			leaves = Flatten(subTree, leaves, newPath) // Use the copied and updated newPath
+			leaves = flatten(subTree, leaves, newPath) // Use the copied and updated newPath
 		} else {
 			// If value is not a TreeData, add it to the leaves slice with the current path
+			value, err := json.Marshal(treeValue)
+			if err != nil {
+				continue
+			}
 			leaves = append(leaves, Leaf{
 				Key:   newPath, // Use the copied and updated newPath
-				Value: treeValue,
+				Value: string(value),
 			})
 		}
 	}

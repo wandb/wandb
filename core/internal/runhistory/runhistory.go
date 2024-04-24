@@ -1,8 +1,6 @@
 package runhistory
 
 import (
-	"encoding/json"
-
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -25,15 +23,13 @@ func NewFrom(tree RunHistoryDict) *RunHistory {
 	return &RunHistory{PathTree: pathtree.NewFrom[*service.HistoryItem](tree)}
 }
 
-// TODO: fix this to build nested tree
 func (runHistory *RunHistory) Flatten() []*service.HistoryItem {
 	var items []*service.HistoryItem
-	for _, item := range pathtree.Flatten(runHistory.Tree(), []pathtree.Leaf{}, []string{}) {
-		val, _ := json.Marshal(item.Value)
+	for _, item := range runHistory.PathTree.Flatten() {
 		history := &service.HistoryItem{
 			Key:       item.Key[0],
 			NestedKey: item.Key[1:],
-			ValueJson: string(val),
+			ValueJson: item.Value,
 		}
 		items = append(items, history)
 	}

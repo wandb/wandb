@@ -876,7 +876,7 @@ func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
 	// TODO: fix this
-	items := h.runFullSummary.FlattenTree()
+	items := h.runFullSummary.Flatten()
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
@@ -979,7 +979,7 @@ func (h *Handler) uploadSummaryFile() {
 
 func (h *Handler) debounceSummary() {
 
-	update := h.runDeltaSummary.FlattenTree()
+	update := h.runDeltaSummary.Flatten()
 
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
