@@ -38,13 +38,6 @@ func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
 	})
 }
 
-func keyPath(item *service.ConfigItem) []string {
-	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
-	}
-	return []string{item.GetKey()}
-}
-
 // Updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
@@ -55,19 +48,13 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 ) {
 	updates := make([]*pathtree.PathItem, len(configRecord.GetUpdate()))
 	for i, item := range configRecord.GetUpdate() {
-		updates[i] = &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: item.GetValueJson(),
-		}
+		updates[i] = pathtree.FromItem(item)
 	}
 	runConfig.ApplyUpdate(updates, onError)
 
 	removes := make([]*pathtree.PathItem, len(configRecord.GetRemove()))
 	for i, item := range configRecord.GetRemove() {
-		removes[i] = &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: item.GetValueJson(),
-		}
+		removes[i] = pathtree.FromItem(item)
 	}
 	runConfig.ApplyRemove(removes, onError)
 }

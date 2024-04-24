@@ -275,3 +275,23 @@ func deepCopy(tree TreeData) (TreeData, error) {
 	}
 	return clone, nil
 }
+
+type item interface {
+	GetKey() string
+	GetNestedKey() []string
+	GetValueJson() string
+}
+
+func FromItem(item item) *PathItem {
+	var key []string
+	if len(item.GetNestedKey()) > 0 {
+		key = item.GetNestedKey()
+	} else {
+		key = []string{item.GetKey()}
+	}
+
+	return &PathItem{
+		Path:  key,
+		Value: item.GetValueJson(),
+	}
+}

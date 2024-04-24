@@ -99,8 +99,9 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 
 func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
 	summary := runsummary.New()
-	summary.ApplyUpdate(
-		msg.Update,
+
+	summary.ApplyChangeRecord(
+		msg,
 		func(err error) {
 			fs.logger.CaptureError("filestream: failed to apply summary update", err)
 		},
