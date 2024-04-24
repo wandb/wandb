@@ -7,11 +7,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Generic item which works with config, summary, and history
-type item interface {
-	GetKey() string
-	GetNestedKey() []string
-	GetValueJson() string
+// PathItem is a key-value pair with a path.
+type PathItem struct {
+	Path  []string
+	Value any
 }
 
 // TreeData is an internal representation for a nested key-value pair.
@@ -22,7 +21,7 @@ type TreePath []string
 
 // PathTree is used to represent a nested key-value pair object,
 // such as Run config or summary.
-type PathTree[I item] struct {
+type PathTree struct {
 	// The underlying configuration tree.
 	//
 	// Nodes are strings and leaves are types supported by JSON,
@@ -37,24 +36,24 @@ const (
 	FormatJson
 )
 
-func New[I item]() *PathTree[I] {
-	return &PathTree[I]{make(TreeData)}
+func New() *PathTree {
+	return &PathTree{make(TreeData)}
 }
 
-func NewFrom[I item](tree TreeData) *PathTree[I] {
-	return &PathTree[I]{tree}
+func NewFrom(tree TreeData) *PathTree {
+	return &PathTree{tree}
 }
 
 // Returns the underlying config tree.
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
 // mutating it.
-func (pathTree *PathTree[I]) Tree() TreeData {
+func (pathTree *PathTree) Tree() TreeData {
 	return pathTree.tree
 }
 
 // Makes and returns a deep copy of the underlying tree.
-func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
+func (pathTree *PathTree) CloneTree() (TreeData, error) {
 	clone, err := deepCopy(pathTree.tree)
 	if err != nil {
 		return nil, err
@@ -66,50 +65,49 @@ func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-func (pathTree *PathTree[I]) ApplyUpdate(
-	update []I,
+func (pathTree *PathTree) ApplyUpdate(
+	items []*PathItem,
 	onError func(error),
 ) {
-	for _, val := range update {
-		path := keyPath(val)
+	for _, item := range items {
 
 		var value interface{}
 		if err := json.Unmarshal(
-			[]byte(val.GetValueJson()),
+			[]byte(item.Value.(string)),
 			&value,
 		); err != nil {
 			onError(
 				fmt.Errorf(
-					"config: failed to unmarshal JSON for config key %v: %v",
-					path,
+					"pathtree: failed to unmarshal JSON for config key %v: %v",
+					item.Path,
 					err,
 				),
 			)
 			continue
 		}
 
-		if err := updateAtPath(pathTree.tree, path, value); err != nil {
+		if err := updateAtPath(pathTree.tree, item.Path, value); err != nil {
 			onError(err)
 			continue
 		}
 	}
 }
 
-func (pathTree *PathTree[I]) ApplyRemove(
-	remove []I,
+func (pathTree *PathTree) ApplyRemove(
+	items []*PathItem,
 	onError func(error),
 ) {
-	for _, val := range remove {
-		pathTree.removeAtPath(keyPath(val))
+	for _, item := range items {
+		pathTree.removeAtPath(item.Path)
 	}
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) any) ([]byte, error) {
+func (pathTree *PathTree) Serialize(format Format, formatValue func(any) any) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
 	serialized := make(map[string]any)
 	for treeKey, treeValue := range pathTree.tree {
-		serialized[treeKey] = postProcessFunc(treeValue)
+		serialized[treeKey] = formatValue(treeValue)
 	}
 
 	switch format {
@@ -122,13 +120,8 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
-type Leaf struct {
-	Key   []string
-	Value any
-}
-
 // Uses the given subtree for keys that aren't already set.
-func (runConfig *PathTree[I]) AddUnsetKeysFromSubtree(
+func (runConfig *PathTree) AddUnsetKeysFromSubtree(
 	tree TreeData,
 	path TreePath,
 ) error {
@@ -171,7 +164,7 @@ func updateAtPath(
 }
 
 // Removes the value at the path in the config tree.
-func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
+func (pathTree *PathTree) removeAtPath(path TreePath) {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
@@ -179,11 +172,6 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 	if subtree != nil {
 		delete(subtree, key)
 	}
-}
-
-// Returns the key path referenced by the item.
-func keyPath(item item) TreePath {
-	return TreePath(append([]string{item.GetKey()}, item.GetNestedKey()...))
 }
 
 // Returns the subtree at the path, or nil if it does not exist.

@@ -21,21 +21,28 @@ type RunConfigDict = pathtree.TreeData
 //
 // The server process builds this up incrementally throughout a run's lifetime.
 type RunConfig struct {
-	*pathtree.PathTree[*service.ConfigItem]
+	*pathtree.PathTree
 }
 
 func New() *RunConfig {
-	return &RunConfig{PathTree: pathtree.New[*service.ConfigItem]()}
+	return &RunConfig{PathTree: pathtree.New()}
 }
 
 func NewFrom(tree RunConfigDict) *RunConfig {
-	return &RunConfig{PathTree: pathtree.NewFrom[*service.ConfigItem](tree)}
+	return &RunConfig{PathTree: pathtree.NewFrom(tree)}
 }
 
 func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
 	return runConfig.PathTree.Serialize(format, func(value any) any {
 		return map[string]any{"value": value}
 	})
+}
+
+func keyPath(item *service.ConfigItem) []string {
+	if len(item.GetNestedKey()) > 0 {
+		return item.GetNestedKey()
+	}
+	return []string{item.GetKey()}
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -46,11 +53,23 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 	configRecord *service.ConfigRecord,
 	onError func(error),
 ) {
-	update := configRecord.GetUpdate()
-	runConfig.ApplyUpdate(update, onError)
+	updates := make([]*pathtree.PathItem, len(configRecord.GetUpdate()))
+	for i, item := range configRecord.GetUpdate() {
+		updates[i] = &pathtree.PathItem{
+			Path:  keyPath(item),
+			Value: item.GetValueJson(),
+		}
+	}
+	runConfig.ApplyUpdate(updates, onError)
 
-	remove := configRecord.GetRemove()
-	runConfig.ApplyRemove(remove, onError)
+	removes := make([]*pathtree.PathItem, len(configRecord.GetRemove()))
+	for i, item := range configRecord.GetRemove() {
+		removes[i] = &pathtree.PathItem{
+			Path:  keyPath(item),
+			Value: item.GetValueJson(),
+		}
+	}
+	runConfig.ApplyRemove(removes, onError)
 }
 
 // Inserts W&B-internal values into the run's configuration.
