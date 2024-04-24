@@ -92,18 +92,16 @@ executors:
 
   linux-python:
     parameters:
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
     docker:
-      - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+      - image: python:<<parameters.python>>
     resource_class: xlarge
 
   local-testcontainer:
     parameters:
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
     docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: "python:<<parameters.python>>"
       - image: <<pipeline.parameters.container_registry>>/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
         auth:
           username: _json_key
@@ -445,10 +443,8 @@ jobs:
       executor: { type: executor }
       parallelism: { type: integer }
       install_deps: { type: steps }
-      session_base: { type: string }
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
-      core: { type: string }
+      session: { type: string }
+      python: { type: string }
       codecov_flags: { type: string }
 
     executor: <<parameters.executor>>
@@ -465,13 +461,11 @@ jobs:
           no_output_timeout: 5m
 
       - run:
-          name: "Run nox tests: <<parameters.session_base>>"
+          name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
-          command: "\
-            nox -db uv -s '<<parameters.session_base>>-\
-              <<parameters.python_version_major>>.\
-              <<parameters.python_version_minor>>\
-              (core=<<parameters.core>>)'"
+          command: >
+            nox -db uv -s "<<parameters.session>>"
+              --python <<parameters.python>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
@@ -1502,25 +1496,18 @@ workflows:
       # Unit tests with pytest on Linux
       #
       - nox-tests:
-          name: "\
-            unit-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-linux-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
           parallelism: 4
           executor:
             name: linux-python
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
@@ -1541,19 +1528,13 @@ workflows:
       # the common part separately and reuse it.
       #
       - nox-tests:
-          name: "\
-            unit-tests-macos-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-macos-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9, 12]
-              core: ["True", "False"]
+              python: ["3.9", "3.12"]
 
           parallelism: 4
           executor: macos
@@ -1562,8 +1543,7 @@ workflows:
             - run:
                 name: Install system deps
                 command: |
-                  brew install ffmpeg \
-                    python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
+                  brew install ffmpeg python@<<matrix.python>>
 
       #
       # Unit tests with pytest on Windows
@@ -1573,26 +1553,21 @@ workflows:
       #   - install_deps
       #
       - nox-tests:
-          name: "\
-            unit-tests-win-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-win-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
-          filters:
-            branches:
-              only:
-                # - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # DO NOT MERGE: Verify this works!
+          # filters:
+          #   branches:
+          #     only:
+          #       # - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9, 12]
-              core: ["True", "False"]
+              python: ["3.9", "3.12"]
 
 
           parallelism: 4
@@ -1605,19 +1580,15 @@ workflows:
             - run:
                 name: Install system deps
                 command: |
-                  choco install -y ffmpeg \
-                    python<<matrix.python_version_major>><<matrix.python_version_minor>>
+                  choco install -y ffmpeg &&
+                  choco install python3 --version=<<matrix.python>>
 
       #
       # System tests on Linux
       #
       - nox-tests:
-          name: "\
-            system-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: system_tests
+          name: system-tests-linux-<<matrix.python>>
+          session: system_tests
           codecov_flags: system
 
           filters:
@@ -1627,15 +1598,12 @@ workflows:
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
           parallelism: 12
           executor:
             name: local-testcontainer
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
@@ -1645,25 +1613,18 @@ workflows:
                   apt-get install -y libsndfile1 ffmpeg
 
       - nox-tests:
-          name: "\
-            notebook-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: notebook_tests
+          name: notebook-tests-linux-<<matrix.python>>
+          session: notebook_tests
           codecov_flags: system
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
           parallelism: 1
           executor:
             name: local-testcontainer
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
