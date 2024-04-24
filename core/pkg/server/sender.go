@@ -904,7 +904,7 @@ func (s *Sender) uploadConfigFile() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
-
+  
 	config, err := s.serializeConfig(pathtree.FormatYaml)
 	if err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)

@@ -32,15 +32,6 @@ func NewFrom(tree RunConfigDict) *RunConfig {
 	return &RunConfig{PathTree: pathtree.NewFrom[*service.ConfigItem](tree)}
 }
 
-// Makes and returns a deep copy of the underlying tree.
-func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
-	clone, err := pathtree.DeepCopy(runConfig.Tree())
-	if err != nil {
-		return nil, err
-	}
-	return clone, nil
-}
-
 func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
 	return runConfig.PathTree.Serialize(format, func(value any) any {
 		return map[string]any{"value": value}

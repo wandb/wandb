@@ -55,7 +55,7 @@ func (pathTree *PathTree[I]) Tree() TreeData {
 
 // Makes and returns a deep copy of the underlying tree.
 func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
-	clone, err := DeepCopy(pathTree.tree)
+	clone, err := deepCopy(pathTree.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +263,12 @@ func getOrMakeSubtree(
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func DeepCopy(tree TreeData) (TreeData, error) {
+func deepCopy(tree TreeData) (TreeData, error) {
 	clone := make(TreeData)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
-			innerClone, err := DeepCopy(value)
+			innerClone, err := deepCopy(value)
 			if err != nil {
 				return nil, err
 			}
