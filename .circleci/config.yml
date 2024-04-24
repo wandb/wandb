@@ -1581,7 +1581,7 @@ workflows:
                 name: Install system deps
                 command: |
                   choco install -y ffmpeg &&
-                  choco install --force python3 --version=<<matrix.python>>
+                  choco install --force python --version=<<matrix.python>>
 
       #
       # System tests on Linux

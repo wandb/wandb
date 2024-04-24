@@ -2,22 +2,22 @@ import os
 import pathlib
 import re
 import shutil
-import tempfile
 import time
 from contextlib import contextmanager
-from typing import Callable, Iterator, List
+from typing import Callable, List
 
 import nox
 
 _SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
 # Directories in which to create temporary per-session directories
-# containing pytest or Go coverage.
+# containing test results and pytest/Go coverage.
 #
 # This is created by test sessions and then consumed + deleted by
 # the 'coverage' session.
-_NOX_PYTEST_COVERAGE_DIR = pathlib.Path("nox-coverage", "pytest")
-_NOX_GO_COVERAGE_DIR = pathlib.Path("nox-coverage", "go")
+_NOX_PYTEST_COVERAGE_DIR = pathlib.Path(".nox-wandb", "pytest-coverage")
+_NOX_PYTEST_RESULTS_DIR = pathlib.Path(".nox-wandb", "pytest-results")
+_NOX_GO_COVERAGE_DIR = pathlib.Path(".nox-wandb", "go-coverage")
 
 
 @contextmanager
@@ -44,6 +44,9 @@ def run_pytest(
     require_core: bool,
     paths: List[str],
 ) -> None:
+    # Session name, transformed to be usable in a file name.
+    session_file_name = re.sub(r"[\(\)=\"\'\.]", "_", session.name)
+
     pytest_opts = []
     pytest_env = {
         "WANDB__REQUIRE_CORE": str(require_core),
@@ -63,7 +66,9 @@ def run_pytest(
     pytest_opts.append("--durations=20")
 
     # Output test results for tooling.
-    pytest_opts.append("--junitxml=test-results/junit.xml")
+    junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
+    pytest_opts.append(f"--junitxml={junitxml}")
+    session.notify("combine_test_results")
 
     # (pytest-timeout) Per-test timeout.
     pytest_opts.append("--timeout=300")
@@ -82,9 +87,6 @@ def run_pytest(
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
     pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
-
-    # Session name, transformed to be usable in a file name.
-    session_file_name = re.sub(r"[\(\)=\"\'\.]", "_", session.name)
 
     # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
     _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
@@ -111,60 +113,6 @@ def run_pytest(
         env=pytest_env,
         include_outer_env=False,
     )
-
-
-@nox.session(default=False)
-def coverage(session: nox.Session) -> None:
-    """Combines coverage outputs from test sessions.
-
-    This is invoked automatically by test sessions and should not be
-    invoked manually.
-    """
-    install_timed(session, "coverage[toml]")
-
-    ###########################################################
-    # Python coverage will be in a "coverage.xml" file.
-    ###########################################################
-
-    # https://coverage.readthedocs.io/en/latest/cmd.html#combining-data-files-coverage-combine
-    py_directories = list(_NOX_PYTEST_COVERAGE_DIR.iterdir())
-    session.run("coverage", "combine", *py_directories)
-    session.run("coverage", "xml")
-    shutil.rmtree(_NOX_PYTEST_COVERAGE_DIR)
-
-    ###########################################################
-    # Go coverage will be in a "coverage.txt" file.
-    ###########################################################
-
-    go_directories = list(str(p) for p in _NOX_GO_COVERAGE_DIR.iterdir())
-    go_combined = pathlib.Path(session.create_tmp(), "go")
-    if go_combined.exists():
-        shutil.rmtree(go_combined)
-    go_combined.mkdir()
-    session.run(
-        "go",
-        "tool",
-        "covdata",
-        "merge",
-        f"-i={','.join(go_directories)}",
-        f"-o={go_combined}",
-        external=True,
-    )
-    shutil.rmtree(_NOX_GO_COVERAGE_DIR)
-
-    # The output directory won't be created if there was no Go coverage
-    # collected. This can happen if only a subset of tests was run that
-    # didn't spin up wandb-core.
-    if go_combined.exists():
-        session.run(
-            "go",
-            "tool",
-            "covdata",
-            "textfmt",
-            f"-i={go_combined}",
-            "-o=coverage.txt",
-            external=True,
-        )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -631,3 +579,76 @@ def mypy_report(session: nox.Session) -> None:
         "text",
         f"{path}/cobertura.xml",
     )
+
+
+@nox.session(default=False)
+def coverage(session: nox.Session) -> None:
+    """Combines coverage outputs from test sessions.
+
+    This is invoked automatically by test sessions and should not be
+    invoked manually.
+    """
+    install_timed(session, "coverage[toml]")
+
+    ###########################################################
+    # Python coverage will be in a "coverage.xml" file.
+    ###########################################################
+
+    # https://coverage.readthedocs.io/en/latest/cmd.html#combining-data-files-coverage-combine
+    py_directories = list(_NOX_PYTEST_COVERAGE_DIR.iterdir())
+    session.run("coverage", "combine", *py_directories)
+    session.run("coverage", "xml")
+    shutil.rmtree(_NOX_PYTEST_COVERAGE_DIR, ignore_errors=True)
+
+    ###########################################################
+    # Go coverage will be in a "coverage.txt" file.
+    ###########################################################
+
+    go_directories = list(str(p) for p in _NOX_GO_COVERAGE_DIR.iterdir())
+    go_combined = pathlib.Path(session.create_tmp(), "go")
+    shutil.rmtree(go_combined, ignore_errors=True)
+    go_combined.mkdir()
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "merge",
+        f"-i={','.join(go_directories)}",
+        f"-o={go_combined}",
+        external=True,
+    )
+    shutil.rmtree(_NOX_GO_COVERAGE_DIR, ignore_errors=True)
+
+    # The output directory won't be created if there was no Go coverage
+    # collected. This can happen if only a subset of tests was run that
+    # didn't spin up wandb-core.
+    if go_combined.exists():
+        session.run(
+            "go",
+            "tool",
+            "covdata",
+            "textfmt",
+            f"-i={go_combined}",
+            "-o=coverage.txt",
+            external=True,
+        )
+
+
+@nox.session(default=False)
+def combine_test_results(session: nox.Session) -> None:
+    """Merges Python test results into a test-results/junit.xml file.
+
+    This is invoked automatically by test sessions and should not be
+    invoked manually.
+    """
+    install_timed(session, "junitparser")
+
+    xml_paths = list(_NOX_PYTEST_RESULTS_DIR.glob("*/junit.xml"))
+    session.run(
+        "junitparser",
+        "merge",
+        *xml_paths,
+        "test-results/junit.xml",
+    )
+
+    shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
