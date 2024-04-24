@@ -74,19 +74,6 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 	}
 }
 
-func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
-	return runConfig.PathTree.Serialize(format, func(tree pathtree.TreeData) pathtree.TreeData {
-		serialized := pathtree.TreeData{}
-		for treeKey, treeValue := range tree {
-			serialized[treeKey] = pathtree.TreeData{
-				"value": treeValue,
-				"desc":  nil,
-			}
-		}
-		return serialized
-	})
-}
-
 // Incorporates the config from a run that's being resumed.
 func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 	// Add any top-level keys that aren't already set.
@@ -116,7 +103,6 @@ func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 
 	return nil
 }
-
 
 // Returns the "_wandb" subtree of the config.
 func (runConfig *RunConfig) internalSubtree() RunConfigDict {

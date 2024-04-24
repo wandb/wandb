@@ -9,10 +9,24 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+type WriterOption func(*Writer)
+
+func WithWriterFwdChannel(fwd chan *service.Record) WriterOption {
+	return func(w *Writer) {
+		w.fwdChan = fwd
+	}
+}
+
+func WithWriterSettings(settings *service.Settings) WriterOption {
+	return func(w *Writer) {
+		w.settings = settings
+	}
+}
+
 type WriterParams struct {
-	FwdChan  chan *service.Record
-	Settings *service.Settings
 	Logger   *observability.CoreLogger
+	Settings *service.Settings
+	FwdChan  chan *service.Record
 }
 
 // Writer is responsible for writing messages to the append-only log.
@@ -47,13 +61,14 @@ type Writer struct {
 
 // NewWriter returns a new Writer
 func NewWriter(ctx context.Context, params *WriterParams) *Writer {
-	return &Writer{
+	w := &Writer{
 		ctx:      ctx,
 		wg:       sync.WaitGroup{},
 		logger:   params.Logger,
-		fwdChan:  params.FwdChan,
 		settings: params.Settings,
+		fwdChan:  params.FwdChan,
 	}
+	return w
 }
 
 func (w *Writer) startStore() {

@@ -122,6 +122,11 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
+type Leaf struct {
+	Key   []string
+	Value any
+}
+
 // Uses the given subtree for keys that aren't already set.
 func (runConfig *PathTree[I]) AddUnsetKeysFromSubtree(
 	tree TreeData,
@@ -146,7 +151,7 @@ func (runConfig *PathTree[I]) AddUnsetKeysFromSubtree(
 	return nil
 }
 
-// Sets the value at the path in the tree.
+// Sets the value at the path in the config tree.
 func updateAtPath(
 	tree TreeData,
 	path []string,
