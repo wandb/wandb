@@ -643,6 +643,7 @@ def combine_test_results(session: nox.Session) -> None:
     """
     install_timed(session, "junitparser")
 
+    pathlib.Path("test-results").mkdir(exist_ok=True)
     xml_paths = list(_NOX_PYTEST_RESULTS_DIR.glob("*/junit.xml"))
     session.run(
         "junitparser",
