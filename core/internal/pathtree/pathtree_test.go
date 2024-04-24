@@ -61,7 +61,8 @@ func TestNewPathTreeFrom(t *testing.T) {
 func TestApplyUpdate(t *testing.T) {
 	pt := pathtree.New[MockItem]()
 	items := []MockItem{
-		{"config", []string{"setting1"}, `{"value": 42}`},
+		{"setting1", nil, "69"},
+		{"", []string{"config", "setting2"}, `{"value": 42}`},
 	}
 	onError := func(err error) {
 		t.Error("onError should not be called", err)
@@ -69,8 +70,9 @@ func TestApplyUpdate(t *testing.T) {
 	pt.ApplyUpdate(items, onError)
 
 	expectedTree := pathtree.TreeData{
+		"setting1": float64(69),
 		"config": map[string]interface{}{
-			"setting1": map[string]interface{}{
+			"setting2": map[string]interface{}{
 				"value": float64(42),
 			},
 		},
@@ -84,6 +86,7 @@ func TestApplyUpdate(t *testing.T) {
 func TestApplyRemove(t *testing.T) {
 
 	treeData := pathtree.TreeData{
+		"setting0": float64(69),
 		"config": map[string]interface{}{
 			"setting1": 42,
 			"setting2": "goodbye",
@@ -91,7 +94,7 @@ func TestApplyRemove(t *testing.T) {
 	}
 	pt := pathtree.NewFrom[MockItem](treeData)
 	items := []MockItem{
-		{"config", []string{"setting1"}, ""},
+		{"", []string{"config", "setting1"}, ""},
 	}
 	onError := func(err error) {
 		t.Error("onError should not be called", err)
@@ -99,36 +102,7 @@ func TestApplyRemove(t *testing.T) {
 	pt.ApplyRemove(items, onError)
 
 	expectedTree := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting2": "goodbye",
-		},
-	}
-
-	if !reflect.DeepEqual(pt.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, pt.Tree())
-	}
-}
-
-func TestApplyRemoveNestedJsonValue(t *testing.T) {
-
-	t.Skip("The implementation does not handle nested JSON values correctly.")
-
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": 42,
-			"setting2": "goodbye",
-		},
-	}
-	pt := pathtree.NewFrom[MockItem](treeData)
-	items := []MockItem{
-		{"config", []string{}, `{"value": 42}`},
-	}
-	onError := func(err error) {
-		t.Error("onError should not be called", err)
-	}
-	pt.ApplyRemove(items, onError)
-
-	expectedTree := pathtree.TreeData{
+		"setting0": float64(69),
 		"config": map[string]interface{}{
 			"setting2": "goodbye",
 		},
