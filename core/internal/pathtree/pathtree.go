@@ -208,8 +208,13 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 }
 
 // Returns the key path referenced by the item.
+
 func keyPath(item item) TreePath {
-	return TreePath(append([]string{item.GetKey()}, item.GetNestedKey()...))
+	if len(item.GetNestedKey()) > 0 {
+		return TreePath(item.GetNestedKey())
+	} else {
+		return TreePath([]string{item.GetKey()})
+	}
 }
 
 // Returns the subtree at the path, or nil if it does not exist.

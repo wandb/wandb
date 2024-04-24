@@ -59,10 +59,18 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", leaf.Key, err)
 			return nil, err
 		}
+
 		items[i] = &service.SummaryItem{
-			Key:       leaf.Key[0],
-			NestedKey: leaf.Key[1:],
 			ValueJson: string(value),
+		}
+		pathLen := len(leaf.Key)
+		if pathLen == 0 {
+			return nil, fmt.Errorf("runsummary: empty key in leaf")
+		}
+		if pathLen == 1 {
+			items[i].Key = leaf.Key[0]
+		} else {
+			items[i].NestedKey = leaf.Key
 		}
 	}
 	return items, nil

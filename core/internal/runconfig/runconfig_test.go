@@ -26,8 +26,7 @@ func TestConfigUpdate(t *testing.T) {
 					ValueJson: "1",
 				},
 				{
-					Key:       "b",
-					NestedKey: []string{"c"},
+					NestedKey: []string{"b", "c"},
 					ValueJson: "\"text\"",
 				},
 			},
@@ -59,7 +58,7 @@ func TestConfigRemove(t *testing.T) {
 		&service.ConfigRecord{
 			Remove: []*service.ConfigItem{
 				{Key: "a"},
-				{Key: "b", NestedKey: []string{"c"}},
+				{NestedKey: []string{"b", "c"}},
 			},
 		}, ignoreError,
 	)
