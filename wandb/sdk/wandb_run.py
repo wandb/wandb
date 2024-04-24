@@ -3972,8 +3972,7 @@ class Run:
             for item in summary.item:
                 if item.key.startswith("_") or len(item.nested_key) > 0:
                     continue
-                path = ".".join([item.key] + [k for k in item.nested_key])
-                final_summary[path] = json.loads(item.value_json)
+                final_summary[item.key] = json.loads(item.value_json)
 
             logger.info("rendering summary")
             summary_rows = []

@@ -120,6 +120,37 @@ func (pathTree *PathTree) Serialize(format Format, formatValue func(any) any) ([
 	return nil, fmt.Errorf("config: unknown format: %v", format)
 }
 
+type Leaf struct {
+	Key   []string
+	Value any
+}
+
+// Flattens the tree into a slice of leaves.
+//
+// Use this to get a list of all the leaves in the tree.
+func (pathTree *PathTree[I]) Flatten() []Leaf {
+	return flatten(pathTree.tree, nil)
+}
+
+// Recursively flattens the tree into a slice of leaves.
+//
+// The order of the leaves is not guaranteed.
+// The order of the leaves is determined by the order of the tree traversal.
+// The tree traversal is depth-first but based on a map, so the order is not
+// guaranteed.
+func flatten(tree TreeData, prefix []string) []Leaf {
+	var leaves []Leaf
+	for key, value := range tree {
+		switch value := value.(type) {
+		case TreeData:
+			leaves = append(leaves, flatten(value, append(prefix, key))...)
+		default:
+			leaves = append(leaves, Leaf{append(prefix, key), value})
+		}
+	}
+	return leaves
+}
+
 // Uses the given subtree for keys that aren't already set.
 func (runConfig *PathTree) AddUnsetKeysFromSubtree(
 	tree TreeData,

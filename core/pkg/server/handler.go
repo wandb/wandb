@@ -15,10 +15,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -43,7 +43,7 @@ type HandlerParams struct {
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
-	SummaryHandler    *SummaryHandler
+	RunSummary        *runsummary.RunSummary
 	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
@@ -75,9 +75,6 @@ type Handler struct {
 	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
 
-	// summaryHandler is the summary handler for the stream
-	summaryHandler *SummaryHandler
-
 	// activeHistory is the history record used to track
 	// current active history record for the stream
 	activeHistory *ActiveHistory
@@ -92,6 +89,9 @@ type Handler struct {
 	// metricHandler is the metric handler for the stream
 	metricHandler *MetricHandler
 
+	// runSummary keeps the complete up-to-date summary
+	runSummary *runsummary.RunSummary
+
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -101,6 +101,7 @@ type Handler struct {
 	// runfilesUploaderOrNil manages uploading a run's files
 	//
 	// It may be nil when offline.
+	// TODO: should this be moved to the sender?
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// fileTransferStats reports file upload/download statistics
@@ -126,7 +127,7 @@ func NewHandler(
 		fwdChan:               params.ForwardChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
-		summaryHandler:        params.SummaryHandler,
+		runSummary:            params.RunSummary,
 		metricHandler:         params.MetricHandler,
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
@@ -188,7 +189,6 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryHandler.Debounce(h.fwdSummary)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
@@ -420,9 +420,6 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_TB:
 		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
-		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryHandler.Flush(h.fwdSummary)
-		h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -850,17 +847,15 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the run timer and set the runtime
 	h.runTimer.Pause()
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-	exit.Runtime = runtime
+	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	// update summary with runtime
 	if !h.settings.GetXSync().GetValue() {
-		summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, []*service.SummaryItem{
-			{
-				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+		summaryRecord := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{},
 			},
-		})
-		h.summaryHandler.updateSummaryDelta(summaryRecord)
+		}
+		h.handleSummary(summaryRecord, summaryRecord.GetSummary())
 	}
 
 	// send the exit record
@@ -885,10 +880,13 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	var items []*service.SummaryItem
-	for key, element := range h.summaryHandler.consolidatedSummary {
-		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
+	items, err := h.runSummary.Flatten()
+	if err != nil {
+		h.logger.CaptureError("Error flattening run summary", err)
+		h.respond(record, response)
+		return
 	}
+
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
@@ -961,68 +959,34 @@ func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) writeAndSendSummaryFile() {
-	if h.settings.GetXSync().GetValue() {
+func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+	if !h.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
-		return
-	}
+		runtime := int32(h.runTimer.Elapsed().Seconds())
 
-	// write summary to file
-	summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-
-	jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
-	if err != nil {
-		h.logger.Error("handler: writeAndSendSummaryFile: error marshalling summary", "error", err)
-		return
-	}
-
-	if err := os.WriteFile(summaryFile, []byte(jsonBytes), 0644); err != nil {
-		h.logger.Error("handler: writeAndSendSummaryFile: failed to write config file", "error", err)
-	}
-
-	// send summary file
-	if h.runfilesUploaderOrNil != nil {
-		// TODO: mark as WANDB file
-		h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
-	}
-}
-
-func (h *Handler) fwdSummary() {
-	summaryRecord := &service.SummaryRecord{
-		Update: []*service.SummaryItem{},
-	}
-
-	for key, value := range h.summaryHandler.summaryDelta {
-		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
-			Key: key, ValueJson: value,
+		// update summary with runtime
+		summary.Update = append(summary.Update, &service.SummaryItem{
+			NestedKey: []string{"_wandb", "runtime"},
+			ValueJson: fmt.Sprintf("%d", runtime),
 		})
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: summaryRecord,
+	h.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			h.logger.CaptureError("Error updating run summary", err)
 		},
-	}
-	h.fwdRecord(record)
-	// reset delta summary
-	clear(h.summaryHandler.summaryDelta)
-}
+	)
 
-func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-
-	// update summary with runtime
-	summary.Update = append(summary.Update, &service.SummaryItem{
-		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-	})
-
-	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
-	h.summaryHandler.updateSummaryDelta(summaryRecord)
+	h.fwdRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+			// do not write to the transaction log when syncing an offline run
+			if h.settings.GetXSync().GetValue() {
+				control.Local = true
+			}
+		},
+	)
 }
 
 func (h *Handler) handleTBrecord(record *service.Record) {
@@ -1232,12 +1196,20 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 		return nil
 	}
 
+	// TODO: make this work with nested keys
+	// TODO: avoid using the tree representation of the summary
+	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.summaryHandler.consolidatedSummary[key]; ok {
+	if value, ok := h.runSummary.Tree()[key]; ok {
 		// TODO: add nested key support
+		value, err := json.Marshal(value)
+		if err != nil {
+			h.logger.CaptureError("error marshalling step metric value", err)
+			return nil
+		}
 		hi := &service.HistoryItem{
 			Key:       key,
-			ValueJson: value,
+			ValueJson: string(value),
 		}
 		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
 		return hi
@@ -1356,13 +1328,29 @@ func (h *Handler) flushHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
-	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
-	if h.summaryHandler == nil {
+	if h.runSummary == nil {
 		return
 	}
-	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
-	h.summaryHandler.updateSummaryDelta(summary)
+
+	var summary []*service.SummaryItem
+	for _, item := range history.GetItem() {
+		summaryItem := &service.SummaryItem{
+			Key:       item.Key,
+			NestedKey: item.NestedKey,
+			ValueJson: item.ValueJson,
+		}
+		summary = append(summary, summaryItem)
+	}
+
+	record = &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summary,
+			},
+		},
+	}
+	h.handleSummary(record, record.GetSummary())
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
