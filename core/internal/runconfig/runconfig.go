@@ -47,7 +47,7 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 	onError func(error),
 ) {
 	update := configRecord.GetUpdate()
-	runConfig.ApplyUpdate(update, onError)
+	runConfig.ApplyUpdate(update, onError, pathtree.FormatJson)
 
 	remove := configRecord.GetRemove()
 	runConfig.ApplyRemove(remove, onError)

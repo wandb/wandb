@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/segmentio/encoding/json"
+	jsonext "github.com/wandb/simplejsonext"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,8 +34,10 @@ type PathTree[I item] struct {
 type Format int
 
 const (
-	FormatYaml Format = iota
+	FormatNone Format = iota
+	FormatYaml
 	FormatJson
+	FormatJsonExt
 )
 
 func New[I item]() *PathTree[I] {
@@ -62,6 +65,40 @@ func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
 	return clone, nil
 }
 
+func unmarshal(format Format, b []byte) (interface{}, error) {
+	switch format {
+	case FormatNone:
+		return nil, nil
+	case FormatYaml:
+		var value interface{}
+		err := yaml.Unmarshal(b, &value)
+		return value, err
+	case FormatJson:
+		var value interface{}
+		err := json.Unmarshal(b, &value)
+		return value, err
+	case FormatJsonExt:
+		return jsonext.Unmarshal(b)
+	default:
+		return nil, fmt.Errorf("pathtree: unknown format %v", format)
+	}
+}
+
+func marshal(format Format, value interface{}) ([]byte, error) {
+	switch format {
+	case FormatNone:
+		return nil, nil
+	case FormatYaml:
+		return yaml.Marshal(value)
+	case FormatJson:
+		return json.Marshal(value)
+	case FormatJsonExt:
+		return jsonext.Marshal(value)
+	default:
+		return nil, fmt.Errorf("pathtree: unknown format %v", format)
+	}
+}
+
 // Updates and/or removes values from the tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
@@ -69,14 +106,17 @@ func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
 func (pathTree *PathTree[I]) ApplyUpdate(
 	update []I,
 	onError func(error),
+	format Format,
 ) {
 	for _, val := range update {
 		path := keyPath(val)
 
-		var value interface{}
-		if err := json.Unmarshal(
+		var (
+			value interface{}
+			err   error
+		)
+		if value, err = unmarshal(format,
 			[]byte(val.GetValueJson()),
-			&value,
 		); err != nil {
 			onError(
 				fmt.Errorf(
@@ -105,21 +145,14 @@ func (pathTree *PathTree[I]) ApplyRemove(
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) any) ([]byte, error) {
+func (pathTree *PathTree[I]) Serialize(format Format, postProcess func(any) any) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
 	serialized := make(map[string]any)
 	for treeKey, treeValue := range pathTree.tree {
-		serialized[treeKey] = postProcessFunc(treeValue)
+		serialized[treeKey] = postProcess(treeValue)
 	}
 
-	switch format {
-	case FormatYaml:
-		return yaml.Marshal(serialized)
-	case FormatJson:
-		return json.Marshal(serialized)
-	}
-
-	return nil, fmt.Errorf("config: unknown format: %v", format)
+	return marshal(format, serialized)
 }
 
 type Leaf struct {
@@ -181,8 +214,17 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 	}
 }
 
-func (pathTree *PathTree[I]) Flatten() []Leaf {
-	return flatten(pathTree.tree, nil)
+func (pathTree *PathTree[I]) Flatten(format Format) ([]Leaf, error) {
+	leaves := flatten(pathTree.tree, nil)
+	for i, leaf := range leaves {
+		var err error
+		if leaf.Value, err = marshal(format, leaf.Value); err != nil {
+			err := fmt.Errorf("failed to marshal leaf value %v: %v", leaf.Value, err)
+			return nil, err
+		}
+		leaves[i] = leaf
+	}
+	return leaves, nil
 }
 
 func flatten(tree TreeData, prefix []string) []Leaf {

@@ -3,7 +3,6 @@ package runhistory
 import (
 	"fmt"
 
-	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -26,29 +25,36 @@ func NewWithStep(step int64) *RunHistory {
 	}
 }
 
+func (runHistory *RunHistory) ApplyUpdate(
+	item []*service.HistoryItem,
+	onError func(error),
+) {
+	runHistory.PathTree.ApplyUpdate(item, onError, pathtree.FormatJsonExt)
+}
+
 // Serializes the object to send to the backend.
 func (runHistory *RunHistory) Serialize(format pathtree.Format) ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
 	return runHistory.PathTree.Serialize(format, func(value any) any {
 		return value
 	})
 }
 
 func (runHistory *RunHistory) Flatten() ([]*service.HistoryItem, error) {
-	var items []*service.HistoryItem
-	for _, item := range runHistory.PathTree.Flatten() {
-		value, err := json.Marshal(item.Value)
-		if err != nil {
-			// TODO: continue or error out immediately?
-			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", item.Path, err)
-			return nil, err
+	items, err := runHistory.PathTree.Flatten(pathtree.FormatJsonExt)
+	if err != nil {
+		return nil, err
+	}
+	history := make([]*service.HistoryItem, len(items))
+	for i, item := range items {
+		value, ok := item.Value.([]byte)
+		if !ok {
+			return nil, fmt.Errorf("runhistory: expected value to be []byte, got %T", item.Value)
 		}
-		history := &service.HistoryItem{
+		history[i] = &service.HistoryItem{
 			Key:       item.Path[0],
 			NestedKey: item.Path[1:],
 			ValueJson: string(value),
 		}
-		items = append(items, history)
 	}
-	return items, nil
+	return history, nil
 }

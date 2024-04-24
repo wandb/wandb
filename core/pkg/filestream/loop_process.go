@@ -94,7 +94,7 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 			fs.logger.CaptureError("filestream: failed to apply history update", err)
 		},
 	)
-	line, err := history.Serialize(pathtree.FormatJson)
+	line, err := history.Serialize(pathtree.FormatJsonExt)
 	if err != nil {
 		fs.logger.CaptureError("filestream: failed to serialize history", err)
 		return
