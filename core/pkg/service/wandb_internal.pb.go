@@ -2167,6 +2167,11 @@ func (x *HistoryRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
+// HistoryItem:
+//
+// key and nested_key are mutually exclusive. Only one of them should be set.
+// key is supposedly more performant than nested_key, so nested_key should be
+// only used for nested keys.
 type HistoryItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2910,6 +2915,11 @@ func (x *ConfigRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
+// ConfigItem:
+//
+// key and nested_key are mutually exclusive. Only one of them should be set.
+// key is supposedly more performant than nested_key, so nested_key should be
+// only used for nested keys.
 type ConfigItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3075,6 +3085,11 @@ func (x *SummaryRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
+// SummaryItem:
+//
+// key and nested_key are mutually exclusive. Only one of them should be set.
+// key is supposedly more performant than nested_key, so nested_key should be
+// only used for nested keys.
 type SummaryItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -8103,6 +8118,11 @@ func (x *SampledHistoryRequest) GetXInfo() *XRequestInfo {
 	return nil
 }
 
+// SampledHistoryItem:
+//
+// key and nested_key are mutually exclusive. Only one of them should be set.
+// key is supposedly more performant than nested_key, so nested_key should be
+// only used for nested keys.
 type SampledHistoryItem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

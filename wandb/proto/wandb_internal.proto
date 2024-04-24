@@ -221,7 +221,7 @@ message HistoryRecord {
  * key and nested_key are mutually exclusive. Only one of them should be set.
  * key is supposedly more performant than nested_key, so nested_key should be
  * only used for nested keys.
-*/
+ */
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -325,7 +325,7 @@ message ConfigRecord {
  * key and nested_key are mutually exclusive. Only one of them should be set.
  * key is supposedly more performant than nested_key, so nested_key should be
  * only used for nested keys.
-*/
+ */
 message ConfigItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -349,7 +349,7 @@ message SummaryRecord {
  * key and nested_key are mutually exclusive. Only one of them should be set.
  * key is supposedly more performant than nested_key, so nested_key should be
  * only used for nested keys.
-*/
+ */
 message SummaryItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -922,7 +922,7 @@ message SampledHistoryRequest {
  * key and nested_key are mutually exclusive. Only one of them should be set.
  * key is supposedly more performant than nested_key, so nested_key should be
  * only used for nested keys.
-*/
+ */
 message SampledHistoryItem {
   string key = 1;
   repeated string nested_key = 2;
