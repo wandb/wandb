@@ -1197,17 +1197,24 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 		return nil
 	}
 
-	// TODO: make me work
+	// TODO: make this work with nested keys
+	// TODO: avoid using the tree representation of the summary
+	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
-	// if value, ok := h.summaryHandler.consolidatedSummary[key]; ok {
-	// 	// TODO: add nested key support
-	// 	hi := &service.HistoryItem{
-	// 		Key:       key,
-	// 		ValueJson: value,
-	// 	}
-	// 	h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
-	// 	return hi
-	// }
+	if value, ok := h.runSummary.Tree()[key]; ok {
+		// TODO: add nested key support
+		value, err := json.Marshal(value)
+		if err != nil {
+			h.logger.CaptureError("error marshalling step metric value", err)
+			return nil
+		}
+		hi := &service.HistoryItem{
+			Key:       key,
+			ValueJson: string(value),
+		}
+		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
+		return hi
+	}
 	return nil
 }
 
