@@ -32,6 +32,43 @@ JOB_ARTIFACT_TYPE = "job"
 LOG_LEVEL = Literal["log", "warn", "error"]
 
 
+class Version:
+    def __init__(self, major: int, minor: int, patch: int):
+        self._major = major
+        self._minor = minor
+        self._patch = patch
+
+    def __repr__(self) -> str:
+        return f"{self._major}.{self._minor}.{self._patch})"
+
+    def __lt__(self, other: "Version") -> bool:
+        if self._major < other._major:
+            return True
+        elif self._major == other._major:
+            if self._minor < other._minor:
+                return True
+            elif self._minor == other._minor:
+                if self._patch < other._patch:
+                    return True
+        return False
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Version):
+            return NotImplemented
+        return (
+            self._major == other._major
+            and self._minor == other._minor
+            and self._patch == other._patch
+        )
+
+
+# Minimum supported wandb version for keys in the source dict of wandb-job.json
+SOURCE_KEYS_MIN_SUPPORTED_VERSION = {
+    "dockerfile": Version(0, 17, 0),
+    "build_context": Version(0, 17, 0),
+}
+
+
 class GitInfo(TypedDict):
     remote: str
     commit: str
@@ -41,12 +78,16 @@ class GitSourceDict(TypedDict):
     git: GitInfo
     entrypoint: List[str]
     notebook: bool
+    build_context: Optional[str]
+    dockerfile: Optional[str]
 
 
 class ArtifactSourceDict(TypedDict):
     artifact: str
     entrypoint: List[str]
     notebook: bool
+    build_context: Optional[str]
+    dockerfile: Optional[str]
 
 
 class ImageSourceDict(TypedDict):
@@ -71,6 +112,19 @@ class PartialJobSourceDict(TypedDict):
 class ArtifactInfoForJob(TypedDict):
     id: str
     name: str
+
+
+def get_min_supported_for_source_dict(
+    source: Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict],
+) -> Optional[Version]:
+    """Get the minimum supported wandb version the source dict of wandb-job.json."""
+    min_seen = None
+    for key in source:
+        new_ver = SOURCE_KEYS_MIN_SUPPORTED_VERSION.get(key)
+        if new_ver:
+            if min_seen is None or new_ver < min_seen:
+                min_seen = new_ver
+    return min_seen
 
 
 class JobArtifact(Artifact):
@@ -197,6 +251,8 @@ class JobBuilder:
             "git": {"remote": remote, "commit": commit},
             "entrypoint": entrypoint,
             "notebook": self._is_notebook_run,
+            "build_context": metadata.get("build_context"),
+            "dockerfile": metadata.get("dockerfile"),
         }
         name = self._make_job_name(f"{remote}_{program_relpath}")
 
@@ -247,6 +303,8 @@ class JobBuilder:
             "entrypoint": entrypoint,
             "notebook": self._is_notebook_run,
             "artifact": f"wandb-artifact://_id/{self._logged_code_artifact['id']}",
+            "build_context": metadata.get("build_context"),
+            "dockerfile": metadata.get("dockerfile"),
         }
         name = self._make_job_name(self._logged_code_artifact["name"])
 
@@ -303,6 +361,51 @@ class JobBuilder:
 
     def _is_colab_run(self) -> bool:
         return hasattr(self._settings, "_colab") and bool(self._settings._colab)
+
+    def _build_job_source(
+        self,
+        source_type: str,
+        program_relpath: Optional[str],
+        metadata: Dict[str, Any],
+    ) -> Tuple[
+        Union[GitSourceDict, ArtifactSourceDict, ImageSourceDict, None],
+        Optional[str],
+    ]:
+        """Construct a job source dict and name from the current run.
+
+        Arguments:
+            source_type (str): The type of source to build the job from. One of
+                "repo", "artifact", or "image".
+        """
+        source: Union[
+            GitSourceDict,
+            ArtifactSourceDict,
+            ImageSourceDict,
+            None,
+        ] = None
+
+        if source_type == "repo":
+            assert program_relpath
+            source, name = self._build_repo_job_source(program_relpath, metadata)
+        elif source_type == "artifact":
+            assert program_relpath
+            source, name = self._build_artifact_job_source(program_relpath, metadata)
+        elif source_type == "image" and self._has_image_job_ingredients(metadata):
+            source, name = self._build_image_job_source(metadata)
+        else:
+            source = None
+
+        if source is None:
+            if source_type:
+                self._log_if_verbose(
+                    f"Source type is set to '{source_type}' but some required information is missing "
+                    "from the environment. A job will not be created from this run. See "
+                    "https://docs.wandb.ai/guides/launch/create-job",
+                    "warn",
+                )
+            return None, None
+
+        return source, name
 
     def build(
         self,
@@ -390,43 +493,28 @@ class JobBuilder:
                 )
                 return None
 
-            source: Union[
-                Optional[GitSourceDict],
-                Optional[ArtifactSourceDict],
-                Optional[ImageSourceDict],
-            ] = None
-
-            # make source dict
-            if source_type == "repo":
-                assert program_relpath
-                source, name = self._build_repo_job_source(program_relpath, metadata)
-            elif source_type == "artifact":
-                assert program_relpath
-                source, name = self._build_artifact_job_source(
-                    program_relpath, metadata
-                )
-            elif source_type == "image" and self._has_image_job_ingredients(metadata):
-                source, name = self._build_image_job_source(metadata)
-            else:
-                source = None
-
+            source, name = self._build_job_source(
+                source_type,
+                program_relpath,
+                metadata,
+            )
             if source is None:
-                if source_type:
-                    self._log_if_verbose(
-                        f"Source type is set to '{source_type}' but some required information is missing "
-                        "from the environment. A job will not be created from this run. See "
-                        "https://docs.wandb.ai/guides/launch/create-job",
-                        "warn",
-                    )
                 return None
 
             if build_context:
-                source["build_context"] = build_context
+                source["build_context"] = build_context  # type: ignore[typeddict-item]
             if dockerfile:
-                source["dockerfile"] = dockerfile
+                source["dockerfile"] = dockerfile  # type: ignore[typeddict-item]
+
+            # Pop any keys that are initialized to None. The current TypedDict
+            # system for source dicts requires all keys to be present, but we
+            # don't want to include keys that are None in the final dict.
+            for key in list(source.keys()):
+                if source[key] is None:  # type: ignore[literal-required]
+                    source.pop(key)  # type: ignore[literal-require,misc]
 
             source_info = {
-                "_version": "v0",
+                "_version": str(get_min_supported_for_source_dict(source) or "v0"),
                 "source_type": source_type,
                 "source": source,
                 "input_types": input_types,
@@ -544,6 +632,8 @@ def convert_use_artifact_to_job_source(
             },
             "entrypoint": entrypoint,
             "notebook": source_info.source.git.notebook,
+            "build_context": None,
+            "dockerfile": None,
         }
         source_info_dict.update({"source": git_source})
     elif source_info.source_type == "artifact":
@@ -552,6 +642,8 @@ def convert_use_artifact_to_job_source(
             "artifact": source_info.source.artifact.artifact,
             "entrypoint": entrypoint,
             "notebook": source_info.source.artifact.notebook,
+            "build_context": None,
+            "dockerfile": None,
         }
         source_info_dict.update({"source": artifact_source})
     elif source_info.source_type == "image":
