@@ -1,6 +1,8 @@
 import os
 import pathlib
+import re
 import shutil
+import tempfile
 import time
 from contextlib import contextmanager
 from typing import Callable, Iterator, List
@@ -8,6 +10,14 @@ from typing import Callable, Iterator, List
 import nox
 
 _SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+# Directories in which to create temporary per-session directories
+# containing pytest or Go coverage.
+#
+# This is created by test sessions and then consumed + deleted by
+# the 'coverage' session.
+_NOX_PYTEST_COVERAGE_DIR = pathlib.Path("nox-coverage", "pytest")
+_NOX_GO_COVERAGE_DIR = pathlib.Path("nox-coverage", "go")
 
 
 @contextmanager
@@ -29,51 +39,13 @@ def install_wandb(session: nox.Session):
         install_timed(session, "--force-reinstall", ".")
 
 
-def run_go_covtool(
-    session: nox.Session,
-    input: pathlib.Path,
-    output: pathlib.Path,
-) -> None:
-    session.run(
-        "go",
-        "tool",
-        "covdata",
-        "textfmt",
-        f"-i={input}",
-        f"-o={output}",
-        external=True,
-    )
-
-
-@contextmanager
-def go_code_coverage(session: nox.Session) -> Iterator[str]:
-    """Runs a command while collecting Go code coverage.
-
-    This provides a gocoverdir path that should be passed as the
-    GOCOVERDIR environment variable to the command.
-    """
-    # Using an absolute path is critical. We can't assume that the working
-    # directory of the wandb-core binary will match the working directory
-    # of the Nox session!
-    gocoverdir = pathlib.Path(session.create_tmp(), "gocoverage").absolute()
-    if gocoverdir.exists():
-        shutil.rmtree(gocoverdir)
-    gocoverdir.mkdir()
-
-    yield str(gocoverdir)
-
-    run_go_covtool(session, gocoverdir, pathlib.Path("coverage.txt"))
-
-
 def run_pytest(
     session: nox.Session,
-    gocoverdir: str,
     require_core: bool,
     paths: List[str],
 ) -> None:
     pytest_opts = []
     pytest_env = {
-        "GOCOVERDIR": gocoverdir,
         "WANDB__REQUIRE_CORE": str(require_core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
@@ -97,7 +69,7 @@ def run_pytest(
     pytest_opts.append("--timeout=300")
 
     # (pytest-xdist) Run tests in parallel.
-    pytest_opts.append("-n=8")
+    pytest_opts.append("-n=auto")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     # These environment variables come from CircleCI.
@@ -107,9 +79,30 @@ def run_pytest(
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
 
-    # (pytest-cov) Enable code coverage reporting.
-    pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
-    pytest_env["COVERAGE_FILE"] = ".coverage"
+    # (pytest-cov) Enable Python code coverage collection.
+    # We set "--cov-report=" to suppress terminal output.
+    pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
+
+    # Session name, transformed to be usable in a file name.
+    session_file_name = re.sub(r"[\(\)=\"\'\.]", "_", session.name)
+
+    # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
+    _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    pycovfile = _NOX_PYTEST_COVERAGE_DIR / (".coverage-" + session_file_name)
+
+    # Enable Go code coverage collection.
+    _NOX_GO_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    gocovdir = _NOX_GO_COVERAGE_DIR / session_file_name
+    gocovdir.mkdir(exist_ok=True)
+
+    # We must pass an absolute directory to GOCOVERDIR because we cannot
+    # assume the working directory of the Go process!
+    pytest_env["GOCOVERDIR"] = str(gocovdir.absolute())
+    pytest_env["COVERAGE_FILE"] = str(pycovfile)
+
+    session.log(f"Storing Python coverage in {pycovfile}")
+    session.log(f"Storing Go coverage in {gocovdir}")
+    session.notify("coverage")
 
     session.run(
         "pytest",
@@ -118,6 +111,60 @@ def run_pytest(
         env=pytest_env,
         include_outer_env=False,
     )
+
+
+@nox.session(default=False)
+def coverage(session: nox.Session) -> None:
+    """Combines coverage outputs from test sessions.
+
+    This is invoked automatically by test sessions and should not be
+    invoked manually.
+    """
+    install_timed(session, "coverage[toml]")
+
+    ###########################################################
+    # Python coverage will be in a "coverage.xml" file.
+    ###########################################################
+
+    # https://coverage.readthedocs.io/en/latest/cmd.html#combining-data-files-coverage-combine
+    py_directories = list(_NOX_PYTEST_COVERAGE_DIR.iterdir())
+    session.run("coverage", "combine", *py_directories)
+    session.run("coverage", "xml")
+    shutil.rmtree(_NOX_PYTEST_COVERAGE_DIR)
+
+    ###########################################################
+    # Go coverage will be in a "coverage.txt" file.
+    ###########################################################
+
+    go_directories = list(str(p) for p in _NOX_GO_COVERAGE_DIR.iterdir())
+    go_combined = pathlib.Path(session.create_tmp(), "go")
+    if go_combined.exists():
+        shutil.rmtree(go_combined)
+    go_combined.mkdir()
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "merge",
+        f"-i={','.join(go_directories)}",
+        f"-o={go_combined}",
+        external=True,
+    )
+    shutil.rmtree(_NOX_GO_COVERAGE_DIR)
+
+    # The output directory won't be created if there was no Go coverage
+    # collected. This can happen if only a subset of tests was run that
+    # didn't spin up wandb-core.
+    if go_combined.exists():
+        session.run(
+            "go",
+            "tool",
+            "covdata",
+            "textfmt",
+            f"-i={go_combined}",
+            "-o=coverage.txt",
+            external=True,
+        )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -142,13 +189,11 @@ def unit_tests(session: nox.Session, core: bool) -> None:
         "polyfactory",
     )
 
-    with go_code_coverage(session) as gocoverdir:
-        run_pytest(
-            session,
-            gocoverdir=gocoverdir,
-            require_core=core,
-            paths=session.posargs or ["tests/pytest_tests/unit_tests"],
-        )
+    run_pytest(
+        session,
+        require_core=core,
+        paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+    )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -165,20 +210,18 @@ def system_tests(session: nox.Session, core: bool) -> None:
         "annotated-types",  # for test_reports
     )
 
-    with go_code_coverage(session) as gocoverdir:
-        run_pytest(
-            session,
-            gocoverdir=gocoverdir,
-            require_core=core,
-            paths=(
-                session.posargs
-                or [
-                    "tests/pytest_tests/system_tests",
-                    "--ignore=tests/pytest_tests/system_tests/test_importers",
-                    "--ignore=tests/pytest_tests/system_tests/test_notebooks",
-                ]
-            ),
-        )
+    run_pytest(
+        session,
+        require_core=core,
+        paths=(
+            session.posargs
+            or [
+                "tests/pytest_tests/system_tests",
+                "--ignore=tests/pytest_tests/system_tests/test_importers",
+                "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+            ]
+        ),
+    )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -208,18 +251,16 @@ def notebook_tests(session: nox.Session, core: bool) -> None:
         external=True,
     )
 
-    with go_code_coverage(session) as gocoverdir:
-        run_pytest(
-            session,
-            gocoverdir=gocoverdir,
-            require_core=core,
-            paths=(
-                session.posargs
-                or [
-                    "tests/pytest_tests/system_tests/test_notebooks",
-                ]
-            ),
-        )
+    run_pytest(
+        session,
+        require_core=core,
+        paths=(
+            session.posargs
+            or [
+                "tests/pytest_tests/system_tests/test_notebooks",
+            ]
+        ),
+    )
 
 
 @nox.session(python=False, name="build-rust")
