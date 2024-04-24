@@ -128,7 +128,7 @@ type Leaf struct {
 // Flattens the tree into a slice of leaves.
 //
 // Use this to get a list of all the leaves in the tree.
-func (pathTree *PathTree[I]) Flatten() []Leaf {
+func (pathTree *PathTree) Flatten() []Leaf {
 	return flatten(pathTree.tree, nil)
 }
 
