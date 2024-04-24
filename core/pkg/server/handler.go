@@ -966,8 +966,7 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 
 		// update summary with runtime
 		summary.Update = append(summary.Update, &service.SummaryItem{
-			Key:       "_wandb",
-			NestedKey: []string{"runtime"},
+			NestedKey: []string{"_wandb", "runtime"},
 			ValueJson: fmt.Sprintf("%d", runtime),
 		})
 	}
