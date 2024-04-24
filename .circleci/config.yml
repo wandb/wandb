@@ -159,6 +159,16 @@ commands:
             - store_artifacts:
                 path: cover-results
 
+  # We only need a separate command to include this workaround to a bug:
+  # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
+  upload_codecov:
+    description: Upload code coverage to codecov.io
+    parameters:
+      flags: { type: string }
+    steps:
+      - run: mkdir -p ~/.gnupg
+      - codecov/upload: { flags: <<parameters.flags>> }
+
   install_go:
     description: "Install Go with the specified version and system"
     parameters:
@@ -463,7 +473,7 @@ jobs:
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
 
-      - codecov/upload: { flags: <<parameters.codecov_flags>>, validate: false }
+      - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
       - save-test-results
 
@@ -561,8 +571,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -618,7 +627,7 @@ jobs:
               -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - save_cache_tox
-      - codecov/upload: { flags: system, validate: false }
+      - upload_codecov: { flags: system }
       - save-test-results
 
   unit-tests-go:
@@ -631,7 +640,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - codecov/upload: { flags: unit, validate: false }
+      - upload_codecov: { flags: unit }
 
   store-local-testcontainer:
     parameters:
@@ -737,8 +746,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
 
   launch:
@@ -790,8 +798,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
+            - upload_codecov: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   slack_notify:
