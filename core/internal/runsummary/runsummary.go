@@ -1,10 +1,12 @@
 package runsummary
 
 import (
-	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/pkg/service"
+	"fmt"
 
 	json "github.com/wandb/simplejsonext"
+
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type RunSummary struct {
@@ -37,21 +39,22 @@ func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
 }
 
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-	leaves := pathtree.Flatten(rs.Tree(), []pathtree.Leaf{}, []string{})
+	leaves := rs.PathTree.Flatten()
+
 	items := make([]*service.SummaryItem, len(leaves))
 	for i, leaf := range leaves {
+		// If value is not a TreeData, add it to the leaves slice with the current path
 		value, err := json.Marshal(leaf.Value)
 		if err != nil {
 			// TODO: continue or error out immediately?
+			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", leaf.Key, err)
 			return nil, err
 		}
-
 		items[i] = &service.SummaryItem{
 			Key:       leaf.Key[0],
 			NestedKey: leaf.Key[1:],
 			ValueJson: string(value),
 		}
 	}
-
 	return items, nil
 }

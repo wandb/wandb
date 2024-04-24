@@ -439,7 +439,6 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	// TODO: we should not be using Tree() here
 	output, err := s.runSummary.CloneTree()
 	if err != nil {
 		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
@@ -810,7 +809,6 @@ func (s *Sender) streamSummary() {
 	}
 
 	s.fileStream.StreamRecord(record)
-
 }
 
 func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
@@ -896,7 +894,7 @@ func (s *Sender) uploadSummaryFile() {
 			},
 		},
 	}
-	s.fwdChan <- record
+	s.fwdRecord(record)
 }
 
 func (s *Sender) uploadConfigFile() {
