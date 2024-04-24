@@ -30,10 +30,12 @@ import wandb
 import wandb.env
 
 # from wandb.old.core import wandb_dir
+import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
+from wandb.errors import WandbCoreNotAvailableError
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -44,6 +46,7 @@ from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import SyncManager, get_run_from_path, get_runs
+from wandb.util import get_core_path
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -430,14 +433,15 @@ def init(ctx, project, entity, reset, mode):
 def beta():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
     # this is the future that requires wandb-core!
-    from wandb.util import get_core_path
+    wandb._sentry.configure_scope(process_context="wandb_beta")
+    wandb.require("core")
 
-    if not get_core_path():
+    try:
+        get_core_path()
+    except WandbCoreNotAvailableError as e:
+        wandb._sentry.exception(f"using `wandb beta`. failed with {e}")
         click.secho(
-            (
-                "wandb beta commands require wandb-core, please install with"
-                " `pip install wandb-core`"
-            ),
+            (e),
             fg="red",
             err=True,
         )
