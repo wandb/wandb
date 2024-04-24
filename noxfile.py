@@ -671,4 +671,4 @@ def combine_test_results(session: nox.Session) -> None:
         "test-results/junit.xml",
     )
 
-    # shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+    shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
