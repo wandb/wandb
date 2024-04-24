@@ -134,6 +134,8 @@ func (pathTree *PathTree[I]) ApplyRemove(
 	remove []I,
 	onError func(error),
 ) {
+	// TODO: do we need to unmarshal the value here?
+	// what if the value is another nested object?
 	for _, val := range remove {
 		pathTree.removeAtPath(keyPath(val))
 	}
