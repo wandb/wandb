@@ -32,12 +32,21 @@ func (rs *RunSummary) ApplyChangeRecord(
 	rs.ApplyRemove(remove, onError)
 }
 
+// Serialize the summary tree to a byte slice.
+//
+// The format parameter specifies the serialization format.
 func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
 	return rs.PathTree.Serialize(format, func(value any) any {
 		return value
 	})
 }
 
+// Flatten the summary tree into a slice of SummaryItems.
+//
+// There is no guarantee for the order of the items in the slice.
+// The order of the items is determined by the order of the tree traversal.
+// The tree traversal is depth-first but based on a map, so the order is not
+// guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 	leaves := rs.PathTree.Flatten()
 

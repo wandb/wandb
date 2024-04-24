@@ -127,30 +127,29 @@ type Leaf struct {
 	Value any
 }
 
+// Flattens the tree into a slice of leaves.
+//
+// Use this to get a list of all the leaves in the tree.
 func (pathTree *PathTree[I]) Flatten() []Leaf {
-	return flatten(pathTree.tree, []Leaf{}, []string{})
+	return flatten(pathTree.tree, nil)
 }
 
-func flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
-	// Iterate over each key-value pair in the map
-	for treeKey, treeValue := range tree {
-		// Make a copy of the path slice and append the current key to the new slice
-		newPath := make([]string, len(path))
-		copy(newPath, path)
-		newPath = append(newPath, treeKey)
-
-		// Check if the value is another TreeData (map). If so, call Flatten recursively
-		if subTree, ok := treeValue.(TreeData); ok {
-			leaves = flatten(subTree, leaves, newPath) // Use the copied and updated newPath
-		} else {
-			// If value is not a TreeData, add it to the leaves slice with the current path
-			leaves = append(leaves, Leaf{
-				Key:   newPath, // Use the copied and updated newPath
-				Value: treeValue,
-			})
+// Recursively flattens the tree into a slice of leaves.
+//
+// The order of the leaves is not guaranteed.
+// The order of the leaves is determined by the order of the tree traversal.
+// The tree traversal is depth-first but based on a map, so the order is not
+// guaranteed.
+func flatten(tree TreeData, prefix []string) []Leaf {
+	var leaves []Leaf
+	for key, value := range tree {
+		switch value := value.(type) {
+		case TreeData:
+			leaves = append(leaves, flatten(value, append(prefix, key))...)
+		default:
+			leaves = append(leaves, Leaf{append(prefix, key), value})
 		}
 	}
-
 	return leaves
 }
 
