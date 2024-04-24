@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -25,7 +26,8 @@ func TestConfigUpdate(t *testing.T) {
 					ValueJson: "1",
 				},
 				{
-					NestedKey: []string{"b", "c"},
+					Key:       "b",
+					NestedKey: []string{"c"},
 					ValueJson: "\"text\"",
 				},
 			},
@@ -57,7 +59,7 @@ func TestConfigRemove(t *testing.T) {
 		&service.ConfigRecord{
 			Remove: []*service.ConfigItem{
 				{Key: "a"},
-				{NestedKey: []string{"b", "c"}},
+				{Key: "b", NestedKey: []string{"c"}},
 			},
 		}, ignoreError,
 	)
@@ -77,7 +79,7 @@ func TestConfigSerialize(t *testing.T) {
 		},
 	})
 
-	yaml, _ := runConfig.Serialize(runconfig.FormatYaml)
+	yaml, _ := runConfig.Serialize(pathtree.FormatYaml)
 
 	assert.Equal(t,
 		""+
