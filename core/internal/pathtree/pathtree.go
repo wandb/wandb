@@ -34,8 +34,7 @@ type PathTree[I item] struct {
 type Format int
 
 const (
-	FormatNone Format = iota
-	FormatYaml
+	FormatYaml Format = iota
 	FormatJson
 	FormatJsonExt
 )
@@ -65,10 +64,8 @@ func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
 	return clone, nil
 }
 
-func unmarshal(format Format, b []byte) (interface{}, error) {
+func Unmarshal(format Format, b []byte) (interface{}, error) {
 	switch format {
-	case FormatNone:
-		return nil, nil
 	case FormatYaml:
 		var value interface{}
 		err := yaml.Unmarshal(b, &value)
@@ -84,10 +81,8 @@ func unmarshal(format Format, b []byte) (interface{}, error) {
 	}
 }
 
-func marshal(format Format, value interface{}) ([]byte, error) {
+func Marshal(format Format, value interface{}) ([]byte, error) {
 	switch format {
-	case FormatNone:
-		return nil, nil
 	case FormatYaml:
 		return yaml.Marshal(value)
 	case FormatJson:
@@ -115,7 +110,7 @@ func (pathTree *PathTree[I]) ApplyUpdate(
 			value interface{}
 			err   error
 		)
-		if value, err = unmarshal(format,
+		if value, err = Unmarshal(format,
 			[]byte(val.GetValueJson()),
 		); err != nil {
 			onError(
@@ -152,7 +147,7 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcess func(any) any)
 		serialized[treeKey] = postProcess(treeValue)
 	}
 
-	return marshal(format, serialized)
+	return Marshal(format, serialized)
 }
 
 type Leaf struct {
@@ -214,17 +209,8 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 	}
 }
 
-func (pathTree *PathTree[I]) Flatten(format Format) ([]Leaf, error) {
-	leaves := flatten(pathTree.tree, nil)
-	for i, leaf := range leaves {
-		var err error
-		if leaf.Value, err = marshal(format, leaf.Value); err != nil {
-			err := fmt.Errorf("failed to marshal leaf value %v: %v", leaf.Value, err)
-			return nil, err
-		}
-		leaves[i] = leaf
-	}
-	return leaves, nil
+func (pathTree *PathTree[I]) Flatten() []Leaf {
+	return flatten(pathTree.tree, nil)
 }
 
 func flatten(tree TreeData, prefix []string) []Leaf {

@@ -1056,8 +1056,10 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 // synced, but not part of the history record. This function is also responsible
 // for sampling history items.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	if history == nil || history.Item == nil {
+	// TODO replace history encoding with a map,
+	//  this will make it easier to handle history
+
+	if len(history.GetItem()) == 0 {
 		return
 	}
 
