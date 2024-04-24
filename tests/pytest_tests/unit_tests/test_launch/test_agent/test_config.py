@@ -133,7 +133,6 @@ def test_resolve_agent_config(monkeypatch, runner):
             )
         config, returned_api = resolve_agent_config(
             entity=None,
-            project=None,
             max_jobs=-1,
             queues=["diff-queue"],
             config=None,
