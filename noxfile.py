@@ -114,6 +114,22 @@ def run_pytest(
         include_outer_env=False,
     )
 
+    # Store whether wandb-core was used as a test-suite property.
+    #
+    # NOTE: pytest's "record_testsuite_property" doesn't work
+    # with pytest-xdist! Otherwise we would just use that.
+    #
+    # * https://docs.pytest.org/en/7.2.x/how-to/output.html#record-testsuite-property
+    # * https://github.com/pytest-dev/pytest/issues/7767
+    install_timed(session, "junitparser")
+    session.run(
+        "python",
+        "tools/junit_add_property.py",
+        "--add",
+        f"used_wandb_core={require_core}",
+        junitxml,
+    )
+
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 @nox.parametrize("core", [True, False])
@@ -655,4 +671,4 @@ def combine_test_results(session: nox.Session) -> None:
         "test-results/junit.xml",
     )
 
-    shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+    # shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)

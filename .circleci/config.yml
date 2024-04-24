@@ -1580,9 +1580,7 @@ workflows:
             - run:
                 name: Install system deps
                 command: |
-                  choco install -y ffmpeg &&
-                  choco uninstall python3 &&
-                  choco install -y python --version=<<matrix.python>>
+                  choco install -y ffmpeg $( echo python<<matrix.python>> | tr -d . )
 
       #
       # System tests on Linux

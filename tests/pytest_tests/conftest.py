@@ -20,21 +20,6 @@ from wandb.sdk.lib import filesystem, runid  # noqa: E402
 from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
-
-# https://docs.pytest.org/en/7.2.x/how-to/output.html#record-testsuite-property
-@pytest.fixture(scope="session", autouse=True)
-def log_core_required(record_testsuite_property):
-    """Saves the WANDB__REQUIRE_CORE env value on the testsuite.
-
-    This can be used to distinguish tests that ran with wandb-core and tests
-    that ran without.
-    """
-    record_testsuite_property(
-        "WANDB__REQUIRE_CORE",
-        os.getenv("WANDB__REQUIRE_CORE"),
-    )
-
-
 # --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
