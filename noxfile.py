@@ -196,7 +196,7 @@ def notebook_tests(session: nox.Session, core: bool) -> None:
         "nbconvert",
         "nbformat",
         "ipykernel",
-        "ipython!=8.17.1",
+        "ipython",
     )
 
     session.run(
