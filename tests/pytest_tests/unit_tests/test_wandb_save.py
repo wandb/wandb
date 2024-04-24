@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 import pytest
@@ -158,6 +159,10 @@ def test_save_absolute_glob_last_directory_invalid(tmp_path: pathlib.Path, mock_
 
 
 def test_save_dotdot(tmp_path: pathlib.Path, mock_run, parse_records, record_q):
+    # DO NOT MERGE
+    if os.getenv("WANDB__REQUIRE_CORE"):
+        raise AssertionError("DO NOT MERGE!!!")
+
     test_path = tmp_path / "subdir" / "and_more" / ".." / "nvm.txt"
     assert ".." in str(test_path)
     test_path.resolve().parent.mkdir()
