@@ -332,9 +332,7 @@ def test_summary_remove_nested(relay_server, wandb_init):
         run.log({"a": {"b": 2}})
         run.summary["a"]["c"] = 3
         del run.summary["a"]["b"]
-        run.config["a"]["c"] = 1
         run.finish()
 
     summary = relay.context.get_run_summary(run.id)
-    print(summary)
-    assert summary == {"a": {}}
+    assert summary == {"a": {"c": 3}}
