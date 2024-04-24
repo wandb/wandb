@@ -440,7 +440,7 @@ func (s *Sender) sendJobFlush() {
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
 	// TODO: we should not be using Tree() here
-	output, err := pathtree.DeepCopy(s.runSummary.Tree())
+	output, err := s.runSummary.CloneTree()
 	if err != nil {
 		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
 		return
@@ -904,7 +904,7 @@ func (s *Sender) uploadConfigFile() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
-  
+
 	config, err := s.serializeConfig(pathtree.FormatYaml)
 	if err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
