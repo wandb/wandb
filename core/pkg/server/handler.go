@@ -415,9 +415,20 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		// after the run has exited
 		h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
+		// This will force the content of h.runHistory to be flushed and sent
+		// over to the sender.
+		//
+		// Since the data of the PartialHistoryRequest is empty it will not
+		// change the content of h.runHistory, but it will trigger flushing
+		// of h.runHistory content, because the flush action is set to true.
+		// Hence, we are guranteed that the content of h.runHistory is sent
 		h.handleRequestPartialHistory(
 			nil,
-			&service.PartialHistoryRequest{},
+			&service.PartialHistoryRequest{
+				Action: &service.HistoryAction{
+					Flush: true,
+				},
+			},
 		)
 	case service.DeferRequest_FLUSH_TB:
 		h.tbHandler.Close()
@@ -1122,7 +1133,7 @@ func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *servic
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
 	if h.runHistory == nil {
-		h.runHistory = runhistory.New(nil /* step */)
+		h.runHistory = runhistory.New()
 	}
 	// Append the history items from the request to the current history record.
 	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
@@ -1158,7 +1169,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	if h.runHistory == nil {
 
 		step := h.runRecord.GetStartingStep()
-		h.runHistory = runhistory.New(&step)
+		h.runHistory = runhistory.NewWithStep(step)
 	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
@@ -1191,7 +1202,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := *h.runHistory.Step
+		current := h.runHistory.Step
 		if step > current {
 			items, err := h.runHistory.Flatten()
 			if err != nil {
@@ -1201,12 +1212,12 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			}
 			history := &service.HistoryRecord{
 				Step: &service.HistoryStep{
-					Num: *h.runHistory.Step,
+					Num: h.runHistory.Step,
 				},
 				Item: items,
 			}
 			h.handleHistory(history)
-			h.runHistory = runhistory.New(&step)
+			h.runHistory = runhistory.NewWithStep(step)
 		} else if step < current {
 			h.logger.CaptureWarn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
@@ -1233,13 +1244,13 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		}
 		history := &service.HistoryRecord{
 			Step: &service.HistoryStep{
-				Num: *h.runHistory.Step,
+				Num: h.runHistory.Step,
 			},
 			Item: items,
 		}
 		h.handleHistory(history)
-		step := *h.runHistory.Step + 1
-		h.runHistory = runhistory.New(&step)
+		step := h.runHistory.Step + 1
+		h.runHistory = runhistory.NewWithStep(step)
 	}
 }
 

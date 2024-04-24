@@ -87,7 +87,7 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 		})
 	}
 
-	history := runhistory.New(nil /* step */)
+	history := runhistory.New()
 	history.ApplyUpdate(
 		msg.Item,
 		func(err error) {

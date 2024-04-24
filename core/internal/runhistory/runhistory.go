@@ -10,10 +10,16 @@ import (
 
 type RunHistory struct {
 	*pathtree.PathTree[*service.HistoryItem]
-	Step *int64
+	Step int64
 }
 
-func New(step *int64) *RunHistory {
+func New() *RunHistory {
+	return &RunHistory{
+		PathTree: pathtree.New[*service.HistoryItem](),
+	}
+}
+
+func NewWithStep(step int64) *RunHistory {
 	return &RunHistory{
 		PathTree: pathtree.New[*service.HistoryItem](),
 		Step:     step,
