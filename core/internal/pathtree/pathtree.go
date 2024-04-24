@@ -10,7 +10,7 @@ import (
 // PathItem is a key-value pair with a path.
 type PathItem struct {
 	Path  []string
-	Value any
+	Value string
 }
 
 // TreeData is an internal representation for a nested key-value pair.
@@ -73,7 +73,7 @@ func (pathTree *PathTree) ApplyUpdate(
 
 		var value interface{}
 		if err := json.Unmarshal(
-			[]byte(item.Value.(string)),
+			[]byte(item.Value),
 			&value,
 		); err != nil {
 			onError(
