@@ -103,7 +103,7 @@ type Sender struct {
 	// runMetric is the run metric handler
 	runMetric *runmetric.RunMetricSender
 
-	// debouncer for config updates
+	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
 	// Keep track of summary which is being updated incrementally
@@ -482,8 +482,9 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		s.configDebouncer.SetNeedsDebounce()
 		s.configDebouncer.Flush(s.upsertConfig)
-		s.sendConfigFile()
+		s.uploadConfigFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -546,7 +547,7 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
@@ -601,15 +602,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format pathtree.Format) string {
+func (s *Sender) serializeConfig(format pathtree.Format) (string, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+		s.logger.Error("sender: serializeConfig", "error", err)
+		return "", err
 	}
 
-	return string(serializedConfig)
+	return string(serializedConfig), nil
 }
 
 func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
@@ -679,7 +681,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
-		config := s.serializeConfig(pathtree.FormatJson)
+		config, _ := s.serializeConfig(pathtree.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -812,10 +814,22 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig(pathtree.FormatJson)
+	if s.RunRecord == nil {
+		s.logger.Error("sender: upsertConfig: RunRecord is nil")
+		return
+	}
+
+	config, err := s.serializeConfig(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
+		return
+	}
+	if config == "" {
+		return
+	}
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-	_, err := gql.UpsertBucket(
+	_, err = gql.UpsertBucket(
 		ctx,                                  // ctx
 		s.graphqlClient,                      // client
 		nil,                                  // id
@@ -843,17 +857,22 @@ func (s *Sender) upsertConfig() {
 	}
 }
 
-func (s *Sender) sendConfigFile() {
+
+func (s *Sender) uploadConfigFile() {
 	if s.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
 
-	config := s.serializeConfig(pathtree.FormatYaml)
+	config, err := s.serializeConfig(pathtree.FormatYaml)
+	if err != nil {
+		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
+		return
+	}
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		err = fmt.Errorf("failed to write config file: %s", err)
-		s.logger.Error("sender: sendConfigFile: ", "error", err)
+		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		return
 	}
 
 	record := &service.Record{
@@ -1025,7 +1044,7 @@ func (s *Sender) sendMetric(_ *service.Record, metric *service.MetricRecord) {
 		return
 	}
 	s.updateConfigPrivate()
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendFiles uploads files according to a FilesRecord

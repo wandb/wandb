@@ -14,19 +14,14 @@ type item interface {
 	GetValueJson() string
 }
 
-type ItemTree struct {
-	Key       string
-	NestedKey []string
-	ValueJson any
-}
-
 // TreeData is an internal representation for a nested key-value pair.
 type TreeData = map[string]interface{}
 
 // A key path determining a node in the tree.
 type TreePath []string
 
-// PathTree is used to represent a nested key-value pair object
+// PathTree is used to represent a nested key-value pair object,
+// such as Run config or summary.
 type PathTree[I item] struct {
 	// The underlying configuration tree.
 	//
@@ -60,7 +55,7 @@ func (pathTree *PathTree[I]) Tree() TreeData {
 
 // Makes and returns a deep copy of the underlying tree.
 func (pathTree *PathTree[I]) CloneTree() (TreeData, error) {
-	clone, err := DeepCopy(pathTree.tree)
+	clone, err := deepCopy(pathTree.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -110,19 +105,18 @@ func (pathTree *PathTree[I]) ApplyRemove(
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree[I]) Serialize(format Format, preprocessFn func(TreeData) TreeData) ([]byte, error) {
-
+func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) any) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
-	serialized := pathTree.tree
-	if preprocessFn != nil {
-		serialized = preprocessFn(pathTree.tree)
+	serialized := make(map[string]any)
+	for treeKey, treeValue := range pathTree.tree {
+		serialized[treeKey] = postProcessFunc(treeValue)
 	}
 
 	switch format {
 	case FormatYaml:
 		return yaml.Marshal(serialized)
 	case FormatJson:
-		return json.MarshalIndent(serialized, "", " ")
+		return json.Marshal(serialized)
 	}
 
 	return nil, fmt.Errorf("config: unknown format: %v", format)
@@ -160,6 +154,7 @@ func updateAtPath(
 ) error {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
+
 	subtree, err := getOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
@@ -183,12 +178,7 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 
 // Returns the key path referenced by the item.
 func keyPath(item item) TreePath {
-	if len(item.GetNestedKey()) > 0 {
-		path := append([]string{item.GetKey()}, item.GetNestedKey()...)
-		return TreePath(path)
-	} else {
-		return TreePath{item.GetKey()}
-	}
+	return TreePath(append([]string{item.GetKey()}, item.GetNestedKey()...))
 }
 
 // Returns the subtree at the path, or nil if it does not exist.
@@ -242,42 +232,15 @@ func getOrMakeSubtree(
 	return tree, nil
 }
 
-// Flattens the tree into a list of items.
-//
-// The keys are concatenated with a dot separator.
-func (pathTree *PathTree[I]) Flatten() []ItemTree {
-	var items []ItemTree
-	for key, value := range pathTree.tree {
-		flatten([]string{key}, value, &items)
-	}
-	return items
-}
-
-func flatten(path []string, value interface{}, items *[]ItemTree) {
-	switch value := value.(type) {
-	case TreeData:
-		for key, val := range value {
-			flatten(append(path, key), val, items)
-		}
-	default:
-		val := ItemTree{
-			Key:       path[0],
-			NestedKey: path[1:],
-			ValueJson: value,
-		}
-		*items = append(*items, val)
-	}
-}
-
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func DeepCopy(tree TreeData) (TreeData, error) {
+func deepCopy(tree TreeData) (TreeData, error) {
 	clone := make(TreeData)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
-			innerClone, err := DeepCopy(value)
+			innerClone, err := deepCopy(value)
 			if err != nil {
 				return nil, err
 			}
