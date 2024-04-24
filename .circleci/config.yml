@@ -464,7 +464,7 @@ jobs:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            nox -db uv -s "<<parameters.session>>"
+            nox -db uv -s "<<parameters.session>>" \
               --python <<parameters.python>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
@@ -1581,7 +1581,7 @@ workflows:
                 name: Install system deps
                 command: |
                   choco install -y ffmpeg &&
-                  choco install python3 --version=<<matrix.python>>
+                  choco install -y python3 --version=<<matrix.python>>
 
       #
       # System tests on Linux
