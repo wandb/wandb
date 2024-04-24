@@ -1557,13 +1557,12 @@ workflows:
           session: unit_tests
           codecov_flags: unit
 
-          # DO NOT MERGE: Verify this works!
-          # filters:
-          #   branches:
-          #     only:
-          #       # - main
-          #       - /^release-.*/
-          #       - /^.*-ci-win$/
+          filters:
+            branches:
+              only:
+                # - main
+                - /^release-.*/
+                - /^.*-ci-win$/
 
           matrix:
             parameters:
@@ -1580,7 +1579,8 @@ workflows:
             - run:
                 name: Install system deps
                 command: |
-                  choco install -y ffmpeg $( echo python<<matrix.python>> | tr -d . )
+                  choco install -y ffmpeg \
+                    $( echo python<<matrix.python>> | tr -d . )
 
       #
       # System tests on Linux
