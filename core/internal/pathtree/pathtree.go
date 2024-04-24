@@ -123,7 +123,7 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 }
 
 type Leaf struct {
-	Key   []string
+	Path  []string
 	Value any
 }
 
@@ -179,6 +179,23 @@ func (pathTree *PathTree[I]) removeAtPath(path TreePath) {
 	if subtree != nil {
 		delete(subtree, key)
 	}
+}
+
+func (pathTree *PathTree[I]) Flatten() []Leaf {
+	return flatten(pathTree.tree, nil)
+}
+
+func flatten(tree TreeData, prefix []string) []Leaf {
+	var leaves []Leaf
+	for key, value := range tree {
+		switch value := value.(type) {
+		case TreeData:
+			leaves = append(leaves, flatten(value, append(prefix, key))...)
+		default:
+			leaves = append(leaves, Leaf{append(prefix, key), value})
+		}
+	}
+	return leaves
 }
 
 // Returns the key path referenced by the item.

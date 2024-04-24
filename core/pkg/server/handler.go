@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/segmentio/encoding/json"
@@ -19,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -78,9 +78,8 @@ type Handler struct {
 	// summaryHandler is the summary handler for the stream
 	summaryHandler *SummaryHandler
 
-	// activeHistory is the history record used to track
-	// current active history record for the stream
-	activeHistory *ActiveHistory
+	// runHistory is the current active history entry being updated
+	runHistory *runhistory.RunHistory
 
 	// samplers is the map of samplers for all the history metrics that are
 	// being tracked, the result of the samplers will be used to display the
@@ -416,7 +415,10 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		// after the run has exited
 		h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.activeHistory.Flush()
+		h.handleRequestPartialHistory(
+			nil,
+			&service.PartialHistoryRequest{},
+		)
 	case service.DeferRequest_FLUSH_TB:
 		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
@@ -1035,16 +1037,62 @@ func (h *Handler) handleTBrecord(record *service.Record) {
 // The main entry point for history records.
 //
 // This processes a history record and forwards it to the writer.
+//
+// This function flushes the history record to the writer and updates the
+// summary. It is responsible for adding internal history items to the history
+// record, matching current history items with defined metrics, and creating
+// new metrics if needed. It also handles step metric in case it needs to be
+// synced, but not part of the history record. This function is also responsible
+// for sampling history items.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// TODO replace history encoding with a map, this will make it easier to handle history
-	h.activeHistory = NewActiveHistory(
-		WithStep(history.GetStep().GetNum()),
-	)
-	h.activeHistory.UpdateValues(history.GetItem())
+	if history == nil || history.Item == nil {
+		return
+	}
 
-	h.flushHistory(history)
+	runtime := h.runTimer.Elapsed().Seconds()
+	history.Item = append(history.Item, &service.HistoryItem{
+		Key:       "_runtime",
+		ValueJson: fmt.Sprintf("%f", runtime),
+	})
+	if !h.settings.GetXShared().GetValue() {
+		history.Item = append(history.Item, &service.HistoryItem{
+			Key:       "_step",
+			ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum()),
+		})
+	}
 
-	h.activeHistory.Flush()
+	// handles all history items. It is responsible for matching current history
+	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+	// it needs to be synced, but not part of the history record.
+	// This means that there are metrics defined for this run
+	if h.metricHandler != nil {
+		for _, item := range history.GetItem() {
+			step := h.imputeStepMetric(item)
+			// TODO: fix this, we update history while we are iterating over it
+			// TODO: handle nested step metrics (e.g. step defined by another step)
+			if step != nil {
+				history.Item = append(history.Item, step)
+			}
+		}
+	}
+
+	h.sampleHistory(history)
+
+	record := &service.Record{
+		RecordType: &service.Record_History{
+			History: history,
+		},
+	}
+	h.fwdRecord(record)
+
+	// TODO unify with handleSummary
+	// TODO add an option to disable summary (this could be quite expensive)
+	if h.summaryHandler == nil {
+		return
+	}
+	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
+	h.summaryHandler.updateSummaryDelta(summary)
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
@@ -1073,24 +1121,24 @@ func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *servic
 // In this mode, the server will assign a step number to the history record.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
-	if h.activeHistory == nil {
-		h.activeHistory = NewActiveHistory(
-			WithFlush(
-				func(_ *service.HistoryStep, items []*service.HistoryItem) {
-					record := &service.HistoryRecord{
-						Item: items,
-					}
-					h.flushHistory(record)
-				},
-			),
-		)
+	if h.runHistory == nil {
+		h.runHistory = runhistory.New(nil /* step */)
 	}
 	// Append the history items from the request to the current history record.
-	h.activeHistory.UpdateValues(request.Item)
+	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
+		h.logger.CaptureError("Error updating run history", err)
+	})
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
-		h.activeHistory.Flush()
+		items, err := h.runHistory.Flatten()
+		if err != nil {
+			h.logger.CaptureError("Error flattening run history", err)
+			// TODO: report error back to the client
+		}
+		h.handleHistory(&service.HistoryRecord{
+			Item: items,
+		})
 	}
 }
 
@@ -1107,23 +1155,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// for this step, so we need to initialize the history record
 	// and step. If the user provided a step in the request,
 	// use that, otherwise use 0.
-	if h.activeHistory == nil {
+	if h.runHistory == nil {
 
-		h.activeHistory = NewActiveHistory(
-			// Although technically the backend allows negative steps,
-			// in practice it is all set up to work with non-negative steps
-			// so if we receive a negative step, it will be discarded
-			WithStep(h.runRecord.GetStartingStep()),
-			WithFlush(
-				func(step *service.HistoryStep, items []*service.HistoryItem) {
-					record := &service.HistoryRecord{
-						Step: step,
-						Item: items,
-					}
-					h.flushHistory(record)
-				},
-			),
-		)
+		step := h.runRecord.GetStartingStep()
+		h.runHistory = runhistory.New(&step)
 	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
@@ -1156,10 +1191,22 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := h.activeHistory.GetStep().Num
+		current := *h.runHistory.Step
 		if step > current {
-			h.activeHistory.Flush()
-			h.activeHistory.UpdateStep(step)
+			items, err := h.runHistory.Flatten()
+			if err != nil {
+				h.logger.CaptureError("Error flattening run history", err)
+				// TODO: what should we do here?
+				return
+			}
+			history := &service.HistoryRecord{
+				Step: &service.HistoryStep{
+					Num: *h.runHistory.Step,
+				},
+				Item: items,
+			}
+			h.handleHistory(history)
+			h.runHistory = runhistory.New(&step)
 		} else if step < current {
 			h.logger.CaptureWarn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
@@ -1171,14 +1218,28 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 
 	// Append the history items from the request to the current history record.
-	h.activeHistory.UpdateValues(request.Item)
+	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
+		h.logger.CaptureError("Error updating run history", err)
+	})
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
-		h.activeHistory.Flush()
-		step := h.activeHistory.GetStep().Num + 1
-		h.activeHistory.UpdateStep(step)
+		items, err := h.runHistory.Flatten()
+		if err != nil {
+			h.logger.CaptureError("Error flattening run history", err)
+			// TODO: what should we do here?
+			return
+		}
+		history := &service.HistoryRecord{
+			Step: &service.HistoryStep{
+				Num: *h.runHistory.Step,
+			},
+			Item: items,
+		}
+		h.handleHistory(history)
+		step := *h.runHistory.Step + 1
+		h.runHistory = runhistory.New(&step)
 	}
 }
 
@@ -1228,7 +1289,9 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 	}
 
 	// check if step metric is already in history
-	if _, ok := h.activeHistory.GetItem(key); ok {
+	// TODO: avoid using the Tree method
+	// TODO: support nested keys?
+	if _, ok := h.runHistory.Tree()[key]; ok {
 		return nil
 	}
 
@@ -1239,7 +1302,9 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 			Key:       key,
 			ValueJson: value,
 		}
-		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
+		h.runHistory.ApplyUpdate([]*service.HistoryItem{hi}, func(err error) {
+			h.logger.CaptureError("Error updating run history", err)
+		})
 		return hi
 	}
 	return nil
@@ -1297,72 +1362,6 @@ func (h *Handler) sampleHistory(history *service.HistoryRecord) {
 		// add the new value to the sampler
 		h.samplers[item.Key].Add(value)
 	}
-}
-
-// flush history record to the writer and update the summary
-//
-// This function flushes the history record to the writer and updates the
-// summary. It is responsible for adding internal history items to the history
-// record, matching current history items with defined metrics, and creating
-// new metrics if needed. It also handles step metric in case it needs to be
-// synced, but not part of the history record. This function is also responsible
-// for sampling history items.
-func (h *Handler) flushHistory(history *service.HistoryRecord) {
-	if history.GetItem() == nil {
-		return
-	}
-
-	// adds internal history items to the history record
-	// these items are used for internal bookkeeping and are not sent by the user
-	// TODO: add a timestamp field to the history record
-	var runTime float64 = 0
-	if item, ok := h.activeHistory.GetItem("_timestamp"); ok {
-		value := item.GetValueJson()
-		val, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			h.logger.CaptureError("error parsing timestamp", err)
-		} else {
-			runTime = val - h.runTimer.GetStartTimeMicro()
-		}
-	}
-	history.Item = append(history.Item,
-		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-	)
-	if !h.settings.GetXShared().GetValue() {
-		history.Item = append(history.Item,
-			&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
-		)
-	}
-
-	// handles all history items. It is responsible for matching current history
-	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-	// it needs to be synced, but not part of the history record.
-	// This means that there are metrics defined for this run
-	if h.metricHandler != nil {
-		for _, item := range history.GetItem() {
-			step := h.imputeStepMetric(item)
-			// TODO: fix this, we update history while we are iterating over it
-			// TODO: handle nested step metrics (e.g. step defined by another step)
-			if step != nil {
-				history.Item = append(history.Item, step)
-			}
-		}
-	}
-
-	h.sampleHistory(history)
-
-	record := &service.Record{
-		RecordType: &service.Record_History{History: history},
-	}
-	h.fwdRecord(record)
-
-	// TODO unify with handleSummary
-	// TODO add an option to disable summary (this could be quite expensive)
-	if h.summaryHandler == nil {
-		return
-	}
-	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
-	h.summaryHandler.updateSummaryDelta(summary)
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
