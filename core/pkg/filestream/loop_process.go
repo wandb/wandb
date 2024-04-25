@@ -8,6 +8,7 @@ import (
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -88,8 +89,8 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 	}
 
 	history := runhistory.New()
-	history.ApplyUpdate(
-		msg.Item,
+	history.ApplyChangeRecord(
+		msg,
 		func(err error) {
 			fs.logger.CaptureError("filestream: failed to apply history update", err)
 		},
@@ -107,7 +108,17 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 }
 
 func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
-	line, err := corelib.JsonifyItems(msg.Update)
+	summary := runsummary.New()
+
+	summary.ApplyChangeRecord(
+		msg,
+		func(err error) {
+			fs.logger.CaptureError("filestream: failed to apply summary update", err)
+		},
+	)
+	bytes, err := summary.Serialize(pathtree.FormatJson)
+	line := string(bytes)
+
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}

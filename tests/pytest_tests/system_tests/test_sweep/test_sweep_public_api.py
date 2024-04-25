@@ -49,3 +49,32 @@ def test_sweep_api(user, relay_server, sweep_config):
     assert f"{user}/{_project}/sweeps/{sweep_id}" in sweep.url
     assert sweep.state == "PENDING"
     assert str(sweep) == f"<Sweep {user}/test/{sweep_id} (PENDING)>"
+
+
+def test_from_path(user):
+    api = Api()
+    sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    sweep = api.from_path(f"{user}/test/sweeps/{sweep_id}")
+    assert isinstance(sweep, wandb.apis.public.Sweep)
+
+
+def test_project_sweeps(user, wandb_init):
+    run = wandb_init(entity=user, project="testnosweeps")
+    run.finish()
+    sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    api = Api()
+    project = api.from_path(f"{user}/test")
+    psweeps = project.sweeps()
+    assert len(psweeps) == 1
+    assert psweeps[0].id == sweep_id
+
+    no_sweeps_project = api.from_path("testnosweeps")
+    nspsweeps = no_sweeps_project.sweeps()
+    assert len(nspsweeps) == 0
+
+
+def test_to_html(user):
+    api = Api()
+    sweep_id = wandb.sweep(SWEEP_CONFIG_BAYES, entity=user, project="test")
+    sweep = api.from_path(f"{user}/test/sweeps/{sweep_id}")
+    assert f"{user}/test/sweeps/{sweep_id}?jupyter=true" in sweep.to_html()
