@@ -111,6 +111,12 @@ def test_artifact_download(user, api, sample_data):
     assert path == os.path.abspath(os.path.join(".", "artifacts", part))
     assert os.listdir(path) == ["digits.h5"]
 
+def test_artifact_exists(user, api, sample_data):
+    assert api.exists("mnist:v0") == True
+    assert api.exists("mnist:v2") == False
+    assert api.exists("mnist-fake:v0") == False
+    assert api.exists("mnist", type="dataset") == True
+    assert api.exists("mnist-fake", type="dataset") == False
 
 def test_artifact_delete(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")

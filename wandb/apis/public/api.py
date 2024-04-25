@@ -1048,3 +1048,23 @@ class Api:
             return [x["node"]["artifacts"] for x in artifacts]
         except requests.exceptions.HTTPError:
             return False
+
+    @normalize_exceptions
+    def exists(self, name, type=None):
+        _, _, artifact_name = self._parse_artifact_path(name)
+        if ":" in artifact_name:
+            try:
+                self.artifact(name, type)
+                return True
+            except: 
+                return False
+        else:
+            if type is None:
+                raise ValueError('You must specify type= to check if there are any artifacts in this collection')
+            try:
+                artifacts = self.artifacts(type, name, 1)
+                len(artifacts)
+                return True
+            except:
+                return False
+
