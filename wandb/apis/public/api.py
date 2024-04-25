@@ -1056,7 +1056,7 @@ class Api:
             try:
                 self.artifact(name, type)
                 return True
-            except wandb.errors.CommError: 
+            except wandb.errors.CommError:
                 return False
         else:
             if type is None:
@@ -1069,4 +1069,3 @@ class Api:
                 return True
             except wandb.errors.CommError:
                 return False
-
