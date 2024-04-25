@@ -235,9 +235,9 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 
 ### Auto-Generating Code
 
-For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
+For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv). You could just run:
 ```shell
-pip install nox
+pip install -U nox uv
 ```
 
 #### Building protocol buffers
