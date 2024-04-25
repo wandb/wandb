@@ -42,7 +42,7 @@ class BaseManager(ABC):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        scheduler_queue: asyncio.Queue[Tuple[JobWithQueue, asyncio.Future]],
+        scheduler_queue: asyncio.Queue[JobWithQueue],
         max_concurrency: int,
     ):
         self.config = config
@@ -147,11 +147,15 @@ class BaseManager(ABC):
                 _is_scheduler_job(job.run_spec)
                 and job.run_spec.get("resource") == "local-process"
             ):
-                future = asyncio.futures.Future()
-                await self._scheduler_queue.put((job, future))
-                res = await future.result()
-                if res == False:
-                    return None
+                self.logger.info(
+                    f"Received scheduler job sending to sweep scheduler manager: {job.id}"
+                )
+                job_with_queue = JobWithQueue(
+                    job, project.queue_name, project.queue_entity
+                )
+                await self._scheduler_queue.put(job_with_queue)
+                # no need to handle anymore, sent to another controller
+                return None
 
             ack_result = await self.jobset.ack_job(job.id, run_id)
             self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")

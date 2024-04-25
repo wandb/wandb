@@ -18,7 +18,7 @@ from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.utils import PROJECT_SYNCHRONOUS, event_loop_thread_exec
 
 from .controller import LaunchController, LegacyResources
-from .jobset import JobSet, JobSetSpec, create_jobset
+from .jobset import JobSet, JobSetSpec, JobWithQueue, create_jobset
 
 
 class AgentConfig(TypedDict):
@@ -71,7 +71,7 @@ class LaunchAgent2:
         self._last_state = None
         self._wandb_version: str = "wandb@" + wandb.__version__
         self._task: Optional[asyncio.Task[Any]] = None
-        self._receive_scheduler_job_queue = asyncio.Queue()
+        self._sweep_scheduler_job_queue: asyncio.Queue[JobWithQueue] = asyncio.Queue()
 
         self._logger = logging.getLogger("wandb.launch.agent2")
         handler = logging.StreamHandler(sys.stdout)
@@ -203,7 +203,7 @@ class LaunchAgent2:
                         controller_logger,
                         self._shutdown_controllers_event,
                         legacy_resources,
-                        self._receive_scheduler_job_queue,
+                        self._sweep_scheduler_job_queue,
                     )
                 )
                 self._launch_controller_tasks.add(controller_task)
@@ -290,7 +290,7 @@ class LaunchAgent2:
 
     def _register_sweep_manager(
         self,
-        job_tracker_factory: Callable[[str, asyncio.Queue], JobAndRunStatusTracker],
+        job_tracker_factory: Callable[[str, str], JobAndRunStatusTracker],
     ):
         # create sweep scheduler local process controller
         local_controller_impl = self.get_controller_for_jobset("local-process")
@@ -329,7 +329,7 @@ class LaunchAgent2:
             controller_logger,
             self._shutdown_controllers_event,
             legacy_resources,
-            self._receive_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
+            self._sweep_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
         )
         manager_logger = self._logger.getChild("scheduler-manager")
         scheduler_impl = self.get_controller_for_jobset("scheduler-manager")
@@ -337,7 +337,7 @@ class LaunchAgent2:
             scheduler_impl(
                 sweep_local_process_manager,
                 self._config["max_schedulers"],
-                self._receive_scheduler_job_queue,
+                self._sweep_scheduler_job_queue,
                 manager_logger,
                 self._shutdown_controllers_event,
             )

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
@@ -16,7 +16,7 @@ async def local_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-    agent_queue: asyncio.Queue,
+    agent_queue: asyncio.Queue[JobWithQueue],
 ) -> Any:
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
@@ -165,7 +165,7 @@ class LocalProcessManager(BaseManager):
 async def scheduler_process_controller(
     manager: LocalProcessManager,
     max_schedulers: int,
-    scheduler_jobs_queue: asyncio.Queue[Tuple[JobWithQueue, asyncio.Future]],
+    scheduler_jobs_queue: asyncio.Queue[JobWithQueue],
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
 ) -> Any:
@@ -190,7 +190,7 @@ class SchedulerManager:
         self,
         controller: LocalProcessManager,
         max_jobs: int,
-        scheduler_jobs_queue: asyncio.Queue[Tuple[JobWithQueue, asyncio.Future]],
+        scheduler_jobs_queue: asyncio.Queue[JobWithQueue],
         logger: logging.Logger,
     ):
         self._controller = controller
@@ -199,15 +199,12 @@ class SchedulerManager:
         self._max_jobs = max_jobs
 
     async def poll(self):
-        res = await self._scheduler_jobs_queue.get()
-        if res is None:
+        job = await self._scheduler_jobs_queue.get()
+        if job is None:
             return
-        job, future = res
         if len(self._controller.active_runs) >= self._max_jobs:
             self._logger.info(f"Scheduler job queue is full, skipping job: {job}")
-            future.set_result(False)
             return
-        future.set_result(True)
         asyncio.create_task(self.controller.launch_scheduler_item(job))
         self._scheduler_jobs_queue.task_done()
         self._logger.info(f"Launched scheduler job: {job}")

@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 from ..._project_spec import LaunchProject
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import JobSet
+from ..jobset import JobSet, JobWithQueue
 from .base import BaseManager
 from .util import parse_max_concurrency
 
@@ -16,7 +16,7 @@ async def k8s_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-    scheduler_queue: asyncio.Queue,
+    scheduler_queue: asyncio.Queue[JobWithQueue],
 ) -> None:
     iter = 0
     max_concurrency = parse_max_concurrency(config, 1000)
@@ -50,7 +50,7 @@ class KubernetesManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        scheduler_queue: asyncio.Queue,
+        scheduler_queue: asyncio.Queue[JobWithQueue],
         max_concurrency: int,
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)

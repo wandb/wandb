@@ -6,7 +6,7 @@ from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import JobSet
+from ..jobset import JobSet, JobWithQueue
 from .base import WANDB_JOBSET_DISCOVERABILITY_LABEL, BaseManager
 
 
@@ -15,7 +15,7 @@ async def local_container_controller(
     jobset: JobSet,
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
-    scheduler_queue: asyncio.Queue,
+    scheduler_queue: asyncio.Queue[JobWithQueue],
     legacy: LegacyResources,
 ):
     # disable job set loop because we are going to use the passthrough queue driver
@@ -59,7 +59,7 @@ class LocalContainerManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        scheduler_queue: asyncio.Queue,
+        scheduler_queue: asyncio.Queue[JobWithQueue],
         max_concurrency: int,
     ):
         self.queue_driver = passthrough.PassthroughQueueDriver(
